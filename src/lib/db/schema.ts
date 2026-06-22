@@ -54,6 +54,29 @@ export const routers = pgTable("routers", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const captiveTemplates = pgTable("captive_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  isDefault: boolean("is_default").notNull().default(false),
+  logoUrl: text("logo_url"),
+  backgroundUrl: text("background_url"),
+  primaryColor: text("primary_color").notNull().default("#0f172a"),
+  backgroundColor: text("background_color").notNull().default("#f8fafc"),
+  title: text("title").notNull().default("Bienvenue sur le réseau Wi-Fi"),
+  subtitle: text("subtitle")
+    .notNull()
+    .default("Entrez votre code d'accès pour vous connecter."),
+  buttonLabel: text("button_label").notNull().default("Se connecter"),
+  voucherFieldLabel: text("voucher_field_label").notNull().default("Code d'accès"),
+  termsText: text("terms_text"),
+  footerText: text("footer_text"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const bridges = pgTable("bridges", {
   id: uuid("id").primaryKey().defaultRandom(),
   routerId: uuid("router_id")
@@ -69,6 +92,9 @@ export const bridges = pgTable("bridges", {
   bootstrapStatus: text("bootstrap_status").notNull().default("none"),
   bootstrapTokenHash: text("bootstrap_token_hash"),
   bootstrapTokenExpiresAt: timestamp("bootstrap_token_expires_at"),
+  captiveTemplateId: uuid("captive_template_id").references(() => captiveTemplates.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
