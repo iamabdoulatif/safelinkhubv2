@@ -5,6 +5,7 @@ import { routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import RemoteAccessTabs from "./RemoteAccessTabs";
 import PersonalAccessSection from "./PersonalAccessSection";
+import BackToHomeSection from "./BackToHomeSection";
 import { listPersonalVpnAccess } from "@/lib/mikrotik/personal-access";
 
 function methodLabel(method: string) {
@@ -94,6 +95,9 @@ export default async function RemoteAccessPage() {
             method: r.connectionMethod,
             status: r.status,
           }))}
+      />
+      <BackToHomeSection
+        routers={allRouters.map((r) => ({ id: r.id, name: r.name, status: r.status }))}
       />
     </div>
   );
