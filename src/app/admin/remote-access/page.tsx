@@ -84,7 +84,17 @@ export default async function RemoteAccessPage() {
       )}
 
       <RemoteAccessTabs />
-      <PersonalAccessSection rows={personalAccessRows} />
+      <PersonalAccessSection
+        rows={personalAccessRows}
+        reachableRouters={allRouters
+          .filter((r) => r.tunnelIp)
+          .map((r) => ({
+            name: r.name,
+            tunnelIp: r.tunnelIp!,
+            method: r.connectionMethod,
+            status: r.status,
+          }))}
+      />
     </div>
   );
 }
