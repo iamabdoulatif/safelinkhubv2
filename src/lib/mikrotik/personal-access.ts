@@ -259,3 +259,79 @@ export async function revokePersonalVpnAccess(accessId: string) {
   revalidatePath("/admin/remote-access");
   return { success: true };
 }
+
+export async function updatePersonalVpnAccess(
+  accessId: string,
+  updates: { label?: string; autoRenew?: boolean; expiresAt?: string | null },
+) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(personalVpnAccess)
+    .where(eq(personalVpnAccess.id, accessId))
+    .limit(1);
+
+  if (!row || row.orgId !== session.orgId) {
+    return { error: "Access not found." };
+  }
+
+  const label = updates.label?.trim();
+  if (label !== undefined && !label) {
+    return { error: "Label cannot be empty." };
+  }
+
+  await db
+    .update(personalVpnAccess)
+    .set({
+      ...(label ? { label } : {}),
+      ...(updates.autoRenew !== undefined ? { autoRenew: updates.autoRenew } : {}),
+      ...(updates.expiresAt !== undefined
+        ? { expiresAt: updates.expiresAt ? new Date(updates.expiresAt) : null }
+        : {}),
+    })
+    .where(eq(personalVpnAccess.id, accessId));
+
+  revalidatePath("/admin/remote-access");
+  return { success: true };
+}
+
+export async function deletePersonalVpnAccess(accessId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(personalVpnAccess)
+    .where(eq(personalVpnAccess.id, accessId))
+    .limit(1);
+
+  if (!row || row.orgId !== session.orgId) {
+    return { error: "Access not found." };
+  }
+
+  if (row.status !== "revoked") {
+    try {
+      if (row.method === "wireguard" && row.peerPublicKey) {
+        await revokeVpnPeer(row.peerPublicKey);
+      } else if (row.method === "openvpn" && row.username) {
+        await revokeOpenvpnPeer(row.username);
+      }
+    } catch (err) {
+      return {
+        error:
+          err instanceof Error
+            ? `Could not revoke on the relay: ${err.message}`
+            : "Could not revoke on the relay.",
+      };
+    }
+  }
+
+  await db.delete(personalVpnAccess).where(eq(personalVpnAccess.id, accessId));
+
+  revalidatePath("/admin/remote-access");
+  return { success: true };
+}

@@ -1,8 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Copy, Laptop2, ShieldOff } from "lucide-react";
-import { revokePersonalVpnAccess } from "@/lib/mikrotik/personal-access";
+import { useRouter } from "next/navigation";
+import { Copy, Laptop2, Pencil, ShieldOff, Trash2 } from "lucide-react";
+import {
+  deletePersonalVpnAccess,
+  revokePersonalVpnAccess,
+  updatePersonalVpnAccess,
+} from "@/lib/mikrotik/personal-access";
 
 export type PersonalAccessRow = {
   id: string;
@@ -29,7 +34,13 @@ function formatDate(date: Date | null) {
   }).format(date);
 }
 
+function toDateInputValue(date: Date | null) {
+  if (!date) return "";
+  return date.toISOString().slice(0, 10);
+}
+
 function RevokeButton({ id }: { id: string }) {
+  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +56,61 @@ function RevokeButton({ id }: { id: string }) {
             startTransition(async () => {
               const result = await revokePersonalVpnAccess(id);
               if (result?.error) setError(result.error);
-              else setConfirming(false);
+              else {
+                setConfirming(false);
+                router.refresh();
+              }
+            })
+          }
+          className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
+        >
+          Confirmer
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => setConfirming(false)}
+          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Annuler
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {error && <span className="text-xs text-red-600">{error}</span>}
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="flex items-center gap-1.5 rounded-md border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+      >
+        <ShieldOff className="h-3.5 w-3.5" />
+        Révoquer
+      </button>
+    </div>
+  );
+}
+
+function DeleteButton({ id }: { id: string }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-500">Supprimer définitivement ?</span>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const result = await deletePersonalVpnAccess(id);
+              if (result?.error) setError(result.error);
+              else router.refresh();
             })
           }
           className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
@@ -72,9 +137,88 @@ function RevokeButton({ id }: { id: string }) {
         onClick={() => setConfirming(true)}
         className="flex items-center gap-1.5 rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
       >
-        <ShieldOff className="h-3.5 w-3.5" />
-        Révoquer
+        <Trash2 className="h-3.5 w-3.5" />
+        Supprimer
       </button>
+    </div>
+  );
+}
+
+function EditForm({ row, onClose }: { row: PersonalAccessRow; onClose: () => void }) {
+  const router = useRouter();
+  const [label, setLabel] = useState(row.label);
+  const [autoRenew, setAutoRenew] = useState(row.autoRenew);
+  const [expiresAt, setExpiresAt] = useState(toDateInputValue(row.expiresAt));
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="mt-3 space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">Nom</label>
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">
+            Date d&apos;expiration
+          </label>
+          <input
+            type="date"
+            value={expiresAt}
+            onChange={(e) => setExpiresAt(e.target.value)}
+            className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+          />
+        </div>
+        <div className="flex items-center gap-2 pt-5">
+          <input
+            type="checkbox"
+            id={`auto-renew-${row.id}`}
+            checked={autoRenew}
+            onChange={(e) => setAutoRenew(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          <label htmlFor={`auto-renew-${row.id}`} className="text-sm text-slate-600">
+            Renouvellement automatique
+          </label>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const result = await updatePersonalVpnAccess(row.id, {
+                label,
+                autoRenew,
+                expiresAt: expiresAt || null,
+              });
+              if (result?.error) setError(result.error);
+              else {
+                onClose();
+                router.refresh();
+              }
+            })
+          }
+          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+        >
+          {pending ? "Enregistrement..." : "Enregistrer"}
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onClose}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Annuler
+        </button>
+      </div>
     </div>
   );
 }
@@ -103,6 +247,8 @@ function CopyableField({ label, value }: { label: string; value: string }) {
 }
 
 export default function PersonalAccessList({ rows }: { rows: PersonalAccessRow[] }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   if (rows.length === 0) {
     return (
       <p className="mt-4 rounded-md border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
@@ -115,6 +261,7 @@ export default function PersonalAccessList({ rows }: { rows: PersonalAccessRow[]
     <div className="mt-4 space-y-3">
       {rows.map((r) => {
         const active = r.status === "active";
+        const editing = editingId === r.id;
         return (
           <div
             key={r.id}
@@ -137,8 +284,23 @@ export default function PersonalAccessList({ rows }: { rows: PersonalAccessRow[]
                   {active ? "Active" : "Révoqué"}
                 </span>
               </div>
-              {active && <RevokeButton id={r.id} />}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingId(editing ? null : r.id)}
+                  className="flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Modifier
+                </button>
+                {active && <RevokeButton id={r.id} />}
+                <DeleteButton id={r.id} />
+              </div>
             </div>
+
+            {editing && (
+              <EditForm row={r} onClose={() => setEditingId(null)} />
+            )}
 
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {r.username && <CopyableField label="Identifiant VPN" value={r.username} />}
