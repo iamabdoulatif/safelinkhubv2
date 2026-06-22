@@ -10,6 +10,7 @@ import { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
 import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
 import { syncRouterStats } from "./router-sync";
+import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 
 export async function connectRouter(_prevState: unknown, formData: FormData) {
   const session = await getSession();
@@ -156,10 +157,30 @@ export async function deleteRouter(routerId: string) {
     return { error: "Router not found." };
   }
 
+  // Free up the peer slot on the relay so it doesn't linger forever.
+  try {
+    if (router.connectionMethod === "vpn" && router.wgPeerPublicKey) {
+      await revokeVpnPeer(router.wgPeerPublicKey);
+    } else if (router.connectionMethod === "openvpn" && router.tunnelIp) {
+      const [org] = await db
+        .select({ slug: organizations.slug })
+        .from(organizations)
+        .where(eq(organizations.id, router.orgId))
+        .limit(1);
+      if (org) {
+        await revokeOpenvpnPeer(`${org.slug}-${router.name}`);
+      }
+    }
+  } catch {
+    // Best-effort: the relay might be unreachable, but we still want the
+    // router record itself removed from SafeLinkHub.
+  }
+
   await db.delete(routers).where(eq(routers.id, routerId));
 
   revalidatePath("/admin/router");
   revalidatePath("/admin/settings/router-setup");
+  revalidatePath("/admin/remote-access");
   return { success: true };
 }
 

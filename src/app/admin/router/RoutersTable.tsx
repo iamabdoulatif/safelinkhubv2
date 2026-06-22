@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Link2, Search } from "lucide-react";
+import RouterRowActions from "./RouterRowActions";
 
 export type RouterRow = {
   id: string;
@@ -170,12 +171,13 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
               <th className="px-4 py-3">Statut</th>
               <th className="px-4 py-3">Connexion</th>
               <th className="px-4 py-3">Accès distant</th>
+              <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">
                   Aucun routeur à afficher.
                 </td>
               </tr>
@@ -196,6 +198,9 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                   </td>
                   <td className="px-4 py-3">
                     <RemoteAccessToggle enabled={r.connectionMethod === "vpn"} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <RouterRowActions routerId={r.id} />
                   </td>
                 </tr>
               ))
