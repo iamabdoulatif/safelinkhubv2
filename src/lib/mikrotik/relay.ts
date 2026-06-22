@@ -220,6 +220,11 @@ export async function revokeOpenvpnPeer(username: string): Promise<void> {
   );
 }
 
+/** Reads the relay's OpenVPN CA certificate, needed to build a full .ovpn client file. */
+export async function getOpenvpnCaCertificate(): Promise<string> {
+  return runOnRelay("sudo cat /etc/openvpn/server/ca.crt");
+}
+
 export type RelayTunnel = {
   stream: import("stream").Duplex;
   close: () => void;

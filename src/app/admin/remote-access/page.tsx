@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import RemoteAccessTabs from "./RemoteAccessTabs";
+import PersonalAccessSection from "./PersonalAccessSection";
 
 function methodLabel(method: string) {
   if (method === "vpn") return "WireGuard";
@@ -80,6 +81,7 @@ export default async function RemoteAccessPage() {
       )}
 
       <RemoteAccessTabs />
+      <PersonalAccessSection />
     </div>
   );
 }
