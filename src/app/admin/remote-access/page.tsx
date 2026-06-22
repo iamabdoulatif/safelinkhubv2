@@ -1,4 +1,5 @@
 import { eq, desc } from "drizzle-orm";
+import { after } from "next/server";
 import { Wifi } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
@@ -7,6 +8,7 @@ import RemoteAccessTabs from "./RemoteAccessTabs";
 import PersonalAccessSection from "./PersonalAccessSection";
 import BackToHomeSection from "./BackToHomeSection";
 import { listPersonalVpnAccess } from "@/lib/mikrotik/personal-access";
+import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 
 function methodLabel(method: string) {
   if (method === "vpn") return "WireGuard";
@@ -17,6 +19,10 @@ function methodLabel(method: string) {
 export default async function RemoteAccessPage() {
   const session = await getSession();
   const db = getDb();
+
+  if (session) {
+    after(() => refreshStaleRouters(session.orgId));
+  }
 
   const allRouters = session
     ? await db

@@ -1,10 +1,12 @@
 import { eq, desc } from "drizzle-orm";
+import { after } from "next/server";
 import { Router } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import RefreshButton from "./RefreshButton";
 import RoutersTable from "./RoutersTable";
+import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 
 function formatUptime(seconds: number) {
   if (seconds <= 0) return "0m";
@@ -29,6 +31,10 @@ function timeAgo(date: Date | null) {
 export default async function RouterDashboardPage() {
   const session = await getSession();
   const db = getDb();
+
+  if (session) {
+    after(() => refreshStaleRouters(session.orgId));
+  }
 
   const allRouters = session
     ? await db

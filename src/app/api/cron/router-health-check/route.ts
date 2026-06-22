@@ -1,0 +1,44 @@
+import { NextRequest } from "next/server";
+import { eq, inArray } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { routers } from "@/lib/db/schema";
+import { syncRouterStats } from "@/lib/mikrotik/router-sync";
+
+export const maxDuration = 60;
+
+/**
+ * Runs on a Vercel Cron schedule (see vercel.json) to catch routers whose
+ * WireGuard/OpenVPN tunnel has silently dropped — e.g. a stale WireGuard
+ * handshake — without anyone visiting a page that would trigger a sync.
+ * syncRouterStats already flips status to "offline" on failure; this just
+ * makes sure that check actually runs periodically instead of only when an
+ * admin happens to load /admin/router.
+ */
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const db = getDb();
+  const candidates = await db
+    .select({ id: routers.id, name: routers.name })
+    .from(routers)
+    .where(inArray(routers.status, ["online", "installing"]));
+
+  const results = await Promise.all(
+    candidates.map(async (r) => {
+      const result = await syncRouterStats(r.id, {
+        timeoutMs: 10000,
+        markOfflineOnFailure: true,
+      });
+      return { id: r.id, name: r.name, success: result.success, error: result.error };
+    }),
+  );
+
+  return Response.json({
+    checked: results.length,
+    offline: results.filter((r) => !r.success).length,
+    results,
+  });
+}
