@@ -5,6 +5,7 @@ import { routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import RemoteAccessTabs from "./RemoteAccessTabs";
 import PersonalAccessSection from "./PersonalAccessSection";
+import { listPersonalVpnAccess } from "@/lib/mikrotik/personal-access";
 
 function methodLabel(method: string) {
   if (method === "vpn") return "WireGuard";
@@ -23,6 +24,8 @@ export default async function RemoteAccessPage() {
         .where(eq(routers.orgId, session.orgId))
         .orderBy(desc(routers.createdAt))
     : [];
+
+  const personalAccessRows = await listPersonalVpnAccess();
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -81,7 +84,7 @@ export default async function RemoteAccessPage() {
       )}
 
       <RemoteAccessTabs />
-      <PersonalAccessSection />
+      <PersonalAccessSection rows={personalAccessRows} />
     </div>
   );
 }

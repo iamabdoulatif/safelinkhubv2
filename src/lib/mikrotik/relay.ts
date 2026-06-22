@@ -156,7 +156,11 @@ export type OpenvpnPeer = {
  * ovpn-client only needs connect-to/user/password, no certificate import).
  */
 export async function allocateOpenvpnPeer(name: string): Promise<OpenvpnPeer> {
-  const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 40) || "router";
+  // Allows '@' and '.' (in addition to the usual safe charset) so a peer can
+  // use a cosmetic, email-style identifier (e.g. "korhogo42@safelinkhub.id")
+  // as its real OpenVPN username — it's just a string both RouterOS and the
+  // relay's checkpsw.sh treat as an opaque login, not an actual DNS lookup.
+  const safeName = name.replace(/[^a-zA-Z0-9@._-]/g, "-").slice(0, 64) || "router";
   const output = await runOnRelay(`sudo bash -s -- ${safeName} <<'SCRIPT'
 set -euo pipefail
 NAME="$1"
@@ -213,7 +217,7 @@ SCRIPT`);
 }
 
 export async function revokeOpenvpnPeer(username: string): Promise<void> {
-  const safeName = username.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 40);
+  const safeName = username.replace(/[^a-zA-Z0-9@._-]/g, "-").slice(0, 64);
   if (!safeName) return;
   await runOnRelay(
     `sudo rm -f /etc/openvpn/ccd/${safeName} /etc/openvpn/users/${safeName}.pass`,

@@ -1,14 +1,22 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Download, Laptop } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Copy, Download, Laptop } from "lucide-react";
 import {
   generatePersonalOpenvpnAccess,
   generatePersonalWireguardAccess,
 } from "@/lib/mikrotik/personal-access";
+import PersonalAccessList, { type PersonalAccessRow } from "./PersonalAccessList";
 
 type AccessState =
-  | { success: boolean; fileName: string; content: string; error?: undefined }
+  | {
+      success: boolean;
+      fileName: string;
+      content: string;
+      command?: string;
+      error?: undefined;
+    }
   | { error: string; success?: undefined; fileName?: undefined; content?: undefined }
   | undefined;
 
@@ -25,18 +33,21 @@ function downloadFile(fileName: string, content: string) {
 }
 
 function PersonalAccessForm({ method }: { method: "wireguard" | "openvpn" }) {
+  const router = useRouter();
   const action =
     method === "wireguard" ? generatePersonalWireguardAccess : generatePersonalOpenvpnAccess;
   const [state, formAction, pending] = useActionState<AccessState, FormData>(
     action,
     undefined,
   );
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (state && "success" in state && state.success) {
       downloadFile(state.fileName, state.content);
+      router.refresh();
     }
-  }, [state]);
+  }, [state, router]);
 
   return (
     <form action={formAction} className="space-y-3">
@@ -44,11 +55,38 @@ function PersonalAccessForm({ method }: { method: "wireguard" | "openvpn" }) {
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{state.error}</p>
       )}
       {state && "success" in state && state.success && (
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          Fichier {state.fileName} téléchargé. Importez-le dans votre client{" "}
-          {method === "wireguard" ? "WireGuard" : "OpenVPN"} pour vous connecter
-          depuis cet ordinateur, où que vous soyez.
-        </p>
+        <div className="space-y-3">
+          <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            Fichier {state.fileName} téléchargé. Importez-le dans votre client{" "}
+            {method === "wireguard" ? "WireGuard" : "OpenVPN"} pour vous connecter
+            depuis cet ordinateur, où que vous soyez.
+          </p>
+          {state.command && (
+            <div>
+              <p className="text-sm font-medium text-slate-700">
+                MikroTik — script équivalent (au cas où vous préférez connecter le
+                routeur lui-même à ce même accès) :
+              </p>
+              <div className="relative mt-2">
+                <pre className="overflow-x-auto rounded-md bg-slate-900 p-3 pr-10 text-[11px] text-emerald-300">
+                  {state.command}
+                </pre>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(state.command!);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  }}
+                  className="absolute right-2 top-2 rounded-md bg-slate-800 p-1.5 text-slate-300 hover:bg-slate-700"
+                  title="Copier la commande"
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <div>
@@ -75,7 +113,11 @@ function PersonalAccessForm({ method }: { method: "wireguard" | "openvpn" }) {
   );
 }
 
-export default function PersonalAccessSection() {
+export default function PersonalAccessSection({
+  rows,
+}: {
+  rows: PersonalAccessRow[];
+}) {
   const [method, setMethod] = useState<"wireguard" | "openvpn">("wireguard");
 
   return (
@@ -126,6 +168,11 @@ export default function PersonalAccessSection() {
         VPN actif sur votre machine. Conservez ces fichiers en lieu sûr : ils
         donnent un accès réseau direct à vos routeurs.
       </p>
+
+      <h3 className="mt-6 text-sm font-semibold text-slate-700">
+        Accès existants
+      </h3>
+      <PersonalAccessList rows={rows} />
     </div>
   );
 }

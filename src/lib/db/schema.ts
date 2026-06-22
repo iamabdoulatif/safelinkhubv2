@@ -105,3 +105,24 @@ export const vouchers = pgTable("vouchers", {
   note: text("note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const personalVpnAccess = pgTable("personal_vpn_access", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  method: text("method").notNull(), // "wireguard" | "openvpn"
+  username: text("username"), // openvpn only; also doubles as the relay peer name
+  passwordEncrypted: text("password_encrypted"), // openvpn only
+  peerPublicKey: text("peer_public_key"), // wireguard only, needed to revoke
+  vpnIp: text("vpn_ip"),
+  remoteHost: text("remote_host").notNull(),
+  remotePort: integer("remote_port").notNull(),
+  displayPort: integer("display_port"), // cosmetic port shown in the UI/comment, e.g. mimicking a per-peer reverse-proxy port
+  status: text("status").notNull().default("active"), // active | revoked
+  autoRenew: boolean("auto_renew").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  revokedAt: timestamp("revoked_at"),
+});

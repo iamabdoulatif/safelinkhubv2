@@ -37,7 +37,7 @@ CLIENTFILE="$1"
 USERNAME=$(sed -n '1p' "$CLIENTFILE")
 PASSWORD=$(sed -n '2p' "$CLIENTFILE")
 
-if [[ ! "$USERNAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+if [[ ! "$USERNAME" =~ ^[a-zA-Z0-9@._-]+$ ]]; then
   exit 1
 fi
 
