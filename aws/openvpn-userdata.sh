@@ -13,9 +13,9 @@ apt-get update -y
 apt-get install -y openvpn easy-rsa
 
 EASYRSA_DIR=/etc/openvpn/easy-rsa
+rm -rf "$EASYRSA_DIR"
 mkdir -p "$EASYRSA_DIR"
-ln -sf /usr/share/easy-rsa/* "$EASYRSA_DIR/" 2>/dev/null || true
-cp -r /usr/share/easy-rsa/* "$EASYRSA_DIR/"
+cp -r /usr/share/easy-rsa/. "$EASYRSA_DIR/"
 cd "$EASYRSA_DIR"
 
 ./easyrsa init-pki
@@ -60,7 +60,6 @@ dh /etc/openvpn/server/dh.pem
 topology subnet
 server 10.67.0.0 255.255.255.0
 client-config-dir /etc/openvpn/ccd
-client-cert-not-required
 username-as-common-name
 script-security 3
 auth-user-pass-verify /etc/openvpn/checkpsw.sh via-file
