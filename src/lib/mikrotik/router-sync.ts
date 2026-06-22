@@ -1,0 +1,121 @@
+import { eq } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { routers } from "@/lib/db/schema";
+import { decryptSecret } from "./crypto";
+import { openRouterTunnelWithRetry } from "./relay";
+import { RouterOSClient } from "./client";
+
+type RouterRow = typeof routers.$inferSelect;
+
+export async function connectToRouter(
+  router: RouterRow,
+  timeoutMs = 20000,
+): Promise<RouterOSClient> {
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    throw new Error("Router is missing connection details.");
+  }
+  const password = decryptSecret(router.passwordEncrypted);
+  const client = new RouterOSClient();
+
+  if (router.connectionMethod === "vpn" || router.connectionMethod === "openvpn") {
+    const tunnel = await openRouterTunnelWithRetry(router.host, router.apiPort ?? 8728, timeoutMs);
+    await client.connectViaStream(tunnel.stream, router.username, password, timeoutMs);
+  } else {
+    await client.connect(router.host, router.apiPort ?? 8728, router.username, password, timeoutMs);
+  }
+  return client;
+}
+
+function parseUptimeToSeconds(uptime: string): number {
+  const regex = /(\d+)(w|d|h|m|s)/g;
+  const unitSeconds: Record<string, number> = {
+    w: 7 * 24 * 3600,
+    d: 24 * 3600,
+    h: 3600,
+    m: 60,
+    s: 1,
+  };
+  let total = 0;
+  let match;
+  while ((match = regex.exec(uptime)) !== null) {
+    total += Number(match[1]) * unitSeconds[match[2]];
+  }
+  return total;
+}
+
+export async function syncRouterStats(
+  routerId: string,
+  opts: { timeoutMs?: number; markOfflineOnFailure?: boolean } = {},
+) {
+  const timeoutMs = opts.timeoutMs ?? 20000;
+  const markOfflineOnFailure = opts.markOfflineOnFailure ?? true;
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+
+  if (!router) return { success: false, error: "Router not found." };
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { success: false, error: "Router is missing connection details." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, timeoutMs);
+  } catch (err) {
+    if (markOfflineOnFailure) {
+      await db
+        .update(routers)
+        .set({ status: "offline", lastSyncAt: new Date() })
+        .where(eq(routers.id, routerId));
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? `Sync failed: ${err.message}` : "Sync failed.",
+    };
+  }
+
+  try {
+    const [resource] = await client.talk(["/system/resource/print"], timeoutMs);
+    const [identityRow] = await client.talk(["/system/identity/print"], timeoutMs);
+    const activeUsers = await client.talk(["/ip/hotspot/active/print"], timeoutMs);
+
+    const uptimeSeconds = parseUptimeToSeconds(resource?.uptime ?? "0s");
+    const cpuLoad = Number(resource?.["cpu-load"] ?? 0);
+    const totalMem = Number(resource?.["total-memory"] ?? 0);
+    const freeMem = Number(resource?.["free-memory"] ?? 0);
+    const memoryUsage =
+      totalMem > 0 ? (((totalMem - freeMem) / totalMem) * 100).toFixed(2) : "0";
+
+    await db
+      .update(routers)
+      .set({
+        status: "online",
+        model: resource?.["board-name"] ?? router.model,
+        name: identityRow?.name || router.name,
+        lastSyncAt: new Date(),
+        uptimeSeconds,
+        cpuLoad,
+        memoryUsage,
+        activeUsers: activeUsers.length,
+      })
+      .where(eq(routers.id, routerId));
+  } catch (err) {
+    if (markOfflineOnFailure) {
+      await db
+        .update(routers)
+        .set({ status: "offline", lastSyncAt: new Date() })
+        .where(eq(routers.id, routerId));
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? `Sync failed: ${err.message}` : "Sync failed.",
+    };
+  } finally {
+    client.close();
+  }
+
+  return { success: true };
+}

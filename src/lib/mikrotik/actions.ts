@@ -1,0 +1,250 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { randomBytes, randomUUID } from "crypto";
+import { eq } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { routers, organizations } from "@/lib/db/schema";
+import { getSession } from "@/lib/auth/session";
+import { RouterOSClient } from "./client";
+import { encryptSecret } from "./crypto";
+import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
+import { syncRouterStats } from "./router-sync";
+
+export async function connectRouter(_prevState: unknown, formData: FormData) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  const host = String(formData.get("host") ?? "").trim();
+  const apiPort = Number(formData.get("apiPort") ?? 8728);
+  const username = String(formData.get("username") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+
+  if (!name || !host || !username) {
+    return { error: "Name, host, and username are required." };
+  }
+
+  const client = new RouterOSClient();
+  let identity = name;
+  let model = "Unknown";
+
+  try {
+    await client.connect(host, apiPort, username, password);
+    const [resource] = await client.talk(["/system/resource/print"]);
+    const [identityRow] = await client.talk(["/system/identity/print"]);
+    model = resource?.["board-name"] ?? "Unknown";
+    identity = identityRow?.name || name;
+  } catch (err) {
+    client.close();
+    return {
+      error:
+        err instanceof Error
+          ? `Could not connect to router: ${err.message}`
+          : "Could not connect to router.",
+    };
+  } finally {
+    client.close();
+  }
+
+  const db = getDb();
+  await db.insert(routers).values({
+    orgId: session.orgId,
+    name: identity,
+    model,
+    host,
+    apiPort,
+    username,
+    passwordEncrypted: encryptSecret(password),
+    status: "online",
+    lastSyncAt: new Date(),
+  });
+
+  revalidatePath("/admin/router");
+  revalidatePath("/admin/settings/router-setup");
+  return { success: true };
+}
+
+export async function refreshRouterStats(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+
+  if (!router || router.orgId !== session.orgId) {
+    return { error: "Router not found." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Router is missing connection details." };
+  }
+
+  const result = await syncRouterStats(routerId);
+  if (!result.success) return { error: result.error };
+
+  revalidatePath("/admin/router");
+  return { success: true };
+}
+
+export async function generateInstallScript(
+  _prevState: unknown,
+  formData: FormData,
+) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Router name is required." };
+
+  const db = getDb();
+  const [org] = await db
+    .select({ slug: organizations.slug })
+    .from(organizations)
+    .where(eq(organizations.id, session.orgId))
+    .limit(1);
+  if (!org) return { error: "Organization not found." };
+
+  // The VPN peer itself is allocated lazily when the router actually fetches
+  // the script (see the install-vpn route handler) so that the peer's
+  // private key never needs to be persisted server-side.
+  const apiPassword = randomBytes(18).toString("base64url");
+  const installToken = randomUUID();
+
+  const [router] = await db
+    .insert(routers)
+    .values({
+      orgId: session.orgId,
+      name,
+      apiPort: 8728,
+      username: API_USERNAME,
+      passwordEncrypted: encryptSecret(apiPassword),
+      status: "pending",
+      connectionMethod: "vpn",
+      installTokenHash: hashToken(installToken),
+      installTokenExpiresAt: new Date(Date.now() + INSTALL_TOKEN_TTL_MS),
+    })
+    .returning();
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+  const scriptUrl = `${appUrl}/api/router/v1/${org.slug}/scripts/install-vpn`;
+  const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";
+  const command = `/tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="vpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="vpn.rsc"; :delay 1s; /ip route remove [find dst-address=10.66.0.0/24 gateway=safelinkhub-wg0]; /ip route add dst-address=10.66.0.0/24 gateway=safelinkhub-wg0; :delay 1s; /file remove "vpn.rsc"`;
+
+  revalidatePath("/admin/settings/router-setup");
+  return { success: true, routerId: router.id, command };
+}
+
+export async function deleteRouter(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+
+  if (!router || router.orgId !== session.orgId) {
+    return { error: "Router not found." };
+  }
+
+  await db.delete(routers).where(eq(routers.id, routerId));
+
+  revalidatePath("/admin/router");
+  revalidatePath("/admin/settings/router-setup");
+  return { success: true };
+}
+
+export async function generateOpenvpnInstallScript(
+  _prevState: unknown,
+  formData: FormData,
+) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Router name is required." };
+
+  const db = getDb();
+  const [org] = await db
+    .select({ slug: organizations.slug })
+    .from(organizations)
+    .where(eq(organizations.id, session.orgId))
+    .limit(1);
+  if (!org) return { error: "Organization not found." };
+
+  // The OpenVPN credentials themselves are allocated lazily when the router
+  // actually fetches the script (see the install-openvpn route handler) so
+  // that they never need to be persisted server-side.
+  const apiPassword = randomBytes(18).toString("base64url");
+  const installToken = randomUUID();
+
+  const [router] = await db
+    .insert(routers)
+    .values({
+      orgId: session.orgId,
+      name,
+      apiPort: 8728,
+      username: API_USERNAME,
+      passwordEncrypted: encryptSecret(apiPassword),
+      status: "pending",
+      connectionMethod: "openvpn",
+      installTokenHash: hashToken(installToken),
+      installTokenExpiresAt: new Date(Date.now() + INSTALL_TOKEN_TTL_MS),
+    })
+    .returning();
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+  const scriptUrl = `${appUrl}/api/router/v1/${org.slug}/scripts/install-openvpn`;
+  const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";
+  const command = `/tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="ovpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="ovpn.rsc"; :delay 1s; /file remove "ovpn.rsc"`;
+
+  revalidatePath("/admin/settings/router-setup");
+  revalidatePath("/admin/remote-access");
+  return { success: true, routerId: router.id, command };
+}
+
+export async function checkRouterConnection(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+
+  if (!router || router.orgId !== session.orgId) {
+    return { error: "Router not found." };
+  }
+  if (router.status === "online") {
+    revalidatePath("/admin/router");
+    revalidatePath("/admin/settings/router-setup");
+    return { connected: true };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { connected: false };
+  }
+
+  const result = await syncRouterStats(routerId, {
+    timeoutMs: 15000,
+    markOfflineOnFailure: false,
+  });
+  if (!result.success) return { connected: false };
+
+  revalidatePath("/admin/router");
+  revalidatePath("/admin/settings/router-setup");
+  return { connected: true };
+}
