@@ -61,6 +61,7 @@ topology subnet
 server 10.67.0.0 255.255.255.0
 client-config-dir /etc/openvpn/ccd
 username-as-common-name
+data-ciphers AES-256-GCM:AES-128-GCM
 script-security 3
 auth-user-pass-verify /etc/openvpn/checkpsw.sh via-file
 verify-client-cert none
