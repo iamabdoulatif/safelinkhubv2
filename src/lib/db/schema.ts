@@ -152,3 +152,17 @@ export const personalVpnAccess = pgTable("personal_vpn_access", {
   expiresAt: timestamp("expires_at"),
   revokedAt: timestamp("revoked_at"),
 });
+
+export const routerPortForwards = pgTable("router_port_forwards", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  routerId: uuid("router_id")
+    .notNull()
+    .references(() => routers.id, { onDelete: "cascade" }),
+  service: text("service").notNull(), // "winbox" | "webfig" | "ssh"
+  targetPort: integer("target_port").notNull(),
+  publicPort: integer("public_port").notNull().unique(),
+  tunnelIp: text("tunnel_ip").notNull(),
+  status: text("status").notNull().default("active"), // active | revoked
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  revokedAt: timestamp("revoked_at"),
+});

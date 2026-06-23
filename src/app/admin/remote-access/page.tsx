@@ -1,12 +1,13 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { after } from "next/server";
 import { Wifi } from "lucide-react";
 import { getDb } from "@/lib/db";
-import { routers } from "@/lib/db/schema";
+import { routers, routerPortForwards } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import RemoteAccessTabs from "./RemoteAccessTabs";
 import PersonalAccessSection from "./PersonalAccessSection";
 import BackToHomeSection from "./BackToHomeSection";
+import DirectAccessSection from "./DirectAccessSection";
 import { listPersonalVpnAccess } from "@/lib/mikrotik/personal-access";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 
@@ -33,6 +34,18 @@ export default async function RemoteAccessPage() {
     : [];
 
   const personalAccessRows = await listPersonalVpnAccess();
+
+  const routerIds = allRouters.map((r) => r.id);
+  const forwards = routerIds.length
+    ? await db
+        .select()
+        .from(routerPortForwards)
+        .where(inArray(routerPortForwards.routerId, routerIds))
+    : [];
+  const forwardsByRouter: Record<string, typeof forwards> = {};
+  for (const f of forwards) {
+    (forwardsByRouter[f.routerId] ??= []).push(f);
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -104,6 +117,17 @@ export default async function RemoteAccessPage() {
       />
       <BackToHomeSection
         routers={allRouters.map((r) => ({ id: r.id, name: r.name, status: r.status }))}
+      />
+      <DirectAccessSection
+        routers={allRouters.map((r) => ({
+          id: r.id,
+          name: r.name,
+          status: r.status,
+          connectionMethod: r.connectionMethod,
+          tunnelIp: r.tunnelIp,
+        }))}
+        forwardsByRouter={forwardsByRouter}
+        relayHost={process.env.WG_RELAY_HOST ?? ""}
       />
     </div>
   );

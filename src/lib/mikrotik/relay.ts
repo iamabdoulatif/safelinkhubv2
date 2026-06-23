@@ -333,3 +333,62 @@ export async function openRouterTunnelWithRetry(
   }
   throw lastErr instanceof Error ? lastErr : new Error("SSH tunnel setup failed");
 }
+
+/**
+ * Opens a public TCP port on the relay that DNATs straight through to a
+ * router's tunnel IP:port — the "no VPN client needed" path. Anyone who
+ * knows relay_ip:publicPort can point WinBox (or a browser, for WebFig)
+ * directly at it, same as a classic NAT port-forward on a home router.
+ * Needs both a PREROUTING DNAT rule (so the relay rewrites the destination)
+ * and a POSTROUTING MASQUERADE rule scoped to that destination (so the
+ * router's reply goes back through the relay instead of out its own WAN —
+ * without this the router would try to answer the original public client
+ * IP directly, which it can't reach).
+ */
+export async function allocatePortForward(
+  tunnelIp: string,
+  targetPort: number,
+): Promise<{ publicPort: number }> {
+  const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} <<'SCRIPT'
+set -euo pipefail
+TUNNEL_IP="$1"
+TARGET_PORT="$2"
+
+USED=$(iptables -t nat -L PREROUTING -n | grep -oP 'dpt:\\K[0-9]+' || true)
+PORT=""
+for candidate in $(seq 30000 30999); do
+  if ! grep -qx "$candidate" <<< "$USED"; then
+    PORT="$candidate"
+    break
+  fi
+done
+if [[ -z "$PORT" ]]; then
+  echo "No available forward port" >&2
+  exit 1
+fi
+
+iptables -t nat -A PREROUTING -p tcp --dport "$PORT" -j DNAT --to-destination "\${TUNNEL_IP}:\${TARGET_PORT}"
+iptables -t nat -A POSTROUTING -d "$TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE
+iptables -A FORWARD -p tcp -d "$TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT
+command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
+
+echo "Port = \${PORT}"
+SCRIPT`);
+
+  const match = output.match(/^Port\s*=\s*(\d+)$/m);
+  if (!match) throw new Error("Relay output missing Port");
+  return { publicPort: Number(match[1]) };
+}
+
+export async function revokePortForward(
+  tunnelIp: string,
+  targetPort: number,
+  publicPort: number,
+): Promise<void> {
+  await runOnRelay(
+    `sudo iptables -t nat -D PREROUTING -p tcp --dport ${publicPort} -j DNAT --to-destination ${tunnelIp}:${targetPort} ; ` +
+      `sudo iptables -t nat -D POSTROUTING -d ${tunnelIp} -p tcp --dport ${targetPort} -j MASQUERADE ; ` +
+      `sudo iptables -D FORWARD -p tcp -d ${tunnelIp} --dport ${targetPort} -j ACCEPT ; ` +
+      `command -v netfilter-persistent >/dev/null 2>&1 && sudo netfilter-persistent save >/dev/null 2>&1 || true`,
+  );
+}
