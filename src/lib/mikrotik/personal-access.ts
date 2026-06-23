@@ -183,7 +183,11 @@ export async function generatePersonalOpenvpnAccess(
     })
     .returning();
 
-  const command = `/interface ovpn-client add connect-to=${host} port=${port} protocol=udp name=${peer.username} user=${peer.username} password=${peer.password} comment=${host}:${displayPort}<->8291`;
+  // RouterOS's ovpn-client doesn't do modern NCP cipher negotiation — it
+  // sends one fixed cipher. cipher=aes256-gcm matches the relay's
+  // data-ciphers-fallback, otherwise RouterOS falls back to BF-CBC and the
+  // server rejects it ("Data channel cipher negotiation failed").
+  const command = `/interface ovpn-client add connect-to=${host} port=${port} protocol=udp cipher=aes256-gcm name=${peer.username} user=${peer.username} password=${peer.password} comment=${host}:${displayPort}<->8291`;
 
   const content = `client
 dev tun

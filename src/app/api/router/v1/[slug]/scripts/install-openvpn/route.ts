@@ -18,7 +18,7 @@ function buildScript(opts: {
 }) {
   return `# SafeLinkHub managed OpenVPN tunnel - auto-generated, do not edit
 /interface/ovpn-client/remove [find name=safelinkhub-ovpn]
-/interface ovpn-client add name=safelinkhub-ovpn connect-to=${opts.connectTo} port=${opts.port} protocol=udp user="${opts.username}" password="${opts.password}" mode=ip add-default-route=no disabled=no
+/interface ovpn-client add name=safelinkhub-ovpn connect-to=${opts.connectTo} port=${opts.port} protocol=udp cipher=aes256-gcm user="${opts.username}" password="${opts.password}" mode=ip add-default-route=no disabled=no
 
 /user remove [find name=safelinkhub-api]
 /user group remove [find name=safelinkhub-group]
