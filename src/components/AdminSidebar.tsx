@@ -15,6 +15,7 @@ import {
   UserCog,
   Ticket,
   Wifi,
+  Globe,
   Settings,
   CreditCard,
   LifeBuoy,
@@ -37,6 +38,7 @@ const mainLinks = [
   { href: "/admin/agent", label: "Agent", icon: UserCog },
   { href: "/admin/vouchers", label: "Vouchers", icon: Ticket },
   { href: "/admin/remote-access", label: "Accès distant", icon: Wifi },
+  { href: "/admin/mikhmon-online", label: "Mikhmon Online", icon: Globe },
 ];
 
 const settingsLinks = [
