@@ -9,6 +9,7 @@ import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
 import { VOUCHER_PROFILES } from "./voucher-profiles";
+import { REMOTE_ACCESS_PORT } from "./constants";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -45,7 +46,6 @@ const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
 const DOCKER_NETWORK = "11.11.11.0/28";
 const HOTSPOT_POOL_NAME = "POOL-HOTSPOT";
-export const REMOTE_ACCESS_PORT = 8088; // public port -> MikHmon UI, for SafeLinkHub/admin access
 const DOCKER_WEB_PORT = 8087; // public port -> MikHmon UI, reachable via the hotspot gateway IP
 const CONTAINER_NAME = "mikhmon-sf-v1:latest";
 const REMOTE_IMAGE = "latif225/mikhmon-sf-v1:latest";

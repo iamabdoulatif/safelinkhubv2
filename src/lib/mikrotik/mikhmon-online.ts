@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
-import { REMOTE_ACCESS_PORT } from "./container-setup";
+import { REMOTE_ACCESS_PORT } from "./constants";
 
 /**
  * MikHmon is exposed to the internet directly from the router's own WAN
