@@ -10,6 +10,7 @@ import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
 import { VOUCHER_PROFILES } from "./voucher-profiles";
 import { REMOTE_ACCESS_PORT, DOCKER_WEB_PORT, HOTSPOT_BRIDGE_NAME } from "./constants";
+import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -39,12 +40,11 @@ type Sentence = Record<string, string>;
  * customer-facing fields (hotspot IP, hotspot name, DNS name, SSID) vary.
  */
 const WAN_INTERFACE_NAME = "E1-WAN-FAI";
-const DOCKER_BRIDGE_NAME = "CONTAINERS";
-// Bridge name used by older SafeLinkHub installs, before this was aligned to
-// match the exact spec/export naming — cleaned up if found so a re-run on an
-// already-provisioned router doesn't leave an orphaned empty bridge behind.
+const DOCKER_BRIDGE_NAME = ROUTER_SETUP_PROFILE.containerBridge.name;
+// Bridge name used by earlier SafeLinkHub installs before the audited hAP ax²
+// profile was normalized to DOCKERS.
 const LEGACY_HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
-const LEGACY_DOCKER_BRIDGE_NAME = "DOCKERS";
+const LEGACY_DOCKER_BRIDGE_NAME = "CONTAINERS";
 const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
@@ -106,7 +106,7 @@ export type HotspotStackOptions = {
   dnsName: string; // chosen by the admin, e.g. "mirador.ci"
   hasUsbStorage: boolean; // ax2 / hAP ax lite have none; some boards take a USB stick
   // RouterOS Container only runs on arm/arm64/tile — mipsbe/mmips/smips
-  // boards (RB951, hEX, hEX S, plain wAP, ...) skip the CONTAINERS/MikHmon
+  // boards (RB951, hEX, hEX S, plain wAP, ...) skip the DOCKERS/MikHmon
   // step entirely rather than failing partway through.
   supportsContainers: boolean;
   reboot: boolean;
@@ -139,7 +139,7 @@ export type HotspotStackOptions = {
  * working device export (RouterOS 7.23, container-capable hAP/CCR boards):
  * renames the WAN port, builds the HOTSPOT bridge across every remaining
  * ethernet port, sets up the hotspot pool/DHCP/profile/DNS name, opens the
- * required NAT rules, then provisions the CONTAINERS bridge + veth + container
+ * required NAT rules, then provisions the DOCKERS bridge + veth + container
  * (MikHmon) the same way every time, and finally locks down services,
  * timezone, identity and NTP before rebooting.
  */
@@ -775,10 +775,10 @@ export async function provisionHotspotStack(
     }
 
     if (containerPackageReady) {
-      // CONTAINERS bridge + veth pair: gives the MikHmon container its own
+      // DOCKERS bridge + veth pair: gives the MikHmon container its own
       // subnet, isolated from the hotspot LAN, router as gateway.
       await client.talk(["/interface/bridge/remove", `=numbers=${DOCKER_BRIDGE_NAME}`]).catch(() => {});
-      await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], "CONTAINERS bridge");
+      await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], "DOCKERS bridge");
       // Legacy name from before this was aligned to the spec's naming.
       await client.talk(["/interface/bridge/remove", `=numbers=${LEGACY_DOCKER_BRIDGE_NAME}`]).catch(() => {});
 
@@ -796,7 +796,7 @@ export async function provisionHotspotStack(
       );
       await run(
         ["/interface/bridge/port/add", `=bridge=${DOCKER_BRIDGE_NAME}`, `=interface=${VETH_NAME}`],
-        "attach veth to CONTAINERS bridge",
+        "attach veth to DOCKERS bridge",
       );
 
       await client
@@ -809,7 +809,7 @@ export async function provisionHotspotStack(
           `=interface=${DOCKER_BRIDGE_NAME}`,
           `=network=${DOCKER_NETWORK.split("/")[0]}`,
         ],
-        "CONTAINERS bridge gateway address",
+        "DOCKERS bridge gateway address",
       );
 
       // Container engine: USB-equipped boards pull/extract on the stick

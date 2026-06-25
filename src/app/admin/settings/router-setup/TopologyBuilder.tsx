@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Cable, Layers, Plus, SlidersHorizontal, Wifi, X } from "lucide-react";
+import { Box, Cable, Layers, Plus, SlidersHorizontal, Wifi, X } from "lucide-react";
 import { listRouterInterfaces, saveBridge } from "@/lib/mikrotik/bridges";
 import BootstrapModal from "./BootstrapModal";
 
@@ -26,6 +26,10 @@ type Line = { key: string; x1: number; y1: number; x2: number; y2: number };
 
 function isWifiInterface(port: Pick<Port, "name" | "type">) {
   return port.type === "wlan" || port.type === "wifi" || port.name.startsWith("wifi");
+}
+
+function isVethInterface(port: Pick<Port, "name" | "type">) {
+  return port.type === "veth";
 }
 
 function interfaceLabel(port: Pick<Port, "name" | "type">) {
@@ -105,7 +109,7 @@ function BridgeNode({
       onDoubleClick={onConfigure}
       onDragOver={(e) => onDrop && e.preventDefault()}
       onDrop={onDrop}
-      className={`absolute left-1/2 top-[290px] w-80 -translate-x-1/2 rounded-xl border bg-white p-5 shadow-md ${
+      className={`relative w-80 shrink-0 rounded-xl border bg-white p-5 shadow-md ${
         draft ? "border-emerald-300" : "border-emerald-200"
       }`}
     >
@@ -166,6 +170,48 @@ function BridgeNode({
   );
 }
 
+function DockerBridgeNode({ ports, nodeRef }: { ports: string[]; nodeRef: (el: HTMLDivElement | null) => void }) {
+  return (
+    <div
+      ref={nodeRef}
+      className="relative w-64 shrink-0 rounded-xl border border-violet-200 bg-white p-5 shadow-md"
+    >
+      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-violet-100 px-2.5 py-0.5 text-[10px] font-semibold text-violet-700">
+        Géré automatiquement
+      </span>
+
+      <div className="mt-1 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Layers className="h-5 w-5 text-violet-500" />
+          <p className="text-base font-semibold text-slate-700">DOCKERS</p>
+        </div>
+      </div>
+
+      <div className="mt-6 flex items-center justify-between text-sm">
+        <span className="text-slate-500">IP de la passerelle</span>
+        <span className="rounded bg-slate-100 px-2.5 py-1.5 font-medium text-slate-600">
+          11.11.11.1/28
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {ports.map((p) => (
+          <span
+            key={p}
+            className="rounded bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-700"
+          >
+            {p}
+          </span>
+        ))}
+      </div>
+
+      <p className="mt-4 text-[11px] text-slate-400">
+        Conteneur MikHmon — créé par l&apos;auto-setup, voir plus bas.
+      </p>
+    </div>
+  );
+}
+
 function InterfaceTile({
   port,
   used,
@@ -175,33 +221,44 @@ function InterfaceTile({
   used: boolean;
   tileRef: (el: HTMLDivElement | null) => void;
 }) {
-  const draggable = !used && !port.disabled;
+  const isVeth = isVethInterface(port);
+  const draggable = !used && !port.disabled && !isVeth;
 
   return (
     <div
       ref={tileRef}
       draggable={draggable}
       onDragStart={(e) => draggable && e.dataTransfer.setData("text/plain", port.name)}
-      title={port.disabled ? `${port.name} est désactivé sur le routeur` : undefined}
-      className={`relative flex h-20 w-24 shrink-0 flex-col items-center justify-center gap-1.5 rounded-lg border text-xs shadow-sm ${
+      title={
+        isVeth
+          ? `${port.name} est l'interface du conteneur Docker (bridge DOCKERS)`
+          : port.disabled
+            ? `${port.name} est désactivé sur le routeur`
+            : undefined
+      }
+      className={`relative flex h-16 w-[72px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border text-[11px] shadow-sm ${
         port.disabled
           ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
-          : used
-            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-            : "cursor-grab border-slate-200 bg-white text-slate-500 hover:border-emerald-300 hover:text-slate-700"
+          : isVeth
+            ? "cursor-not-allowed border-violet-200 bg-violet-50 text-violet-700"
+            : used
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "cursor-grab border-slate-200 bg-white text-slate-500 hover:border-emerald-300 hover:text-slate-700"
       }`}
     >
       {port.name === "ether1" && (
-        <span className="absolute -top-2.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+        <span className="absolute -top-2 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-semibold text-amber-700">
           WAN
         </span>
       )}
-      {isWifiInterface(port) ? (
-        <Wifi className={`h-6 w-6 ${port.disabled ? "text-slate-300" : "text-emerald-300"}`} />
+      {isVeth ? (
+        <Box className="h-4 w-4 text-violet-500" />
+      ) : isWifiInterface(port) ? (
+        <Wifi className={`h-4 w-4 ${port.disabled ? "text-slate-300" : "text-emerald-300"}`} />
       ) : (
-        <Cable className={`h-6 w-6 ${port.disabled ? "text-slate-300" : "text-emerald-500"}`} />
+        <Cable className={`h-4 w-4 ${port.disabled ? "text-slate-300" : "text-emerald-500"}`} />
       )}
-      <span className="max-w-full truncate px-1">{interfaceLabel(port)}</span>
+      <span className="max-w-full truncate px-1 leading-tight">{interfaceLabel(port)}</span>
     </div>
   );
 }
@@ -218,7 +275,7 @@ function RouterDeviceCard({
   registerPortRef: (name: string, el: HTMLDivElement | null) => void;
 }) {
   return (
-    <div className="absolute left-1/2 top-7 w-[min(97%,920px)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 p-5 shadow-lg">
+    <div className="absolute left-1/2 top-7 w-[min(98%,1100px)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 p-5 shadow-lg">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900 text-sm font-bold text-white">
@@ -304,8 +361,12 @@ function TopologyCanvas({
       }
     : initialBridges[0] ?? null;
 
+  const dockerPorts = (ports ?? []).filter(isVethInterface).map((p) => p.name);
+  const hasDockerBridge = dockerPorts.length > 0;
+
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const bridgeRef = useRef<HTMLDivElement | null>(null);
+  const dockerBridgeRef = useRef<HTMLDivElement | null>(null);
   const portElsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const [lines, setLines] = useState<Line[]>([]);
 
@@ -318,31 +379,37 @@ function TopologyCanvas({
 
   const recomputeLines = useCallback(() => {
     const section = sectionRef.current;
-    const bridgeEl = bridgeRef.current;
-    if (!section || !bridgeEl || !visibleBridge) {
+    if (!section) {
       setLines([]);
       return;
     }
     const sectionBox = section.getBoundingClientRect();
-    const bridgeBox = bridgeEl.getBoundingClientRect();
-    const targetX = bridgeBox.left + bridgeBox.width / 2 - sectionBox.left;
-    const targetY = bridgeBox.top - sectionBox.top;
-
     const next: Line[] = [];
-    visibleBridge.ports.forEach((name) => {
-      const el = portElsRef.current.get(name);
-      if (!el) return;
-      const box = el.getBoundingClientRect();
-      next.push({
-        key: name,
-        x1: box.left + box.width / 2 - sectionBox.left,
-        y1: box.bottom - sectionBox.top,
-        x2: targetX,
-        y2: targetY,
+
+    const addLinesFor = (bridgeEl: HTMLDivElement | null, names: string[]) => {
+      if (!bridgeEl) return;
+      const bridgeBox = bridgeEl.getBoundingClientRect();
+      const targetX = bridgeBox.left + bridgeBox.width / 2 - sectionBox.left;
+      const targetY = bridgeBox.top - sectionBox.top;
+      names.forEach((name) => {
+        const el = portElsRef.current.get(name);
+        if (!el) return;
+        const box = el.getBoundingClientRect();
+        next.push({
+          key: name,
+          x1: box.left + box.width / 2 - sectionBox.left,
+          y1: box.bottom - sectionBox.top,
+          x2: targetX,
+          y2: targetY,
+        });
       });
-    });
+    };
+
+    if (visibleBridge) addLinesFor(bridgeRef.current, visibleBridge.ports);
+    if (hasDockerBridge) addLinesFor(dockerBridgeRef.current, dockerPorts);
+
     setLines(next);
-  }, [bridgePortsKey, hasDraft]);
+  }, [bridgePortsKey, hasDraft, hasDockerBridge, dockerPorts.join(",")]);
 
   useLayoutEffect(() => {
     recomputeLines();
@@ -356,7 +423,7 @@ function TopologyCanvas({
 
   return (
     <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div className="grid min-h-[640px] grid-cols-1 md:grid-cols-[300px_1fr]">
+      <div className="grid min-h-[700px] grid-cols-1 md:grid-cols-[300px_1fr]">
         <aside className="border-b border-slate-200 bg-white p-6 md:border-b-0 md:border-r">
           <p className="text-sm font-medium text-emerald-600">
             Double-cliquez sur une ligne de connexion existante pour la
@@ -376,7 +443,7 @@ function TopologyCanvas({
 
         <section
           ref={sectionRef}
-          className="relative min-h-[640px] overflow-hidden"
+          className="relative min-h-[700px] overflow-hidden"
           style={{
             backgroundImage:
               "radial-gradient(circle, rgba(148, 163, 184, 0.35) 1px, transparent 1px)",
@@ -390,18 +457,34 @@ function TopologyCanvas({
             registerPortRef={registerPortRef}
           />
 
-          {visibleBridge ? (
+          {visibleBridge || hasDockerBridge ? (
             <>
               <ConnectionLines lines={lines} />
-              <BridgeNode
-                bridge={visibleBridge}
-                draft={visibleBridge.name === "SAFELINKHUB-BRIDGE"}
-                onConfigure={onConfigure}
-                onDrop={hasDraft ? onDrop : undefined}
-                nodeRef={(el) => {
-                  bridgeRef.current = el;
-                }}
-              />
+              <div className="absolute left-1/2 top-[290px] flex -translate-x-1/2 items-start gap-6">
+                {visibleBridge ? (
+                  <BridgeNode
+                    bridge={visibleBridge}
+                    draft={visibleBridge.name === "SAFELINKHUB-BRIDGE"}
+                    onConfigure={onConfigure}
+                    onDrop={hasDraft ? onDrop : undefined}
+                    nodeRef={(el) => {
+                      bridgeRef.current = el;
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-40 w-80 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-white/80 text-sm font-medium text-emerald-700">
+                    Cliquez sur &quot;Ajouter un bridge&quot; pour commencer
+                  </div>
+                )}
+                {hasDockerBridge && (
+                  <DockerBridgeNode
+                    ports={dockerPorts}
+                    nodeRef={(el) => {
+                      dockerBridgeRef.current = el;
+                    }}
+                  />
+                )}
+              </div>
             </>
           ) : (
             <div className="absolute left-1/2 top-[290px] flex h-40 w-80 -translate-x-1/2 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-white/80 text-sm font-medium text-emerald-700">

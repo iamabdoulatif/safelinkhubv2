@@ -49,20 +49,26 @@ export default function TemplatesManager({
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => (
             <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3">
-              <div className="h-40 overflow-hidden rounded-lg">
-                <CaptivePreview
-                  data={{
-                    logoUrl: t.logoUrl ?? "",
-                    primaryColor: t.primaryColor,
-                    backgroundColor: t.backgroundColor,
-                    title: t.title,
-                    subtitle: t.subtitle,
-                    buttonLabel: t.buttonLabel,
-                    voucherFieldLabel: t.voucherFieldLabel,
-                    termsText: t.termsText ?? "",
-                    footerText: t.footerText ?? "",
-                  }}
-                />
+              <div className="h-40 overflow-hidden rounded-lg bg-slate-50">
+                <div
+                  className="pointer-events-none h-[400px] w-[320px] origin-top-left scale-[0.4]"
+                  aria-hidden
+                >
+                  <CaptivePreview
+                    data={{
+                      logoUrl: t.logoUrl ?? "",
+                      primaryColor: t.primaryColor,
+                      backgroundColor: t.backgroundColor,
+                      title: t.title,
+                      subtitle: t.subtitle,
+                      buttonLabel: t.buttonLabel,
+                      voucherFieldLabel: t.voucherFieldLabel,
+                      termsText: t.termsText ?? "",
+                      footerText: t.footerText ?? "",
+                      mobileMoneyEnabled: t.mobileMoneyEnabled,
+                    }}
+                  />
+                </div>
               </div>
 
               <div className="mt-3 flex items-center justify-between">

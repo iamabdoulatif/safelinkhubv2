@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import MockPaymentModal from "./MockPaymentModal";
+
 export type CaptivePreviewData = {
   logoUrl: string;
   primaryColor: string;
@@ -10,9 +13,17 @@ export type CaptivePreviewData = {
   voucherFieldLabel: string;
   termsText: string;
   footerText: string;
+  mobileMoneyEnabled?: boolean;
 };
 
+const MOBILE_MONEY_PROVIDERS = [
+  { id: "paystack", label: "Paystack", className: "bg-[#00C3F9]" },
+  { id: "genius_pay", label: "Genius Pay", className: "bg-[#7C3AED]" },
+];
+
 export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
+  const [activeProvider, setActiveProvider] = useState<string | null>(null);
+
   return (
     <div
       className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-slate-200 p-8 text-center"
@@ -52,11 +63,40 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
         </button>
       </div>
 
+      {data.mobileMoneyEnabled && (
+        <div className="w-full max-w-xs">
+          <div className="flex items-center gap-2 text-[11px] text-slate-400">
+            <span className="h-px flex-1 bg-slate-200" />
+            ou payer maintenant
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {MOBILE_MONEY_PROVIDERS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setActiveProvider(p.id)}
+                className={`rounded-md px-2 py-2 text-[11px] font-medium text-white ${p.className}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {data.termsText && (
         <p className="max-w-xs text-[11px] text-slate-400">{data.termsText}</p>
       )}
       {data.footerText && (
         <p className="text-[11px] text-slate-400">{data.footerText}</p>
+      )}
+
+      {activeProvider && (
+        <MockPaymentModal
+          provider={activeProvider}
+          onClose={() => setActiveProvider(null)}
+        />
       )}
     </div>
   );

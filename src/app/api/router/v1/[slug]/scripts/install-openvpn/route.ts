@@ -6,6 +6,10 @@ import { decryptSecret } from "@/lib/mikrotik/crypto";
 import { allocateOpenvpnPeer } from "@/lib/mikrotik/relay";
 import { hashToken } from "@/lib/mikrotik/install-token";
 
+function escapeRosString(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function buildScript(opts: {
   connectTo: string;
   port: string;
@@ -15,8 +19,10 @@ function buildScript(opts: {
   callbackUrl: string;
   callbackMode: "http" | "https";
   installToken: string;
+  identityName: string;
 }) {
   return `# SafeLinkHub managed OpenVPN tunnel - auto-generated, do not edit
+/system identity set name="${escapeRosString(opts.identityName)}"
 /interface/ovpn-client/remove [find name=safelinkhub-ovpn]
 /interface ovpn-client add name=safelinkhub-ovpn connect-to=${opts.connectTo} port=${opts.port} protocol=udp cipher=aes256-gcm user="${opts.username}" password="${opts.password}" mode=ip add-default-route=no disabled=no
 
@@ -34,6 +40,10 @@ function buildScript(opts: {
   /tool fetch url="${opts.callbackUrl}" http-header-field="Authorization: Bearer ${opts.installToken}" mode=${opts.callbackMode} output=none
   :log info "SafeLinkHub server notified that OpenVPN tunnel installation completed"
 } on-error={ :log warning "SafeLinkHub server install completion notification failed" }
+
+:log info "SafeLinkHub rebooting router to finalize installation"
+:delay 3s
+/system reboot
 `;
 }
 
@@ -118,6 +128,7 @@ export async function GET(
     callbackUrl,
     callbackMode: callbackUrl.startsWith("https://") ? "https" : "http",
     installToken: token,
+    identityName: router.name,
   });
 
   return new Response(script, {

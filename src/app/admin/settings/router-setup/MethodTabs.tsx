@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ShieldCheck, Plug } from "lucide-react";
 import GenerateScriptForm from "./GenerateScriptForm";
 import ConnectRouterForm from "./ConnectRouterForm";
+import TargetProfileCard from "./TargetProfileCard";
 
 const ENABLE_API_SCRIPT = `/ip service enable api
 /ip service set api port=8728
@@ -15,6 +16,8 @@ export default function MethodTabs() {
 
   return (
     <div>
+      <TargetProfileCard />
+
       <div className="mt-6 flex items-center justify-center gap-2">
         <button
           onClick={() => setMethod("vpn")}
@@ -57,9 +60,9 @@ export default function MethodTabs() {
               Préparation initiale (optionnel)
             </summary>
             <p className="mt-2 text-slate-500">
-              Assurez-vous que votre routeur a accès à internet et qu'il
-              dispose d'une version récente de RouterOS avant d'exécuter le
-              script d'installation.
+              Assurez-vous que votre routeur a accès à internet et qu&apos;il
+              dispose d&apos;une version récente de RouterOS avant d&apos;exécuter le
+              script d&apos;installation.
             </p>
           </details>
 
@@ -71,7 +74,7 @@ export default function MethodTabs() {
             Note : Si vous obtenez une erreur &quot;not allowed by device
             mode&quot;, exécutez{" "}
             <code>/system/device-mode/update mode=advanced</code> pour
-            débloquer l'exécution de scripts.
+            débloquer l&apos;exécution de scripts.
           </p>
         </div>
       ) : (
@@ -80,23 +83,23 @@ export default function MethodTabs() {
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-emerald-500" />
               <h2 className="font-semibold text-slate-900">
-                Étape 1 : Activer l'accès API RouterOS
+                Étape 1 : Activer l&apos;accès API RouterOS
               </h2>
             </div>
             <p className="mt-1 text-sm text-slate-500">
               Exécutez ceci dans le terminal MikroTik pour activer le service
-              API et le restreindre à l'IP du serveur SafeLinkHub.
+              API et le restreindre à l&apos;IP du serveur SafeLinkHub.
             </p>
 
             <div className="mt-4">
               <h3 className="text-sm font-medium text-slate-700">
-                Script d'activation de l'API
+                Script d&apos;activation de l&apos;API
               </h3>
               <pre className="mt-2 overflow-x-auto rounded-md bg-slate-900 p-4 text-xs text-emerald-300">
                 {ENABLE_API_SCRIPT}
               </pre>
               <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                Note : N'exposez jamais l'API RouterOS directement sur
+                Note : N&apos;exposez jamais l&apos;API RouterOS directement sur
                 internet sans restrictions de pare-feu.
               </p>
             </div>
@@ -111,7 +114,7 @@ export default function MethodTabs() {
             </div>
             <p className="mt-1 text-sm text-slate-500">
               Entrez les identifiants de votre routeur pour vous connecter via
-              l'API RouterOS.
+              l&apos;API RouterOS.
             </p>
 
             <div className="mt-4">

@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Link2, Search } from "lucide-react";
+import { Info, Link2, Search } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
+import RouterDetailsModal from "./RouterDetailsModal";
 
 export type RouterRow = {
   id: string;
@@ -88,6 +89,7 @@ function RemoteAccessToggle({ enabled }: { enabled: boolean }) {
 export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
   const [filter, setFilter] = useState<"all" | "online" | "offline">("all");
   const [query, setQuery] = useState("");
+  const [detailsFor, setDetailsFor] = useState<RouterRow | null>(null);
 
   const counts = useMemo(
     () => ({
@@ -200,7 +202,23 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                     <RemoteAccessToggle enabled={r.connectionMethod === "vpn"} />
                   </td>
                   <td className="px-4 py-3">
-                    <RouterRowActions routerId={r.id} />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={r.status !== "online"}
+                        onClick={() => setDetailsFor(r)}
+                        title={
+                          r.status !== "online"
+                            ? "Le routeur doit être en ligne pour lire ses informations"
+                            : undefined
+                        }
+                        className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                        Détails
+                      </button>
+                      <RouterRowActions routerId={r.id} />
+                    </div>
                   </td>
                 </tr>
               ))
@@ -212,6 +230,14 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
           <span>Affichage de {filtered.length} résultat(s)</span>
         </div>
       </div>
+
+      {detailsFor && (
+        <RouterDetailsModal
+          routerId={detailsFor.id}
+          routerName={detailsFor.name}
+          onClose={() => setDetailsFor(null)}
+        />
+      )}
     </div>
   );
 }

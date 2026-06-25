@@ -27,15 +27,15 @@ export async function connectRouter(_prevState: unknown, formData: FormData) {
   }
 
   const client = new RouterOSClient();
-  let identity = name;
   let model = "Unknown";
 
   try {
     await client.connect(host, apiPort, username, password);
     const [resource] = await client.talk(["/system/resource/print"]);
-    const [identityRow] = await client.talk(["/system/identity/print"]);
     model = resource?.["board-name"] ?? "Unknown";
-    identity = identityRow?.name || name;
+    // Push the admin-chosen name to the router itself instead of adopting
+    // whatever identity it already had (often just the factory default).
+    await client.talk(["/system/identity/set", `=name=${name}`]);
   } catch (err) {
     client.close();
     return {
@@ -51,7 +51,7 @@ export async function connectRouter(_prevState: unknown, formData: FormData) {
   const db = getDb();
   await db.insert(routers).values({
     orgId: session.orgId,
-    name: identity,
+    name,
     model,
     host,
     apiPort,

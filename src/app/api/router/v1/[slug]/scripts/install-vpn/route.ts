@@ -8,6 +8,10 @@ import { hashToken } from "@/lib/mikrotik/install-token";
 
 const PEER_LISTEN_PORT = 51821;
 
+function escapeRosString(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function buildScript(opts: {
   peerPrivateKey: string;
   peerAddress: string;
@@ -17,10 +21,12 @@ function buildScript(opts: {
   callbackUrl: string;
   callbackMode: "http" | "https";
   installToken: string;
+  identityName: string;
 }) {
   const [endpointHost, endpointPort] = opts.endpoint.split(":");
 
   return `# SafeLinkHub managed VPN tunnel - auto-generated, do not edit
+/system identity set name="${escapeRosString(opts.identityName)}"
 /interface/wireguard/remove [find name=safelinkhub-wg0]
 /interface wireguard add name=safelinkhub-wg0 private-key="${opts.peerPrivateKey}" listen-port=${PEER_LISTEN_PORT}
 /interface wireguard peers remove [find interface=safelinkhub-wg0]
@@ -48,6 +54,10 @@ function buildScript(opts: {
   /tool fetch url="${opts.callbackUrl}" http-header-field="Authorization: Bearer ${opts.installToken}" mode=${opts.callbackMode} output=none
   :log info "SafeLinkHub server notified that VPN tunnel installation completed"
 } on-error={ :log warning "SafeLinkHub server install completion notification failed" }
+
+:log info "SafeLinkHub rebooting router to finalize installation"
+:delay 3s
+/system reboot
 `;
 }
 
@@ -132,6 +142,7 @@ export async function GET(
     callbackUrl,
     callbackMode: callbackUrl.startsWith("https://") ? "https" : "http",
     installToken: token,
+    identityName: router.name,
   });
 
   return new Response(script, {

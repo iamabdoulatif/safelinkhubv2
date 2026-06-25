@@ -18,6 +18,7 @@ export type CaptiveTemplateInput = {
   voucherFieldLabel: string;
   termsText: string;
   footerText: string;
+  mobileMoneyEnabled: boolean;
 };
 
 function readInput(formData: FormData): CaptiveTemplateInput {
@@ -34,6 +35,7 @@ function readInput(formData: FormData): CaptiveTemplateInput {
     voucherFieldLabel: get("voucherFieldLabel"),
     termsText: get("termsText"),
     footerText: get("footerText"),
+    mobileMoneyEnabled: formData.get("mobileMoneyEnabled") === "on",
   };
 }
 
@@ -149,6 +151,7 @@ export async function duplicateCaptiveTemplate(templateId: string) {
     voucherFieldLabel: existing.voucherFieldLabel,
     termsText: existing.termsText,
     footerText: existing.footerText,
+    mobileMoneyEnabled: existing.mobileMoneyEnabled,
   });
 
   revalidatePath("/admin/settings/captive-templates");

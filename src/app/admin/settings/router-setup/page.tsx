@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth/session";
 import MethodTabs from "./MethodTabs";
 import RouterSetupWizard from "./RouterSetupWizard";
 import RouterResetButton from "./RouterResetButton";
+import AutoSetupExtras from "./AutoSetupExtras";
 
 export default async function RouterSetupPage() {
   const session = await getSession();
@@ -74,18 +75,21 @@ export default async function RouterSetupPage() {
           <MethodTabs />
         </>
       ) : (
-        <RouterSetupWizard
-          routerId={router!.id}
-          routerName={router!.name}
-          initialBridges={routerBridges.map((b) => ({
-            id: b.id,
-            name: b.name,
-            gatewayIp: b.gatewayIp,
-            subnetBits: b.subnetBits,
-            ports: b.ports,
-            hotspotEnabled: b.hotspotEnabled,
-          }))}
-        />
+        <>
+          <RouterSetupWizard
+            routerId={router!.id}
+            routerName={router!.name}
+            initialBridges={routerBridges.map((b) => ({
+              id: b.id,
+              name: b.name,
+              gatewayIp: b.gatewayIp,
+              subnetBits: b.subnetBits,
+              ports: b.ports,
+              hotspotEnabled: b.hotspotEnabled,
+            }))}
+          />
+          <AutoSetupExtras routerId={router!.id} />
+        </>
       )}
     </div>
   );

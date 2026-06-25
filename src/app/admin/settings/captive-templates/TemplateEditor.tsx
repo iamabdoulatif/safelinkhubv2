@@ -23,6 +23,7 @@ export type CaptiveTemplateRow = {
   voucherFieldLabel: string;
   termsText: string | null;
   footerText: string | null;
+  mobileMoneyEnabled: boolean;
 };
 
 function Field({
@@ -69,6 +70,9 @@ export default function TemplateEditor({
     : createCaptiveTemplate;
   const [state, formAction, pending] = useActionState(action, undefined);
 
+  const [mobileMoneyEnabled, setMobileMoneyEnabled] = useState(
+    template?.mobileMoneyEnabled ?? false,
+  );
   const [form, setForm] = useState({
     name: template?.name ?? "",
     logoUrl: template?.logoUrl ?? "",
@@ -92,7 +96,7 @@ export default function TemplateEditor({
     router.refresh();
   }
 
-  const previewData: CaptivePreviewData = form;
+  const previewData: CaptivePreviewData = { ...form, mobileMoneyEnabled };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -199,6 +203,28 @@ export default function TemplateEditor({
               value={form.footerText}
               onChange={(v) => set("footerText", v)}
             />
+
+            <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                name="mobileMoneyEnabled"
+                checked={mobileMoneyEnabled}
+                onChange={(e) => setMobileMoneyEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Afficher les boutons de paiement mobile money (Wave, Orange
+              Money, Moov Money) sur le portail
+            </label>
+            <p className="text-[11px] text-slate-400">
+              Maquette d&apos;interface uniquement pour l&apos;instant — voir{" "}
+              <a
+                href="/admin/settings/payment-gateways"
+                className="underline"
+              >
+                Passerelles de paiement
+              </a>{" "}
+              pour connecter les vraies clés API.
+            </p>
 
             <div className="flex justify-end gap-3 pt-2">
               <button
