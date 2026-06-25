@@ -115,6 +115,9 @@ export type HotspotStackOptions = {
   // boards with no WiFi radio at all (CCR routers, plain switches) just
   // skip this step instead of failing.
   ssid?: string;
+  // RouterOS won't transmit on a WiFi radio until a regulatory country is
+  // set — without it, disabled=no can silently leave the radio inactive.
+  wifiCountry?: string; // default "United States"
 };
 
 /**
@@ -184,15 +187,25 @@ export async function provisionHotspotStack(
     // harmless no-op, so this runs unconditionally rather than checking
     // first.
     if (opts.ssid?.trim()) {
+      const country = opts.wifiCountry?.trim() || "United States";
       const wifiInterfaces = await client.talk(["/interface/wifi/print"]).catch(() => []);
       for (const wifi of wifiInterfaces) {
         if (!wifi.name) continue;
+        // default-name is used to pick the band (5GHz on the first radio,
+        // 2.4GHz on the second) the same way the manual export does it —
+        // boards with only one radio just get one pass through this loop.
+        const isPrimaryRadio = wifi["default-name"] === "wifi1" || wifi.name === "wifi1";
         await run(
           [
             "/interface/wifi/set",
             `=numbers=${wifi.name}`,
-            `=configuration.ssid=${opts.ssid.trim()}`,
+            `=channel.band=${isPrimaryRadio ? "5ghz-ax" : "2ghz-ax"}`,
+            "=channel.frequency=2300-75000",
+            "=channel.skip-dfs-channels=all",
+            `=channel.width=${isPrimaryRadio ? "20/40/80mhz" : "20/40mhz"}`,
+            `=configuration.country=${country}`,
             "=configuration.mode=ap",
+            `=configuration.ssid=${opts.ssid.trim()}`,
             "=disabled=no",
           ],
           `WiFi SSID on ${wifi.name}`,
@@ -217,11 +230,33 @@ export async function provisionHotspotStack(
       ...ethernetRows.map((r) => r.name),
       ...wifiRows.map((r) => r.name),
     ].filter((name): name is string => Boolean(name) && name !== WAN_INTERFACE_NAME);
+
+    // Routers ship from the factory with ether2..etherN already slaved to a
+    // default bridge (commonly "bridge" or "bridge1", with its own DHCP
+    // server on 192.168.88.1) — a physical/WiFi interface can only ever be
+    // a port of ONE bridge at a time, so blindly /add-ing it to our bridge
+    // fails with "already has a master interface" while it's still slaved
+    // to that default one. Move it instead: find its current bridge-port
+    // row (if any) and update the bridge field rather than adding a
+    // duplicate; only fall back to add when the interface has no row yet.
     for (const port of lanPorts) {
-      await run(
-        ["/interface/bridge/port/add", `=bridge=${HOTSPOT_BRIDGE_NAME}`, `=interface=${port}`],
-        `attach ${port} to HOTSPOT bridge`,
-      );
+      const existingPort = await client
+        .talk(["/interface/bridge/port/print", `?interface=${port}`])
+        .catch(() => []);
+      if (existingPort.length > 0) {
+        if (existingPort[0].bridge === HOTSPOT_BRIDGE_NAME) {
+          continue; // already correctly attached from a previous run
+        }
+        await run(
+          ["/interface/bridge/port/set", `=numbers=${existingPort[0][".id"]}`, `=bridge=${HOTSPOT_BRIDGE_NAME}`],
+          `move ${port} from ${existingPort[0].bridge || "its previous bridge"} to HOTSPOT bridge`,
+        );
+      } else {
+        await run(
+          ["/interface/bridge/port/add", `=bridge=${HOTSPOT_BRIDGE_NAME}`, `=interface=${port}`],
+          `attach ${port} to HOTSPOT bridge`,
+        );
+      }
     }
 
     // Interface lists (WAN / LAN) used for NAT/firewall scoping.
@@ -324,7 +359,16 @@ export async function provisionHotspotStack(
     // ddns-enabled gives the router a reachable hostname even behind CGNAT;
     // dns-name on the hotspot profile is the captive-portal domain.
     await run(["/ip/cloud/set", "=ddns-enabled=yes"], "IP cloud DDNS");
-    await run(["/ip/dhcp-client/add", `=interface=${WAN_INTERFACE_NAME}`], "WAN DHCP client");
+    // Factory-default RouterOS config commonly already runs a DHCP client
+    // on the WAN port for plug-and-play internet — RouterOS only allows one
+    // per interface, so adding a second one errors. Skip if one's already
+    // there (it keeps working fine after the ether1 -> E1-WAN-FAI rename).
+    const existingDhcpClient = await client
+      .talk(["/ip/dhcp-client/print", `?interface=${WAN_INTERFACE_NAME}`])
+      .catch(() => []);
+    if (existingDhcpClient.length === 0) {
+      await run(["/ip/dhcp-client/add", `=interface=${WAN_INTERFACE_NAME}`], "WAN DHCP client");
+    }
     await run(
       ["/ip/dns/set", "=allow-remote-requests=yes", "=servers=208.67.222.222,8.8.8.8"],
       "DNS resolver",
@@ -569,7 +613,34 @@ export async function provisionHotspotStack(
       );
     }
 
-    if (opts.supportsContainers) {
+    // The UI's own architecture/device-mode check (DetectedModelBadge) is
+    // what sets opts.supportsContainers — but that detection runs once on
+    // page load and can be stale or wrong (e.g. the admin enabled container
+    // mode after detection ran). Re-verify directly against the router
+    // right before touching anything container-related, since every
+    // /container/* command below fails silently (caught by run()) when the
+    // package isn't installed or is disabled — previously this meant the
+    // whole MikHmon step could quietly no-op without ever telling the admin
+    // why.
+    let containerPackageReady = opts.supportsContainers;
+    if (containerPackageReady) {
+      const packages = await client
+        .talk(["/system/package/print", "?name=container"])
+        .catch(() => []);
+      if (packages.length === 0) {
+        containerPackageReady = false;
+        log.push(
+          "SKIP (MikHmon container): the 'container' package is not present on this RouterOS install.",
+        );
+      } else if (packages[0].disabled === "true") {
+        containerPackageReady = false;
+        log.push(
+          'SKIP (MikHmon container): the \'container\' package is installed but disabled — run "/system device-mode update mode=advanced container=yes", confirm via the reset button, then reboot before re-running auto-setup.',
+        );
+      }
+    }
+
+    if (containerPackageReady) {
       // DOCKERS bridge + veth pair: gives the MikHmon container its own
       // subnet, isolated from the hotspot LAN, router as gateway.
       await client.talk(["/interface/bridge/remove", `=numbers=${DOCKER_BRIDGE_NAME}`]).catch(() => {});
@@ -679,11 +750,12 @@ export async function provisionHotspotStack(
         ],
         "Docker web dst-nat port forward",
       );
-    } else {
+    } else if (!opts.supportsContainers) {
       log.push(
         "SKIP (MikHmon container): architecture does not support RouterOS Container — hotspot/WiFi configured, no container step run",
       );
     }
+    // (else: the package-check block above already logged the specific reason)
 
     // Lock down unused management services. Winbox (8291), WebFig (www —
     // moved to :85 below) and the API stay enabled and reachable: the admin
