@@ -73,6 +73,20 @@ export const captiveTemplates = pgTable("captive_templates", {
   voucherFieldLabel: text("voucher_field_label").notNull().default("Code d'accès"),
   termsText: text("terms_text"),
   footerText: text("footer_text"),
+  mobileMoneyEnabled: boolean("mobile_money_enabled").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const paymentGateways = pgTable("payment_gateways", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(), // "wave" | "orange_money" | "moov_money"
+  merchantId: text("merchant_id"),
+  apiKeyEncrypted: text("api_key_encrypted"),
+  enabled: boolean("enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -124,6 +138,10 @@ export const vouchers = pgTable("vouchers", {
   packageId: uuid("package_id").references(() => packages.id, {
     onDelete: "set null",
   }),
+  // Set when a sale is made through the Agent / POS flow — lets each
+  // agent's cash sales and commission be tracked separately from batch-
+  // generated vouchers (which have no agent).
+  agentId: uuid("agent_id").references(() => users.id, { onDelete: "set null" }),
   status: text("status").notNull().default("PROVISIONED"),
   firstLoginAt: timestamp("first_login_at"),
   expiresAt: timestamp("expires_at"),
@@ -151,6 +169,31 @@ export const personalVpnAccess = pgTable("personal_vpn_access", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at"),
   revokedAt: timestamp("revoked_at"),
+});
+
+export const floatTransactions = pgTable("float_transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // "deposit" | "withdrawal"
+  amountCents: integer("amount_cents").notNull(),
+  note: text("note"),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const expenses = pgTable("expenses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  category: text("category").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  note: text("note"),
+  expenseDate: timestamp("expense_date").defaultNow().notNull(),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const routerPortForwards = pgTable("router_port_forwards", {
