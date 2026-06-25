@@ -83,7 +83,7 @@ export const paymentGateways = pgTable("payment_gateways", {
   orgId: uuid("org_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(), // "wave" | "orange_money" | "moov_money"
+  provider: text("provider").notNull(), // "paystack" | "genius_pay" (see PROVIDERS in lib/payment-gateways/providers.ts)
   merchantId: text("merchant_id"),
   apiKeyEncrypted: text("api_key_encrypted"),
   enabled: boolean("enabled").notNull().default(false),
