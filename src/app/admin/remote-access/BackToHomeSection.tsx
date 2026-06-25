@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Copy, Loader2, Smartphone } from "lucide-react";
+import QRCode from "qrcode";
 import { enableBackToHome } from "@/lib/mikrotik/back-to-home";
 
 type RouterRow = { id: string; name: string; status: string };
@@ -22,6 +23,7 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<BthResult>(null);
   const [copied, setCopied] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   async function handleEnable() {
     setPending(true);
@@ -29,6 +31,21 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
     setPending(false);
     setResult(res as BthResult);
   }
+
+  // RouterOS's own "vpn-wireguard-client-config-qrcode" field is an
+  // ASCII/text rendering meant for a terminal, not a real PNG — rendering
+  // it as <img src="data:image/png;base64,..."> just produces a broken,
+  // invisible image. Generate a real scannable QR code ourselves from the
+  // WireGuard config text instead.
+  useEffect(() => {
+    if (result && "success" in result && result.ready) {
+      QRCode.toDataURL(result.wgConfig, { width: 200, margin: 1 })
+        .then(setQrDataUrl)
+        .catch(() => setQrDataUrl(null));
+    } else {
+      setQrDataUrl(null);
+    }
+  }, [result]);
 
   return (
     <div className="rounded-lg border border-slate-200 p-3">
@@ -65,14 +82,10 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
             Back To Home activé{result.ddnsName ? ` (${result.ddnsName})` : ""}. Scannez le
             QR code ci-dessous avec l&apos;app WireGuard (ou Back To Home) sur Android/iPhone.
           </p>
-          {result.wgQrCode && (
+          {qrDataUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={
-                result.wgQrCode.startsWith("data:")
-                  ? result.wgQrCode
-                  : `data:image/png;base64,${result.wgQrCode}`
-              }
+              src={qrDataUrl}
               alt="QR code Back To Home"
               width={160}
               height={160}
