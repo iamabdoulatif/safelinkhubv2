@@ -412,21 +412,35 @@ export async function provisionHotspotStack(
       "DNS resolver",
     );
 
-    // WAN masquerade is needed regardless of container support.
-    await run(
-      ["/ip/firewall/nat/add", "=chain=srcnat", `=out-interface=${WAN_INTERFACE_NAME}`, "=action=masquerade"],
-      "WAN masquerade",
-    );
-    await run(
-      [
-        "/ip/firewall/nat/add",
-        "=chain=srcnat",
-        "=action=masquerade",
-        "=comment=masquerade hotspot network",
-        `=src-address=${subnet.networkAddress}/${opts.hotspotPrefixBits}`,
-      ],
-      "masquerade hotspot network",
-    );
+    // WAN masquerade is needed regardless of container support. RouterOS
+    // ships with this exact rule already in place out of the box (out-
+    // interface=ether1, no comment) — it auto-follows the WAN rename above,
+    // so without this check every re-run added an indistinguishable
+    // duplicate on top of it.
+    const existingWanMasquerade = await client
+      .talk(["/ip/firewall/nat/print", "?chain=srcnat", "?action=masquerade", `?out-interface=${WAN_INTERFACE_NAME}`])
+      .catch(() => []);
+    if (existingWanMasquerade.length === 0) {
+      await run(
+        ["/ip/firewall/nat/add", "=chain=srcnat", `=out-interface=${WAN_INTERFACE_NAME}`, "=action=masquerade"],
+        "WAN masquerade",
+      );
+    }
+    const existingHotspotMasquerade = await client
+      .talk(["/ip/firewall/nat/print", "?chain=srcnat", "?action=masquerade", "?comment=masquerade hotspot network"])
+      .catch(() => []);
+    if (existingHotspotMasquerade.length === 0) {
+      await run(
+        [
+          "/ip/firewall/nat/add",
+          "=chain=srcnat",
+          "=action=masquerade",
+          "=comment=masquerade hotspot network",
+          `=src-address=${subnet.networkAddress}/${opts.hotspotPrefixBits}`,
+        ],
+        "masquerade hotspot network",
+      );
+    }
 
     // Placeholder rules reserved for the hotspot service's own auto-managed
     // rules (RouterOS inserts its dynamic hotspot filter/NAT rules right
@@ -800,44 +814,62 @@ export async function provisionHotspotStack(
       await waitForImageAndStart(client, log);
 
       // NAT: Docker subnet masquerade, remote-access dst-nat, and a second
-      // dst-nat reachable via the hotspot gateway IP itself.
-      await run(
-        [
-          "/ip/firewall/nat/add",
-          "=chain=srcnat",
-          `=src-address=${DOCKER_NETWORK}`,
-          "=action=masquerade",
-          "=comment=Docker NAT",
-        ],
-        "Docker subnet masquerade",
-      );
-      await run(
-        [
-          "/ip/firewall/nat/add",
-          "=chain=dstnat",
-          `=dst-port=${REMOTE_ACCESS_PORT}`,
-          "=protocol=tcp",
-          "=action=dst-nat",
-          `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
-          "=to-ports=80",
-          "=comment=ACCES DISTANT",
-        ],
-        "remote-access dst-nat port forward",
-      );
-      await run(
-        [
-          "/ip/firewall/nat/add",
-          "=chain=dstnat",
-          `=dst-address=${opts.hotspotAddress}`,
-          `=dst-port=${DOCKER_WEB_PORT}`,
-          "=protocol=tcp",
-          "=action=dst-nat",
-          `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
-          "=to-ports=80",
-          "=comment=Docker NAT",
-        ],
-        "Docker web dst-nat port forward",
-      );
+      // dst-nat reachable via the hotspot gateway IP itself. Each checked
+      // by its (chain, action, comment) signature first — none of these
+      // are otherwise unique enough for RouterOS to reject a duplicate
+      // /add, so without this they'd pile up on every re-run.
+      const existingDockerMasquerade = await client
+        .talk(["/ip/firewall/nat/print", "?chain=srcnat", "?action=masquerade", "?comment=Docker NAT", `?src-address=${DOCKER_NETWORK}`])
+        .catch(() => []);
+      if (existingDockerMasquerade.length === 0) {
+        await run(
+          [
+            "/ip/firewall/nat/add",
+            "=chain=srcnat",
+            `=src-address=${DOCKER_NETWORK}`,
+            "=action=masquerade",
+            "=comment=Docker NAT",
+          ],
+          "Docker subnet masquerade",
+        );
+      }
+      const existingRemoteAccessNat = await client
+        .talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=ACCES DISTANT"])
+        .catch(() => []);
+      if (existingRemoteAccessNat.length === 0) {
+        await run(
+          [
+            "/ip/firewall/nat/add",
+            "=chain=dstnat",
+            `=dst-port=${REMOTE_ACCESS_PORT}`,
+            "=protocol=tcp",
+            "=action=dst-nat",
+            `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
+            "=to-ports=80",
+            "=comment=ACCES DISTANT",
+          ],
+          "remote-access dst-nat port forward",
+        );
+      }
+      const existingDockerWebNat = await client
+        .talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=Docker NAT", `?dst-port=${DOCKER_WEB_PORT}`])
+        .catch(() => []);
+      if (existingDockerWebNat.length === 0) {
+        await run(
+          [
+            "/ip/firewall/nat/add",
+            "=chain=dstnat",
+            `=dst-address=${opts.hotspotAddress}`,
+            `=dst-port=${DOCKER_WEB_PORT}`,
+            "=protocol=tcp",
+            "=action=dst-nat",
+            `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
+            "=to-ports=80",
+            "=comment=Docker NAT",
+          ],
+          "Docker web dst-nat port forward",
+        );
+      }
     } else if (!opts.supportsContainers) {
       log.push(
         "SKIP (MikHmon container): architecture does not support RouterOS Container — hotspot/WiFi configured, no container step run",
