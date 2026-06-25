@@ -69,7 +69,7 @@ export async function listRouterInterfaces(routerId: string) {
     rows
       .filter(
         (r) =>
-          (r.type === "ether" || r.type === "wlan" || r.type === "wifi") &&
+          (r.type === "ether" || r.type === "wlan" || r.type === "wifi" || r.type === "veth") &&
           !r.name?.startsWith("safelinkhub-"),
       )
       .forEach((r) => portsByName.set(r.name, toManagedPort(r)));
@@ -132,25 +132,57 @@ export async function saveBridge(_prevState: unknown, formData: FormData) {
   }
 
   try {
-    await client.talk(["/interface/bridge/remove", `=numbers=${name}`]).catch(() => {});
-    await client.talk(["/interface/bridge/add", `=name=${name}`]);
-
-    for (const port of ports) {
-      await client.talk([
-        "/interface/bridge/port/add",
-        `=bridge=${name}`,
-        `=interface=${port}`,
-      ]);
+    // Idempotent: only create the bridge if it doesn't already exist. The
+    // previous remove-then-add sequence broke whenever the bridge already
+    // had ports/IP/DHCP attached (RouterOS refuses to remove an interface
+    // still referenced by dependent config) — remove failed silently, then
+    // add failed with a duplicate-name error, leaving every subsequent
+    // =bridge=${name} reference pointing at a bridge that, as far as that
+    // failed run was concerned, never got (re)created.
+    const existingBridge = await client.talk(["/interface/bridge/print", `?name=${name}`]).catch(() => []);
+    if (existingBridge.length === 0) {
+      await client.talk(["/interface/bridge/add", `=name=${name}`]);
     }
 
-    await client
-      .talk(["/ip/address/remove", `=numbers=${gatewayIp}/${subnetBits}`])
-      .catch(() => {});
-    await client.talk([
-      "/ip/address/add",
-      `=address=${gatewayIp}/${subnetBits}`,
-      `=interface=${name}`,
-    ]);
+    // Move each port onto this bridge rather than blindly /add-ing — a
+    // physical/WiFi interface can only be a port of one bridge at a time,
+    // so if it's already slaved to a different bridge (the factory
+    // default, or another SafeLinkHub bridge), /add fails outright instead
+    // of switching it over.
+    for (const port of ports) {
+      const existingPort = await client
+        .talk(["/interface/bridge/port/print", `?interface=${port}`])
+        .catch(() => []);
+      if (existingPort.length > 0) {
+        if (existingPort[0].bridge !== name) {
+          await client.talk([
+            "/interface/bridge/port/set",
+            `=numbers=${existingPort[0][".id"]}`,
+            `=bridge=${name}`,
+          ]);
+        }
+      } else {
+        await client.talk([
+          "/interface/bridge/port/add",
+          `=bridge=${name}`,
+          `=interface=${port}`,
+        ]);
+      }
+    }
+
+    const existingAddress = await client
+      .talk(["/ip/address/print", `?interface=${name}`])
+      .catch(() => []);
+    if (existingAddress.length === 0 || existingAddress[0].address !== `${gatewayIp}/${subnetBits}`) {
+      for (const addr of existingAddress) {
+        await client.talk(["/ip/address/remove", `=numbers=${addr[".id"]}`]).catch(() => {});
+      }
+      await client.talk([
+        "/ip/address/add",
+        `=address=${gatewayIp}/${subnetBits}`,
+        `=interface=${name}`,
+      ]);
+    }
 
     if (hotspotEnabled) {
       const poolName = `${name}-pool`;
