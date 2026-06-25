@@ -104,6 +104,10 @@ export type HotspotStackOptions = {
   hotspotPrefixBits: number; // chosen by the admin, e.g. 8, 19, 23, 24
   hotspotName: string; // chosen by the admin, e.g. "MIRADOR-WIFI"
   dnsName: string; // chosen by the admin, e.g. "mirador.ci"
+  // RouterOS system identity (/system/identity). Optional — when omitted,
+  // falls back to "HSPT-<first word of hotspotName>" as before, so existing
+  // callers that never set this keep their previous behavior.
+  identity?: string;
   hasUsbStorage: boolean; // ax2 / hAP ax lite have none; some boards take a USB stick
   // RouterOS Container only runs on arm/arm64/tile — mipsbe/mmips/smips
   // boards (RB951, hEX, hEX S, plain wAP, ...) skip the DOCKERS/MikHmon
@@ -939,8 +943,9 @@ export async function provisionHotspotStack(
 
     await run(["/system/clock/set", "=time-zone-name=Africa/Abidjan"], "timezone Africa/Abidjan");
 
-    const identitySlug = opts.hotspotName.split(/[\s-]/)[0].toUpperCase();
-    await run(["/system/identity/set", `=name=HSPT-${identitySlug}`], "system identity");
+    const identityName =
+      opts.identity?.trim() || `HSPT-${opts.hotspotName.split(/[\s-]/)[0].toUpperCase()}`;
+    await run(["/system/identity/set", `=name=${identityName}`], "system identity");
 
     await run(["/system/ntp/client/set", "=enabled=yes"], "NTP client enabled");
     for (const server of NTP_SERVERS) {

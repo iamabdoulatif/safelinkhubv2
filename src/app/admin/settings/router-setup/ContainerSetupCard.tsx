@@ -6,9 +6,31 @@ import { provisionHotspotStack } from "@/lib/mikrotik/container-setup";
 import { computeSubnetInfo, getImpactNote } from "@/lib/net/subnet";
 import { VOUCHER_PROFILES } from "@/lib/mikrotik/voucher-profiles";
 
-const PREFIX_OPTIONS = [8, 16, 19, 23, 24];
 const DEFAULT_VOUCHER_PROFILE_NAMES = VOUCHER_PROFILES.map((p) => p.name);
 const UNLOCK_COMMAND = "/system/device-mode/update mode=advanced container=yes";
+
+type NetworkClass = "any" | "A" | "B" | "C";
+
+function rangeArray(start: number, end: number): number[] {
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+
+// Mirrors a classic IPv4 subnet calculator: picking a class narrows the
+// /bits dropdown to that class's conventional range; "Any" exposes the full
+// usable range (a /31 or /32 has no usable hotspot hosts, so we stop at /30).
+const CLASS_PREFIX_OPTIONS: Record<NetworkClass, number[]> = {
+  any: rangeArray(1, 30),
+  A: rangeArray(8, 15),
+  B: rangeArray(16, 23),
+  C: rangeArray(24, 30),
+};
+
+const CLASS_DEFAULT_PREFIX: Record<NetworkClass, number> = {
+  any: 24,
+  A: 8,
+  B: 16,
+  C: 24,
+};
 
 function UnlockCommandBlock() {
   const [copied, setCopied] = useState(false);
@@ -55,9 +77,11 @@ export default function ContainerSetupCard({
   supportsContainers?: boolean;
   containerBlockedReason?: "architecture" | "device-mode" | null;
 }) {
+  const [networkClass, setNetworkClass] = useState<NetworkClass>("any");
   const [hotspotAddress, setHotspotAddress] = useState("10.0.0.1");
   const [hotspotPrefixBits, setHotspotPrefixBits] = useState(8);
   const [hotspotName, setHotspotName] = useState("");
+  const [identity, setIdentity] = useState("");
   const [dnsName, setDnsName] = useState("");
   const [ssid, setSsid] = useState("");
   const [defaultHotspotUsers, setDefaultHotspotUsers] = useState("");
@@ -68,6 +92,15 @@ export default function ContainerSetupCard({
     setVoucherProfiles((prev) =>
       prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
     );
+  }
+
+  const prefixOptions = CLASS_PREFIX_OPTIONS[networkClass];
+
+  function changeNetworkClass(next: NetworkClass) {
+    setNetworkClass(next);
+    if (!CLASS_PREFIX_OPTIONS[next].includes(hotspotPrefixBits)) {
+      setHotspotPrefixBits(CLASS_DEFAULT_PREFIX[next]);
+    }
   }
 
   const subnet = computeSubnetInfo(hotspotAddress.trim(), hotspotPrefixBits);
@@ -93,6 +126,7 @@ export default function ContainerSetupCard({
         hotspotAddress,
         hotspotPrefixBits,
         hotspotName,
+        identity: identity.trim() || undefined,
         dnsName,
         ssid: ssid.trim() || undefined,
         defaultHotspotUsers: defaultHotspotUsers
@@ -159,6 +193,24 @@ export default function ContainerSetupCard({
         </div>
       )}
 
+      <div className="mt-4">
+        <label className="mb-1 block text-xs font-medium text-slate-500">Classe réseau</label>
+        <div className="flex flex-wrap gap-3">
+          {(["any", "A", "B", "C"] as NetworkClass[]).map((c) => (
+            <label key={c} className="flex items-center gap-1.5 text-sm text-slate-700">
+              <input
+                type="radio"
+                name="network-class"
+                checked={networkClass === c}
+                onChange={() => changeNetworkClass(c)}
+                className="h-4 w-4 border-slate-300"
+              />
+              {c === "any" ? "Toutes" : `Classe ${c}`}
+            </label>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500">
@@ -176,13 +228,31 @@ export default function ContainerSetupCard({
               onChange={(e) => setHotspotPrefixBits(Number(e.target.value))}
               className="rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-slate-400 focus:outline-none"
             >
-              {PREFIX_OPTIONS.map((bits) => (
+              {prefixOptions.map((bits) => (
                 <option key={bits} value={bits}>
                   /{bits}
                 </option>
               ))}
             </select>
           </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">
+            Identité système (/system identity)
+          </label>
+          <input
+            value={identity}
+            onChange={(e) => setIdentity(e.target.value)}
+            placeholder={
+              hotspotName.trim()
+                ? `HSPT-${hotspotName.split(/[\s-]/)[0].toUpperCase()}`
+                : "HSPT-MIRADOR"
+            }
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+          />
+          <p className="mt-1 text-[11px] text-slate-400">
+            Laissez vide pour générer automatiquement à partir du nom du hotspot.
+          </p>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500">
