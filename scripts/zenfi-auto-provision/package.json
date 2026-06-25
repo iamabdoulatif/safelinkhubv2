@@ -1,0 +1,14 @@
+{
+  "name": "zenfi-auto-provision",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone idempotent MikroTik provisioner for SafeLinkHub hotspot routers.",
+  "main": "zenfi-auto-provision.js",
+  "scripts": {
+    "start": "node zenfi-auto-provision.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "routeros-client": "^1.0.4"
+  }
+}

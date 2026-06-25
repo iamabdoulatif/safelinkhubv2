@@ -59,6 +59,7 @@ export default function ContainerSetupCard({
   const [hotspotPrefixBits, setHotspotPrefixBits] = useState(8);
   const [hotspotName, setHotspotName] = useState("");
   const [dnsName, setDnsName] = useState("");
+  const [ssid, setSsid] = useState("");
   const [hasUsbStorage, setHasUsbStorage] = useState(defaultHasUsbStorage);
   const [voucherProfiles, setVoucherProfiles] = useState<string[]>(DEFAULT_VOUCHER_PROFILE_NAMES);
 
@@ -92,6 +93,7 @@ export default function ContainerSetupCard({
         hotspotPrefixBits,
         hotspotName,
         dnsName,
+        ssid: ssid.trim() || undefined,
         hasUsbStorage,
         supportsContainers,
         reboot: true,
@@ -196,6 +198,17 @@ export default function ContainerSetupCard({
             value={dnsName}
             onChange={(e) => setDnsName(e.target.value)}
             placeholder="mirador.ci"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">
+            Nom du réseau WiFi (SSID)
+          </label>
+          <input
+            value={ssid}
+            onChange={(e) => setSsid(e.target.value)}
+            placeholder="MIRADOR WIFI"
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
           />
         </div>

@@ -111,6 +111,10 @@ export type HotspotStackOptions = {
   // durations they actually use. Omitted/empty means "create all of them"
   // (matches prior behavior for callers that don't pass this field yet).
   voucherProfiles?: string[];
+  // WiFi network name broadcast on both radios (2.4GHz + 5GHz). Optional —
+  // boards with no WiFi radio at all (CCR routers, plain switches) just
+  // skip this step instead of failing.
+  ssid?: string;
 };
 
 /**
@@ -173,6 +177,28 @@ export async function provisionHotspotStack(
     await client
       .talk(["/interface/ethernet/set", "=numbers=ether1", `=name=${WAN_INTERFACE_NAME}`])
       .catch(() => {});
+
+    // WiFi SSID on every radio the board actually has (hAP ax² has two —
+    // 2.4GHz and 5GHz — single-band boards or CCRs with none just see no
+    // matching rows and skip silently). Setting the same SSID twice is a
+    // harmless no-op, so this runs unconditionally rather than checking
+    // first.
+    if (opts.ssid?.trim()) {
+      const wifiInterfaces = await client.talk(["/interface/wifi/print"]).catch(() => []);
+      for (const wifi of wifiInterfaces) {
+        if (!wifi.name) continue;
+        await run(
+          [
+            "/interface/wifi/set",
+            `=numbers=${wifi.name}`,
+            `=configuration.ssid=${opts.ssid.trim()}`,
+            "=configuration.mode=ap",
+            "=disabled=no",
+          ],
+          `WiFi SSID on ${wifi.name}`,
+        );
+      }
+    }
 
     // HOTSPOT bridge across every ethernet port that isn't the WAN uplink,
     // plus every WiFi radio (wifi1/wifi2) — without the radios in the
@@ -587,10 +613,13 @@ export async function provisionHotspotStack(
           "container engine config (USB storage)",
         );
       } else {
-        await run(
-          ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
-          "tmpfs disk slot",
-        );
+        const existingDisks = await client.talk(["/disk/print"]).catch(() => []);
+        if (!existingDisks.some((d) => d.slot === "tmp")) {
+          await run(
+            ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
+            "tmpfs disk slot",
+          );
+        }
         await run(
           ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=/tmp", `=layer-dir=${LAYER_DIR}`],
           "container engine config (tmpfs)",
@@ -749,6 +778,60 @@ export async function provisionHotspotStack(
         "=start-time=00:00:05",
       ],
       "daily cleanup job (CLEAN_JOB)",
+    );
+
+    // Anti connection-sharing TTL rewrite on the hotspot bridge — rewrites
+    // every forwarded packet's TTL to 1 past this router, so a client
+    // device can't transparently re-share the hotspot connection over its
+    // own hotspot/tethering (the chained router would see TTL=0 and the
+    // packet would just die instead of reaching the internet).
+    const existingMangle = await client
+      .talk(["/ip/firewall/mangle/print", `?out-interface=${HOTSPOT_BRIDGE_NAME}`, "?action=change-ttl"])
+      .catch(() => []);
+    if (existingMangle.length === 0) {
+      await run(
+        [
+          "/ip/firewall/mangle/add",
+          "=chain=postrouting",
+          `=out-interface=${HOTSPOT_BRIDGE_NAME}`,
+          "=action=change-ttl",
+          "=new-ttl=set:1",
+          "=passthrough=no",
+        ],
+        "mangle: anti connection-sharing TTL rewrite",
+      );
+    }
+
+    // Restricted API user group: scopes whatever account SafeLinkHub
+    // connects with to just what the app needs (read/write/test/sensitive/
+    // api), explicitly denying every interactive-access policy (winbox,
+    // ssh, telnet, ftp, web, local, reboot, password, sniff, romon,
+    // rest-api) so a leaked API credential can't be used to log into the
+    // router directly through any of those surfaces.
+    await client.talk(["/user/group/remove", "=numbers=safelinkhub-group"]).catch(() => {});
+    await run(
+      [
+        "/user/group/add",
+        "=name=safelinkhub-group",
+        "=policy=read,write,test,sensitive,api,!local,!telnet,!ssh,!ftp,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api",
+      ],
+      "SafeLinkHub API user group",
+    );
+
+    // Manual backup helper: exports the full config plus hotspot/NAT/filter
+    // sections separately, timestamped, for whenever an admin wants a
+    // one-off snapshot straight from the router's own terminal/scheduler.
+    await client.talk(["/system/script/remove", "=numbers=export-all"]).catch(() => {});
+    await run(
+      [
+        "/system/script/add",
+        "=name=export-all",
+        "=dont-require-permissions=no",
+        `=owner=${router.username}`,
+        "=policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon",
+        '=source=:local date [/system clock get date];:local time [/system clock get time];:local filename ("backup-" . [:pick $date 7 11] . "-" . [:pick $date 0 3] . [:pick $date 4 6]);/export compact file=$filename;/ip hotspot export file=("hotspot-" . $filename);/ip firewall nat export file=("nat-" . $filename);/ip firewall filter export file=("filter-" . $filename);:log info ("Export termine : " . $filename)',
+      ],
+      "export-all backup script",
     );
 
     if (opts.reboot) {
