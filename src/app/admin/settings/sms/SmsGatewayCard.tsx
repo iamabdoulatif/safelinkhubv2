@@ -6,23 +6,19 @@ import { saveSmsGateway } from "@/lib/sms/actions";
 import type { Provider } from "@/lib/sms/providers";
 
 const LABELS: Record<Provider, string> = {
-  africastalking: "Africa's Talking",
-  twilio: "Twilio",
+  wassoya: "Wassoya",
 };
 
 const COLORS: Record<Provider, string> = {
-  africastalking: "bg-[#E2136E]",
-  twilio: "bg-[#F22F46]",
+  wassoya: "bg-[#5B3DF5]",
 };
 
 const SUBTITLES: Record<Provider, string> = {
-  africastalking: "Couverture SMS pan-africaine (Côte d'Ivoire incluse) — souvent le choix le plus économique localement.",
-  twilio: "Couverture mondiale, utile si vous avez aussi des clients hors d'Afrique.",
+  wassoya: "SMS, WhatsApp et Email — wassoya.com. Authentification par clé API (Bearer).",
 };
 
 const SENDER_LABELS: Record<Provider, string> = {
-  africastalking: "Nom d'expéditeur / Username",
-  twilio: "Numéro expéditeur (From)",
+  wassoya: "Nom d'expéditeur (from, 11 caractères max)",
 };
 
 export default function SmsGatewayCard({
@@ -84,7 +80,8 @@ export default function SmsGatewayCard({
           <input
             name="senderId"
             defaultValue={senderId ?? ""}
-            placeholder={provider === "twilio" ? "+225XXXXXXXXX" : "SafeLinkHub"}
+            placeholder="SafeLinkHub"
+            maxLength={11}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
           />
         </div>

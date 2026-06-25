@@ -18,7 +18,7 @@ export default async function SmsSettingsPage() {
         rappels d&apos;expiration et alertes aux clients et agents.
       </p>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:max-w-sm">
         {PROVIDERS.map((provider) => {
           const g = byProvider.get(provider);
           return (
@@ -37,8 +37,8 @@ export default async function SmsSettingsPage() {
         Les clés sont chiffrées au repos. L&apos;envoi effectif de SMS (codes voucher,
         rappels) n&apos;est pas encore branché à ces identifiants — pour l&apos;instant
         cette page enregistre les identifiants de connexion seulement, aucun SMS
-        n&apos;est envoyé tant que l&apos;appel aux API Africa&apos;s Talking / Twilio
-        n&apos;est pas implémenté.
+        n&apos;est envoyé tant que l&apos;appel à l&apos;API Wassoya n&apos;est pas
+        implémenté.
       </p>
     </div>
   );
