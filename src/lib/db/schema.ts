@@ -222,3 +222,15 @@ export const routerPortForwards = pgTable("router_port_forwards", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   revokedAt: timestamp("revoked_at"),
 });
+
+export const supportTickets = pgTable("support_tickets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("open"), // open | resolved
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
