@@ -8,8 +8,8 @@ type RouterRow = { id: string; name: string; status: string };
 
 type LinkResult =
   | { error: string }
-  | { success: true; ready: false; message: string }
-  | { success: true; ready: true; link: string; ddnsName: string }
+  | { success: true; ready: false; message: string; localLink: string | null }
+  | { success: true; ready: true; link: string; ddnsName: string; localLink: string | null }
   | null;
 
 function RouterMikhmonCard({ router }: { router: RouterRow }) {
@@ -53,13 +53,45 @@ function RouterMikhmonCard({ router }: { router: RouterRow }) {
       )}
 
       {result && "success" in result && result.ready && (
+        <div className="mt-2 space-y-1">
+          <div>
+            <p className="text-[11px] text-slate-400">Accès distant (Internet — ACCES DISTANT, port 8088)</p>
+            <a
+              href={result.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline"
+            >
+              {result.link}
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+          {result.localLink && (
+            <div>
+              <p className="text-[11px] text-slate-400">
+                Accès local (réseau hotspot — Docker NAT, port 8087)
+              </p>
+              <a
+                href={result.localLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:underline"
+              >
+                {result.localLink}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+      {result && "success" in result && !result.ready && result.localLink && (
         <a
-          href={result.link}
+          href={result.localLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2 flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline"
+          className="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:underline"
         >
-          {result.link}
+          {result.localLink}
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
       )}

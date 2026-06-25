@@ -9,7 +9,7 @@ import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
 import { VOUCHER_PROFILES } from "./voucher-profiles";
-import { REMOTE_ACCESS_PORT } from "./constants";
+import { REMOTE_ACCESS_PORT, DOCKER_WEB_PORT, HOTSPOT_BRIDGE_NAME } from "./constants";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -40,7 +40,6 @@ type Sentence = Record<string, string>;
  */
 const WAN_INTERFACE_NAME = "E1-WAN-FAI";
 const DOCKER_BRIDGE_NAME = "CONTAINERS";
-const HOTSPOT_BRIDGE_NAME = "HOTSPOT";
 // Bridge name used by older SafeLinkHub installs, before this was aligned to
 // match the exact spec/export naming — cleaned up if found so a re-run on an
 // already-provisioned router doesn't leave an orphaned empty bridge behind.
@@ -51,7 +50,6 @@ const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
 const DOCKER_NETWORK = "11.11.11.0/28";
 const HOTSPOT_POOL_NAME = "POOL-HOTSPOT";
-const DOCKER_WEB_PORT = 8087; // public port -> MikHmon UI, reachable via the hotspot gateway IP
 const CONTAINER_NAME = "mikhmon-sf-v1:latest";
 const REMOTE_IMAGE = "latif225/mikhmon-sf-v1:latest";
 const ROOT_DIR = "/mikhmon-app";
