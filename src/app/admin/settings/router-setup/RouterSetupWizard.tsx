@@ -5,6 +5,7 @@ import TopologyBuilder from "./TopologyBuilder";
 import ConnectionTestStep from "./ConnectionTestStep";
 import PortalPreviewStep from "./PortalPreviewStep";
 import RouterResetButton from "./RouterResetButton";
+import StepIndicator from "./StepIndicator";
 
 type SavedBridge = {
   id: string;
@@ -28,18 +29,7 @@ export default function RouterSetupWizard({
 
   return (
     <div>
-      <div className="mt-6 flex items-center justify-center gap-2">
-        {[1, 2, 3, 4].map((n) => (
-          <div
-            key={n}
-            className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium ${
-              n <= step ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"
-            }`}
-          >
-            {n}
-          </div>
-        ))}
-      </div>
+      <StepIndicator steps={[1, 2, 3, 4]} currentStep={step} />
 
       {step === 2 ? (
         <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">

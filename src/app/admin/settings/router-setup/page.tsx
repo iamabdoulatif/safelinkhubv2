@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { routers, bridges } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import MethodTabs from "./MethodTabs";
+import StepIndicator from "./StepIndicator";
 import RouterSetupWizard from "./RouterSetupWizard";
 import RouterResetButton from "./RouterResetButton";
 import AutoSetupExtras from "./AutoSetupExtras";
@@ -41,20 +42,7 @@ export default async function RouterSetupPage() {
 
       {!isOnline ? (
         <>
-          <div className="mt-6 flex items-center justify-center gap-2">
-            {[1, 2, 3, 4].map((step) => (
-              <div
-                key={step}
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium ${
-                  step === 1
-                    ? "bg-emerald-500 text-white"
-                    : "bg-slate-100 text-slate-400"
-                }`}
-              >
-                {step}
-              </div>
-            ))}
-          </div>
+          <StepIndicator steps={[1, 2, 3, 4]} currentStep={1} />
 
           {router && (
             <div className="mt-4 flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5">
