@@ -14,6 +14,7 @@ import {
   revokeOpenvpnPeer,
   revokeVpnPeer,
 } from "./relay";
+import { syncMndpAnnouncements } from "./mndp-relay";
 
 /**
  * Generates a personal WireGuard / OpenVPN client config that lets an admin
@@ -128,6 +129,7 @@ AllowedIPs = 10.66.0.0/24
 PersistentKeepalive = 25
 `;
 
+  syncMndpAnnouncements(session.orgId).catch(() => {});
   revalidatePath("/admin/remote-access");
   return {
     success: true,
@@ -212,6 +214,7 @@ ${peer.password}
 </auth-user-pass>
 `;
 
+  syncMndpAnnouncements(session.orgId).catch(() => {});
   revalidatePath("/admin/remote-access");
   return {
     success: true,
@@ -260,6 +263,7 @@ export async function revokePersonalVpnAccess(accessId: string) {
     .set({ status: "revoked", revokedAt: new Date() })
     .where(eq(personalVpnAccess.id, accessId));
 
+  syncMndpAnnouncements(session.orgId).catch(() => {});
   revalidatePath("/admin/remote-access");
   return { success: true };
 }
@@ -336,6 +340,7 @@ export async function deletePersonalVpnAccess(accessId: string) {
 
   await db.delete(personalVpnAccess).where(eq(personalVpnAccess.id, accessId));
 
+  syncMndpAnnouncements(session.orgId).catch(() => {});
   revalidatePath("/admin/remote-access");
   return { success: true };
 }

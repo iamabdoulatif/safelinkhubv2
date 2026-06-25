@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
+import { syncMndpAnnouncementsForAllOrgs } from "@/lib/mikrotik/mndp-relay";
 
 export const maxDuration = 60;
 
@@ -36,9 +37,14 @@ export async function GET(request: NextRequest) {
     }),
   );
 
+  const mndp = await syncMndpAnnouncementsForAllOrgs().catch((err) => ({
+    error: err instanceof Error ? err.message : "MNDP sync failed",
+  }));
+
   return Response.json({
     checked: results.length,
     offline: results.filter((r) => !r.success).length,
     results,
+    mndp,
   });
 }

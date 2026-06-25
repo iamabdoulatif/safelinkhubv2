@@ -6,7 +6,7 @@ function getRelayPrivateKey(): string {
   return Buffer.from(b64, "base64").toString("utf8");
 }
 
-function runOnRelay(command: string, timeoutMs = 15000): Promise<string> {
+export function runOnRelay(command: string, timeoutMs = 15000): Promise<string> {
   const host = process.env.WG_RELAY_HOST;
   const username = process.env.WG_RELAY_SSH_USER;
   if (!host || !username) {

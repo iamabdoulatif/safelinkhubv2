@@ -8,6 +8,7 @@ import RemoteAccessTabs from "./RemoteAccessTabs";
 import PersonalAccessSection from "./PersonalAccessSection";
 import BackToHomeSection from "./BackToHomeSection";
 import DirectAccessSection from "./DirectAccessSection";
+import MndpRelaySection from "./MndpRelaySection";
 import { listPersonalVpnAccess } from "@/lib/mikrotik/personal-access";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 
@@ -129,6 +130,7 @@ export default async function RemoteAccessPage() {
         forwardsByRouter={forwardsByRouter}
         relayHost={process.env.WG_RELAY_HOST ?? ""}
       />
+      {session && <MndpRelaySection orgId={session.orgId} />}
     </div>
   );
 }
