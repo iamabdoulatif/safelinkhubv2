@@ -189,11 +189,28 @@ export async function provisionHotspotStack(
   };
 
   try {
-    // Permanent WAN port rename. Idempotent: if it's already been renamed on
-    // a previous run, "ether1" no longer exists and this just no-ops.
-    await client
-      .talk(["/interface/ethernet/set", "=numbers=ether1", `=name=${WAN_INTERFACE_NAME}`])
-      .catch(() => {});
+    // Permanent WAN port rename, with real visibility in the log instead of
+    // a silent fire-and-forget — if neither E1-WAN-FAI nor ether1 exist,
+    // every NAT/firewall rule below that targets the WAN interface by name
+    // would otherwise silently do nothing and there'd be no clue why.
+    const alreadyRenamed = await client
+      .talk(["/interface/ethernet/print", `?name=${WAN_INTERFACE_NAME}`])
+      .catch(() => []);
+    if (alreadyRenamed.length > 0) {
+      log.push(`OK: WAN port already named ${WAN_INTERFACE_NAME}`);
+    } else {
+      const ether1 = await client.talk(["/interface/ethernet/print", "?name=ether1"]).catch(() => []);
+      if (ether1.length > 0) {
+        await run(
+          ["/interface/ethernet/set", "=numbers=ether1", `=name=${WAN_INTERFACE_NAME}`],
+          `rename ether1 to ${WAN_INTERFACE_NAME}`,
+        );
+      } else {
+        log.push(
+          `SKIP (WAN port rename): neither ether1 nor ${WAN_INTERFACE_NAME} found on this router — check which port is actually the WAN uplink.`,
+        );
+      }
+    }
 
     // WiFi SSID on every radio the board actually has (hAP ax² has two —
     // 2.4GHz and 5GHz — single-band boards or CCRs with none just see no
@@ -426,6 +443,25 @@ export async function provisionHotspotStack(
         "WAN masquerade",
       );
     }
+
+    // Safety net: if the WAN rename above couldn't run (ether1 missing/
+    // already something else) but a literal "ether1" interface still
+    // exists and actually carries the WAN connection, make sure it's
+    // masqueraded too — otherwise a failed rename silently leaves that
+    // port with no internet sharing at all.
+    const literalEther1 = await client.talk(["/interface/ethernet/print", "?name=ether1"]).catch(() => []);
+    if (literalEther1.length > 0) {
+      const existingEther1Masquerade = await client
+        .talk(["/ip/firewall/nat/print", "?chain=srcnat", "?action=masquerade", "?out-interface=ether1"])
+        .catch(() => []);
+      if (existingEther1Masquerade.length === 0) {
+        await run(
+          ["/ip/firewall/nat/add", "=chain=srcnat", "=out-interface=ether1", "=action=masquerade"],
+          "WAN masquerade (fallback on ether1, rename did not run)",
+        );
+      }
+    }
+
     const existingHotspotMasquerade = await client
       .talk(["/ip/firewall/nat/print", "?chain=srcnat", "?action=masquerade", "?comment=masquerade hotspot network"])
       .catch(() => []);
