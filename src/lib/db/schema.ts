@@ -91,6 +91,19 @@ export const paymentGateways = pgTable("payment_gateways", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const smsGateways = pgTable("sms_gateways", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(), // "africastalking" | "twilio" (see PROVIDERS in lib/sms/providers.ts)
+  senderId: text("sender_id"), // AT "username"/short code, or Twilio "from" number
+  apiKeyEncrypted: text("api_key_encrypted"),
+  enabled: boolean("enabled").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const bridges = pgTable("bridges", {
   id: uuid("id").primaryKey().defaultRandom(),
   routerId: uuid("router_id")
