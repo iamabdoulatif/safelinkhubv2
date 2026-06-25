@@ -226,7 +226,7 @@ function EditForm({ row, onClose }: { row: PersonalAccessRow; onClose: () => voi
 function CopyableField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs text-slate-400">{label}</p>
       <button
         type="button"
@@ -235,12 +235,14 @@ function CopyableField({ label, value }: { label: string; value: string }) {
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         }}
-        className="flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900"
-        title="Copier"
+        title={copied ? "Copié" : `Copier : ${value}`}
+        className="flex w-full items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900"
       >
-        {value}
-        <Copy className="h-3 w-3 text-slate-400" />
-        {copied && <span className="text-xs text-emerald-600">Copié</span>}
+        <span className="truncate" title={value}>
+          {value}
+        </span>
+        <Copy className="h-3 w-3 flex-shrink-0 text-slate-400" />
+        {copied && <span className="flex-shrink-0 text-xs text-emerald-600">Copié</span>}
       </button>
     </div>
   );
@@ -302,19 +304,16 @@ export default function PersonalAccessList({ rows }: { rows: PersonalAccessRow[]
               <EditForm row={r} onClose={() => setEditingId(null)} />
             )}
 
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {r.username && <CopyableField label="Identifiant VPN" value={r.username} />}
               {r.password && <CopyableField label="Mot de passe VPN" value={r.password} />}
               <CopyableField label="IP VPN" value={r.vpnIp ?? "—"} />
-              <CopyableField
-                label="URL Remote"
-                value={
-                  r.displayPort
-                    ? `${r.remoteHost}:${r.displayPort} <-> 8291`
-                    : `${r.remoteHost}:${r.remotePort}`
-                }
-              />
+              <CopyableField label="Serveur VPN" value={`${r.remoteHost}:${r.remotePort}`} />
             </div>
+            <p className="mt-2 text-xs text-slate-400">
+              Une fois connecté à ce VPN, joignez un routeur directement via son IP tunnel
+              (ex. 10.66.0.x:8291 pour WinBox) — pas via un port public séparé.
+            </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-400">
               <span>Créé le {formatDate(r.createdAt)}</span>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Globe2, Loader2, ShieldOff } from "lucide-react";
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
+import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
 
 type RouterRow = {
   id: string;
@@ -59,8 +60,27 @@ function RouterDirectAccess({
   const [pendingService, setPendingService] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [resources, setResources] = useState<RouterResources | null>(null);
 
   const activeServices = new Set(forwards.map((f) => f.service));
+  const hasActiveAccess = activeServices.size > 0;
+  const resourcesLoading = hasActiveAccess && resources === null;
+
+  // Re-fetched on every mount (i.e. every page refresh, and right after a
+  // toggle triggers navRouter.refresh()) so an enabled access never goes
+  // unnoticed — same idea as WinBox's own Neighbors list, but for routers
+  // reachable through the relay rather than local broadcast discovery.
+  useEffect(() => {
+    if (!hasActiveAccess) return;
+    let cancelled = false;
+    getRouterResources(router.id).then((res) => {
+      if (cancelled) return;
+      if (res?.success) setResources(res.resources);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasActiveAccess, router.id]);
 
   function handleEnable(service: string) {
     setPendingService(service);
@@ -95,44 +115,86 @@ function RouterDirectAccess({
       <div className="mt-2 space-y-2">
         {(["winbox", "webfig", "ssh"] as const).map((service) => {
           const forward = forwards.find((f) => f.service === service);
+          const isPublic = Boolean(forward);
+          const busy = pending && (pendingService === service || (isPublic && pending));
           return (
             <div key={service} className="flex items-center justify-between text-sm">
               <span className="text-slate-600">{SERVICE_LABELS[service]}</span>
-              {forward ? (
-                <div className="flex items-center gap-2">
-                  <CopyableAddress value={`${relayHost}:${forward.publicPort}`} />
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => handleDisable(forward.id)}
-                    className="flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                  >
-                    <ShieldOff className="h-3.5 w-3.5" />
-                    Désactiver
-                  </button>
-                </div>
-              ) : (
+              <div className="flex items-center gap-2">
+                {forward && <CopyableAddress value={`${relayHost}:${forward.publicPort}`} />}
                 <button
                   type="button"
-                  disabled={pending || router.status !== "online"}
-                  onClick={() => handleEnable(service)}
-                  className="flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                  role="switch"
+                  aria-checked={isPublic}
+                  disabled={busy || (!isPublic && router.status !== "online")}
+                  onClick={() =>
+                    isPublic ? handleDisable(forward!.id) : handleEnable(service)
+                  }
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                    isPublic ? "bg-red-500" : "bg-slate-300"
+                  }`}
                 >
-                  {pendingService === service && (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  )}
-                  Activer
+                  <span
+                    className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
+                      isPublic ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
                 </button>
-              )}
+                <span
+                  className={`flex w-14 items-center gap-1 text-xs font-medium ${
+                    isPublic ? "text-red-600" : "text-slate-500"
+                  }`}
+                >
+                  {pendingService === service ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : isPublic ? (
+                    <Globe2 className="h-3 w-3" />
+                  ) : (
+                    <ShieldOff className="h-3 w-3 rotate-180" />
+                  )}
+                  {isPublic ? "Public" : "Privé"}
+                </span>
+              </div>
             </div>
           );
         })}
       </div>
       <p className="mt-2 text-[11px] text-slate-400">
-        {activeServices.size > 0
+        {hasActiveAccess
           ? "Connectez-vous directement avec ces adresses, sans VPN ni app à installer."
           : "Aucun accès direct actif."}
       </p>
+
+      {hasActiveAccess && (
+        <div className="mt-3 overflow-x-auto rounded-md border border-slate-100">
+          <table className="w-full min-w-[480px] text-left text-[11px]">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                <th className="px-2 py-1.5 font-medium">Identity</th>
+                <th className="px-2 py-1.5 font-medium">Version</th>
+                <th className="px-2 py-1.5 font-medium">Board</th>
+                <th className="px-2 py-1.5 font-medium">Uptime</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-t border-slate-100">
+                <td className="px-2 py-1.5 font-medium text-slate-700">
+                  {resourcesLoading && !resources ? (
+                    <span className="flex items-center gap-1 text-slate-400">
+                      <Loader2 className="h-3 w-3 animate-spin" /> ...
+                    </span>
+                  ) : (
+                    resources?.identity ?? router.name
+                  )}
+                </td>
+                <td className="px-2 py-1.5 text-slate-600">{resources?.version ?? "—"}</td>
+                <td className="px-2 py-1.5 text-slate-600">{resources?.boardName ?? "—"}</td>
+                <td className="px-2 py-1.5 text-slate-600">{resources?.uptime ?? "—"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
