@@ -60,6 +60,7 @@ export default function ContainerSetupCard({
   const [hotspotName, setHotspotName] = useState("");
   const [dnsName, setDnsName] = useState("");
   const [ssid, setSsid] = useState("");
+  const [defaultHotspotUsers, setDefaultHotspotUsers] = useState("");
   const [hasUsbStorage, setHasUsbStorage] = useState(defaultHasUsbStorage);
   const [voucherProfiles, setVoucherProfiles] = useState<string[]>(DEFAULT_VOUCHER_PROFILE_NAMES);
 
@@ -94,6 +95,10 @@ export default function ContainerSetupCard({
         hotspotName,
         dnsName,
         ssid: ssid.trim() || undefined,
+        defaultHotspotUsers: defaultHotspotUsers
+          .split(",")
+          .map((u) => u.trim())
+          .filter(Boolean),
         hasUsbStorage,
         supportsContainers,
         reboot: true,
@@ -211,6 +216,21 @@ export default function ContainerSetupCard({
             placeholder="MIRADOR WIFI"
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">
+            Utilisateurs hotspot par défaut (optionnel)
+          </label>
+          <input
+            value={defaultHotspotUsers}
+            onChange={(e) => setDefaultHotspotUsers(e.target.value)}
+            placeholder="admin, president01@"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+          />
+          <p className="mt-1 text-[11px] text-slate-400">
+            Séparés par des virgules, sans mot de passe. Laissez vide si vous gérez les
+            accès via les profils voucher ci-dessous.
+          </p>
         </div>
         {supportsContainers && (
           <div className="flex items-end">

@@ -39,8 +39,13 @@ type Sentence = Record<string, string>;
  * customer-facing fields (hotspot IP, hotspot name, DNS name, SSID) vary.
  */
 const WAN_INTERFACE_NAME = "E1-WAN-FAI";
-const DOCKER_BRIDGE_NAME = "DOCKERS";
-const HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
+const DOCKER_BRIDGE_NAME = "CONTAINERS";
+const HOTSPOT_BRIDGE_NAME = "HOTSPOT";
+// Bridge name used by older SafeLinkHub installs, before this was aligned to
+// match the exact spec/export naming — cleaned up if found so a re-run on an
+// already-provisioned router doesn't leave an orphaned empty bridge behind.
+const LEGACY_HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
+const LEGACY_DOCKER_BRIDGE_NAME = "DOCKERS";
 const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
@@ -50,7 +55,8 @@ const DOCKER_WEB_PORT = 8087; // public port -> MikHmon UI, reachable via the ho
 const CONTAINER_NAME = "mikhmon-sf-v1:latest";
 const REMOTE_IMAGE = "latif225/mikhmon-sf-v1:latest";
 const ROOT_DIR = "/mikhmon-app";
-const LAYER_DIR = "/flash/mikhmon-layers";
+const CONTAINER_LAYER_DIR = "/flash/mikhmon-app"; // per-container layer-dir (on /container/add)
+const LAYER_DIR = "/flash/mikhmon-layers"; // engine-wide layer-dir (on /container/config/set)
 const NTP_SERVERS = ["196.200.131.160", "196.10.52.57"]; // Côte d'Ivoire NTP
 
 /**
@@ -102,7 +108,7 @@ export type HotspotStackOptions = {
   dnsName: string; // chosen by the admin, e.g. "mirador.ci"
   hasUsbStorage: boolean; // ax2 / hAP ax lite have none; some boards take a USB stick
   // RouterOS Container only runs on arm/arm64/tile — mipsbe/mmips/smips
-  // boards (RB951, hEX, hEX S, plain wAP, ...) skip the DOCKERS/MikHmon
+  // boards (RB951, hEX, hEX S, plain wAP, ...) skip the CONTAINERS/MikHmon
   // step entirely rather than failing partway through.
   supportsContainers: boolean;
   reboot: boolean;
@@ -118,6 +124,16 @@ export type HotspotStackOptions = {
   // RouterOS won't transmit on a WiFi radio until a regulatory country is
   // set — without it, disabled=no can silently leave the radio inactive.
   wifiCountry?: string; // default "United States"
+  // Captive-portal HTML directory name (RouterOS /hotspot/<dir>/, applied to
+  // both html-directory and html-directory-override). Default "hotspot"
+  // matches the directory the bundled portal templates already use.
+  htmlDirectory?: string;
+  // Hotspot user names to create with no password (e.g. ["admin",
+  // "president01@"]) — optional and empty by default, since this is a
+  // multi-tenant SaaS and hardcoding the same login across every
+  // customer's router would be a collision/security smell, not a generic
+  // default.
+  defaultHotspotUsers?: string[];
 };
 
 /**
@@ -125,7 +141,7 @@ export type HotspotStackOptions = {
  * working device export (RouterOS 7.23, container-capable hAP/CCR boards):
  * renames the WAN port, builds the HOTSPOT bridge across every remaining
  * ethernet port, sets up the hotspot pool/DHCP/profile/DNS name, opens the
- * required NAT rules, then provisions the DOCKERS bridge + veth + container
+ * required NAT rules, then provisions the CONTAINERS bridge + veth + container
  * (MikHmon) the same way every time, and finally locks down services,
  * timezone, identity and NTP before rebooting.
  */
@@ -259,6 +275,11 @@ export async function provisionHotspotStack(
       }
     }
 
+    // Every port that was on the legacy bridge name has just been moved
+    // off it by the migration loop above — the shell bridge itself is now
+    // empty and safe to remove instead of lingering as orphaned clutter.
+    await client.talk(["/interface/bridge/remove", `=numbers=${LEGACY_HOTSPOT_BRIDGE_NAME}`]).catch(() => {});
+
     // Interface lists (WAN / LAN) used for NAT/firewall scoping.
     await run(["/interface/list/add", "=name=WAN"], "WAN interface list");
     await run(["/interface/list/add", "=name=LAN"], "LAN interface list");
@@ -330,14 +351,19 @@ export async function provisionHotspotStack(
           .catch(() => {});
       }
     }
+    const htmlDirectory = opts.htmlDirectory?.trim() || "hotspot";
     await run(
       [
         "/ip/hotspot/profile/add",
         `=name=${opts.hotspotName}`,
         `=hotspot-address=${opts.hotspotAddress}`,
         `=dns-name=${opts.dnsName}`,
-        "=html-directory-override=hotspot",
+        `=html-directory=${htmlDirectory}`,
+        `=html-directory-override=${htmlDirectory}`,
+        "=http-cookie-lifetime=52w1d",
         "=install-hotspot-queue=yes",
+        "=login-by=mac,cookie,http-chap,http-pap,mac-cookie",
+        "=mac-auth-mode=mac-as-username-and-password",
       ],
       "hotspot profile",
     );
@@ -356,6 +382,17 @@ export async function provisionHotspotStack(
       "hotspot service",
     );
 
+    // Optional, operator-chosen default hotspot users (e.g. a quick test
+    // login) — opt-in per router rather than a fixed multi-tenant default.
+    for (const username of opts.defaultHotspotUsers ?? []) {
+      const name = username.trim();
+      if (!name) continue;
+      const existingUser = await client.talk(["/ip/hotspot/user/print", `?name=${name}`]).catch(() => []);
+      if (existingUser.length === 0) {
+        await run(["/ip/hotspot/user/add", `=name=${name}`], `hotspot user ${name}`);
+      }
+    }
+
     // ddns-enabled gives the router a reachable hostname even behind CGNAT;
     // dns-name on the hotspot profile is the captive-portal domain.
     await run(["/ip/cloud/set", "=ddns-enabled=yes"], "IP cloud DDNS");
@@ -367,7 +404,10 @@ export async function provisionHotspotStack(
       .talk(["/ip/dhcp-client/print", `?interface=${WAN_INTERFACE_NAME}`])
       .catch(() => []);
     if (existingDhcpClient.length === 0) {
-      await run(["/ip/dhcp-client/add", `=interface=${WAN_INTERFACE_NAME}`], "WAN DHCP client");
+      await run(
+        ["/ip/dhcp-client/add", `=interface=${WAN_INTERFACE_NAME}`, "=name=client1"],
+        "WAN DHCP client",
+      );
     }
     await run(
       ["/ip/dns/set", "=allow-remote-requests=yes", "=servers=208.67.222.222,8.8.8.8"],
@@ -379,6 +419,52 @@ export async function provisionHotspotStack(
       ["/ip/firewall/nat/add", "=chain=srcnat", `=out-interface=${WAN_INTERFACE_NAME}`, "=action=masquerade"],
       "WAN masquerade",
     );
+    await run(
+      [
+        "/ip/firewall/nat/add",
+        "=chain=srcnat",
+        "=action=masquerade",
+        "=comment=masquerade hotspot network",
+        `=src-address=${subnet.networkAddress}/${opts.hotspotPrefixBits}`,
+      ],
+      "masquerade hotspot network",
+    );
+
+    // Placeholder rules reserved for the hotspot service's own auto-managed
+    // rules (RouterOS inserts its dynamic hotspot filter/NAT rules right
+    // after these passthrough markers) — present in every reference export,
+    // disabled by default since they do nothing on their own.
+    const placeholderComment = "place hotspot rules here";
+    const existingFilterPlaceholder = await client
+      .talk(["/ip/firewall/filter/print", `?chain=unused-hs-chain`, `?comment=${placeholderComment}`])
+      .catch(() => []);
+    if (existingFilterPlaceholder.length === 0) {
+      await run(
+        [
+          "/ip/firewall/filter/add",
+          "=chain=unused-hs-chain",
+          "=action=passthrough",
+          `=comment=${placeholderComment}`,
+          "=disabled=yes",
+        ],
+        "firewall filter placeholder (hotspot rules anchor)",
+      );
+    }
+    const existingNatPlaceholder = await client
+      .talk(["/ip/firewall/nat/print", `?chain=unused-hs-chain`, `?comment=${placeholderComment}`])
+      .catch(() => []);
+    if (existingNatPlaceholder.length === 0) {
+      await run(
+        [
+          "/ip/firewall/nat/add",
+          "=chain=unused-hs-chain",
+          "=action=passthrough",
+          `=comment=${placeholderComment}`,
+          "=disabled=yes",
+        ],
+        "firewall NAT placeholder (hotspot rules anchor)",
+      );
+    }
 
     // Security hardening (filter + raw): drop invalid connections, basic
     // DDoS rate-limiting, port-scanner detection, and a progressive
@@ -641,10 +727,12 @@ export async function provisionHotspotStack(
     }
 
     if (containerPackageReady) {
-      // DOCKERS bridge + veth pair: gives the MikHmon container its own
+      // CONTAINERS bridge + veth pair: gives the MikHmon container its own
       // subnet, isolated from the hotspot LAN, router as gateway.
       await client.talk(["/interface/bridge/remove", `=numbers=${DOCKER_BRIDGE_NAME}`]).catch(() => {});
-      await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], "DOCKERS bridge");
+      await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], "CONTAINERS bridge");
+      // Legacy name from before this was aligned to the spec's naming.
+      await client.talk(["/interface/bridge/remove", `=numbers=${LEGACY_DOCKER_BRIDGE_NAME}`]).catch(() => {});
 
       await client.talk(["/interface/veth/remove", `=numbers=${VETH_NAME}`]).catch(() => {});
       await run(
@@ -653,13 +741,14 @@ export async function provisionHotspotStack(
           `=name=${VETH_NAME}`,
           `=address=${VETH_ADDRESS}`,
           `=gateway=${VETH_GATEWAY}`,
+          '=gateway6=',
           "=dhcp=no",
         ],
         "MIKHMON veth interface",
       );
       await run(
         ["/interface/bridge/port/add", `=bridge=${DOCKER_BRIDGE_NAME}`, `=interface=${VETH_NAME}`],
-        "attach veth to DOCKERS bridge",
+        "attach veth to CONTAINERS bridge",
       );
 
       await client
@@ -672,7 +761,7 @@ export async function provisionHotspotStack(
           `=interface=${DOCKER_BRIDGE_NAME}`,
           `=network=${DOCKER_NETWORK.split("/")[0]}`,
         ],
-        "DOCKERS bridge gateway address",
+        "CONTAINERS bridge gateway address",
       );
 
       // Container engine: USB-equipped boards pull/extract on the stick
@@ -704,6 +793,7 @@ export async function provisionHotspotStack(
           `=interface=${VETH_NAME}`,
           `=name=${CONTAINER_NAME}`,
           `=remote-image=${REMOTE_IMAGE}`,
+          `=layer-dir=${CONTAINER_LAYER_DIR}`,
           `=root-dir=${ROOT_DIR}`,
           "=start-on-boot=yes",
         ],
