@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Check, ChevronDown, Copy, Cpu, Loader2, Unlock } from "lucide-react";
+import { Check, ChevronDown, Copy, Cpu, Loader2, RefreshCw, Unlock } from "lucide-react";
 import {
   detectRouterModel,
   requestDeviceModeUnlock,
@@ -19,23 +19,29 @@ export default function DetectedModelBadge({
   const [state, setState] = useState<
     { loading: true } | { loading: false; detected?: DetectedRouter; error?: string }
   >({ loading: true });
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  function runDetection(onComplete?: () => void) {
     detectRouterModel(routerId).then((res) => {
-      if (cancelled) return;
       if (res?.error) {
         setState({ loading: false, error: res.error });
       } else if (res?.detected) {
         setState({ loading: false, detected: res.detected });
         onDetected?.(res.detected);
       }
+      onComplete?.();
     });
-    return () => {
-      cancelled = true;
-    };
+  }
+
+  useEffect(() => {
+    runDetection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routerId]);
+
+  function refresh() {
+    setRefreshing(true);
+    runDetection(() => setRefreshing(false));
+  }
 
   if (state.loading) {
     return (
@@ -66,7 +72,8 @@ export default function DetectedModelBadge({
 
   return (
     <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
         <Cpu className="h-4 w-4 text-slate-400" />
         <span>
           Modèle détecté : <span className="font-medium text-slate-800">{detected.boardName || "inconnu"}</span>
@@ -84,6 +91,16 @@ export default function DetectedModelBadge({
             <span className="text-emerald-600"> · clé USB détectée</span>
           )}
         </span>
+        </div>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={refreshing}
+          title="Revérifier l'état du routeur"
+          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+        </button>
       </div>
 
       <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-slate-500">
@@ -208,7 +225,10 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
         {pending ? "Envoi de la demande..." : "Envoyer la demande de déverrouillage"}
       </button>
       <p className="mt-1 text-[11px] text-amber-600">
-        Dans les deux cas, la confirmation physique reste obligatoire.
+        Dans les deux cas, la confirmation physique reste obligatoire. Une fois confirmé, le
+        routeur redémarre seul — attendez ~1 minute, puis cliquez sur l&apos;icône{" "}
+        <RefreshCw className="inline h-3 w-3" /> en haut de cet encart pour revérifier l&apos;état
+        sans recharger toute la page.
       </p>
     </div>
   );
