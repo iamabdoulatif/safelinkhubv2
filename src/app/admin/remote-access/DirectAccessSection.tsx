@@ -83,7 +83,12 @@ function SshFileZillaTutorial({
   const [os, setOs] = useState<Os>("other");
   const [host, port] = address.split(":");
 
+  // detectOs() reads navigator.userAgent, which doesn't exist during SSR;
+  // this must stay client-only-after-mount — a lazy useState initializer
+  // would run during the server render of this "use client" component and
+  // crash.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOs(detectOs());
   }, []);
 

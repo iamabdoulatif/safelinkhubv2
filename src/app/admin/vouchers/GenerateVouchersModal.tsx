@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { X } from "lucide-react";
 import { generateVouchers } from "@/lib/vouchers/actions";
 
@@ -17,9 +17,14 @@ export default function GenerateVouchersModal({
     undefined,
   );
 
-  useEffect(() => {
+  // Close the modal the moment the action succeeds — adjusted during render
+  // (the React-recommended alternative to setState-in-effect) by tracking
+  // the previous action result and reacting only when it actually changes.
+  const [prevState, setPrevState] = useState(state);
+  if (state !== prevState) {
+    setPrevState(state);
     if (state?.success) setOpen(false);
-  }, [state]);
+  }
 
   return (
     <>

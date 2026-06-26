@@ -50,6 +50,9 @@ export default function PortalPreviewStep({
   }, [hotspotBridges]);
 
   useEffect(() => {
+    // runTests makes network calls to verify each hotspot bridge; there is
+    // no render-time equivalent for "test the portal config on mount".
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     runTests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -67,7 +70,7 @@ export default function PortalPreviewStep({
       {hotspotBridges.length === 0 ? (
         <div className="mt-6 flex items-center gap-2 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-700">
           <WifiOff className="h-4 w-4 shrink-0" />
-          Aucun bridge n'a le hotspot activé. Retournez à l'étape 2 pour en
+          Aucun bridge n&apos;a le hotspot activé. Retournez à l&apos;étape 2 pour en
           configurer un si vous souhaitez utiliser le portail captif.
         </div>
       ) : (

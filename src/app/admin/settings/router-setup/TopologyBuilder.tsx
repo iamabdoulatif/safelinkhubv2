@@ -363,6 +363,7 @@ function TopologyCanvas({
 
   const dockerPorts = (ports ?? []).filter(isVethInterface).map((p) => p.name);
   const hasDockerBridge = dockerPorts.length > 0;
+  const dockerPortsKey = dockerPorts.join(",");
 
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const bridgeRef = useRef<HTMLDivElement | null>(null);
@@ -409,7 +410,7 @@ function TopologyCanvas({
     if (hasDockerBridge) addLinesFor(dockerBridgeRef.current, dockerPorts);
 
     setLines(next);
-  }, [bridgePortsKey, hasDraft, hasDockerBridge, dockerPorts.join(",")]);
+  }, [bridgePortsKey, hasDraft, hasDockerBridge, dockerPortsKey]);
 
   useLayoutEffect(() => {
     recomputeLines();
@@ -516,11 +517,21 @@ export default function TopologyBuilder({
   const [bootstrap, setBootstrap] = useState<{ bridgeId: string; command: string } | null>(null);
   const [state, formAction, pending] = useActionState(saveBridge, undefined);
   const [retryCount, setRetryCount] = useState(0);
-  const [retrying, setRetrying] = useState(false);
+  const [retrying, setRetrying] = useState(true);
+
+  // Flip back into "retrying" the moment routerId/retryCount changes —
+  // adjusted during render (the React-recommended alternative to
+  // setState-in-effect) instead of as the first statement of the fetch
+  // effect below.
+  const fetchKey = `${routerId}:${retryCount}`;
+  const [prevFetchKey, setPrevFetchKey] = useState(fetchKey);
+  if (fetchKey !== prevFetchKey) {
+    setPrevFetchKey(fetchKey);
+    setRetrying(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
-    setRetrying(true);
     listRouterInterfaces(routerId).then((res) => {
       if (cancelled) return;
       setRetrying(false);
@@ -536,6 +547,17 @@ export default function TopologyBuilder({
     };
   }, [routerId, retryCount]);
 
+  // Same render-time adjustment for the bootstrap command: react to the
+  // action result changing instead of calling setBootstrap synchronously
+  // inside the effect.
+  const [prevState, setPrevState] = useState(state);
+  if (state !== prevState) {
+    setPrevState(state);
+    if (state?.success && state.bridgeId && state.bootstrapCommand) {
+      setBootstrap({ bridgeId: state.bridgeId, command: state.bootstrapCommand });
+    }
+  }
+
   useEffect(() => {
     if (state?.success) {
       const timer = window.setTimeout(() => {
@@ -543,9 +565,6 @@ export default function TopologyBuilder({
         setHasDraft(false);
         setDraftPorts([]);
       }, 0);
-      if (state.bridgeId && state.bootstrapCommand) {
-        setBootstrap({ bridgeId: state.bridgeId, command: state.bootstrapCommand });
-      }
       router.refresh();
       return () => window.clearTimeout(timer);
     }
@@ -586,7 +605,7 @@ export default function TopologyBuilder({
     <div>
       <p className="text-sm text-slate-500">
         Glissez des connexions entre les ports et les bridges. Chaque port
-        physique ne peut appartenir qu'à un seul bridge.
+        physique ne peut appartenir qu&apos;à un seul bridge.
       </p>
 
       <TopologyCanvas
@@ -613,21 +632,21 @@ export default function TopologyBuilder({
 
             <div className="flex items-start justify-between">
               <h2 className="text-2xl font-semibold text-slate-900">
-                Configurer l'interface du bridge
+                Configurer l&apos;interface du bridge
               </h2>
               <button type="button" onClick={() => setConfiguring(false)}>
                 <X className="h-5 w-5 text-slate-400" />
               </button>
             </div>
             <p className="mt-2 text-base text-slate-500">
-              Définissez l'IP de la passerelle, la taille du sous-réseau et
+              Définissez l&apos;IP de la passerelle, la taille du sous-réseau et
               les services qui doivent fonctionner sur ce bridge.
             </p>
 
             {draftPorts.length === 0 && (
               <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
                 Aucune interface assignée pour le moment. Annulez et glissez
-                un port sur le bridge d'abord, ou enregistrez maintenant et
+                un port sur le bridge d&apos;abord, ou enregistrez maintenant et
                 ajoutez des ports plus tard.
               </p>
             )}
@@ -717,14 +736,14 @@ export default function TopologyBuilder({
                       Serveur PPPoE
                     </span>
                     <span className="mt-0.5 block text-sm text-slate-400">
-                      Activer l'authentification PPPoE pour ce bridge.
+                      Activer l&apos;authentification PPPoE pour ce bridge.
                     </span>
                   </span>
                   <ToggleSwitch name="pppoeEnabled" disabled />
                 </div>
 
                 <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                  <span className="font-medium">Le PPPoE n'est pas activé pour votre organisation.</span>{" "}
+                  <span className="font-medium">Le PPPoE n&apos;est pas activé pour votre organisation.</span>{" "}
                   Veuillez contacter le support pour activer cette fonctionnalité.
                 </p>
               </div>

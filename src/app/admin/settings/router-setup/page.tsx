@@ -35,7 +35,7 @@ export default async function RouterSetupPage() {
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
           Configurez votre appareil MikroTik RouterOS avec SafeLinkHub.
-          D'abord, installez le tunnel d'accès distant sécurisé, concevez
+          D&apos;abord, installez le tunnel d&apos;accès distant sécurisé, concevez
           ensuite votre topologie réseau, puis vérifiez la connexion finale.
         </p>
       </div>

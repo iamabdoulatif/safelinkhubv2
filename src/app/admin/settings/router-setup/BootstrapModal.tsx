@@ -114,12 +114,12 @@ export default function BootstrapModal({
 
             <p className="mt-3 rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-700">
               Ce script ajoute les règles de portail captif (walled garden)
-              et confirme l'installation auprès de SafeLinkHub.
+              et confirme l&apos;installation auprès de SafeLinkHub.
             </p>
 
             {stillWaiting && (
               <p className="mt-3 text-xs text-amber-600">
-                Toujours en attente. Vérifiez que la commande s'est bien
+                Toujours en attente. Vérifiez que la commande s&apos;est bien
                 exécutée sur le routeur.
               </p>
             )}

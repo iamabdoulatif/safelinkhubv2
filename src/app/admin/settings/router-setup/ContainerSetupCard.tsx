@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Box, Check, Copy, Loader2 } from "lucide-react";
 import { provisionHotspotStack } from "@/lib/mikrotik/container-setup";
 import { computeSubnetInfo, getImpactNote } from "@/lib/net/subnet";
@@ -109,9 +109,11 @@ export default function ContainerSetupCard({
   // mount) — adopt it once it resolves, as long as the admin hasn't already
   // flipped the checkbox themselves.
   const [usbTouched, setUsbTouched] = useState(false);
-  useEffect(() => {
+  const [prevDefaultHasUsbStorage, setPrevDefaultHasUsbStorage] = useState(defaultHasUsbStorage);
+  if (defaultHasUsbStorage !== prevDefaultHasUsbStorage) {
+    setPrevDefaultHasUsbStorage(defaultHasUsbStorage);
     if (!usbTouched) setHasUsbStorage(defaultHasUsbStorage);
-  }, [defaultHasUsbStorage, usbTouched]);
+  }
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{
     success?: boolean;

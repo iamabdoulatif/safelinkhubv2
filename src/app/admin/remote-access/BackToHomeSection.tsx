@@ -39,12 +39,23 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
   // WireGuard config text instead.
   useEffect(() => {
     if (result && "success" in result && result.ready) {
+      let cancelled = false;
       QRCode.toDataURL(result.wgConfig, { width: 200, margin: 1 })
-        .then(setQrDataUrl)
-        .catch(() => setQrDataUrl(null));
-    } else {
-      setQrDataUrl(null);
+        .then((url) => {
+          if (!cancelled) setQrDataUrl(url);
+        })
+        .catch(() => {
+          if (!cancelled) setQrDataUrl(null);
+        });
+      return () => {
+        cancelled = true;
+      };
     }
+    // Resetting the QR derived from `result` back to null when there's
+    // nothing to render is the actual "no QR" state, not a cascading-render
+    // hazard.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQrDataUrl(null);
   }, [result]);
 
   return (

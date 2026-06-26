@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { X } from "lucide-react";
 import { createPackage } from "@/lib/packages/actions";
 
@@ -8,9 +8,14 @@ export default function CreatePackageModal() {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createPackage, undefined);
 
-  useEffect(() => {
+  // Close the modal the moment the action succeeds — adjusted during render
+  // (the React-recommended alternative to setState-in-effect) by tracking
+  // the previous action result and reacting only when it actually changes.
+  const [prevState, setPrevState] = useState(state);
+  if (state !== prevState) {
+    setPrevState(state);
     if (state?.success) setOpen(false);
-  }, [state]);
+  }
 
   return (
     <>
@@ -135,7 +140,7 @@ export default function CreatePackageModal() {
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
                 >
                   <option value="Upon First Use">À la première utilisation</option>
-                  <option value="Upon Purchase">À l'achat</option>
+                  <option value="Upon Purchase">À l&apos;achat</option>
                 </select>
               </div>
             </div>

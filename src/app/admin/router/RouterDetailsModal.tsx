@@ -61,9 +61,17 @@ export default function RouterDetailsModal({
     | { loading: false; resources?: RouterResources; error?: string }
   >({ loading: true });
 
+  // Reset to "loading" the moment routerId changes — adjusted during render
+  // (the React-recommended alternative to setState-in-effect) instead of as
+  // the first statement of the fetch effect below.
+  const [prevRouterId, setPrevRouterId] = useState(routerId);
+  if (routerId !== prevRouterId) {
+    setPrevRouterId(routerId);
+    setState({ loading: true });
+  }
+
   useEffect(() => {
     let cancelled = false;
-    setState({ loading: true });
     getRouterResources(routerId).then((res) => {
       if (cancelled) return;
       if (res?.error) setState({ loading: false, error: res.error });

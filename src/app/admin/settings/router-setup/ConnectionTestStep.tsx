@@ -36,6 +36,9 @@ export default function ConnectionTestStep({
   }, [routerId, router]);
 
   useEffect(() => {
+    // runTest makes a network call to verify the router connection; there
+    // is no render-time equivalent for "run the connection test on mount".
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     runTest();
   }, [runTest]);
 
@@ -46,7 +49,7 @@ export default function ConnectionTestStep({
       </h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
         Vérification que SafeLinkHub peut communiquer avec {routerName} via
-        l'API et le tunnel configurés.
+        l&apos;API et le tunnel configurés.
       </p>
 
       <div className="mt-8 flex flex-col items-center gap-3">

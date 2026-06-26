@@ -147,7 +147,7 @@ async function enablePortForwardForRouter(routerId: string, service: string) {
  * the "Accès distant" page first — the gap that caused a fresh install to
  * look "broken" even though the tunnel itself was healthy.
  */
-export const AUTO_ENABLED_SERVICES_AFTER_INSTALL = ["winbox", "webfig", "ssh"] as const;
+const AUTO_ENABLED_SERVICES_AFTER_INSTALL = ["winbox", "webfig", "ssh"] as const;
 
 export async function autoEnablePostInstallAccess(routerId: string) {
   const results: Record<string, Awaited<ReturnType<typeof enablePortForwardForRouter>>> = {};

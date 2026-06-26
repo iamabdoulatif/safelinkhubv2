@@ -65,12 +65,12 @@ export default function VoucherTable({
                   onChange={toggleAll}
                 />
               </th>
-              <th className="px-4 py-3 font-medium">Nom d'utilisateur</th>
+              <th className="px-4 py-3 font-medium">Nom d&apos;utilisateur</th>
               <th className="px-4 py-3 font-medium">Forfait</th>
               <th className="px-4 py-3 font-medium">Statut</th>
               <th className="px-4 py-3 font-medium">Première connexion</th>
               <th className="px-4 py-3 font-medium">Expire le</th>
-              <th className="px-4 py-3 font-medium">Cas d'usage</th>
+              <th className="px-4 py-3 font-medium">Cas d&apos;usage</th>
               <th className="px-4 py-3 font-medium">Note</th>
               <th className="px-4 py-3 font-medium">Créé le</th>
             </tr>

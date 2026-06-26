@@ -81,7 +81,7 @@ export default function DashboardPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-semibold text-slate-900">Ventes récentes</h2>
           <p className="mt-6 text-sm text-slate-400">
-            Vous n'avez fait aucune vente aujourd'hui.
+            Vous n&apos;avez fait aucune vente aujourd&apos;hui.
           </p>
         </div>
       </div>

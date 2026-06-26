@@ -19,7 +19,7 @@ export default async function UsersPage() {
     <div>
       <h1 className="text-2xl font-bold text-slate-900">Utilisateurs</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Membres de l'équipe ayant accès à cette organisation SafeLinkHub.
+        Membres de l&apos;équipe ayant accès à cette organisation SafeLinkHub.
       </p>
 
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">

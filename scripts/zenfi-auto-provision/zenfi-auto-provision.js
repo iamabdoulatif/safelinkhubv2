@@ -32,6 +32,8 @@
 
 "use strict";
 
+/* eslint-disable @typescript-eslint/no-require-imports -- standalone CommonJS Node script, not bundled by Next.js */
+
 const { RouterOSClient } = require("routeros-client");
 
 // ---------------------------------------------------------------------------
@@ -105,7 +107,7 @@ const DEFAULT_CONFIG = {
 };
 
 function log(label, ...args) {
-  // eslint-disable-next-line no-console
+   
   console.log(`[${new Date().toISOString()}] ${label}`, ...args);
 }
 
@@ -882,14 +884,14 @@ async function main() {
   });
 
   const report = await provisioner.run();
-  // eslint-disable-next-line no-console
+   
   console.log(JSON.stringify(report, null, 2));
   process.exitCode = report.success ? 0 : 1;
 }
 
 if (require.main === module) {
   main().catch((err) => {
-    // eslint-disable-next-line no-console
+     
     console.error("Fatal error:", err);
     process.exitCode = 1;
   });

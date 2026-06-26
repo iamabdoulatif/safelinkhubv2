@@ -15,6 +15,10 @@ export default function GenerateOpenvpnScriptForm() {
   useEffect(() => {
     if (!state?.success || !state.routerId) return;
 
+    // Starting a polling loop (with its own interval + cleanup below) needs
+    // to flip the UI into "waiting" the moment the action succeeds; there's
+    // no render-time equivalent for "kick off an interval and reflect that".
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setConnection("waiting");
     pollCount.current = 0;
     let cancelled = false;
@@ -64,7 +68,7 @@ export default function GenerateOpenvpnScriptForm() {
     return (
       <div>
         <h3 className="text-sm font-medium text-slate-700">
-          Script d'installation OpenVPN
+          Script d&apos;installation OpenVPN
         </h3>
         <p className="text-sm text-slate-500">
           Copiez cette commande et collez-la dans le terminal MikroTik
@@ -93,7 +97,7 @@ export default function GenerateOpenvpnScriptForm() {
           {connection === "timeout" && (
             <span className="text-amber-600">
               Toujours en attente après 5 minutes. Vérifiez que la commande
-              s'est exécutée sans erreur sur le routeur, et que le port
+              s&apos;est exécutée sans erreur sur le routeur, et que le port
               UDP 1194 est bien ouvert vers le relais.
             </span>
           )}

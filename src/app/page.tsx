@@ -191,11 +191,11 @@ export default function Home() {
         />
         <div className="relative mx-auto flex max-w-4xl flex-col items-center px-6 pt-24 pb-16 text-center">
           <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
-            Le n°1 de la facturation Hotspot &amp; plateforme d'automatisation FAI
+            Le n°1 de la facturation Hotspot &amp; plateforme d&apos;automatisation FAI
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-slate-300">
-            SafeLinkHub est la plateforme d'automatisation Hotspot et FAI la plus
-            avancée, conçue pour gérer, automatiser et développer n'importe quel réseau.
+            SafeLinkHub est la plateforme d&apos;automatisation Hotspot et FAI la plus
+            avancée, conçue pour gérer, automatiser et développer n&apos;importe quel réseau.
           </p>
           <Link
             href="/auth/login"
@@ -252,9 +252,9 @@ export default function Home() {
           </h2>
           <p className="mt-6 text-base leading-7 text-slate-500">
             Gérer un FAI ou un hotspot présente des défis uniques. La création
-            manuelle d'utilisateurs PPPoE, le suivi des paiements, la gestion
+            manuelle d&apos;utilisateurs PPPoE, le suivi des paiements, la gestion
             de différentes marques de routeurs et la prévention des pertes de
-            revenus sont des combats constants. Vous avez besoin d'une
+            revenus sont des combats constants. Vous avez besoin d&apos;une
             solution unique qui fonctionne vraiment. SafeLinkHub est le
             logiciel de gestion FAI conçu pour résoudre exactement ces
             problèmes. Nous remplaçons votre configuration multi-systèmes
@@ -336,7 +336,7 @@ export default function Home() {
       <section className="bg-slate-50 py-20">
         <div className="mx-auto max-w-6xl px-6">
           <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
-            Adopté par les FAI à travers l'Afrique de l'Est
+            Adopté par les FAI à travers l&apos;Afrique de l&apos;Est
           </h2>
           <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
             {testimonials.map((t) => (
@@ -413,7 +413,7 @@ export default function Home() {
                 <p className="font-semibold text-slate-900">Ressources</p>
                 <ul className="mt-3 space-y-2 text-slate-500">
                   <li>Blog</li>
-                  <li>Conditions d'utilisation</li>
+                  <li>Conditions d&apos;utilisation</li>
                   <li>Politique de confidentialité</li>
                   <li>Support</li>
                 </ul>
