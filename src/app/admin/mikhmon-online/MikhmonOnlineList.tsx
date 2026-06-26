@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
 import { getMikhmonLink } from "@/lib/mikrotik/mikhmon-online";
 
 type RouterRow = { id: string; name: string; status: string };
@@ -9,7 +9,15 @@ type RouterRow = { id: string; name: string; status: string };
 type LinkResult =
   | { error: string }
   | { success: true; ready: false; message: string; localLink: string | null }
-  | { success: true; ready: true; link: string; ddnsName: string; localLink: string | null }
+  | {
+      success: true;
+      ready: true;
+      reachable: boolean;
+      link: string;
+      ddnsName: string;
+      localLink: string | null;
+      message?: string;
+    }
   | null;
 
 function RouterMikhmonCard({ router }: { router: RouterRow }) {
@@ -60,11 +68,19 @@ function RouterMikhmonCard({ router }: { router: RouterRow }) {
               href={result.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline"
+              className={`flex items-center gap-1.5 text-sm font-medium hover:underline ${
+                result.reachable ? "text-emerald-700" : "text-amber-700"
+              }`}
             >
               {result.link}
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
+            {!result.reachable && result.message && (
+              <p className="mt-1 flex items-start gap-1.5 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {result.message}
+              </p>
+            )}
           </div>
           {result.localLink && (
             <div>

@@ -19,7 +19,28 @@ import { REMOTE_ACCESS_PORT, DOCKER_WEB_PORT, HOTSPOT_BRIDGE_NAME } from "./cons
  *     11.11.11.11:80, only reachable from inside the hotspot's own LAN/WiFi.
  * Both links are returned so the admin can pick whichever is reachable
  * from where they're standing.
+ *
+ * The dns-name + NAT rule being correctly configured does NOT guarantee the
+ * remote link actually works: many WAN connections (4G/SIM dongles
+ * especially) sit behind the carrier's own CGNAT, which silently drops
+ * inbound connections to the public IP no matter how the router's own NAT
+ * is set up — there is nothing RouterOS-side that fixes this. We probe the
+ * link from the server before calling it "ready" so the admin gets an
+ * accurate answer instead of a link that times out in the browser.
  */
+async function probeReachable(url: string, timeoutMs = 5000): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { method: "GET", signal: controller.signal, redirect: "manual" });
+    return res.status > 0;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function getMikhmonLink(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
@@ -64,12 +85,19 @@ export async function getMikhmonLink(routerId: string) {
       };
     }
 
+    const link = `http://${ddnsName}:${REMOTE_ACCESS_PORT}`;
+    const reachable = await probeReachable(link);
+
     return {
       success: true,
       ready: true,
-      link: `http://${ddnsName}:${REMOTE_ACCESS_PORT}`,
+      reachable,
+      link,
       ddnsName,
       localLink,
+      message: reachable
+        ? undefined
+        : "Le DDNS et la redirection NAT sont bien configurés, mais le port 8088 ne répond pas depuis l'extérieur. C'est presque toujours dû à un CGNAT côté opérateur (fréquent sur connexion 4G/SIM) qui bloque les connexions entrantes vers l'IP publique, même si le routeur lui-même est correctement configuré — aucun réglage RouterOS ne peut contourner ça. Utilisez l'accès local ci-dessous si vous êtes sur le réseau du hotspot, ou passez par une connexion WAN avec une vraie IP publique (fibre/ADSL, ou un VPN dédié) pour l'accès distant.",
     };
   } catch (err) {
     return {
