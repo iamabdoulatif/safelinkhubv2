@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerPortForwards, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
@@ -56,10 +56,14 @@ export async function listPortForwards(routerId: string) {
     .where(eq(routerPortForwards.routerId, routerId));
 }
 
-export async function enablePortForward(routerId: string, service: string) {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated." };
-
+/**
+ * Core logic shared by the authenticated server action below and the
+ * unauthenticated post-install bootstrap (installVpn callback runs before
+ * any user session exists, triggered by the router itself via bearer
+ * token) — no getSession() here, callers are responsible for authorizing
+ * the request through whatever channel they came from.
+ */
+async function enablePortForwardForRouter(routerId: string, service: string) {
   const targetPort = getPortForwardTargetPort(service);
   if (!targetPort) return { error: "Unknown service." };
 
@@ -69,13 +73,28 @@ export async function enablePortForward(routerId: string, service: string) {
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || router.orgId !== session.orgId) {
+  if (!router) {
     return { error: "Router not found." };
   }
   if (!router.tunnelIp || router.connectionMethod === "direct") {
     return {
       error: "Le routeur doit être connecté via WireGuard ou OpenVPN pour activer l'accès direct.",
     };
+  }
+
+  const existing = await db
+    .select()
+    .from(routerPortForwards)
+    .where(
+      and(
+        eq(routerPortForwards.routerId, routerId),
+        eq(routerPortForwards.service, service),
+        eq(routerPortForwards.status, "active"),
+      ),
+    )
+    .limit(1);
+  if (existing.length > 0) {
+    return { success: true, publicPort: existing[0].publicPort, relayHost: process.env.WG_RELAY_HOST };
   }
 
   if (service === "mikhmon" || service === "ssh") {
@@ -118,9 +137,45 @@ export async function enablePortForward(routerId: string, service: string) {
     status: "active",
   });
 
+  return { success: true, publicPort, relayHost: process.env.WG_RELAY_HOST };
+}
+
+/**
+ * Services auto-enabled right after a WireGuard/OpenVPN install completes
+ * (see installed/route.ts), so a freshly installed router is immediately
+ * reachable from WinBox/WebFig without the admin having to find and click
+ * the "Accès distant" page first — the gap that caused a fresh install to
+ * look "broken" even though the tunnel itself was healthy.
+ */
+export const AUTO_ENABLED_SERVICES_AFTER_INSTALL = ["winbox", "webfig", "ssh"] as const;
+
+export async function autoEnablePostInstallAccess(routerId: string) {
+  const results: Record<string, Awaited<ReturnType<typeof enablePortForwardForRouter>>> = {};
+  for (const service of AUTO_ENABLED_SERVICES_AFTER_INSTALL) {
+    results[service] = await enablePortForwardForRouter(routerId, service);
+  }
+  return results;
+}
+
+export async function enablePortForward(routerId: string, service: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [router] = await db
+    .select({ orgId: routers.orgId })
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || router.orgId !== session.orgId) {
+    return { error: "Router not found." };
+  }
+
+  const result = await enablePortForwardForRouter(routerId, service);
+
   revalidatePath("/admin/remote-access");
   revalidatePath("/admin/router");
-  return { success: true, publicPort, relayHost: process.env.WG_RELAY_HOST };
+  return result;
 }
 
 export async function disablePortForward(forwardId: string) {

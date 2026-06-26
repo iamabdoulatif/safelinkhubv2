@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { organizations, routers } from "@/lib/db/schema";
 import { hashToken } from "@/lib/mikrotik/install-token";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
+import { autoEnablePostInstallAccess } from "@/lib/mikrotik/port-forward";
 
 export async function GET(
   request: NextRequest,
@@ -63,6 +64,14 @@ export async function GET(
       installTokenExpiresAt: null,
     })
     .where(eq(routers.id, router.id));
+
+  // Auto-open WinBox/WebFig/SSH access through the relay right away, so the
+  // router is reachable from the admin's machine the moment install
+  // finishes — without this, the tunnel is healthy but unreachable until
+  // someone manually visits "Accès distant" and enables each service.
+  if (result.success) {
+    await autoEnablePostInstallAccess(router.id).catch(() => {});
+  }
 
   return new Response("Router installation completed", {
     status: 200,
