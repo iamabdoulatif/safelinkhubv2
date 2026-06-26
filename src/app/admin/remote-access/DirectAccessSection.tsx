@@ -62,6 +62,16 @@ function serviceUrl(service: string, address: string, username: string | null) {
   return address;
 }
 
+type Os = "mac" | "windows" | "other";
+
+function detectOs(): Os {
+  if (typeof navigator === "undefined") return "other";
+  const platform = `${navigator.userAgent} ${navigator.platform ?? ""}`.toLowerCase();
+  if (platform.includes("mac")) return "mac";
+  if (platform.includes("win")) return "windows";
+  return "other";
+}
+
 function SshFileZillaTutorial({
   address,
   username,
@@ -70,7 +80,13 @@ function SshFileZillaTutorial({
   username: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const [os, setOs] = useState<Os>("other");
   const [host, port] = address.split(":");
+
+  useEffect(() => {
+    setOs(detectOs());
+  }, []);
+
   return (
     <div className="mt-2 rounded-md border border-slate-100 bg-white">
       <button
@@ -89,22 +105,49 @@ function SshFileZillaTutorial({
           </p>
           <p className="mt-1 text-slate-500">
             Le bouton <ExternalLink className="inline h-3 w-3" /> ci-dessus ouvre un lien{" "}
-            <code className="rounded bg-slate-100 px-1">sftp://</code> — c&apos;est macOS (Launch
-            Services), pas FileZilla ni ce site, qui décide quelle app reçoit ce lien. Si une
-            autre app (VLC, par exemple) s&apos;est enregistrée pour ce type de lien, faites
-            ceci une seule fois dans le Terminal pour que ce soit FileZilla à partir de
-            maintenant :
+            <code className="rounded bg-slate-100 px-1">sftp://</code> — c&apos;est{" "}
+            {os === "windows" ? "Windows" : "le système (macOS Launch Services ou équivalent)"},
+            pas FileZilla ni ce site, qui décide quelle app reçoit ce lien. Si une autre app (VLC,
+            par exemple) s&apos;est enregistrée pour ce type de lien, faites ceci{" "}
+            <span className="font-medium">une seule fois</span> pour que ce soit FileZilla à
+            partir de maintenant :
           </p>
-          <pre className="mt-1.5 overflow-x-auto rounded-md bg-slate-900 px-3 py-2 text-[11px] text-emerald-300">
-            brew install duti{"\n"}duti -s org.filezilla-project.filezilla sftp all
-          </pre>
+
+          {os === "windows" ? (
+            <>
+              <p className="mt-1.5 text-slate-500">
+                Ouvrez PowerShell et lancez (ajustez le chemin si FileZilla n&apos;est pas
+                installé dans <code className="rounded bg-slate-100 px-1">Program Files</code>) :
+              </p>
+              <pre className="mt-1.5 overflow-x-auto rounded-md bg-slate-900 px-3 py-2 text-[11px] text-emerald-300">
+                {`reg add "HKCU\\Software\\Classes\\sftp" /ve /d "URL:SFTP Protocol" /f
+reg add "HKCU\\Software\\Classes\\sftp" /v "URL Protocol" /d "" /f
+reg add "HKCU\\Software\\Classes\\sftp\\shell\\open\\command" /ve /d "\\"C:\\Program Files\\FileZilla FTP Client\\filezilla.exe\\" \\"%1\\"" /f`}
+              </pre>
+              <p className="mt-1 text-slate-500">
+                Fermez et rouvrez le navigateur après la commande. Vous pouvez vérifier le chemin
+                exact de <code className="rounded bg-slate-100 px-1">filezilla.exe</code> via un
+                clic droit sur son raccourci → Propriétés.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-1.5 text-slate-500">Dans le Terminal :</p>
+              <pre className="mt-1.5 overflow-x-auto rounded-md bg-slate-900 px-3 py-2 text-[11px] text-emerald-300">
+                brew install duti{"\n"}duti -s org.filezilla-project.filezilla sftp all
+              </pre>
+              <p className="mt-1 text-slate-500">
+                (Sans Homebrew : installez-le d&apos;abord avec{" "}
+                <code className="rounded bg-slate-100 px-1">
+                  /bin/bash -c &quot;$(curl -fsSL
+                  https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)&quot;
+                </code>
+                .)
+              </p>
+            </>
+          )}
           <p className="mt-1 text-slate-500">
-            (Sans Homebrew : installez-le d&apos;abord avec{" "}
-            <code className="rounded bg-slate-100 px-1">
-              /bin/bash -c &quot;$(curl -fsSL
-              https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)&quot;
-            </code>
-            .) Une fois fait, le bouton ci-dessus ouvrira directement FileZilla, hôte/port/
+            Une fois fait, le bouton ci-dessus ouvrira directement FileZilla, hôte/port/
             utilisateur déjà pré-remplis.
           </p>
 
