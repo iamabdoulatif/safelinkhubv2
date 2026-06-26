@@ -49,8 +49,16 @@ function CopyableAddress({ value }: { value: string }) {
   );
 }
 
-function serviceUrl(service: string, address: string) {
+function serviceUrl(service: string, address: string, username: string | null) {
   if (service === "webfig" || service === "mikhmon") return `http://${address}`;
+  // sftp://user@host:port — the OS, not this page, decides which installed
+  // app actually opens this link. Until FileZilla is set as the default
+  // handler for the sftp:// scheme (see SshFileZillaTutorial below), the OS
+  // may hand it to any other app that also registered for it.
+  if (service === "ssh") {
+    const [host, port] = address.split(":");
+    return `sftp://${username ? `${encodeURIComponent(username)}@` : ""}${host}:${port}`;
+  }
   return address;
 }
 
@@ -75,15 +83,35 @@ function SshFileZillaTutorial({
       </button>
       {open && (
         <div className="border-t border-slate-100 px-2.5 py-2 text-[11px] text-slate-600">
-          <p className="text-slate-500">
-            Il n&apos;y a pas de bouton « ouvrir automatiquement » fiable ici : le lien{" "}
-            <code className="rounded bg-slate-100 px-1">sftp://</code> est géré par l&apos;OS, qui
-            peut l&apos;avoir associé à n&apos;importe quelle autre app installée (VLC, par
-            exemple, s&apos;enregistre souvent pour ce type de lien sans que l&apos;utilisateur
-            l&apos;ait demandé) — pas spécifiquement à FileZilla. Configurez-le donc à la main,
-            une seule fois :
+          <p className="font-medium text-slate-700">
+            Étape 1 (une seule fois par ordinateur) — faire de FileZilla le gestionnaire par
+            défaut du lien <code className="rounded bg-slate-100 px-1">sftp://</code>
           </p>
-          <ol className="mt-1.5 list-decimal space-y-1 pl-4">
+          <p className="mt-1 text-slate-500">
+            Le bouton <ExternalLink className="inline h-3 w-3" /> ci-dessus ouvre un lien{" "}
+            <code className="rounded bg-slate-100 px-1">sftp://</code> — c&apos;est macOS (Launch
+            Services), pas FileZilla ni ce site, qui décide quelle app reçoit ce lien. Si une
+            autre app (VLC, par exemple) s&apos;est enregistrée pour ce type de lien, faites
+            ceci une seule fois dans le Terminal pour que ce soit FileZilla à partir de
+            maintenant :
+          </p>
+          <pre className="mt-1.5 overflow-x-auto rounded-md bg-slate-900 px-3 py-2 text-[11px] text-emerald-300">
+            brew install duti{"\n"}duti -s org.filezilla-project.filezilla sftp all
+          </pre>
+          <p className="mt-1 text-slate-500">
+            (Sans Homebrew : installez-le d&apos;abord avec{" "}
+            <code className="rounded bg-slate-100 px-1">
+              /bin/bash -c &quot;$(curl -fsSL
+              https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)&quot;
+            </code>
+            .) Une fois fait, le bouton ci-dessus ouvrira directement FileZilla, hôte/port/
+            utilisateur déjà pré-remplis.
+          </p>
+
+          <p className="mt-2 font-medium text-slate-700">
+            Étape 2 — si vous préférez configurer à la main (Gestionnaire de sites)
+          </p>
+          <ol className="mt-1 list-decimal space-y-1 pl-4">
             <li>Fichier → Gestionnaire de sites → Nouveau site</li>
             <li>
               Protocole : <span className="font-medium">SFTP - SSH File Transfer Protocol</span>{" "}
@@ -235,7 +263,7 @@ function RouterDirectAccess({
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {forwards.map((forward) => {
               const address = `${relayHost}:${forward.publicPort}`;
-              const url = serviceUrl(forward.service, address);
+              const url = serviceUrl(forward.service, address, router.username);
               return (
                 <div key={forward.id} className="min-w-0">
                   <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-white px-2.5 py-2 text-xs">
@@ -247,13 +275,15 @@ function RouterDirectAccess({
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <CopyableAddress value={address} />
-                      {(forward.service === "webfig" || forward.service === "mikhmon") && (
+                      {(forward.service === "webfig" ||
+                        forward.service === "mikhmon" ||
+                        forward.service === "ssh") && (
                         <a
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="rounded bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
-                          title="Ouvrir"
+                          title={forward.service === "ssh" ? "Ouvrir dans FileZilla" : "Ouvrir"}
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>
