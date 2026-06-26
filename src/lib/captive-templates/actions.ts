@@ -7,7 +7,7 @@ import { bridges, captiveTemplates, routers, organizations } from "@/lib/db/sche
 import { getSession } from "@/lib/auth/session";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
-import type { PackageFile } from "./package-files";
+import type { PackageFile, PackageVendor } from "./package-files";
 
 export type CaptiveTemplateInput = {
   name: string;
@@ -159,6 +159,48 @@ export async function updateCaptiveTemplate(
   return { success: true };
 }
 
+/**
+ * Updates the configurable support contact + vendor list for a "package"
+ * template — these get substituted into the {{SUPPORT_LINKS_HTML}} /
+ * {{VENDORS_HTML}} placeholders at fetch time (see package-files.ts),
+ * rather than being hardcoded in the bundled portal files.
+ */
+export async function updatePackageTemplateBranding(
+  templateId: string,
+  branding: { supportWhatsapp: string; supportPhone: string; vendors: PackageVendor[] },
+) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: captiveTemplates.id, orgId: captiveTemplates.orgId, templateType: captiveTemplates.templateType })
+    .from(captiveTemplates)
+    .where(eq(captiveTemplates.id, templateId))
+    .limit(1);
+  if (!existing || existing.orgId !== session.orgId) {
+    return { error: "Modèle introuvable." };
+  }
+  if (existing.templateType !== "package") {
+    return { error: "Ce modèle n'est pas un portail multi-fichiers." };
+  }
+
+  const vendors = branding.vendors.filter((v) => v.name.trim() && v.phone.trim());
+
+  await db
+    .update(captiveTemplates)
+    .set({
+      packageSupportWhatsapp: branding.supportWhatsapp.trim() || null,
+      packageSupportPhone: branding.supportPhone.trim() || null,
+      packageVendors: vendors,
+      updatedAt: new Date(),
+    })
+    .where(eq(captiveTemplates.id, templateId));
+
+  revalidatePath("/admin/settings/captive-templates");
+  return { success: true };
+}
+
 export async function duplicateCaptiveTemplate(templateId: string) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
@@ -188,6 +230,11 @@ export async function duplicateCaptiveTemplate(templateId: string) {
     termsText: existing.termsText,
     footerText: existing.footerText,
     mobileMoneyEnabled: existing.mobileMoneyEnabled,
+    templateType: existing.templateType,
+    packageFiles: existing.packageFiles,
+    packageSupportWhatsapp: existing.packageSupportWhatsapp,
+    packageSupportPhone: existing.packageSupportPhone,
+    packageVendors: existing.packageVendors,
   });
 
   revalidatePath("/admin/settings/captive-templates");

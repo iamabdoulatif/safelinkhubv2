@@ -84,6 +84,12 @@ export const captiveTemplates = pgTable("captive_templates", {
   // (html/css/js) carry a {{SSID}} placeholder substituted at fetch time
   // with the router's live WiFi SSID — see package-files.ts.
   packageFiles: jsonb("package_files"),
+  // Configurable branding for "package" templates, substituted into the
+  // {{SUPPORT_LINKS_HTML}} / {{VENDORS_HTML}} placeholders at fetch time
+  // — see package-files.ts.
+  packageSupportWhatsapp: text("package_support_whatsapp"),
+  packageSupportPhone: text("package_support_phone"),
+  packageVendors: jsonb("package_vendors"), // Array of { name, location, phone }
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

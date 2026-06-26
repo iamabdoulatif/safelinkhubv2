@@ -70,12 +70,12 @@
         return false;
       }
 
-      // Minimum 3 caractères (code voucher typique)
-      if (value.length < 3) {
-        e.preventDefault();
-        input.classList.add('error');
-        showError('Le code d\'accès est trop court.');
-        return false;
+      // En mode PAP (pas de CHAP), le champ password caché n'est jamais
+      // rempli par doLogin(). RouterOS attend password === username pour
+      // l'auth par voucher, donc on le synchronise systématiquement ici.
+      const passwordField = $('#password', form);
+      if (passwordField) {
+        passwordField.value = value;
       }
 
       // Active le loader

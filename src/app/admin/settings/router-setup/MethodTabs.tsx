@@ -11,6 +11,17 @@ const ENABLE_API_SCRIPT = `/ip service enable api
 /ip firewall filter add chain=input protocol=tcp dst-port=8728 src-address=<your-safelinkhub-server-ip> action=accept place-before=0
 /ip firewall filter add chain=input protocol=tcp dst-port=8728 action=drop`;
 
+// Some boards reject the device-mode unlock unless routerboard=yes is set
+// first — running mode=advanced alone can silently fail on those with
+// "not allowed by device mode" even though it's the documented single-step
+// command. This 4-step sequence (routerboard, then mode, then container,
+// then a /print to confirm) is what reliably unblocks script execution
+// across the field-reported cases.
+const DEVICE_MODE_UNLOCK_SCRIPT = `/system/device-mode/update routerboard=yes
+/system/device-mode/update mode=advanced
+/system/device-mode/update container=yes
+/system/device-mode/print`;
+
 export default function MethodTabs() {
   const [method, setMethod] = useState<"vpn" | "direct">("vpn");
 
@@ -70,12 +81,16 @@ export default function MethodTabs() {
             <GenerateScriptForm />
           </div>
 
-          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            Note : Si vous obtenez une erreur &quot;not allowed by device
-            mode&quot;, exécutez{" "}
-            <code>/system/device-mode/update mode=advanced</code> pour
-            débloquer l&apos;exécution de scripts.
-          </p>
+          <div className="mt-4 rounded-md bg-amber-50 px-3 py-2.5 text-xs text-amber-700">
+            <p className="font-medium">
+              Note : Si vous obtenez une erreur &quot;not allowed by device mode&quot;, exécutez
+              ces commandes dans l&apos;ordre sur le routeur pour débloquer l&apos;exécution de
+              scripts :
+            </p>
+            <pre className="mt-1.5 overflow-x-auto rounded-md bg-slate-900 px-3 py-2 text-xs text-emerald-300">
+              {DEVICE_MODE_UNLOCK_SCRIPT}
+            </pre>
+          </div>
         </div>
       ) : (
         <>

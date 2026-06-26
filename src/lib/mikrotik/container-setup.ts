@@ -8,7 +8,7 @@ import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
-import { VOUCHER_PROFILES } from "./voucher-profiles";
+import { VOUCHER_PROFILES, type VoucherProfile } from "./voucher-profiles";
 import {
   REMOTE_ACCESS_PORT,
   DOCKER_WEB_PORT,
@@ -119,11 +119,13 @@ export type HotspotStackOptions = {
   // step entirely rather than failing partway through.
   supportsContainers: boolean;
   reboot: boolean;
-  // Names from VOUCHER_PROFILES the admin wants created on this router (e.g.
-  // ["01-JOUR", "01-SEMAINE"]) — lets each operator sell only the voucher
-  // durations they actually use. Omitted/empty means "create all of them"
-  // (matches prior behavior for callers that don't pass this field yet).
-  voucherProfiles?: string[];
+  // Full voucher profile definitions to create on this router — lets each
+  // operator sell only the voucher durations they actually use, including
+  // custom ones the admin defined themselves (see voucher-profiles.ts'
+  // buildVoucherProfile), not just the 6 bundled presets. Omitted/empty
+  // means "create the bundled presets" (matches prior behavior for callers
+  // that don't pass this field yet).
+  voucherProfiles?: VoucherProfile[];
   // WiFi network name broadcast on both radios (2.4GHz + 5GHz). Optional —
   // boards with no WiFi radio at all (CCR routers, plain switches) just
   // skip this step instead of failing.
@@ -188,9 +190,9 @@ export async function provisionHotspotStack(
   }
 
   const log: string[] = [];
-  const run = async (words: string[], label: string) => {
+  const run = async (words: string[], label: string, timeoutMs?: number) => {
     try {
-      await client.talk(words);
+      await client.talk(words, timeoutMs);
       log.push(`OK: ${label}`);
     } catch (err) {
       log.push(`SKIP (${label}): ${err instanceof Error ? err.message : "error"}`);
@@ -825,6 +827,28 @@ export async function provisionHotspotStack(
       // (usb1/pull) to spare onboard flash; ax2 / hAP ax lite have no USB
       // port and use the tmpfs scratch space instead.
       if (opts.hasUsbStorage) {
+        // RouterOS exposes a plugged-in USB stick as an unformatted /disk
+        // entry (slot usb1) — /container/config's tmpdir=usb1/pull silently
+        // fails to pull/extract images until that slot is formatted ext4
+        // (this is MikroTik's own documented Container prerequisite, the
+        // same "Format Drive" step done by hand in WinBox). Re-running
+        // auto-setup on an already-formatted stick must not reformat it —
+        // that would wipe whatever's already pulled/cached — so this only
+        // formats when the slot isn't already ext4.
+        const usbDisks = await client.talk(["/disk/print"]).catch(() => []);
+        const usb1Disk = usbDisks.find((d) => d.slot === "usb1");
+        if (usb1Disk && usb1Disk["file-system"] !== "ext4") {
+          await run(
+            ["/disk/format-drive", "=slot=usb1", "=file-system=ext4"],
+            "format USB stick (usb1, ext4)",
+            60000,
+          );
+        } else if (!usb1Disk) {
+          log.push(
+            "SKIP (format USB stick): no disk reported at slot usb1 — plug the USB stick in and re-run auto-setup before MikHmon can use it.",
+          );
+        }
+
         await run(
           ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${LAYER_DIR}`],
           "container engine config (USB storage)",
@@ -996,16 +1020,17 @@ export async function provisionHotspotStack(
       await run(["/system/ntp/client/servers/add", `=address=${server}`], `NTP server ${server}`);
     }
 
-    // MikHmon voucher profiles (01-JOUR, 05-JOURS, 01-SEMAINE, 02-SEMAINES,
-    // 01-MOIS, 05-MINS): each profile's on-login script schedules its own
-    // one-shot expiry job per user, and a matching always-on scheduler job
-    // sweeps anyone whose voucher already expired (covers the case where the
-    // router rebooted and lost the one-shot scheduler entries). Removed by
-    // name first so reruns replace rather than duplicate. The admin picks
-    // which durations to offer; no selection means "create them all".
+    // MikHmon voucher profiles: each profile's on-login script schedules its
+    // own one-shot expiry job per user, and a matching always-on scheduler
+    // job sweeps anyone whose voucher already expired (covers the case
+    // where the router rebooted and lost the one-shot scheduler entries).
+    // Removed by name first so reruns replace rather than duplicate. The
+    // admin picks which durations to offer — including custom ones they
+    // defined themselves, not just the 6 bundled presets — no selection
+    // means "create the bundled presets".
     const wantedProfiles =
       opts.voucherProfiles && opts.voucherProfiles.length > 0
-        ? VOUCHER_PROFILES.filter((p) => opts.voucherProfiles!.includes(p.name))
+        ? opts.voucherProfiles
         : VOUCHER_PROFILES;
     for (const profile of wantedProfiles) {
       await client

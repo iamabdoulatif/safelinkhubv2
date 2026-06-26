@@ -11,6 +11,7 @@ import {
 } from "@/lib/captive-templates/actions";
 import CaptivePreview from "./CaptivePreview";
 import TemplateEditor, { type CaptiveTemplateRow } from "./TemplateEditor";
+import PackageBrandingEditor from "./PackageBrandingEditor";
 
 export default function TemplatesManager({
   templates,
@@ -19,6 +20,7 @@ export default function TemplatesManager({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<CaptiveTemplateRow | null | "new">(null);
+  const [editingBranding, setEditingBranding] = useState<CaptiveTemplateRow | null>(null);
   const [pending, startTransition] = useTransition();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +117,16 @@ export default function TemplatesManager({
               </div>
 
               <div className="mt-3 flex items-center gap-2">
-                {t.templateType !== "package" && (
+                {t.templateType === "package" ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingBranding(t)}
+                    className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Coordonnées
+                  </button>
+                ) : (
                   <button
                     type="button"
                     onClick={() => setEditing(t)}
@@ -206,6 +217,13 @@ export default function TemplatesManager({
         <TemplateEditor
           template={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {editingBranding && (
+        <PackageBrandingEditor
+          template={editingBranding}
+          onClose={() => setEditingBranding(null)}
         />
       )}
     </div>

@@ -25,6 +25,10 @@ export type CaptiveTemplateRow = {
   footerText: string | null;
   mobileMoneyEnabled: boolean;
   templateType: string;
+  packageSupportWhatsapp?: string | null;
+  packageSupportPhone?: string | null;
+  // jsonb column — drizzle infers `unknown`; cast to Vendor[] where consumed.
+  packageVendors?: unknown;
 };
 
 function Field({

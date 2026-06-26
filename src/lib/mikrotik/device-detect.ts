@@ -73,6 +73,12 @@ export type DetectedRouter = {
    * supportsContainers (architecture). Both must be true for the container
    * step to actually run. */
   containerFeatureEnabled: boolean | null;
+  /** True on boards confirmed to need a USB stick for MikHmon's container
+   * storage (L009, hAP ax³, RB3011, Chateau PRO ax — onboard flash is too
+   * small) — see device-catalog.ts. False for boards confirmed to work off
+   * onboard flash/tmpfs alone (hAP ax lite, hAP ax²), and also false for
+   * any unrecognized board (no basis to warn either way). */
+  requiresUsbForContainer: boolean;
 };
 
 /**
@@ -136,6 +142,7 @@ export async function detectRouterModel(routerId: string) {
       supportsContainers: architecture ? architectureSupportsContainers(architecture) : true,
       routerosVersion: resource?.version ?? "",
       deviceMode: deviceModeRow?.mode ?? null,
+      requiresUsbForContainer: model?.requiresUsbForContainer ?? false,
       containerFeatureEnabled: deviceModeRow ? parseRosBoolean(deviceModeRow.container) : null,
     };
 

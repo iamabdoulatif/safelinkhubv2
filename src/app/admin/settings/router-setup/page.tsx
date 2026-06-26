@@ -76,7 +76,14 @@ export default async function RouterSetupPage() {
               hotspotEnabled: b.hotspotEnabled,
             }))}
           />
-          <AutoSetupExtras routerId={router!.id} />
+          <AutoSetupExtras
+            routerId={router!.id}
+            hotspotBridge={
+              routerBridges
+                .filter((b) => b.hotspotEnabled)
+                .map((b) => ({ gatewayIp: b.gatewayIp, subnetBits: b.subnetBits }))[0] ?? null
+            }
+          />
         </>
       )}
     </div>

@@ -2,7 +2,12 @@ import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, captiveTemplates } from "@/lib/db/schema";
-import { contentTypeForPath, renderPackageFile, type PackageFile } from "@/lib/captive-templates/package-files";
+import {
+  contentTypeForPath,
+  renderPackageFile,
+  type PackageFile,
+  type PackageVendor,
+} from "@/lib/captive-templates/package-files";
 
 /**
  * Fetched directly by the router itself (via /tool fetch, see
@@ -48,7 +53,12 @@ export async function GET(
     return new Response("File not found", { status: 404 });
   }
 
-  const body = renderPackageFile(file, ssid);
+  const body = renderPackageFile(file, {
+    ssid,
+    supportWhatsapp: template.packageSupportWhatsapp,
+    supportPhone: template.packageSupportPhone,
+    vendors: template.packageVendors as PackageVendor[] | null,
+  });
   return new Response(new Uint8Array(body), {
     status: 200,
     headers: {

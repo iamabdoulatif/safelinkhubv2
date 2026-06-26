@@ -11,6 +11,18 @@ export type MikrotikModel = {
   boardName: string;
   architecture: Architecture;
   wifiBands: WifiBands;
+  /**
+   * True on container-capable boards whose onboard flash is too small to
+   * pull/extract the MikHmon image on its own (e.g. L009, hAP ax³, RB3011,
+   * Chateau PRO ax) — these need a USB stick plugged in for /container/
+   * config's tmpdir, or the pull silently fails / fills the flash. False on
+   * boards confirmed to work fine off onboard flash/tmpfs alone (hAP ax
+   * lite, hAP ax²). Defaults to false for any board not listed below — that
+   * just means the wizard won't warn proactively, not that USB is unneeded;
+   * /system/resource/usb/print live detection (hasUsbStorage) still drives
+   * which storage mode container-setup.ts actually uses either way.
+   */
+  requiresUsbForContainer?: boolean;
 };
 
 /**
@@ -52,7 +64,12 @@ export function architectureLabel(architecture: Architecture): string {
 export const MIKROTIK_MODELS: MikrotikModel[] = [
   // 2.4GHz only
   { boardName: "hAP ax lite", architecture: "arm", wifiBands: "2.4" },
-  { boardName: "L009UiGS-2HaxD-IN", architecture: "arm", wifiBands: "2.4" },
+  {
+    boardName: "L009UiGS-2HaxD-IN",
+    architecture: "arm",
+    wifiBands: "2.4",
+    requiresUsbForContainer: true,
+  },
 
   // 2.4GHz + 5GHz, ARM 32bit
   { boardName: "hAP be lite", architecture: "arm", wifiBands: "2.4+5" },
@@ -80,9 +97,27 @@ export const MIKROTIK_MODELS: MikrotikModel[] = [
   { boardName: "cAP LTE12 ax", architecture: "arm64", wifiBands: "2.4+5" },
   { boardName: "Chateau 5G R17 ax", architecture: "arm64", wifiBands: "2.4+5" },
   { boardName: "hAP ax²", architecture: "arm64", wifiBands: "2.4+5" },
-  { boardName: "hAP ax³", architecture: "arm64", wifiBands: "2.4+5" },
+  {
+    boardName: "hAP ax³",
+    architecture: "arm64",
+    wifiBands: "2.4+5",
+    requiresUsbForContainer: true,
+  },
   { boardName: "cAP ax", architecture: "arm64", wifiBands: "2.4+5" },
-  { boardName: "Chateau PRO ax", architecture: "arm64", wifiBands: "2.4+5" },
+  {
+    boardName: "Chateau PRO ax",
+    architecture: "arm64",
+    wifiBands: "2.4+5",
+    requiresUsbForContainer: true,
+  },
+
+  // Wired-only ARM boards with Container support but no onboard WiFi.
+  {
+    boardName: "RB3011UiAS-RM",
+    architecture: "arm",
+    wifiBands: "none",
+    requiresUsbForContainer: true,
+  },
 
   // Legacy MIPS boards — still common in the field, but no Container
   // support, so the auto-setup wizard runs the hotspot/WiFi steps only and

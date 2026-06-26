@@ -150,6 +150,14 @@ export default function DetectedModelBadge({
         </p>
       )}
 
+      {detected.supportsContainers && detected.requiresUsbForContainer && !detected.hasUsbStorage && (
+        <p className="mt-2 text-amber-700">
+          Ce modèle nécessite une clé USB pour installer MikHmon (flash interne insuffisante) —
+          aucune clé n&apos;est détectée actuellement. Branchez-en une avant de lancer la
+          configuration automatique.
+        </p>
+      )}
+
       {needsUnlock && <DeviceModeUnlock routerId={routerId} />}
     </div>
   );
