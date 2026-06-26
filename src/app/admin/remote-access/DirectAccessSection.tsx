@@ -25,6 +25,7 @@ const SERVICE_LABELS: Record<string, string> = {
   winbox: "WinBox",
   webfig: "WebFig (navigateur)",
   ssh: "SSH",
+  mikhmon: "MikHmon (vouchers)",
 };
 
 function CopyableAddress({ value }: { value: string }) {
@@ -113,7 +114,7 @@ function RouterDirectAccess({
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
       <div className="mt-2 space-y-2">
-        {(["winbox", "webfig", "ssh"] as const).map((service) => {
+        {(["winbox", "webfig", "ssh", "mikhmon"] as const).map((service) => {
           const forward = forwards.find((f) => f.service === service);
           const isPublic = Boolean(forward);
           const busy = pending && (pendingService === service || (isPublic && pending));

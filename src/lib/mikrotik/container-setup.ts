@@ -9,7 +9,12 @@ import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
 import { VOUCHER_PROFILES } from "./voucher-profiles";
-import { REMOTE_ACCESS_PORT, DOCKER_WEB_PORT, HOTSPOT_BRIDGE_NAME } from "./constants";
+import {
+  REMOTE_ACCESS_PORT,
+  DOCKER_WEB_PORT,
+  TUNNEL_ACCESS_PORT,
+  HOTSPOT_BRIDGE_NAME,
+} from "./constants";
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
@@ -737,7 +742,7 @@ export async function provisionHotspotStack(
       ["/ip/firewall/raw/add", "=chain=prerouting", "=in-interface-list=WAN", "=protocol=tcp", "=dst-port=8291", "=action=accept"],
       "raw: allow Winbox from WAN",
     );
-    const wanBlockedTcpPorts = [8728, 22, 21, 23, 80, 443, 8080, 8729, DOCKER_WEB_PORT];
+    const wanBlockedTcpPorts = [8728, 22, 21, 23, 80, 443, 8080, 8729, DOCKER_WEB_PORT, TUNNEL_ACCESS_PORT];
     for (const port of wanBlockedTcpPorts) {
       await run(
         ["/ip/firewall/raw/add", "=chain=prerouting", "=in-interface-list=WAN", "=protocol=tcp", `=dst-port=${port}`, "=action=drop"],
@@ -908,6 +913,32 @@ export async function provisionHotspotStack(
             "=comment=Docker NAT",
           ],
           "Docker web dst-nat port forward",
+        );
+      }
+
+      // Third path to MikHmon, deliberately with no dst-address filter (like
+      // ACCES DISTANT) so it answers a packet addressed to *any* IP the
+      // router owns — including its WireGuard/OpenVPN tunnel address. That
+      // lets SafeLinkHub's relay reach MikHmon over the same tunnel already
+      // used for WinBox/WebFig/SSH direct access, which works even when the
+      // router's WAN sits behind a carrier CGNAT that makes ACCES DISTANT
+      // (port 8088, WAN-only) unreachable from the public internet.
+      const existingTunnelNat = await client
+        .talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=MikHmon via tunnel"])
+        .catch(() => []);
+      if (existingTunnelNat.length === 0) {
+        await run(
+          [
+            "/ip/firewall/nat/add",
+            "=chain=dstnat",
+            `=dst-port=${TUNNEL_ACCESS_PORT}`,
+            "=protocol=tcp",
+            "=action=dst-nat",
+            `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
+            "=to-ports=80",
+            "=comment=MikHmon via tunnel",
+          ],
+          "MikHmon tunnel dst-nat port forward",
         );
       }
     } else if (!opts.supportsContainers) {

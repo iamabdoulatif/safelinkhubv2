@@ -88,6 +88,12 @@ export async function getMikhmonLink(routerId: string) {
     const link = `http://${ddnsName}:${REMOTE_ACCESS_PORT}`;
     const reachable = await probeReachable(link);
 
+    // The router already maintains an outbound WireGuard/OpenVPN tunnel to
+    // SafeLinkHub's relay for management — that same tunnel can carry
+    // MikHmon traffic too (toggle it on from Accès distant), bypassing
+    // whatever the WAN/CGNAT situation is entirely.
+    const tunnelAvailable = router.connectionMethod !== "direct" && Boolean(router.tunnelIp);
+
     return {
       success: true,
       ready: true,
@@ -97,7 +103,10 @@ export async function getMikhmonLink(routerId: string) {
       localLink,
       message: reachable
         ? undefined
-        : "Le DDNS et la redirection NAT sont bien configurés, mais le port 8088 ne répond pas depuis l'extérieur. C'est presque toujours dû à un CGNAT côté opérateur (fréquent sur connexion 4G/SIM) qui bloque les connexions entrantes vers l'IP publique, même si le routeur lui-même est correctement configuré — aucun réglage RouterOS ne peut contourner ça. Utilisez l'accès local ci-dessous si vous êtes sur le réseau du hotspot, ou passez par une connexion WAN avec une vraie IP publique (fibre/ADSL, ou un VPN dédié) pour l'accès distant.",
+        : "Le DDNS et la redirection NAT sont bien configurés, mais le port 8088 ne répond pas depuis l'extérieur. C'est presque toujours dû à un CGNAT côté opérateur (fréquent sur connexion 4G/SIM) qui bloque les connexions entrantes vers l'IP publique, même si le routeur lui-même est correctement configuré — aucun réglage RouterOS ne peut contourner ça. Utilisez l'accès local ci-dessous si vous êtes sur le réseau du hotspot" +
+            (tunnelAvailable
+              ? ", ou activez « MikHmon (vouchers) » dans Accès distant pour y accéder via le tunnel VPN déjà utilisé pour la gestion à distance (fonctionne même derrière un CGNAT)."
+              : ", ou passez par une connexion WAN avec une vraie IP publique (fibre/ADSL) pour l'accès distant."),
     };
   } catch (err) {
     return {

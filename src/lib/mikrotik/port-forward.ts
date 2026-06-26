@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { routerPortForwards, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { allocatePortForward, revokePortForward } from "./relay";
+import { TUNNEL_ACCESS_PORT } from "./constants";
 
 /**
  * "No VPN client needed" remote access: a public relay_ip:port that DNATs
@@ -24,6 +25,12 @@ const SERVICE_PORTS: Record<string, number> = {
   // connection hits the hotspot login page instead of RouterOS WebFig.
   webfig: 85,
   ssh: 22,
+  // MikHmon's own NAT rule (TUNNEL_ACCESS_PORT, see container-setup.ts) has
+  // no dst-address filter, so a packet addressed to the router's tunnel IP
+  // on this port still reaches the container — this is what makes MikHmon
+  // reachable through the same relay tunnel as WinBox/WebFig/SSH, instead
+  // of depending on the router's own (possibly CGNAT'd) public WAN IP.
+  mikhmon: TUNNEL_ACCESS_PORT,
 };
 
 export async function listPortForwards(routerId: string) {

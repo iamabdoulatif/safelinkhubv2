@@ -16,3 +16,12 @@ export const DOCKER_WEB_PORT = 8087;
 // LAN bridge name provisionHotspotStack builds — needed here to look up the
 // hotspot gateway's current IP address for the local MikHmon link.
 export const HOTSPOT_BRIDGE_NAME = "HOTSPOT";
+
+// Port the "MikHmon via tunnel" dst-nat rule forwards to the MikHmon
+// container, with no dst-address filter so it answers regardless of which
+// address the packet arrives addressed to (WAN public IP or the router's
+// own WireGuard/OpenVPN tunnel address) — used by the no-VPN direct-access
+// relay (port-forward.ts) to reach MikHmon through the same tunnel already
+// used for WinBox/WebFig/SSH, bypassing WAN-side CGNAT entirely since the
+// relay talks to the router over the tunnel, never over the public WAN.
+export const TUNNEL_ACCESS_PORT = 8089;
