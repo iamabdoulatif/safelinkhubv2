@@ -49,18 +49,8 @@ function CopyableAddress({ value }: { value: string }) {
   );
 }
 
-function serviceUrl(service: string, address: string, username: string | null) {
+function serviceUrl(service: string, address: string) {
   if (service === "webfig" || service === "mikhmon") return `http://${address}`;
-  // sftp://user@host:port — clicking this hands off to whatever app the OS
-  // has registered for the sftp:// scheme (FileZilla included), pre-filling
-  // host/port/username so the admin only has to type the password. Browsers
-  // require the registration to be present once (FileZilla does this on
-  // install on most platforms); if nothing is registered, nothing opens and
-  // the inline tutorial below covers the manual Site Manager fallback.
-  if (service === "ssh") {
-    const [host, port] = address.split(":");
-    return `sftp://${username ? `${encodeURIComponent(username)}@` : ""}${host}:${port}`;
-  }
   return address;
 }
 
@@ -86,10 +76,12 @@ function SshFileZillaTutorial({
       {open && (
         <div className="border-t border-slate-100 px-2.5 py-2 text-[11px] text-slate-600">
           <p className="text-slate-500">
-            Cliquez sur l&apos;icône <ExternalLink className="inline h-3 w-3" /> ci-dessus pour
-            ouvrir directement FileZilla avec l&apos;hôte pré-rempli (si FileZilla est installé et
-            associé au lien <code className="rounded bg-slate-100 px-1">sftp://</code> sur cet
-            ordinateur), ou configurez-le manuellement :
+            Il n&apos;y a pas de bouton « ouvrir automatiquement » fiable ici : le lien{" "}
+            <code className="rounded bg-slate-100 px-1">sftp://</code> est géré par l&apos;OS, qui
+            peut l&apos;avoir associé à n&apos;importe quelle autre app installée (VLC, par
+            exemple, s&apos;enregistre souvent pour ce type de lien sans que l&apos;utilisateur
+            l&apos;ait demandé) — pas spécifiquement à FileZilla. Configurez-le donc à la main,
+            une seule fois :
           </p>
           <ol className="mt-1.5 list-decimal space-y-1 pl-4">
             <li>Fichier → Gestionnaire de sites → Nouveau site</li>
@@ -243,7 +235,7 @@ function RouterDirectAccess({
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {forwards.map((forward) => {
               const address = `${relayHost}:${forward.publicPort}`;
-              const url = serviceUrl(forward.service, address, router.username);
+              const url = serviceUrl(forward.service, address);
               return (
                 <div key={forward.id} className="min-w-0">
                   <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-white px-2.5 py-2 text-xs">
@@ -255,15 +247,13 @@ function RouterDirectAccess({
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <CopyableAddress value={address} />
-                      {(forward.service === "webfig" ||
-                        forward.service === "mikhmon" ||
-                        forward.service === "ssh") && (
+                      {(forward.service === "webfig" || forward.service === "mikhmon") && (
                         <a
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="rounded bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
-                          title={forward.service === "ssh" ? "Ouvrir dans FileZilla" : "Ouvrir"}
+                          title="Ouvrir"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>
