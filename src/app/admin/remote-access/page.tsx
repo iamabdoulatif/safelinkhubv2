@@ -126,6 +126,7 @@ export default async function RemoteAccessPage() {
           status: r.status,
           connectionMethod: r.connectionMethod,
           tunnelIp: r.tunnelIp,
+          username: r.username,
         }))}
         forwardsByRouter={forwardsByRouter}
         relayHost={process.env.WG_RELAY_HOST ?? ""}

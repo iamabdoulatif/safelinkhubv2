@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, ExternalLink, Globe2, Loader2, ShieldOff } from "lucide-react";
+import { ChevronDown, Copy, ExternalLink, Globe2, Loader2, ShieldOff } from "lucide-react";
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
 
@@ -12,6 +12,7 @@ type RouterRow = {
   status: string;
   connectionMethod: string;
   tunnelIp: string | null;
+  username: string | null;
 };
 
 export type ForwardRow = {
@@ -48,9 +49,74 @@ function CopyableAddress({ value }: { value: string }) {
   );
 }
 
-function serviceUrl(service: string, address: string) {
+function serviceUrl(service: string, address: string, username: string | null) {
   if (service === "webfig" || service === "mikhmon") return `http://${address}`;
+  // sftp://user@host:port — clicking this hands off to whatever app the OS
+  // has registered for the sftp:// scheme (FileZilla included), pre-filling
+  // host/port/username so the admin only has to type the password. Browsers
+  // require the registration to be present once (FileZilla does this on
+  // install on most platforms); if nothing is registered, nothing opens and
+  // the inline tutorial below covers the manual Site Manager fallback.
+  if (service === "ssh") {
+    const [host, port] = address.split(":");
+    return `sftp://${username ? `${encodeURIComponent(username)}@` : ""}${host}:${port}`;
+  }
   return address;
+}
+
+function SshFileZillaTutorial({
+  address,
+  username,
+}: {
+  address: string;
+  username: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [host, port] = address.split(":");
+  return (
+    <div className="mt-2 rounded-md border border-slate-100 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-2.5 py-2 text-left text-[11px] font-medium text-slate-600"
+      >
+        Configurer FileZilla (SFTP)
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="border-t border-slate-100 px-2.5 py-2 text-[11px] text-slate-600">
+          <p className="text-slate-500">
+            Cliquez sur l&apos;icône <ExternalLink className="inline h-3 w-3" /> ci-dessus pour
+            ouvrir directement FileZilla avec l&apos;hôte pré-rempli (si FileZilla est installé et
+            associé au lien <code className="rounded bg-slate-100 px-1">sftp://</code> sur cet
+            ordinateur), ou configurez-le manuellement :
+          </p>
+          <ol className="mt-1.5 list-decimal space-y-1 pl-4">
+            <li>Fichier → Gestionnaire de sites → Nouveau site</li>
+            <li>
+              Protocole : <span className="font-medium">SFTP - SSH File Transfer Protocol</span>{" "}
+              (pas FTP — c&apos;est l&apos;erreur la plus fréquente)
+            </li>
+            <li>
+              Hôte : <span className="font-medium">{host}</span> — Port :{" "}
+              <span className="font-medium">{port}</span>
+            </li>
+            <li>
+              Authentification : Normal — Utilisateur :{" "}
+              <span className="font-medium">{username || "(identifiant du routeur)"}</span> — Mot
+              de passe : celui du routeur
+            </li>
+            <li>Connexion</li>
+          </ol>
+          <p className="mt-1.5 text-amber-600">
+            Avec la barre Quickconnect plutôt que le Gestionnaire de sites, préfixez l&apos;hôte
+            avec <code className="rounded bg-amber-50 px-1">sftp://</code>, sinon FileZilla tente
+            du FTP classique et la connexion échoue.
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function RouterDirectAccess({
@@ -177,32 +243,36 @@ function RouterDirectAccess({
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {forwards.map((forward) => {
               const address = `${relayHost}:${forward.publicPort}`;
-              const url = serviceUrl(forward.service, address);
+              const url = serviceUrl(forward.service, address, router.username);
               return (
-                <div
-                  key={forward.id}
-                  className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-white px-2.5 py-2 text-xs"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-700">
-                      {SERVICE_LABELS[forward.service] ?? forward.service}
-                    </p>
-                    <p className="truncate text-slate-500">{address}</p>
+                <div key={forward.id} className="min-w-0">
+                  <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-white px-2.5 py-2 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-700">
+                        {SERVICE_LABELS[forward.service] ?? forward.service}
+                      </p>
+                      <p className="truncate text-slate-500">{address}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <CopyableAddress value={address} />
+                      {(forward.service === "webfig" ||
+                        forward.service === "mikhmon" ||
+                        forward.service === "ssh") && (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
+                          title={forward.service === "ssh" ? "Ouvrir dans FileZilla" : "Ouvrir"}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <CopyableAddress value={address} />
-                    {(forward.service === "webfig" || forward.service === "mikhmon") && (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
-                        title="Ouvrir"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    )}
-                  </div>
+                  {forward.service === "ssh" && (
+                    <SshFileZillaTutorial address={address} username={router.username} />
+                  )}
                 </div>
               );
             })}
