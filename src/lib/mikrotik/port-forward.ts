@@ -6,7 +6,12 @@ import { getDb } from "@/lib/db";
 import { routerPortForwards, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { allocatePortForward, revokePortForward } from "./relay";
-import { TUNNEL_ACCESS_PORT } from "./constants";
+import { connectToRouter } from "./router-sync";
+import type { RouterOSClient } from "./client";
+import {
+  getMikhmonTunnelNatCommands,
+  getPortForwardTargetPort,
+} from "./port-forward-rules";
 
 /**
  * "No VPN client needed" remote access: a public relay_ip:port that DNATs
@@ -17,21 +22,21 @@ import { TUNNEL_ACCESS_PORT } from "./constants";
  * login, same exposure model as giving the router a public IP.
  */
 
-const SERVICE_PORTS: Record<string, number> = {
-  winbox: 8291,
-  // 80 stays free for the hotspot captive portal — provisionHotspotStack
-  // moves WebFig (the "www" service) to 85 specifically so the two don't
-  // collide, so the relay must target 85 too or every forwarded WebFig
-  // connection hits the hotspot login page instead of RouterOS WebFig.
-  webfig: 85,
-  ssh: 22,
-  // MikHmon's own NAT rule (TUNNEL_ACCESS_PORT, see container-setup.ts) has
-  // no dst-address filter, so a packet addressed to the router's tunnel IP
-  // on this port still reaches the container — this is what makes MikHmon
-  // reachable through the same relay tunnel as WinBox/WebFig/SSH, instead
-  // of depending on the router's own (possibly CGNAT'd) public WAN IP.
-  mikhmon: TUNNEL_ACCESS_PORT,
-};
+async function ensureMikhmonTunnelNat(client: RouterOSClient) {
+  const commands = getMikhmonTunnelNatCommands();
+  const existing = await client.talk(commands.findExisting);
+  if (existing.length > 0) return;
+  await client.talk(commands.add);
+}
+
+// provisionHotspotStack's hardening step disables RouterOS's own ssh
+// service (/ip/service set ssh disabled=yes) — without re-enabling it here,
+// toggling on the "ssh" relay forward just opens a public port to nothing,
+// and tools like FileZilla (SFTP) get connection-refused even though the
+// forward itself looks "Public" in the UI.
+async function setSshServiceEnabled(client: RouterOSClient, enabled: boolean) {
+  await client.talk(["/ip/service/set", "=numbers=ssh", `=disabled=${enabled ? "no" : "yes"}`]);
+}
 
 export async function listPortForwards(routerId: string) {
   const session = await getSession();
@@ -55,7 +60,7 @@ export async function enablePortForward(routerId: string, service: string) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
-  const targetPort = SERVICE_PORTS[service];
+  const targetPort = getPortForwardTargetPort(service);
   if (!targetPort) return { error: "Unknown service." };
 
   const db = getDb();
@@ -71,6 +76,24 @@ export async function enablePortForward(routerId: string, service: string) {
     return {
       error: "Le routeur doit être connecté via WireGuard ou OpenVPN pour activer l'accès direct.",
     };
+  }
+
+  if (service === "mikhmon" || service === "ssh") {
+    let client: RouterOSClient | null = null;
+    try {
+      client = await connectToRouter(router);
+      if (service === "mikhmon") await ensureMikhmonTunnelNat(client);
+      if (service === "ssh") await setSshServiceEnabled(client, true);
+    } catch (err) {
+      return {
+        error:
+          err instanceof Error
+            ? `Could not prepare ${service} access on router: ${err.message}`
+            : `Could not prepare ${service} access on router.`,
+      };
+    } finally {
+      client?.close();
+    }
   }
 
   let publicPort: number;
@@ -127,6 +150,26 @@ export async function disablePortForward(forwardId: string) {
     return {
       error: err instanceof Error ? `Could not revoke: ${err.message}` : "Could not revoke.",
     };
+  }
+
+  if (forward.service === "ssh") {
+    const [fullRouter] = await db
+      .select()
+      .from(routers)
+      .where(eq(routers.id, forward.routerId))
+      .limit(1);
+    if (fullRouter) {
+      let client: RouterOSClient | null = null;
+      try {
+        client = await connectToRouter(fullRouter);
+        await setSshServiceEnabled(client, false);
+      } catch {
+        // Non-fatal — the public forward is already gone, so ssh isn't
+        // reachable from outside anymore even if the service stays on.
+      } finally {
+        client?.close();
+      }
+    }
   }
 
   await db.delete(routerPortForwards).where(eq(routerPortForwards.id, forwardId));

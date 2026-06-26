@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Globe2, Loader2, ShieldOff } from "lucide-react";
+import { Copy, ExternalLink, Globe2, Loader2, ShieldOff } from "lucide-react";
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
 
@@ -24,7 +24,7 @@ export type ForwardRow = {
 const SERVICE_LABELS: Record<string, string> = {
   winbox: "WinBox",
   webfig: "WebFig (navigateur)",
-  ssh: "SSH",
+  ssh: "SSH (SFTP — FileZilla, etc.)",
   mikhmon: "MikHmon (vouchers)",
 };
 
@@ -48,6 +48,11 @@ function CopyableAddress({ value }: { value: string }) {
   );
 }
 
+function serviceUrl(service: string, address: string) {
+  if (service === "webfig" || service === "mikhmon") return `http://${address}`;
+  return address;
+}
+
 function RouterDirectAccess({
   router,
   forwards,
@@ -66,6 +71,7 @@ function RouterDirectAccess({
   const activeServices = new Set(forwards.map((f) => f.service));
   const hasActiveAccess = activeServices.size > 0;
   const resourcesLoading = hasActiveAccess && resources === null;
+  const summary = resources?.accessSummary;
 
   // Re-fetched on every mount (i.e. every page refresh, and right after a
   // toggle triggers navRouter.refresh()) so an enabled access never goes
@@ -167,10 +173,49 @@ function RouterDirectAccess({
       </p>
 
       {hasActiveAccess && (
-        <div className="mt-3 overflow-x-auto rounded-md border border-slate-100">
-          <table className="w-full min-w-[480px] text-left text-[11px]">
+        <div className="mt-3 rounded-md border border-slate-100 bg-slate-50/60 p-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {forwards.map((forward) => {
+              const address = `${relayHost}:${forward.publicPort}`;
+              const url = serviceUrl(forward.service, address);
+              return (
+                <div
+                  key={forward.id}
+                  className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-white px-2.5 py-2 text-xs"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-700">
+                      {SERVICE_LABELS[forward.service] ?? forward.service}
+                    </p>
+                    <p className="truncate text-slate-500">{address}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <CopyableAddress value={address} />
+                    {(forward.service === "webfig" || forward.service === "mikhmon") && (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
+                        title="Ouvrir"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 overflow-x-auto rounded-md border border-slate-100 bg-white">
+            <table className="w-full min-w-[760px] text-left text-[11px]">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
+                <th className="px-2 py-1.5 font-medium">MAC WAN</th>
+                <th className="px-2 py-1.5 font-medium">IP WAN</th>
+                <th className="px-2 py-1.5 font-medium">IP publique</th>
+                <th className="px-2 py-1.5 font-medium">IP tunnel</th>
                 <th className="px-2 py-1.5 font-medium">Identity</th>
                 <th className="px-2 py-1.5 font-medium">Version</th>
                 <th className="px-2 py-1.5 font-medium">Board</th>
@@ -185,8 +230,14 @@ function RouterDirectAccess({
                       <Loader2 className="h-3 w-3 animate-spin" /> ...
                     </span>
                   ) : (
-                    resources?.identity ?? router.name
+                    summary?.wanMacAddress || "—"
                   )}
+                </td>
+                <td className="px-2 py-1.5 text-slate-600">{summary?.wanIpAddress || "—"}</td>
+                <td className="px-2 py-1.5 text-slate-600">{relayHost || "—"}</td>
+                <td className="px-2 py-1.5 text-slate-600">{summary?.tunnelIp || router.tunnelIp || "—"}</td>
+                <td className="px-2 py-1.5 font-medium text-slate-700">
+                  {summary?.identity ?? resources?.identity ?? router.name}
                 </td>
                 <td className="px-2 py-1.5 text-slate-600">{resources?.version ?? "—"}</td>
                 <td className="px-2 py-1.5 text-slate-600">{resources?.boardName ?? "—"}</td>
@@ -194,6 +245,7 @@ function RouterDirectAccess({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

@@ -7,6 +7,10 @@ import { getSession } from "@/lib/auth/session";
 import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
+import {
+  buildRouterAccessSummary,
+  type RouterAccessSummary,
+} from "./router-access-summary";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -42,6 +46,7 @@ export type RouterResources = {
   version: string;
   buildTime: string;
   factorySoftware: string;
+  accessSummary: RouterAccessSummary;
 };
 
 /**
@@ -76,6 +81,24 @@ export async function getRouterResources(routerId: string) {
   try {
     const [resource] = await client.talk(["/system/resource/print"]);
     const [identityRow] = await client.talk(["/system/identity/print"]).catch(() => []);
+    const addressRows = await client
+      .talk([
+        "/ip/address/print",
+        "=.proplist=address,interface,dynamic,disabled",
+      ])
+      .catch(() => []);
+    const interfaceRows = await client
+      .talk([
+        "/interface/print",
+        "=.proplist=name,type,mac-address,default-name,running,disabled",
+      ])
+      .catch(() => []);
+    const routeRows = await client
+      .talk([
+        "/ip/route/print",
+        "=.proplist=dst-address,gateway,dynamic,active,disabled",
+      ])
+      .catch(() => []);
 
     const resources: RouterResources = {
       identity: identityRow?.name ?? router.name,
@@ -96,6 +119,14 @@ export async function getRouterResources(routerId: string) {
       version: resource?.version ?? "",
       buildTime: resource?.["build-time"] ?? "",
       factorySoftware: resource?.["factory-software"] ?? "",
+      accessSummary: buildRouterAccessSummary({
+        routerName: router.name,
+        tunnelIp: router.tunnelIp,
+        identityRows: identityRow ? [identityRow] : [],
+        addressRows,
+        interfaceRows,
+        routeRows,
+      }),
     };
 
     return { success: true, resources };

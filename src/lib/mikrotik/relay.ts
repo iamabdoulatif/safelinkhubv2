@@ -385,10 +385,24 @@ export async function revokePortForward(
   targetPort: number,
   publicPort: number,
 ): Promise<void> {
-  await runOnRelay(
-    `sudo iptables -t nat -D PREROUTING -p tcp --dport ${publicPort} -j DNAT --to-destination ${tunnelIp}:${targetPort} ; ` +
-      `sudo iptables -t nat -D POSTROUTING -d ${tunnelIp} -p tcp --dport ${targetPort} -j MASQUERADE ; ` +
-      `sudo iptables -D FORWARD -p tcp -d ${tunnelIp} --dport ${targetPort} -j ACCEPT ; ` +
-      `command -v netfilter-persistent >/dev/null 2>&1 && sudo netfilter-persistent save >/dev/null 2>&1 || true`,
-  );
+  await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${publicPort} <<'SCRIPT'
+set -euo pipefail
+TUNNEL_IP="$1"
+TARGET_PORT="$2"
+PUBLIC_PORT="$3"
+
+while iptables -t nat -C PREROUTING -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "$TUNNEL_IP:$TARGET_PORT" 2>/dev/null; do
+  iptables -t nat -D PREROUTING -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "$TUNNEL_IP:$TARGET_PORT"
+done
+
+while iptables -t nat -C POSTROUTING -d "$TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE 2>/dev/null; do
+  iptables -t nat -D POSTROUTING -d "$TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE
+done
+
+while iptables -C FORWARD -p tcp -d "$TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT 2>/dev/null; do
+  iptables -D FORWARD -p tcp -d "$TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT
+done
+
+command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
+SCRIPT`);
 }
