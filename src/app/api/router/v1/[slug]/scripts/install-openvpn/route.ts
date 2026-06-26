@@ -31,7 +31,14 @@ function buildScript(opts: {
 /user group add name=safelinkhub-group policy=api,read,write,test,sensitive
 /user add name=safelinkhub-api password="${opts.apiPassword}" group=safelinkhub-group
 
-/ip service set api address=10.67.0.0/24
+
+# Scoped to the tunnel subnet plus the Docker subnet — MikHmon runs inside
+# the container at 11.11.11.11 and connects to the router's own API at the
+# CONTAINERS bridge gateway (11.11.11.1) to manage hotspot users/vouchers.
+# Restricting to the tunnel subnet alone silently rejects that connection
+# and MikHmon's session settings show "MikroTik Not Connected" even with
+# correct IP/credentials — see provisionHotspotStack's matching allowlist.
+/ip service set api address=10.67.0.0/24,11.11.11.0/28
 /ip service enable api
 :log info "SafeLinkHub OpenVPN tunnel installed successfully"
 
