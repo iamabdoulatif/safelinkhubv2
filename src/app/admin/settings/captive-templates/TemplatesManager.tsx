@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { Copy, Files, Package, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import {
   deleteCaptiveTemplate,
   duplicateCaptiveTemplate,
+  importSafelinkhubDefaultPackage,
   setDefaultCaptiveTemplate,
 } from "@/lib/captive-templates/actions";
 import CaptivePreview from "./CaptivePreview";
@@ -24,16 +25,33 @@ export default function TemplatesManager({
 
   return (
     <div className="mt-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-700">Vos modèles</h2>
-        <button
-          type="button"
-          onClick={() => setEditing("new")}
-          className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          <Plus className="h-4 w-4" />
-          Nouveau modèle
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const res = await importSafelinkhubDefaultPackage();
+                if (res?.error) setError(res.error);
+                else router.refresh();
+              })
+            }
+            className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            <Package className="h-4 w-4" />
+            Importer le portail SafeLinkHub
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing("new")}
+            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            <Plus className="h-4 w-4" />
+            Nouveau modèle
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -50,25 +68,32 @@ export default function TemplatesManager({
           {templates.map((t) => (
             <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3">
               <div className="h-40 overflow-hidden rounded-lg bg-slate-50">
-                <div
-                  className="pointer-events-none h-[400px] w-[320px] origin-top-left scale-[0.4]"
-                  aria-hidden
-                >
-                  <CaptivePreview
-                    data={{
-                      logoUrl: t.logoUrl ?? "",
-                      primaryColor: t.primaryColor,
-                      backgroundColor: t.backgroundColor,
-                      title: t.title,
-                      subtitle: t.subtitle,
-                      buttonLabel: t.buttonLabel,
-                      voucherFieldLabel: t.voucherFieldLabel,
-                      termsText: t.termsText ?? "",
-                      footerText: t.footerText ?? "",
-                      mobileMoneyEnabled: t.mobileMoneyEnabled,
-                    }}
-                  />
-                </div>
+                {t.templateType === "package" ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-400">
+                    <Files className="h-8 w-8" />
+                    <span className="text-xs font-medium">Portail multi-fichiers</span>
+                  </div>
+                ) : (
+                  <div
+                    className="pointer-events-none h-[400px] w-[320px] origin-top-left scale-[0.4]"
+                    aria-hidden
+                  >
+                    <CaptivePreview
+                      data={{
+                        logoUrl: t.logoUrl ?? "",
+                        primaryColor: t.primaryColor,
+                        backgroundColor: t.backgroundColor,
+                        title: t.title,
+                        subtitle: t.subtitle,
+                        buttonLabel: t.buttonLabel,
+                        voucherFieldLabel: t.voucherFieldLabel,
+                        termsText: t.termsText ?? "",
+                        footerText: t.footerText ?? "",
+                        mobileMoneyEnabled: t.mobileMoneyEnabled,
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="mt-3 flex items-center justify-between">
@@ -80,18 +105,26 @@ export default function TemplatesManager({
                       Par défaut
                     </span>
                   )}
+                  {t.templateType === "package" && (
+                    <span className="flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+                      <Package className="h-3 w-3" />
+                      Package
+                    </span>
+                  )}
                 </span>
               </div>
 
               <div className="mt-3 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditing(t)}
-                  className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Modifier
-                </button>
+                {t.templateType !== "package" && (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(t)}
+                    className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Modifier
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={pending}

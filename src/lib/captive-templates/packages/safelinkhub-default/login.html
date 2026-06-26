@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="description" content="Portail captif WiFi - Connexion Internet Rapide">
+  <meta name="theme-color" content="#10b981">
+  <title>Connexion Internet - {{SSID}}</title>
+
+  <!-- Favicon inline SVG -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2310b981'/%3E%3Cpath d='M50 85c-2 0-4-1-5-3-8-14-12-28-12-42 0-9 8-17 17-17s17 8 17 17c0 14-4 28-12 42-1 2-3 3-5 3z' fill='%23fff'/%3E%3C/svg%3E">
+  <!-- Cache busting -->
+  <link rel="stylesheet" href="css/style.css?v=20260626-003">
+
+  <!-- No-cache pour éviter les problèmes de cache MikroTik -->
+  <meta http-equiv="pragma" content="no-cache" />
+  <meta http-equiv="expires" content="-1" />
+  <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
+
+  <style>
+    /* Styles critiques inline pour éviter le FOUC */
+    body { opacity: 0; transition: opacity 0.3s ease; }
+    body.loaded { opacity: 1; }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- FORMULAIRE CHAP HIDDEN (RouterOS) -->
+  <!-- ============================================================ -->
+  $(if chap-id)
+  <form name="sendin" action="$(link-login-only)" method="post" style="display:none">
+    <input type="hidden" name="username" />
+    <input type="hidden" name="password" />
+    <input type="hidden" name="dst" value="$(link-orig)" />
+    <input type="hidden" name="popup" value="true" />
+  </form>
+  <script src="md5.js?v=20260626-001"></script>
+  <script>
+    // CHAP login inspiré de SMART-CONNECT
+    function doLogin() {
+      var form = document.login;
+      var sendin = document.sendin;
+      if (!form.username || form.username.value === '') {
+        if (form.username) form.username.classList.add('error');
+        return false;
+      }
+      // Copie le code dans le hidden password (requis pour RouterOS)
+      form.password.value = form.username.value;
+      sendin.username.value = form.username.value;
+      sendin.password.value = md5.hex("$(chap-id)" + form.password.value + "$(chap-challenge)");
+      sendin.submit();
+      return false;
+    }
+  </script>
+  $(endif)
+
+  <!-- ============================================================ -->
+  <!-- CONTENU PRINCIPAL -->
+  <!-- ============================================================ -->
+  <div class="hotspot-container">
+
+    <!-- CARTE PRINCIPALE -->
+    <div class="card animate-fade-in">
+
+      <!-- DERNIER TICKET UTILISE (affiché si localStorage a un ticket) -->
+      <div id="last-ticket-section" class="last-ticket-section hidden-section">
+        <div class="last-ticket-card">
+          <div class="ticket-info">
+            <span class="ticket-label">Votre dernier ticket</span>
+            <span id="last-ticket-code" class="ticket-code-display">---</span>
+          </div>
+          <div class="ticket-actions">
+            <button type="button" id="use-last-ticket-btn" class="ticket-btn ticket-btn-primary">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+              </svg>
+              Utiliser
+            </button>
+            <button type="button" id="clear-last-ticket-btn" class="ticket-btn ticket-btn-secondary">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              Oublier
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- HEADER -->
+      <div class="header-brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+            <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+          </svg>
+        </div>
+        <h1 class="brand-name">{{SSID}}</h1>
+        <p class="brand-tagline">Connexion Internet Rapide</p>
+      </div>
+
+      <!-- MESSAGE ERREUR ROUTEROS -->
+      $(if error)
+      <div class="alert alert-error" id="routeros-error" role="alert">
+        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>$(error)</span>
+      </div>
+      $(endif)
+
+      <!-- FORMULAIRE LOGIN -->
+      <form
+        name="login"
+        action="$(link-login-only)"
+        method="post"
+        $(if chap-id) onSubmit="return doLogin()" $(endif)
+        id="login-form"
+        autocomplete="off"
+      >
+        <input type="hidden" name="dst" value="$(link-orig)" />
+        <input type="hidden" name="popup" value="true" />
+        <input type="hidden" name="password" id="password" />
+
+        <div class="form-group">
+          <label for="username" class="form-label">Code d'accès</label>
+          <div class="input-wrapper">
+            <span class="input-icon">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </span>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              class="form-input"
+              placeholder="Entrez votre code d'accès"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              inputmode="text"
+              required
+            />
+          </div>
+        </div>
+
+        <!-- Message d'erreur JS -->
+        <div class="alert alert-error hidden" id="form-error" role="alert"></div>
+
+        <button type="submit" class="btn btn-primary" id="submit-btn">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
+          Connexion
+        </button>
+      </form>
+
+      <!-- RETROUVER CODE -->
+      <div style="text-align:center; margin-top:18px;">
+        <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:10px;">Vous avez déjà acheté un code ?</p>
+        <a href="#" id="recover-code-btn" class="btn btn-secondary btn-sm" style="width:auto; display:inline-flex;">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          Retrouver mon code
+        </a>
+      </div>
+
+      <!-- SECTION VENDEURS (cachée par défaut, affichée par JS) -->
+      <div id="vendors-section" class="vendors-section hidden-section" style="display:none;">
+        <div class="vendors-section-title">Nos vendeurs agréés</div>
+        <div class="vendors-grid">
+
+          <div class="vendor-card">
+            <div class="vendor-icon">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+            <div class="vendor-info">
+              <div class="vendor-name">Kouassi Jean</div>
+              <div class="vendor-location">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                Abidjan, Plateau
+              </div>
+              <div class="vendor-phone">+225 07 08 09 10 11</div>
+            </div>
+            <a href="https://wa.me/2250708091011" target="_blank" class="vendor-action">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              WhatsApp
+            </a>
+          </div>
+
+          <div class="vendor-card">
+            <div class="vendor-icon">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+            <div class="vendor-info">
+              <div class="vendor-name">Aminata Diallo</div>
+              <div class="vendor-location">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                Abidjan, Cocody
+              </div>
+              <div class="vendor-phone">+225 07 12 13 14 15</div>
+            </div>
+            <a href="https://wa.me/2250712131415" target="_blank" class="vendor-action">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              WhatsApp
+            </a>
+          </div>
+
+          <div class="vendor-card">
+            <div class="vendor-icon">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+            <div class="vendor-info">
+              <div class="vendor-name">Kouamé Yao</div>
+              <div class="vendor-location">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                Abidjan, Yopougon
+              </div>
+              <div class="vendor-phone">+225 07 16 17 18 19</div>
+            </div>
+            <a href="https://wa.me/2250716171819" target="_blank" class="vendor-action">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              WhatsApp
+            </a>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- FORFAITS -->
+    <!-- ============================================================ -->
+    <div class="card animate-fade-in animate-delay-1">
+      <div class="plans-section">
+        <h2 class="section-title">Acheter un forfait</h2>
+        <div class="plans-grid">
+
+          <div class="plan-card">
+            <div class="plan-info">
+              <span class="plan-name">5 Heures</span>
+              <span class="plan-details">Illimité</span>
+            </div>
+            <span class="plan-price">100 FCFA</span>
+            <button class="plan-btn" data-plan="5 Heures" data-price="100 FCFA">Acheter</button>
+          </div>
+
+          <div class="plan-card">
+            <div class="plan-info">
+              <span class="plan-name">1 Jour</span>
+              <span class="plan-details">Illimité</span>
+            </div>
+            <span class="plan-price">200 FCFA</span>
+            <button class="plan-btn" data-plan="1 Jour" data-price="200 FCFA">Acheter</button>
+          </div>
+
+          <div class="plan-card">
+            <div class="plan-info">
+              <span class="plan-name">4 Jours</span>
+              <span class="plan-details">Illimité</span>
+            </div>
+            <span class="plan-price">500 FCFA</span>
+            <button class="plan-btn" data-plan="4 Jours" data-price="500 FCFA">Acheter</button>
+          </div>
+
+          <div class="plan-card">
+            <div class="plan-info">
+              <span class="plan-name">7 Jours</span>
+              <span class="plan-details">Illimité</span>
+            </div>
+            <span class="plan-price">700 FCFA</span>
+            <button class="plan-btn" data-plan="7 Jours" data-price="700 FCFA">Acheter</button>
+          </div>
+
+          <div class="plan-card">
+            <div class="plan-info">
+              <span class="plan-name">14 Jours</span>
+              <span class="plan-details">Illimité</span>
+            </div>
+            <span class="plan-price">1200 FCFA</span>
+            <button class="plan-btn" data-plan="14 Jours" data-price="1 200 FCFA">Acheter</button>
+          </div>
+
+          <div class="plan-card">
+            <div class="plan-info">
+              <span class="plan-name">1 Mois</span>
+              <span class="plan-details">Illimité</span>
+            </div>
+            <span class="plan-price">2500 FCFA</span>
+            <button class="plan-btn" data-plan="30 Jours" data-price="2 000 FCFA">Acheter</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- MOYENS DE PAIEMENT -->
+    <!-- ============================================================ -->
+    <div class="card animate-fade-in animate-delay-2 payment-section" style="margin-top:0;">
+      <p class="payment-title">Paiement Mobile Money</p>
+      <div class="payment-logos">
+        <img src="images/wave.png" alt="Wave" class="payment-logo-original" title="Wave" width="90" height="42">
+        <img src="images/orange.png" alt="Orange Money" class="payment-logo-original" title="Orange Money" width="90" height="42">
+        <img src="images/mtn-momo.png" alt="MTN MoMo" class="payment-logo-original" title="MTN MoMo" width="90" height="42">
+        <img src="images/moov.png" alt="Moov Money" class="payment-logo-original" title="Moov Money" width="90" height="42">
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SUPPORT -->
+    <!-- ============================================================ -->
+    <div class="card animate-fade-in animate-delay-3 support-section" style="margin-top:0; padding-top:24px; padding-bottom:24px;">
+      <h2 class="support-title">Besoin d'aide ?</h2>
+      <div class="support-links">
+        <a href="https://wa.me/2250000000000" target="_blank" class="support-link">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          WhatsApp : +225 00 00 00 00 00
+        </a>
+        <a href="tel:+2250000000000" class="support-link">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          Téléphone : +225 00 00 00 00 00
+        </a>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- INFOS TECHNIQUES -->
+    <!-- ============================================================ -->
+    <div class="card animate-fade-in animate-delay-4" style="margin-top:0; padding:16px 20px;">
+      <div class="tech-info">
+        <span class="tech-item">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+          </svg>
+          <strong>IP :</strong> $(ip)
+        </span>
+        <span class="tech-item">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          <strong>MAC :</strong> $(mac)
+        </span>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PIED DE PAGE -->
+    <!-- ============================================================ -->
+    <footer class="footer animate-fade-in animate-delay-5">
+      <div class="footer-brand">Conçu par <strong>SafeLink Africa</strong></div>
+      <div id="live-clock" style="font-family:var(--font-mono); font-size:0.75rem; margin-bottom:8px; color:var(--text-muted);"></div>
+      <div class="footer-links">
+        <a href="#cgu">Conditions générales d'utilisation</a>
+      </div>
+    </footer>
+
+  </div><!-- /hotspot-container -->
+
+  <!-- ============================================================ -->
+  <!-- SCRIPTS -->
+  <!-- ============================================================ -->
+  <script src="js/app.js?v=20260626-003"></script>
+  <script>
+    // Déclenche le fade-in du body pour éviter le FOUC
+    document.addEventListener('DOMContentLoaded', function() {
+      document.body.classList.add('loaded');
+    });
+  </script>
+</body>
+</html>

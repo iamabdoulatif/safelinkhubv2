@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { assignTemplateToBridge } from "@/lib/captive-templates/actions";
 
@@ -21,6 +21,7 @@ export default function BridgeAssignments({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [feedback, setFeedback] = useState<Record<string, string>>({});
 
   if (bridges.length === 0) return null;
 
@@ -55,7 +56,23 @@ export default function BridgeAssignments({
                     disabled={pending}
                     onChange={(e) =>
                       startTransition(async () => {
-                        await assignTemplateToBridge(b.id, e.target.value || null);
+                        const res = await assignTemplateToBridge(b.id, e.target.value || null);
+                        if (res?.error) {
+                          setFeedback((f) => ({ ...f, [b.id]: `Erreur : ${res.error}` }));
+                        } else if (res && "ssid" in res) {
+                          const failedCount = "failed" in res && res.failed ? res.failed.length : 0;
+                          const msg =
+                            failedCount > 0
+                              ? `Portail installé sous le nom "${res.ssid}" — ${res.uploaded} fichier(s) ok, ${failedCount} échec(s).`
+                              : `Portail installé et renommé "${res.ssid}".`;
+                          setFeedback((f) => ({ ...f, [b.id]: msg }));
+                        } else {
+                          setFeedback((f) => {
+                            const next = { ...f };
+                            delete next[b.id];
+                            return next;
+                          });
+                        }
                         router.refresh();
                       })
                     }
@@ -73,6 +90,9 @@ export default function BridgeAssignments({
                       </option>
                     ))}
                   </select>
+                  {feedback[b.id] && (
+                    <p className="mt-1 text-xs text-slate-500">{feedback[b.id]}</p>
+                  )}
                 </td>
               </tr>
             ))}

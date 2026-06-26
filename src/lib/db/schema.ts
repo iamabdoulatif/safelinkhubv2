@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   numeric,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const organizations = pgTable("organizations", {
@@ -74,6 +75,15 @@ export const captiveTemplates = pgTable("captive_templates", {
   termsText: text("terms_text"),
   footerText: text("footer_text"),
   mobileMoneyEnabled: boolean("mobile_money_enabled").notNull().default(false),
+  // "parametric" (logo/colors/labels generated into a single page) or
+  // "package" (a full multi-file HTML/CSS/JS/image hotspot portal, stored
+  // verbatim in packageFiles and uploaded file-by-file to the router's
+  // html-directory via /tool/fetch — see captive-template-upload.ts).
+  templateType: text("template_type").notNull().default("parametric"),
+  // Array of { path, content, encoding: "utf8" | "base64" }. Text files
+  // (html/css/js) carry a {{SSID}} placeholder substituted at fetch time
+  // with the router's live WiFi SSID — see package-files.ts.
+  packageFiles: jsonb("package_files"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

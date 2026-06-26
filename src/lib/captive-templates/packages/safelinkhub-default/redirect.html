@@ -1,0 +1,20 @@
+<!-- Force MikroTik to send 302 redirect when possible -->
+$(if http-status == 302)Hotspot redirect required$(endif)
+$(if http-header == "Location")$(link-redirect)$(endif)
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Redirecting...</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=$(link-redirect)" />
+    <meta http-equiv="pragma" content="no-cache" />
+    <meta http-equiv="expires" content="-1" />
+    <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
+  </head>
+  <body>
+    <p style="text-align:center; font-family:sans-serif; padding:20px;">
+      Redirection en cours...<br>
+      <a href="$(link-redirect)">Cliquez ici si la page ne se charge pas</a>
+    </p>
+  </body>
+</html>

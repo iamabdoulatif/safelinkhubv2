@@ -24,6 +24,7 @@ export type CaptiveTemplateRow = {
   termsText: string | null;
   footerText: string | null;
   mobileMoneyEnabled: boolean;
+  templateType: string;
 };
 
 function Field({
