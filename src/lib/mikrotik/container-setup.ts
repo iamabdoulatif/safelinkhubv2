@@ -963,11 +963,24 @@ export async function provisionHotspotStack(
     // The plain "api" service (what this very script is running over) is
     // scoped to wherever the admin is actually managing this router from,
     // matching install-vpn/install-openvpn's own restriction — never widen
-    // it, and never disable it, since that would cut off SafeLinkHub itself.
+    // it beyond that plus the Docker subnet, and never disable it, since
+    // that would cut off SafeLinkHub itself. The Docker subnet has to stay
+    // in this allowlist too: MikHmon (running inside the container at
+    // 11.11.11.11) connects to the router's own API at the DOCKERS bridge
+    // gateway (11.11.11.1) to manage hotspot users/vouchers — without
+    // DOCKER_NETWORK here, that connection gets silently rejected by the
+    // api service itself and MikHmon's "Paramètres de session" page shows
+    // "MikroTik Not Connected" even with the correct IP/credentials typed in.
     if (router.connectionMethod === "vpn") {
-      await run(["/ip/service/set", "=numbers=api", "=address=10.66.0.0/24"], "scope API to WireGuard tunnel subnet");
+      await run(
+        ["/ip/service/set", "=numbers=api", `=address=10.66.0.0/24,${DOCKER_NETWORK}`],
+        "scope API to WireGuard tunnel subnet + Docker (MikHmon)",
+      );
     } else if (router.connectionMethod === "openvpn") {
-      await run(["/ip/service/set", "=numbers=api", "=address=10.67.0.0/24"], "scope API to OpenVPN tunnel subnet");
+      await run(
+        ["/ip/service/set", "=numbers=api", `=address=10.67.0.0/24,${DOCKER_NETWORK}`],
+        "scope API to OpenVPN tunnel subnet + Docker (MikHmon)",
+      );
     } else {
       log.push("OK: API service left open on its current address (direct LAN connection) — Winbox/WebFig/API all unaffected");
     }
