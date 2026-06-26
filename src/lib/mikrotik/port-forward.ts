@@ -18,7 +18,11 @@ import { allocatePortForward, revokePortForward } from "./relay";
 
 const SERVICE_PORTS: Record<string, number> = {
   winbox: 8291,
-  webfig: 80,
+  // 80 stays free for the hotspot captive portal — provisionHotspotStack
+  // moves WebFig (the "www" service) to 85 specifically so the two don't
+  // collide, so the relay must target 85 too or every forwarded WebFig
+  // connection hits the hotspot login page instead of RouterOS WebFig.
+  webfig: 85,
   ssh: 22,
 };
 
