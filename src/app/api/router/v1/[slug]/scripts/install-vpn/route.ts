@@ -125,6 +125,7 @@ export async function GET(
       host: tunnelIp,
       tunnelIp,
       wgPeerPublicKey: peer.peerPublicKey,
+      connectionMethod: "vpn",
       status: "installing",
     })
     .where(eq(routers.id, router.id));
