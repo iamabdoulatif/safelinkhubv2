@@ -63,7 +63,7 @@ test("device-mode unlock instructions request all required flags in one confirma
 test("hotspot auto-setup keeps one RouterOS server/profile pair with one address per MAC", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /const hotspotProfileName = serverName/);
+  assert.match(source, /const hotspotProfileName = opts\.hotspotName/);
   assert.match(source, /\/ip\/hotspot\/remove/);
   assert.match(source, /\/ip\/hotspot\/profile\/remove/);
   assert.ok(source.includes('`=numbers=${profile[".id"]}`'));

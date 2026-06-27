@@ -32,10 +32,33 @@ export async function uploadCaptiveTemplatePackage(
     const url = `${opts.fileBaseUrl}?path=${encodeURIComponent(file.path)}&ssid=${encodeURIComponent(opts.ssid)}`;
     const dstPath = `${opts.htmlDirectory}/${file.path}`;
     try {
-      await client.talk(
-        ["/tool/fetch", `=url=${url}`, `=dst-path=${dstPath}`, "=mode=https"],
+      const replies = await client.talk(
+        [
+          "/tool/fetch",
+          `=url=${url}`,
+          `=dst-path=${dstPath}`,
+          "=mode=https",
+          // RouterOS's CA bundle can be stale on devices that haven't
+          // had a package update in a while, which fails the TLS
+          // handshake to Vercel's cert chain specifically (other
+          // RouterOS versions/boards connect fine) — these are public
+          // template assets, not secrets, so skipping cert validation
+          // here is an acceptable trade-off to not silently lose the
+          // whole captive portal install over it.
+          "=check-certificate=no",
+        ],
         timeoutMs,
       );
+      // /tool/fetch can report failure via a normal "!re" sentence
+      // (status=failed, e.g. "dns error", "no such host") followed by a
+      // routine "!done" — not necessarily a "!trap" — so a call that
+      // never threw was still being recorded as uploaded even when
+      // RouterOS never actually wrote the file. Check the reported
+      // status explicitly instead of trusting "didn't throw".
+      const finalStatus = replies.at(-1)?.status;
+      if (finalStatus && finalStatus !== "finished") {
+        throw new Error(`fetch status: ${finalStatus}`);
+      }
       result.uploaded.push(file.path);
     } catch (err) {
       result.failed.push({

@@ -81,6 +81,7 @@ export default function CreatePackageModal() {
                     <option value="Hours">Heures</option>
                     <option value="Days">Jours</option>
                     <option value="Weeks">Semaines</option>
+                    <option value="Months">Mois</option>
                   </select>
                 </div>
               </div>

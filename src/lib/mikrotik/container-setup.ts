@@ -308,7 +308,14 @@ export async function provisionHotspotStack(
 
   const bridgeName = opts.bridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
   const serverName = opts.serverName?.trim() || "hotspot1";
-  const hotspotProfileName = serverName;
+  // Named after the operator's hotspot/brand name (e.g. "SHIAH WIFI"),
+  // matching a normal/reference RouterOS hotspot config, not after the
+  // technical server name ("hotspot1") — that earlier choice was a
+  // workaround for orphaned profiles when the brand name changed between
+  // runs, but the server/profile lookup below now matches by which
+  // profile the live server actually references (not by name), so
+  // renaming this safely updates that same profile in place either way.
+  const hotspotProfileName = opts.hotspotName;
   const previousBridgeName = router.hotspotBridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
 
   // One free auto-setup run per org (tracked on the org, survives the
@@ -565,6 +572,19 @@ export async function provisionHotspotStack(
       "hotspot DHCP pool",
     );
 
+    // Cleans up the pool RouterOS's own Hotspot Setup wizard names after
+    // the bridge ("<bridge>-pool", e.g. "HOTSPOT-pool") and the one left
+    // from the pre-rename "SAFELINKHUB-BRIDGE" topology — neither is
+    // HOTSPOT_POOL_NAME, so the unconditional remove above never touched
+    // them. Harmless clutter once the hotspot server is repointed at
+    // POOL-HOTSPOT (done above this run), but still visible as a
+    // confusing leftover ("SAFELINKHUB-BRIDGE-pool") in WinBox until
+    // explicitly removed.
+    for (const legacyPoolName of [`${LEGACY_HOTSPOT_BRIDGE_NAME}-pool`, `${bridgeName}-pool`]) {
+      if (legacyPoolName === HOTSPOT_POOL_NAME) continue;
+      await client.talk(["/ip/pool/remove", `=numbers=${legacyPoolName}`]).catch(() => {});
+    }
+
     await client.talk(["/ip/dhcp-server/remove", "=numbers=dhcp1"]).catch(() => {});
     await run(
       [
@@ -755,7 +775,7 @@ export async function provisionHotspotStack(
           });
           if (uploadResult.failed.length > 0) {
             log.push(
-              `SKIP (captive portal): ${uploadResult.failed.length}/${files.length} fichiers n'ont pas pu être envoyés (${uploadResult.failed.map((f) => f.path).join(", ")}).`,
+              `SKIP (captive portal): ${uploadResult.failed.length}/${files.length} fichiers n'ont pas pu être envoyés (${uploadResult.failed.map((f) => `${f.path}: ${f.error}`).join("; ")}).`,
             );
           } else {
             log.push(`OK: portail captif SafeLinkHub installé (${uploadResult.uploaded.length} fichiers)`);

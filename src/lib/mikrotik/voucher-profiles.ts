@@ -103,13 +103,17 @@ function replaceOnce(haystack: string, target: string, replacement: string, what
   return haystack.replace(target, replacement);
 }
 
-export type DurationUnit = "m" | "h" | "d" | "w";
+export type DurationUnit = "m" | "h" | "d" | "w" | "mo";
 
 export const DURATION_UNIT_LABELS: Record<DurationUnit, { singular: string; plural: string }> = {
   m: { singular: "minute", plural: "minutes" },
   h: { singular: "heure", plural: "heures" },
   d: { singular: "jour", plural: "jours" },
   w: { singular: "semaine", plural: "semaines" },
+  // "mois" is invariable in French — same spelling singular and plural
+  // (unlike jour/jours or semaine/semaines), so both forms here are
+  // identical on purpose, not a copy-paste oversight.
+  mo: { singular: "mois", plural: "mois" },
 };
 
 /** "02-JOURS", "12-HEURES", "30-MINUTES", "03-SEMAINES" — matches the bundled presets' naming convention. */
@@ -125,13 +129,16 @@ export function buildCustomProfileLabel(amount: number, unit: DurationUnit): str
 }
 
 /**
- * RouterOS scheduler intervals only accept w/d/h/m/s — "w" works directly,
- * but the bundled presets express weeks in days instead (01-SEMAINE is
- * "7d", not "1w") to match a real MikHmon export, so custom weekly profiles
- * follow the same convention for consistency rather than mixing both.
+ * RouterOS scheduler intervals only accept w/d/h/m/s — no "month" unit
+ * exists at all, and "w" works directly but the bundled presets express
+ * weeks in days instead (01-SEMAINE is "7d", not "1w") to match a real
+ * MikHmon export, so custom weekly/monthly profiles follow the same
+ * day-based convention for consistency rather than mixing units. Months
+ * convert at 30 days, matching the bundled "01-MOIS" (30d) preset.
  */
 export function buildCustomDurationCode(amount: number, unit: DurationUnit): string {
   if (unit === "w") return `${amount * 7}d`;
+  if (unit === "mo") return `${amount * 30}d`;
   return `${amount}${unit}`;
 }
 

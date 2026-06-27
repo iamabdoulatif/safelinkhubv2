@@ -25,6 +25,7 @@ const DURATION_UNIT_OPTIONS: { value: DurationUnit; label: string }[] = [
   { value: "h", label: "Heures" },
   { value: "d", label: "Jours" },
   { value: "w", label: "Semaines" },
+  { value: "mo", label: "Mois" },
 ];
 
 // Maps to the durationUnit values /admin/packages' "Forfaits" expect (see
@@ -35,6 +36,7 @@ const PACKAGE_DURATION_UNIT: Record<DurationUnit, string> = {
   h: "Hours",
   d: "Days",
   w: "Weeks",
+  mo: "Months",
 };
 
 /**

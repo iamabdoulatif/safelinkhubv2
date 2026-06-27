@@ -11,7 +11,15 @@ function formatUgx(value: number) {
 
 function formatDuration(value: number, unit: string) {
   const suffix =
-    unit === "Minutes" ? "Min" : unit === "Hours" ? "H" : unit === "Days" ? "J" : "Sem";
+    unit === "Minutes"
+      ? "Min"
+      : unit === "Hours"
+        ? "H"
+        : unit === "Days"
+          ? "J"
+          : unit === "Months"
+            ? "Mois"
+            : "Sem";
   return `${value} ${suffix}`;
 }
 
