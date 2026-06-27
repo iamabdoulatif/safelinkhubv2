@@ -11,8 +11,14 @@ import {
 import { useRouter } from "next/navigation";
 import { Box, Cable, Layers, Plus, SlidersHorizontal, Wifi, X } from "lucide-react";
 import { listRouterInterfaces, saveBridge } from "@/lib/mikrotik/bridges";
-import { CLASS_DEFAULT_PREFIX, CLASS_PREFIX_OPTIONS, type NetworkClass } from "@/lib/net/subnet";
+import {
+  classForPrefix,
+  CLASS_DEFAULT_PREFIX,
+  CLASS_PREFIX_OPTIONS,
+  type NetworkClass,
+} from "@/lib/net/subnet";
 import BootstrapModal from "./BootstrapModal";
+import ConfigAuditBanner from "./ConfigAuditBanner";
 
 type Port = { name: string; type: string; running: boolean; disabled: boolean };
 type SavedBridge = {
@@ -521,12 +527,31 @@ export default function TopologyBuilder({
   const [retrying, setRetrying] = useState(true);
   const [networkClass, setNetworkClass] = useState<NetworkClass>("B");
   const [subnetBits, setSubnetBits] = useState(19);
+  const [gatewayIp, setGatewayIp] = useState("10.200.5.1");
 
   function changeNetworkClass(next: NetworkClass) {
     setNetworkClass(next);
     if (!CLASS_PREFIX_OPTIONS[next].includes(subnetBits)) {
       setSubnetBits(CLASS_DEFAULT_PREFIX[next]);
     }
+  }
+
+  // Pre-fills the modal from the bridge's actual saved values when
+  // re-opening it to edit an existing bridge — previously this always
+  // reset to the hardcoded 10.200.5.1/19 example regardless of what was
+  // really configured, so edits never reflected the router's real state.
+  function openConfigure() {
+    const existing = initialBridges[0];
+    if (existing && existing.gatewayIp !== "Not configured") {
+      setGatewayIp(existing.gatewayIp);
+      setSubnetBits(existing.subnetBits);
+      setNetworkClass(classForPrefix(existing.subnetBits));
+    } else {
+      setGatewayIp("10.200.5.1");
+      setSubnetBits(19);
+      setNetworkClass("B");
+    }
+    setConfiguring(true);
   }
 
   // Flip back into "retrying" the moment routerId/retryCount changes —
@@ -613,6 +638,8 @@ export default function TopologyBuilder({
 
   return (
     <div>
+      <ConfigAuditBanner routerId={routerId} />
+
       <p className="text-sm text-slate-500">
         Glissez des connexions entre les ports et les bridges. Chaque port
         physique ne peut appartenir qu&apos;à un seul bridge.
@@ -626,7 +653,7 @@ export default function TopologyBuilder({
         hasDraft={hasDraft}
         onAddBridge={handleAddBridge}
         onDrop={handleDrop}
-        onConfigure={() => setConfiguring(true)}
+        onConfigure={openConfigure}
       />
 
       {configuring && (
@@ -693,7 +720,8 @@ export default function TopologyBuilder({
                   name="gatewayIp"
                   required
                   placeholder="10.200.5.1"
-                  defaultValue="10.200.5.1"
+                  value={gatewayIp}
+                  onChange={(e) => setGatewayIp(e.target.value)}
                   className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-base placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
                 />
               </div>

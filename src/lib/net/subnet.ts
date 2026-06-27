@@ -21,6 +21,14 @@ export const CLASS_DEFAULT_PREFIX: Record<NetworkClass, number> = {
   C: 24,
 };
 
+/** Reverse lookup for pre-filling the class radio when editing an existing prefix. */
+export function classForPrefix(prefixBits: number): NetworkClass {
+  if (CLASS_PREFIX_OPTIONS.A.includes(prefixBits)) return "A";
+  if (CLASS_PREFIX_OPTIONS.B.includes(prefixBits)) return "B";
+  if (CLASS_PREFIX_OPTIONS.C.includes(prefixBits)) return "C";
+  return "any";
+}
+
 export type SubnetInfo = {
   networkAddress: string;
   broadcastAddress: string;
