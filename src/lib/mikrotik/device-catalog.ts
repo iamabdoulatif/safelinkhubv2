@@ -143,6 +143,12 @@ function normalize(s: string) {
  */
 const BOARD_CODE_ALIASES: Record<string, string> = {
   "C52iG-5HaxD2HaxD": "hAP ax²",
+  // Confirmed via MikroTik's own product page — without this alias, a real
+  // hAP ax³ never matched the catalog entry, so requiresUsbForContainer
+  // silently fell back to false and the auto-setup took the tmpfs branch
+  // instead of formatting/using the USB stick (usb1/pull) this board
+  // actually needs.
+  "C53UiG+5HPaxD2HPaxD": "hAP ax³",
 };
 
 /** Matches a RouterOS board-name/model string against the catalog, tolerant
