@@ -60,7 +60,7 @@ export default function PortalPreviewStep({
   return (
     <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
       <h2 className="font-semibold text-slate-900">
-        Étape 4 : Aperçu et test du portail captif
+        Étape 9 : Aperçu et test du portail captif
       </h2>
       <p className="mt-1 text-sm text-slate-500">
         Vérification que le portail captif (hotspot) est bien actif sur

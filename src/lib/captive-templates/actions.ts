@@ -7,6 +7,7 @@ import { bridges, captiveTemplates, routers, organizations } from "@/lib/db/sche
 import { getSession } from "@/lib/auth/session";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
+import { HOTSPOT_BRIDGE_NAME } from "@/lib/mikrotik/constants";
 import type { PackageFile, PackageVendor } from "./package-files";
 
 export type CaptiveTemplateInput = {
@@ -393,8 +394,29 @@ async function uploadPackageTemplateToBridge(
   try {
     const ssid = (await getRouterPrimarySsid(client)) || bridge.name;
 
+    // The auto-setup (container-setup.ts) never names the hotspot profile
+    // "${bridge.name}-profile" — it names it after whatever hotspot name
+    // the admin chose during the wizard, attached to whichever bridge
+    // interface name was chosen there (default HOTSPOT_BRIDGE_NAME,
+    // persisted on the router row if renamed). Setting html-directory on
+    // a profile name that was never created was silently swallowed
+    // (.catch), so the real, live profile's html-directory never actually
+    // changed — the files below got uploaded into a folder the hotspot
+    // service never reads from, and the captive portal kept showing
+    // whatever it already had. Resolve the real profile name from the
+    // live hotspot server first.
+    const liveBridgeName = router.hotspotBridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
+    const [hotspotServer] = await client
+      .talk(["/ip/hotspot/print", `?interface=${liveBridgeName}`])
+      .catch(() => []);
+    if (!hotspotServer?.profile) {
+      return {
+        error:
+          "Aucun serveur hotspot actif trouvé sur ce routeur — lancez d'abord l'auto-setup (Configuration routeur) avant d'assigner un modèle.",
+      };
+    }
     await client
-      .talk(["/ip/hotspot/profile/set", `=numbers=${bridge.name}-profile`, `=html-directory=${htmlDirectory}`])
+      .talk(["/ip/hotspot/profile/set", `=numbers=${hotspotServer.profile}`, `=html-directory=${htmlDirectory}`])
       .catch(() => {});
 
     const result = await uploadCaptiveTemplatePackage(client, {

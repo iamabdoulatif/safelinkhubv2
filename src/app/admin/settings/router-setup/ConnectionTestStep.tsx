@@ -45,7 +45,7 @@ export default function ConnectionTestStep({
   return (
     <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 text-center">
       <h2 className="font-semibold text-slate-900">
-        Étape 3 : Test de connexion final
+        Étape 8 : Test de connexion final
       </h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
         Vérification que SafeLinkHub peut communiquer avec {routerName} via

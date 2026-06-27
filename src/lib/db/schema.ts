@@ -63,6 +63,14 @@ export const routers = pgTable("routers", {
   // on an already-billed router never charges again. See
   // lib/billing/auto-setup-pricing.ts.
   autoSetupBilled: boolean("auto_setup_billed").notNull().default(false),
+  // Operator-chosen names for the RouterOS bridge/hotspot server the
+  // auto-setup creates — default to HOTSPOT_BRIDGE_NAME/"hotspot1" (see
+  // constants.ts) when null, but letting them be renamed means other code
+  // paths that look up this router's live hotspot config (the connection
+  // test, captive-template assignment) must read these back rather than
+  // assuming the fixed default name.
+  hotspotBridgeName: text("hotspot_bridge_name"),
+  hotspotServerName: text("hotspot_server_name"),
 });
 
 export const captiveTemplates = pgTable("captive_templates", {

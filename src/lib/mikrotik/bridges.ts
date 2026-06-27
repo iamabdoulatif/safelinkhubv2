@@ -10,6 +10,7 @@ import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { hashToken, INSTALL_TOKEN_TTL_MS } from "./install-token";
+import { HOTSPOT_BRIDGE_NAME } from "./constants";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -322,7 +323,19 @@ export async function testHotspotConfig(bridgeId: string) {
   }
 
   try {
-    const [hotspot] = await client.talk(["/ip/hotspot/print", `?name=${bridge.name}-hotspot`]);
+    // The auto-setup (container-setup.ts) never names the server/profile
+    // after the bridge — it creates a server attached to whichever bridge
+    // interface name the admin chose there (default HOTSPOT_BRIDGE_NAME,
+    // "HOTSPOT"), persisted on the router row. Looking up
+    // "${bridge.name}-hotspot"/"${bridge.name}-profile" here matched
+    // nothing that auto-setup (or anything else) ever creates, so this
+    // check reported "Aucun serveur hotspot trouvé" unconditionally even
+    // on a correctly configured router. Find the server by its actual
+    // interface instead.
+    const liveBridgeName = router.hotspotBridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
+    const [hotspot] = await client
+      .talk(["/ip/hotspot/print", `?interface=${liveBridgeName}`])
+      .catch(() => []);
     if (!hotspot) {
       return {
         success: true,
@@ -333,10 +346,10 @@ export async function testHotspotConfig(bridgeId: string) {
     }
 
     const [profile] = await client
-      .talk(["/ip/hotspot/profile/print", `?name=${bridge.name}-profile`])
+      .talk(["/ip/hotspot/profile/print", `?name=${hotspot.profile}`])
       .catch(() => []);
     const activeUsers = await client
-      .talk(["/ip/hotspot/active/print", `?interface=${bridge.name}`])
+      .talk(["/ip/hotspot/active/print", `?interface=${liveBridgeName}`])
       .catch(() => []);
 
     return {

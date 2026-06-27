@@ -135,11 +135,13 @@ export default function AutoSetupSteps({
   onStepChange,
   routerId,
   hotspotBridge,
+  savedHotspotNames,
 }: {
   step: 3 | 4 | 5 | 6 | 7;
   onStepChange: (step: 2 | 3 | 4 | 5 | 6 | 7 | 8) => void;
   routerId: string;
   hotspotBridge: { gatewayIp: string; subnetBits: number } | null;
+  savedHotspotNames: { bridgeName: string | null; serverName: string | null };
 }) {
   const [detected, setDetected] = useState<DetectedRouter | null>(null);
 
@@ -199,6 +201,8 @@ export default function AutoSetupSteps({
   const [identity, setIdentity] = useState("");
   const [dnsName, setDnsName] = useState("");
   const [ssid, setSsid] = useState("");
+  const [bridgeName, setBridgeName] = useState(savedHotspotNames.bridgeName ?? "");
+  const [serverName, setServerName] = useState(savedHotspotNames.serverName ?? "");
   const [defaultHotspotUsers, setDefaultHotspotUsers] = useState("");
   const [hasUsbStorage, setHasUsbStorage] = useState(false);
   const [usbTouched, setUsbTouched] = useState(false);
@@ -325,6 +329,8 @@ export default function AutoSetupSteps({
         voucherProfiles: customProfiles,
         packagesToSync: customProfileMeta,
         installCaptivePortal,
+        bridgeName: bridgeName.trim() || undefined,
+        serverName: serverName.trim() || undefined,
       });
       setResult(res);
     });
@@ -409,6 +415,35 @@ export default function AutoSetupSteps({
               placeholder="MIRADOR WIFI"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Nom du bridge RouterOS (avancé)
+            </label>
+            <input
+              value={bridgeName}
+              onChange={(e) => setBridgeName(e.target.value)}
+              placeholder="HOTSPOT"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+            />
+            <p className="mt-1 text-[11px] text-slate-400">
+              Laissez vide pour garder &quot;HOTSPOT&quot;. Renommer relance le bridge
+              existant sous ce nom (ses ports restent attachés).
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Nom du serveur hotspot (avancé)
+            </label>
+            <input
+              value={serverName}
+              onChange={(e) => setServerName(e.target.value)}
+              placeholder="hotspot1"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+            />
+            <p className="mt-1 text-[11px] text-slate-400">
+              Laissez vide pour garder &quot;hotspot1&quot;.
+            </p>
           </div>
           <div className="sm:col-span-2">
             <label className="mb-1 block text-xs font-medium text-slate-500">

@@ -15,7 +15,7 @@ test("auto-setup targets the audited MikHmon v3 container image", async () => {
 test("auto-setup migrates the lowercase dockers bridge before assigning the Docker gateway", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /LEGACY_DOCKER_BRIDGE_NAMES = \["CONTAINERS", "dockers"\]/);
+  assert.match(source, /LEGACY_DOCKER_BRIDGE_NAMES = \["CONTAINERS", "dockers", "DOCKERS"\]/);
   assert.match(source, /migrateLegacyDockerBridge/);
   assert.match(source, /removeAddressByAddress\(client, `\$\{VETH_GATEWAY\}\/28`\)/);
 });

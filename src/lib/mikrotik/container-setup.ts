@@ -2,7 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers, organizations, captiveTemplates, walletTransactions, packages } from "@/lib/db/schema";
+import { routers, organizations, captiveTemplates, walletTransactions, packages, bridges } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
@@ -51,9 +51,9 @@ type Sentence = Record<string, string>;
 const WAN_INTERFACE_NAME = "E1-WAN-FAI";
 const DOCKER_BRIDGE_NAME = ROUTER_SETUP_PROFILE.containerBridge.name;
 // Bridge name used by earlier SafeLinkHub installs before the audited hAP ax²
-// profile was normalized to DOCKERS.
+// profile was normalized to DOCKER-SAFELINKHUB.
 const LEGACY_HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
-const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers"];
+const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKERS"];
 const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
@@ -198,6 +198,14 @@ export type HotspotStackOptions = {
     durationValue: number;
     durationUnit: string;
   }[];
+  // Lets the admin rename the RouterOS bridge/hotspot server instead of
+  // always getting HOTSPOT_BRIDGE_NAME ("HOTSPOT") / "hotspot1". Trimmed
+  // and falls back to those defaults when blank/omitted. Persisted onto
+  // the router row on success so other code paths (connection test,
+  // captive-template assignment) can resolve the actual live name instead
+  // of assuming the default.
+  bridgeName?: string;
+  serverName?: string;
 };
 
 /**
@@ -252,7 +260,7 @@ export async function getAutoSetupBillingStatus(routerId: string, supportsContai
  * working device export (RouterOS 7.23, container-capable hAP/CCR boards):
  * renames the WAN port, builds the HOTSPOT bridge across every remaining
  * ethernet port, sets up the hotspot pool/DHCP/profile/DNS name, opens the
- * required NAT rules, then provisions the DOCKERS bridge + veth + container
+ * required NAT rules, then provisions the DOCKER-SAFELINKHUB bridge + veth + container
  * (MikHmon) the same way every time, and finally locks down services,
  * timezone, identity and NTP before rebooting.
  */
@@ -289,6 +297,10 @@ export async function provisionHotspotStack(
   if (!org) {
     return { error: "Organization not found." };
   }
+
+  const bridgeName = opts.bridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
+  const serverName = opts.serverName?.trim() || "hotspot1";
+  const previousBridgeName = router.hotspotBridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
 
   // One free auto-setup run per org (tracked on the org, survives the
   // router being deleted and re-added), then a one-time fee per
@@ -420,12 +432,27 @@ export async function provisionHotspotStack(
     // second time left ether2/ether3 stuck on "unknown" while freshly
     // attached ports were fine). Only create it the first time.
     const existingHotspotBridge = await client
-      .talk(["/interface/bridge/print", `?name=${HOTSPOT_BRIDGE_NAME}`])
+      .talk(["/interface/bridge/print", `?name=${bridgeName}`])
       .catch(() => []);
-    if (existingHotspotBridge.length === 0) {
-      await run(["/interface/bridge/add", `=name=${HOTSPOT_BRIDGE_NAME}`], "HOTSPOT bridge");
+    if (existingHotspotBridge.length > 0) {
+      log.push(`OK: ${bridgeName} bridge already exists`);
+    } else if (previousBridgeName !== bridgeName) {
+      // Admin renamed the bridge from a previous run — rename the live
+      // RouterOS object in place (keeps its ports/IP attached) instead of
+      // creating a second bridge and orphaning the old one.
+      const oldBridge = await client
+        .talk(["/interface/bridge/print", `?name=${previousBridgeName}`])
+        .catch(() => []);
+      if (oldBridge.length > 0 && oldBridge[0][".id"]) {
+        await run(
+          ["/interface/bridge/set", `=numbers=${oldBridge[0][".id"]}`, `=name=${bridgeName}`],
+          `rename ${previousBridgeName} bridge to ${bridgeName}`,
+        );
+      } else {
+        await run(["/interface/bridge/add", `=name=${bridgeName}`], `${bridgeName} bridge`);
+      }
     } else {
-      log.push(`OK: HOTSPOT bridge already exists`);
+      await run(["/interface/bridge/add", `=name=${bridgeName}`], `${bridgeName} bridge`);
     }
 
     const ethernetRows = await client.talk(["/interface/ethernet/print"]).catch(() => []);
@@ -448,7 +475,7 @@ export async function provisionHotspotStack(
       const existingPort = await client
         .talk(["/interface/bridge/port/print", `?interface=${port}`])
         .catch(() => []);
-      if (existingPort.length > 0 && existingPort[0].bridge === HOTSPOT_BRIDGE_NAME) {
+      if (existingPort.length > 0 && existingPort[0].bridge === bridgeName) {
         continue; // already correctly attached from a previous run
       }
       if (existingPort.length > 0) {
@@ -465,10 +492,10 @@ export async function provisionHotspotStack(
           .catch(() => {});
       }
       await run(
-        ["/interface/bridge/port/add", `=bridge=${HOTSPOT_BRIDGE_NAME}`, `=interface=${port}`],
+        ["/interface/bridge/port/add", `=bridge=${bridgeName}`, `=interface=${port}`],
         existingPort.length > 0
-          ? `move ${port} from ${existingPort[0].bridge || "an orphaned bridge reference"} to HOTSPOT bridge`
-          : `attach ${port} to HOTSPOT bridge`,
+          ? `move ${port} from ${existingPort[0].bridge || "an orphaned bridge reference"} to ${bridgeName} bridge`
+          : `attach ${port} to ${bridgeName} bridge`,
       );
     }
 
@@ -485,7 +512,7 @@ export async function provisionHotspotStack(
       "WAN list member",
     );
     await run(
-      ["/interface/list/member/add", `=interface=${HOTSPOT_BRIDGE_NAME}`, "=list=LAN"],
+      ["/interface/list/member/add", `=interface=${bridgeName}`, "=list=LAN"],
       "LAN list member",
     );
 
@@ -500,7 +527,7 @@ export async function provisionHotspotStack(
     // new one — resolving each row's real .id first, same fix pattern as
     // the WAN port rename above.
     const existingHotspotAddresses = await client
-      .talk(["/ip/address/print", `?interface=${HOTSPOT_BRIDGE_NAME}`])
+      .talk(["/ip/address/print", `?interface=${bridgeName}`])
       .catch(() => []);
     for (const row of existingHotspotAddresses) {
       if (row[".id"]) {
@@ -511,7 +538,7 @@ export async function provisionHotspotStack(
       [
         "/ip/address/add",
         `=address=${opts.hotspotAddress}/${opts.hotspotPrefixBits}`,
-        `=interface=${HOTSPOT_BRIDGE_NAME}`,
+        `=interface=${bridgeName}`,
         `=network=${subnet.networkAddress}`,
       ],
       "hotspot gateway address",
@@ -534,7 +561,7 @@ export async function provisionHotspotStack(
       [
         "/ip/dhcp-server/add",
         `=address-pool=${HOTSPOT_POOL_NAME}`,
-        `=interface=${HOTSPOT_BRIDGE_NAME}`,
+        `=interface=${bridgeName}`,
         "=name=dhcp1",
         "=lease-time=00:30:00",
       ],
@@ -605,8 +632,8 @@ export async function provisionHotspotStack(
         `=address-pool=${HOTSPOT_POOL_NAME}`,
         "=addresses-per-mac=1",
         "=disabled=no",
-        `=interface=${HOTSPOT_BRIDGE_NAME}`,
-        "=name=hotspot1",
+        `=interface=${bridgeName}`,
+        `=name=${serverName}`,
         `=profile=${opts.hotspotName}`,
       ],
       "hotspot service",
@@ -642,11 +669,18 @@ export async function provisionHotspotStack(
           .where(and(eq(captiveTemplates.orgId, router.orgId), eq(captiveTemplates.templateType, "package")))
           .limit(1);
         if (!packageTemplate) {
+          // Named after the client's own WiFi (SSID) when known, instead
+          // of a generic "SafeLinkHub Hotspot" label that's identical
+          // across every org and gives the admin no way to tell which
+          // portail belongs to which hotspot once they have more than one.
+          const templateName = opts.ssid?.trim()
+            ? `${opts.ssid.trim()} (portail complet)`
+            : "SafeLinkHub Hotspot (portail complet)";
           [packageTemplate] = await db
             .insert(captiveTemplates)
             .values({
               orgId: router.orgId,
-              name: "SafeLinkHub Hotspot (portail complet)",
+              name: templateName,
               isDefault: false,
               templateType: "package",
               packageFiles: loadSafelinkhubDefaultPackage(),
@@ -1072,7 +1106,7 @@ export async function provisionHotspotStack(
         .talk(["/interface/bridge/print", `?name=${DOCKER_BRIDGE_NAME}`])
         .catch(() => [] as Sentence[]);
       if (dockerBridgeRows.length === 0) {
-        await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], "DOCKERS bridge");
+        await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], `${DOCKER_BRIDGE_NAME} bridge`);
       } else {
         log.push(`OK: ${DOCKER_BRIDGE_NAME} bridge already exists`);
       }
@@ -1091,7 +1125,7 @@ export async function provisionHotspotStack(
       );
       await run(
         ["/interface/bridge/port/add", `=bridge=${DOCKER_BRIDGE_NAME}`, `=interface=${VETH_NAME}`],
-        "attach veth to DOCKERS bridge",
+        `attach veth to ${DOCKER_BRIDGE_NAME} bridge`,
       );
 
       await removeAddressByAddress(client, `${VETH_GATEWAY}/28`);
@@ -1102,7 +1136,7 @@ export async function provisionHotspotStack(
           `=interface=${DOCKER_BRIDGE_NAME}`,
           `=network=${DOCKER_NETWORK.split("/")[0]}`,
         ],
-        "DOCKERS bridge gateway address",
+        `${DOCKER_BRIDGE_NAME} bridge gateway address`,
       );
 
       // Container engine: USB-equipped boards pull/extract on the stick
@@ -1280,7 +1314,7 @@ export async function provisionHotspotStack(
     // it beyond that plus the Docker subnet, and never disable it, since
     // that would cut off SafeLinkHub itself. The Docker subnet has to stay
     // in this allowlist too: MikHmon (running inside the container at
-    // 11.11.11.11) connects to the router's own API at the DOCKERS bridge
+    // 11.11.11.11) connects to the router's own API at the DOCKER-SAFELINKHUB bridge
     // gateway (11.11.11.1) to manage hotspot users/vouchers — without
     // DOCKER_NETWORK here, that connection gets silently rejected by the
     // api service itself and MikHmon's "Paramètres de session" page shows
@@ -1421,14 +1455,14 @@ export async function provisionHotspotStack(
     // own hotspot/tethering (the chained router would see TTL=0 and the
     // packet would just die instead of reaching the internet).
     const existingMangle = await client
-      .talk(["/ip/firewall/mangle/print", `?out-interface=${HOTSPOT_BRIDGE_NAME}`, "?action=change-ttl"])
+      .talk(["/ip/firewall/mangle/print", `?out-interface=${bridgeName}`, "?action=change-ttl"])
       .catch(() => []);
     if (existingMangle.length === 0) {
       await run(
         [
           "/ip/firewall/mangle/add",
           "=chain=postrouting",
-          `=out-interface=${HOTSPOT_BRIDGE_NAME}`,
+          `=out-interface=${bridgeName}`,
           "=action=change-ttl",
           "=new-ttl=set:1",
           "=passthrough=no",
@@ -1475,6 +1509,28 @@ export async function provisionHotspotStack(
       // we fire the command and don't wait for a response.
       client.talk(["/system/reboot"]).catch(() => {});
     }
+
+    // Persisted on every successful run (not just billed ones) so other
+    // code paths that look up this router's live hotspot config (the
+    // connection test, captive-template assignment) resolve the name the
+    // admin actually chose instead of assuming the HOTSPOT/hotspot1
+    // defaults.
+    await db
+      .update(routers)
+      .set({ hotspotBridgeName: bridgeName, hotspotServerName: serverName })
+      .where(eq(routers.id, routerId));
+
+    // Keep the draft `bridges` row (named e.g. "SAFELINKHUB-BRIDGE" from
+    // when it was first sketched in the topology builder, before this
+    // router was ever provisioned) in sync with whatever the live
+    // RouterOS bridge is actually named now — otherwise every other
+    // screen reading bridges.name (captive-template assignment, the
+    // recap step) keeps showing the stale draft name forever, alongside
+    // "HOTSPOT" being the real interface name on the router itself.
+    await db
+      .update(bridges)
+      .set({ name: bridgeName })
+      .where(and(eq(bridges.routerId, routerId), eq(bridges.hotspotEnabled, true)));
 
     if (billableCents !== null) {
       await db.update(routers).set({ autoSetupBilled: true }).where(eq(routers.id, routerId));

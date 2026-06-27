@@ -23,10 +23,12 @@ export default function RouterSetupWizard({
   routerId,
   routerName,
   initialBridges,
+  savedHotspotNames,
 }: {
   routerId: string;
   routerName: string;
   initialBridges: SavedBridge[];
+  savedHotspotNames: { bridgeName: string | null; serverName: string | null };
 }) {
   const [step, setStep] = useState<Step>(2);
 
@@ -84,6 +86,7 @@ export default function RouterSetupWizard({
           onStepChange={setStep}
           routerId={routerId}
           hotspotBridge={hotspotBridge}
+          savedHotspotNames={savedHotspotNames}
         />
       ) : step === 8 ? (
         <ConnectionTestStep

@@ -73,6 +73,10 @@ export default async function RouterSetupPage() {
             ports: b.ports,
             hotspotEnabled: b.hotspotEnabled,
           }))}
+          savedHotspotNames={{
+            bridgeName: router!.hotspotBridgeName,
+            serverName: router!.hotspotServerName,
+          }}
         />
       )}
     </div>

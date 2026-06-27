@@ -15,7 +15,7 @@ export const ROUTER_SETUP_PROFILE = {
     ports: ["ether2", "ether3", "ether4", "ether5", "wifi1", "wifi2"],
   },
   containerBridge: {
-    name: "DOCKERS",
+    name: "DOCKER-SAFELINKHUB",
     gateway: "11.11.11.1/28",
     network: "11.11.11.0/28",
     vethName: "MIKHMON",
