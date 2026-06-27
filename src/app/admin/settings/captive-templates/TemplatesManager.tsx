@@ -60,7 +60,7 @@ export default function TemplatesManager({
             className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             <Package className="h-4 w-4" />
-            Importer le portail Yahya WiFi
+            Importer le portail SafeLink Africa
           </button>
           <button
             type="button"

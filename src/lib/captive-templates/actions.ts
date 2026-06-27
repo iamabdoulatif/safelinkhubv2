@@ -157,8 +157,12 @@ export async function importSafelinkhubDefaultPackage() {
 }
 
 export async function importYahyaWifiPackage() {
+  // Named after the page's own <title> ("SafeLink Africa - WiFi") rather
+  // than the source client's name (Yahya) it was originally built for —
+  // this is offered to every org as a generic second portal choice, not
+  // just that one client's branding.
   const { loadYahyaWifiPackage } = await import("./package-files");
-  return importBundledPackage("Yahya WiFi (portail complet)", loadYahyaWifiPackage());
+  return importBundledPackage("SafeLink Africa (portail complet)", loadYahyaWifiPackage());
 }
 
 export async function updateCaptiveTemplate(
