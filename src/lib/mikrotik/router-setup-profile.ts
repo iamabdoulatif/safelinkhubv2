@@ -29,7 +29,11 @@ export const ROUTER_SETUP_PROFILE = {
     apiPort: 8728,
     winboxPort: 8291,
     webfigPort: 85,
-    disabledServices: ["ssh", "telnet", "api-ssl"],
+    // ssh is scoped to the VPN tunnel subnet instead of disabled when the
+    // router is connected via WireGuard/OpenVPN — SFTP (FileZilla) rides
+    // on that same service — and only fully disabled on a direct/LAN
+    // connection, where there's no tunnel subnet to scope it to.
+    disabledServices: ["telnet", "api-ssl"],
   },
   timezone: "Africa/Abidjan",
   ntpServers: ["196.200.131.160", "196.10.52.57"],

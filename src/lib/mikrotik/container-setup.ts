@@ -1361,7 +1361,6 @@ export async function provisionHotspotStack(
     // added this router through one of those three (Winbox, the API
     // directly, or WebFig) and the auto-setup must not lock that access out.
     await run(["/ip/service/set", "=numbers=telnet", "=disabled=yes"], "disable telnet");
-    await run(["/ip/service/set", "=numbers=ssh", "=disabled=yes"], "disable ssh");
     await run(["/ip/service/set", "=numbers=api-ssl", "=disabled=yes"], "disable api-ssl");
     // www (WebFig) moves off :80 — the hotspot needs that port to intercept
     // unauthenticated clients and show the captive portal — but stays
@@ -1379,18 +1378,36 @@ export async function provisionHotspotStack(
     // DOCKER_NETWORK here, that connection gets silently rejected by the
     // api service itself and MikHmon's "Paramètres de session" page shows
     // "MikroTik Not Connected" even with the correct IP/credentials typed in.
+    // ssh used to be unconditionally disabled here as a hardening step —
+    // but SFTP (what FileZilla and similar tools use) rides on that same
+    // ssh service, so disabling it meant FileZilla could never connect
+    // even over a working personal VPN, regardless of the separate
+    // "Activer l'accès direct SSH" relay forward (port-forward.ts's
+    // setSshServiceEnabled only flips this same flag on toggle — most
+    // admins reasonably expect VPN access alone to be enough). Scoped to
+    // the tunnel subnet instead, the same way the api service already is
+    // below: reachable over the private VPN, never from the public WAN.
     if (router.connectionMethod === "vpn") {
       await run(
         ["/ip/service/set", "=numbers=api", `=address=10.66.0.0/24,${DOCKER_NETWORK}`],
         "scope API to WireGuard tunnel subnet + Docker (MikHmon)",
+      );
+      await run(
+        ["/ip/service/set", "=numbers=ssh", "=disabled=no", "=address=10.66.0.0/24"],
+        "scope SSH/SFTP (FileZilla) to WireGuard tunnel subnet",
       );
     } else if (router.connectionMethod === "openvpn") {
       await run(
         ["/ip/service/set", "=numbers=api", `=address=10.67.0.0/24,${DOCKER_NETWORK}`],
         "scope API to OpenVPN tunnel subnet + Docker (MikHmon)",
       );
+      await run(
+        ["/ip/service/set", "=numbers=ssh", "=disabled=no", "=address=10.67.0.0/24"],
+        "scope SSH/SFTP (FileZilla) to OpenVPN tunnel subnet",
+      );
     } else {
       log.push("OK: API service left open on its current address (direct LAN connection) — Winbox/WebFig/API all unaffected");
+      await run(["/ip/service/set", "=numbers=ssh", "=disabled=yes"], "disable ssh (direct LAN connection, no VPN tunnel to scope it to)");
     }
 
     await run(["/system/clock/set", "=time-zone-name=Africa/Abidjan"], "timezone Africa/Abidjan");
