@@ -301,9 +301,16 @@ export async function provisionHotspotStack(
       log.push(`OK: WAN port already named ${WAN_INTERFACE_NAME}`);
     } else {
       const ether1 = await client.talk(["/interface/ethernet/print", "?name=ether1"]).catch(() => []);
-      if (ether1.length > 0) {
+      if (ether1.length > 0 && ether1[0][".id"]) {
+        // Resolve the real .id instead of passing the name itself as
+        // "numbers" — that convenience works for objects this script
+        // creates fresh (bridges, veth), but /interface/ethernet/set acts
+        // on fixed physical ports, where RouterOS expects the internal id
+        // (e.g. "*1"), not the name string. Passing the name there was
+        // silently failing on at least one hAP ax³ unit, leaving the WAN
+        // port named "ether1" with no error surfaced anywhere.
         await run(
-          ["/interface/ethernet/set", "=numbers=ether1", `=name=${WAN_INTERFACE_NAME}`],
+          ["/interface/ethernet/set", `=numbers=${ether1[0][".id"]}`, `=name=${WAN_INTERFACE_NAME}`],
           `rename ether1 to ${WAN_INTERFACE_NAME}`,
         );
       } else {
