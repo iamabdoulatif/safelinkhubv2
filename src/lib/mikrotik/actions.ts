@@ -9,7 +9,7 @@ import { getSession } from "@/lib/auth/session";
 import { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
 import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
-import { syncRouterStats } from "./router-sync";
+import { syncRouterStats, connectToRouter } from "./router-sync";
 import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 
 export async function connectRouter(_prevState: unknown, formData: FormData) {
@@ -155,6 +155,57 @@ export async function deleteRouter(routerId: string) {
 
   if (!router || router.orgId !== session.orgId) {
     return { error: "Router not found." };
+  }
+
+  // If the router is still reachable over its WireGuard tunnel, strip the
+  // safelinkhub-wg0 interface/peer/route from the router itself before
+  // revoking the peer on the relay — otherwise the router is left with a
+  // dead WireGuard config pointing at a peer slot that's about to be freed
+  // and reassigned to someone else, and it just sits there retrying a
+  // handshake that will never succeed. This must run BEFORE the relay-side
+  // revoke below: once that peer slot is gone, the tunnel can't be reached
+  // at all, so there'd be nothing left to clean up over.
+  if (router.connectionMethod === "vpn" && router.status === "online") {
+    try {
+      const client = await connectToRouter(router, 8000);
+      try {
+        // RouterOS's API needs each entry's own .id to remove it — unlike
+        // named objects (interfaces, bridges), peers/routes/addresses are
+        // anonymous, so find-then-remove is the only way (no inline
+        // [find ...] expression support over the API, only over the CLI).
+        const peers = await client
+          .talk(["/interface/wireguard/peers/print", "?interface=safelinkhub-wg0"])
+          .catch(() => []);
+        for (const peer of peers) {
+          await client.talk(["/interface/wireguard/peers/remove", `=numbers=${peer[".id"]}`]).catch(() => {});
+        }
+
+        const tunnelRoutes = await client
+          .talk(["/ip/route/print", "?dst-address=10.66.0.0/24", "?gateway=safelinkhub-wg0"])
+          .catch(() => []);
+        for (const route of tunnelRoutes) {
+          await client.talk(["/ip/route/remove", `=numbers=${route[".id"]}`]).catch(() => {});
+        }
+
+        const tunnelAddresses = await client
+          .talk(["/ip/address/print", "?interface=safelinkhub-wg0"])
+          .catch(() => []);
+        for (const address of tunnelAddresses) {
+          await client.talk(["/ip/address/remove", `=numbers=${address[".id"]}`]).catch(() => {});
+        }
+
+        // Last on purpose: removing the interface itself is what actually
+        // kills the tunnel our own connection is running over, so anything
+        // after it would never get a response anyway.
+        await client.talk(["/interface/wireguard/remove", "=numbers=safelinkhub-wg0"]).catch(() => {});
+      } finally {
+        client.close();
+      }
+    } catch {
+      // Router unreachable despite status="online" (stale status, tunnel
+      // already down, etc.) — nothing to clean up on-device, fall through
+      // to removing the SafeLinkHub-side records regardless.
+    }
   }
 
   // Free up the peer slot on the relay so it doesn't linger forever.
