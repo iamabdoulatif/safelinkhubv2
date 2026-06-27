@@ -11,7 +11,7 @@ The implementation will use a single shared provisioning engine named `SafeLinkH
 Use one shared TypeScript provisioning engine and expose it through two entry points:
 
 1. SafeLinkHub SaaS action from `/admin/settings/router-setup`.
-2. Standalone script in `scripts/zenfi-auto-provision/zenfi-auto-provision.js`.
+2. Standalone script in `scripts/safelinkhub-auto-provision/safelinkhub-auto-provision.js`.
 
 This prevents the SaaS button and the local script from drifting into different MikroTik configurations.
 
@@ -207,9 +207,9 @@ The complete configuration card will call the shared engine through a server act
 
 ## Standalone Script
 
-The standalone script will live in `scripts/zenfi-auto-provision/` and include:
+The standalone script will live in `scripts/safelinkhub-auto-provision/` and include:
 
-- `zenfi-auto-provision.js`
+- `safelinkhub-auto-provision.js`
 - `README.md`
 - `.env.example`
 

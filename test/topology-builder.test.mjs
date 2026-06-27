@@ -18,7 +18,7 @@ test("topology builder renders wifi interfaces and connector lines", async () =>
   assert.match(source, /isWifiInterface/);
   assert.match(source, /Wifi/);
   assert.match(source, /ConnectionLines/);
-  assert.match(source, /Connected interface line/);
+  assert.match(source, /Lignes de connexion des interfaces/);
   assert.match(source, /strokeDasharray/);
 });
 
@@ -29,11 +29,11 @@ test("topology builder uses an original-style canvas layout", async () => {
   );
 
   assert.match(source, /TopologyCanvas/);
-  assert.match(source, /Add New Bridge/);
+  assert.match(source, /Ajouter un bridge/);
   assert.match(source, /RouterDeviceCard/);
   assert.match(source, /TopologyZoomControls/);
   assert.match(source, /TopologyMiniMap/);
   assert.match(source, /radial-gradient/);
-  assert.match(source, /XENFI-BRIDGE/);
-  assert.match(source, /No PPPoE/);
+  assert.match(source, /SAFELINKHUB-BRIDGE/);
+  assert.match(source, /Pas de PPPoE/);
 });

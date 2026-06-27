@@ -7,6 +7,13 @@ import { getDb } from "@/lib/db";
 import { organizations, users } from "@/lib/db/schema";
 import { createSession, destroySession } from "./session";
 
+function safeCallbackPath(callback: string) {
+  if (callback.startsWith("/admin") && !callback.startsWith("//")) {
+    return callback;
+  }
+  return "/admin";
+}
+
 export async function login(_prevState: unknown, formData: FormData) {
   const email = String(formData.get("email") ?? "")
     .trim()
@@ -39,9 +46,10 @@ export async function login(_prevState: unknown, formData: FormData) {
     orgId: user.orgId,
     email: user.email,
     name: user.name,
+    role: user.role,
   });
 
-  redirect(callback || "/admin");
+  redirect(safeCallbackPath(callback));
 }
 
 export async function register(_prevState: unknown, formData: FormData) {
@@ -96,6 +104,7 @@ export async function register(_prevState: unknown, formData: FormData) {
     orgId: user.orgId,
     email: user.email,
     name: user.name,
+    role: user.role,
   });
 
   redirect("/admin");

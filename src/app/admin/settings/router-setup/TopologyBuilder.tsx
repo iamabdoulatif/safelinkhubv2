@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -357,20 +358,26 @@ function TopologyCanvas({
   onDrop: (e: React.DragEvent) => void;
   onConfigure: () => void;
 }) {
-  const visibleBridge = hasDraft
-    ? {
-        id: "draft",
-        name: "SAFELINKHUB-BRIDGE",
-        gatewayIp: "Not configured",
-        subnetBits: 24,
-        ports: draftPorts,
-        hotspotEnabled: true,
-      }
-    : initialBridges[0] ?? null;
+  const visibleBridge = useMemo(
+    () =>
+      hasDraft
+        ? {
+            id: "draft",
+            name: "SAFELINKHUB-BRIDGE",
+            gatewayIp: "Not configured",
+            subnetBits: 24,
+            ports: draftPorts,
+            hotspotEnabled: true,
+          }
+        : initialBridges[0] ?? null,
+    [draftPorts, hasDraft, initialBridges],
+  );
 
-  const dockerPorts = (ports ?? []).filter(isVethInterface).map((p) => p.name);
+  const dockerPorts = useMemo(
+    () => (ports ?? []).filter(isVethInterface).map((p) => p.name),
+    [ports],
+  );
   const hasDockerBridge = dockerPorts.length > 0;
-  const dockerPortsKey = dockerPorts.join(",");
 
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const bridgeRef = useRef<HTMLDivElement | null>(null);
@@ -382,8 +389,6 @@ function TopologyCanvas({
     if (el) portElsRef.current.set(name, el);
     else portElsRef.current.delete(name);
   }, []);
-
-  const bridgePortsKey = visibleBridge?.ports.join(",") ?? "";
 
   const recomputeLines = useCallback(() => {
     const section = sectionRef.current;
@@ -417,7 +422,7 @@ function TopologyCanvas({
     if (hasDockerBridge) addLinesFor(dockerBridgeRef.current, dockerPorts);
 
     setLines(next);
-  }, [bridgePortsKey, hasDraft, hasDockerBridge, dockerPortsKey]);
+  }, [dockerPorts, hasDockerBridge, visibleBridge]);
 
   useLayoutEffect(() => {
     recomputeLines();

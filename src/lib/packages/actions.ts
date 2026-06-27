@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { packages } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { requireAdminSession } from "@/lib/auth/session";
 
 export async function createPackage(_prevState: unknown, formData: FormData) {
-  const session = await getSession();
+  const session = await requireAdminSession();
   if (!session) return { error: "Not authenticated." };
 
   const name = String(formData.get("name") ?? "").trim();
@@ -20,10 +20,18 @@ export async function createPackage(_prevState: unknown, formData: FormData) {
     formData.get("billingStartsOn") ?? "Upon First Use",
   );
 
-  if (!name || durationValue <= 0) {
+  if (!name || !Number.isFinite(durationValue) || durationValue <= 0) {
     return { error: "Package name and duration are required." };
   }
-  if (price < 500) {
+  if (
+    !Number.isFinite(uploadMbps) ||
+    uploadMbps <= 0 ||
+    !Number.isFinite(downloadMbps) ||
+    downloadMbps <= 0
+  ) {
+    return { error: "Bandwidth values must be positive numbers." };
+  }
+  if (!Number.isFinite(price) || price < 500) {
     return { error: "Minimum price: FCFA 500" };
   }
 
@@ -44,7 +52,7 @@ export async function createPackage(_prevState: unknown, formData: FormData) {
 }
 
 export async function togglePackageStatus(packageId: string) {
-  const session = await getSession();
+  const session = await requireAdminSession();
   if (!session) return;
 
   const db = getDb();

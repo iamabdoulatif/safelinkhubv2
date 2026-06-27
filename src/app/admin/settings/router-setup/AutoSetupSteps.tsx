@@ -5,7 +5,6 @@ import { ArrowLeft, Box, Check, Copy, Loader2, Plus, Trash2 } from "lucide-react
 import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
 import { computeSubnetInfo, getImpactNote } from "@/lib/net/subnet";
 import {
-  VOUCHER_PROFILES,
   buildCustomDurationCode,
   buildCustomProfileLabel,
   buildCustomProfileName,
@@ -240,7 +239,11 @@ export default function AutoSetupSteps({
       return;
     }
     const name = buildCustomProfileName(amount, customUnit);
-    if (VOUCHER_PROFILES.some((p) => p.name === name) || customProfiles.some((p) => p.name === name)) {
+    // Only check against profiles created in this session — the 6 bundled
+    // presets (e.g. "01-JOUR") are no longer offered or created on the
+    // router by this wizard, so colliding with their reserved name should
+    // no longer block an admin from making their own "1 jour" profile.
+    if (customProfiles.some((p) => p.name === name)) {
       setCustomProfileError(`Un profil "${name}" existe déjà.`);
       return;
     }

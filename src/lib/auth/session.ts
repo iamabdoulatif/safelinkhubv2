@@ -15,6 +15,7 @@ export type SessionPayload = {
   orgId: string;
   email: string;
   name: string;
+  role: string;
 };
 
 export async function createSession(payload: SessionPayload) {
@@ -45,6 +46,12 @@ export async function getSession(): Promise<SessionPayload | null> {
   } catch {
     return null;
   }
+}
+
+export async function requireAdminSession(): Promise<SessionPayload | null> {
+  const session = await getSession();
+  if (!session || session.role !== "admin") return null;
+  return session;
 }
 
 export async function destroySession() {

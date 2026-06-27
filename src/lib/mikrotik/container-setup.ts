@@ -384,7 +384,16 @@ export async function provisionHotspotStack(
             "/interface/wifi/set",
             `=numbers=${wifi.name}`,
             `=channel.band=${isPrimaryRadio ? "5ghz-ax" : "2ghz-ax"}`,
-            "=channel.frequency=2300-75000",
+            // No explicit channel.frequency: RouterOS auto-selects a valid
+            // channel within whatever band/country is set above. An
+            // earlier version hardcoded "2300-75000" here, which isn't a
+            // valid frequency range for either band (2.4GHz tops out
+            // around 2484 MHz, 5GHz around 5825 MHz) — RouterOS rejected
+            // the whole /interface/wifi/set command because of it, so
+            // band/width/country/ssid/disabled=no silently never applied
+            // either (it's one atomic command), leaving the radio in
+            // whatever state it was already in. That's almost certainly
+            // why WiFi looked dead even though the script reported success.
             "=channel.skip-dfs-channels=all",
             `=channel.width=${isPrimaryRadio ? "20/40/80mhz" : "20/40mhz"}`,
             `=configuration.country=${country}`,
@@ -403,10 +412,21 @@ export async function provisionHotspotStack(
     // the hotspot service never sees their traffic and the captive portal
     // never shows up. Works the same whether the board has 5 ports (hAP ax
     // lite) or 10+ (ax2) instead of hardcoding a port count.
-    await client
-      .talk(["/interface/bridge/remove", `=numbers=${HOTSPOT_BRIDGE_NAME}`])
-      .catch(() => {});
-    await run(["/interface/bridge/add", `=name=${HOTSPOT_BRIDGE_NAME}`], "HOTSPOT bridge");
+    // Idempotent on purpose: deleting and recreating this bridge on every
+    // run orphans the bridge-port row of any port that was already a
+    // member (its master interface vanishes mid-flight) — RouterOS then
+    // shows that port's bridge as "unknown" in WinBox, and the move-vs-add
+    // logic below couldn't reliably recover it (re-running the wizard a
+    // second time left ether2/ether3 stuck on "unknown" while freshly
+    // attached ports were fine). Only create it the first time.
+    const existingHotspotBridge = await client
+      .talk(["/interface/bridge/print", `?name=${HOTSPOT_BRIDGE_NAME}`])
+      .catch(() => []);
+    if (existingHotspotBridge.length === 0) {
+      await run(["/interface/bridge/add", `=name=${HOTSPOT_BRIDGE_NAME}`], "HOTSPOT bridge");
+    } else {
+      log.push(`OK: HOTSPOT bridge already exists`);
+    }
 
     const ethernetRows = await client.talk(["/interface/ethernet/print"]).catch(() => []);
     const wifiRows = await client.talk(["/interface/wifi/print"]).catch(() => []);
@@ -420,27 +440,36 @@ export async function provisionHotspotStack(
     // server on 192.168.88.1) — a physical/WiFi interface can only ever be
     // a port of ONE bridge at a time, so blindly /add-ing it to our bridge
     // fails with "already has a master interface" while it's still slaved
-    // to that default one. Move it instead: find its current bridge-port
-    // row (if any) and update the bridge field rather than adding a
-    // duplicate; only fall back to add when the interface has no row yet.
+    // to that default one. Removes any existing bridge-port row first
+    // (whatever bridge it currently points at, including a stale/orphaned
+    // one) then adds a fresh one, instead of falling back to add only when
+    // no row exists at all.
     for (const port of lanPorts) {
       const existingPort = await client
         .talk(["/interface/bridge/port/print", `?interface=${port}`])
         .catch(() => []);
-      if (existingPort.length > 0) {
-        if (existingPort[0].bridge === HOTSPOT_BRIDGE_NAME) {
-          continue; // already correctly attached from a previous run
-        }
-        await run(
-          ["/interface/bridge/port/set", `=numbers=${existingPort[0][".id"]}`, `=bridge=${HOTSPOT_BRIDGE_NAME}`],
-          `move ${port} from ${existingPort[0].bridge || "its previous bridge"} to HOTSPOT bridge`,
-        );
-      } else {
-        await run(
-          ["/interface/bridge/port/add", `=bridge=${HOTSPOT_BRIDGE_NAME}`, `=interface=${port}`],
-          `attach ${port} to HOTSPOT bridge`,
-        );
+      if (existingPort.length > 0 && existingPort[0].bridge === HOTSPOT_BRIDGE_NAME) {
+        continue; // already correctly attached from a previous run
       }
+      if (existingPort.length > 0) {
+        // Remove the stale row first instead of /set-ing its bridge field
+        // in place. Covers both the factory-default case (bridge="bridge")
+        // and the orphaned case left by an earlier buggy run that deleted
+        // the bridge this row pointed at (bridge comes back empty/unknown)
+        // — /set against an orphaned master silently no-ops on at least
+        // one RouterOS build, leaving the port shown as "unknown" even
+        // though this script reported success. Remove+add is the only
+        // path that reliably produces a valid row either way.
+        await client
+          .talk(["/interface/bridge/port/remove", `=numbers=${existingPort[0][".id"]}`])
+          .catch(() => {});
+      }
+      await run(
+        ["/interface/bridge/port/add", `=bridge=${HOTSPOT_BRIDGE_NAME}`, `=interface=${port}`],
+        existingPort.length > 0
+          ? `move ${port} from ${existingPort[0].bridge || "an orphaned bridge reference"} to HOTSPOT bridge`
+          : `attach ${port} to HOTSPOT bridge`,
+      );
     }
 
     // Every port that was on the legacy bridge name has just been moved
@@ -460,9 +489,24 @@ export async function provisionHotspotStack(
       "LAN list member",
     );
 
-    await client
-      .talk(["/ip/address/remove", `=numbers=${opts.hotspotAddress}/${opts.hotspotPrefixBits}`])
-      .catch(() => {});
+    // =numbers= only resolves to a real .id for menus where RouterOS
+    // exposes a unique "name"-like property (bridges, schedulers, ...) —
+    // /ip/address has no such property, so passing the address string
+    // itself here silently matched nothing and this remove was a no-op on
+    // every run (caught by .catch and never surfaced). Removes every
+    // address currently on the HOTSPOT bridge (not just one matching the
+    // exact new value) so changing the hotspot IP between runs actually
+    // replaces it instead of leaving the old one assigned alongside the
+    // new one — resolving each row's real .id first, same fix pattern as
+    // the WAN port rename above.
+    const existingHotspotAddresses = await client
+      .talk(["/ip/address/print", `?interface=${HOTSPOT_BRIDGE_NAME}`])
+      .catch(() => []);
+    for (const row of existingHotspotAddresses) {
+      if (row[".id"]) {
+        await client.talk(["/ip/address/remove", `=numbers=${row[".id"]}`]).catch(() => {});
+      }
+    }
     await run(
       [
         "/ip/address/add",
@@ -507,6 +551,25 @@ export async function provisionHotspotStack(
       "hotspot DHCP network",
     );
 
+    // Remove every existing hotspot server first, not just one named
+    // "hotspot1" — covers servers left by RouterOS's own Quick Set wizard
+    // (which also defaults to that name, but isn't guaranteed to) and,
+    // critically, must happen BEFORE the profile cleanup below: RouterOS
+    // refuses to remove a profile that's still referenced by a live
+    // server ("profile in use"), and that failure was being silently
+    // swallowed by .catch — so the old profile never actually got deleted,
+    // a new one got added alongside it, and the next run's cleanup loop
+    // only caught up once the old server (and thus the "in use" lock) was
+    // already gone. Net effect: a rename (or even a same-name re-run that
+    // hit this race) left two profiles and, briefly, two servers visible
+    // in WinBox instead of one replacing the other.
+    const existingHotspotServers = await client.talk(["/ip/hotspot/print"]).catch(() => []);
+    for (const server of existingHotspotServers) {
+      if (server[".id"]) {
+        await client.talk(["/ip/hotspot/remove", `=numbers=${server[".id"]}`]).catch(() => {});
+      }
+    }
+
     // Remove every non-default profile from previous runs, not just one
     // matching the current name — if the admin re-runs auto-setup with a
     // different hotspot name, the old profile would otherwise be orphaned
@@ -536,7 +599,6 @@ export async function provisionHotspotStack(
       "hotspot profile",
     );
 
-    await client.talk(["/ip/hotspot/remove", "=numbers=hotspot1"]).catch(() => {});
     await run(
       [
         "/ip/hotspot/add",

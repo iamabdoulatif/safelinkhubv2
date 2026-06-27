@@ -1,8 +1,8 @@
-# zenfi-auto-provision
+# safelinkhub-auto-provision
 
 Script Node.js autonome et idempotent qui reproduit en intégralité la configuration manuelle WinBox d'un routeur MikroTik SafeLinkHub — bridges, hotspot, DHCP/DNS/NAT, hardening, et le conteneur Docker MikHmon — via l'API RouterOS (`routeros-client`, port 8729/API-SSL par défaut).
 
-> Ce script est **autonome** (dossier `scripts/zenfi-auto-provision/`, dépendances propres) — il n'est pas importé par l'application Next.js SafeLinkHub et n'affecte pas son build. Pour une intégration dans l'app elle-même (compatible avec le tunnel relay WireGuard/OpenVPN), voir [`src/lib/mikrotik/provisioner.ts`](../../src/lib/mikrotik/provisioner.ts).
+> Ce script est **autonome** (dossier `scripts/safelinkhub-auto-provision/`, dépendances propres) — il n'est pas importé par l'application Next.js SafeLinkHub et n'affecte pas son build. Pour une intégration dans l'app elle-même (compatible avec le tunnel relay WireGuard/OpenVPN), voir [`src/lib/mikrotik/provisioner.ts`](../../src/lib/mikrotik/provisioner.ts).
 
 ## Pré-requis
 
@@ -13,7 +13,7 @@ Script Node.js autonome et idempotent qui reproduit en intégralité la configur
 ## Installation
 
 ```bash
-cd scripts/zenfi-auto-provision
+cd scripts/safelinkhub-auto-provision
 npm install
 cp .env.example .env
 # éditez .env : au minimum MIKROTIK_HOST, MIKROTIK_USERNAME, MIKROTIK_PASSWORD
@@ -26,7 +26,7 @@ cp .env.example .env
 ```bash
 npm start
 # ou directement :
-node zenfi-auto-provision.js
+node safelinkhub-auto-provision.js
 ```
 
 Le script lit `.env` (via `dotenv`), applique toute la configuration dans l'ordre critique documenté ci-dessous, puis imprime un rapport JSON sur stdout et quitte avec le code `0` (succès) ou `1` (au moins une erreur).
@@ -34,7 +34,7 @@ Le script lit `.env` (via `dotenv`), applique toute la configuration dans l'ordr
 ### Depuis un autre script Node.js
 
 ```javascript
-const { SafeLinkHubMikroTikProvisioner } = require("./zenfi-auto-provision");
+const { SafeLinkHubMikroTikProvisioner } = require("./safelinkhub-auto-provision");
 
 const provisioner = new SafeLinkHubMikroTikProvisioner({
   host: "192.168.88.1",
@@ -126,4 +126,4 @@ Seules `connect`, `setupBridges` et `createVETH` sont critiques (une erreur y in
 
 ## Paramètres configurables
 
-Tous les champs de `DEFAULT_CONFIG` dans `zenfi-auto-provision.js` peuvent être surchargés via `.env` (voir `.env.example` pour la liste complète des variables `MIKROTIK_*`) ou via `overrides` au constructeur si vous importez la classe directement.
+Tous les champs de `DEFAULT_CONFIG` dans `safelinkhub-auto-provision.js` peuvent être surchargés via `.env` (voir `.env.example` pour la liste complète des variables `MIKROTIK_*`) ou via `overrides` au constructeur si vous importez la classe directement.

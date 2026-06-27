@@ -73,8 +73,8 @@ status /var/log/openvpn-status.log
 verb 3
 EOF
 
-echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-xenfi-openvpn.conf
-sysctl -p /etc/sysctl.d/99-xenfi-openvpn.conf
+echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-safelinkhub-openvpn.conf
+sysctl -p /etc/sysctl.d/99-safelinkhub-openvpn.conf
 
 iptables -t nat -A POSTROUTING -s 10.67.0.0/24 -o "$IFACE" -j MASQUERADE
 command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save || true

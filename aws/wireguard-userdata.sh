@@ -24,18 +24,18 @@ PostDown = iptables -t nat -D POSTROUTING -o ${IFACE} -j MASQUERADE
 SaveConfig = true
 EOF
 
-echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-xenfi-wireguard.conf
-sysctl -p /etc/sysctl.d/99-xenfi-wireguard.conf
+echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-safelinkhub-wireguard.conf
+sysctl -p /etc/sysctl.d/99-safelinkhub-wireguard.conf
 
 systemctl enable wg-quick@wg0
 systemctl start wg-quick@wg0
 
 # Helper to add a MikroTik router as a new peer.
-# Usage: xenfi-add-peer.sh <peer-name>
-cat > /usr/local/bin/xenfi-add-peer.sh <<'SCRIPT'
+# Usage: safelinkhub-add-peer.sh <peer-name>
+cat > /usr/local/bin/safelinkhub-add-peer.sh <<'SCRIPT'
 #!/bin/bash
 set -euo pipefail
-NAME="${1:?Usage: xenfi-add-peer.sh <peer-name>}"
+NAME="${1:?Usage: safelinkhub-add-peer.sh <peer-name>}"
 cd /etc/wireguard
 
 LAST_OCTET=$(grep -oP '10\.66\.0\.\K[0-9]+' wg0.conf | sort -n | tail -1 || echo 1)
@@ -61,6 +61,6 @@ echo "Endpoint = ${SERVER_IP}:51820"
 echo "AllowedIPs = 10.66.0.0/24"
 echo "PersistentKeepalive = 25"
 SCRIPT
-chmod +x /usr/local/bin/xenfi-add-peer.sh
+chmod +x /usr/local/bin/safelinkhub-add-peer.sh
 
 echo "WireGuard server public key: ${SERVER_PUB}" > /etc/wireguard/server_info.txt

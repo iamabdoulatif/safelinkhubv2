@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * zenfi-auto-provision.js
+ * safelinkhub-auto-provision.js
  * ------------------------------------------------------------------------
  * Standalone, idempotent MikroTik provisioner for SafeLinkHub hotspot
  * routers. Reproduces — exactly, with the values below kept as defaults
@@ -12,11 +12,11 @@
  *   npm install routeros-client
  *
  * Usage:
- *   node zenfi-auto-provision.js
+ *   node safelinkhub-auto-provision.js
  *   (reads connection + config from environment variables — see .env.example)
  *
  * Or from another script:
- *   const { SafeLinkHubMikroTikProvisioner } = require('./zenfi-auto-provision');
+ *   const { SafeLinkHubMikroTikProvisioner } = require('./safelinkhub-auto-provision');
  *   const provisioner = new SafeLinkHubMikroTikProvisioner({ host, port, username, password });
  *   const report = await provisioner.run();
  *
@@ -44,7 +44,10 @@ const { RouterOSClient } = require("routeros-client");
 const DEFAULT_CONFIG = {
   // WiFi
   ssid: "DU BONHEUR WIFI",
-  wifiCountry: "United States",
+  // SafeLinkHub's primary market — matches the fix already applied in the
+  // live web app's container-setup.ts (was defaulting to "United States",
+  // which left WiFi radios unable to transmit for most operators here).
+  wifiCountry: "Ivory Coast",
   wifiDisabled: "no",
 
   // Hotspot
@@ -79,8 +82,11 @@ const DEFAULT_CONFIG = {
   containerNetwork: "11.11.11.0",
   containerVethMac: "60:6B:5F:65:F4:8C",
   containerMac: "60:6B:5F:65:F4:8D",
-  containerName: "mikhmon-sf-v1:latest",
-  containerImage: "latif225/mikhmon-sf-v1:latest",
+  // Matches the audited MikHmon v3 image the live web app provisions
+  // (container-setup.ts) — the old mikhmon-sf-v1 image is no longer
+  // maintained/pulled.
+  containerName: "mikhmonv3-safelinkhub:latest",
+  containerImage: "latif225/mikhmonv3-safelinkhub:latest",
   containerLayerDir: "/flash/mikhmon-app",
   containerRootDir: "/mikhmon-app",
   containerRegistryUrl: "https://registry-1.docker.io",
@@ -257,7 +263,6 @@ class SafeLinkHubMikroTikProvisioner {
         defaultName: "wifi1",
         params: {
           "channel.band": "5ghz-ax",
-          "channel.frequency": "2300-75000",
           "channel.skip-dfs-channels": "all",
           "channel.width": "20/40/80mhz",
           "configuration.country": this.cfg.wifiCountry,
@@ -270,7 +275,6 @@ class SafeLinkHubMikroTikProvisioner {
         defaultName: "wifi2",
         params: {
           "channel.band": "2ghz-ax",
-          "channel.frequency": "2300-75000",
           "channel.skip-dfs-channels": "all",
           "channel.width": "20/40mhz",
           "configuration.country": this.cfg.wifiCountry,
@@ -853,7 +857,7 @@ class SafeLinkHubMikroTikProvisioner {
 
 // ---------------------------------------------------------------------------
 // CLI entry point — reads connection info from environment variables so the
-// script can be run directly with `node zenfi-auto-provision.js` after
+// script can be run directly with `node safelinkhub-auto-provision.js` after
 // `cp .env.example .env` and filling in real values (see README.md).
 // ---------------------------------------------------------------------------
 async function main() {

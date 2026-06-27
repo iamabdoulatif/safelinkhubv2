@@ -1,5 +1,5 @@
 /* ============================================================
-   ZENFI HOTSPOT PORTAL - APPLICATION JAVASCRIPT
+   SAFELINKHUB HOTSPOT PORTAL - APPLICATION JAVASCRIPT
    Auteur: Full Stack Expert
    Version: 1.0.0
    Compatible: MikroTik RouterOS Hotspot
@@ -20,7 +20,7 @@
      2. DETECTION MODE SOMBRE
      ---------------------------------------------------------- */
   function initDarkMode() {
-    const saved = localStorage.getItem('zenfi-theme');
+    const saved = localStorage.getItem('safelinkhub-theme');
     if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.body.classList.add('dark-mode');
     }
@@ -31,7 +31,7 @@
       on(toggleBtn, 'click', () => {
         document.body.classList.toggle('dark-mode');
         const isDark = document.body.classList.contains('dark-mode');
-        localStorage.setItem('zenfi-theme', isDark ? 'dark' : 'light');
+        localStorage.setItem('safelinkhub-theme', isDark ? 'dark' : 'light');
       });
     }
   }
@@ -213,11 +213,11 @@
      ---------------------------------------------------------- */
   function showToast(message, duration = 4000) {
     // Supprime les anciens toasts
-    const existing = $('.zenfi-toast');
+    const existing = $('.safelinkhub-toast');
     if (existing) existing.remove();
 
     const toast = document.createElement('div');
-    toast.className = 'zenfi-toast';
+    toast.className = 'safelinkhub-toast';
     toast.innerHTML = `
       <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0;">
         <circle cx="12" cy="12" r="10"></circle>
