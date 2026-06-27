@@ -1,0 +1,1 @@
+window.SAFELINK_BACKEND_URL = 'http://187.124.39.106';

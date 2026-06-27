@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="-1">
+<title>SafeLink Africa - WiFi</title>
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<!-- Font Awesome (local) -->
+<link rel="stylesheet" href="css/all.min.css">
+<!-- TailwindCSS (local) -->
+<link rel="stylesheet" href="css/tailwind.css">
+<!-- QR Scanner -->
+<script src="https://unpkg.com/html5-qrcode"></script>
+<!-- Custom CSS -->
+<link rel="stylesheet" href="css/styles.css">
+<!-- Configuration portail (modifier config.js pour changer l'URL backend) -->
+<script src="config.js"></script>
+</head>
+<body>
+<!-- ============ HEADER ============ -->
+<div class="header">
+  <div class="header-logo">
+    <div class="header-icon">
+      <i class="fas fa-wifi"></i>
+    </div>
+    <div>
+      <h1>YAHYA WIFI</h1>
+      <p><i class="fas fa-signal icon-signal"></i> Internet Haut D&eacute;bit</p>
+    </div>
+  </div>
+</div>
+<div class="container">
+  <!-- ============ CAROUSEL ============ -->
+  <div class="carousel-section">
+    <div class="carousel-wrapper">
+      <div class="carousel-track" id="carouselTrack">
+        <div class="carousel-slide slide-1">
+          <img class="slide-bg" src="img/wifi_def.avif" alt="El Hadj Bamba Yahya">
+          <div class="slide-content">
+            <span class="slide-icon"><i class="fas fa-heart"></i></span>
+            <div class="slide-title">YAHYA WIFI</div>
+            <div class="slide-desc">&Agrave; 01 51 74 48 57</div>
+          </div>
+        </div>
+        <div class="carousel-slide slide-2">
+          <div class="slide-content">
+            <span class="slide-icon"><i class="fas fa-mobile-screen-button"></i></span>
+            <div class="slide-title">Paiement Mobile Money</div>
+            <div class="slide-desc">Payez facilement via Orange Money, MTN MoMo ou Wave. Simple et s&eacute;curis&eacute;.</div>
+          </div>
+        </div>
+        <div class="carousel-slide slide-3">
+          <div class="slide-content">
+            <span class="slide-icon"><i class="fas fa-earth-africa"></i></span>
+            <div class="slide-title">Couverture Locale</div>
+            <div class="slide-desc">Disponible dans plusieurs quartiers. Trouvez un point de vente pr&egrave;s de chez vous !</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="carousel-dots">
+      <button class="carousel-dot active" onclick="goToSlide(0)"></button>
+      <button class="carousel-dot" onclick="goToSlide(1)"></button>
+      <button class="carousel-dot" onclick="goToSlide(2)"></button>
+    </div>
+  </div>
+
+  <!-- ============ LOGIN CARD ============ -->
+  <div class="login-card">
+    <div class="section-label">
+      <span class="icon-box icon-box--primary">
+        <i class="fas fa-key"></i>
+      </span>
+      Connexion WiFi
+    </div>
+    <!-- Pill Tabs -->
+    <div class="pill-tabs">
+      <button class="pill-tab tab-code active" onclick="switchTab('code')">
+        <i class="fas fa-ticket"></i> Code d&rsquo;acc&egrave;s
+      </button>
+      <button class="pill-tab tab-qr" onclick="switchTab('qr')">
+        <i class="fas fa-qrcode"></i> QR Code
+      </button>
+    </div>
+
+    <!-- Pane 1 : Code d'accès -->
+    <div class="tab-pane active" id="pane-code">
+      <form name="sendin" action="$(link-login-only)" method="post" onsubmit="return doLogin()">
+        <input type="hidden" name="dst" value="$(link-orig)">
+        <input type="hidden" name="popup" value="true">
+        <div id="errorBox" class="error-msg">
+          <i class="fas fa-circle-exclamation"></i> $(if error)$(error)$(endif)
+        </div>
+        <div class="form-group">
+          <label class="form-label">
+            <i class="fas fa-ticket icon-inline"></i> Code voucher
+          </label>
+          <div class="input-wrapper">
+            <input class="form-input js-lowercase"
+              type="text"
+              name="username"
+              id="usernameInput"
+              placeholder="ex: ab12cd34"
+              autocomplete="off"
+              autocapitalize="none"
+              autocorrect="off"
+              required>
+            <i class="fas fa-hashtag"></i>
+          </div>
+        </div>
+        <input type="hidden" name="password" id="passwordInput" value="">
+        <button type="submit" class="btn-connect">
+          <i class="fas fa-right-to-bracket"></i> Se Connecter
+        </button>
+      </form>
+    </div>
+
+    <!-- Pane 2 : QR Code -->
+    <div class="tab-pane" id="pane-qr">
+      <div class="qr-zone">
+        <div class="qr-icon-box">
+          <div class="qr-pulse"></div>
+          <i class="fas fa-qrcode"></i>
+        </div>
+        <p class="qr-text">Scannez le QR code de votre voucher</p>
+        <div id="qr-reader" class="qr-reader"></div>
+        <div class="flex flex-col items-center gap-3">
+          <button type="button" class="btn-scan" onclick="startQrScan()">
+            <i class="fas fa-camera"></i> Ouvrir le scanner
+          </button>
+          <button type="button" class="btn-qr-link" onclick="window.location='https://laksa19.github.io/myqr';">
+            <i class="fas fa-qrcode"></i> QR Code
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL NUMÉRO DE TÉLÉPHONE ============ -->
+  <div id="phoneModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+    <div style="background:#1a1c22;border:1px solid #F97316;border-radius:16px;padding:28px 24px;max-width:360px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        <span style="background:#F97316;border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas fa-mobile-screen-button" style="color:#fff;font-size:16px;"></i>
+        </span>
+        <h3 style="color:#fff;font-size:16px;font-weight:700;margin:0;">Votre num&eacute;ro de t&eacute;l&eacute;phone</h3>
+      </div>
+      <p style="color:#9ca3af;font-size:13px;margin:0 0 16px 0;">
+        <i class="fas fa-sms" style="color:#F97316;"></i>
+        Votre code WiFi vous sera envoy&eacute; par SMS apr&egrave;s le paiement.
+      </p>
+
+      <!-- Sélecteur pays + input numéro -->
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <div style="position:relative;flex-shrink:0;">
+          <select id="dialCode" onchange="onDialCodeChange()"
+            style="appearance:none;-webkit-appearance:none;background:#0d0f12;border:1px solid #374151;border-radius:10px;color:#fff;font-size:13px;padding:12px 28px 12px 10px;outline:none;cursor:pointer;height:100%;width:100%;min-width:88px;letter-spacing:0.3px;">
+            <option value="+225" data-country="CI" data-digits="10" data-ph="07 00 00 00 00" data-cur="XOF">&#127464;&#127470; +225</option>
+            <option value="+221" data-country="SN" data-digits="9"  data-ph="77 000 00 00"   data-cur="XOF">&#127480;&#127475; +221</option>
+            <option value="+223" data-country="ML" data-digits="8"  data-ph="70 00 00 00"    data-cur="XOF">&#127474;&#127473; +223</option>
+            <option value="+226" data-country="BF" data-digits="8"  data-ph="70 00 00 00"    data-cur="XOF">&#127463;&#127467; +226</option>
+            <option value="+227" data-country="NE" data-digits="8"  data-ph="90 00 00 00"    data-cur="XOF">&#127475;&#127466; +227</option>
+            <option value="+228" data-country="TG" data-digits="8"  data-ph="90 00 00 00"    data-cur="XOF">&#127481;&#127468; +228</option>
+            <option value="+229" data-country="BJ" data-digits="8"  data-ph="97 00 00 00"    data-cur="XOF">&#127463;&#127471; +229</option>
+            <option value="+224" data-country="GN" data-digits="9"  data-ph="622 00 00 00"   data-cur="GNF">&#127468;&#127475; +224</option>
+            <option value="+245" data-country="GW" data-digits="9"  data-ph="955 00 00 00"   data-cur="XOF">&#127468;&#127484; +245</option>
+          </select>
+          <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none;color:#9ca3af;font-size:10px;">&#9660;</span>
+        </div>
+        <input id="modalPhone"
+          type="tel"
+          inputmode="numeric"
+          placeholder="07 00 00 00 00"
+          maxlength="10"
+          style="flex:1;padding:12px;background:#0d0f12;border:1px solid #374151;border-radius:10px;color:#fff;font-size:15px;outline:none;box-sizing:border-box;"
+          oninput="this.value=this.value.replace(/\D/g,'')">
+      </div>
+      <p id="dialHint" style="color:#6b7280;font-size:11px;margin:0 0 12px 0;padding-left:2px;">
+        C&ocirc;te d&apos;Ivoire &mdash; 10 chiffres
+      </p>
+
+      <div id="phoneError" style="display:none;color:#ef4444;font-size:12px;margin-bottom:12px;">
+        <i class="fas fa-exclamation-circle"></i> <span id="phoneErrorText">Num&eacute;ro invalide (10 chiffres, ex: 0701234567)</span>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="closePhoneModal()" style="flex:1;padding:12px;background:#1f2937;border:1px solid #374151;border-radius:10px;color:#9ca3af;font-size:14px;cursor:pointer;">
+          Annuler
+        </button>
+        <button onclick="confirmPayment()" style="flex:2;padding:12px;background:linear-gradient(135deg,#F97316,#fb923c);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">
+          <i class="fas fa-lock"></i> Payer maintenant
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PRICING ============ -->
+  <div class="pricing-section">
+    <div class="section-label">
+      <span class="icon-box icon-box--pricing">
+        <i class="fas fa-tags"></i>
+      </span>
+      Acheter un Forfait
+    </div>
+    <div class="price-card">
+      <div class="price-left">
+        <div class="price-duration-badge badge-10h">
+          <span class="num">1</span>
+          <span class="unit">jour</span>
+        </div>
+        <div class="price-info">
+          <h3>Forfait 01 Jour</h3>
+          <p><i class="fas fa-check-circle"></i> 1 jour de connexion illimit&eacute;e</p>
+        </div>
+      </div>
+      <button onclick="openPhoneModal('1jour')" class="btn-pay">
+        <i class="fas fa-cart-shopping"></i>
+        <span class="price-amount">200 F</span>
+      </button>
+    </div>
+    <div class="price-card">
+      <div class="price-left">
+        <div class="price-duration-badge badge-5j">
+          <span class="num">5</span>
+          <span class="unit">jours</span>
+        </div>
+        <div class="price-info">
+          <h3>Forfait 05 Jours</h3>
+          <p><i class="fas fa-check-circle"></i> 5 jours de connexion illimit&eacute;e</p>
+        </div>
+      </div>
+      <button onclick="openPhoneModal('1semaine')" class="btn-pay">
+        <i class="fas fa-cart-shopping"></i>
+        <span class="price-amount">500 F</span>
+      </button>
+    </div>
+    <div class="price-card">
+      <div class="price-left">
+        <div class="price-duration-badge badge-1sem">
+          <span class="num">7</span>
+          <span class="unit">jours</span>
+        </div>
+        <div class="price-info">
+          <h3>Forfait 01 Semaine</h3>
+          <p><i class="fas fa-check-circle"></i> 7 jours de connexion illimit&eacute;e</p>
+        </div>
+      </div>
+      <button onclick="openPhoneModal('1semaine')" class="btn-pay">
+        <i class="fas fa-cart-shopping"></i>
+        <span class="price-amount">700 F</span>
+      </button>
+    </div>
+    <div class="price-card">
+      <div class="price-left">
+        <div class="price-duration-badge badge-2sem">
+          <span class="num">14</span>
+          <span class="unit">jours</span>
+        </div>
+        <div class="price-info">
+          <h3>Forfait 02 Semaines</h3>
+          <p><i class="fas fa-check-circle"></i> 14 jours de connexion illimit&eacute;e</p>
+        </div>
+      </div>
+      <button onclick="openPhoneModal('2semaines')" class="btn-pay">
+        <i class="fas fa-cart-shopping"></i>
+        <span class="price-amount">1200 F</span>
+      </button>
+    </div>
+    <div class="price-card">
+      <div class="price-left">
+        <div class="price-duration-badge badge-1mois">
+          <span class="num">30</span>
+          <span class="unit">jours</span>
+        </div>
+        <div class="price-info">
+          <h3>Forfait 01 Mois</h3>
+          <p><i class="fas fa-check-circle"></i> 30 jours de connexion illimit&eacute;e</p>
+        </div>
+      </div>
+      <button onclick="openPhoneModal('1mois')" class="btn-pay">
+        <i class="fas fa-cart-shopping"></i>
+        <span class="price-amount">2 000 F</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ POINTS DE VENTE ============ -->
+  <div class="stores-section">
+    <div class="section-label">
+      <span class="icon-box icon-box--stores">
+        <i class="fas fa-location-dot"></i>
+      </span>
+      Points de Vente
+    </div>
+    <div class="store-card">
+      <div class="store-avatar">
+        <img src="img/630692965_26241941825431688_2766478302372875865_n.jpg" alt="Seydou">
+      </div>
+      <div class="store-info">
+        <h4><i class="fas fa-user"></i> Point de vente 1 &mdash; Hassatou</h4>
+        <p><i class="fas fa-map-pin"></i>Attecoubé Carrefour Tiapalo</p>
+        <a href="tel:+2250700000000" class="store-phone">
+          <i class="fas fa-phone"></i>07 XXXXXXXXXX
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FOOTER ============ -->
+  <div class="footer">
+    <div class="footer-brand">
+      <i class="fas fa-shield-halved"></i> Con&ccedil;u par <strong>Bamba Abdoulatif</strong>
+    </div>
+    <div class="footer-copy">
+      <i class="far fa-copyright icon-inline-sm"></i> 2026 SafeLink Africa &mdash; Tous droits r&eacute;serv&eacute;s
+    </div>
+  </div>
+</div>
+
+<!-- ============ JAVASCRIPT ============ -->
+<script>
+/* Variables MikroTik injectées par le hotspot au moment du rendu HTML */
+var MIKROTIK_IP   = '$(ip)';
+var MIKROTIK_MAC  = '$(mac)';
+var MIKROTIK_LINK = '$(link-login-only)';
+
+/* ============================================
+   CAROUSEL AUTO-SLIDE + SWIPE TACTILE
+   ============================================ */
+var currentSlide = 0;
+var totalSlides  = 3;
+var autoSlideTimer;
+function goToSlide(index) {
+  currentSlide = index;
+  document.getElementById('carouselTrack').style.transform = 'translateX(-' + (index * 100) + '%)';
+  var dots = document.querySelectorAll('.carousel-dot');
+  for (var i = 0; i < dots.length; i++) dots[i].classList.remove('active');
+  dots[index].classList.add('active');
+  resetAutoSlide();
+}
+function nextSlide() { currentSlide = (currentSlide + 1) % totalSlides; goToSlide(currentSlide); }
+function resetAutoSlide() { clearInterval(autoSlideTimer); autoSlideTimer = setInterval(nextSlide, 4000); }
+resetAutoSlide();
+
+var touchStartX = 0;
+var carouselEl  = document.querySelector('.carousel-wrapper');
+carouselEl.addEventListener('touchstart', function(e) { touchStartX = e.changedTouches[0].screenX; }, false);
+carouselEl.addEventListener('touchend', function(e) {
+  var diff = touchStartX - e.changedTouches[0].screenX;
+  if (Math.abs(diff) > 50) {
+    if (diff > 0 && currentSlide < totalSlides - 1) goToSlide(currentSlide + 1);
+    else if (diff < 0 && currentSlide > 0)          goToSlide(currentSlide - 1);
+  }
+}, false);
+
+/* ============================================
+   PILL TABS : Code / QR
+   ============================================ */
+function switchTab(tab) {
+  var pills = document.querySelectorAll('.pill-tab');
+  var panes = document.querySelectorAll('.tab-pane');
+  for (var i = 0; i < pills.length; i++) pills[i].classList.remove('active');
+  for (var i = 0; i < panes.length; i++) panes[i].classList.remove('active');
+  if (tab === 'code') {
+    document.querySelector('.tab-code').classList.add('active');
+    document.getElementById('pane-code').classList.add('active');
+  } else if (tab === 'qr') {
+    document.querySelector('.tab-qr').classList.add('active');
+    document.getElementById('pane-qr').classList.add('active');
+  }
+}
+
+/* ============================================
+   LOGIN VOUCHER
+   ============================================ */
+function doLogin() {
+  var username = document.getElementById('usernameInput').value.trim().toLowerCase();
+  if (username === '') return false;
+  document.getElementById('passwordInput').value = username;
+  return true;
+}
+(function() {
+  var inputs = document.querySelectorAll('.js-lowercase');
+  for (var i = 0; i < inputs.length; i++) {
+    inputs[i].addEventListener('input', function() {
+      var s = this.selectionStart, e = this.selectionEnd;
+      this.value = this.value.toLowerCase();
+      try { this.setSelectionRange(s, e); } catch(ex) {}
+    });
+  }
+})();
+
+/* ============================================
+   QR SCANNER
+   ============================================ */
+function startQrScan() {
+  if (typeof Html5Qrcode === 'undefined') { window.location = 'https://laksa19.github.io/myqr'; return; }
+  var reader = document.getElementById('qr-reader');
+  if (reader) reader.style.display = 'block';
+  var scanner = new Html5Qrcode('qr-reader');
+  scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: 240 },
+    function(code) {
+      var normalized = (code || '').toString().trim().toLowerCase();
+      if (normalized === '') return;
+      document.getElementById('usernameInput').value = normalized;
+      document.getElementById('passwordInput').value = normalized;
+      switchTab('code');
+      document.forms['sendin'].submit();
+    },
+    function() {}
+  ).catch(function() { window.location = 'https://laksa19.github.io/myqr'; });
+}
+
+/* ============================================
+   MODAL PAIEMENT — DROPDOWN PAYS
+   ============================================ */
+var DIAL_META = {
+  '+225': { country: 'CI', digits: 10, placeholder: '07 00 00 00 00', label: "C\u00f4te d'Ivoire",  currency: 'XOF' },
+  '+221': { country: 'SN', digits: 9,  placeholder: '77 000 00 00',   label: 'S\u00e9n\u00e9gal',   currency: 'XOF' },
+  '+223': { country: 'ML', digits: 8,  placeholder: '70 00 00 00',    label: 'Mali',                 currency: 'XOF' },
+  '+226': { country: 'BF', digits: 8,  placeholder: '70 00 00 00',    label: 'Burkina Faso',         currency: 'XOF' },
+  '+227': { country: 'NE', digits: 8,  placeholder: '90 00 00 00',    label: 'Niger',                currency: 'XOF' },
+  '+228': { country: 'TG', digits: 8,  placeholder: '90 00 00 00',    label: 'Togo',                 currency: 'XOF' },
+  '+229': { country: 'BJ', digits: 8,  placeholder: '97 00 00 00',    label: 'B\u00e9nin',           currency: 'XOF' },
+  '+224': { country: 'GN', digits: 9,  placeholder: '622 00 00 00',   label: 'Guin\u00e9e',          currency: 'GNF' },
+  '+245': { country: 'GW', digits: 9,  placeholder: '955 00 00 00',   label: 'Guin\u00e9e-Bissau',   currency: 'XOF' },
+};
+
+var currentPlan = '';
+
+function onDialCodeChange() {
+  var sel     = document.getElementById('dialCode');
+  var input   = document.getElementById('modalPhone');
+  var hint    = document.getElementById('dialHint');
+  var errDiv  = document.getElementById('phoneError');
+  var errText = document.getElementById('phoneErrorText');
+  var meta    = DIAL_META[sel.value] || DIAL_META['+225'];
+  input.maxLength   = meta.digits;
+  input.placeholder = meta.placeholder;
+  input.value       = '';
+  if (hint)    hint.textContent    = meta.label + ' \u2014 ' + meta.digits + ' chiffres';
+  if (errText) errText.textContent = 'Num\u00e9ro invalide (' + meta.digits + ' chiffres, ex: ' + meta.placeholder + ')';
+  if (errDiv)  errDiv.style.display = 'none';
+}
+
+function openPhoneModal(plan) {
+  currentPlan = plan;
+  var modal = document.getElementById('phoneModal');
+  var input = document.getElementById('modalPhone');
+  modal.style.display = 'flex';
+  onDialCodeChange();
+  if (input) { input.value = ''; setTimeout(function(){ input.focus(); }, 80); }
+}
+
+function closePhoneModal() {
+  document.getElementById('phoneModal').style.display = 'none';
+  currentPlan = '';
+}
+
+function confirmPayment() {
+  var sel      = document.getElementById('dialCode');
+  var input    = document.getElementById('modalPhone');
+  var errDiv   = document.getElementById('phoneError');
+  var phone    = (input ? input.value : '').replace(/\D/g, '');
+  var dialCode = sel ? sel.value : '+225';
+  var meta     = DIAL_META[dialCode] || DIAL_META['+225'];
+
+  if (!phone || phone.length !== meta.digits) {
+    if (errDiv) errDiv.style.display = 'block';
+    if (input)  input.focus();
+    return;
+  }
+
+  var fullPhone  = dialCode + phone;
+  var plan       = currentPlan;
+  if (errDiv) errDiv.style.display = 'none';
+  closePhoneModal();
+
+  var backendUrl = window.SAFELINK_BACKEND_URL || 'http://localhost:5001';
+  fetch(backendUrl + '/api/payments/initiate', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+    body:    JSON.stringify({
+      planName:      plan,
+      customerPhone: fullPhone,
+      currency:      meta.currency,
+      country:       meta.country,
+      clientIp:      MIKROTIK_IP   || '',
+      clientMac:     MIKROTIK_MAC  || '',
+      linkLoginOnly: MIKROTIK_LINK || '',
+    }),
+  })
+  .then(function(res) {
+    return res.json().then(function(json) {
+      if (!res.ok) {
+        var msg = json.detail || json.error || json.message || ('Erreur serveur (' + res.status + ')');
+        throw new Error(msg);
+      }
+      return json;
+    });
+  })
+  .then(function(data) {
+    var url = data.redirectUrl || data.authorization_url || data.payment_url || '';
+    if (url) {
+      if (data.transactionId) { try { localStorage.setItem('safelink_pending_tx', data.transactionId); } catch(e) {} }
+      window.location.href = url;
+    } else { throw new Error('Pas de lien de paiement reçu du serveur.'); }
+  })
+  .catch(function(err) {
+    console.error('Payment initiate error:', err);
+    openPhoneModal(plan);
+    setTimeout(function() {
+      if (errDiv) {
+        var isNetworkError = (err instanceof TypeError && err.message === 'Failed to fetch');
+        errDiv.textContent = isNetworkError
+          ? 'Impossible de contacter le serveur. Vérifiez votre connexion et réessayez.'
+          : (err.message || 'Une erreur est survenue. Réessayez.');
+        errDiv.style.display = 'block';
+      }
+    }, 50);
+  });
+}
+
+document.getElementById('phoneModal').addEventListener('click', function(e) { if (e.target === this) closePhoneModal(); });
+document.getElementById('modalPhone').addEventListener('keydown', function(e) { if (e.key === 'Enter') confirmPayment(); });
+
+/* Affichage erreurs MikroTik */
+var errorBox = document.getElementById('errorBox');
+if (errorBox && errorBox.textContent.trim() !== '') errorBox.style.display = 'block';
+var errorBox2 = document.getElementById('errorBox2');
+if (errorBox2 && errorBox2.textContent.trim() !== '') errorBox2.style.display = 'block';
+</script>
+</body>
+</html>

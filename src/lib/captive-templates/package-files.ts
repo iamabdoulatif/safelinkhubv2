@@ -67,7 +67,7 @@ function renderSupportLinksHtml(supportWhatsapp?: string | null, supportPhone?: 
   return links.join("\n");
 }
 
-const TEXT_EXTENSIONS = new Set([".html", ".css", ".js", ".svg"]);
+const TEXT_EXTENSIONS = new Set([".html", ".css", ".js", ".svg", ".txt"]);
 
 // Listed explicitly (rather than walked at runtime) so Next.js's file
 // tracer can see every path statically and bundle them into the deployed
@@ -91,6 +91,39 @@ const SAFELINKHUB_DEFAULT_FILES = [
   "images/moov.png",
 ];
 
+// Second bundled portal option — mobile-money / voucher / QR-code login
+// flow with its own design, kept alongside the SafeLinkHub default so
+// admins can pick whichever one fits their hotspot. Trimmed down from the
+// original source: dropped npm/build tooling (package.json,
+// package-lock.json, tailwind.config.js, tailwind.input.css — already
+// compiled into css/tailwind.css), the unreferenced qrcode.php (RouterOS
+// has no PHP runtime, and login.html actually loads the QR scanner from
+// the html5-qrcode CDN instead), and css/fontawesome.min.css (an unused
+// duplicate of css/all.min.css, which is what the pages actually link).
+const YAHYA_WIFI_FILES = [
+  "login.html",
+  "alogin.html",
+  "rlogin.html",
+  "redirect.html",
+  "logout.html",
+  "error.html",
+  "status.html",
+  "success.html",
+  "radvert.html",
+  "config.js",
+  "errors.txt",
+  "errors-en.txt",
+  "css/all.min.css",
+  "css/styles.css",
+  "css/tailwind.css",
+  "css/webfonts/fa-brands-400.woff2",
+  "css/webfonts/fa-regular-400.woff2",
+  "css/webfonts/fa-solid-900.woff2",
+  "css/webfonts/fa-v4compatibility.woff2",
+  "img/630692965_26241941825431688_2766478302372875865_n.jpg",
+  "img/wifi_def.avif",
+];
+
 function loadPackage(dir: string, files: string[]): PackageFile[] {
   return files.map((relativePath) => {
     const ext = path.extname(relativePath);
@@ -109,12 +142,23 @@ export function loadSafelinkhubDefaultPackage(): PackageFile[] {
   return loadPackage(dir, SAFELINKHUB_DEFAULT_FILES);
 }
 
+/** Reads the bundled "Yahya WiFi" hotspot portal off disk, ready to store in `captiveTemplates.packageFiles`. */
+export function loadYahyaWifiPackage(): PackageFile[] {
+  const dir = path.join(process.cwd(), "src/lib/captive-templates/packages/yahya-wifi");
+  return loadPackage(dir, YAHYA_WIFI_FILES);
+}
+
 const EXT_TO_CONTENT_TYPE: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".avif": "image/avif",
+  ".woff2": "font/woff2",
+  ".txt": "text/plain; charset=utf-8",
 };
 
 export function contentTypeForPath(relativePath: string) {

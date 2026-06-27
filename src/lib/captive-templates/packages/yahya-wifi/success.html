@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="3;url=$(link-redirect)">
+    <title>SafeLink Africa - Connect&eacute; !</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .success-check {
+            width: 80px; height: 80px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 16px;
+            box-shadow: 0 8px 24px rgba(16,185,129,0.3);
+            animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        @keyframes scaleIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="section-card visible" style="margin-top:40px;text-align:center;">
+        <div class="success-check">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+        </div>
+        <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:8px;color:#059669;">Connect&eacute; !</h2>
+        <p style="font-size:0.85rem;color:#64748b;margin-bottom:6px;">Bienvenue sur le r&eacute;seau SafeLink Africa</p>
+        <p style="font-size:0.78rem;color:#94a3b8;">Redirection automatique dans quelques secondes...</p>
+        
+        <p style="margin-top:20px;font-size:0.78rem;">
+            <a href="$(link-redirect)" style="color:#0f6fec;text-decoration:none;font-weight:600;">Acc&eacute;der &agrave; Internet maintenant &rarr;</a>
+        </p>
+    </div>
+
+    <footer class="footer">
+        <p class="footer-copy">&copy; 2026 SafeLink Africa</p>
+    </footer>
+</body>
+</html>

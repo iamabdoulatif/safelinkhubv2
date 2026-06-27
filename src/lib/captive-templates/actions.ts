@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { bridges, captiveTemplates, routers, organizations } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
@@ -91,36 +91,74 @@ export async function createCaptiveTemplate(_prevState: unknown, formData: FormD
 }
 
 /**
- * Imports the bundled SafeLinkHub multi-file hotspot portal as a
- * "package" template for the current org, so it shows up in
- * /admin/settings/captive-templates next to the parametric ones and can
- * be assigned to any bridge — assigning it is what triggers the actual
- * upload to the router (see assignTemplateToBridge).
+ * Imports a bundled multi-file hotspot portal as a "package" template for
+ * the current org, so it shows up in /admin/settings/captive-templates
+ * next to the parametric ones and can be assigned to any bridge —
+ * assigning it is what triggers the actual upload to the router (see
+ * assignTemplateToBridge).
+ *
+ * Re-importing used to always INSERT a new row with whatever files were
+ * on disk at that moment — every click created another byte-different
+ * duplicate (each capturing a different snapshot of css/js as those
+ * files got edited over time). Refreshes the org's existing row with
+ * this name in place instead of piling up copies; only inserts when none
+ * exists yet.
  */
-export async function importSafelinkhubDefaultPackage() {
+async function importBundledPackage(name: string, files: PackageFile[]) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
   const db = getDb();
-  const existing = await db
+  const [existingBundled] = await db
     .select({ id: captiveTemplates.id })
     .from(captiveTemplates)
-    .where(eq(captiveTemplates.orgId, session.orgId));
+    .where(
+      and(
+        eq(captiveTemplates.orgId, session.orgId),
+        eq(captiveTemplates.name, name),
+        eq(captiveTemplates.templateType, "package"),
+      ),
+    )
+    .limit(1);
 
-  const { loadSafelinkhubDefaultPackage } = await import("./package-files");
+  if (existingBundled) {
+    await db
+      .update(captiveTemplates)
+      .set({ packageFiles: files, updatedAt: new Date() })
+      .where(eq(captiveTemplates.id, existingBundled.id));
+    revalidatePath("/admin/settings/captive-templates");
+    return { success: true, id: existingBundled.id };
+  }
+
+  const [anyExisting] = await db
+    .select({ id: captiveTemplates.id })
+    .from(captiveTemplates)
+    .where(eq(captiveTemplates.orgId, session.orgId))
+    .limit(1);
+
   const [row] = await db
     .insert(captiveTemplates)
     .values({
       orgId: session.orgId,
-      name: "SafeLinkHub Hotspot (portail complet)",
-      isDefault: existing.length === 0,
+      name,
+      isDefault: !anyExisting,
       templateType: "package",
-      packageFiles: loadSafelinkhubDefaultPackage(),
+      packageFiles: files,
     })
     .returning();
 
   revalidatePath("/admin/settings/captive-templates");
   return { success: true, id: row.id };
+}
+
+export async function importSafelinkhubDefaultPackage() {
+  const { loadSafelinkhubDefaultPackage } = await import("./package-files");
+  return importBundledPackage("SafeLinkHub Hotspot (portail complet)", loadSafelinkhubDefaultPackage());
+}
+
+export async function importYahyaWifiPackage() {
+  const { loadYahyaWifiPackage } = await import("./package-files");
+  return importBundledPackage("Yahya WiFi (portail complet)", loadYahyaWifiPackage());
 }
 
 export async function updateCaptiveTemplate(
@@ -283,16 +321,17 @@ export async function deleteCaptiveTemplate(templateId: string) {
     return { error: "Modèle introuvable." };
   }
 
-  const [usedBy] = await db
-    .select({ id: bridges.id })
-    .from(bridges)
-    .where(eq(bridges.captiveTemplateId, templateId))
-    .limit(1);
-  if (usedBy) {
-    return {
-      error: "Ce modèle est assigné à au moins un bridge. Retirez-le de ce bridge avant de le supprimer.",
-    };
-  }
+  // Unassign from every bridge instead of refusing to delete — a deleted
+  // template's bridges just fall back to whichever template is marked
+  // "Par défaut" (see the page's own copy), so there's nothing left over
+  // that would actually break by clearing the reference. Forcing the
+  // admin to hunt down and manually unassign every bridge first (often
+  // not even visible from this page) was a dead end with no obvious way
+  // to ever delete a duplicate that happened to be assigned.
+  await db
+    .update(bridges)
+    .set({ captiveTemplateId: null })
+    .where(eq(bridges.captiveTemplateId, templateId));
 
   await db.delete(captiveTemplates).where(eq(captiveTemplates.id, templateId));
 

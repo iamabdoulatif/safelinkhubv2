@@ -7,6 +7,7 @@ import {
   deleteCaptiveTemplate,
   duplicateCaptiveTemplate,
   importSafelinkhubDefaultPackage,
+  importYahyaWifiPackage,
   setDefaultCaptiveTemplate,
 } from "@/lib/captive-templates/actions";
 import CaptivePreview from "./CaptivePreview";
@@ -45,6 +46,21 @@ export default function TemplatesManager({
           >
             <Package className="h-4 w-4" />
             Importer le portail SafeLinkHub
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const res = await importYahyaWifiPackage();
+                if (res?.error) setError(res.error);
+                else router.refresh();
+              })
+            }
+            className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            <Package className="h-4 w-4" />
+            Importer le portail Yahya WiFi
           </button>
           <button
             type="button"

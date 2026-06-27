@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { ArrowLeft, Box, Check, Copy, Loader2, Plus, Trash2 } from "lucide-react";
 import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
+import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
 import { computeSubnetInfo, getImpactNote } from "@/lib/net/subnet";
 import {
   buildCustomDurationCode,
@@ -215,6 +216,26 @@ export default function AutoSetupSteps({
   const [customPrice, setCustomPrice] = useState("");
   const [customProfileError, setCustomProfileError] = useState<string | null>(null);
   const [installCaptivePortal, setInstallCaptivePortal] = useState(true);
+  const [packageTemplates, setPackageTemplates] = useState<
+    { id: string; name: string; isDefault: boolean }[]
+  >([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+
+  // Loaded once so the "Portail captif" step can offer a choice when the
+  // org has more than one "package" template (e.g. the bundled SafeLinkHub
+  // portal and the bundled Yahya WiFi portal) instead of always installing
+  // whichever one provisionHotspotStack happens to find first.
+  useEffect(() => {
+    listCaptiveTemplates().then((rows) => {
+      const packages = rows
+        .filter((r) => r.templateType === "package")
+        .map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault }));
+      setPackageTemplates(packages);
+      const preselected = packages.find((p) => p.isDefault) ?? packages[0];
+      if (preselected) setSelectedTemplateId(preselected.id);
+    });
+  }, []);
+
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success?: boolean; error?: string; log?: string[] } | null>(
     null,
@@ -329,6 +350,7 @@ export default function AutoSetupSteps({
         voucherProfiles: customProfiles,
         packagesToSync: customProfileMeta,
         installCaptivePortal,
+        captiveTemplateId: installCaptivePortal ? selectedTemplateId ?? undefined : undefined,
         bridgeName: bridgeName.trim() || undefined,
         serverName: serverName.trim() || undefined,
       });
@@ -663,6 +685,31 @@ export default function AutoSetupSteps({
           </span>
         </label>
 
+        {installCaptivePortal && packageTemplates.length > 1 && (
+          <div className="mt-3 rounded-md border border-slate-200 px-4 py-3">
+            <p className="text-xs font-medium text-slate-500">Quel modèle installer ?</p>
+            <div className="mt-2 space-y-1.5">
+              {packageTemplates.map((tpl) => (
+                <label key={tpl.id} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="captive-template"
+                    checked={selectedTemplateId === tpl.id}
+                    onChange={() => setSelectedTemplateId(tpl.id)}
+                    className="h-4 w-4 border-slate-300"
+                  />
+                  {tpl.name}
+                  {tpl.isDefault && (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                      Par défaut
+                    </span>
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!installCaptivePortal && (
           <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
             La page de connexion par défaut de RouterOS sera conservée. Vous pourrez installer le
@@ -748,7 +795,9 @@ export default function AutoSetupSteps({
         <div>
           <dt className="text-slate-400">Portail captif</dt>
           <dd className="font-medium text-slate-700">
-            {installCaptivePortal ? "SafeLinkHub (auto)" : "Page par défaut RouterOS"}
+            {installCaptivePortal
+              ? packageTemplates.find((t) => t.id === selectedTemplateId)?.name ?? "Modèle par défaut"
+              : "Page par défaut RouterOS"}
           </dd>
         </div>
         <div className="sm:col-span-2">

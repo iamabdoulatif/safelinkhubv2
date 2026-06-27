@@ -1,0 +1,10 @@
+invalid username or password = Code voucher invalide ou expir&eacute;
+user already logged in = Vous &ecirc;tes d&eacute;j&agrave; connect&eacute;
+no more sessions are allowed for user = Nombre maximum de sessions atteint
+RADIUS server is not responding = Service temporairement indisponible
+not allowed by RADIUS = Acc&egrave;s refus&eacute; par le serveur
+hotspot service is shutting down = Service en maintenance
+user disabled = Compte d&eacute;sactiv&eacute;
+password expired = Code voucher expir&eacute;
+internal error = Erreur interne, veuillez r&eacute;essayer
+you are not logged in = Vous n'&ecirc;tes pas connect&eacute;

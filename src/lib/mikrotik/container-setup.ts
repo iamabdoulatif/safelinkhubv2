@@ -206,6 +206,14 @@ export type HotspotStackOptions = {
   // of assuming the default.
   bridgeName?: string;
   serverName?: string;
+  // Which of the org's "package" captive-template rows to install when
+  // installCaptivePortal isn't explicitly false — lets the admin pick
+  // between several bundled/custom portals (e.g. SafeLinkHub vs. Yahya
+  // WiFi) on the wizard's "Portail captif" step instead of this always
+  // grabbing whichever package template happens to be found first.
+  // Falls back to that "first found, else create the bundled default"
+  // behavior when omitted, for callers that never offered a choice.
+  captiveTemplateId?: string;
 };
 
 /**
@@ -663,11 +671,23 @@ export async function provisionHotspotStack(
       log.push("SKIP (captive portal): désactivé pour cette exécution — page de connexion par défaut RouterOS conservée.");
     } else {
       try {
-        let [packageTemplate] = await db
-          .select()
-          .from(captiveTemplates)
-          .where(and(eq(captiveTemplates.orgId, router.orgId), eq(captiveTemplates.templateType, "package")))
-          .limit(1);
+        let [packageTemplate] = opts.captiveTemplateId
+          ? await db
+              .select()
+              .from(captiveTemplates)
+              .where(
+                and(
+                  eq(captiveTemplates.id, opts.captiveTemplateId),
+                  eq(captiveTemplates.orgId, router.orgId),
+                  eq(captiveTemplates.templateType, "package"),
+                ),
+              )
+              .limit(1)
+          : await db
+              .select()
+              .from(captiveTemplates)
+              .where(and(eq(captiveTemplates.orgId, router.orgId), eq(captiveTemplates.templateType, "package")))
+              .limit(1);
         if (!packageTemplate) {
           // Named after the client's own WiFi (SSID) when known, instead
           // of a generic "SafeLinkHub Hotspot" label that's identical
