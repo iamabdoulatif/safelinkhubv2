@@ -6,24 +6,31 @@ import { Check } from "lucide-react";
 import { savePaymentGateway } from "@/lib/payment-gateways/actions";
 import type { Provider } from "@/lib/payment-gateways/providers";
 
-const LOGOS: Record<Provider, { src: string; width: number; height: number }> = {
-  paystack: { src: "/Paystack.png", width: 1354, height: 626 },
-  genius_pay: { src: "/geniuspay.svg", width: 712, height: 205 },
+// Paystack/Genius Pay logos are full wordmarks (icon + brand name baked
+// in) — shown alone. Wassoya's is an icon-only mark, so it needs the
+// brand name set alongside it (see standalone below).
+const LOGOS: Record<Provider, { src: string; width: number; height: number; standalone: boolean }> = {
+  paystack: { src: "/Paystack.png", width: 1354, height: 626, standalone: true },
+  genius_pay: { src: "/geniuspay.svg", width: 712, height: 205, standalone: true },
+  wassoya: { src: "/wassoya.png", width: 512, height: 512, standalone: false },
 };
 
 const LABELS: Record<Provider, string> = {
   genius_pay: "Genius Pay",
   paystack: "Paystack",
+  wassoya: "Wassoya",
 };
 
 const ACCENTS: Record<Provider, string> = {
   genius_pay: "hover:ring-violet-200",
   paystack: "hover:ring-sky-200",
+  wassoya: "hover:ring-pink-200",
 };
 
 const SUBTITLES: Record<Provider, string> = {
   paystack: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
   genius_pay: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
+  wassoya: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
 };
 
 export default function GatewayCard({
@@ -49,14 +56,17 @@ export default function GatewayCard({
       <input type="hidden" name="provider" value={provider} />
 
       <div className="flex items-center justify-between gap-3">
-        <div className="flex h-9 items-center">
+        <div className="flex h-9 items-center gap-2">
           <Image
             src={logo.src}
             alt={LABELS[provider]}
             width={logo.width}
             height={logo.height}
-            className="h-7 w-auto object-contain"
+            className={logo.standalone ? "h-7 w-auto object-contain" : "h-8 w-8 object-contain"}
           />
+          {!logo.standalone && (
+            <span className="font-semibold text-slate-900">{LABELS[provider]}</span>
+          )}
         </div>
         <button
           type="button"

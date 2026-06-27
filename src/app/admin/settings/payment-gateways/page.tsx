@@ -16,13 +16,13 @@ export default async function PaymentGatewaysPage() {
         </h1>
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        Connectez vos comptes marchands. Paystack et Genius Pay sont des
-        agrégateurs : chacun couvre déjà Wave, Orange Money, Moov Money,
+        Connectez vos comptes marchands. Paystack, Genius Pay et Wassoya sont
+        des agrégateurs : chacun couvre déjà Wave, Orange Money, Moov Money,
         MTN MoMo et carte bancaire en interne — inutile de configurer ces
         canaux séparément.
       </p>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {PROVIDERS.map((provider) => {
           const g = byProvider.get(provider);
           return (
@@ -41,8 +41,8 @@ export default async function PaymentGatewaysPage() {
         Les clés sont chiffrées au repos. Le bouton de paiement affiché sur le
         portail captif (voir Modèles de portail captif) est pour l&apos;instant
         une maquette d&apos;interface — aucun débit réel n&apos;est encore
-        déclenché tant que l&apos;appel aux API Paystack / Genius Pay n&apos;est
-        pas branché.
+        déclenché tant que l&apos;appel aux API Paystack / Genius Pay / Wassoya
+        n&apos;est pas branché.
       </p>
     </div>
   );
