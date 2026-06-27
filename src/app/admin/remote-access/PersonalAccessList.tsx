@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Laptop2, Pencil, ShieldOff, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, Laptop2, Pencil, ShieldOff, Trash2 } from "lucide-react";
 import {
   deletePersonalVpnAccess,
   revokePersonalVpnAccess,
@@ -250,6 +250,16 @@ function CopyableField({ label, value }: { label: string; value: string }) {
 
 export default function PersonalAccessList({ rows }: { rows: PersonalAccessRow[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+
+  function toggleOpen(id: string) {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   if (rows.length === 0) {
     return (
@@ -264,13 +274,21 @@ export default function PersonalAccessList({ rows }: { rows: PersonalAccessRow[]
       {rows.map((r) => {
         const active = r.status === "active";
         const editing = editingId === r.id;
+        const open = openIds.has(r.id) || editing;
         return (
           <div
             key={r.id}
             className="rounded-xl border border-slate-200 bg-white p-4"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => toggleOpen(r.id)}
+                className="flex items-center gap-2 text-left"
+              >
+                <ChevronDown
+                  className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+                />
                 <Laptop2 className="h-4 w-4 text-slate-400" />
                 <span className="text-sm font-semibold text-slate-800">{r.label}</span>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
@@ -285,7 +303,7 @@ export default function PersonalAccessList({ rows }: { rows: PersonalAccessRow[]
                 >
                   {active ? "Active" : "Révoqué"}
                 </span>
-              </div>
+              </button>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -300,26 +318,30 @@ export default function PersonalAccessList({ rows }: { rows: PersonalAccessRow[]
               </div>
             </div>
 
-            {editing && (
-              <EditForm row={r} onClose={() => setEditingId(null)} />
+            {open && (
+              <>
+                {editing && (
+                  <EditForm row={r} onClose={() => setEditingId(null)} />
+                )}
+
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {r.username && <CopyableField label="Identifiant VPN" value={r.username} />}
+                  {r.password && <CopyableField label="Mot de passe VPN" value={r.password} />}
+                  <CopyableField label="IP VPN" value={r.vpnIp ?? "—"} />
+                  <CopyableField label="Serveur VPN" value={`${r.remoteHost}:${r.remotePort}`} />
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  Une fois connecté à ce VPN, joignez un routeur directement via son IP tunnel
+                  (ex. 10.66.0.x:8291 pour WinBox) — pas via un port public séparé.
+                </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-400">
+                  <span>Créé le {formatDate(r.createdAt)}</span>
+                  <span>Expire le {formatDate(r.expiresAt)}</span>
+                  <span>Renouvellement auto : {r.autoRenew ? "actif" : "inactif"}</span>
+                </div>
+              </>
             )}
-
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {r.username && <CopyableField label="Identifiant VPN" value={r.username} />}
-              {r.password && <CopyableField label="Mot de passe VPN" value={r.password} />}
-              <CopyableField label="IP VPN" value={r.vpnIp ?? "—"} />
-              <CopyableField label="Serveur VPN" value={`${r.remoteHost}:${r.remotePort}`} />
-            </div>
-            <p className="mt-2 text-xs text-slate-400">
-              Une fois connecté à ce VPN, joignez un routeur directement via son IP tunnel
-              (ex. 10.66.0.x:8291 pour WinBox) — pas via un port public séparé.
-            </p>
-
-            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-400">
-              <span>Créé le {formatDate(r.createdAt)}</span>
-              <span>Expire le {formatDate(r.expiresAt)}</span>
-              <span>Renouvellement auto : {r.autoRenew ? "actif" : "inactif"}</span>
-            </div>
           </div>
         );
       })}
