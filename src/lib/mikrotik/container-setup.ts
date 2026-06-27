@@ -1132,30 +1132,25 @@ export async function provisionHotspotStack(
     // page load and can be stale or wrong (e.g. the admin enabled container
     // mode after detection ran). Re-verify directly against the router
     // right before touching anything container-related, since every
-    // /container/* command below fails silently (caught by run()) when the
-    // package isn't installed or is disabled — previously this meant the
-    // whole MikHmon step could quietly no-op without ever telling the admin
-    // why.
+    // /container/* command below fails silently (caught by run()) when
+    // device-mode hasn't actually been confirmed — previously this meant
+    // the whole MikHmon step could quietly no-op without ever telling the
+    // admin why.
+    //
+    // Only device-mode's own "container" flag is checked — /system/package
+    // ?name=container was checked here too, but on ARM64 builds (e.g. hAP
+    // ax³, confirmed against a real unit) Container support ships built
+    // into the base RouterOS image rather than as a separate installable
+    // package, so that query always returned zero rows and blocked this
+    // step as "package not present" even with device-mode reporting
+    // container=yes and a manual WinBox container install working fine.
     let containerPackageReady = opts.supportsContainers;
     if (containerPackageReady) {
-      const packages = await client
-        .talk(["/system/package/print", "?name=container"])
-        .catch(() => []);
       const [deviceMode] = await client
         .talk(["/system/device-mode/print"])
         .catch(() => [] as Sentence[]);
       const deviceModeContainerEnabled = deviceMode ? rosBoolean(deviceMode.container) : false;
-      if (packages.length === 0) {
-        containerPackageReady = false;
-        log.push(
-          "SKIP (MikHmon container): the 'container' package is not present on this RouterOS install.",
-        );
-      } else if (packages[0].disabled === "true") {
-        containerPackageReady = false;
-        log.push(
-          'SKIP (MikHmon container): the \'container\' package is installed but disabled — enable the package, reboot, then re-run auto-setup.',
-        );
-      } else if (!deviceModeContainerEnabled) {
+      if (!deviceModeContainerEnabled) {
         containerPackageReady = false;
         log.push(
           'SKIP (MikHmon container): RouterOS device-mode still reports container=no — run "/system/device-mode/update mode=advanced container=yes hotspot=yes scheduler=yes fetch=yes activation-timeout=10m", confirm physically with the reset/mode button or a cold power cycle, then re-run auto-setup.',

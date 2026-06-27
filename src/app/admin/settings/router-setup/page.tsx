@@ -7,6 +7,18 @@ import StepIndicator from "./StepIndicator";
 import RouterSetupWizard from "./RouterSetupWizard";
 import RouterResetButton from "./RouterResetButton";
 
+// provisionHotspotStack (the "Lancer l'auto-setup complet" Server Action
+// on this page) runs dozens of sequential RouterOS API round-trips plus
+// a container-image pull/start wait loop that alone can take up to 3
+// minutes — comfortably past the platform's default Server Action
+// timeout. Without raising it here (Server Actions inherit their
+// timeout from the page they're invoked on, not their own file), Vercel
+// kills the function mid-run once the MikHmon container step actually
+// has to wait on a real Docker Hub pull, and the wizard's "Configuration
+// en cours..." button just hangs forever waiting on a response that
+// will never arrive.
+export const maxDuration = 300;
+
 export default async function RouterSetupPage() {
   const session = await getSession();
   const db = getDb();
