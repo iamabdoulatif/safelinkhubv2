@@ -41,6 +41,16 @@ export default function BootstrapModal({
     };
   }, [bridgeId]);
 
+  // Auto-close once installation is confirmed instead of leaving the admin
+  // stuck on a dead-end success screen with no way out — onClose also
+  // triggers a router.refresh() upstream so the topology canvas reflects
+  // the now-installed bridge without a manual page reload.
+  useEffect(() => {
+    if (!installed) return;
+    const timeout = setTimeout(onClose, 2000);
+    return () => clearTimeout(timeout);
+  }, [installed, onClose]);
+
   function copyCommand() {
     navigator.clipboard.writeText(command);
     setCopied(true);
@@ -72,10 +82,22 @@ export default function BootstrapModal({
         </div>
 
         {installed ? (
-          <div className="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            Service installé avec succès sur le routeur. Le portail captif est
-            prêt.
-          </div>
+          <>
+            <div className="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              Service installé avec succès sur le routeur. Le portail captif est
+              prêt.
+            </div>
+            <p className="mt-2 text-xs text-slate-400">Fermeture automatique...</p>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Continuer
+              </button>
+            </div>
+          </>
         ) : (
           <>
             <p className="mt-3 text-sm text-slate-500">

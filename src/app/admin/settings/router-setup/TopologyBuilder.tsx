@@ -834,7 +834,10 @@ export default function TopologyBuilder({
         <BootstrapModal
           bridgeId={bootstrap.bridgeId}
           command={bootstrap.command}
-          onClose={() => setBootstrap(null)}
+          onClose={() => {
+            setBootstrap(null);
+            router.refresh();
+          }}
         />
       )}
     </div>
