@@ -6,6 +6,7 @@ import { provisionHotspotStack } from "@/lib/mikrotik/container-setup";
 import { computeSubnetInfo, getImpactNote } from "@/lib/net/subnet";
 import {
   VOUCHER_PROFILES,
+  buildCustomDurationCode,
   buildCustomProfileLabel,
   buildCustomProfileName,
   buildVoucherProfile,
@@ -19,6 +20,7 @@ const DURATION_UNIT_OPTIONS: { value: DurationUnit; label: string }[] = [
   { value: "m", label: "Minutes" },
   { value: "h", label: "Heures" },
   { value: "d", label: "Jours" },
+  { value: "w", label: "Semaines" },
 ];
 
 function UnlockCommandBlock() {
@@ -116,7 +118,7 @@ export default function ContainerSetupCard({
     const profile = buildVoucherProfile({
       name,
       label: price > 0 ? `${baseLabel} — ${price.toLocaleString("fr-FR")} FCFA` : baseLabel,
-      durationCode: `${amount}${customUnit}`,
+      durationCode: buildCustomDurationCode(amount, customUnit),
       price,
     });
     setCustomProfiles((prev) => [...prev, profile]);

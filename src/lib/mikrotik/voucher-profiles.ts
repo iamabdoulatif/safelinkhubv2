@@ -103,15 +103,16 @@ function replaceOnce(haystack: string, target: string, replacement: string, what
   return haystack.replace(target, replacement);
 }
 
-export type DurationUnit = "m" | "h" | "d";
+export type DurationUnit = "m" | "h" | "d" | "w";
 
 export const DURATION_UNIT_LABELS: Record<DurationUnit, { singular: string; plural: string }> = {
   m: { singular: "minute", plural: "minutes" },
   h: { singular: "heure", plural: "heures" },
   d: { singular: "jour", plural: "jours" },
+  w: { singular: "semaine", plural: "semaines" },
 };
 
-/** "02-JOURS", "12-HEURES", "30-MINUTES" — matches the bundled presets' naming convention. */
+/** "02-JOURS", "12-HEURES", "30-MINUTES", "03-SEMAINES" — matches the bundled presets' naming convention. */
 export function buildCustomProfileName(amount: number, unit: DurationUnit): string {
   const { singular, plural } = DURATION_UNIT_LABELS[unit];
   const word = (amount === 1 ? singular : plural).toUpperCase();
@@ -121,6 +122,17 @@ export function buildCustomProfileName(amount: number, unit: DurationUnit): stri
 export function buildCustomProfileLabel(amount: number, unit: DurationUnit): string {
   const { singular, plural } = DURATION_UNIT_LABELS[unit];
   return `${amount} ${amount === 1 ? singular : plural}`;
+}
+
+/**
+ * RouterOS scheduler intervals only accept w/d/h/m/s — "w" works directly,
+ * but the bundled presets express weeks in days instead (01-SEMAINE is
+ * "7d", not "1w") to match a real MikHmon export, so custom weekly profiles
+ * follow the same convention for consistency rather than mixing both.
+ */
+export function buildCustomDurationCode(amount: number, unit: DurationUnit): string {
+  if (unit === "w") return `${amount * 7}d`;
+  return `${amount}${unit}`;
 }
 
 // Deterministic per-name offset so several custom profiles' expiry-sweep
