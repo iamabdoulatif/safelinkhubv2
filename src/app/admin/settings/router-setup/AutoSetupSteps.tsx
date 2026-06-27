@@ -124,8 +124,8 @@ export default function AutoSetupSteps({
   routerId,
   hotspotBridge,
 }: {
-  step: 3 | 4 | 5 | 6 | 7;
-  onStepChange: (step: 2 | 3 | 4 | 5 | 6 | 7 | 8) => void;
+  step: 3 | 4 | 5 | 6 | 7 | 8;
+  onStepChange: (step: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9) => void;
   routerId: string;
   hotspotBridge: { gatewayIp: string; subnetBits: number } | null;
 }) {
@@ -160,6 +160,7 @@ export default function AutoSetupSteps({
   const [customUnit, setCustomUnit] = useState<DurationUnit>("d");
   const [customPrice, setCustomPrice] = useState("");
   const [customProfileError, setCustomProfileError] = useState<string | null>(null);
+  const [installCaptivePortal, setInstallCaptivePortal] = useState(true);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success?: boolean; error?: string; log?: string[] } | null>(
     null,
@@ -234,6 +235,7 @@ export default function AutoSetupSteps({
         supportsContainers: archSupportsContainers,
         reboot: true,
         voucherProfiles: [...selectedPresets, ...customProfiles],
+        installCaptivePortal,
       });
       setResult(res);
     });
@@ -516,13 +518,50 @@ export default function AutoSetupSteps({
     );
   }
 
-  // step === 7
+  if (step === 7) {
+    return (
+      <StepShell
+        title="Étape 7 : Portail captif"
+        description="La page que vos clients voient en se connectant au Wi-Fi — installée dans ce même script d'automatisation."
+        onBack={() => onStepChange(6)}
+        onNext={() => onStepChange(8)}
+      >
+        <label className="flex items-center gap-3 rounded-md border border-slate-200 px-4 py-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={installCaptivePortal}
+            onChange={(e) => setInstallCaptivePortal(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          <span>
+            <span className="block font-medium">Installer automatiquement le portail captif SafeLinkHub</span>
+            <span className="mt-0.5 block text-xs text-slate-400">
+              Remplace la page de connexion par défaut RouterOS par le portail SafeLinkHub
+              (logo, plans, paiement mobile money, vendeurs agréés). Réutilise vos coordonnées
+              déjà personnalisées si vous en avez (page Modèles de portail captif), sinon installe
+              le modèle par défaut.
+            </span>
+          </span>
+        </label>
+
+        {!installCaptivePortal && (
+          <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            La page de connexion par défaut de RouterOS sera conservée. Vous pourrez installer le
+            portail captif SafeLinkHub plus tard depuis{" "}
+            <span className="font-medium">Modèles de portail captif</span>.
+          </p>
+        )}
+      </StepShell>
+    );
+  }
+
+  // step === 8
   return (
     <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
       <div className="flex items-center gap-2">
         <Box className="h-5 w-5 text-slate-700" />
         <h2 className="font-semibold text-slate-900">
-          Étape 7 : Récapitulatif & lancement
+          Étape 8 : Récapitulatif & lancement
           {archSupportsContainers ? " (Hotspot + MikHmon)" : " (Hotspot)"}
         </h2>
       </div>
@@ -562,6 +601,12 @@ export default function AutoSetupSteps({
         <div>
           <dt className="text-slate-400">Clé USB</dt>
           <dd className="font-medium text-slate-700">{hasUsbStorage ? "Oui" : "Non"}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-400">Portail captif</dt>
+          <dd className="font-medium text-slate-700">
+            {installCaptivePortal ? "SafeLinkHub (auto)" : "Page par défaut RouterOS"}
+          </dd>
         </div>
         <div className="sm:col-span-2">
           <dt className="text-slate-400">Profils voucher ({voucherProfiles.length + customProfiles.length})</dt>
@@ -610,7 +655,7 @@ export default function AutoSetupSteps({
       <div className="mt-6 flex items-center justify-between">
         <button
           type="button"
-          onClick={() => onStepChange(6)}
+          onClick={() => onStepChange(7)}
           className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -618,7 +663,7 @@ export default function AutoSetupSteps({
         </button>
         <button
           type="button"
-          onClick={() => onStepChange(8)}
+          onClick={() => onStepChange(9)}
           className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
         >
           Suivant : Tester la connexion

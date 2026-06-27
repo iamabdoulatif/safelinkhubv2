@@ -17,7 +17,7 @@ type SavedBridge = {
   hotspotEnabled: boolean;
 };
 
-type Step = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+type Step = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export default function RouterSetupWizard({
   routerId,
@@ -37,7 +37,7 @@ export default function RouterSetupWizard({
 
   return (
     <div>
-      <StepIndicator steps={[1, 2, 3, 4, 5, 6, 7, 8, 9]} currentStep={step} />
+      <StepIndicator steps={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} currentStep={step} />
 
       {step === 2 ? (
         <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
@@ -78,24 +78,24 @@ export default function RouterSetupWizard({
             </button>
           </div>
         </div>
-      ) : step === 3 || step === 4 || step === 5 || step === 6 || step === 7 ? (
+      ) : step === 3 || step === 4 || step === 5 || step === 6 || step === 7 || step === 8 ? (
         <AutoSetupSteps
           step={step}
           onStepChange={setStep}
           routerId={routerId}
           hotspotBridge={hotspotBridge}
         />
-      ) : step === 8 ? (
+      ) : step === 9 ? (
         <ConnectionTestStep
           routerId={routerId}
           routerName={routerName}
-          onBack={() => setStep(7)}
-          onNext={() => setStep(9)}
+          onBack={() => setStep(8)}
+          onNext={() => setStep(10)}
         />
       ) : (
         <PortalPreviewStep
           bridges={initialBridges}
-          onBack={() => setStep(8)}
+          onBack={() => setStep(9)}
         />
       )}
     </div>

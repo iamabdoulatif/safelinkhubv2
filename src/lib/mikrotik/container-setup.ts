@@ -145,6 +145,12 @@ export type HotspotStackOptions = {
   // customer's router would be a collision/security smell, not a generic
   // default.
   defaultHotspotUsers?: string[];
+  // Whether to push the bundled SafeLinkHub captive-portal package onto
+  // the hotspot profile's html-directory as part of this same run.
+  // Defaults to true (existing behavior for callers that don't pass this
+  // field yet) — the wizard's dedicated step lets the admin opt out and
+  // keep RouterOS's bare factory-default login page instead.
+  installCaptivePortal?: boolean;
 };
 
 /**
@@ -430,57 +436,61 @@ export async function provisionHotspotStack(
     // "package" template if one was already created (so customized support
     // contacts/vendors — see PackageBrandingEditor — survive a re-run);
     // creates the bundled default only if none exists yet.
-    try {
-      let [packageTemplate] = await db
-        .select()
-        .from(captiveTemplates)
-        .where(and(eq(captiveTemplates.orgId, router.orgId), eq(captiveTemplates.templateType, "package")))
-        .limit(1);
-      if (!packageTemplate) {
-        [packageTemplate] = await db
-          .insert(captiveTemplates)
-          .values({
-            orgId: router.orgId,
-            name: "SafeLinkHub Hotspot (portail complet)",
-            isDefault: false,
-            templateType: "package",
-            packageFiles: loadSafelinkhubDefaultPackage(),
-          })
-          .returning();
-      }
-
-      const files = (packageTemplate.packageFiles as PackageFile[] | null) ?? [];
-      const [org] = await db
-        .select({ slug: organizations.slug })
-        .from(organizations)
-        .where(eq(organizations.id, router.orgId))
-        .limit(1);
-
-      if (files.length === 0 || !org) {
-        log.push("SKIP (captive portal): template ou organisation introuvable.");
-      } else {
-        const appUrl =
-          process.env.NEXT_PUBLIC_APP_URL ??
-          (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-        const fileBaseUrl = `${appUrl}/api/router/v1/${org.slug}/captive-template/${packageTemplate.id}`;
-        const uploadResult = await uploadCaptiveTemplatePackage(client, {
-          files,
-          htmlDirectory,
-          fileBaseUrl,
-          ssid: opts.ssid?.trim() || opts.hotspotName,
-        });
-        if (uploadResult.failed.length > 0) {
-          log.push(
-            `SKIP (captive portal): ${uploadResult.failed.length}/${files.length} fichiers n'ont pas pu être envoyés (${uploadResult.failed.map((f) => f.path).join(", ")}).`,
-          );
-        } else {
-          log.push(`OK: portail captif SafeLinkHub installé (${uploadResult.uploaded.length} fichiers)`);
+    if (opts.installCaptivePortal === false) {
+      log.push("SKIP (captive portal): désactivé pour cette exécution — page de connexion par défaut RouterOS conservée.");
+    } else {
+      try {
+        let [packageTemplate] = await db
+          .select()
+          .from(captiveTemplates)
+          .where(and(eq(captiveTemplates.orgId, router.orgId), eq(captiveTemplates.templateType, "package")))
+          .limit(1);
+        if (!packageTemplate) {
+          [packageTemplate] = await db
+            .insert(captiveTemplates)
+            .values({
+              orgId: router.orgId,
+              name: "SafeLinkHub Hotspot (portail complet)",
+              isDefault: false,
+              templateType: "package",
+              packageFiles: loadSafelinkhubDefaultPackage(),
+            })
+            .returning();
         }
+
+        const files = (packageTemplate.packageFiles as PackageFile[] | null) ?? [];
+        const [org] = await db
+          .select({ slug: organizations.slug })
+          .from(organizations)
+          .where(eq(organizations.id, router.orgId))
+          .limit(1);
+
+        if (files.length === 0 || !org) {
+          log.push("SKIP (captive portal): template ou organisation introuvable.");
+        } else {
+          const appUrl =
+            process.env.NEXT_PUBLIC_APP_URL ??
+            (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+          const fileBaseUrl = `${appUrl}/api/router/v1/${org.slug}/captive-template/${packageTemplate.id}`;
+          const uploadResult = await uploadCaptiveTemplatePackage(client, {
+            files,
+            htmlDirectory,
+            fileBaseUrl,
+            ssid: opts.ssid?.trim() || opts.hotspotName,
+          });
+          if (uploadResult.failed.length > 0) {
+            log.push(
+              `SKIP (captive portal): ${uploadResult.failed.length}/${files.length} fichiers n'ont pas pu être envoyés (${uploadResult.failed.map((f) => f.path).join(", ")}).`,
+            );
+          } else {
+            log.push(`OK: portail captif SafeLinkHub installé (${uploadResult.uploaded.length} fichiers)`);
+          }
+        }
+      } catch (err) {
+        log.push(
+          `SKIP (captive portal): ${err instanceof Error ? err.message : "erreur inconnue"}`,
+        );
       }
-    } catch (err) {
-      log.push(
-        `SKIP (captive portal): ${err instanceof Error ? err.message : "erreur inconnue"}`,
-      );
     }
 
     // ddns-enabled gives the router a reachable hostname even behind CGNAT;
