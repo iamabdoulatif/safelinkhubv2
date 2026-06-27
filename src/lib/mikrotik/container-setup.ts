@@ -587,69 +587,82 @@ export async function provisionHotspotStack(
       "hotspot DHCP network",
     );
 
-    // Remove every existing hotspot server first, not just one named
-    // "hotspot1" — covers servers left by RouterOS's own Quick Set wizard
-    // (which also defaults to that name, but isn't guaranteed to) and,
-    // critically, must happen BEFORE the profile cleanup below: RouterOS
-    // refuses to remove a profile that's still referenced by a live
-    // server ("profile in use"), and that failure was being silently
-    // swallowed by .catch — so the old profile never actually got deleted,
-    // a new one got added alongside it, and the next run's cleanup loop
-    // only caught up once the old server (and thus the "in use" lock) was
-    // already gone. Net effect: a rename (or even a same-name re-run that
-    // hit this race) left two profiles and, briefly, two servers visible
-    // in WinBox instead of one replacing the other.
+    // Edit-in-place instead of remove-then-add for both the profile and
+    // the server. Matched by the bridge INTERFACE actually in use, not by
+    // the expected name — a server/profile surviving from an older run
+    // (different bridge/hotspot name, or RouterOS's own Quick Set
+    // defaults) is still the *same logical hotspot service* on this
+    // router and must be the one edited, not left alone while a second
+    // server+profile pair gets created next to it. Matching by name alone
+    // missed that old pair entirely: nothing matched "hotspot1" by name,
+    // so a new server/profile got added, the ADD silently failed because
+    // RouterOS already had a (disabled, oddly-named) server bound to this
+    // same interface, and the cleanup pass below couldn't remove the old
+    // profile either since that still-alive old server was still
+    // referencing it — net effect, two profiles and a disabled server
+    // stuck under its previous name.
+    const htmlDirectory = opts.htmlDirectory?.trim() || "hotspot";
     const existingHotspotServers = await client.talk(["/ip/hotspot/print"]).catch(() => []);
+    const matchingServer =
+      existingHotspotServers.find((s) => s.interface === bridgeName) ?? existingHotspotServers[0];
+
+    const existingProfiles = await client.talk(["/ip/hotspot/profile/print"]).catch(() => []);
+    const matchingProfile =
+      existingProfiles.find((p) => p.name === matchingServer?.profile) ??
+      existingProfiles.find((p) => p.name === hotspotProfileName);
+
+    const profileFields = [
+      `=name=${hotspotProfileName}`,
+      `=hotspot-address=${opts.hotspotAddress}`,
+      `=dns-name=${opts.dnsName}`,
+      `=html-directory=${htmlDirectory}`,
+      `=html-directory-override=${htmlDirectory}`,
+      "=http-cookie-lifetime=52w1d",
+      "=install-hotspot-queue=yes",
+      "=login-by=mac,cookie,http-chap,http-pap,mac-cookie",
+      "=mac-auth-mode=mac-as-username-and-password",
+    ];
+    if (matchingProfile?.[".id"]) {
+      await run(
+        ["/ip/hotspot/profile/set", `=numbers=${matchingProfile[".id"]}`, ...profileFields],
+        "hotspot profile",
+      );
+    } else {
+      await run(["/ip/hotspot/profile/add", ...profileFields], "hotspot profile");
+    }
+
+    const serverFields = [
+      `=address-pool=${HOTSPOT_POOL_NAME}`,
+      "=addresses-per-mac=1",
+      "=disabled=no",
+      `=interface=${bridgeName}`,
+      `=name=${serverName}`,
+      `=profile=${hotspotProfileName}`,
+    ];
+    if (matchingServer?.[".id"]) {
+      await run(
+        ["/ip/hotspot/set", `=numbers=${matchingServer[".id"]}`, ...serverFields],
+        "hotspot service",
+      );
+    } else {
+      await run(["/ip/hotspot/add", ...serverFields], "hotspot service");
+    }
+
+    // Now safe to clean up any *other* leftover servers/profiles — the
+    // one actually in use was just /set above (by .id, not name), so
+    // nothing still-referenced gets pulled out from under it.
     for (const server of existingHotspotServers) {
-      if (server[".id"]) {
+      if (server[".id"] && server[".id"] !== matchingServer?.[".id"]) {
         await client.talk(["/ip/hotspot/remove", `=numbers=${server[".id"]}`]).catch(() => {});
       }
     }
-
-    // Remove every non-default server-profile from previous runs by .id.
-    // The profile name is intentionally tied to the technical hotspot
-    // server name, not to the customer-facing WiFi/hotspot label. Otherwise
-    // changing SSID/name from "safelinkhub" to "1x-wifi" leaves one profile
-    // per label on RouterOS and the captive portal can bind to the wrong
-    // one. Removing by name is also unreliable on some RouterOS menus; .id
-    // is the stable target.
-    const existingProfiles = await client.talk(["/ip/hotspot/profile/print"]).catch(() => []);
     for (const profile of existingProfiles) {
-      if (profile[".id"] && profile.name !== "default") {
+      if (profile[".id"] && profile.name !== "default" && profile[".id"] !== matchingProfile?.[".id"]) {
         await client
           .talk(["/ip/hotspot/profile/remove", `=numbers=${profile[".id"]}`])
           .catch(() => {});
       }
     }
-    const htmlDirectory = opts.htmlDirectory?.trim() || "hotspot";
-    await run(
-      [
-        "/ip/hotspot/profile/add",
-        `=name=${hotspotProfileName}`,
-        `=hotspot-address=${opts.hotspotAddress}`,
-        `=dns-name=${opts.dnsName}`,
-        `=html-directory=${htmlDirectory}`,
-        `=html-directory-override=${htmlDirectory}`,
-        "=http-cookie-lifetime=52w1d",
-        "=install-hotspot-queue=yes",
-        "=login-by=mac,cookie,http-chap,http-pap,mac-cookie",
-        "=mac-auth-mode=mac-as-username-and-password",
-      ],
-      "hotspot profile",
-    );
-
-    await run(
-      [
-        "/ip/hotspot/add",
-        `=address-pool=${HOTSPOT_POOL_NAME}`,
-        "=addresses-per-mac=1",
-        "=disabled=no",
-        `=interface=${bridgeName}`,
-        `=name=${serverName}`,
-        `=profile=${hotspotProfileName}`,
-      ],
-      "hotspot service",
-    );
 
     // Optional, operator-chosen default hotspot users (e.g. a quick test
     // login) — opt-in per router rather than a fixed multi-tenant default.
