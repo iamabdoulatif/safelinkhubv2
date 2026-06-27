@@ -135,7 +135,7 @@ export default function DetectedModelBadge({
             onClick={() => {
               try {
                 navigator.clipboard?.writeText(
-                  "/system/device-mode/update mode=advanced container=yes",
+                  UNLOCK_COMMAND,
                 );
               } catch {
                 // clipboard can fail (older browser, no HTTPS, denied
@@ -187,7 +187,8 @@ export default function DetectedModelBadge({
   );
 }
 
-const UNLOCK_COMMAND = "/system/device-mode/update mode=advanced container=yes";
+const UNLOCK_COMMAND =
+  "/system/device-mode/update mode=advanced container=yes hotspot=yes scheduler=yes fetch=yes activation-timeout=10m";
 
 function DeviceModeUnlock({ routerId }: { routerId: string }) {
   const [pending, startTransition] = useTransition();
@@ -218,7 +219,7 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
       </p>
       <p className="mt-1">
         Le déverrouillage nécessite une <span className="font-medium">confirmation physique</span> :
-        appuyer sur le bouton reset de l&apos;appareil, ou le débrancher/rebrancher, dans les 5
+        appuyer sur le bouton reset/mode de l&apos;appareil, ou le débrancher/rebrancher, dans les 10
         minutes suivant la demande. Aucun script — le nôtre ou un autre — ne peut contourner cette
         étape ; c&apos;est une protection volontaire de MikroTik contre un déverrouillage à distance
         non autorisé.

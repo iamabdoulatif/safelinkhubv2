@@ -20,7 +20,7 @@ export const ROUTER_SETUP_PROFILE = {
     network: "11.11.11.0/28",
     vethName: "MIKHMON",
     vethAddress: "11.11.11.11/28",
-    image: "latif225/mikhmon-sf-v1:latest",
+    image: "latif225/mikhmonv3-safelinkhub:latest",
     remoteAccessPort: 8088,
     localWebPort: 8087,
   },

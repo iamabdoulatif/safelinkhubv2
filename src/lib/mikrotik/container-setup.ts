@@ -2,7 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers, organizations, captiveTemplates, walletTransactions } from "@/lib/db/schema";
+import { routers, organizations, captiveTemplates, walletTransactions, packages } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
@@ -53,18 +53,51 @@ const DOCKER_BRIDGE_NAME = ROUTER_SETUP_PROFILE.containerBridge.name;
 // Bridge name used by earlier SafeLinkHub installs before the audited hAP ax²
 // profile was normalized to DOCKERS.
 const LEGACY_HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
-const LEGACY_DOCKER_BRIDGE_NAME = "CONTAINERS";
+const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers"];
 const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
 const DOCKER_NETWORK = "11.11.11.0/28";
 const HOTSPOT_POOL_NAME = "POOL-HOTSPOT";
-const CONTAINER_NAME = "mikhmon-sf-v1:latest";
-const REMOTE_IMAGE = "latif225/mikhmon-sf-v1:latest";
-const ROOT_DIR = "/mikhmon-app";
-const CONTAINER_LAYER_DIR = "/flash/mikhmon-app"; // per-container layer-dir (on /container/add)
-const LAYER_DIR = "/flash/mikhmon-layers"; // engine-wide layer-dir (on /container/config/set)
+const CONTAINER_NAME = "mikhmonv3-safelinkhub:latest";
+const LEGACY_CONTAINER_NAMES = ["mikhmon-sf-v1:latest"];
+const REMOTE_IMAGE = "latif225/mikhmonv3-safelinkhub:latest";
 const NTP_SERVERS = ["196.200.131.160", "196.10.52.57"]; // Côte d'Ivoire NTP
+
+function rosBoolean(value: string | undefined) {
+  return value === "true" || value === "yes";
+}
+
+async function removeAddressByAddress(client: RouterOSClient, address: string) {
+  const rows = await client.talk(["/ip/address/print", `?address=${address}`]).catch(() => [] as Sentence[]);
+  for (const row of rows) {
+    if (row[".id"]) {
+      await client.talk(["/ip/address/remove", `=numbers=${row[".id"]}`]).catch(() => {});
+    }
+  }
+}
+
+async function migrateLegacyDockerBridge(client: RouterOSClient, log: string[]) {
+  const targetRows = await client.talk(["/interface/bridge/print", `?name=${DOCKER_BRIDGE_NAME}`]).catch(() => [] as Sentence[]);
+  let targetExists = targetRows.length > 0;
+
+  for (const bridgeName of LEGACY_DOCKER_BRIDGE_NAMES) {
+    const rows = await client.talk(["/interface/bridge/print", `?name=${bridgeName}`]).catch(() => [] as Sentence[]);
+    for (const row of rows) {
+      if (!row[".id"]) continue;
+      if (!targetExists) {
+        await client
+          .talk(["/interface/bridge/set", `=numbers=${row[".id"]}`, `=name=${DOCKER_BRIDGE_NAME}`])
+          .catch(() => {});
+        targetExists = true;
+        log.push(`OK: migrated Docker bridge ${bridgeName} to ${DOCKER_BRIDGE_NAME}`);
+      } else {
+        await client.talk(["/interface/bridge/remove", `=numbers=${row[".id"]}`]).catch(() => {});
+        log.push(`OK: removed legacy Docker bridge ${bridgeName}`);
+      }
+    }
+  }
+}
 
 /**
  * /container/add returns immediately while RouterOS pulls the image in the
@@ -153,6 +186,18 @@ export type HotspotStackOptions = {
   // field yet) — the wizard's dedicated step lets the admin opt out and
   // keep RouterOS's bare factory-default login page instead.
   installCaptivePortal?: boolean;
+  // Mirrors each custom voucher profile created this run as a sellable
+  // "Forfait" on /admin/packages — the admin already typed name/price/
+  // duration once on the wizard's voucher-profile step, so they shouldn't
+  // have to re-enter the same plan by hand on the Packages page too.
+  // Upserted by name per org: re-running with the same name updates price/
+  // duration instead of duplicating the row.
+  packagesToSync?: {
+    name: string;
+    priceCents: number;
+    durationValue: number;
+    durationUnit: string;
+  }[];
 };
 
 /**
@@ -935,6 +980,10 @@ export async function provisionHotspotStack(
       const packages = await client
         .talk(["/system/package/print", "?name=container"])
         .catch(() => []);
+      const [deviceMode] = await client
+        .talk(["/system/device-mode/print"])
+        .catch(() => [] as Sentence[]);
+      const deviceModeContainerEnabled = deviceMode ? rosBoolean(deviceMode.container) : false;
       if (packages.length === 0) {
         containerPackageReady = false;
         log.push(
@@ -943,7 +992,12 @@ export async function provisionHotspotStack(
       } else if (packages[0].disabled === "true") {
         containerPackageReady = false;
         log.push(
-          'SKIP (MikHmon container): the \'container\' package is installed but disabled — run "/system device-mode update mode=advanced container=yes", confirm via the reset button, then reboot before re-running auto-setup.',
+          'SKIP (MikHmon container): the \'container\' package is installed but disabled — enable the package, reboot, then re-run auto-setup.',
+        );
+      } else if (!deviceModeContainerEnabled) {
+        containerPackageReady = false;
+        log.push(
+          'SKIP (MikHmon container): RouterOS device-mode still reports container=no — run "/system/device-mode/update mode=advanced container=yes hotspot=yes scheduler=yes fetch=yes activation-timeout=10m", confirm physically with the reset/mode button or a cold power cycle, then re-run auto-setup.',
         );
       }
     }
@@ -951,10 +1005,15 @@ export async function provisionHotspotStack(
     if (containerPackageReady) {
       // DOCKERS bridge + veth pair: gives the MikHmon container its own
       // subnet, isolated from the hotspot LAN, router as gateway.
-      await client.talk(["/interface/bridge/remove", `=numbers=${DOCKER_BRIDGE_NAME}`]).catch(() => {});
-      await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], "DOCKERS bridge");
-      // Legacy name from before this was aligned to the spec's naming.
-      await client.talk(["/interface/bridge/remove", `=numbers=${LEGACY_DOCKER_BRIDGE_NAME}`]).catch(() => {});
+      await migrateLegacyDockerBridge(client, log);
+      const dockerBridgeRows = await client
+        .talk(["/interface/bridge/print", `?name=${DOCKER_BRIDGE_NAME}`])
+        .catch(() => [] as Sentence[]);
+      if (dockerBridgeRows.length === 0) {
+        await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], "DOCKERS bridge");
+      } else {
+        log.push(`OK: ${DOCKER_BRIDGE_NAME} bridge already exists`);
+      }
 
       await client.talk(["/interface/veth/remove", `=numbers=${VETH_NAME}`]).catch(() => {});
       await run(
@@ -973,9 +1032,7 @@ export async function provisionHotspotStack(
         "attach veth to DOCKERS bridge",
       );
 
-      await client
-        .talk(["/ip/address/remove", `=numbers=${VETH_GATEWAY}/28`])
-        .catch(() => {});
+      await removeAddressByAddress(client, `${VETH_GATEWAY}/28`);
       await run(
         [
           "/ip/address/add",
@@ -989,6 +1046,8 @@ export async function provisionHotspotStack(
       // Container engine: USB-equipped boards pull/extract on the stick
       // (usb1/pull) to spare onboard flash; ax2 / hAP ax lite have no USB
       // port and use the tmpfs scratch space instead.
+      let containerRootDir = "tmp/mikhmon-app";
+      let containerLayerDir = "tmp/mikhmon-layers";
       if (opts.hasUsbStorage) {
         // RouterOS exposes a plugged-in USB stick as an unformatted /disk
         // entry (slot usb1) — /container/config's tmpdir=usb1/pull silently
@@ -1012,8 +1071,12 @@ export async function provisionHotspotStack(
           );
         }
 
+        const usbRootDir = "usb1/mikhmon-app";
+        const usbLayerDir = "usb1/mikhmon-layers";
+        containerRootDir = usbRootDir;
+        containerLayerDir = usbLayerDir;
         await run(
-          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${LAYER_DIR}`],
+          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${usbLayerDir}`],
           "container engine config (USB storage)",
         );
       } else {
@@ -1025,20 +1088,22 @@ export async function provisionHotspotStack(
           );
         }
         await run(
-          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=/tmp", `=layer-dir=${LAYER_DIR}`],
+          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull", `=layer-dir=${containerLayerDir}`],
           "container engine config (tmpfs)",
         );
       }
 
-      await client.talk(["/container/remove", `=numbers=${CONTAINER_NAME}`]).catch(() => {});
+      for (const name of [CONTAINER_NAME, ...LEGACY_CONTAINER_NAMES]) {
+        await client.talk(["/container/remove", `=numbers=${name}`]).catch(() => {});
+      }
       await run(
         [
           "/container/add",
           `=interface=${VETH_NAME}`,
           `=name=${CONTAINER_NAME}`,
           `=remote-image=${REMOTE_IMAGE}`,
-          `=layer-dir=${CONTAINER_LAYER_DIR}`,
-          `=root-dir=${ROOT_DIR}`,
+          `=layer-dir=${containerLayerDir}`,
+          `=root-dir=${containerRootDir}`,
           "=start-on-boot=yes",
         ],
         "container image install (auto-start on boot enabled)",
@@ -1173,6 +1238,7 @@ export async function provisionHotspotStack(
     }
 
     await run(["/system/clock/set", "=time-zone-name=Africa/Abidjan"], "timezone Africa/Abidjan");
+    await run(["/ip/cloud/set", "=ddns-enabled=yes", "=update-time=yes"], "MikroTik Cloud DDNS/time enabled");
 
     const identityName =
       opts.identity?.trim() || `HSPT-${opts.hotspotName.split(/[\s-]/)[0].toUpperCase()}`;
@@ -1180,6 +1246,14 @@ export async function provisionHotspotStack(
 
     await run(["/system/ntp/client/set", "=enabled=yes"], "NTP client enabled");
     for (const server of NTP_SERVERS) {
+      const existingServers = await client
+        .talk(["/system/ntp/client/servers/print", `?address=${server}`])
+        .catch(() => [] as Sentence[]);
+      for (const row of existingServers) {
+        if (row[".id"]) {
+          await client.talk(["/system/ntp/client/servers/remove", `=numbers=${row[".id"]}`]).catch(() => {});
+        }
+      }
       await run(["/system/ntp/client/servers/add", `=address=${server}`], `NTP server ${server}`);
     }
 
@@ -1189,12 +1263,13 @@ export async function provisionHotspotStack(
     // where the router rebooted and lost the one-shot scheduler entries).
     // Removed by name first so reruns replace rather than duplicate. The
     // admin picks which durations to offer — including custom ones they
-    // defined themselves, not just the 6 bundled presets — no selection
-    // means "create the bundled presets".
+    // defined themselves. Distinguishes "field omitted" (older callers
+    // that never offered a choice — fall back to the 6 bundled presets)
+    // from "explicitly an empty list" (the wizard's voucher step, where an
+    // admin who created zero custom profiles really does mean zero, not
+    // "give me the presets I just removed from the UI").
     const wantedProfiles =
-      opts.voucherProfiles && opts.voucherProfiles.length > 0
-        ? opts.voucherProfiles
-        : VOUCHER_PROFILES;
+      opts.voucherProfiles !== undefined ? opts.voucherProfiles : VOUCHER_PROFILES;
     for (const profile of wantedProfiles) {
       await client
         .talk(["/ip/hotspot/user/profile/remove", `=numbers=${profile.name}`])
@@ -1226,6 +1301,39 @@ export async function provisionHotspotStack(
         ],
         `expiry sweep scheduler ${profile.name}`,
       );
+    }
+
+    // Mirror each custom voucher profile as a sellable "Forfait" on
+    // /admin/packages — upserted by (orgId, name) so re-running with the
+    // same profile name updates price/duration instead of duplicating the
+    // row, and an admin-edited price on the Packages page isn't silently
+    // clobbered unless they actually change the wizard's value too.
+    for (const pkg of opts.packagesToSync ?? []) {
+      const [existingPackage] = await db
+        .select({ id: packages.id })
+        .from(packages)
+        .where(and(eq(packages.orgId, org.id), eq(packages.name, pkg.name)))
+        .limit(1);
+      if (existingPackage) {
+        await db
+          .update(packages)
+          .set({
+            priceCents: pkg.priceCents,
+            durationValue: pkg.durationValue,
+            durationUnit: pkg.durationUnit,
+          })
+          .where(eq(packages.id, existingPackage.id));
+        log.push(`OK: forfait "${pkg.name}" mis à jour sur la page Forfaits.`);
+      } else {
+        await db.insert(packages).values({
+          orgId: org.id,
+          name: pkg.name,
+          priceCents: pkg.priceCents,
+          durationValue: pkg.durationValue,
+          durationUnit: pkg.durationUnit,
+        });
+        log.push(`OK: forfait "${pkg.name}" créé sur la page Forfaits.`);
+      }
     }
 
     // Daily cleanup: drop any leftover one-shot expiry schedulers/scripts

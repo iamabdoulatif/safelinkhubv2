@@ -10,7 +10,8 @@ function formatUgx(value: number) {
 }
 
 function formatDuration(value: number, unit: string) {
-  const suffix = unit === "Hours" ? "H" : unit === "Days" ? "J" : "S";
+  const suffix =
+    unit === "Minutes" ? "Min" : unit === "Hours" ? "H" : unit === "Days" ? "J" : "Sem";
   return `${value} ${suffix}`;
 }
 

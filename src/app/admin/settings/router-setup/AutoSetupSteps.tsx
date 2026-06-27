@@ -13,19 +13,29 @@ import {
   type DurationUnit,
   type VoucherProfile,
 } from "@/lib/mikrotik/voucher-profiles";
-import type { DetectedRouter } from "@/lib/mikrotik/device-detect";
+import { detectRouterModel, type DetectedRouter } from "@/lib/mikrotik/device-detect";
 import DetectedModelBadge from "./DetectedModelBadge";
 import TrialBadge from "@/components/billing/TrialBadge";
 import PaywallCard from "@/components/billing/PaywallCard";
 
-const DEFAULT_VOUCHER_PROFILE_NAMES = VOUCHER_PROFILES.map((p) => p.name);
-const UNLOCK_COMMAND = "/system/device-mode/update mode=advanced container=yes";
+const UNLOCK_COMMAND =
+  "/system/device-mode/update mode=advanced container=yes hotspot=yes scheduler=yes fetch=yes activation-timeout=10m";
 const DURATION_UNIT_OPTIONS: { value: DurationUnit; label: string }[] = [
   { value: "m", label: "Minutes" },
   { value: "h", label: "Heures" },
   { value: "d", label: "Jours" },
   { value: "w", label: "Semaines" },
 ];
+
+// Maps to the durationUnit values /admin/packages' "Forfaits" expect (see
+// CreatePackageModal.tsx) so a profile created here shows up there with
+// the right unit instead of a free-text mismatch.
+const PACKAGE_DURATION_UNIT: Record<DurationUnit, string> = {
+  m: "Minutes",
+  h: "Hours",
+  d: "Days",
+  w: "Weeks",
+};
 
 /**
  * What used to be one dense "Configuration automatique complète" card
@@ -93,8 +103,8 @@ function UnlockCommandBlock() {
     <div className="mt-2 rounded-md bg-amber-50 px-3 py-2.5">
       <p className="text-xs font-medium text-amber-700">
         Container verrouillé par le mode RouterOS — collez cette commande dans le terminal
-        Winbox/SSH, puis confirmez en appuyant sur le bouton reset (ou en débranchant/rebranchant
-        l&apos;appareil) dans les 5 minutes :
+        Winbox/SSH, puis confirmez en appuyant sur le bouton reset/mode (ou en
+        débranchant/rebranchant l&apos;appareil) dans les 10 minutes :
       </p>
       <div className="relative mt-1.5">
         <pre className="overflow-x-auto rounded-md bg-slate-900 px-3 py-2 pr-10 text-xs text-emerald-300">
@@ -155,6 +165,33 @@ export default function AutoSetupSteps({
         ? "architecture"
         : "device-mode";
   const requiresUsbForContainer = detected?.requiresUsbForContainer ?? false;
+  const [revalidating, setRevalidating] = useState(false);
+
+  function revalidateDetection() {
+    setRevalidating(true);
+    detectRouterModel(routerId).then((res) => {
+      setRevalidating(false);
+      if (res?.detected) setDetected(res.detected);
+    });
+  }
+
+  // DetectedModelBadge (étape 3) has its own poll/refresh, but it's
+  // unmounted on every other step — so an admin who unlocks Container
+  // (WinBox/SSH + physical confirmation) while already on, say, the USB
+  // step saw the "verrouillé" message stay stuck forever with no way to
+  // re-check short of going back to étape 3 and forward again. Polling
+  // here too, at the level that stays mounted across every step, means
+  // any step showing the lock warning self-heals within 15s, plus a
+  // manual "Revérifier" button right next to that warning.
+  useEffect(() => {
+    if (containerBlockedReason !== "device-mode") return;
+    const interval = window.setInterval(() => {
+      detectRouterModel(routerId).then((res) => {
+        if (res?.detected) setDetected(res.detected);
+      });
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [containerBlockedReason, routerId]);
 
   const hotspotAddress = hotspotBridge?.gatewayIp ?? "";
   const hotspotPrefixBits = hotspotBridge?.subnetBits ?? 24;
@@ -166,8 +203,10 @@ export default function AutoSetupSteps({
   const [defaultHotspotUsers, setDefaultHotspotUsers] = useState("");
   const [hasUsbStorage, setHasUsbStorage] = useState(false);
   const [usbTouched, setUsbTouched] = useState(false);
-  const [voucherProfiles, setVoucherProfiles] = useState<string[]>(DEFAULT_VOUCHER_PROFILE_NAMES);
   const [customProfiles, setCustomProfiles] = useState<VoucherProfile[]>([]);
+  const [customProfileMeta, setCustomProfileMeta] = useState<
+    { name: string; priceCents: number; durationValue: number; durationUnit: string }[]
+  >([]);
   const [customAmount, setCustomAmount] = useState("2");
   const [customUnit, setCustomUnit] = useState<DurationUnit>("d");
   const [customPrice, setCustomPrice] = useState("");
@@ -188,11 +227,6 @@ export default function AutoSetupSteps({
     if (!usbTouched) setHasUsbStorage(detectedHasUsb);
   }
 
-  function toggleVoucherProfile(name: string) {
-    setVoucherProfiles((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-    );
-  }
 
   function addCustomProfile() {
     const amount = Number(customAmount);
@@ -219,11 +253,26 @@ export default function AutoSetupSteps({
       price,
     });
     setCustomProfiles((prev) => [...prev, profile]);
+    // Kept alongside the RouterOS-facing profile object (which only embeds
+    // price/duration inside a script string) so the auto-setup can also
+    // upsert a matching "Forfait" on /admin/packages — creating the voucher
+    // profile on the router and selling it through SafeLinkHub shouldn't
+    // require entering the same name/price/duration a second time by hand.
+    setCustomProfileMeta((prev) => [
+      ...prev,
+      {
+        name,
+        priceCents: price,
+        durationValue: amount,
+        durationUnit: PACKAGE_DURATION_UNIT[customUnit],
+      },
+    ]);
     setCustomPrice("");
   }
 
   function removeCustomProfile(name: string) {
     setCustomProfiles((prev) => prev.filter((p) => p.name !== name));
+    setCustomProfileMeta((prev) => prev.filter((p) => p.name !== name));
   }
 
   const subnet = hotspotBridge ? computeSubnetInfo(hotspotAddress.trim(), hotspotPrefixBits) : null;
@@ -256,7 +305,6 @@ export default function AutoSetupSteps({
   function run() {
     setResult(null);
     startTransition(async () => {
-      const selectedPresets = VOUCHER_PROFILES.filter((p) => voucherProfiles.includes(p.name));
       const res = await provisionHotspotStack(routerId, {
         hotspotAddress,
         hotspotPrefixBits,
@@ -271,7 +319,8 @@ export default function AutoSetupSteps({
         hasUsbStorage,
         supportsContainers: archSupportsContainers,
         reboot: true,
-        voucherProfiles: [...selectedPresets, ...customProfiles],
+        voucherProfiles: customProfiles,
+        packagesToSync: customProfileMeta,
         installCaptivePortal,
       });
       setResult(res);
@@ -413,8 +462,22 @@ export default function AutoSetupSteps({
 
         {archSupportsContainers && containerBlockedReason === "device-mode" && (
           <>
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              Container verrouillé par le mode RouterOS sur cet appareil.
+            <p className="flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              <span>Container verrouillé par le mode RouterOS sur cet appareil.</span>
+              <button
+                type="button"
+                onClick={revalidateDetection}
+                disabled={revalidating}
+                className="shrink-0 rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {revalidating ? "Vérification..." : "Revérifier"}
+              </button>
+            </p>
+            <p className="mt-1.5 text-xs text-amber-600">
+              La commande ci-dessous seule ne suffit pas — il faut aussi confirmer
+              physiquement (bouton reset, ou débrancher/rebrancher l&apos;appareil) dans les
+              10 minutes qui suivent. Cette page revérifie automatiquement toutes les 15s, ou
+              cliquez sur &quot;Revérifier&quot; juste après avoir confirmé.
             </p>
             <UnlockCommandBlock />
           </>
@@ -450,30 +513,21 @@ export default function AutoSetupSteps({
     return (
       <StepShell
         title="Étape 5 : Profils voucher"
-        description="Chaque profil coché sera créé sur le routeur avec expiration automatique des accès."
+        description="Créez vos propres durées — chacune sera ajoutée sur le routeur avec expiration automatique des accès, et synchronisée comme forfait sur la page Forfaits."
         onBack={() => onStepChange(4)}
         onNext={() => onStepChange(6)}
       >
         <p className="text-xs text-slate-500">
           Gérables ensuite depuis MikHmon (image{" "}
-          <code className="rounded bg-slate-100 px-1 py-0.5">latif225/mikhmon-sf-v1:latest</code>
-          ). Décochez ceux que vous ne vendez pas.
+          <code className="rounded bg-slate-100 px-1 py-0.5">latif225/mikhmonv3-safelinkhub:latest</code>
+          ).
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {VOUCHER_PROFILES.map((profile) => (
-            <label
-              key={profile.name}
-              className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700"
-            >
-              <input
-                type="checkbox"
-                checked={voucherProfiles.includes(profile.name)}
-                onChange={() => toggleVoucherProfile(profile.name)}
-                className="h-4 w-4 rounded border-slate-300"
-              />
-              {profile.label}
-            </label>
-          ))}
+          {customProfiles.length === 0 && (
+            <p className="text-xs text-slate-400">
+              Aucun profil encore — créez-en au moins un ci-dessous.
+            </p>
+          )}
           {customProfiles.map((profile) => (
             <span
               key={profile.name}
@@ -660,11 +714,9 @@ export default function AutoSetupSteps({
           </dd>
         </div>
         <div className="sm:col-span-2">
-          <dt className="text-slate-400">Profils voucher ({voucherProfiles.length + customProfiles.length})</dt>
+          <dt className="text-slate-400">Profils voucher ({customProfiles.length})</dt>
           <dd className="font-medium text-slate-700">
-            {[...VOUCHER_PROFILES.filter((p) => voucherProfiles.includes(p.name)), ...customProfiles]
-              .map((p) => p.label)
-              .join(", ") || "Aucun"}
+            {customProfiles.map((p) => p.label).join(", ") || "Aucun"}
           </dd>
         </div>
       </dl>

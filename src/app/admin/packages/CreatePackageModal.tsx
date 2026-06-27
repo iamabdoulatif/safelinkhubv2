@@ -77,6 +77,7 @@ export default function CreatePackageModal() {
                     name="durationUnit"
                     className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
                   >
+                    <option value="Minutes">Minutes</option>
                     <option value="Hours">Heures</option>
                     <option value="Days">Jours</option>
                     <option value="Weeks">Semaines</option>

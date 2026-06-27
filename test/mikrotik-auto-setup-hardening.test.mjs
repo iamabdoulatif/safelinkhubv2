@@ -1,0 +1,62 @@
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import assert from "node:assert/strict";
+
+const containerSetupSource = () =>
+  readFile(new URL("../src/lib/mikrotik/container-setup.ts", import.meta.url), "utf8");
+
+test("auto-setup targets the audited MikHmon v3 container image", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /mikhmonv3-safelinkhub:latest/);
+  assert.doesNotMatch(source, /latif225\/mikhmon-sf-v1:latest/);
+});
+
+test("auto-setup migrates the lowercase dockers bridge before assigning the Docker gateway", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /LEGACY_DOCKER_BRIDGE_NAMES = \["CONTAINERS", "dockers"\]/);
+  assert.match(source, /migrateLegacyDockerBridge/);
+  assert.match(source, /removeAddressByAddress\(client, `\$\{VETH_GATEWAY\}\/28`\)/);
+});
+
+test("USB container installs use USB paths instead of internal flash layer paths", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /const usbRootDir = "usb1\/mikhmon-app"/);
+  assert.match(source, /const usbLayerDir = "usb1\/mikhmon-layers"/);
+  assert.doesNotMatch(source, /\/flash\/mikhmon/);
+});
+
+test("server-side auto-setup rechecks RouterOS device-mode container flag", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /\/system\/device-mode\/print/);
+  assert.match(source, /deviceModeContainerEnabled/);
+  assert.match(source, /container=no/);
+});
+
+test("device-mode unlock instructions request all required flags in one confirmable command", async () => {
+  const autoSetup = await readFile(
+    new URL("../src/app/admin/settings/router-setup/AutoSetupSteps.tsx", import.meta.url),
+    "utf8",
+  );
+  const detectedBadge = await readFile(
+    new URL("../src/app/admin/settings/router-setup/DetectedModelBadge.tsx", import.meta.url),
+    "utf8",
+  );
+  const deviceDetect = await readFile(
+    new URL("../src/lib/mikrotik/device-detect.ts", import.meta.url),
+    "utf8",
+  );
+
+  for (const source of [autoSetup, detectedBadge, deviceDetect]) {
+    assert.match(source, /mode=advanced/);
+    assert.match(source, /container=yes/);
+    assert.match(source, /hotspot=yes/);
+    assert.match(source, /scheduler=yes/);
+    assert.match(source, /fetch=yes/);
+    assert.match(source, /activation-timeout=10m/);
+  }
+});
+

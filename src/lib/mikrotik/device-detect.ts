@@ -22,6 +22,15 @@ const KNOWN_ARCHITECTURES: readonly Architecture[] = [
   "smips",
   "tile",
 ];
+const DEVICE_MODE_UNLOCK_WORDS = [
+  "/system/device-mode/update",
+  "=mode=advanced",
+  "=container=yes",
+  "=hotspot=yes",
+  "=scheduler=yes",
+  "=fetch=yes",
+  "=activation-timeout=10m",
+] as const;
 
 function parseArchitecture(raw: string): Architecture | null {
   const normalized = raw.trim().toLowerCase();
@@ -191,11 +200,11 @@ export async function requestDeviceModeUnlock(routerId: string) {
   }
 
   try {
-    await client.talk(["/system/device-mode/update", "=mode=advanced", "=container=yes"]);
+    await client.talk([...DEVICE_MODE_UNLOCK_WORDS]);
     return {
       success: true,
       message:
-        "Demande envoyée. Pour confirmer : appuyez sur le bouton reset de l'appareil, ou débranchez/rebranchez son alimentation, dans les 5 prochaines minutes. Le routeur redémarrera automatiquement une fois confirmé.",
+        "Demande envoyée. Pour confirmer : appuyez sur le bouton reset/mode de l'appareil, ou débranchez/rebranchez son alimentation, dans les 10 prochaines minutes. Le routeur redémarrera automatiquement une fois confirmé.",
     };
   } catch (err) {
     return {

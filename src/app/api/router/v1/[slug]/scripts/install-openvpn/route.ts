@@ -34,7 +34,7 @@ function buildScript(opts: {
 
 # Scoped to the tunnel subnet plus the Docker subnet — MikHmon runs inside
 # the container at 11.11.11.11 and connects to the router's own API at the
-# CONTAINERS bridge gateway (11.11.11.1) to manage hotspot users/vouchers.
+# DOCKERS bridge gateway (11.11.11.1) to manage hotspot users/vouchers.
 # Restricting to the tunnel subnet alone silently rejects that connection
 # and MikHmon's session settings show "MikroTik Not Connected" even with
 # correct IP/credentials — see provisionHotspotStack's matching allowlist.

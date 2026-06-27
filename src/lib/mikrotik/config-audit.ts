@@ -125,7 +125,7 @@ export async function auditRouterConfig(routerId: string) {
     }
 
     const container = await client
-      .talk(["/container/print", "?name=mikhmon-sf-v1:latest"])
+      .talk(["/container/print", "?name=mikhmonv3-safelinkhub:latest"])
       .catch(() => []);
     items.push(
       container.length > 0
