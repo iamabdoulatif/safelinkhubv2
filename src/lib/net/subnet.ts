@@ -1,3 +1,26 @@
+export type NetworkClass = "any" | "A" | "B" | "C";
+
+function rangeArray(start: number, end: number): number[] {
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+
+// Picking a class narrows the /bits dropdown to that class's conventional
+// range; "Any" exposes the full usable range (a /31 or /32 has no usable
+// hotspot hosts, so this stops at /30).
+export const CLASS_PREFIX_OPTIONS: Record<NetworkClass, number[]> = {
+  any: rangeArray(1, 30),
+  A: rangeArray(8, 15),
+  B: rangeArray(16, 23),
+  C: rangeArray(24, 30),
+};
+
+export const CLASS_DEFAULT_PREFIX: Record<NetworkClass, number> = {
+  any: 24,
+  A: 8,
+  B: 16,
+  C: 24,
+};
+
 export type SubnetInfo = {
   networkAddress: string;
   broadcastAddress: string;

@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Box, Cable, Layers, Plus, SlidersHorizontal, Wifi, X } from "lucide-react";
 import { listRouterInterfaces, saveBridge } from "@/lib/mikrotik/bridges";
+import { CLASS_DEFAULT_PREFIX, CLASS_PREFIX_OPTIONS, type NetworkClass } from "@/lib/net/subnet";
 import BootstrapModal from "./BootstrapModal";
 
 type Port = { name: string; type: string; running: boolean; disabled: boolean };
@@ -518,6 +519,15 @@ export default function TopologyBuilder({
   const [state, formAction, pending] = useActionState(saveBridge, undefined);
   const [retryCount, setRetryCount] = useState(0);
   const [retrying, setRetrying] = useState(true);
+  const [networkClass, setNetworkClass] = useState<NetworkClass>("B");
+  const [subnetBits, setSubnetBits] = useState(19);
+
+  function changeNetworkClass(next: NetworkClass) {
+    setNetworkClass(next);
+    if (!CLASS_PREFIX_OPTIONS[next].includes(subnetBits)) {
+      setSubnetBits(CLASS_DEFAULT_PREFIX[next]);
+    }
+  }
 
   // Flip back into "retrying" the moment routerId/retryCount changes —
   // adjusted during render (the React-recommended alternative to
@@ -690,16 +700,39 @@ export default function TopologyBuilder({
 
               <div className="flex items-center gap-6">
                 <label className="w-32 shrink-0 text-base font-medium text-slate-700">
+                  Classe réseau
+                </label>
+                <div className="flex flex-1 flex-wrap gap-4">
+                  {(["any", "A", "B", "C"] as NetworkClass[]).map((c) => (
+                    <label key={c} className="flex items-center gap-1.5 text-sm text-slate-700">
+                      <input
+                        type="radio"
+                        name="network-class"
+                        checked={networkClass === c}
+                        onChange={() => changeNetworkClass(c)}
+                        className="h-4 w-4 border-slate-300"
+                      />
+                      {c === "any" ? "Toutes" : `Classe ${c}`}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6">
+                <label className="w-32 shrink-0 text-base font-medium text-slate-700">
                   Taille du sous-réseau
                 </label>
                 <select
                   name="subnetBits"
-                  defaultValue={19}
+                  value={subnetBits}
+                  onChange={(e) => setSubnetBits(Number(e.target.value))}
                   className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-base focus:border-slate-400 focus:outline-none"
                 >
-                  <option value={24}>/24 (254 hôtes)</option>
-                  <option value={19}>/19 (8190 hôtes)</option>
-                  <option value={16}>/16 (65534 hôtes)</option>
+                  {CLASS_PREFIX_OPTIONS[networkClass].map((bits) => (
+                    <option key={bits} value={bits}>
+                      /{bits}
+                    </option>
+                  ))}
                 </select>
               </div>
 

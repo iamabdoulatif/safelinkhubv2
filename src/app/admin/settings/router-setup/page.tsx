@@ -6,7 +6,6 @@ import MethodTabs from "./MethodTabs";
 import StepIndicator from "./StepIndicator";
 import RouterSetupWizard from "./RouterSetupWizard";
 import RouterResetButton from "./RouterResetButton";
-import AutoSetupExtras from "./AutoSetupExtras";
 
 export default async function RouterSetupPage() {
   const session = await getSession();
@@ -42,7 +41,7 @@ export default async function RouterSetupPage() {
 
       {!isOnline ? (
         <>
-          <StepIndicator steps={[1, 2, 3, 4]} currentStep={1} />
+          <StepIndicator steps={[1, 2, 3, 4, 5]} currentStep={1} />
 
           {router && (
             <div className="mt-4 flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5">
@@ -63,28 +62,18 @@ export default async function RouterSetupPage() {
           <MethodTabs />
         </>
       ) : (
-        <>
-          <RouterSetupWizard
-            routerId={router!.id}
-            routerName={router!.name}
-            initialBridges={routerBridges.map((b) => ({
-              id: b.id,
-              name: b.name,
-              gatewayIp: b.gatewayIp,
-              subnetBits: b.subnetBits,
-              ports: b.ports,
-              hotspotEnabled: b.hotspotEnabled,
-            }))}
-          />
-          <AutoSetupExtras
-            routerId={router!.id}
-            hotspotBridge={
-              routerBridges
-                .filter((b) => b.hotspotEnabled)
-                .map((b) => ({ gatewayIp: b.gatewayIp, subnetBits: b.subnetBits }))[0] ?? null
-            }
-          />
-        </>
+        <RouterSetupWizard
+          routerId={router!.id}
+          routerName={router!.name}
+          initialBridges={routerBridges.map((b) => ({
+            id: b.id,
+            name: b.name,
+            gatewayIp: b.gatewayIp,
+            subnetBits: b.subnetBits,
+            ports: b.ports,
+            hotspotEnabled: b.hotspotEnabled,
+          }))}
+        />
       )}
     </div>
   );
