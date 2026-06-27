@@ -245,6 +245,32 @@ export const routerPortForwards = pgTable("router_port_forwards", {
   expiresAt: timestamp("expires_at"),
 });
 
+/**
+ * Org-level prepaid wallet that direct-access (WinBox/WebFig/SSH/MikHmon)
+ * plan activations charge against — separate from floatTransactions, which
+ * tracks the org's own mobile-money float for selling hotspot vouchers to
+ * their customers, a completely different cash flow. Balance is derived
+ * by summing "topup" minus "charge" rows rather than stored denormalized,
+ * same pattern as floatTransactions.
+ */
+export const walletTransactions = pgTable("wallet_transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // "topup" | "charge"
+  amountCents: integer("amount_cents").notNull(),
+  note: text("note"),
+  // Which direct-access activation this charge was for, if any — null for
+  // manual top-ups. set null (not cascade) so the ledger entry survives
+  // even after the forward itself is later disabled/deleted.
+  relatedForwardId: uuid("related_forward_id").references(() => routerPortForwards.id, {
+    onDelete: "set null",
+  }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const supportTickets = pgTable("support_tickets", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")

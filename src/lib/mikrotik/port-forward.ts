@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routerPortForwards, routers } from "@/lib/db/schema";
+import { routerPortForwards, routers, walletTransactions } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { allocatePortForward, revokePortForward } from "./relay";
 import { connectToRouter } from "./router-sync";
@@ -12,6 +12,9 @@ import {
   getMikhmonTunnelNatCommands,
   getPortForwardTargetPort,
 } from "./port-forward-rules";
+import { PERIOD_PRICE_CENTS, BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
+
+export type { BillingPeriod } from "./billing-plans";
 
 /**
  * "No VPN client needed" remote access: a public relay_ip:port that DNATs
@@ -63,18 +66,6 @@ export async function listPortForwards(routerId: string) {
  * token) — no getSession() here, callers are responsible for authorizing
  * the request through whatever channel they came from.
  */
-export type BillingPeriod = "monthly" | "quarterly" | "semiannual" | "yearly";
-
-// Not exported: a "use server" file may only export async functions (and
-// types, which are erased) — a plain object export here breaks the build
-// ("A 'use server' file can only export async functions, found object").
-const BILLING_PERIOD_MONTHS: Record<BillingPeriod, number> = {
-  monthly: 1,
-  quarterly: 3,
-  semiannual: 6,
-  yearly: 12,
-};
-
 function expiresAtFor(period: BillingPeriod, from = new Date()): Date {
   const date = new Date(from);
   date.setMonth(date.getMonth() + BILLING_PERIOD_MONTHS[period]);
@@ -116,7 +107,12 @@ async function enablePortForwardForRouter(
     )
     .limit(1);
   if (existing.length > 0) {
-    return { success: true, publicPort: existing[0].publicPort, relayHost: process.env.WG_RELAY_HOST };
+    return {
+      success: true,
+      publicPort: existing[0].publicPort,
+      relayHost: process.env.WG_RELAY_HOST,
+      created: false as const,
+    };
   }
 
   if (service === "mikhmon" || service === "ssh") {
@@ -154,18 +150,53 @@ async function enablePortForwardForRouter(
   // but the chosen period + computed expiry are recorded so the UI can
   // already show "expires on"/renewal, and so enforcement can switch on
   // later without a data migration once billing actually goes live.
-  await db.insert(routerPortForwards).values({
-    routerId,
-    service,
-    targetPort,
-    publicPort,
-    tunnelIp: router.tunnelIp,
-    status: "active",
-    billingPeriod,
-    expiresAt: expiresAtFor(billingPeriod),
-  });
+  const [forward] = await db
+    .insert(routerPortForwards)
+    .values({
+      routerId,
+      service,
+      targetPort,
+      publicPort,
+      tunnelIp: router.tunnelIp,
+      status: "active",
+      billingPeriod,
+      expiresAt: expiresAtFor(billingPeriod),
+    })
+    .returning();
 
-  return { success: true, publicPort, relayHost: process.env.WG_RELAY_HOST };
+  return {
+    success: true,
+    publicPort,
+    relayHost: process.env.WG_RELAY_HOST,
+    created: true as const,
+    forwardId: forward.id,
+  };
+}
+
+/**
+ * Charges the org's wallet for a newly-activated plan — split out from
+ * enablePortForwardForRouter (which has no session/orgId for the
+ * unauthenticated post-install bootstrap caller) so only an admin
+ * explicitly choosing a plan through the authenticated action below ever
+ * gets billed, never the auto-enabled-after-install services.
+ */
+async function chargeWalletForActivation(opts: {
+  orgId: string;
+  userId: string;
+  forwardId: string;
+  service: string;
+  billingPeriod: BillingPeriod;
+  routerName: string;
+}) {
+  const db = getDb();
+  await db.insert(walletTransactions).values({
+    orgId: opts.orgId,
+    type: "charge",
+    amountCents: PERIOD_PRICE_CENTS[opts.billingPeriod],
+    note: `${opts.service} — ${opts.routerName}`,
+    relatedForwardId: opts.forwardId,
+    createdBy: opts.userId,
+  });
 }
 
 /**
@@ -195,7 +226,7 @@ export async function enablePortForward(
 
   const db = getDb();
   const [router] = await db
-    .select({ orgId: routers.orgId })
+    .select({ orgId: routers.orgId, name: routers.name })
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
@@ -205,8 +236,20 @@ export async function enablePortForward(
 
   const result = await enablePortForwardForRouter(routerId, service, billingPeriod);
 
+  if (result.success && result.created) {
+    await chargeWalletForActivation({
+      orgId: session.orgId,
+      userId: session.userId,
+      forwardId: result.forwardId,
+      service,
+      billingPeriod,
+      routerName: router.name,
+    });
+  }
+
   revalidatePath("/admin/remote-access");
   revalidatePath("/admin/router");
+  revalidatePath("/admin/billing");
   return result;
 }
 

@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Copy, CreditCard, ExternalLink, Globe2, Loader2, ShieldOff } from "lucide-react";
-import { disablePortForward, enablePortForward, type BillingPeriod } from "@/lib/mikrotik/port-forward";
+import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
+import { PERIOD_PRICE_CENTS, type BillingPeriod } from "@/lib/mikrotik/billing-plans";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
 
 type RouterRow = {
@@ -41,6 +42,10 @@ const BILLING_PERIOD_LABELS: Record<BillingPeriod, string> = {
 function formatExpiry(date: Date | null) {
   if (!date) return null;
   return new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatFcfa(cents: number) {
+  return `${cents.toLocaleString("fr-FR")} FCFA`;
 }
 
 function CopyableAddress({ value }: { value: string }) {
@@ -319,10 +324,10 @@ function RouterDirectAccess({
                       title="Plan de facturation (paiement non encore activé)"
                       className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[11px] text-slate-600 focus:border-slate-400 focus:outline-none disabled:opacity-50"
                     >
-                      <option value="monthly">1 mois</option>
-                      <option value="quarterly">3 mois</option>
-                      <option value="semiannual">6 mois</option>
-                      <option value="yearly">12 mois</option>
+                      <option value="monthly">1 mois — {formatFcfa(PERIOD_PRICE_CENTS.monthly)}</option>
+                      <option value="quarterly">3 mois — {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}</option>
+                      <option value="semiannual">6 mois — {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}</option>
+                      <option value="yearly">12 mois — {formatFcfa(PERIOD_PRICE_CENTS.yearly)}</option>
                     </select>
                   )}
                   <button
