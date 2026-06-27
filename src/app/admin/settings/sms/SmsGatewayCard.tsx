@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Image from "next/image";
 import { Check } from "lucide-react";
 import { saveSmsGateway } from "@/lib/sms/actions";
 import type { Provider } from "@/lib/sms/providers";
@@ -9,8 +10,8 @@ const LABELS: Record<Provider, string> = {
   wassoya: "Wassoya",
 };
 
-const COLORS: Record<Provider, string> = {
-  wassoya: "bg-[#5B3DF5]",
+const LOGOS: Record<Provider, string> = {
+  wassoya: "/wassoya.png",
 };
 
 const SUBTITLES: Record<Provider, string> = {
@@ -41,11 +42,13 @@ export default function SmsGatewayCard({
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span
-            className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white ${COLORS[provider]}`}
-          >
-            {LABELS[provider].slice(0, 1)}
-          </span>
+          <Image
+            src={LOGOS[provider]}
+            alt={LABELS[provider]}
+            width={512}
+            height={512}
+            className="h-8 w-8 object-contain"
+          />
           <h3 className="font-semibold text-slate-900">{LABELS[provider]}</h3>
         </div>
       </div>
