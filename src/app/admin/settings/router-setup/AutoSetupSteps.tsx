@@ -154,6 +154,7 @@ export default function AutoSetupSteps({
     feeCents: number;
     walletBalanceCents: number;
     sufficientBalance: boolean;
+    unlimited?: boolean;
   };
   const [billing, setBilling] = useState<BillingStatus | null>(null);
 
@@ -738,11 +739,16 @@ export default function AutoSetupSteps({
             {archSupportsContainers ? " (Hotspot + MikHmon)" : " (Hotspot)"}
           </h2>
         </div>
-        {billing && (billing.isFree || billing.alreadyBilled) && (
-          <TrialBadge
-            active
-            activeLabel={billing.alreadyBilled ? "Déjà configuré" : "1er routeur gratuit"}
-          />
+        {billing?.unlimited ? (
+          <TrialBadge active activeLabel="Compte illimité — Superadmin" />
+        ) : (
+          billing &&
+          (billing.isFree || billing.alreadyBilled) && (
+            <TrialBadge
+              active
+              activeLabel={billing.alreadyBilled ? "Déjà configuré" : "1er routeur gratuit"}
+            />
+          )
         )}
       </div>
       <p className="mt-1 text-sm text-slate-500">

@@ -491,7 +491,7 @@ export default function DirectAccessSection({
   routers: RouterRow[];
   forwardsByRouter: Record<string, ForwardRow[]>;
   relayHost: string;
-  vpnTrial: { active: boolean; daysRemaining: number } | null;
+  vpnTrial: { active: boolean; daysRemaining: number; unlimited?: boolean } | null;
 }) {
   const eligible = routers.filter((r) => r.connectionMethod !== "direct" && r.tunnelIp);
   if (eligible.length === 0) return null;
@@ -505,12 +505,16 @@ export default function DirectAccessSection({
             Accès direct sans VPN (WinBox / WebFig)
           </h2>
         </div>
-        {vpnTrial && (
-          <TrialBadge
-            active={vpnTrial.active}
-            daysRemaining={vpnTrial.daysRemaining}
-            activeLabel="Essai VPN gratuit"
-          />
+        {vpnTrial?.unlimited ? (
+          <TrialBadge active activeLabel="Compte illimité — Superadmin" />
+        ) : (
+          vpnTrial && (
+            <TrialBadge
+              active={vpnTrial.active}
+              daysRemaining={vpnTrial.daysRemaining}
+              activeLabel="Essai VPN gratuit"
+            />
+          )
         )}
       </div>
       <p className="mt-1 text-sm text-slate-500">
@@ -524,9 +528,11 @@ export default function DirectAccessSection({
         <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         Chaque accès est activable pour 1, 3, 6 ou 12 mois — choisissez la durée avant
         d&apos;activer un service.{" "}
-        {vpnTrial?.active
-          ? "Première année offerte (essai en cours) : aucun débit pendant cette période."
-          : "Le débit du portefeuille est déjà actif (essai d'un an écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant."}{" "}
+        {vpnTrial?.unlimited
+          ? "Compte superadmin : aucun débit, sans limite de routeurs ni de durée."
+          : vpnTrial?.active
+            ? "Première année offerte (essai en cours) : aucun débit pendant cette période."
+            : "Le débit du portefeuille est déjà actif (essai d'un an écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant."}{" "}
         La date de renouvellement est affichée à titre indicatif.
       </p>
 

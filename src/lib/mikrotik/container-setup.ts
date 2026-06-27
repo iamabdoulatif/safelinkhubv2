@@ -3,7 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations, captiveTemplates, walletTransactions, packages, bridges } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
@@ -243,6 +243,22 @@ export async function getAutoSetupBillingStatus(routerId: string, supportsContai
     .limit(1);
   if (!org) return { error: "Organization not found." };
 
+  // Superadmins (SafeLinkHub staff accounts) never pay, no matter how
+  // many routers their org already has — unlimited by role, not by
+  // org-level trial state, so this short-circuits before any of the
+  // normal free-trial/wallet checks below.
+  if (isSuperAdmin(session.role)) {
+    return {
+      success: true,
+      isFree: true,
+      alreadyBilled: false,
+      feeCents: 0,
+      walletBalanceCents: 0,
+      sufficientBalance: true,
+      unlimited: true as const,
+    };
+  }
+
   if (router.autoSetupBilled) {
     return { success: true, isFree: true, alreadyBilled: true, feeCents: 0, walletBalanceCents: 0, sufficientBalance: true };
   }
@@ -323,12 +339,16 @@ export async function provisionHotspotStack(
   // additional router charged to the wallet — see
   // lib/billing/auto-setup-pricing.ts. A router that already consumed
   // either the trial or a paid charge re-runs for free every time after
-  // (tweaking config shouldn't cost again).
-  const billableCents = router.autoSetupBilled
+  // (tweaking config shouldn't cost again). Superadmins are unlimited by
+  // role — never billed, regardless of how many routers their org has
+  // already configured — matching getAutoSetupBillingStatus above.
+  const billableCents = isSuperAdmin(session.role)
     ? null
-    : org.freeRouterSetupUsed
-      ? autoSetupFeeCentsFor(opts.supportsContainers)
-      : 0;
+    : router.autoSetupBilled
+      ? null
+      : org.freeRouterSetupUsed
+        ? autoSetupFeeCentsFor(opts.supportsContainers)
+        : 0;
 
   if (billableCents !== null && billableCents > 0) {
     const walletBalanceCents = await getWalletBalanceCents(org.id);

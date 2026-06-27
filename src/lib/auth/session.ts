@@ -48,9 +48,19 @@ export async function getSession(): Promise<SessionPayload | null> {
   }
 }
 
+/** "superadmin" is a strict superset of "admin" — same access everywhere
+ * "admin" is required, plus the billing bypasses in lib/billing. */
+export function isAdminRole(role: string | undefined): boolean {
+  return role === "admin" || role === "superadmin";
+}
+
+export function isSuperAdmin(role: string | undefined): boolean {
+  return role === "superadmin";
+}
+
 export async function requireAdminSession(): Promise<SessionPayload | null> {
   const session = await getSession();
-  if (!session || session.role !== "admin") return null;
+  if (!session || !isAdminRole(session.role)) return null;
   return session;
 }
 

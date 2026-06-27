@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerPortForwards, routers, organizations, walletTransactions } from "@/lib/db/schema";
 import { isWithinVpnTrial } from "@/lib/billing/auto-setup-pricing";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { allocatePortForward, revokePortForward } from "./relay";
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
@@ -243,10 +243,10 @@ export async function enablePortForward(
       .from(organizations)
       .where(eq(organizations.id, session.orgId))
       .limit(1);
-    // First 30 days per org: direct-access plans are free, no wallet
-    // charge recorded at all — not just "free but logged" — see
-    // VPN_TRIAL_DAYS in lib/billing/auto-setup-pricing.ts.
-    if (!org || !isWithinVpnTrial(org.createdAt)) {
+    // First VPN_TRIAL_DAYS per org: direct-access plans are free, no
+    // wallet charge recorded at all — not just "free but logged". Past
+    // that, superadmins still never get charged — unlimited by role.
+    if (!isSuperAdmin(session.role) && (!org || !isWithinVpnTrial(org.createdAt))) {
       await chargeWalletForActivation({
         orgId: session.orgId,
         userId: session.userId,

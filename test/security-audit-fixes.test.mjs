@@ -13,8 +13,15 @@ test("login redirects only to internal admin callbacks", async () => {
 test("admin layout rejects non-admin sessions", async () => {
   const source = await readFile(new URL("../src/app/admin/layout.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /session\.role !== "admin"/);
+  assert.match(source, /!isAdminRole\(session\.role\)/);
   assert.match(source, /redirect\("\/auth\/login\?callback=\/admin"\)/);
+});
+
+test("isAdminRole accepts admin and superadmin, rejects everything else", async () => {
+  const source = await readFile(new URL("../src/lib/auth/session.ts", import.meta.url), "utf8");
+
+  assert.match(source, /role === "admin" \|\| role === "superadmin"/);
+  assert.match(source, /export function isSuperAdmin/);
 });
 
 test("package actions require admin session and validate finite numeric fields", async () => {
