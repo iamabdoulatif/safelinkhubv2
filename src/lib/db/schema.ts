@@ -237,6 +237,12 @@ export const routerPortForwards = pgTable("router_port_forwards", {
   status: text("status").notNull().default("active"), // active | revoked
   createdAt: timestamp("created_at").defaultNow().notNull(),
   revokedAt: timestamp("revoked_at"),
+  // Billing plan chosen when the admin activated this access — recorded
+  // now so the UI can show "expires on" and a renewal flow, even though
+  // payment enforcement isn't wired up yet (every plan is free for now,
+  // see PLAN comment in port-forward.ts).
+  billingPeriod: text("billing_period").notNull().default("monthly"), // "monthly" | "yearly"
+  expiresAt: timestamp("expires_at"),
 });
 
 export const supportTickets = pgTable("support_tickets", {

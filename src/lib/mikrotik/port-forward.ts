@@ -63,7 +63,20 @@ export async function listPortForwards(routerId: string) {
  * token) — no getSession() here, callers are responsible for authorizing
  * the request through whatever channel they came from.
  */
-async function enablePortForwardForRouter(routerId: string, service: string) {
+export type BillingPeriod = "monthly" | "yearly";
+
+function expiresAtFor(period: BillingPeriod, from = new Date()): Date {
+  const date = new Date(from);
+  if (period === "yearly") date.setFullYear(date.getFullYear() + 1);
+  else date.setMonth(date.getMonth() + 1);
+  return date;
+}
+
+async function enablePortForwardForRouter(
+  routerId: string,
+  service: string,
+  billingPeriod: BillingPeriod = "monthly",
+) {
   const targetPort = getPortForwardTargetPort(service);
   if (!targetPort) return { error: "Unknown service." };
 
@@ -128,6 +141,10 @@ async function enablePortForwardForRouter(routerId: string, service: string) {
     };
   }
 
+  // Payment isn't wired up yet — every plan is granted for free for now,
+  // but the chosen period + computed expiry are recorded so the UI can
+  // already show "expires on"/renewal, and so enforcement can switch on
+  // later without a data migration once billing actually goes live.
   await db.insert(routerPortForwards).values({
     routerId,
     service,
@@ -135,6 +152,8 @@ async function enablePortForwardForRouter(routerId: string, service: string) {
     publicPort,
     tunnelIp: router.tunnelIp,
     status: "active",
+    billingPeriod,
+    expiresAt: expiresAtFor(billingPeriod),
   });
 
   return { success: true, publicPort, relayHost: process.env.WG_RELAY_HOST };
@@ -157,7 +176,11 @@ export async function autoEnablePostInstallAccess(routerId: string) {
   return results;
 }
 
-export async function enablePortForward(routerId: string, service: string) {
+export async function enablePortForward(
+  routerId: string,
+  service: string,
+  billingPeriod: BillingPeriod = "monthly",
+) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
@@ -171,7 +194,7 @@ export async function enablePortForward(routerId: string, service: string) {
     return { error: "Router not found." };
   }
 
-  const result = await enablePortForwardForRouter(routerId, service);
+  const result = await enablePortForwardForRouter(routerId, service, billingPeriod);
 
   revalidatePath("/admin/remote-access");
   revalidatePath("/admin/router");

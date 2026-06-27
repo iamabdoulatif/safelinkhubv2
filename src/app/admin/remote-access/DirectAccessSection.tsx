@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Copy, ExternalLink, Globe2, Loader2, ShieldOff } from "lucide-react";
-import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
+import { ChevronDown, Copy, CreditCard, ExternalLink, Globe2, Loader2, ShieldOff } from "lucide-react";
+import { disablePortForward, enablePortForward, type BillingPeriod } from "@/lib/mikrotik/port-forward";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
 
 type RouterRow = {
@@ -20,6 +20,8 @@ export type ForwardRow = {
   routerId: string;
   service: string;
   publicPort: number;
+  billingPeriod: string;
+  expiresAt: Date | null;
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -28,6 +30,16 @@ const SERVICE_LABELS: Record<string, string> = {
   ssh: "SSH (SFTP — FileZilla, etc.)",
   mikhmon: "MikHmon (vouchers)",
 };
+
+const BILLING_PERIOD_LABELS: Record<BillingPeriod, string> = {
+  monthly: "Mensuel",
+  yearly: "Annuel",
+};
+
+function formatExpiry(date: Date | null) {
+  if (!date) return null;
+  return new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 function CopyableAddress({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -201,6 +213,11 @@ function RouterDirectAccess({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [resources, setResources] = useState<RouterResources | null>(null);
+  // Plan chosen per service before activating it — defaults to monthly.
+  // Billing isn't enforced yet (see port-forward.ts), but the choice is
+  // still recorded so the UI already reflects what a real subscription
+  // would look like once payment goes live.
+  const [selectedPlans, setSelectedPlans] = useState<Record<string, BillingPeriod>>({});
 
   const activeServices = new Set(forwards.map((f) => f.service));
   const hasActiveAccess = activeServices.size > 0;
@@ -226,8 +243,9 @@ function RouterDirectAccess({
   function handleEnable(service: string) {
     setPendingService(service);
     setError(null);
+    const plan = selectedPlans[service] ?? "monthly";
     startTransition(async () => {
-      const res = await enablePortForward(router.id, service);
+      const res = await enablePortForward(router.id, service, plan);
       setPendingService(null);
       if (res?.error) setError(res.error);
       else navRouter.refresh();
@@ -258,44 +276,74 @@ function RouterDirectAccess({
           const forward = forwards.find((f) => f.service === service);
           const isPublic = Boolean(forward);
           const busy = pending && (pendingService === service || (isPublic && pending));
+          const expiry = formatExpiry(forward?.expiresAt ?? null);
+          const planLabel = forward
+            ? BILLING_PERIOD_LABELS[(forward.billingPeriod as BillingPeriod) ?? "monthly"]
+            : null;
           return (
-            <div key={service} className="flex items-center justify-between text-sm">
-              <span className="text-slate-600">{SERVICE_LABELS[service]}</span>
-              <div className="flex items-center gap-2">
-                {forward && <CopyableAddress value={`${relayHost}:${forward.publicPort}`} />}
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isPublic}
-                  disabled={busy || (!isPublic && router.status !== "online")}
-                  onClick={() =>
-                    isPublic ? handleDisable(forward!.id) : handleEnable(service)
-                  }
-                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-                    isPublic ? "bg-red-500" : "bg-slate-300"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
-                      isPublic ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-                <span
-                  className={`flex w-14 items-center gap-1 text-xs font-medium ${
-                    isPublic ? "text-red-600" : "text-slate-500"
-                  }`}
-                >
-                  {pendingService === service ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : isPublic ? (
-                    <Globe2 className="h-3 w-3" />
-                  ) : (
-                    <ShieldOff className="h-3 w-3 rotate-180" />
+            <div key={service} className="rounded-md px-0 py-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">{SERVICE_LABELS[service]}</span>
+                <div className="flex items-center gap-2">
+                  {forward && <CopyableAddress value={`${relayHost}:${forward.publicPort}`} />}
+                  {!isPublic && (
+                    <select
+                      value={selectedPlans[service] ?? "monthly"}
+                      onChange={(e) =>
+                        setSelectedPlans((prev) => ({
+                          ...prev,
+                          [service]: e.target.value as BillingPeriod,
+                        }))
+                      }
+                      disabled={busy}
+                      title="Plan de facturation (paiement non encore activé)"
+                      className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[11px] text-slate-600 focus:border-slate-400 focus:outline-none disabled:opacity-50"
+                    >
+                      <option value="monthly">Mensuel</option>
+                      <option value="yearly">Annuel</option>
+                    </select>
                   )}
-                  {isPublic ? "Public" : "Privé"}
-                </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isPublic}
+                    disabled={busy || (!isPublic && router.status !== "online")}
+                    onClick={() =>
+                      isPublic ? handleDisable(forward!.id) : handleEnable(service)
+                    }
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                      isPublic ? "bg-red-500" : "bg-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
+                        isPublic ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                  <span
+                    className={`flex w-14 items-center gap-1 text-xs font-medium ${
+                      isPublic ? "text-red-600" : "text-slate-500"
+                    }`}
+                  >
+                    {pendingService === service ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : isPublic ? (
+                      <Globe2 className="h-3 w-3" />
+                    ) : (
+                      <ShieldOff className="h-3 w-3 rotate-180" />
+                    )}
+                    {isPublic ? "Public" : "Privé"}
+                  </span>
+                </div>
               </div>
+              {isPublic && (
+                <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-slate-400">
+                  <CreditCard className="h-3 w-3" />
+                  Plan {planLabel}
+                  {expiry && <> · renouvellement le {expiry}</>}
+                </p>
+              )}
             </div>
           );
         })}
@@ -415,6 +463,14 @@ export default function DirectAccessSection({
         vers le routeur — aucun client VPN, aucune app à installer sur
         l&apos;appareil qui se connecte. Fonctionne depuis n&apos;importe
         quel PC, téléphone, ou WinBox.
+      </p>
+
+      <p className="mt-3 flex items-start gap-1.5 rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-700">
+        <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        Chaque accès est activable au mois ou à l&apos;année — choisissez le plan avant
+        d&apos;activer un service. La facturation n&apos;est pas encore activée : tous les plans
+        restent gratuits pour le moment, mais la date de renouvellement est déjà affichée à
+        titre indicatif.
       </p>
 
       <div className="mt-4 space-y-3">
