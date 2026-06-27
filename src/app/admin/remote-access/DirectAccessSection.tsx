@@ -32,8 +32,10 @@ const SERVICE_LABELS: Record<string, string> = {
 };
 
 const BILLING_PERIOD_LABELS: Record<BillingPeriod, string> = {
-  monthly: "Mensuel",
-  yearly: "Annuel",
+  monthly: "1 mois",
+  quarterly: "3 mois",
+  semiannual: "6 mois",
+  yearly: "12 mois",
 };
 
 function formatExpiry(date: Date | null) {
@@ -299,8 +301,10 @@ function RouterDirectAccess({
                       title="Plan de facturation (paiement non encore activé)"
                       className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[11px] text-slate-600 focus:border-slate-400 focus:outline-none disabled:opacity-50"
                     >
-                      <option value="monthly">Mensuel</option>
-                      <option value="yearly">Annuel</option>
+                      <option value="monthly">1 mois</option>
+                      <option value="quarterly">3 mois</option>
+                      <option value="semiannual">6 mois</option>
+                      <option value="yearly">12 mois</option>
                     </select>
                   )}
                   <button
@@ -467,10 +471,10 @@ export default function DirectAccessSection({
 
       <p className="mt-3 flex items-start gap-1.5 rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-700">
         <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        Chaque accès est activable au mois ou à l&apos;année — choisissez le plan avant
+        Chaque accès est activable pour 1, 3, 6 ou 12 mois — choisissez la durée avant
         d&apos;activer un service. La facturation n&apos;est pas encore activée : tous les plans
-        restent gratuits pour le moment, mais la date de renouvellement est déjà affichée à
-        titre indicatif.
+        restent gratuits pour le moment pour tous les utilisateurs, mais la date de
+        renouvellement est déjà affichée à titre indicatif.
       </p>
 
       <div className="mt-4 space-y-3">

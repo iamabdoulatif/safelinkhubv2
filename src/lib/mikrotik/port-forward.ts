@@ -63,12 +63,18 @@ export async function listPortForwards(routerId: string) {
  * token) — no getSession() here, callers are responsible for authorizing
  * the request through whatever channel they came from.
  */
-export type BillingPeriod = "monthly" | "yearly";
+export type BillingPeriod = "monthly" | "quarterly" | "semiannual" | "yearly";
+
+export const BILLING_PERIOD_MONTHS: Record<BillingPeriod, number> = {
+  monthly: 1,
+  quarterly: 3,
+  semiannual: 6,
+  yearly: 12,
+};
 
 function expiresAtFor(period: BillingPeriod, from = new Date()): Date {
   const date = new Date(from);
-  if (period === "yearly") date.setFullYear(date.getFullYear() + 1);
-  else date.setMonth(date.getMonth() + 1);
+  date.setMonth(date.getMonth() + BILLING_PERIOD_MONTHS[period]);
   return date;
 }
 

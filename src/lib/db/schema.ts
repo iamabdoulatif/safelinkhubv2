@@ -241,7 +241,7 @@ export const routerPortForwards = pgTable("router_port_forwards", {
   // now so the UI can show "expires on" and a renewal flow, even though
   // payment enforcement isn't wired up yet (every plan is free for now,
   // see PLAN comment in port-forward.ts).
-  billingPeriod: text("billing_period").notNull().default("monthly"), // "monthly" | "yearly"
+  billingPeriod: text("billing_period").notNull().default("monthly"), // "monthly" | "quarterly" | "semiannual" | "yearly" (1/3/6/12 months — see BillingPeriod in port-forward.ts)
   expiresAt: timestamp("expires_at"),
 });
 
