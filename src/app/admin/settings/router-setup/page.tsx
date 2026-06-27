@@ -41,7 +41,7 @@ export default async function RouterSetupPage() {
 
       {!isOnline ? (
         <>
-          <StepIndicator steps={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} currentStep={1} />
+          <StepIndicator steps={[1, 2, 3, 4, 5, 6, 7, 8, 9]} currentStep={1} />
 
           {router && (
             <div className="mt-4 flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5">

@@ -15,7 +15,6 @@ import {
 } from "@/lib/mikrotik/voucher-profiles";
 import type { DetectedRouter } from "@/lib/mikrotik/device-detect";
 import DetectedModelBadge from "./DetectedModelBadge";
-import WifiSetupCard from "./WifiSetupCard";
 import TrialBadge from "@/components/billing/TrialBadge";
 import PaywallCard from "@/components/billing/PaywallCard";
 
@@ -30,13 +29,15 @@ const DURATION_UNIT_OPTIONS: { value: DurationUnit; label: string }[] = [
 
 /**
  * What used to be one dense "Configuration automatique complète" card
- * (DetectedModelBadge + WifiSetupCard + the whole ContainerSetupCard form
- * in a single screen) is now 5 separate wizard steps sharing one piece of
- * state, owned here instead of split across components — Detection+Wi-Fi,
- * Identité/DNS/SSID/utilisateurs, Stockage USB/MikHmon, Profils voucher,
- * then a final recap + the actual "Lancer" button. The component itself
- * stays mounted across all 5 (RouterSetupWizard just passes a different
- * `step` value), so none of this state resets when moving between them.
+ * (DetectedModelBadge + the whole ContainerSetupCard form in a single
+ * screen) is now 5 separate wizard steps sharing one piece of state, owned
+ * here instead of split across components — Identité/DNS/SSID/
+ * utilisateurs (detection lives here too, since the standalone Wi-Fi step
+ * was dropped as a duplicate of the SSID field already on this step),
+ * Stockage USB/MikHmon, Profils voucher, Portail captif, then a final
+ * recap + the actual "Lancer" button. The component itself stays mounted
+ * across all 5 (RouterSetupWizard just passes a different `step` value),
+ * so none of this state resets when moving between them.
  */
 function StepShell({
   title,
@@ -126,8 +127,8 @@ export default function AutoSetupSteps({
   routerId,
   hotspotBridge,
 }: {
-  step: 3 | 4 | 5 | 6 | 7 | 8;
-  onStepChange: (step: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9) => void;
+  step: 3 | 4 | 5 | 6 | 7;
+  onStepChange: (step: 2 | 3 | 4 | 5 | 6 | 7 | 8) => void;
   routerId: string;
   hotspotBridge: { gatewayIp: string; subnetBits: number } | null;
 }) {
@@ -280,26 +281,16 @@ export default function AutoSetupSteps({
   if (step === 3) {
     return (
       <StepShell
-        title="Étape 3 : Détection & Wi-Fi"
-        description="Identifie le modèle du routeur et ses capacités, puis choisissez le nom du réseau Wi-Fi diffusé."
+        title="Étape 3 : Identité, domaine & utilisateurs"
+        description="Détection du modèle du routeur, puis les valeurs qui identifient le hotspot et le portail captif — le nom du réseau Wi-Fi (SSID) se règle ici, il sera appliqué au lancement de l'auto-setup."
         onBack={() => onStepChange(2)}
         onNext={() => onStepChange(4)}
-      >
-        <DetectedModelBadge routerId={routerId} onDetected={setDetected} />
-        <WifiSetupCard routerId={routerId} dualBand={detected?.dualBand ?? true} />
-      </StepShell>
-    );
-  }
-
-  if (step === 4) {
-    return (
-      <StepShell
-        title="Étape 4 : Identité, domaine & utilisateurs"
-        description="Ces valeurs identifient le hotspot et le portail captif sur le routeur."
-        onBack={() => onStepChange(3)}
-        onNext={() => onStepChange(5)}
         nextDisabled={!hotspotName.trim()}
       >
+        <div className="mb-2">
+          <DetectedModelBadge routerId={routerId} onDetected={setDetected} />
+        </div>
+
         {!hotspotBridge ? (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
             Configurez d&apos;abord un bridge hotspot à l&apos;Étape 2 (Topologie réseau) — son
@@ -405,13 +396,13 @@ export default function AutoSetupSteps({
     );
   }
 
-  if (step === 5) {
+  if (step === 4) {
     return (
       <StepShell
-        title="Étape 5 : Stockage USB & MikHmon"
+        title="Étape 4 : Stockage USB & MikHmon"
         description="MikHmon (gestion des vouchers) tourne dans un conteneur RouterOS — certains modèles ont besoin d'une clé USB pour ça."
-        onBack={() => onStepChange(4)}
-        onNext={() => onStepChange(6)}
+        onBack={() => onStepChange(3)}
+        onNext={() => onStepChange(5)}
       >
         {!archSupportsContainers && (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
@@ -455,13 +446,13 @@ export default function AutoSetupSteps({
     );
   }
 
-  if (step === 6) {
+  if (step === 5) {
     return (
       <StepShell
-        title="Étape 6 : Profils voucher"
+        title="Étape 5 : Profils voucher"
         description="Chaque profil coché sera créé sur le routeur avec expiration automatique des accès."
-        onBack={() => onStepChange(5)}
-        onNext={() => onStepChange(7)}
+        onBack={() => onStepChange(4)}
+        onNext={() => onStepChange(6)}
       >
         <p className="text-xs text-slate-500">
           Gérables ensuite depuis MikHmon (image{" "}
@@ -554,13 +545,13 @@ export default function AutoSetupSteps({
     );
   }
 
-  if (step === 7) {
+  if (step === 6) {
     return (
       <StepShell
-        title="Étape 7 : Portail captif"
+        title="Étape 6 : Portail captif"
         description="La page que vos clients voient en se connectant au Wi-Fi — installée dans ce même script d'automatisation."
-        onBack={() => onStepChange(6)}
-        onNext={() => onStepChange(8)}
+        onBack={() => onStepChange(5)}
+        onNext={() => onStepChange(7)}
       >
         <label className="flex items-center gap-3 rounded-md border border-slate-200 px-4 py-3 text-sm text-slate-700">
           <input
@@ -591,14 +582,14 @@ export default function AutoSetupSteps({
     );
   }
 
-  // step === 8
+  // step === 7
   return (
     <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Box className="h-5 w-5 text-slate-700" />
           <h2 className="font-semibold text-slate-900">
-            Étape 8 : Récapitulatif & lancement
+            Étape 7 : Récapitulatif & lancement
             {archSupportsContainers ? " (Hotspot + MikHmon)" : " (Hotspot)"}
           </h2>
         </div>
@@ -716,7 +707,7 @@ export default function AutoSetupSteps({
       <div className="mt-6 flex items-center justify-between">
         <button
           type="button"
-          onClick={() => onStepChange(7)}
+          onClick={() => onStepChange(6)}
           className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -724,7 +715,7 @@ export default function AutoSetupSteps({
         </button>
         <button
           type="button"
-          onClick={() => onStepChange(9)}
+          onClick={() => onStepChange(8)}
           className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
         >
           Suivant : Tester la connexion
