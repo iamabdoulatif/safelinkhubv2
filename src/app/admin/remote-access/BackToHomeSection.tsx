@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, Loader2, Smartphone } from "lucide-react";
+import { Check, ChevronDown, Copy, Loader2, Smartphone } from "lucide-react";
 import QRCode from "qrcode";
 import { enableBackToHome } from "@/lib/mikrotik/back-to-home";
 
@@ -24,12 +24,18 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
   const [result, setResult] = useState<BthResult>(null);
   const [copied, setCopied] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  // Collapsed by default — auto-opens once activation actually produces
+  // something worth seeing (status message, error, or the QR/config),
+  // so the admin isn't stuck expanding it manually right after clicking
+  // "Activer Back To Home".
+  const [open, setOpen] = useState(false);
 
   async function handleEnable() {
     setPending(true);
     const res = await enableBackToHome(router.id);
     setPending(false);
     setResult(res as BthResult);
+    setOpen(true);
   }
 
   // RouterOS's own "vpn-wireguard-client-config-qrcode" field is an
@@ -61,7 +67,19 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
   return (
     <div className="rounded-lg border border-slate-200 p-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-slate-700">{router.name}</span>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          disabled={!result}
+          className="flex items-center gap-2 text-left disabled:cursor-default"
+        >
+          {result && (
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+            />
+          )}
+          <span className="text-sm font-medium text-slate-700">{router.name}</span>
+        </button>
         <button
           type="button"
           onClick={handleEnable}
@@ -79,47 +97,51 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
         </p>
       )}
 
-      {result && "error" in result && (
-        <p className="mt-2 text-xs text-red-600">{result.error}</p>
-      )}
-
-      {result && "success" in result && !result.ready && (
-        <p className="mt-2 text-xs text-amber-600">{result.message}</p>
-      )}
-
-      {result && "success" in result && result.ready && (
-        <div className="mt-3 space-y-2">
-          <p className="text-xs text-emerald-700">
-            Back To Home activé{result.ddnsName ? ` (${result.ddnsName})` : ""}. Scannez le
-            QR code ci-dessous avec l&apos;app WireGuard (ou Back To Home) sur Android/iPhone.
-          </p>
-          {qrDataUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qrDataUrl}
-              alt="QR code Back To Home"
-              width={160}
-              height={160}
-              className="rounded border border-slate-100"
-            />
+      {open && (
+        <>
+          {result && "error" in result && (
+            <p className="mt-2 text-xs text-red-600">{result.error}</p>
           )}
-          <div className="relative">
-            <pre className="overflow-x-auto rounded bg-slate-900 p-2 pr-8 text-[10px] text-emerald-300">
-              {result.wgConfig}
-            </pre>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(result.wgConfig);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-              className="absolute right-1 top-1 rounded bg-slate-800 p-1 text-slate-300 hover:bg-slate-700"
-            >
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            </button>
-          </div>
-        </div>
+
+          {result && "success" in result && !result.ready && (
+            <p className="mt-2 text-xs text-amber-600">{result.message}</p>
+          )}
+
+          {result && "success" in result && result.ready && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-emerald-700">
+                Back To Home activé{result.ddnsName ? ` (${result.ddnsName})` : ""}. Scannez le
+                QR code ci-dessous avec l&apos;app WireGuard (ou Back To Home) sur Android/iPhone.
+              </p>
+              {qrDataUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={qrDataUrl}
+                  alt="QR code Back To Home"
+                  width={160}
+                  height={160}
+                  className="rounded border border-slate-100"
+                />
+              )}
+              <div className="relative">
+                <pre className="overflow-x-auto rounded bg-slate-900 p-2 pr-8 text-[10px] text-emerald-300">
+                  {result.wgConfig}
+                </pre>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(result.wgConfig);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  }}
+                  className="absolute right-1 top-1 rounded bg-slate-800 p-1 text-slate-300 hover:bg-slate-700"
+                >
+                  {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

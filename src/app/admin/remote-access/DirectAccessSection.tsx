@@ -216,6 +216,7 @@ function RouterDirectAccess({
   const [error, setError] = useState<string | null>(null);
   const [resources, setResources] = useState<RouterResources | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
   // Plan chosen per service before activating it — defaults to monthly.
   // Billing isn't enforced yet (see port-forward.ts), but the choice is
   // still recorded so the UI already reflects what a real subscription
@@ -265,14 +266,30 @@ function RouterDirectAccess({
 
   return (
     <div className="rounded-lg border border-slate-200 p-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-700">{router.name}</span>
+      <button
+        type="button"
+        onClick={() => setCardOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <span className="flex items-center gap-2">
+          <ChevronDown
+            className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${cardOpen ? "rotate-180" : ""}`}
+          />
+          <span className="text-sm font-medium text-slate-700">{router.name}</span>
+          {hasActiveAccess && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
+              {activeServices.size} actif{activeServices.size > 1 ? "s" : ""}
+            </span>
+          )}
+        </span>
         {router.status !== "online" && (
           <span className="text-xs text-slate-400">Routeur hors ligne</span>
         )}
-      </div>
+      </button>
 
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {cardOpen && (
+        <>
+          {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
       <div className="mt-2 space-y-2">
         {(["winbox", "webfig", "ssh", "mikhmon"] as const).map((service) => {
@@ -452,6 +469,8 @@ function RouterDirectAccess({
             )}
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
