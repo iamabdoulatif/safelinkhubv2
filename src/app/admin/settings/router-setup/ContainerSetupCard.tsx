@@ -180,7 +180,8 @@ export default function ContainerSetupCard({
       </div>
       <p className="mt-1 text-sm text-slate-500">
         Construit le bridge HOTSPOT sur tous les ports LAN, le pool/DHCP/profil
-        du portail captif
+        du portail captif, installe le portail captif SafeLinkHub (au lieu de
+        la page par défaut RouterOS)
         {supportsContainers
           ? ", le bridge DOCKERS + conteneur MikHmon (auto-démarré), les règles NAT nécessaires,"
           : " et les règles NAT nécessaires,"}{" "}

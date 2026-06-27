@@ -1,8 +1,8 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers } from "@/lib/db/schema";
+import { routers, organizations, captiveTemplates } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
@@ -16,6 +16,8 @@ import {
   HOTSPOT_BRIDGE_NAME,
 } from "./constants";
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
+import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
+import { loadSafelinkhubDefaultPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -417,6 +419,68 @@ export async function provisionHotspotStack(
       if (existingUser.length === 0) {
         await run(["/ip/hotspot/user/add", `=name=${name}`], `hotspot user ${name}`);
       }
+    }
+
+    // Captive portal: pushes the bundled SafeLinkHub multi-file hotspot
+    // portal onto the html-directory the profile above just pointed at, the
+    // same way a manual "Importer le portail SafeLinkHub" + "assign to
+    // bridge" would (see captive-templates/actions.ts) — except this runs
+    // as part of the one-click auto-setup, so RouterOS never falls back to
+    // its bare factory-default login page. Reuses the org's existing
+    // "package" template if one was already created (so customized support
+    // contacts/vendors — see PackageBrandingEditor — survive a re-run);
+    // creates the bundled default only if none exists yet.
+    try {
+      let [packageTemplate] = await db
+        .select()
+        .from(captiveTemplates)
+        .where(and(eq(captiveTemplates.orgId, router.orgId), eq(captiveTemplates.templateType, "package")))
+        .limit(1);
+      if (!packageTemplate) {
+        [packageTemplate] = await db
+          .insert(captiveTemplates)
+          .values({
+            orgId: router.orgId,
+            name: "SafeLinkHub Hotspot (portail complet)",
+            isDefault: false,
+            templateType: "package",
+            packageFiles: loadSafelinkhubDefaultPackage(),
+          })
+          .returning();
+      }
+
+      const files = (packageTemplate.packageFiles as PackageFile[] | null) ?? [];
+      const [org] = await db
+        .select({ slug: organizations.slug })
+        .from(organizations)
+        .where(eq(organizations.id, router.orgId))
+        .limit(1);
+
+      if (files.length === 0 || !org) {
+        log.push("SKIP (captive portal): template ou organisation introuvable.");
+      } else {
+        const appUrl =
+          process.env.NEXT_PUBLIC_APP_URL ??
+          (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+        const fileBaseUrl = `${appUrl}/api/router/v1/${org.slug}/captive-template/${packageTemplate.id}`;
+        const uploadResult = await uploadCaptiveTemplatePackage(client, {
+          files,
+          htmlDirectory,
+          fileBaseUrl,
+          ssid: opts.ssid?.trim() || opts.hotspotName,
+        });
+        if (uploadResult.failed.length > 0) {
+          log.push(
+            `SKIP (captive portal): ${uploadResult.failed.length}/${files.length} fichiers n'ont pas pu être envoyés (${uploadResult.failed.map((f) => f.path).join(", ")}).`,
+          );
+        } else {
+          log.push(`OK: portail captif SafeLinkHub installé (${uploadResult.uploaded.length} fichiers)`);
+        }
+      }
+    } catch (err) {
+      log.push(
+        `SKIP (captive portal): ${err instanceof Error ? err.message : "erreur inconnue"}`,
+      );
     }
 
     // ddns-enabled gives the router a reachable hostname even behind CGNAT;
