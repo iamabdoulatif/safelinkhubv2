@@ -369,26 +369,3 @@ export async function testHotspotConfig(bridgeId: string) {
   }
 }
 
-export async function checkBootstrapInstalled(bridgeId: string) {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated." };
-
-  const db = getDb();
-  const [bridge] = await db
-    .select({ id: bridges.id, bootstrapStatus: bridges.bootstrapStatus, routerId: bridges.routerId })
-    .from(bridges)
-    .where(eq(bridges.id, bridgeId))
-    .limit(1);
-
-  if (!bridge) return { installed: false };
-
-  const [router] = await db
-    .select({ orgId: routers.orgId })
-    .from(routers)
-    .where(eq(routers.id, bridge.routerId))
-    .limit(1);
-
-  if (!router || router.orgId !== session.orgId) return { installed: false };
-
-  return { installed: bridge.bootstrapStatus === "installed" };
-}

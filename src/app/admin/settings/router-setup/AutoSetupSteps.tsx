@@ -67,7 +67,7 @@ function StepShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
+    <div className="animate-fade-slide-up mt-8 rounded-xl border border-slate-200 bg-white p-6">
       <h2 className="font-semibold text-slate-900">{title}</h2>
       {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
 
@@ -361,6 +361,7 @@ export default function AutoSetupSteps({
   if (step === 3) {
     return (
       <StepShell
+        key={step}
         title="Étape 3 : Identité, domaine & utilisateurs"
         description="Détection du modèle du routeur, puis les valeurs qui identifient le hotspot et le portail captif — le nom du réseau Wi-Fi (SSID) se règle ici, il sera appliqué au lancement de l'auto-setup."
         onBack={() => onStepChange(2)}
@@ -508,6 +509,7 @@ export default function AutoSetupSteps({
   if (step === 4) {
     return (
       <StepShell
+        key={step}
         title="Étape 4 : Stockage USB & MikHmon"
         description="MikHmon (gestion des vouchers) tourne dans un conteneur RouterOS — certains modèles ont besoin d'une clé USB pour ça."
         onBack={() => onStepChange(3)}
@@ -572,6 +574,7 @@ export default function AutoSetupSteps({
   if (step === 5) {
     return (
       <StepShell
+        key={step}
         title="Étape 5 : Profils voucher"
         description="Créez vos propres durées — chacune sera ajoutée sur le routeur avec expiration automatique des accès, et synchronisée comme forfait sur la page Forfaits."
         onBack={() => onStepChange(4)}
@@ -662,6 +665,7 @@ export default function AutoSetupSteps({
   if (step === 6) {
     return (
       <StepShell
+        key={step}
         title="Étape 6 : Portail captif"
         description="La page que vos clients voient en se connectant au Wi-Fi — installée dans ce même script d'automatisation."
         onBack={() => onStepChange(5)}
@@ -723,7 +727,7 @@ export default function AutoSetupSteps({
 
   // step === 7
   return (
-    <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
+    <div key={step} className="animate-fade-slide-up mt-8 rounded-xl border border-slate-200 bg-white p-6">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Box className="h-5 w-5 text-slate-700" />

@@ -43,7 +43,7 @@ export default function ConnectionTestStep({
   }, [runTest]);
 
   return (
-    <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 text-center">
+    <div className="animate-fade-slide-up mt-8 rounded-xl border border-slate-200 bg-white p-6 text-center">
       <h2 className="font-semibold text-slate-900">
         Étape 8 : Test de connexion final
       </h2>

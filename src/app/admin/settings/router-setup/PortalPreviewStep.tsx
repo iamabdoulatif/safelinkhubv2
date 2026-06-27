@@ -58,7 +58,7 @@ export default function PortalPreviewStep({
   }, []);
 
   return (
-    <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
+    <div className="animate-fade-slide-up mt-8 rounded-xl border border-slate-200 bg-white p-6">
       <h2 className="font-semibold text-slate-900">
         Étape 9 : Aperçu et test du portail captif
       </h2>

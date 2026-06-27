@@ -42,7 +42,7 @@ export default function RouterSetupWizard({
       <StepIndicator steps={[1, 2, 3, 4, 5, 6, 7, 8, 9]} currentStep={step} />
 
       {step === 2 ? (
-        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
+        <div className="animate-fade-slide-up mt-8 rounded-xl border border-slate-200 bg-white p-6">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-slate-900">
               Étape 2 : Topologie réseau

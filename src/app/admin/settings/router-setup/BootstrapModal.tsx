@@ -2,7 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Terminal } from "lucide-react";
-import { checkBootstrapInstalled } from "@/lib/mikrotik/bridges";
+
+// Plain fetch() to a route handler instead of a Server Action — actions
+// are addressed by an id encoded against the exact build that rendered
+// the page, so a redeploy landing mid-poll made the next call reference
+// an id the new build didn't recognize, and Next.js's only recovery is a
+// full page reload (looked like the whole app reloading on its own every
+// few minutes). A route handler URL is just served by whichever
+// deployment is live, deploy or not.
+async function checkBootstrapInstalled(bridgeId: string) {
+  try {
+    const res = await fetch(`/api/admin/bridges/${bridgeId}/bootstrap-status`, {
+      cache: "no-store",
+    });
+    return (await res.json()) as { installed?: boolean; error?: string };
+  } catch {
+    return { installed: false };
+  }
+}
 
 export default function BootstrapModal({
   command,
