@@ -65,7 +65,10 @@ export async function listPortForwards(routerId: string) {
  */
 export type BillingPeriod = "monthly" | "quarterly" | "semiannual" | "yearly";
 
-export const BILLING_PERIOD_MONTHS: Record<BillingPeriod, number> = {
+// Not exported: a "use server" file may only export async functions (and
+// types, which are erased) — a plain object export here breaks the build
+// ("A 'use server' file can only export async functions, found object").
+const BILLING_PERIOD_MONTHS: Record<BillingPeriod, number> = {
   monthly: 1,
   quarterly: 3,
   semiannual: 6,
