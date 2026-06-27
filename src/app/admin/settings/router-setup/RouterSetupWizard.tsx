@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
 import TopologyBuilder from "./TopologyBuilder";
-import AutoSetupExtras from "./AutoSetupExtras";
+import AutoSetupSteps from "./AutoSetupSteps";
 import ConnectionTestStep from "./ConnectionTestStep";
 import PortalPreviewStep from "./PortalPreviewStep";
 import RouterResetButton from "./RouterResetButton";
@@ -18,6 +17,8 @@ type SavedBridge = {
   hotspotEnabled: boolean;
 };
 
+type Step = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
 export default function RouterSetupWizard({
   routerId,
   routerName,
@@ -27,7 +28,7 @@ export default function RouterSetupWizard({
   routerName: string;
   initialBridges: SavedBridge[];
 }) {
-  const [step, setStep] = useState<2 | 3 | 4 | 5>(2);
+  const [step, setStep] = useState<Step>(2);
 
   const hotspotBridge =
     initialBridges
@@ -36,7 +37,7 @@ export default function RouterSetupWizard({
 
   return (
     <div>
-      <StepIndicator steps={[1, 2, 3, 4, 5]} currentStep={step} />
+      <StepIndicator steps={[1, 2, 3, 4, 5, 6, 7, 8, 9]} currentStep={step} />
 
       {step === 2 ? (
         <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
@@ -77,47 +78,24 @@ export default function RouterSetupWizard({
             </button>
           </div>
         </div>
-      ) : step === 3 ? (
-        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
-          <h2 className="font-semibold text-slate-900">
-            Étape 3 : Configuration automatique
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Détection du modèle, Wi-Fi, hotspot, portail captif et MikHmon — tout en un clic, à
-            partir de l&apos;adresse IP du bridge configuré à l&apos;étape précédente.
-          </p>
-
-          <AutoSetupExtras routerId={routerId} hotspotBridge={hotspotBridge} />
-
-          <div className="mt-6 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Précédent
-            </button>
-            <button
-              type="button"
-              onClick={() => setStep(4)}
-              className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              Suivant : Tester la connexion
-            </button>
-          </div>
-        </div>
-      ) : step === 4 ? (
+      ) : step === 3 || step === 4 || step === 5 || step === 6 || step === 7 ? (
+        <AutoSetupSteps
+          step={step}
+          onStepChange={setStep}
+          routerId={routerId}
+          hotspotBridge={hotspotBridge}
+        />
+      ) : step === 8 ? (
         <ConnectionTestStep
           routerId={routerId}
           routerName={routerName}
-          onBack={() => setStep(3)}
-          onNext={() => setStep(5)}
+          onBack={() => setStep(7)}
+          onNext={() => setStep(9)}
         />
       ) : (
         <PortalPreviewStep
           bridges={initialBridges}
-          onBack={() => setStep(4)}
+          onBack={() => setStep(8)}
         />
       )}
     </div>

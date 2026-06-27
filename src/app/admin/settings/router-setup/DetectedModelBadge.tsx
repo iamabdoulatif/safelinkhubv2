@@ -38,6 +38,18 @@ export default function DetectedModelBadge({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routerId]);
 
+  // The admin often unlocks Container (or confirms mode=advanced) outside
+  // this page — WinBox, SSH, a physical reset — then comes straight back
+  // here without reloading. Without this, the "désactivé" chip stays
+  // stuck on whatever was true when the page/step first mounted, which
+  // reads as a bug even though it's just stale state. Quietly re-checks
+  // every 15s (no spinner, so it doesn't flicker) so it self-heals.
+  useEffect(() => {
+    const interval = window.setInterval(() => runDetection(), 15000);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routerId]);
+
   function refresh() {
     setRefreshing(true);
     runDetection(() => setRefreshing(false));
@@ -138,6 +150,18 @@ export default function DetectedModelBadge({
           >
             désactivé — copier la commande pour l&apos;activer
             <ChevronDown className="h-3 w-3" />
+          </button>
+        )}
+        {detected.supportsContainers && detected.containerFeatureEnabled === false && (
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={refreshing}
+            title="Si vous avez déjà activé container=yes ailleurs (WinBox, SSH...), revérifiez ici plutôt que de recopier la commande."
+            className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-slate-600 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+            déjà activé ? revérifier
           </button>
         )}
       </p>
