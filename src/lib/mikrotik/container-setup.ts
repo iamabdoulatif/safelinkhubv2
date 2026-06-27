@@ -136,7 +136,7 @@ export type HotspotStackOptions = {
   ssid?: string;
   // RouterOS won't transmit on a WiFi radio until a regulatory country is
   // set — without it, disabled=no can silently leave the radio inactive.
-  wifiCountry?: string; // default "United States"
+  wifiCountry?: string; // default "Ivory Coast" — SafeLinkHub's primary market
   // Captive-portal HTML directory name (RouterOS /hotspot/<dir>/, applied to
   // both html-directory and html-directory-override). Default "hotspot"
   // matches the directory the bundled portal templates already use.
@@ -319,7 +319,7 @@ export async function provisionHotspotStack(
     // harmless no-op, so this runs unconditionally rather than checking
     // first.
     if (opts.ssid?.trim()) {
-      const country = opts.wifiCountry?.trim() || "United States";
+      const country = opts.wifiCountry?.trim() || "Ivory Coast";
       const wifiInterfaces = await client.talk(["/interface/wifi/print"]).catch(() => []);
       for (const wifi of wifiInterfaces) {
         if (!wifi.name) continue;
