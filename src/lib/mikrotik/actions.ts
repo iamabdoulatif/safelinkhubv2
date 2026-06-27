@@ -136,7 +136,18 @@ export async function generateInstallScript(
 
   const scriptUrl = `${appUrl}/api/router/v1/${org.slug}/scripts/install-vpn`;
   const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";
-  const command = `/tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="vpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="vpn.rsc"; :delay 1s; /ip route remove [find dst-address=10.66.0.0/24 gateway=safelinkhub-wg0]; /ip route add dst-address=10.66.0.0/24 gateway=safelinkhub-wg0; :delay 1s; /file remove "vpn.rsc"`;
+  // [find name=ether1] resolves to the port's real internal .id under the
+  // hood — unlike passing "ether1" as the API's bare =numbers= convenience
+  // (which doesn't reliably resolve for physical ethernet ports, see
+  // container-setup.ts's WAN rename), the RouterOS CLI's own [find ...]
+  // selector always does. A no-op (not an error) if ether1 doesn't exist
+  // or was already renamed, so this is safe to run on every install.
+  // /interface/wifi/set [find] disabled=no enables every WiFi radio the
+  // board has (no-op if it has none) — just the on/off flag here, not the
+  // band/width/SSID/country tuning provisionHotspotStack does, since this
+  // one-shot script only ever runs the VPN install, not the full
+  // auto-setup.
+  const command = `/interface/ethernet/set [find name=ether1] name=E1-WAN-FAI; /interface/wifi/set [find] disabled=no; /tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="vpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="vpn.rsc"; :delay 1s; /ip route remove [find dst-address=10.66.0.0/24 gateway=safelinkhub-wg0]; /ip route add dst-address=10.66.0.0/24 gateway=safelinkhub-wg0; :delay 1s; /file remove "vpn.rsc"`;
 
   revalidatePath("/admin/settings/router-setup");
   return { success: true, routerId: router.id, command };
