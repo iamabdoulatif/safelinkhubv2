@@ -29,6 +29,8 @@ export type CaptiveTemplateRow = {
   packageSupportPhone?: string | null;
   // jsonb column — drizzle infers `unknown`; cast to Vendor[] where consumed.
   packageVendors?: unknown;
+  // jsonb column — drizzle infers `unknown`; cast to PackageFile[] where consumed.
+  packageFiles?: unknown;
 };
 
 function Field({

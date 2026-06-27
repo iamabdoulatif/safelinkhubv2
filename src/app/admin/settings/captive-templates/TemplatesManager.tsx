@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Files, Package, Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { Copy, Package, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import {
   deleteCaptiveTemplate,
   duplicateCaptiveTemplate,
@@ -10,6 +10,7 @@ import {
   setDefaultCaptiveTemplate,
 } from "@/lib/captive-templates/actions";
 import CaptivePreview from "./CaptivePreview";
+import PackagePreview from "./PackagePreview";
 import TemplateEditor, { type CaptiveTemplateRow } from "./TemplateEditor";
 import PackageBrandingEditor from "./PackageBrandingEditor";
 
@@ -66,15 +67,12 @@ export default function TemplatesManager({
           que vos clients voient en se connectant au Wi-Fi.
         </p>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => (
             <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3">
               <div className="h-40 overflow-hidden rounded-lg bg-slate-50">
                 {t.templateType === "package" ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-400">
-                    <Files className="h-8 w-8" />
-                    <span className="text-xs font-medium">Portail multi-fichiers</span>
-                  </div>
+                  <PackagePreview files={t.packageFiles} />
                 ) : (
                   <div
                     className="pointer-events-none h-[400px] w-[320px] origin-top-left scale-[0.4]"
