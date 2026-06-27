@@ -174,7 +174,7 @@ export type HotspotStackOptions = {
   // both html-directory and html-directory-override). Default "hotspot"
   // matches the directory the bundled portal templates already use.
   htmlDirectory?: string;
-  // Hotspot user names to create with no password (e.g. ["admin",
+  // Hotspot user names to create with password equal to username (e.g. ["admin",
   // "president01@"]) — optional and empty by default, since this is a
   // multi-tenant SaaS and hardcoding the same login across every
   // customer's router would be a collision/security smell, not a generic
@@ -308,6 +308,7 @@ export async function provisionHotspotStack(
 
   const bridgeName = opts.bridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
   const serverName = opts.serverName?.trim() || "hotspot1";
+  const hotspotProfileName = serverName;
   const previousBridgeName = router.hotspotBridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
 
   // One free auto-setup run per org (tracked on the org, survives the
@@ -605,15 +606,18 @@ export async function provisionHotspotStack(
       }
     }
 
-    // Remove every non-default profile from previous runs, not just one
-    // matching the current name — if the admin re-runs auto-setup with a
-    // different hotspot name, the old profile would otherwise be orphaned
-    // (still in the list, but unused by any server) instead of replaced.
+    // Remove every non-default server-profile from previous runs by .id.
+    // The profile name is intentionally tied to the technical hotspot
+    // server name, not to the customer-facing WiFi/hotspot label. Otherwise
+    // changing SSID/name from "safelinkhub" to "1x-wifi" leaves one profile
+    // per label on RouterOS and the captive portal can bind to the wrong
+    // one. Removing by name is also unreliable on some RouterOS menus; .id
+    // is the stable target.
     const existingProfiles = await client.talk(["/ip/hotspot/profile/print"]).catch(() => []);
     for (const profile of existingProfiles) {
-      if (profile.name && profile.name !== "default") {
+      if (profile[".id"] && profile.name !== "default") {
         await client
-          .talk(["/ip/hotspot/profile/remove", `=numbers=${profile.name}`])
+          .talk(["/ip/hotspot/profile/remove", `=numbers=${profile[".id"]}`])
           .catch(() => {});
       }
     }
@@ -621,7 +625,7 @@ export async function provisionHotspotStack(
     await run(
       [
         "/ip/hotspot/profile/add",
-        `=name=${opts.hotspotName}`,
+        `=name=${hotspotProfileName}`,
         `=hotspot-address=${opts.hotspotAddress}`,
         `=dns-name=${opts.dnsName}`,
         `=html-directory=${htmlDirectory}`,
@@ -642,19 +646,27 @@ export async function provisionHotspotStack(
         "=disabled=no",
         `=interface=${bridgeName}`,
         `=name=${serverName}`,
-        `=profile=${opts.hotspotName}`,
+        `=profile=${hotspotProfileName}`,
       ],
       "hotspot service",
     );
 
     // Optional, operator-chosen default hotspot users (e.g. a quick test
     // login) — opt-in per router rather than a fixed multi-tenant default.
+    // RouterOS Hotspot login expects a password unless MAC login handles the
+    // user; for deterministic client installs, the password is always the
+    // same value as the username and existing users are reconciled.
     for (const username of opts.defaultHotspotUsers ?? []) {
       const name = username.trim();
       if (!name) continue;
       const existingUser = await client.talk(["/ip/hotspot/user/print", `?name=${name}`]).catch(() => []);
       if (existingUser.length === 0) {
-        await run(["/ip/hotspot/user/add", `=name=${name}`], `hotspot user ${name}`);
+        await run(["/ip/hotspot/user/add", `=name=${name}`, `=password=${name}`], `hotspot user ${name}`);
+      } else if (existingUser[0][".id"]) {
+        await run(
+          ["/ip/hotspot/user/set", `=numbers=${existingUser[0][".id"]}`, `=password=${name}`],
+          `hotspot user ${name} password`,
+        );
       }
     }
 

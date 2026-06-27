@@ -479,8 +479,8 @@ export default function AutoSetupSteps({
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
             />
             <p className="mt-1 text-[11px] text-slate-400">
-              Séparés par des virgules, sans mot de passe. Laissez vide si vous gérez les accès
-              via les profils voucher.
+              Séparés par des virgules. Chaque mot de passe sera identique au nom utilisateur.
+              Laissez vide si vous gérez les accès via les profils voucher.
             </p>
           </div>
         </div>

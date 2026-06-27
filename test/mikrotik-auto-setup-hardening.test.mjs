@@ -60,3 +60,24 @@ test("device-mode unlock instructions request all required flags in one confirma
   }
 });
 
+test("hotspot auto-setup keeps one RouterOS server/profile pair with one address per MAC", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /const hotspotProfileName = serverName/);
+  assert.match(source, /\/ip\/hotspot\/remove/);
+  assert.match(source, /\/ip\/hotspot\/profile\/remove/);
+  assert.ok(source.includes('`=numbers=${profile[".id"]}`'));
+  assert.match(source, /`=name=\$\{hotspotProfileName\}`/);
+  assert.match(source, /"=addresses-per-mac=1"/);
+  assert.match(source, /`=profile=\$\{hotspotProfileName\}`/);
+  assert.doesNotMatch(source, /`=profile=\$\{opts\.hotspotName\}`/);
+});
+
+test("default hotspot users are created and reconciled with password equal to username", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /\/ip\/hotspot\/user\/add", `=name=\$\{name\}`, `=password=\$\{name\}`/);
+  assert.match(source, /\/ip\/hotspot\/user\/set/);
+  assert.ok(source.includes('`=numbers=${existingUser[0][".id"]}`'));
+  assert.match(source, /`=password=\$\{name\}`/);
+});
