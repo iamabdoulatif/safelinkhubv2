@@ -11,6 +11,7 @@ import DirectAccessSection from "./DirectAccessSection";
 import MndpRelaySection from "./MndpRelaySection";
 import { listPersonalVpnAccess } from "@/lib/mikrotik/personal-access";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
+import { getVpnTrialStatus } from "@/lib/billing/actions";
 
 function methodLabel(method: string) {
   if (method === "vpn") return "WireGuard";
@@ -35,6 +36,7 @@ export default async function RemoteAccessPage() {
     : [];
 
   const personalAccessRows = await listPersonalVpnAccess();
+  const vpnTrial = session ? await getVpnTrialStatus() : null;
 
   const routerIds = allRouters.map((r) => r.id);
   const forwards = routerIds.length
@@ -130,6 +132,7 @@ export default async function RemoteAccessPage() {
         }))}
         forwardsByRouter={forwardsByRouter}
         relayHost={process.env.WG_RELAY_HOST ?? ""}
+        vpnTrial={vpnTrial}
       />
       {session && <MndpRelaySection orgId={session.orgId} />}
     </div>

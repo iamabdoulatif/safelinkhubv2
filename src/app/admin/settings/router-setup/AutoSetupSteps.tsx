@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { ArrowLeft, Box, Check, Copy, Loader2, Plus, Trash2 } from "lucide-react";
-import { provisionHotspotStack } from "@/lib/mikrotik/container-setup";
+import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
 import { computeSubnetInfo, getImpactNote } from "@/lib/net/subnet";
 import {
   VOUCHER_PROFILES,
@@ -16,6 +16,8 @@ import {
 import type { DetectedRouter } from "@/lib/mikrotik/device-detect";
 import DetectedModelBadge from "./DetectedModelBadge";
 import WifiSetupCard from "./WifiSetupCard";
+import TrialBadge from "@/components/billing/TrialBadge";
+import PaywallCard from "@/components/billing/PaywallCard";
 
 const DEFAULT_VOUCHER_PROFILE_NAMES = VOUCHER_PROFILES.map((p) => p.name);
 const UNLOCK_COMMAND = "/system/device-mode/update mode=advanced container=yes";
@@ -131,6 +133,15 @@ export default function AutoSetupSteps({
 }) {
   const [detected, setDetected] = useState<DetectedRouter | null>(null);
 
+  type BillingStatus = {
+    isFree: boolean;
+    alreadyBilled: boolean;
+    feeCents: number;
+    walletBalanceCents: number;
+    sufficientBalance: boolean;
+  };
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+
   const archSupportsContainers = detected?.supportsContainers ?? true;
   const containerReady =
     detected === null
@@ -215,6 +226,31 @@ export default function AutoSetupSteps({
   }
 
   const subnet = hotspotBridge ? computeSubnetInfo(hotspotAddress.trim(), hotspotPrefixBits) : null;
+
+  // Pricing depends on the board's architecture (full Hotspot+MikHmon vs
+  // hotspot-only — see autoSetupFeeCentsFor), known only once detection
+  // resolves in step 3, so this can't be fetched any earlier. Re-fetches
+  // whenever that resolves, which is also exactly when the fee tier could
+  // change (e.g. a flaky first read defaulting to true).
+  useEffect(() => {
+    if (detected === null) return;
+    let cancelled = false;
+    getAutoSetupBillingStatus(routerId, detected.supportsContainers).then((res) => {
+      if (cancelled) return;
+      if (res?.success) {
+        setBilling({
+          isFree: res.isFree,
+          alreadyBilled: res.alreadyBilled,
+          feeCents: res.feeCents,
+          walletBalanceCents: res.walletBalanceCents,
+          sufficientBalance: res.sufficientBalance,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [detected, routerId]);
 
   function run() {
     setResult(null);
@@ -558,12 +594,20 @@ export default function AutoSetupSteps({
   // step === 8
   return (
     <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
-      <div className="flex items-center gap-2">
-        <Box className="h-5 w-5 text-slate-700" />
-        <h2 className="font-semibold text-slate-900">
-          Étape 8 : Récapitulatif & lancement
-          {archSupportsContainers ? " (Hotspot + MikHmon)" : " (Hotspot)"}
-        </h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Box className="h-5 w-5 text-slate-700" />
+          <h2 className="font-semibold text-slate-900">
+            Étape 8 : Récapitulatif & lancement
+            {archSupportsContainers ? " (Hotspot + MikHmon)" : " (Hotspot)"}
+          </h2>
+        </div>
+        {billing && (billing.isFree || billing.alreadyBilled) && (
+          <TrialBadge
+            active
+            activeLabel={billing.alreadyBilled ? "Déjà configuré" : "1er routeur gratuit"}
+          />
+        )}
       </div>
       <p className="mt-1 text-sm text-slate-500">
         Construit le bridge HOTSPOT sur tous les ports LAN, le pool/DHCP/profil du portail
@@ -574,6 +618,22 @@ export default function AutoSetupSteps({
         puis verrouille les services, l&apos;heure, l&apos;identité et le NTP avant de redémarrer
         le routeur.
       </p>
+
+      {billing && !billing.isFree && !billing.alreadyBilled && (
+        <div className="mt-4">
+          <PaywallCard
+            title="Configuration automatique payante"
+            description={
+              archSupportsContainers
+                ? "Routeur compatible Container (Hotspot + MikHmon) — tarif plein."
+                : "Routeur sans support Container (Hotspot seul) — tarif réduit."
+            }
+            feeCents={billing.feeCents}
+            walletBalanceCents={billing.walletBalanceCents}
+            sufficientBalance={billing.sufficientBalance}
+          />
+        </div>
+      )}
 
       <dl className="mt-4 grid grid-cols-1 gap-3 rounded-md bg-slate-50 p-3 text-xs sm:grid-cols-2">
         <div>
@@ -643,7 +703,8 @@ export default function AutoSetupSteps({
           pending ||
           !hotspotBridge ||
           !hotspotName.trim() ||
-          (archSupportsContainers && requiresUsbForContainer && !hasUsbStorage)
+          (archSupportsContainers && requiresUsbForContainer && !hasUsbStorage) ||
+          (billing !== null && !billing.sufficientBalance)
         }
         onClick={run}
         className="mt-4 flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"

@@ -6,6 +6,7 @@ import { ChevronDown, Copy, CreditCard, ExternalLink, Globe2, Loader2, ShieldOff
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
 import { PERIOD_PRICE_CENTS, type BillingPeriod } from "@/lib/mikrotik/billing-plans";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
+import TrialBadge from "@/components/billing/TrialBadge";
 
 type RouterRow = {
   id: string;
@@ -485,21 +486,32 @@ export default function DirectAccessSection({
   routers,
   forwardsByRouter,
   relayHost,
+  vpnTrial,
 }: {
   routers: RouterRow[];
   forwardsByRouter: Record<string, ForwardRow[]>;
   relayHost: string;
+  vpnTrial: { active: boolean; daysRemaining: number } | null;
 }) {
   const eligible = routers.filter((r) => r.connectionMethod !== "direct" && r.tunnelIp);
   if (eligible.length === 0) return null;
 
   return (
     <div className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
-      <div className="flex items-center gap-2">
-        <Globe2 className="h-5 w-5 text-slate-700" />
-        <h2 className="font-semibold text-slate-900">
-          Accès direct sans VPN (WinBox / WebFig)
-        </h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Globe2 className="h-5 w-5 text-slate-700" />
+          <h2 className="font-semibold text-slate-900">
+            Accès direct sans VPN (WinBox / WebFig)
+          </h2>
+        </div>
+        {vpnTrial && (
+          <TrialBadge
+            active={vpnTrial.active}
+            daysRemaining={vpnTrial.daysRemaining}
+            activeLabel="Essai VPN gratuit"
+          />
+        )}
       </div>
       <p className="mt-1 text-sm text-slate-500">
         Ouvre une adresse publique (relais:port) qui redirige directement
@@ -511,9 +523,11 @@ export default function DirectAccessSection({
       <p className="mt-3 flex items-start gap-1.5 rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-700">
         <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         Chaque accès est activable pour 1, 3, 6 ou 12 mois — choisissez la durée avant
-        d&apos;activer un service. La facturation n&apos;est pas encore activée : tous les plans
-        restent gratuits pour le moment pour tous les utilisateurs, mais la date de
-        renouvellement est déjà affichée à titre indicatif.
+        d&apos;activer un service.{" "}
+        {vpnTrial?.active
+          ? `Premier mois offert (essai en cours, ${vpnTrial.daysRemaining} j restants) : aucun débit pendant cette période.`
+          : "Le débit du portefeuille est déjà actif (essai d'un mois écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant."}{" "}
+        La date de renouvellement est affichée à titre indicatif.
       </p>
 
       <div className="mt-4 space-y-3">

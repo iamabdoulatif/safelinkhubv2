@@ -2,7 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers, organizations, captiveTemplates } from "@/lib/db/schema";
+import { routers, organizations, captiveTemplates, walletTransactions } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
@@ -18,6 +18,8 @@ import {
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { loadSafelinkhubDefaultPackage, type PackageFile } from "@/lib/captive-templates/package-files";
+import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
+import { getWalletBalanceCents } from "@/lib/wallet/actions";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -154,6 +156,53 @@ export type HotspotStackOptions = {
 };
 
 /**
+ * Lets the wizard show pricing/wallet status *before* the admin clicks
+ * "Lancer l'auto-setup complet" — same eligibility rule provisionHotspotStack
+ * itself enforces, just read-only, so the UI can render a paywall instead of
+ * letting the admin click through into an error.
+ */
+export async function getAutoSetupBillingStatus(routerId: string, supportsContainers: boolean) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || router.orgId !== session.orgId) {
+    return { error: "Router not found." };
+  }
+
+  const [org] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, router.orgId))
+    .limit(1);
+  if (!org) return { error: "Organization not found." };
+
+  if (router.autoSetupBilled) {
+    return { success: true, isFree: true, alreadyBilled: true, feeCents: 0, walletBalanceCents: 0, sufficientBalance: true };
+  }
+
+  if (!org.freeRouterSetupUsed) {
+    return { success: true, isFree: true, alreadyBilled: false, feeCents: 0, walletBalanceCents: 0, sufficientBalance: true };
+  }
+
+  const feeCents = autoSetupFeeCentsFor(supportsContainers);
+  const walletBalanceCents = await getWalletBalanceCents(org.id);
+  return {
+    success: true,
+    isFree: false,
+    alreadyBilled: false,
+    feeCents,
+    walletBalanceCents,
+    sufficientBalance: walletBalanceCents >= feeCents,
+  };
+}
+
+/**
  * Provisions a full SafeLinkHub hotspot router end to end, mirroring a
  * working device export (RouterOS 7.23, container-capable hAP/CCR boards):
  * renames the WAN port, builds the HOTSPOT bridge across every remaining
@@ -185,6 +234,39 @@ export async function provisionHotspotStack(
     .limit(1);
   if (!router || router.orgId !== session.orgId) {
     return { error: "Router not found." };
+  }
+
+  const [org] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, router.orgId))
+    .limit(1);
+  if (!org) {
+    return { error: "Organization not found." };
+  }
+
+  // One free auto-setup run per org (tracked on the org, survives the
+  // router being deleted and re-added), then a one-time fee per
+  // additional router charged to the wallet — see
+  // lib/billing/auto-setup-pricing.ts. A router that already consumed
+  // either the trial or a paid charge re-runs for free every time after
+  // (tweaking config shouldn't cost again).
+  const billableCents = router.autoSetupBilled
+    ? null
+    : org.freeRouterSetupUsed
+      ? autoSetupFeeCentsFor(opts.supportsContainers)
+      : 0;
+
+  if (billableCents !== null && billableCents > 0) {
+    const walletBalanceCents = await getWalletBalanceCents(org.id);
+    if (walletBalanceCents < billableCents) {
+      return {
+        error: `Solde du portefeuille insuffisant : il faut ${billableCents.toLocaleString("fr-FR")} FCFA pour configurer ce routeur supplémentaire (solde actuel : ${walletBalanceCents.toLocaleString("fr-FR")} FCFA).`,
+        paywall: true as const,
+        requiredCents: billableCents,
+        walletBalanceCents,
+      };
+    }
   }
 
   let client: RouterOSClient;
@@ -1215,6 +1297,28 @@ export async function provisionHotspotStack(
       // RouterOS drops the API connection on reboot before it can reply, so
       // we fire the command and don't wait for a response.
       client.talk(["/system/reboot"]).catch(() => {});
+    }
+
+    if (billableCents !== null) {
+      await db.update(routers).set({ autoSetupBilled: true }).where(eq(routers.id, routerId));
+      if (billableCents === 0) {
+        await db
+          .update(organizations)
+          .set({ freeRouterSetupUsed: true })
+          .where(eq(organizations.id, org.id));
+        log.push("OK: essai gratuit de configuration automatique utilisé pour ce routeur.");
+      } else {
+        await db.insert(walletTransactions).values({
+          orgId: org.id,
+          type: "charge",
+          amountCents: billableCents,
+          note: `Configuration automatique — ${router.name} (${opts.supportsContainers ? "Hotspot + MikHmon" : "Hotspot"})`,
+          createdBy: session.userId,
+        });
+        log.push(
+          `OK: ${billableCents.toLocaleString("fr-FR")} FCFA débités du portefeuille pour cette configuration.`,
+        );
+      }
     }
 
     return { success: true, log };

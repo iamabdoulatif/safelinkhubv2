@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routerPortForwards, routers, walletTransactions } from "@/lib/db/schema";
+import { routerPortForwards, routers, organizations, walletTransactions } from "@/lib/db/schema";
+import { isWithinVpnTrial } from "@/lib/billing/auto-setup-pricing";
 import { getSession } from "@/lib/auth/session";
 import { allocatePortForward, revokePortForward } from "./relay";
 import { connectToRouter } from "./router-sync";
@@ -237,14 +238,24 @@ export async function enablePortForward(
   const result = await enablePortForwardForRouter(routerId, service, billingPeriod);
 
   if (result.success && result.created) {
-    await chargeWalletForActivation({
-      orgId: session.orgId,
-      userId: session.userId,
-      forwardId: result.forwardId,
-      service,
-      billingPeriod,
-      routerName: router.name,
-    });
+    const [org] = await db
+      .select({ createdAt: organizations.createdAt })
+      .from(organizations)
+      .where(eq(organizations.id, session.orgId))
+      .limit(1);
+    // First 30 days per org: direct-access plans are free, no wallet
+    // charge recorded at all — not just "free but logged" — see
+    // VPN_TRIAL_DAYS in lib/billing/auto-setup-pricing.ts.
+    if (!org || !isWithinVpnTrial(org.createdAt)) {
+      await chargeWalletForActivation({
+        orgId: session.orgId,
+        userId: session.userId,
+        forwardId: result.forwardId,
+        service,
+        billingPeriod,
+        routerName: router.name,
+      });
+    }
   }
 
   revalidatePath("/admin/remote-access");

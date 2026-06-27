@@ -14,6 +14,11 @@ export const organizations = pgTable("organizations", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // Flips true the first time ANY router for this org completes the
+  // auto-setup wizard — tracked at the org level (not just on the router
+  // row) so the free trial can't be re-claimed by deleting and re-adding a
+  // router. See lib/billing/auto-setup-pricing.ts.
+  freeRouterSetupUsed: boolean("free_router_setup_used").notNull().default(false),
 });
 
 export const users = pgTable("users", {
@@ -53,6 +58,11 @@ export const routers = pgTable("routers", {
   installTokenHash: text("install_token_hash"),
   installTokenExpiresAt: timestamp("install_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // True once this specific router has consumed either the org's one free
+  // auto-setup trial or a paid auto-setup charge — re-running the wizard
+  // on an already-billed router never charges again. See
+  // lib/billing/auto-setup-pricing.ts.
+  autoSetupBilled: boolean("auto_setup_billed").notNull().default(false),
 });
 
 export const captiveTemplates = pgTable("captive_templates", {
