@@ -109,7 +109,7 @@ export const paymentGateways = pgTable("payment_gateways", {
   orgId: uuid("org_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(), // "paystack" | "genius_pay" | "wassoya" (see PROVIDERS in lib/payment-gateways/providers.ts)
+  provider: text("provider").notNull(), // "paystack" | "genius_pay" | "pawapay" (see PROVIDERS in lib/payment-gateways/providers.ts)
   merchantId: text("merchant_id"),
   apiKeyEncrypted: text("api_key_encrypted"),
   enabled: boolean("enabled").notNull().default(false),

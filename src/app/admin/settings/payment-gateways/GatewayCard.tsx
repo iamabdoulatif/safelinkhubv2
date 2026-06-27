@@ -6,31 +6,31 @@ import { Check } from "lucide-react";
 import { savePaymentGateway } from "@/lib/payment-gateways/actions";
 import type { Provider } from "@/lib/payment-gateways/providers";
 
-// Paystack/Genius Pay logos are full wordmarks (icon + brand name baked
-// in) — shown alone. Wassoya's is an icon-only mark, so it needs the
-// brand name set alongside it (see standalone below).
+// Paystack/Genius Pay/PawaPay logos are full wordmarks (icon + brand name
+// baked in, or a pure text logo for PawaPay) — shown alone, no separate
+// label needed.
 const LOGOS: Record<Provider, { src: string; width: number; height: number; standalone: boolean }> = {
   paystack: { src: "/Paystack.png", width: 1354, height: 626, standalone: true },
   genius_pay: { src: "/geniuspay.svg", width: 712, height: 205, standalone: true },
-  wassoya: { src: "/wassoya.png", width: 512, height: 512, standalone: false },
+  pawapay: { src: "/pawapay.svg", width: 714, height: 153, standalone: true },
 };
 
 const LABELS: Record<Provider, string> = {
   genius_pay: "Genius Pay",
   paystack: "Paystack",
-  wassoya: "Wassoya",
+  pawapay: "PawaPay",
 };
 
 const ACCENTS: Record<Provider, string> = {
   genius_pay: "hover:ring-violet-200",
   paystack: "hover:ring-sky-200",
-  wassoya: "hover:ring-pink-200",
+  pawapay: "hover:ring-slate-300",
 };
 
 const SUBTITLES: Record<Provider, string> = {
   paystack: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
   genius_pay: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
-  wassoya: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
+  pawapay: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
 };
 
 export default function GatewayCard({
