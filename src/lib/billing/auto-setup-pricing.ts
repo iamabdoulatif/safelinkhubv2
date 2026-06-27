@@ -21,8 +21,8 @@ export function autoSetupFeeCentsFor(supportsContainers: boolean): number {
   return supportsContainers ? AUTO_SETUP_FEE_CENTS.containerCapable : AUTO_SETUP_FEE_CENTS.hotspotOnly;
 }
 
-/** One month of free direct-access VPN (WinBox/WebFig/SSH/MikHmon) plans per org, from signup. */
-export const VPN_TRIAL_DAYS = 30;
+/** One year of free direct-access VPN (WinBox/WebFig/SSH/MikHmon) plans per org, from signup. */
+export const VPN_TRIAL_DAYS = 365;
 
 export function vpnTrialEndsAt(orgCreatedAt: Date): Date {
   const d = new Date(orgCreatedAt);

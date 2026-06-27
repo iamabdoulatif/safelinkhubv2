@@ -525,8 +525,8 @@ export default function DirectAccessSection({
         Chaque accès est activable pour 1, 3, 6 ou 12 mois — choisissez la durée avant
         d&apos;activer un service.{" "}
         {vpnTrial?.active
-          ? `Premier mois offert (essai en cours, ${vpnTrial.daysRemaining} j restants) : aucun débit pendant cette période.`
-          : "Le débit du portefeuille est déjà actif (essai d'un mois écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant."}{" "}
+          ? "Première année offerte (essai en cours) : aucun débit pendant cette période."
+          : "Le débit du portefeuille est déjà actif (essai d'un an écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant."}{" "}
         La date de renouvellement est affichée à titre indicatif.
       </p>
 
