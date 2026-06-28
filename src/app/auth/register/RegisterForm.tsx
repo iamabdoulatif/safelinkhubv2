@@ -12,11 +12,9 @@ import {
   Send,
   Eye,
   EyeOff,
-  Wand2,
 } from "lucide-react";
 import { register } from "@/lib/auth/actions";
 import { COUNTRIES, countryFlag } from "@/lib/intl/countries";
-import { generateStrongPassword } from "@/lib/auth/generate-password";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 
 const inputClass =
@@ -31,14 +29,6 @@ export default function RegisterForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  function handleGeneratePassword() {
-    const generated = generateStrongPassword();
-    setPassword(generated);
-    setConfirmPassword(generated);
-    setShowPassword(true);
-    setShowConfirmPassword(true);
-  }
 
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
@@ -82,17 +72,7 @@ export default function RegisterForm() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <label className="block text-sm font-medium text-slate-700">Mot de passe</label>
-            <button
-              type="button"
-              onClick={handleGeneratePassword}
-              className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
-            >
-              <Wand2 className="h-3 w-3" />
-              Générer
-            </button>
-          </div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Mot de passe</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input

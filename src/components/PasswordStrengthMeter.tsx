@@ -1,6 +1,6 @@
 "use client";
 
-import { passwordStrength } from "@/lib/auth/generate-password";
+import { passwordStrength } from "@/lib/auth/password-strength";
 
 const LABELS = {
   weak: "Faible",

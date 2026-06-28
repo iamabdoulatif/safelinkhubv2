@@ -1,9 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Check, Eye, EyeOff, Loader2, Wand2, X } from "lucide-react";
+import { Check, Eye, EyeOff, Loader2, X } from "lucide-react";
 import { changePassword } from "@/lib/auth/actions";
-import { generateStrongPassword } from "@/lib/auth/generate-password";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 
 export default function ChangePasswordForm() {
@@ -32,23 +31,9 @@ export default function ChangePasswordForm() {
         />
       </div>
       <div>
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <label htmlFor="new-password" className="block text-sm font-medium text-slate-700">
-            Nouveau mot de passe
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              const generated = generateStrongPassword();
-              setNewPassword(generated);
-              setShowNewPassword(true);
-            }}
-            className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
-          >
-            <Wand2 className="h-3 w-3" />
-            Générer
-          </button>
-        </div>
+        <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium text-slate-700">
+          Nouveau mot de passe
+        </label>
         <div className="relative">
           <input
             id="new-password"
