@@ -940,10 +940,13 @@ export async function provisionHotspotStack(
     }
 
     // Security hardening (filter + raw): drop invalid connections, basic
-    // DDoS rate-limiting, port-scanner detection, and a progressive
-    // SSH/Telnet brute-force blacklist (3 strikes -> 1 day ban) — mirrors
-    // the reference hardened export. Removed by comment first so reruns
-    // don't pile up duplicate rules.
+    // DDoS rate-limiting, and WAN DNS blocking — mirrors the reference
+    // hardened export, minus the port-scanner-detection and SSH/Telnet
+    // brute-force rules that used to live here (see below — both removed
+    // for risking self-lockout of legitimate SafeLinkHub/admin traffic).
+    // Removed by comment first so reruns don't pile up duplicate rules,
+    // and so any router that already has the old rules gets them cleaned
+    // up automatically too.
     for (const comment of [
       "Drop Invalid Connections",
       "Drop SSH&TELNET Brute Forcers",
@@ -1046,55 +1049,12 @@ export async function provisionHotspotStack(
       ],
       "firewall: block WAN DNS (udp)",
     );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        "=protocol=tcp",
-        "=psd=21,3s,3,1",
-        "=action=add-src-to-address-list",
-        "=address-list=port scanners",
-        "=address-list-timeout=2m",
-        "=comment=Port scanners to list",
-      ],
-      "firewall: port-scan detection (psd)",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        "=protocol=tcp",
-        "=tcp-flags=fin,syn",
-        "=action=add-src-to-address-list",
-        "=address-list=port scanners",
-        "=address-list-timeout=2m",
-        "=comment=SYN/FIN scan",
-      ],
-      "firewall: port-scan detection (syn/fin)",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        "=protocol=tcp",
-        "=tcp-flags=syn,rst",
-        "=action=add-src-to-address-list",
-        "=address-list=port scanners",
-        "=address-list-timeout=2m",
-        "=comment=SYN/RST scan",
-      ],
-      "firewall: port-scan detection (syn/rst)",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        "=src-address-list=port scanners",
-        "=action=drop",
-        "=comment=drop port scanners",
-      ],
-      "firewall: drop listed port scanners",
-    );
+    // Port-scan-detection filter rules (psd / SYN-FIN / SYN-RST heuristics
+    // -> "port scanners" address-list -> drop) used to live here too, same
+    // family of bug as the SSH/Telnet ban below: they keyed off generic
+    // TCP behavior on the input chain with no source restriction, so they
+    // risked catching SafeLinkHub's own relay/tunnel traffic and locking
+    // legitimate admin access out, not just real attackers.
     // The SSH/Telnet progressive-ban filter rules that used to live here
     // (SSH_BlackList_1/2/3 -> IP_BlackList, 3 strikes -> 1-day ban) were
     // removed — they keyed off dst-port 22-23 with no source restriction,
