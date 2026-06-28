@@ -355,6 +355,7 @@ export default function AutoSetupSteps({
           .map((u) => u.trim())
           .filter(Boolean),
         hasUsbStorage,
+        hasLargeOnboardStorage: detected?.hasLargeOnboardStorage ?? false,
         supportsContainers: archSupportsContainers && !skipMikhmon,
         reboot: true,
         voucherProfiles: customProfiles,

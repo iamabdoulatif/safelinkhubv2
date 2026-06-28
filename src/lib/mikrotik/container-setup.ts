@@ -161,7 +161,12 @@ async function provisionDockerStack(
   client: RouterOSClient,
   log: string[],
   run: RunFn,
-  opts: { supportsContainers: boolean; hasUsbStorage: boolean; hotspotAddress?: string },
+  opts: {
+    supportsContainers: boolean;
+    hasUsbStorage: boolean;
+    hasLargeOnboardStorage?: boolean;
+    hotspotAddress?: string;
+  },
 ) {
   // The UI's own architecture/device-mode check (DetectedModelBadge) is
   // what sets opts.supportsContainers — but that detection runs once on
@@ -236,8 +241,11 @@ async function provisionDockerStack(
     );
 
     // Container engine: USB-equipped boards pull/extract on the stick
-    // (usb1/pull) to spare onboard flash; ax2 / hAP ax lite have no USB
-    // port and use the tmpfs scratch space instead.
+    // (usb1/pull) to spare onboard flash; boards with enough onboard flash
+    // to spare (RB4011 and other large-storage boards — see
+    // hasLargeOnboardStorage) use a plain "disk1" Files directory directly;
+    // ax2 / hAP ax lite have neither USB nor flash to spare and fall back to
+    // the RAM-backed tmpfs scratch space.
     let containerRootDir = "tmp/mikhmon-app";
     let containerLayerDir = "tmp/mikhmon-layers";
     if (opts.hasUsbStorage) {
@@ -270,6 +278,20 @@ async function provisionDockerStack(
       await run(
         ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${usbLayerDir}`],
         "container engine config (USB storage)",
+      );
+    } else if (opts.hasLargeOnboardStorage) {
+      // No USB stick, but the board has enough onboard flash (e.g. RB4011)
+      // to hold the image directly — no /disk/add or formatting needed,
+      // "disk1" is just a plain directory on the router's own Files/flash
+      // storage, unlike usb1 (separate disk slot, needs ext4 formatting) or
+      // tmp (RAM-backed, lost on reboot, capped at 150MB).
+      const flashRootDir = "disk1/mikhmon-app";
+      const flashLayerDir = "disk1/mikhmon-layers";
+      containerRootDir = flashRootDir;
+      containerLayerDir = flashLayerDir;
+      await run(
+        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=disk1/pull", `=layer-dir=${flashLayerDir}`],
+        "container engine config (onboard flash storage)",
       );
     } else {
       const existingDisks = await client.talk(["/disk/print"]).catch(() => []);
@@ -408,6 +430,10 @@ export type HotspotStackOptions = {
   // callers that never set this keep their previous behavior.
   identity?: string;
   hasUsbStorage: boolean; // ax2 / hAP ax lite have none; some boards take a USB stick
+  // True on boards with enough onboard flash (RB4011, etc.) to skip both
+  // USB and tmpfs and use a plain "disk1" Files directory instead. Ignored
+  // when hasUsbStorage is true.
+  hasLargeOnboardStorage?: boolean;
   // RouterOS Container only runs on arm/arm64/tile — mipsbe/mmips/smips
   // boards (RB951, hEX, hEX S, plain wAP, ...) skip the DOCKERS/MikHmon
   // step entirely rather than failing partway through.
@@ -1445,6 +1471,7 @@ export async function provisionHotspotStack(
     await provisionDockerStack(client, log, run, {
       supportsContainers: opts.supportsContainers,
       hasUsbStorage: opts.hasUsbStorage,
+      hasLargeOnboardStorage: opts.hasLargeOnboardStorage,
       hotspotAddress: opts.hotspotAddress,
     });
 
@@ -1810,7 +1837,10 @@ export async function repairRouterConfig(routerId: string) {
  * too — otherwise that one rule is just added later by the full
  * auto-setup once a hotspot address exists.
  */
-export async function createDockerContainer(routerId: string, opts: { hasUsbStorage: boolean }) {
+export async function createDockerContainer(
+  routerId: string,
+  opts: { hasUsbStorage: boolean; hasLargeOnboardStorage?: boolean },
+) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
@@ -1853,6 +1883,7 @@ export async function createDockerContainer(routerId: string, opts: { hasUsbStor
     await provisionDockerStack(client, log, run, {
       supportsContainers: true,
       hasUsbStorage: opts.hasUsbStorage,
+      hasLargeOnboardStorage: opts.hasLargeOnboardStorage,
       hotspotAddress: existingBridge?.gatewayIp?.split("/")[0],
     });
     return { success: true, log };

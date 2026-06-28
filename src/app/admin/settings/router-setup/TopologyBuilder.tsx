@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { Box, Cable, Layers, Loader2, Plus, SlidersHorizontal, Wifi, X } from "lucide-react";
 import { listRouterInterfaces, saveBridge } from "@/lib/mikrotik/bridges";
 import { createDockerContainer } from "@/lib/mikrotik/container-setup";
+import { detectRouterModel } from "@/lib/mikrotik/device-detect";
 import {
   classForPrefix,
   CLASS_DEFAULT_PREFIX,
@@ -231,15 +232,28 @@ function DockerBridgeCreatePanel({
   onCreated: () => void;
 }) {
   const [hasUsbStorage, setHasUsbStorage] = useState(false);
+  const [hasLargeOnboardStorage, setHasLargeOnboardStorage] = useState(false);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<{ success?: boolean; error?: string; log?: string[] } | null>(
     null,
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    detectRouterModel(routerId).then((res) => {
+      if (cancelled || !res?.success) return;
+      setHasUsbStorage(res.detected.hasUsbStorage);
+      setHasLargeOnboardStorage(res.detected.hasLargeOnboardStorage);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [routerId]);
+
   function create() {
     setPending(true);
     setResult(null);
-    createDockerContainer(routerId, { hasUsbStorage }).then((res) => {
+    createDockerContainer(routerId, { hasUsbStorage, hasLargeOnboardStorage }).then((res) => {
       setResult(res);
       setPending(false);
       if (res?.success) onCreated();
@@ -266,6 +280,16 @@ function DockerBridgeCreatePanel({
           className="h-3.5 w-3.5 rounded border-slate-300"
         />
         Le routeur a une clé USB branchée
+      </label>
+
+      <label className="mt-1.5 flex items-center gap-2 text-xs text-slate-600">
+        <input
+          type="checkbox"
+          checked={hasLargeOnboardStorage}
+          onChange={(e) => setHasLargeOnboardStorage(e.target.checked)}
+          className="h-3.5 w-3.5 rounded border-slate-300"
+        />
+        Grand espace de stockage interne (ex: RB4011) — installe sur disk1
       </label>
 
       <button

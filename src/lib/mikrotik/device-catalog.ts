@@ -23,6 +23,17 @@ export type MikrotikModel = {
    * which storage mode container-setup.ts actually uses either way.
    */
   requiresUsbForContainer?: boolean;
+  /**
+   * True on boards with enough onboard flash to hold the MikHmon image
+   * directly (e.g. RB4011's 128MB NAND vs hAP ax lite/ax²'s ~16MB) — these
+   * use a plain "disk1" directory on the router's own Files/flash storage
+   * for /container's root-dir/layer-dir instead of the RAM-backed tmpfs
+   * scratch space, since the image would otherwise just be lost on every
+   * reboot for no reason on a board that has the flash to spare. Mutually
+   * exclusive in practice with requiresUsbForContainer (a board needing USB
+   * has too little flash to qualify here) but both default to false/unset.
+   */
+  hasLargeOnboardStorage?: boolean;
 };
 
 /**
@@ -76,7 +87,12 @@ export const MIKROTIK_MODELS: MikrotikModel[] = [
   { boardName: "Audience", architecture: "arm", wifiBands: "2.4+5" },
   { boardName: "cAP ac", architecture: "arm", wifiBands: "2.4+5" },
   { boardName: "hAP ac²", architecture: "arm", wifiBands: "2.4+5" },
-  { boardName: "RB4011iGS+5HacQ2HnD-IN", architecture: "arm", wifiBands: "2.4+5" },
+  {
+    boardName: "RB4011iGS+5HacQ2HnD-IN",
+    architecture: "arm",
+    wifiBands: "2.4+5",
+    hasLargeOnboardStorage: true,
+  },
   { boardName: "hAP ac³", architecture: "arm", wifiBands: "2.4+5" },
   { boardName: "cAP XL ac", architecture: "arm", wifiBands: "2.4+5" },
   { boardName: "Chateau LTE6-US", architecture: "arm", wifiBands: "2.4+5" },

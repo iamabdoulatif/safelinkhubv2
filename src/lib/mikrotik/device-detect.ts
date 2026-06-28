@@ -88,6 +88,11 @@ export type DetectedRouter = {
    * onboard flash/tmpfs alone (hAP ax lite, hAP ax²), and also false for
    * any unrecognized board (no basis to warn either way). */
   requiresUsbForContainer: boolean;
+  /** True on boards confirmed to have enough onboard flash (e.g. RB4011) to
+   * hold the MikHmon image directly in a "disk1" Files directory instead of
+   * the RAM-backed tmpfs scratch space — see device-catalog.ts. Only takes
+   * effect when hasUsbStorage is false (a plugged-in USB stick still wins). */
+  hasLargeOnboardStorage: boolean;
 };
 
 /**
@@ -152,6 +157,7 @@ export async function detectRouterModel(routerId: string) {
       routerosVersion: resource?.version ?? "",
       deviceMode: deviceModeRow?.mode ?? null,
       requiresUsbForContainer: model?.requiresUsbForContainer ?? false,
+      hasLargeOnboardStorage: model?.hasLargeOnboardStorage ?? false,
       containerFeatureEnabled: deviceModeRow ? parseRosBoolean(deviceModeRow.container) : null,
     };
 
