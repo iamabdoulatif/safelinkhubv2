@@ -10,7 +10,7 @@ describe("ROUTER_SETUP_PROFILE", () => {
     assert.equal(ROUTER_SETUP_PROFILE.wanInterface, "E1-WAN-FAI");
     assert.equal(ROUTER_SETUP_PROFILE.hotspotBridge.name, "HOTSPOT");
     assert.equal(ROUTER_SETUP_PROFILE.hotspotBridge.gateway, "10.0.0.1/8");
-    assert.equal(ROUTER_SETUP_PROFILE.containerBridge.name, "DOCKER-SAFELINKHUB");
+    assert.equal(ROUTER_SETUP_PROFILE.containerBridge.name, "DOCKERS");
     assert.equal(ROUTER_SETUP_PROFILE.containerBridge.gateway, "11.11.11.1/28");
     assert.equal(ROUTER_SETUP_PROFILE.containerBridge.vethName, "MIKHMON");
     assert.equal(ROUTER_SETUP_PROFILE.containerBridge.vethAddress, "11.11.11.11/28");
@@ -29,7 +29,7 @@ describe("ROUTER_SETUP_PROFILE", () => {
 
     assert.ok(checklist.some((item) => item.includes("hAP ax^2")));
     assert.ok(checklist.some((item) => item.includes("RouterOS 7.23.1")));
-    assert.ok(checklist.some((item) => item.includes("DOCKER-SAFELINKHUB")));
+    assert.ok(checklist.some((item) => item.includes("DOCKERS")));
     assert.ok(checklist.some((item) => item.includes("8088")));
     assert.ok(checklist.some((item) => item.includes("API 8728")));
   });

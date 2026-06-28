@@ -191,7 +191,7 @@ function DockerBridgeNode({ ports, nodeRef }: { ports: string[]; nodeRef: (el: H
       <div className="mt-1 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Layers className="h-5 w-5 text-violet-500" />
-          <p className="text-base font-semibold text-slate-700">DOCKER-SAFELINKHUB</p>
+          <p className="text-base font-semibold text-slate-700">DOCKERS</p>
         </div>
       </div>
 

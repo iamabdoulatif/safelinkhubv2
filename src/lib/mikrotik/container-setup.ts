@@ -51,9 +51,10 @@ type Sentence = Record<string, string>;
 const WAN_INTERFACE_NAME = "E1-WAN-FAI";
 const DOCKER_BRIDGE_NAME = ROUTER_SETUP_PROFILE.containerBridge.name;
 // Bridge name used by earlier SafeLinkHub installs before the audited hAP ax²
-// profile was normalized to DOCKER-SAFELINKHUB.
+// profile was normalized to DOCKERS (matching the operator's own reference
+// RouterOS config verbatim).
 const LEGACY_HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
-const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKERS"];
+const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKER-SAFELINKHUB"];
 const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";

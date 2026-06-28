@@ -15,6 +15,7 @@ import {
 } from "@/lib/mikrotik/voucher-profiles";
 import { detectRouterModel, type DetectedRouter } from "@/lib/mikrotik/device-detect";
 import DetectedModelBadge from "./DetectedModelBadge";
+import ConfigAuditBanner from "./ConfigAuditBanner";
 import TrialBadge from "@/components/billing/TrialBadge";
 import PaywallCard from "@/components/billing/PaywallCard";
 
@@ -843,6 +844,16 @@ export default function AutoSetupSteps({
               ))}
             </ul>
           )}
+        </div>
+      )}
+
+      {result?.success && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-medium text-slate-500">
+            Vérification en direct sur le routeur (relisez l&apos;état réel une fois qu&apos;il a
+            redémarré, avec le bouton « Réessayer » si besoin) :
+          </p>
+          <ConfigAuditBanner routerId={routerId} />
         </div>
       )}
 

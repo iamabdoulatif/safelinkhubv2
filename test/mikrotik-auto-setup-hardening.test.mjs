@@ -12,10 +12,10 @@ test("auto-setup targets the audited MikHmon v3 container image", async () => {
   assert.doesNotMatch(source, /latif225\/mikhmon-sf-v1:latest/);
 });
 
-test("auto-setup migrates the lowercase dockers bridge before assigning the Docker gateway", async () => {
+test("auto-setup migrates legacy Docker bridge names before assigning the Docker gateway", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /LEGACY_DOCKER_BRIDGE_NAMES = \["CONTAINERS", "dockers", "DOCKERS"\]/);
+  assert.match(source, /LEGACY_DOCKER_BRIDGE_NAMES = \["CONTAINERS", "dockers", "DOCKER-SAFELINKHUB"\]/);
   assert.match(source, /migrateLegacyDockerBridge/);
   assert.match(source, /removeAddressByAddress\(client, `\$\{VETH_GATEWAY\}\/28`\)/);
 });

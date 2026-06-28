@@ -24,9 +24,13 @@ export default function ConfigAuditBanner({ routerId }: { routerId: string }) {
   >({ loading: true });
   const [refreshing, setRefreshing] = useState(false);
   const [repairing, setRepairing] = useState(false);
-  const [repairResult, setRepairResult] = useState<{ success?: boolean; error?: string; log?: string[] } | null>(
-    null,
-  );
+  const [repairResult, setRepairResult] = useState<{
+    success?: boolean;
+    error?: string;
+    log?: string[];
+    firmwareUpdating?: boolean;
+    message?: string;
+  } | null>(null);
 
   function runAudit(onComplete?: () => void) {
     auditRouterConfig(routerId).then((res) => {
@@ -52,7 +56,7 @@ export default function ConfigAuditBanner({ routerId }: { routerId: string }) {
     repairRouterConfig(routerId).then((res) => {
       setRepairResult(res);
       setRepairing(false);
-      if (res?.success) runAudit();
+      if (res && "success" in res && res.success) runAudit();
     });
   }
 
@@ -65,7 +69,25 @@ export default function ConfigAuditBanner({ routerId }: { routerId: string }) {
     );
   }
 
-  if (state.error || !state.items) return null;
+  if (state.error || !state.items) {
+    // Visible and retryable instead of silently disappearing — most
+    // common right after the auto-setup's own reboot, while the router is
+    // still coming back up and briefly unreachable.
+    return state.error ? (
+      <div className="mb-4 flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        <span>{state.error}</span>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={refreshing}
+          className="flex shrink-0 items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 font-medium hover:bg-amber-100 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+          Réessayer
+        </button>
+      </div>
+    ) : null;
+  }
 
   const issues = state.items.filter((i) => i.status !== "ok");
 
@@ -150,11 +172,15 @@ export default function ConfigAuditBanner({ routerId }: { routerId: string }) {
               className={`mt-2 rounded-md px-2.5 py-2 text-xs ${
                 repairResult.success
                   ? "bg-emerald-50 text-emerald-700"
-                  : "bg-red-50 text-red-600"
+                  : repairResult.firmwareUpdating
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-red-50 text-red-600"
               }`}
             >
               {repairResult.success ? (
                 <p>Réparation terminée — relancez la vérification pour confirmer.</p>
+              ) : repairResult.firmwareUpdating ? (
+                <p>{repairResult.message}</p>
               ) : (
                 <p>{repairResult.error ?? "Échec de la réparation."}</p>
               )}
