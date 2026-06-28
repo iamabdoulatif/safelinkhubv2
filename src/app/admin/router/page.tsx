@@ -58,7 +58,7 @@ export default async function RouterDashboardPage() {
   ];
 
   return (
-    <div>
+    <div className="animate-fade-in-up">
       <RoutersTable
         routers={allRouters.map((r) => ({
           id: r.id,
@@ -71,8 +71,8 @@ export default async function RouterDashboardPage() {
         }))}
       />
 
-      <div className="mt-10 flex items-center justify-between border-t border-slate-100 pt-8">
-        <div className="flex items-center gap-2">
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-8">
+        <div className="flex flex-wrap items-center gap-2">
           <Router className="h-5 w-5 text-slate-700" />
           <h2 className="text-xl font-bold text-slate-900">
             Détails — {router.name}
@@ -81,7 +81,7 @@ export default async function RouterDashboardPage() {
         <RefreshButton routerId={router.id} />
       </div>
 
-      <div className="mt-1 flex items-center gap-4 text-sm text-slate-500">
+      <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-slate-500">
         <span
           className={`flex items-center gap-1.5 ${
             router.status === "online" ? "text-emerald-600" : "text-red-500"
@@ -101,10 +101,10 @@ export default async function RouterDashboardPage() {
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
+        {stats.map((s, i) => (
           <div
             key={s.label}
-            className="rounded-xl border border-slate-200 bg-white p-4"
+            className={`rounded-xl border border-slate-200 bg-white p-4 hover-lift delay-${(i + 1) * 100}`}
           >
             <p className="text-sm text-slate-500">{s.label}</p>
             <p className="mt-2 text-2xl font-semibold text-slate-900">

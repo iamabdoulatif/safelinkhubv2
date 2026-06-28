@@ -34,7 +34,7 @@ export default async function FloatPage() {
   );
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-4xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <Droplet className="h-5 w-5 text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-900">Solde flottant</h1>
@@ -44,7 +44,7 @@ export default async function FloatPage() {
         les opérations courantes.
       </p>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 hover-lift">
         <p className="text-sm font-medium text-slate-500">Solde actuel</p>
         <p
           className={`mt-1 text-3xl font-bold ${
@@ -61,6 +61,7 @@ export default async function FloatPage() {
       </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
@@ -107,6 +108,7 @@ export default async function FloatPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

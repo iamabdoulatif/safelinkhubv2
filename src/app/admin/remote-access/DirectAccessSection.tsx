@@ -434,7 +434,7 @@ function RouterDirectAccess({
               />
             </button>
             {showDetails && (
-              <div className="overflow-x-auto border-t border-slate-100">
+              <div className="table-mobile-wrapper overflow-x-auto border-t border-slate-100">
                 <table className="w-full min-w-[760px] text-left text-[11px]">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
@@ -498,7 +498,7 @@ export default function DirectAccessSection({
 
   return (
     <div className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Globe2 className="h-5 w-5 text-slate-700" />
           <h2 className="font-semibold text-slate-900">

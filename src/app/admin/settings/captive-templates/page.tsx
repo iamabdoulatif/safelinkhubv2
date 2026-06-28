@@ -27,7 +27,7 @@ export default async function CaptiveTemplatesPage() {
     : [];
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl animate-fade-in-up">
       <h1 className="text-2xl font-bold text-slate-900">
         Modèles de portail captif
       </h1>

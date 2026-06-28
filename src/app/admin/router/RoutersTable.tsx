@@ -108,7 +108,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
   });
 
   return (
-    <div>
+    <div className="animate-fade-in-up">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Routeurs MikroTik</h1>
@@ -163,6 +163,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
           </div>
         </div>
 
+        <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-100 text-xs font-medium text-slate-500">
             <tr>
@@ -225,6 +226,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
             )}
           </tbody>
         </table>
+        </div>
 
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-sm text-slate-500">
           <span>Affichage de {filtered.length} résultat(s)</span>

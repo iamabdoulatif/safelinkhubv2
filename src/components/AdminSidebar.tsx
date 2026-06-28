@@ -21,6 +21,8 @@ import {
   LifeBuoy,
   ChevronDown,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import { logout } from "@/lib/auth/actions";
@@ -63,6 +65,7 @@ export default function AdminSidebar({
   userName: string;
 }) {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(
     pathname?.startsWith("/admin/settings") ?? false,
   );
@@ -70,110 +73,153 @@ export default function AdminSidebar({
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname?.startsWith(href);
 
+  const closeMobile = () => setMobileOpen(false);
+
   return (
-    <aside className="flex h-screen w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
-        <span className="text-lg font-bold tracking-tight text-slate-900">
+    <>
+      {/* Mobile top bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="flex items-center justify-center rounded-md p-2 text-slate-700 hover:bg-slate-100"
+          aria-label="Ouvrir le menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <span className="text-base font-bold tracking-tight text-slate-900">
           Safe<span className="text-emerald-500">LinkHub</span>
         </span>
+        <div className="w-9" />
       </div>
 
-      <div className="border-b border-slate-200 px-5 py-3">
-        <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-          <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-900 text-[10px] font-semibold text-white">
-            {orgName.slice(0, 2).toUpperCase()}
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={closeMobile}
+        />
+      )}
+
+      {/* Sidebar — desktop always visible, mobile drawer */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:w-60 flex-shrink-0 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {/* Mobile close button inside sidebar */}
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <span className="text-lg font-bold tracking-tight text-slate-900">
+            Safe<span className="text-emerald-500">LinkHub</span>
           </span>
-          <span className="truncate">{orgName}</span>
-          <ChevronDown className="ml-auto h-4 w-4 text-slate-400" />
-        </button>
-      </div>
+          <button
+            onClick={closeMobile}
+            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 lg:hidden"
+            aria-label="Fermer le menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-3">
-        <ul className="space-y-0.5">
-          {mainLinks.map(({ href, label, icon: Icon }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium ${
-                  isActive(href)
+        <div className="border-b border-slate-200 px-5 py-3">
+          <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-900 text-[10px] font-semibold text-white">
+              {orgName.slice(0, 2).toUpperCase()}
+            </span>
+            <span className="truncate">{orgName}</span>
+            <ChevronDown className="ml-auto h-4 w-4 text-slate-400" />
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 py-3">
+          <ul className="space-y-0.5">
+            {mainLinks.map(({ href, label, icon: Icon }) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  onClick={closeMobile}
+                  className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
+                    isActive(href)
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{label}</span>
+                </Link>
+              </li>
+            ))}
+
+            <li>
+              <button
+                onClick={() => setSettingsOpen((v) => !v)}
+                className={`flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
+                  pathname?.startsWith("/admin/settings")
                     ? "bg-emerald-50 text-emerald-700"
                     : "text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                {label}
-              </Link>
+                <Settings className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate">Paramètres</span>
+                <ChevronDown
+                  className={`ml-auto h-4 w-4 text-slate-400 transition-transform duration-300 ${
+                    settingsOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              {settingsOpen && (
+                <ul className="mt-0.5 ml-7 space-y-0.5 border-l border-slate-200 pl-3 animate-fade-in">
+                  {settingsLinks.map((s) => (
+                    <li key={s.href}>
+                      <Link
+                        href={s.href}
+                        onClick={closeMobile}
+                        className={`block rounded-md px-2 py-1.5 text-sm transition-colors ${
+                          pathname === s.href
+                            ? "font-medium text-emerald-700"
+                            : "text-slate-500 hover:text-slate-800"
+                        }`}
+                      >
+                        {s.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
-          ))}
+          </ul>
 
-          <li>
-            <button
-              onClick={() => setSettingsOpen((v) => !v)}
-              className={`flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium ${
-                pathname?.startsWith("/admin/settings")
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <Settings className="h-4 w-4" />
-              Paramètres
-              <ChevronDown
-                className={`ml-auto h-4 w-4 text-slate-400 transition-transform ${
-                  settingsOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-            {settingsOpen && (
-              <ul className="mt-0.5 ml-7 space-y-0.5 border-l border-slate-200 pl-3">
-                {settingsLinks.map((s) => (
-                  <li key={s.href}>
-                    <Link
-                      href={s.href}
-                      className={`block rounded-md px-2 py-1.5 text-sm ${
-                        pathname === s.href
-                          ? "font-medium text-emerald-700"
-                          : "text-slate-500 hover:text-slate-800"
-                      }`}
-                    >
-                      {s.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </li>
-        </ul>
+          <p className="mt-5 px-2.5 text-[11px] font-semibold tracking-wide text-slate-400">
+            COMPTE
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {accountLinks.map(({ href, label, icon: Icon }) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  onClick={closeMobile}
+                  className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-        <p className="mt-5 px-2.5 text-[11px] font-semibold tracking-wide text-slate-400">
-          COMPTE
-        </p>
-        <ul className="mt-1 space-y-0.5">
-          {accountLinks.map(({ href, label, icon: Icon }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
-      <form action={logout} className="border-t border-slate-200 px-3 py-3">
-        <div className="mb-2 truncate px-2.5 text-xs text-slate-400">
-          {userName}
-        </div>
-        <button
-          type="submit"
-          className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-        >
-          <LogOut className="h-4 w-4" />
-          Déconnexion
-        </button>
-      </form>
-    </aside>
+        <form action={logout} className="border-t border-slate-200 px-3 py-3">
+          <div className="mb-2 truncate px-2.5 text-xs text-slate-400">
+            {userName}
+          </div>
+          <button
+            type="submit"
+            className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            <LogOut className="h-4 w-4 flex-shrink-0" />
+            Déconnexion
+          </button>
+        </form>
+      </aside>
+    </>
   );
 }

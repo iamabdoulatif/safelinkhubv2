@@ -563,12 +563,7 @@ function TopologyCanvas({
 
         <section
           ref={sectionRef}
-          className="relative min-h-[700px] overflow-hidden"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, rgba(148, 163, 184, 0.35) 1px, transparent 1px)",
-            backgroundSize: "18px 18px",
-          }}
+          className="relative min-h-[700px] overflow-hidden bg-slate-50"
         >
           <RouterDeviceCard
             ports={ports}

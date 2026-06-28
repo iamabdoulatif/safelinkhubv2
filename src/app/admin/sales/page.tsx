@@ -69,7 +69,7 @@ export default async function SalesPage() {
   );
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <TrendingUp className="h-5 w-5 text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-900">Ventes</h1>
@@ -79,19 +79,19 @@ export default async function SalesPage() {
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 hover-lift">
           <p className="text-sm font-medium text-slate-500">Revenu total</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
             {formatFcfa(totalRevenueCents)}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 hover-lift">
           <p className="text-sm font-medium text-slate-500">Revenu aujourd&apos;hui</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
             {formatFcfa(todayRevenueCents)}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 hover-lift">
           <p className="text-sm font-medium text-slate-500">Ventes / Commissions</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
             {sales.length}{" "}
@@ -103,6 +103,7 @@ export default async function SalesPage() {
       </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
@@ -142,6 +143,7 @@ export default async function SalesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

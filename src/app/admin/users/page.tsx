@@ -16,13 +16,14 @@ export default async function UsersPage() {
     : [];
 
   return (
-    <div>
+    <div className="animate-fade-in-up">
       <h1 className="text-2xl font-bold text-slate-900">Utilisateurs</h1>
       <p className="mt-1 text-sm text-slate-500">
         Membres de l&apos;équipe ayant accès à cette organisation SafeLinkHub.
       </p>
 
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
@@ -53,6 +54,7 @@ export default async function UsersPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

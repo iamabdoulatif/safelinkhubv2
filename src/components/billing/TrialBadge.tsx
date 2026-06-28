@@ -29,7 +29,7 @@ export default function TrialBadge({
 }) {
   if (active) {
     return (
-      <span className="animate-fade-slide-up inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1 text-xs font-semibold text-white shadow-sm shadow-emerald-200">
+      <span className="animate-fade-slide-up inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white shadow-sm">
         <Sparkles className="h-3.5 w-3.5" />
         {activeLabel}
         {typeof daysRemaining === "number" && (

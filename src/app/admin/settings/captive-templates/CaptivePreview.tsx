@@ -26,7 +26,7 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
 
   return (
     <div
-      className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-slate-200 p-8 text-center"
+      className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-slate-200 p-4 sm:p-6 lg:p-8 text-center"
       style={{ backgroundColor: data.backgroundColor || "#f8fafc" }}
     >
       {data.logoUrl ? (

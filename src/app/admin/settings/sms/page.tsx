@@ -8,7 +8,7 @@ export default async function SmsSettingsPage() {
   const byProvider = new Map(gateways.map((g) => [g.provider, g]));
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-4xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <MessageSquare className="h-5 w-5 text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-900">SMS</h1>

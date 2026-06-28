@@ -37,6 +37,7 @@ export default function BridgeAssignments({
       </p>
 
       <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-100 text-xs font-medium text-slate-500">
             <tr>
@@ -98,6 +99,7 @@ export default function BridgeAssignments({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

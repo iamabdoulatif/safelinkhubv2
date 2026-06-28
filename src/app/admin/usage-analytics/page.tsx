@@ -82,7 +82,7 @@ export default async function UsageAnalyticsPage() {
   const maxCount = Math.max(1, ...days.map((d) => d.count));
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <BarChart2 className="h-5 w-5 text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-900">
@@ -94,23 +94,23 @@ export default async function UsageAnalyticsPage() {
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 hover-lift">
           <p className="text-sm text-slate-500">Utilisateurs actifs</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">
             {totalActiveUsers}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 hover-lift">
           <p className="text-sm text-slate-500">Routeurs en ligne</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">
             {onlineRouters} / {allRouters.length}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 hover-lift">
           <p className="text-sm text-slate-500">Charge CPU moyenne</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{avgCpu}%</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 hover-lift">
           <p className="text-sm text-slate-500">Mémoire moyenne</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">
             {avgMemory}%
@@ -137,6 +137,7 @@ export default async function UsageAnalyticsPage() {
       </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
@@ -185,6 +186,7 @@ export default async function UsageAnalyticsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

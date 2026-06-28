@@ -50,7 +50,7 @@ export default async function BillingPage() {
   );
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <CreditCard className="h-5 w-5 text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-900">Facturation</h1>
@@ -82,7 +82,7 @@ export default async function BillingPage() {
         </dl>
       </div>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 hover-lift">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-slate-700" />
           <h2 className="font-semibold text-slate-900">Portefeuille</h2>
@@ -115,6 +115,7 @@ export default async function BillingPage() {
         </div>
 
         <div className="mt-5 overflow-hidden rounded-lg border border-slate-100">
+          <div className="table-mobile-wrapper">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-100 bg-slate-50 text-slate-500">
               <tr>
@@ -159,6 +160,7 @@ export default async function BillingPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

@@ -51,7 +51,7 @@ export default async function RemoteAccessPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <Wifi className="h-5 w-5 text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-900">Accès distant</h1>
@@ -64,6 +64,7 @@ export default async function RemoteAccessPage() {
 
       {allRouters.length > 0 && (
         <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="table-mobile-wrapper">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-100 text-xs font-medium text-slate-500">
               <tr>
@@ -103,6 +104,7 @@ export default async function RemoteAccessPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

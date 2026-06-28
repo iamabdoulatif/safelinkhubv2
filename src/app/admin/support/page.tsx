@@ -10,7 +10,7 @@ export default async function SupportPage() {
   const tickets = await listSupportTickets();
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <LifeBuoy className="h-5 w-5 text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-900">Support</h1>

@@ -27,7 +27,7 @@ export default function PaywallCard({
   sufficientBalance: boolean;
 }) {
   return (
-    <div className="animate-fade-slide-up overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white p-5 shadow-sm">
+    <div className="animate-fade-slide-up overflow-hidden rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
       <div className="flex items-center gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
           <Lock className="h-4.5 w-4.5" />

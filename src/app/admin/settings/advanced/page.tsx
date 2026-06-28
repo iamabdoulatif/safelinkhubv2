@@ -7,7 +7,7 @@ export default async function AdvancedSettingsPage() {
   const org = await getCurrentOrganization();
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <Settings className="h-5 w-5 text-slate-700" />
         <h1 className="text-2xl font-bold text-slate-900">Avancé</h1>

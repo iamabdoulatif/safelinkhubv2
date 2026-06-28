@@ -8,8 +8,8 @@ const kpis = [
 
 export default function DashboardPage() {
   return (
-    <div>
-      <div className="flex items-center justify-between">
+    <div className="animate-fade-in-up">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-slate-900">Tableau de bord</h1>
         <button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
           1 Mars 2026 - 27 Mars 2026
@@ -17,10 +17,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((k) => (
+        {kpis.map((k, i) => (
           <div
             key={k.label}
-            className="rounded-xl border border-slate-200 bg-white p-4"
+            className={`rounded-xl border border-slate-200 bg-white p-4 hover-lift delay-${(i + 1) * 100}`}
           >
             <p className="text-sm text-slate-500">{k.label}</p>
             <p className="mt-2 text-2xl font-semibold text-slate-900">
@@ -29,7 +29,7 @@ export default function DashboardPage() {
             <p className="mt-1 text-xs text-slate-400">{k.sub}</p>
           </div>
         ))}
-        <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-4 text-center">
+        <div className={`flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-4 text-center hover-lift delay-400`}>
           <Database className="h-5 w-5 text-slate-300" />
           <p className="mt-2 text-sm font-medium text-slate-500">
             Indicateurs système indisponibles
@@ -49,10 +49,10 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-400">1 Mars 2026 - 27 Mars 2026</p>
             </div>
             <div className="flex items-center gap-2">
-              <button className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white">
+              <button className="rounded-md bg-slate-950 px-3 py-1 text-xs font-medium text-white">
                 Totaux
               </button>
-              <button className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600">
+              <button className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200">
                 Tout...
               </button>
             </div>
@@ -60,7 +60,7 @@ export default function DashboardPage() {
           <div className="mt-6 flex h-48 items-center justify-center text-sm text-slate-400">
             Aucune donnée pour cette période
           </div>
-          <div className="mt-4 flex items-center justify-center gap-6 text-xs text-slate-500">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-6 text-xs text-slate-500">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-emerald-500" /> Revenu
               net
@@ -72,7 +72,7 @@ export default function DashboardPage() {
               <span className="h-2 w-2 rounded-full bg-red-500" /> Dépense
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-blue-500" /> Revenu
+              <span className="h-2 w-2 rounded-full bg-orange-500" /> Revenu
               brut
             </span>
           </div>
