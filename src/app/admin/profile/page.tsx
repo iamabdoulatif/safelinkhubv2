@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { Building2, KeyRound, Shield, User as UserIcon } from "lucide-react";
+import { Building2, KeyRound, MessageCircle, Send, Shield, User as UserIcon } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { organizations, users } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { findCountry } from "@/lib/intl/countries";
 import ProfileNameForm from "./ProfileNameForm";
 import ChangePasswordForm from "./ChangePasswordForm";
 import MfaSection from "./MfaSection";
@@ -37,6 +38,11 @@ export default async function ProfilePage() {
       role: users.role,
       createdAt: users.createdAt,
       mfaEnabled: users.mfaEnabled,
+      country: users.country,
+      phoneDialCode: users.phoneDialCode,
+      phone: users.phone,
+      whatsapp: users.whatsapp,
+      telegram: users.telegram,
     })
     .from(users)
     .where(eq(users.id, session.userId))
@@ -108,6 +114,40 @@ export default async function ProfilePage() {
         <div className="mt-3">
           <ProfileNameForm currentName={user.name} />
         </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="text-sm font-semibold text-slate-700">Contact</h2>
+        <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-slate-400">Pays de résidence</dt>
+            <dd className="mt-0.5 font-medium text-slate-700">
+              {user.country ? findCountry(user.country)?.name ?? user.country : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-400">Téléphone</dt>
+            <dd className="mt-0.5 font-medium text-slate-700">
+              {user.phone ? `${user.phoneDialCode ?? ""} ${user.phone}` : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="flex items-center gap-1 text-slate-400">
+              <MessageCircle className="h-3 w-3" /> WhatsApp
+            </dt>
+            <dd className="mt-0.5 font-medium text-slate-700">
+              {user.whatsapp ?? (user.phone ? `${user.phoneDialCode ?? ""} ${user.phone}` : "—")}
+            </dd>
+          </div>
+          <div>
+            <dt className="flex items-center gap-1 text-slate-400">
+              <Send className="h-3 w-3" /> Telegram
+            </dt>
+            <dd className="mt-0.5 font-medium text-slate-700">
+              {user.telegram ?? (user.phone ? `${user.phoneDialCode ?? ""} ${user.phone}` : "—")}
+            </dd>
+          </div>
+        </dl>
       </div>
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">

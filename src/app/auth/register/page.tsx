@@ -3,8 +3,8 @@ import RegisterForm from "./RegisterForm";
 
 export default function RegisterPage() {
   return (
-    <div className="flex flex-1 justify-center bg-slate-50 px-4 pt-16 pb-12 sm:px-6 sm:pt-24">
-      <div className="w-full max-w-sm">
+    <div className="flex flex-1 justify-center bg-slate-50 px-4 pt-10 pb-12 sm:px-6 sm:pt-16">
+      <div className="w-full max-w-md">
         <div className="text-center">
           <span className="text-2xl font-bold tracking-tight text-slate-900">
             Safe<span className="text-emerald-500">LinkHub</span>

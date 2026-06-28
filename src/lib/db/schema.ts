@@ -52,6 +52,18 @@ export const users = pgTable("users", {
   // JSON array of bcrypt hashes, one per unused recovery code. Each is
   // removed from the array the moment it's redeemed (single use).
   mfaBackupCodesHash: text("mfa_backup_codes_hash"),
+  // Contact info collected at registration (see lib/intl/countries.ts for
+  // the country/dial-code list). Nullable only because accounts created
+  // before this field existed have no value — the register form requires
+  // it for new sign-ups.
+  country: text("country"),
+  phoneDialCode: text("phone_dial_code"),
+  phone: text("phone"),
+  // Null means "same as phone" — resolved at read time, not defaulted at
+  // write time, so changing the phone number later doesn't silently
+  // overwrite a WhatsApp/Telegram number the user deliberately customized.
+  whatsapp: text("whatsapp"),
+  telegram: text("telegram"),
 });
 
 // Every login attempt (success or failure), kept just long enough to

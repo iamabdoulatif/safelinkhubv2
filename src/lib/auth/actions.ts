@@ -169,12 +169,24 @@ export async function register(_prevState: unknown, formData: FormData) {
     .trim()
     .toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+  const country = String(formData.get("country") ?? "").trim();
+  const phoneDialCode = String(formData.get("phoneDialCode") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  // Blank means "same as phone" — resolved at read time (lib/intl resolves
+  // null to the phone number wherever it's displayed), not defaulted here,
+  // so a later phone change doesn't silently overwrite a custom value.
+  const whatsapp = String(formData.get("whatsapp") ?? "").trim() || null;
+  const telegram = String(formData.get("telegram") ?? "").trim() || null;
 
-  if (!name || !email || !password) {
+  if (!name || !email || !password || !confirmPassword || !country || !phoneDialCode || !phone) {
     return { error: "Tous les champs sont requis." };
   }
   if (password.length < 6) {
     return { error: "Le mot de passe doit contenir au moins 6 caractères." };
+  }
+  if (password !== confirmPassword) {
+    return { error: "Les mots de passe ne correspondent pas." };
   }
 
   const db = getDb();
@@ -207,6 +219,11 @@ export async function register(_prevState: unknown, formData: FormData) {
       email,
       passwordHash,
       role: "admin",
+      country,
+      phoneDialCode,
+      phone,
+      whatsapp,
+      telegram,
     })
     .returning();
 
