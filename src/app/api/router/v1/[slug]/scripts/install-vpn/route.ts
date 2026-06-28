@@ -44,6 +44,40 @@ function buildScript(opts: {
   /ip address add address=11.11.11.1/28 interface=DOCKERS network=11.11.11.0
 } on-error={ :log warning "SafeLinkHub could not prepare DOCKERS/MIKHMON during VPN install; auto-setup will retry" }
 
+# Format a plugged-in USB stick to ext4 early too, same as the container
+# step does later — MikroTik's documented Container prerequisite, without
+# which /container/config's tmpdir=usb1/pull silently fails to pull/extract
+# images. Only formats when the slot is present and not already ext4, so
+# re-running this script never wipes a stick that already has data on it.
+:do {
+  :if ([:len [/disk find where slot="usb1" and file-system!="ext4"]] > 0) do={
+    /disk format-drive slot=usb1 file-system=ext4
+  }
+} on-error={ :log warning "SafeLinkHub could not format USB stick during VPN install; auto-setup will retry" }
+
+# Container engine storage, auto-detected per board instead of hardcoded —
+# boards differ in what storage they actually have:
+#   - USB-equipped boards (hAP ax3, etc.) pull/extract on the stick just
+#     formatted above, to spare onboard flash.
+#   - USB-less ARM boards with their own internal disk slot (e.g. RB4011's
+#     "disk1") use that instead.
+#   - Everything else (ax2 / hAP ax lite, no USB and no extra disk) falls
+#     back to a tmpfs scratch slot created here if it doesn't exist yet.
+:do {
+  :if ([:len [/disk find where slot="usb1" and file-system="ext4"]] > 0) do={
+    /container/config/set registry-url=https://registry-1.docker.io tmpdir=usb1/pull layer-dir=usb1/mikhmon-layers
+  } else={
+    :if ([:len [/disk find where slot="disk1"]] > 0) do={
+      /container/config/set registry-url=https://registry-1.docker.io tmpdir=disk1/pull layer-dir=disk1/mikhmon-layers
+    } else={
+      :if ([:len [/disk find where slot="tmp"]] = 0) do={
+        /disk add slot=tmp type=tmpfs tmpfs-max-size=150000000
+      }
+      /container/config/set registry-url=https://registry-1.docker.io tmpdir=tmp/pull layer-dir=tmp/mikhmon-layers
+    }
+  }
+} on-error={ :log warning "SafeLinkHub could not configure container storage during VPN install; auto-setup will retry" }
+
 # A /32 interface address has no implicit subnet route, so without this the
 # router can decrypt inbound tunnel packets but has no route to send replies
 # back to the relay (or reach any other peer on the tunnel subnet).

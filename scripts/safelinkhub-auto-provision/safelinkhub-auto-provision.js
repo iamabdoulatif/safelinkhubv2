@@ -75,7 +75,7 @@ const DEFAULT_CONFIG = {
   ntpServers: ["196.200.131.160", "196.10.52.57"],
 
   // Container / Docker (MikHmon)
-  containerBridgeName: "CONTAINERS",
+  containerBridgeName: "DOCKERS",
   vethName: "MIKHMON",
   containerIP: "11.11.11.11/28",
   containerGateway: "11.11.11.1",
@@ -220,7 +220,7 @@ class SafeLinkHubMikroTikProvisioner {
   }
 
   // -------------------------------------------------------------------------
-  // 2. Bridges (HOTSPOT + CONTAINERS) — must exist before bridge ports.
+  // 2. Bridges (HOTSPOT + DOCKERS) — must exist before bridge ports.
   // -------------------------------------------------------------------------
   async setupBridges() {
     const created = [];
@@ -744,7 +744,7 @@ class SafeLinkHubMikroTikProvisioner {
 
   // -------------------------------------------------------------------------
   // 27. PARTIE CRITIQUE — MikHmon container. Runs last: needs the VETH
-  //     (step 5), the CONTAINERS bridge (step 2), and its IP (step 8).
+  //     (step 5), the DOCKERS bridge (step 2), and its IP (step 8).
   // -------------------------------------------------------------------------
   async setupContainer() {
     // 1. Package check
@@ -774,7 +774,7 @@ class SafeLinkHubMikroTikProvisioner {
     let existing = await containerMenu.find({ name: this.cfg.containerName }).catch(() => []);
 
     if (existing.length === 0) {
-      // 4. Create it — requires VETH + CONTAINERS bridge + IP to already exist.
+      // 4. Create it — requires VETH + DOCKERS bridge + IP to already exist.
       await containerMenu.add({
         interface: this.cfg.vethName,
         name: this.cfg.containerName,

@@ -62,7 +62,7 @@ L'ordre est important — certaines étapes dépendent d'objets créés par les 
 
 1. `connect` — connexion API-SSL
 2. `setupDisk` — slot tmpfs
-3. `setupBridges` — **HOTSPOT** et **CONTAINERS** doivent exister avant les ports de bridge
+3. `setupBridges` — **HOTSPOT** et **DOCKERS** doivent exister avant les ports de bridge
 4. `renameWAN` — `ether1` → `E1-WAN-FAI`
 5. `setupWiFi` — SSID sur les deux radios
 6. `createVETH` — **MIKHMON** doit exister avant le conteneur
@@ -87,7 +87,7 @@ L'ordre est important — certaines étapes dépendent d'objets créés par les 
 25. `setupScheduler` — job `CLEAN_JOB`
 26. `setupUserGroup` — groupe API scopé pour le SaaS
 27. `setupExportScript` — script de sauvegarde manuel
-28. `setupContainer` — **dernier** : nécessite VETH (6) + bridge CONTAINERS (3) + IP (9)
+28. `setupContainer` — **dernier** : nécessite VETH (6) + bridge DOCKERS (3) + IP (9)
 29. `disconnect`
 
 Seules `connect`, `setupBridges` et `createVETH` sont critiques (une erreur y interrompt tout le script) — toutes les autres étapes loggent leur erreur et le script continue.
@@ -111,7 +111,7 @@ Seules `connect`, `setupBridges` et `createVETH` sont critiques (une erreur y in
   "host": "192.168.88.1",
   "identity": "HSPT-DUBONHEUR",
   "steps": {
-    "bridges": { "status": "ok", "created": ["CONTAINERS", "HOTSPOT"], "durationMs": 120 },
+    "bridges": { "status": "ok", "created": ["DOCKERS", "HOTSPOT"], "durationMs": 120 },
     "wifi": { "status": "ok", "ssid": "DU BONHEUR WIFI", "radios": ["wifi1", "wifi2"], "durationMs": 340 },
     "veth": { "status": "ok", "name": "MIKHMON", "ip": "11.11.11.11/28", "durationMs": 90 },
     "hotspot": { "status": "ok", "name": "hotspot1", "durationMs": 80 },
