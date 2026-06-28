@@ -263,6 +263,14 @@ export async function getAutoSetupBillingStatus(routerId: string, supportsContai
     return { success: true, isFree: true, alreadyBilled: true, feeCents: 0, walletBalanceCents: 0, sufficientBalance: true };
   }
 
+  // One-off, time-boxed exception for this specific org (e.g. a second
+  // free router for a year) — date-bound, so deleting and re-adding a
+  // router within the window stays free, unlike the one-time
+  // freeRouterSetupUsed flag below.
+  if (org.bonusFreeRouterUntil && org.bonusFreeRouterUntil.getTime() > Date.now()) {
+    return { success: true, isFree: true, alreadyBilled: false, feeCents: 0, walletBalanceCents: 0, sufficientBalance: true };
+  }
+
   if (!org.freeRouterSetupUsed) {
     return { success: true, isFree: true, alreadyBilled: false, feeCents: 0, walletBalanceCents: 0, sufficientBalance: true };
   }
@@ -342,13 +350,16 @@ export async function provisionHotspotStack(
   // (tweaking config shouldn't cost again). Superadmins are unlimited by
   // role — never billed, regardless of how many routers their org has
   // already configured — matching getAutoSetupBillingStatus above.
-  const billableCents = isSuperAdmin(session.role)
-    ? null
-    : router.autoSetupBilled
+  const hasBonusFreeRouter =
+    !!org.bonusFreeRouterUntil && org.bonusFreeRouterUntil.getTime() > Date.now();
+  const billableCents =
+    isSuperAdmin(session.role) || hasBonusFreeRouter
       ? null
-      : org.freeRouterSetupUsed
-        ? autoSetupFeeCentsFor(opts.supportsContainers)
-        : 0;
+      : router.autoSetupBilled
+        ? null
+        : org.freeRouterSetupUsed
+          ? autoSetupFeeCentsFor(opts.supportsContainers)
+          : 0;
 
   if (billableCents !== null && billableCents > 0) {
     const walletBalanceCents = await getWalletBalanceCents(org.id);
@@ -650,6 +661,20 @@ export async function provisionHotspotStack(
     const matchingProfile =
       existingProfiles.find((p) => p.name === matchingServer?.profile) ??
       existingProfiles.find((p) => p.name === hotspotProfileName);
+
+    // If some OTHER profile already has the target name (e.g. an orphan
+    // left over from manual WinBox experimentation, unrelated to the
+    // live server), remove it first — renaming matchingProfile to that
+    // same name via /set below would otherwise collide with it (RouterOS
+    // enforces unique profile names) and fail silently.
+    const conflictingProfile = existingProfiles.find(
+      (p) => p.name === hotspotProfileName && p[".id"] !== matchingProfile?.[".id"],
+    );
+    if (conflictingProfile?.[".id"]) {
+      await client
+        .talk(["/ip/hotspot/profile/remove", `=numbers=${conflictingProfile[".id"]}`])
+        .catch(() => {});
+    }
 
     const profileFields = [
       `=name=${hotspotProfileName}`,
@@ -1382,6 +1407,12 @@ export async function provisionHotspotStack(
     // directly, or WebFig) and the auto-setup must not lock that access out.
     await run(["/ip/service/set", "=numbers=telnet", "=disabled=yes"], "disable telnet");
     await run(["/ip/service/set", "=numbers=api-ssl", "=disabled=yes"], "disable api-ssl");
+    // The FTP *service* (interactive login) stays off — safelinkhub-group
+    // now has the "ftp" *policy* bit (needed for /tool fetch writes, see
+    // above), which would otherwise also re-permit logging into this
+    // service with that account. /tool fetch doesn't go through this
+    // service at all, so disabling it doesn't affect the captive portal.
+    await run(["/ip/service/set", "=numbers=ftp", "=disabled=yes"], "disable ftp service (policy bit needed for /tool fetch only)");
     // www (WebFig) moves off :80 — the hotspot needs that port to intercept
     // unauthenticated clients and show the captive portal — but stays
     // enabled at :85 instead of being disabled, so WebFig keeps working.
@@ -1571,15 +1602,27 @@ export async function provisionHotspotStack(
     // Restricted API user group: scopes whatever account SafeLinkHub
     // connects with to just what the app needs (read/write/test/sensitive/
     // api), explicitly denying every interactive-access policy (winbox,
-    // ssh, telnet, ftp, web, local, reboot, password, sniff, romon,
-    // rest-api) so a leaked API credential can't be used to log into the
-    // router directly through any of those surfaces.
+    // ssh, telnet, web, local, reboot, password, sniff, romon, rest-api)
+    // so a leaked API credential can't be used to log into the router
+    // directly through any of those surfaces.
+    //
+    // "ftp" is granted, not denied — RouterOS overloads that single policy
+    // bit for two unrelated things: (1) logging into the FTP *server*
+    // protocol, and (2) writing a file to disk via /tool fetch's dst-path,
+    // which the captive-portal install entirely depends on. Denying it
+    // here was blocking every single /tool fetch write with "permission
+    // denied" (confirmed against a real router — every login.html/css/js/
+    // image upload failed silently this way, regardless of the URL or
+    // RouterOS firmware version), so the captive portal's html-directory
+    // never actually received any files. The FTP *server* is disabled
+    // outright below instead, closing the door this was originally meant
+    // to close without breaking /tool fetch.
     await client.talk(["/user/group/remove", "=numbers=safelinkhub-group"]).catch(() => {});
     await run(
       [
         "/user/group/add",
         "=name=safelinkhub-group",
-        "=policy=read,write,test,sensitive,api,!local,!telnet,!ssh,!ftp,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api",
+        "=policy=read,write,test,sensitive,api,ftp,!local,!telnet,!ssh,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api",
       ],
       "SafeLinkHub API user group",
     );
@@ -1614,7 +1657,16 @@ export async function provisionHotspotStack(
     // defaults.
     await db
       .update(routers)
-      .set({ hotspotBridgeName: bridgeName, hotspotServerName: serverName })
+      .set({
+        hotspotBridgeName: bridgeName,
+        hotspotServerName: serverName,
+        // Snapshot of this run's options (minus reboot, re-decided fresh
+        // each time) — see lastAutoSetupConfig's schema comment. Lets a
+        // later "Continuer l'auto-setup" repair replay this exact
+        // configuration against whatever the audit found missing,
+        // without the admin re-entering every wizard field.
+        lastAutoSetupConfig: { ...opts, reboot: undefined },
+      })
       .where(eq(routers.id, routerId));
 
     // Keep the draft `bridges` row (named e.g. "SAFELINKHUB-BRIDGE" from
@@ -1655,4 +1707,41 @@ export async function provisionHotspotStack(
   } finally {
     client.close();
   }
+}
+
+/**
+ * Re-runs provisionHotspotStack against whatever HotspotStackOptions it
+ * was last called with for this router (lastAutoSetupConfig) — every
+ * step inside is already idempotent (checks live router state before
+ * acting), so this only actually changes what auditRouterConfig found
+ * missing/incomplete; steps that are already correct are left alone.
+ * Lets the admin "continue" a partially-completed auto-setup from the
+ * config-audit banner instead of re-typing every wizard field from
+ * scratch. reboot is forced off — a quick repair shouldn't bounce the
+ * router unless the admin explicitly re-runs the full wizard.
+ */
+export async function repairRouterConfig(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || router.orgId !== session.orgId) {
+    return { error: "Router not found." };
+  }
+  if (!router.lastAutoSetupConfig) {
+    return {
+      error:
+        "Aucune configuration d'auto-setup enregistrée pour ce routeur — lancez d'abord l'assistant complet (Configuration routeur) une fois avant de pouvoir réparer une étape manquante.",
+    };
+  }
+
+  return provisionHotspotStack(routerId, {
+    ...(router.lastAutoSetupConfig as HotspotStackOptions),
+    reboot: false,
+  });
 }

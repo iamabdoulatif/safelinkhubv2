@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Wrench, XCircle } from "lucide-react";
 import { auditRouterConfig, type ConfigAuditItem } from "@/lib/mikrotik/config-audit";
+import { repairRouterConfig } from "@/lib/mikrotik/container-setup";
 
 const STATUS_STYLES: Record<ConfigAuditItem["status"], { icon: typeof CheckCircle2; pill: string; text: string }> = {
   ok: { icon: CheckCircle2, pill: "bg-emerald-50 text-emerald-700", text: "text-emerald-700" },
@@ -18,14 +19,19 @@ const STATUS_STYLES: Record<ConfigAuditItem["status"], { icon: typeof CheckCircl
  */
 export default function ConfigAuditBanner({ routerId }: { routerId: string }) {
   const [state, setState] = useState<
-    { loading: true } | { loading: false; items?: ConfigAuditItem[]; error?: string }
+    | { loading: true }
+    | { loading: false; items?: ConfigAuditItem[]; canRepair?: boolean; error?: string }
   >({ loading: true });
   const [refreshing, setRefreshing] = useState(false);
+  const [repairing, setRepairing] = useState(false);
+  const [repairResult, setRepairResult] = useState<{ success?: boolean; error?: string; log?: string[] } | null>(
+    null,
+  );
 
   function runAudit(onComplete?: () => void) {
     auditRouterConfig(routerId).then((res) => {
       if (res?.error) setState({ loading: false, error: res.error });
-      else if (res?.items) setState({ loading: false, items: res.items });
+      else if (res?.items) setState({ loading: false, items: res.items, canRepair: res.canRepair });
       onComplete?.();
     });
   }
@@ -38,6 +44,16 @@ export default function ConfigAuditBanner({ routerId }: { routerId: string }) {
   function refresh() {
     setRefreshing(true);
     runAudit(() => setRefreshing(false));
+  }
+
+  function repair() {
+    setRepairing(true);
+    setRepairResult(null);
+    repairRouterConfig(routerId).then((res) => {
+      setRepairResult(res);
+      setRepairing(false);
+      if (res?.success) runAudit();
+    });
   }
 
   if (state.loading) {
@@ -98,6 +114,62 @@ export default function ConfigAuditBanner({ routerId }: { routerId: string }) {
             </li>
           ))}
         </ul>
+      )}
+
+      {issues.length > 0 && (
+        <div className="mt-2.5 border-t border-slate-200 pt-2.5">
+          {state.canRepair ? (
+            <>
+              <button
+                type="button"
+                onClick={repair}
+                disabled={repairing}
+                className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                {repairing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Wrench className="h-3.5 w-3.5" />
+                )}
+                {repairing ? "Réparation en cours..." : "Continuer l'auto-setup"}
+              </button>
+              <p className="mt-1.5 text-[11px] text-slate-400">
+                Rejoue la même configuration que le dernier auto-setup — ne touche que ce qui
+                est manquant ci-dessus, le reste est laissé tel quel.
+              </p>
+            </>
+          ) : (
+            <p className="text-[11px] text-slate-400">
+              Lancez d&apos;abord l&apos;assistant complet (Configuration routeur) une fois pour
+              pouvoir réparer une étape manquante depuis ici.
+            </p>
+          )}
+
+          {repairResult && (
+            <div
+              className={`mt-2 rounded-md px-2.5 py-2 text-xs ${
+                repairResult.success
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-red-50 text-red-600"
+              }`}
+            >
+              {repairResult.success ? (
+                <p>Réparation terminée — relancez la vérification pour confirmer.</p>
+              ) : (
+                <p>{repairResult.error ?? "Échec de la réparation."}</p>
+              )}
+              {repairResult.log && repairResult.log.length > 0 && (
+                <ul className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+                  {repairResult.log
+                    .filter((line) => line.startsWith("SKIP"))
+                    .map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

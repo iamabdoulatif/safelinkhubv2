@@ -19,6 +19,13 @@ export const organizations = pgTable("organizations", {
   // row) so the free trial can't be re-claimed by deleting and re-adding a
   // router. See lib/billing/auto-setup-pricing.ts.
   freeRouterSetupUsed: boolean("free_router_setup_used").notNull().default(false),
+  // One-off, time-boxed exception granted to a specific org (e.g. a
+  // second free router for a year) — distinct from the superadmin role
+  // (lib/auth/session.ts), which is permanent and tied to a user account
+  // rather than one org. Null means no bonus credit. Deleting and
+  // re-adding a router doesn't burn it, same as the regular free-trial
+  // flag above — it's date-bound, not a one-time-use flag.
+  bonusFreeRouterUntil: timestamp("bonus_free_router_until"),
 });
 
 export const users = pgTable("users", {
@@ -71,6 +78,15 @@ export const routers = pgTable("routers", {
   // assuming the fixed default name.
   hotspotBridgeName: text("hotspot_bridge_name"),
   hotspotServerName: text("hotspot_server_name"),
+  // Snapshot of the HotspotStackOptions a successful provisionHotspotStack
+  // run was last called with (container-setup.ts) — every field the
+  // wizard's steps collect (hotspotAddress, hotspotName, dnsName, ssid,
+  // voucher profiles, etc.), minus the boolean-flag fields that should
+  // always be re-evaluated fresh (reboot). Lets "Continuer l'auto-setup"
+  // (config-audit.ts's repair action) replay the exact same run against
+  // whatever's missing on the router, without the admin re-typing every
+  // field from the original wizard pass.
+  lastAutoSetupConfig: jsonb("last_auto_setup_config"),
 });
 
 export const captiveTemplates = pgTable("captive_templates", {
