@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerPortForwards, routers, organizations, walletTransactions } from "@/lib/db/schema";
-import { isWithinVpnTrial } from "@/lib/billing/auto-setup-pricing";
+import { shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { allocatePortForward, revokePortForward } from "./relay";
 import { connectToRouter } from "./router-sync";
@@ -239,14 +239,25 @@ export async function enablePortForward(
 
   if (result.success && result.created) {
     const [org] = await db
-      .select({ createdAt: organizations.createdAt })
+      .select({
+        createdAt: organizations.createdAt,
+        vpnQuotaMode: organizations.vpnQuotaMode,
+        vpnQuotaExpiresAt: organizations.vpnQuotaExpiresAt,
+      })
       .from(organizations)
       .where(eq(organizations.id, session.orgId))
       .limit(1);
-    // First VPN_TRIAL_DAYS per org: direct-access plans are free, no
-    // wallet charge recorded at all — not just "free but logged". Past
-    // that, superadmins still never get charged — unlimited by role.
-    if (!isSuperAdmin(session.role) && (!org || !isWithinVpnTrial(org.createdAt))) {
+    // Superadmin-granted VPN quota is separate from wallet transactions:
+    // free_until/unlimited never writes a charge, paid forces charging, and
+    // default preserves the original one-year trial behavior.
+    if (
+      shouldChargeVpnActivation({
+        isSuperAdmin: isSuperAdmin(session.role),
+        orgCreatedAt: org?.createdAt ?? null,
+        vpnQuotaMode: org?.vpnQuotaMode ?? "default",
+        vpnQuotaExpiresAt: org?.vpnQuotaExpiresAt ?? null,
+      })
+    ) {
       await chargeWalletForActivation({
         orgId: session.orgId,
         userId: session.userId,

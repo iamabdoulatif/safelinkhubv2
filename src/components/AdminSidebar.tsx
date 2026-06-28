@@ -24,7 +24,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { logout } from "@/lib/auth/actions";
 
 const mainLinks = [
@@ -75,6 +75,15 @@ export default function AdminSidebar({
 
   const closeMobile = () => setMobileOpen(false);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") closeMobile();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen]);
+
   return (
     <>
       {/* Mobile top bar */}
@@ -97,6 +106,12 @@ export default function AdminSidebar({
         <div
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
           onClick={closeMobile}
+          role="button"
+          aria-label="Fermer le menu"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") closeMobile();
+          }}
         />
       )}
 
@@ -121,7 +136,12 @@ export default function AdminSidebar({
         </div>
 
         <div className="border-b border-slate-200 px-5 py-3">
-          <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <button
+            disabled
+            aria-disabled="true"
+            title="Changement d'organisation (bientôt disponible)"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
             <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-900 text-[10px] font-semibold text-white">
               {orgName.slice(0, 2).toUpperCase()}
             </span>

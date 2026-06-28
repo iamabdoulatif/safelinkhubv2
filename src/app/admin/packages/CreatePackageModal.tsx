@@ -1,51 +1,95 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { X } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { createPackage } from "@/lib/packages/actions";
 
 export default function CreatePackageModal() {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createPackage, undefined);
 
-  // Close the modal the moment the action succeeds — adjusted during render
-  // (the React-recommended alternative to setState-in-effect) by tracking
-  // the previous action result and reacting only when it actually changes.
   const [prevState, setPrevState] = useState(state);
   if (state !== prevState) {
     setPrevState(state);
     if (state?.success) setOpen(false);
   }
 
+  const firstInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      firstInputRef.current?.focus();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        const active = document.activeElement;
+        if (active instanceof HTMLSelectElement) return;
+        setOpen(false);
+      }
+    }
+    if (open) {
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
+    }
+  }, [open]);
+
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+        className="rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
       >
         + Créer un forfait
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            aria-hidden="true"
+            onClick={() => setOpen(false)}
+          />
           <form
             action={formAction}
-            className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+            className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-package-title"
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2 id="create-package-title" className="text-lg font-semibold text-slate-900">
                 Créer un forfait Hotspot
               </h2>
-              <button type="button" onClick={() => setOpen(false)}>
+              <button
+                type="button"
+                aria-label="Fermer"
+                onClick={() => setOpen(false)}
+              >
                 <X className="h-5 w-5 text-slate-400" />
               </button>
             </div>
 
-            {state?.error && (
-              <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-                {state.error}
-              </p>
-            )}
+            <div className="mt-4" aria-live="polite">
+              {state?.error && (
+                <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+                  <span className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {state.error}
+                  </span>
+                </p>
+              )}
+              {state?.success && (
+                <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  <span className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    Forfait créé avec succès.
+                  </span>
+                </p>
+              )}
+            </div>
 
             <div className="mt-5 space-y-4">
               <div>
@@ -53,10 +97,11 @@ export default function CreatePackageModal() {
                   Nom du forfait
                 </label>
                 <input
+                  ref={firstInputRef}
                   name="name"
                   required
                   placeholder="test123"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                 />
               </div>
 
@@ -71,11 +116,11 @@ export default function CreatePackageModal() {
                     min={1}
                     required
                     defaultValue={5}
-                    className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                    className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                   />
                   <select
                     name="durationUnit"
-                    className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                    className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                   >
                     <option value="Minutes">Minutes</option>
                     <option value="Hours">Heures</option>
@@ -98,7 +143,7 @@ export default function CreatePackageModal() {
                       type="number"
                       min={1}
                       defaultValue={4}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -110,7 +155,7 @@ export default function CreatePackageModal() {
                       type="number"
                       min={1}
                       defaultValue={4}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -126,7 +171,7 @@ export default function CreatePackageModal() {
                   min={500}
                   required
                   placeholder="Min 500"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-slate-400">
                   Prix minimum : FCFA 500
@@ -139,7 +184,7 @@ export default function CreatePackageModal() {
                 </label>
                 <select
                   name="billingStartsOn"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                 >
                   <option value="Upon First Use">À la première utilisation</option>
                   <option value="Upon Purchase">À l&apos;achat</option>
@@ -158,7 +203,7 @@ export default function CreatePackageModal() {
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                className="rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
               >
                 {pending ? "Création..." : "Créer le forfait"}
               </button>

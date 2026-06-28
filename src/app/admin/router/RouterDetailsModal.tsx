@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Cpu, HardDrive, Loader2, MemoryStick, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, Cpu, HardDrive, Loader2, MemoryStick, X } from "lucide-react";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
 
 function bytesToMiB(raw: string) {
@@ -61,14 +61,13 @@ export default function RouterDetailsModal({
     | { loading: false; resources?: RouterResources; error?: string }
   >({ loading: true });
 
-  // Reset to "loading" the moment routerId changes — adjusted during render
-  // (the React-recommended alternative to setState-in-effect) instead of as
-  // the first statement of the fetch effect below.
   const [prevRouterId, setPrevRouterId] = useState(routerId);
   if (routerId !== prevRouterId) {
     setPrevRouterId(routerId);
     setState({ loading: true });
   }
+
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,26 +82,46 @@ export default function RouterDetailsModal({
   }, [routerId]);
 
   useEffect(() => {
+    closeButtonRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        const active = document.activeElement;
+        if (active instanceof HTMLSelectElement) return;
+        onClose();
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/40"
+        aria-hidden="true"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      />
+      <div
+        className="relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="router-details-title"
+      >
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 id="router-details-title" className="text-lg font-semibold text-slate-900">
             {state.loading || !state.resources ? routerName : state.resources.identity}
           </h2>
-          <button type="button" onClick={onClose}>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            aria-label="Fermer"
+            onClick={onClose}
+          >
             <X className="h-5 w-5 text-slate-400" />
           </button>
         </div>
@@ -115,9 +134,16 @@ export default function RouterDetailsModal({
             </div>
           )}
 
-          {!state.loading && state.error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{state.error}</p>
-          )}
+          <div aria-live="polite">
+            {!state.loading && state.error && (
+              <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+                <span className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {state.error}
+                </span>
+              </p>
+            )}
+          </div>
 
           {!state.loading && state.resources && (
             <div className="space-y-5">

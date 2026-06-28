@@ -1,15 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Terminal } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, Copy, Terminal, X } from "lucide-react";
 
-// Plain fetch() to a route handler instead of a Server Action — actions
-// are addressed by an id encoded against the exact build that rendered
-// the page, so a redeploy landing mid-poll made the next call reference
-// an id the new build didn't recognize, and Next.js's only recovery is a
-// full page reload (looked like the whole app reloading on its own every
-// few minutes). A route handler URL is just served by whichever
-// deployment is live, deploy or not.
 async function checkBootstrapInstalled(bridgeId: string) {
   try {
     const res = await fetch(`/api/admin/bridges/${bridgeId}/bootstrap-status`, {
@@ -35,6 +28,7 @@ export default function BootstrapModal({
   const [installed, setInstalled] = useState(false);
   const [stillWaiting, setStillWaiting] = useState(false);
   const pollCount = useRef(0);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     pollCount.current = 0;
@@ -58,15 +52,27 @@ export default function BootstrapModal({
     };
   }, [bridgeId]);
 
-  // Auto-close once installation is confirmed instead of leaving the admin
-  // stuck on a dead-end success screen with no way out — onClose also
-  // triggers a router.refresh() upstream so the topology canvas reflects
-  // the now-installed bridge without a manual page reload.
   useEffect(() => {
     if (!installed) return;
     const timeout = setTimeout(onClose, 2000);
     return () => clearTimeout(timeout);
   }, [installed, onClose]);
+
+  useEffect(() => {
+    closeButtonRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        const active = document.activeElement;
+        if (active instanceof HTMLSelectElement) return;
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   function copyCommand() {
     navigator.clipboard.writeText(command);
@@ -87,29 +93,51 @@ export default function BootstrapModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-            <Terminal className="h-4 w-4" />
-          </span>
-          <h2 className="text-base font-semibold text-slate-900">
-            Installation du service requise
-          </h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/40"
+        aria-hidden="true"
+        onClick={onClose}
+      />
+      <div
+        className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bootstrap-title"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <Terminal className="h-4 w-4" />
+            </span>
+            <h2 id="bootstrap-title" className="text-base font-semibold text-slate-900">
+              Installation du service requise
+            </h2>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            aria-label="Fermer"
+            onClick={onClose}
+          >
+            <X className="h-5 w-5 text-slate-400" />
+          </button>
         </div>
 
         {installed ? (
           <>
-            <div className="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              Service installé avec succès sur le routeur. Le portail captif est
-              prêt.
+            <div className="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-700" aria-live="polite">
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Service installé avec succès sur le routeur. Le portail captif est prêt.
+              </span>
             </div>
             <p className="mt-2 text-xs text-slate-400">Fermeture automatique...</p>
             <div className="mt-4 flex justify-end">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                className="rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
               >
                 Continuer
               </button>
@@ -124,19 +152,22 @@ export default function BootstrapModal({
             </p>
 
             <div className="relative mt-3">
-              <pre className="overflow-x-auto rounded-md bg-slate-900 p-3 pr-10 text-[11px] text-emerald-300">
+              <pre className="overflow-x-auto rounded-md bg-slate-950 p-3 pr-10 text-[11px] text-emerald-300">
                 {command}
               </pre>
               <button
+                type="button"
                 onClick={copyCommand}
                 className="absolute right-2 top-2 rounded-md bg-slate-800 p-1.5 text-slate-300 hover:bg-slate-700"
                 title="Copier la commande"
+                aria-label="Copier la commande"
               >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </button>
             </div>
 
             <button
+              type="button"
               onClick={copyCommand}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
@@ -157,10 +188,15 @@ export default function BootstrapModal({
             </p>
 
             {stillWaiting && (
-              <p className="mt-3 text-xs text-amber-600">
-                Toujours en attente. Vérifiez que la commande s&apos;est bien
-                exécutée sur le routeur.
-              </p>
+              <div className="mt-3" aria-live="polite">
+                <p className="text-xs text-amber-600">
+                  <span className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    Toujours en attente. Vérifiez que la commande s&apos;est bien
+                    exécutée sur le routeur.
+                  </span>
+                </p>
+              </div>
             )}
 
             <div className="mt-4 flex justify-end gap-2">
@@ -175,7 +211,7 @@ export default function BootstrapModal({
                 type="button"
                 onClick={handleRanIt}
                 disabled={checking}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                className="rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
               >
                 {checking ? "Vérification..." : "J'ai exécuté la commande"}
               </button>

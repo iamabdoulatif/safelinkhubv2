@@ -72,7 +72,7 @@ function ToggleSwitch({
         disabled={disabled}
         className="peer sr-only"
       />
-      <span className="absolute inset-0 rounded-full bg-slate-200 transition-colors peer-checked:bg-slate-900" />
+      <span className="absolute inset-0 rounded-full bg-slate-200 transition-colors peer-checked:bg-slate-900 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500 peer-focus-visible:outline-none" />
       <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
     </label>
   );
@@ -118,7 +118,16 @@ function BridgeNode({
   return (
     <div
       ref={nodeRef}
-      onDoubleClick={onConfigure}
+      onClick={onConfigure}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onConfigure();
+        }
+      }}
+      tabIndex={0}
+      role="button"
+      aria-label={`Bridge ${bridge.name}, appuyez sur Entrée pour configurer`}
       onDragOver={(e) => onDrop && e.preventDefault()}
       onDrop={onDrop}
       className={`relative w-80 shrink-0 rounded-xl border bg-white p-5 shadow-md ${
@@ -127,9 +136,12 @@ function BridgeNode({
     >
       <button
         type="button"
-        onClick={onConfigure}
-        className="absolute -top-3.5 left-1/2 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 shadow-sm hover:bg-emerald-50"
-        title="Configurer le bridge"
+        onClick={(e) => {
+          e.stopPropagation();
+          onConfigure();
+        }}
+        className="absolute -top-3.5 left-1/2 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 shadow-sm hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+        aria-label="Configurer le bridge"
       >
         <Plus className="h-4 w-4" />
       </button>
@@ -326,26 +338,45 @@ function DockerBridgeCreatePanel({
 function InterfaceTile({
   port,
   used,
+  selected,
+  onSelect,
   tileRef,
 }: {
   port: Port;
   used: boolean;
+  selected: boolean;
+  onSelect: () => void;
   tileRef: (el: HTMLDivElement | null) => void;
 }) {
   const isVeth = isVethInterface(port);
   const draggable = !used && !port.disabled && !isVeth;
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onSelect();
+    }
+  };
 
   return (
     <div
       ref={tileRef}
       draggable={draggable}
       onDragStart={(e) => draggable && e.dataTransfer.setData("text/plain", port.name)}
+      onClick={onSelect}
+      onKeyDown={handleKeyDown}
+      tabIndex={draggable ? 0 : -1}
+      role="button"
+      aria-pressed={selected}
+      aria-label={`Port ${port.name}${used ? " (déjà utilisé)" : ""}`}
       title={
         isVeth
           ? `${port.name} est l'interface du conteneur Docker (bridge DOCKERS)`
           : port.disabled
             ? `${port.name} est désactivé sur le routeur`
-            : undefined
+            : selected
+              ? "Appuyez sur Entrée pour connecter à SAFELINKHUB-BRIDGE"
+              : undefined
       }
       className={`relative flex h-16 w-[72px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border text-[11px] shadow-sm ${
         port.disabled
@@ -354,9 +385,16 @@ function InterfaceTile({
             ? "cursor-not-allowed border-violet-200 bg-violet-50 text-violet-700"
             : used
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "cursor-grab border-slate-200 bg-white text-slate-500 hover:border-emerald-300 hover:text-slate-700"
+              : selected
+                ? "cursor-pointer border-orange-400 bg-orange-50 text-orange-700 ring-2 ring-orange-400/30"
+                : "cursor-grab border-slate-200 bg-white text-slate-500 hover:border-emerald-300 hover:text-slate-700"
       }`}
     >
+      {selected && (
+        <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded bg-orange-500 px-1.5 py-0.5 text-[9px] font-semibold text-white whitespace-nowrap">
+          Entrée pour connecter
+        </span>
+      )}
       {port.name === "ether1" && (
         <span className="absolute -top-2 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-semibold text-amber-700">
           WAN
@@ -378,11 +416,15 @@ function RouterDeviceCard({
   ports,
   assignedElsewhere,
   draftPorts,
+  selectedPort,
+  onSelectPort,
   registerPortRef,
 }: {
   ports: Port[] | null;
   assignedElsewhere: Set<string>;
   draftPorts: string[];
+  selectedPort: string | null;
+  onSelectPort: (name: string) => void;
   registerPortRef: (name: string, el: HTMLDivElement | null) => void;
 }) {
   return (
@@ -409,35 +451,12 @@ function RouterDeviceCard({
             key={port.name}
             port={port}
             used={assignedElsewhere.has(port.name) || draftPorts.includes(port.name)}
+            selected={selectedPort === port.name}
+            onSelect={() => onSelectPort(port.name)}
             tileRef={(el) => registerPortRef(port.name, el)}
           />
         ))}
       </div>
-    </div>
-  );
-}
-
-function TopologyZoomControls() {
-  return (
-    <div className="absolute bottom-4 left-4 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-      {["+", "-", "□", "▣"].map((label) => (
-        <button
-          key={label}
-          type="button"
-          className="block h-10 w-10 border-b border-slate-100 text-base font-semibold text-slate-700 last:border-b-0 hover:bg-slate-50"
-          title="Contrôle du canevas"
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function TopologyMiniMap() {
-  return (
-    <div className="absolute bottom-4 right-4 h-32 w-44 rounded-sm border border-slate-100 bg-white/90 p-4 shadow-sm">
-      <div className="mt-9 h-6 w-32 rounded bg-slate-200" />
     </div>
   );
 }
@@ -453,6 +472,9 @@ function TopologyCanvas({
   onDrop,
   onConfigure,
   onRefreshPorts,
+  keyboardMode,
+  setKeyboardMode,
+  formAction,
 }: {
   routerId: string;
   ports: Port[] | null;
@@ -464,6 +486,9 @@ function TopologyCanvas({
   onAddBridge: () => void;
   onDrop: (e: React.DragEvent) => void;
   onConfigure: () => void;
+  keyboardMode: boolean;
+  setKeyboardMode: (v: boolean) => void;
+  formAction: (payload: FormData) => void;
 }) {
   const visibleBridge = useMemo(
     () =>
@@ -491,6 +516,7 @@ function TopologyCanvas({
   const dockerBridgeRef = useRef<HTMLDivElement | null>(null);
   const portElsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const [lines, setLines] = useState<Line[]>([]);
+  const [selectedPort, setSelectedPort] = useState<string | null>(null);
 
   const registerPortRef = useCallback((name: string, el: HTMLDivElement | null) => {
     if (el) portElsRef.current.set(name, el);
@@ -541,8 +567,28 @@ function TopologyCanvas({
     return () => window.removeEventListener("resize", onResize);
   }, [recomputeLines]);
 
+  const handleSelectPort = useCallback((name: string) => {
+    setSelectedPort((prev) => (prev === name ? null : name));
+  }, []);
+
   return (
     <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <span className="text-sm font-medium text-slate-600">Mode d&apos;édition</span>
+        <button
+          type="button"
+          onClick={() => setKeyboardMode(!keyboardMode)}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            keyboardMode
+              ? "bg-emerald-500 text-white hover:bg-emerald-600"
+              : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+          }`}
+          aria-pressed={keyboardMode}
+        >
+          {keyboardMode ? "Mode clavier actif" : "Mode clavier"}
+        </button>
+      </div>
+
       <div className="grid min-h-[700px] grid-cols-1 md:grid-cols-[300px_1fr]">
         <aside className="border-b border-slate-200 bg-white p-6 md:border-b-0 md:border-r">
           <p className="text-sm font-medium text-emerald-600">
@@ -565,52 +611,129 @@ function TopologyCanvas({
           ref={sectionRef}
           className="relative min-h-[700px] overflow-hidden bg-slate-50"
         >
-          <RouterDeviceCard
-            ports={ports}
-            assignedElsewhere={assignedElsewhere}
-            draftPorts={draftPorts}
-            registerPortRef={registerPortRef}
-          />
+          {keyboardMode ? (
+            <form
+              action={formAction}
+              className="absolute inset-0 overflow-y-auto p-6"
+            >
+              <input type="hidden" name="routerId" value={routerId} />
+              <input type="hidden" name="name" value="SAFELINKHUB-BRIDGE" />
+              <input
+                type="hidden"
+                name="gatewayIp"
+                value={visibleBridge?.gatewayIp === "Not configured" ? "10.200.5.1" : (visibleBridge?.gatewayIp ?? "10.200.5.1")}
+              />
+              <input
+                type="hidden"
+                name="subnetBits"
+                value={visibleBridge?.subnetBits ?? 24}
+              />
+              <input type="hidden" name="hotspotEnabled" value="on" />
+              <input type="hidden" name="preventSharing" value="on" />
 
-          {visibleBridge || hasDockerBridge ? (
-            <>
-              <ConnectionLines lines={lines} />
-              <div className="absolute left-1/2 top-[290px] flex -translate-x-1/2 items-start gap-6">
-                {visibleBridge ? (
-                  <BridgeNode
-                    bridge={visibleBridge}
-                    draft={visibleBridge.name === "SAFELINKHUB-BRIDGE"}
-                    onConfigure={onConfigure}
-                    onDrop={hasDraft ? onDrop : undefined}
-                    nodeRef={(el) => {
-                      bridgeRef.current = el;
-                    }}
-                  />
-                ) : (
-                  <div className="flex h-40 w-80 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-white/80 text-sm font-medium text-emerald-700">
-                    Cliquez sur &quot;Ajouter un bridge&quot; pour commencer
-                  </div>
-                )}
-                {hasDockerBridge ? (
-                  <DockerBridgeNode
-                    ports={dockerPorts}
-                    nodeRef={(el) => {
-                      dockerBridgeRef.current = el;
-                    }}
-                  />
-                ) : (
-                  <DockerBridgeCreatePanel routerId={routerId} onCreated={onRefreshPorts} />
-                )}
+              <p className="text-sm font-medium text-slate-700 mb-4">
+                Sélectionnez les ports à assigner au bridge :
+              </p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {ports?.map((port) => {
+                  const isVeth = isVethInterface(port);
+                  const used = assignedElsewhere.has(port.name) || draftPorts.includes(port.name);
+                  const disabled = port.disabled || isVeth;
+                  return (
+                    <label
+                      key={port.name}
+                      className={`flex items-center gap-2 rounded-lg border p-3 ${
+                        disabled
+                          ? "opacity-50 cursor-not-allowed border-slate-100"
+                          : "border-slate-200 bg-white hover:border-emerald-300 cursor-pointer"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        name="ports"
+                        value={port.name}
+                        disabled={disabled}
+                        defaultChecked={used}
+                        className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 focus:outline-none"
+                      />
+                      <span className="text-sm text-slate-700">{interfaceLabel(port)}</span>
+                      {port.disabled && (
+                        <span className="ml-auto text-[10px] text-slate-400">(désactivé)</span>
+                      )}
+                      {isVeth && (
+                        <span className="ml-auto text-[10px] text-violet-600">(Docker)</span>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
-            </>
-          ) : (
-            <div className="absolute left-1/2 top-[290px] flex h-40 w-80 -translate-x-1/2 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-white/80 text-sm font-medium text-emerald-700">
-              Cliquez sur &quot;Ajouter un bridge&quot; pour commencer
-            </div>
-          )}
 
-          <TopologyZoomControls />
-          <TopologyMiniMap />
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setKeyboardMode(false)}
+                  className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Retour au mode visuel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-500"
+                >
+                  Enregistrer les modifications
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <RouterDeviceCard
+                ports={ports}
+                assignedElsewhere={assignedElsewhere}
+                draftPorts={draftPorts}
+                selectedPort={selectedPort}
+                onSelectPort={handleSelectPort}
+                registerPortRef={registerPortRef}
+              />
+
+              {visibleBridge || hasDockerBridge ? (
+                <>
+                  <ConnectionLines lines={lines} />
+                  <div className="absolute left-1/2 top-[290px] flex -translate-x-1/2 items-start gap-6">
+                    {visibleBridge ? (
+                      <BridgeNode
+                        bridge={visibleBridge}
+                        draft={visibleBridge.name === "SAFELINKHUB-BRIDGE"}
+                        onConfigure={onConfigure}
+                        onDrop={hasDraft ? onDrop : undefined}
+                        nodeRef={(el) => {
+                          bridgeRef.current = el;
+                        }}
+                      />
+                    ) : (
+                      <div className="flex h-40 w-80 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-white/80 text-sm font-medium text-emerald-700">
+                        Cliquez sur &quot;Ajouter un bridge&quot; pour commencer
+                      </div>
+                    )}
+                    {hasDockerBridge ? (
+                      <DockerBridgeNode
+                        ports={dockerPorts}
+                        nodeRef={(el) => {
+                          dockerBridgeRef.current = el;
+                        }}
+                      />
+                    ) : (
+                      <DockerBridgeCreatePanel routerId={routerId} onCreated={onRefreshPorts} />
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="absolute left-1/2 top-[290px] flex h-40 w-80 -translate-x-1/2 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-white/80 text-sm font-medium text-emerald-700">
+                  Cliquez sur &quot;Ajouter un bridge&quot; pour commencer
+                </div>
+              )}
+            </>
+          )}
         </section>
       </div>
     </div>
@@ -637,6 +760,8 @@ export default function TopologyBuilder({
   const [networkClass, setNetworkClass] = useState<NetworkClass>("B");
   const [subnetBits, setSubnetBits] = useState(19);
   const [gatewayIp, setGatewayIp] = useState("10.200.5.1");
+  const [keyboardMode, setKeyboardMode] = useState(false);
+  const gatewayIpRef = useRef<HTMLInputElement>(null);
 
   function changeNetworkClass(next: NetworkClass) {
     setNetworkClass(next);
@@ -645,10 +770,6 @@ export default function TopologyBuilder({
     }
   }
 
-  // Pre-fills the modal from the bridge's actual saved values when
-  // re-opening it to edit an existing bridge — previously this always
-  // reset to the hardcoded 10.200.5.1/19 example regardless of what was
-  // really configured, so edits never reflected the router's real state.
   function openConfigure() {
     const existing = initialBridges[0];
     if (existing && existing.gatewayIp !== "Not configured") {
@@ -663,10 +784,6 @@ export default function TopologyBuilder({
     setConfiguring(true);
   }
 
-  // Flip back into "retrying" the moment routerId/retryCount changes —
-  // adjusted during render (the React-recommended alternative to
-  // setState-in-effect) instead of as the first statement of the fetch
-  // effect below.
   const fetchKey = `${routerId}:${retryCount}`;
   const [prevFetchKey, setPrevFetchKey] = useState(fetchKey);
   if (fetchKey !== prevFetchKey) {
@@ -691,9 +808,6 @@ export default function TopologyBuilder({
     };
   }, [routerId, retryCount]);
 
-  // Same render-time adjustment for the bootstrap command: react to the
-  // action result changing instead of calling setBootstrap synchronously
-  // inside the effect.
   const [prevState, setPrevState] = useState(state);
   if (state !== prevState) {
     setPrevState(state);
@@ -708,11 +822,30 @@ export default function TopologyBuilder({
         setConfiguring(false);
         setHasDraft(false);
         setDraftPorts([]);
+        setKeyboardMode(false);
       }, 0);
       router.refresh();
       return () => window.clearTimeout(timer);
     }
   }, [state, router]);
+
+  useEffect(() => {
+    if (configuring) {
+      const timer = setTimeout(() => gatewayIpRef.current?.focus(), 0);
+      return () => clearTimeout(timer);
+    }
+  }, [configuring]);
+
+  useEffect(() => {
+    if (!configuring) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setConfiguring(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [configuring]);
 
   const assignedElsewhere = new Set(initialBridges.flatMap((b) => b.ports));
 
@@ -765,12 +898,23 @@ export default function TopologyBuilder({
         onDrop={handleDrop}
         onConfigure={openConfigure}
         onRefreshPorts={() => setRetryCount((c) => c + 1)}
+        keyboardMode={keyboardMode}
+        setKeyboardMode={setKeyboardMode}
+        formAction={formAction}
       />
 
       {configuring && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfiguring(false);
+          }}
+        >
           <form
             action={formAction}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bridge-config-title"
             className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-xl"
           >
             <input type="hidden" name="routerId" value={routerId} />
@@ -779,10 +923,15 @@ export default function TopologyBuilder({
             ))}
 
             <div className="flex items-start justify-between">
-              <h2 className="text-2xl font-semibold text-slate-900">
+              <h2 id="bridge-config-title" className="text-2xl font-semibold text-slate-900">
                 Configurer l&apos;interface du bridge
               </h2>
-              <button type="button" onClick={() => setConfiguring(false)}>
+              <button
+                type="button"
+                onClick={() => setConfiguring(false)}
+                aria-label="Fermer"
+                className="rounded-md p-1 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+              >
                 <X className="h-5 w-5 text-slate-400" />
               </button>
             </div>
@@ -829,12 +978,13 @@ export default function TopologyBuilder({
                 </label>
                 <div className="flex-1">
                   <input
+                    ref={gatewayIpRef}
                     name="gatewayIp"
                     required
                     placeholder="10.200.5.1"
                     value={gatewayIp}
                     onChange={(e) => setGatewayIp(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-base placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-base placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                   />
                   <div className="mt-2 flex flex-wrap gap-2">
                     {GATEWAY_IP_PRESETS.map((ip) => (
@@ -867,7 +1017,7 @@ export default function TopologyBuilder({
                         name="network-class"
                         checked={networkClass === c}
                         onChange={() => changeNetworkClass(c)}
-                        className="h-4 w-4 border-slate-300"
+                        className="h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500 focus:outline-none"
                       />
                       {c === "any" ? "Toutes" : `Classe ${c}`}
                     </label>
@@ -883,7 +1033,7 @@ export default function TopologyBuilder({
                   name="subnetBits"
                   value={subnetBits}
                   onChange={(e) => setSubnetBits(Number(e.target.value))}
-                  className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-base focus:border-slate-400 focus:outline-none"
+                  className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-base focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                 >
                   {CLASS_PREFIX_OPTIONS[networkClass].map((bits) => (
                     <option key={bits} value={bits}>
@@ -915,7 +1065,7 @@ export default function TopologyBuilder({
                     type="checkbox"
                     name="preventSharing"
                     defaultChecked
-                    className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 focus:outline-none"
                   />
                   Empêcher le partage du hotspot (TTL=1)
                 </label>
@@ -950,7 +1100,7 @@ export default function TopologyBuilder({
               <button
                 type="submit"
                 disabled={pending || draftPorts.length === 0}
-                className="rounded-lg bg-slate-900 px-5 py-2.5 text-base font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                className="rounded-lg bg-slate-950 px-5 py-2.5 text-base font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
               >
                 {pending ? "Enregistrement..." : "Enregistrer les modifications"}
               </button>

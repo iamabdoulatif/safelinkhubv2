@@ -26,6 +26,12 @@ export const organizations = pgTable("organizations", {
   // re-adding a router doesn't burn it, same as the regular free-trial
   // flag above — it's date-bound, not a one-time-use flag.
   bonusFreeRouterUntil: timestamp("bonus_free_router_until"),
+  // Superadmin-controlled VPN billing override for the SaaS org. "default"
+  // keeps the normal trial/wallet behavior, "free_until" and "unlimited"
+  // grant free direct-access VPN, and "paid" forces wallet billing even if
+  // the default trial would still be active.
+  vpnQuotaMode: text("vpn_quota_mode").notNull().default("default"),
+  vpnQuotaExpiresAt: timestamp("vpn_quota_expires_at"),
 });
 
 export const users = pgTable("users", {

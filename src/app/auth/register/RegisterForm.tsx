@@ -26,8 +26,9 @@ export default function RegisterForm() {
             type="text"
             name="name"
             required
+            autoComplete="name"
             placeholder="Jean Dupont"
-            className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
           />
         </div>
       </div>
@@ -42,8 +43,10 @@ export default function RegisterForm() {
             type="email"
             name="email"
             required
+            autoComplete="email"
+            spellCheck={false}
             placeholder="jean.dupont@exemple.com"
-            className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
           />
         </div>
       </div>
