@@ -279,12 +279,18 @@ async function provisionDockerStack(
         ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${usbLayerDir}`],
         "container engine config (USB storage)",
       );
-    } else if (opts.hasLargeOnboardStorage) {
-      // No USB stick, but the board has enough onboard flash (e.g. RB4011)
-      // to hold the image directly — no /disk/add or formatting needed,
-      // "disk1" is just a plain directory on the router's own Files/flash
-      // storage, unlike usb1 (separate disk slot, needs ext4 formatting) or
-      // tmp (RAM-backed, lost on reboot, capped at 150MB).
+    } else if (
+      opts.hasLargeOnboardStorage ||
+      (await client.talk(["/disk/print"]).catch(() => [])).some((d) => d.slot === "disk1")
+    ) {
+      // No USB stick, but the board reports its own internal "disk1" slot
+      // (RB4011 and any other board with enough onboard flash to spare) —
+      // live-detected the same way install-vpn/route.ts's bootstrap script
+      // does, so this isn't limited to boards hardcoded in device-catalog.ts.
+      // No /disk/add or formatting needed, "disk1" is just a plain directory
+      // on the router's own Files/flash storage, unlike usb1 (separate disk
+      // slot, needs ext4 formatting) or tmp (RAM-backed, lost on reboot,
+      // capped at 150MB).
       const flashRootDir = "disk1/mikhmon-app";
       const flashLayerDir = "disk1/mikhmon-layers";
       containerRootDir = flashRootDir;

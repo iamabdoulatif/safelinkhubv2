@@ -130,6 +130,7 @@ export async function detectRouterModel(routerId: string) {
     const [resource] = await client.talk(["/system/resource/print"]);
     const [board] = await client.talk(["/system/routerboard/print"]).catch(() => []);
     const usbRows = await client.talk(["/system/resource/usb/print"]).catch(() => []);
+    const diskRows = await client.talk(["/disk/print"]).catch(() => []);
     const wifiRows = await client.talk(["/interface/wifi/print"]).catch(() => []);
     const [deviceModeRow] = await client.talk(["/system/device-mode/print"]).catch(() => []);
 
@@ -157,7 +158,12 @@ export async function detectRouterModel(routerId: string) {
       routerosVersion: resource?.version ?? "",
       deviceMode: deviceModeRow?.mode ?? null,
       requiresUsbForContainer: model?.requiresUsbForContainer ?? false,
-      hasLargeOnboardStorage: model?.hasLargeOnboardStorage ?? false,
+      // Live disk1-slot detection (same signal install-vpn/route.ts's
+      // bootstrap script uses) takes priority over the static catalog flag,
+      // so any board reporting its own internal disk slot is recognized
+      // even if it isn't listed in device-catalog.ts yet.
+      hasLargeOnboardStorage:
+        diskRows.some((d) => d.slot === "disk1") || (model?.hasLargeOnboardStorage ?? false),
       containerFeatureEnabled: deviceModeRow ? parseRosBoolean(deviceModeRow.container) : null,
     };
 
