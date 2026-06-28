@@ -246,6 +246,84 @@ export async function deleteRouter(routerId: string) {
   return { success: true };
 }
 
+/**
+ * "Réinitialiser le processus" used to just delete SafeLinkHub's own DB
+ * row (same as "Supprimer le routeur") — the live RouterOS device kept
+ * every interface/bridge/peer SafeLinkHub had configured, so re-running
+ * the wizard against the same physical router started from a half-
+ * configured state instead of a clean one, and WinBox still showed the
+ * old WireGuard tunnel/peer indefinitely. This sends an actual factory
+ * reset (/system/reset-configuration, no-defaults — wipes everything,
+ * not just back to RouterOS's stock defaults) to the live device first,
+ * best-effort, then does the same SafeLinkHub-side cleanup deleteRouter
+ * does. The reset command reboots the router immediately and never
+ * returns a normal reply, so a thrown/timed-out call here is treated as
+ * "command was sent", not a failure — the device's own factory-reset is
+ * what's authoritative on whether it actually cleared.
+ */
+export async function resetRouterDevice(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+
+  if (!router || router.orgId !== session.orgId) {
+    return { error: "Router not found." };
+  }
+
+  let deviceReset = false;
+  try {
+    const client = await connectToRouter(router, 8000);
+    try {
+      await client
+        .talk(["/system/reset-configuration", "=no-defaults=yes", "=skip-backup=yes"])
+        .catch(() => {});
+      deviceReset = true;
+    } finally {
+      client.close();
+    }
+  } catch {
+    // Router unreachable — nothing to reset on-device, fall through to
+    // removing the SafeLinkHub-side records regardless.
+  }
+
+  try {
+    if (router.connectionMethod === "vpn" && router.wgPeerPublicKey) {
+      await revokeVpnPeer(router.wgPeerPublicKey);
+    } else if (router.connectionMethod === "openvpn" && router.tunnelIp) {
+      const [org] = await db
+        .select({ slug: organizations.slug })
+        .from(organizations)
+        .where(eq(organizations.id, router.orgId))
+        .limit(1);
+      if (org) {
+        await revokeOpenvpnPeer(`${org.slug}-${router.name}`);
+      }
+    }
+  } catch {
+    // Best-effort: the relay might be unreachable, but we still want the
+    // router record itself removed from SafeLinkHub.
+  }
+
+  await db.delete(routers).where(eq(routers.id, routerId));
+
+  revalidatePath("/admin/router");
+  revalidatePath("/admin/settings/router-setup");
+  revalidatePath("/admin/remote-access");
+  return {
+    success: true,
+    deviceReset,
+    message: deviceReset
+      ? "Commande de réinitialisation envoyée au routeur — il redémarre à l'état d'usine. Reconnectez-vous-y directement (WinBox/MAC) pour le relier à nouveau."
+      : "Routeur inaccessible — seule la configuration SafeLinkHub a été supprimée. Réinitialisez l'appareil manuellement (bouton reset) avant de le relier à nouveau.",
+  };
+}
+
 export async function generateOpenvpnInstallScript(
   _prevState: unknown,
   formData: FormData,

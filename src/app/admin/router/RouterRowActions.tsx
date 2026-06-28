@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, MoreVertical } from "lucide-react";
-import { deleteRouter } from "@/lib/mikrotik/actions";
+import { deleteRouter, resetRouterDevice } from "@/lib/mikrotik/actions";
 
 type PendingAction = null | "reset" | "delete";
 
@@ -29,13 +29,17 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
   async function handleConfirm() {
     setPending(true);
     setError(null);
-    const result = await deleteRouter(routerId);
+    const result =
+      confirming === "reset" ? await resetRouterDevice(routerId) : await deleteRouter(routerId);
     setPending(false);
     if (result?.error) {
       setError(result.error);
       return;
     }
     setConfirming(null);
+    if ("message" in result && result.message) {
+      alert(result.message);
+    }
     router.refresh();
   }
 
