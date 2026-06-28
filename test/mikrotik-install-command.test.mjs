@@ -83,6 +83,18 @@ test("VPN script can be fetched again while a router is still installing", async
   assert.match(source, /inArray\(routers\.status, \["pending", "installing"\]\)/);
 });
 
+test("RouterOS WireGuard install script prepares DOCKERS bridge and MIKHMON veth gateway", async () => {
+  const source = await readFile(
+    new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /\/interface bridge add name=DOCKERS/);
+  assert.match(source, /\/interface veth add name=MIKHMON address=11\.11\.11\.11\/28 gateway=11\.11\.11\.1/);
+  assert.match(source, /\/interface bridge port add bridge=DOCKERS interface=MIKHMON/);
+  assert.match(source, /\/ip address add address=11\.11\.11\.1\/28 interface=DOCKERS network=11\.11\.11\.0/);
+});
+
 test("relay peer allocation uses live WireGuard allowed IPs to pick the next tunnel address", async () => {
   const source = await readFile(new URL("../src/lib/mikrotik/relay.ts", import.meta.url), "utf8");
 

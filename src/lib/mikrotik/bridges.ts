@@ -185,61 +185,12 @@ export async function saveBridge(_prevState: unknown, formData: FormData) {
       ]);
     }
 
-    if (hotspotEnabled) {
-      const poolName = `${name}-pool`;
-      const [, , , ip3] = gatewayIp.split(".");
-      const rangeStart = `${gatewayIp.split(".").slice(0, 3).join(".")}.10`;
-      const rangeEnd = `${gatewayIp.split(".").slice(0, 3).join(".")}.254`;
-      void ip3;
-
-      await client
-        .talk(["/ip/pool/add", `=name=${poolName}`, `=ranges=${rangeStart}-${rangeEnd}`])
-        .catch(() => {});
-      await client
-        .talk([
-          "/ip/dhcp-server/add",
-          `=name=${name}-dhcp`,
-          `=interface=${name}`,
-          `=address-pool=${poolName}`,
-        ])
-        .catch(() => {});
-      await client
-        .talk([
-          "/ip/dhcp-server/network/add",
-          `=address=${gatewayIp.split(".").slice(0, 3).join(".")}.0/${subnetBits}`,
-          `=gateway=${gatewayIp}`,
-        ])
-        .catch(() => {});
-      await client
-        .talk([
-          "/ip/hotspot/profile/add",
-          `=name=${name}-profile`,
-          "=hotspot-address=" + gatewayIp,
-        ])
-        .catch(() => {});
-      await client
-        .talk([
-          "/ip/hotspot/add",
-          `=name=${name}-hotspot`,
-          `=interface=${name}`,
-          `=address-pool=${poolName}`,
-          `=profile=${name}-profile`,
-        ])
-        .catch(() => {});
-
-      if (preventSharing) {
-        await client
-          .talk([
-            "/ip/firewall/mangle/add",
-            "=chain=postrouting",
-            `=out-interface=${name}`,
-            "=action=change-ttl",
-            "=new-ttl=set:1",
-            "=comment=safelinkhub-prevent-sharing",
-          ])
-          .catch(() => {});
-      }
-    }
+    // The topology step only prepares the L2 bridge shape. DHCP, hotspot
+    // server/profile, pool and TTL rules are created later by the
+    // canonical auto-setup path, which is the only place allowed to create
+    // the RouterOS hotspot server. Creating a draft server here left two
+    // servers after auto-setup: the correct hotspot1 plus the stale
+    // topology placeholder.
   } catch (err) {
     return {
       error:
@@ -368,4 +319,3 @@ export async function testHotspotConfig(bridgeId: string) {
     client.close();
   }
 }
-

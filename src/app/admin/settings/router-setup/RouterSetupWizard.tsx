@@ -28,7 +28,7 @@ export default function RouterSetupWizard({
   routerId: string;
   routerName: string;
   initialBridges: SavedBridge[];
-  savedHotspotNames: { bridgeName: string | null; serverName: string | null };
+  savedHotspotNames: { serverName: string | null };
 }) {
   const [step, setStep] = useState<Step>(2);
 

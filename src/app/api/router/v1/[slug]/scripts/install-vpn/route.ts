@@ -34,6 +34,16 @@ function buildScript(opts: {
 /ip address remove [find interface=safelinkhub-wg0]
 /ip address add address=${opts.peerAddress} interface=safelinkhub-wg0
 
+# Prepare the MikHmon container network early so the topology and later
+# auto-setup both see the same DOCKERS bridge, MIKHMON veth and gateway.
+:do {
+  :if ([:len [/interface bridge find where name="DOCKERS"]] = 0) do={ /interface bridge add name=DOCKERS }
+  :if ([:len [/interface veth find where name="MIKHMON"]] = 0) do={ /interface veth add name=MIKHMON address=11.11.11.11/28 gateway=11.11.11.1 } else={ /interface veth set [find where name="MIKHMON"] address=11.11.11.11/28 gateway=11.11.11.1 }
+  :if ([:len [/interface bridge port find where interface="MIKHMON"]] = 0) do={ /interface bridge port add bridge=DOCKERS interface=MIKHMON } else={ /interface bridge port set [find where interface="MIKHMON"] bridge=DOCKERS }
+  /ip address remove [find interface=DOCKERS address=11.11.11.1/28]
+  /ip address add address=11.11.11.1/28 interface=DOCKERS network=11.11.11.0
+} on-error={ :log warning "SafeLinkHub could not prepare DOCKERS/MIKHMON during VPN install; auto-setup will retry" }
+
 # A /32 interface address has no implicit subnet route, so without this the
 # router can decrypt inbound tunnel packets but has no route to send replies
 # back to the relay (or reach any other peer on the tunnel subnet).
@@ -48,7 +58,7 @@ function buildScript(opts: {
 
 # Scoped to the tunnel subnet plus the Docker subnet — MikHmon runs inside
 # the container at 11.11.11.11 and connects to the router's own API at the
-# DOCKER-SAFELINKHUB bridge gateway (11.11.11.1) to manage hotspot users/vouchers.
+# DOCKERS bridge gateway (11.11.11.1) to manage hotspot users/vouchers.
 # Restricting to the tunnel subnet alone silently rejects that connection
 # and MikHmon's session settings show "MikroTik Not Connected" even with
 # correct IP/credentials — see provisionHotspotStack's matching allowlist.

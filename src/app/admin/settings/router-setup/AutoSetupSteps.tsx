@@ -44,8 +44,8 @@ const PACKAGE_DURATION_UNIT: Record<DurationUnit, string> = {
  * What used to be one dense "Configuration automatique complète" card
  * (DetectedModelBadge + the whole ContainerSetupCard form in a single
  * screen) is now 5 separate wizard steps sharing one piece of state, owned
- * here instead of split across components — Identité/DNS/SSID/
- * utilisateurs (detection lives here too, since the standalone Wi-Fi step
+ * here instead of split across components — DNS/SSID/utilisateurs
+ * (detection lives here too, since the standalone Wi-Fi step
  * was dropped as a duplicate of the SSID field already on this step),
  * Stockage USB/MikHmon, Profils voucher, Portail captif, then a final
  * recap + the actual "Lancer" button. The component itself stays mounted
@@ -145,7 +145,7 @@ export default function AutoSetupSteps({
   onStepChange: (step: 2 | 3 | 4 | 5 | 6 | 7 | 8) => void;
   routerId: string;
   hotspotBridge: { gatewayIp: string; subnetBits: number } | null;
-  savedHotspotNames: { bridgeName: string | null; serverName: string | null };
+  savedHotspotNames: { serverName: string | null };
 }) {
   const [detected, setDetected] = useState<DetectedRouter | null>(null);
 
@@ -203,10 +203,8 @@ export default function AutoSetupSteps({
   const hotspotPrefixBits = hotspotBridge?.subnetBits ?? 24;
 
   const [hotspotName, setHotspotName] = useState("");
-  const [identity, setIdentity] = useState("");
   const [dnsName, setDnsName] = useState("");
   const [ssid, setSsid] = useState("");
-  const [bridgeName, setBridgeName] = useState(savedHotspotNames.bridgeName ?? "");
   const [serverName, setServerName] = useState(savedHotspotNames.serverName ?? "");
   const [defaultHotspotUsers, setDefaultHotspotUsers] = useState("");
   const [hasUsbStorage, setHasUsbStorage] = useState(false);
@@ -350,7 +348,6 @@ export default function AutoSetupSteps({
         hotspotAddress,
         hotspotPrefixBits,
         hotspotName,
-        identity: identity.trim() || undefined,
         dnsName,
         ssid: ssid.trim() || undefined,
         defaultHotspotUsers: defaultHotspotUsers
@@ -364,7 +361,6 @@ export default function AutoSetupSteps({
         packagesToSync: customProfileMeta,
         installCaptivePortal,
         captiveTemplateId: installCaptivePortal ? selectedTemplateId ?? undefined : undefined,
-        bridgeName: bridgeName.trim() || undefined,
         serverName: serverName.trim() || undefined,
       });
       setResult(res);
@@ -375,7 +371,7 @@ export default function AutoSetupSteps({
     return (
       <StepShell
         key={step}
-        title="Étape 3 : Identité, domaine & utilisateurs"
+        title="Étape 3 : Domaine, Wi-Fi & utilisateurs"
         description="Détection du modèle du routeur, puis les valeurs qui identifient le hotspot et le portail captif — le nom du réseau Wi-Fi (SSID) se règle ici, il sera appliqué au lancement de l'auto-setup."
         onBack={() => onStepChange(2)}
         onNext={() => onStepChange(4)}
@@ -401,24 +397,6 @@ export default function AutoSetupSteps({
         )}
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
-              Identité système (/system identity)
-            </label>
-            <input
-              value={identity}
-              onChange={(e) => setIdentity(e.target.value)}
-              placeholder={
-                hotspotName.trim()
-                  ? `HSPT-${hotspotName.split(/[\s-]/)[0].toUpperCase()}`
-                  : "HSPT-MIRADOR"
-              }
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
-            />
-            <p className="mt-1 text-[11px] text-slate-400">
-              Laissez vide pour générer automatiquement à partir du nom du hotspot.
-            </p>
-          </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">
               Nom du hotspot / profil
@@ -451,21 +429,6 @@ export default function AutoSetupSteps({
               placeholder="MIRADOR WIFI"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
-              Nom du bridge RouterOS (avancé)
-            </label>
-            <input
-              value={bridgeName}
-              onChange={(e) => setBridgeName(e.target.value)}
-              placeholder="HOTSPOT"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
-            />
-            <p className="mt-1 text-[11px] text-slate-400">
-              Laissez vide pour garder &quot;HOTSPOT&quot;. Renommer relance le bridge
-              existant sous ce nom (ses ports restent attachés).
-            </p>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">
@@ -788,7 +751,7 @@ export default function AutoSetupSteps({
         {archSupportsContainers && !skipMikhmon
           ? ", le bridge DOCKERS + conteneur MikHmon (auto-démarré), les règles NAT nécessaires,"
           : " et les règles NAT nécessaires,"}{" "}
-        puis verrouille les services, l&apos;heure, l&apos;identité et le NTP avant de redémarrer
+        puis verrouille les services, l&apos;heure et le NTP avant de redémarrer
         le routeur.
       </p>
 
@@ -818,10 +781,6 @@ export default function AutoSetupSteps({
         <div>
           <dt className="text-slate-400">Nom du hotspot</dt>
           <dd className="font-medium text-slate-700">{hotspotName || "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-400">Identité système</dt>
-          <dd className="font-medium text-slate-700">{identity || "(auto)"}</dd>
         </div>
         <div>
           <dt className="text-slate-400">Domaine du portail</dt>

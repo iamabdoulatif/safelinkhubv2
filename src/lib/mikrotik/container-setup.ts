@@ -455,13 +455,13 @@ export type HotspotStackOptions = {
     durationValue: number;
     durationUnit: string;
   }[];
-  // Lets the admin rename the RouterOS bridge/hotspot server instead of
-  // always getting HOTSPOT_BRIDGE_NAME ("HOTSPOT") / "hotspot1". Trimmed
-  // and falls back to those defaults when blank/omitted. Persisted onto
-  // the router row on success so other code paths (connection test,
-  // captive-template assignment) can resolve the actual live name instead
-  // of assuming the default.
+  // Deprecated compatibility field: older saved auto-setup configs may
+  // still contain a custom bridge name, but the managed hotspot bridge is
+  // now canonicalized to HOTSPOT so WiFi, DHCP, hotspot and captive-portal
+  // checks all target the same RouterOS interface.
   bridgeName?: string;
+  // Lets the admin rename the RouterOS hotspot server instead of always
+  // getting "hotspot1". Trimmed and falls back to the default when blank.
   serverName?: string;
   // Which of the org's "package" captive-template rows to install when
   // installCaptivePortal isn't explicitly false — lets the admin pick
@@ -587,7 +587,7 @@ export async function provisionHotspotStack(
     return { error: "Organization not found." };
   }
 
-  const bridgeName = opts.bridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
+  const bridgeName = HOTSPOT_BRIDGE_NAME;
   const serverName = opts.serverName?.trim() || "hotspot1";
   // Named after the operator's hotspot/brand name (e.g. "SHIAH WIFI"),
   // matching a normal/reference RouterOS hotspot config, not after the
@@ -597,7 +597,8 @@ export async function provisionHotspotStack(
   // profile the live server actually references (not by name), so
   // renaming this safely updates that same profile in place either way.
   const hotspotProfileName = opts.hotspotName;
-  const previousBridgeName = router.hotspotBridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
+  const previousBridgeName =
+    router.hotspotBridgeName?.trim() || opts.bridgeName?.trim() || HOTSPOT_BRIDGE_NAME;
 
   // One free auto-setup run per org (tracked on the org, survives the
   // router being deleted and re-added), then a one-time fee per
@@ -836,9 +837,13 @@ export async function provisionHotspotStack(
       );
     }
 
-    // Every port that was on the legacy bridge name has just been moved
-    // off it by the migration loop above — the shell bridge itself is now
-    // empty and safe to remove instead of lingering as orphaned clutter.
+    // Every port that was on a legacy/custom bridge name has just been
+    // moved off it by the migration loop above — the shell bridge itself
+    // is now empty and safe to remove instead of lingering as orphaned
+    // clutter.
+    if (previousBridgeName !== bridgeName) {
+      await client.talk(["/interface/bridge/remove", `=numbers=${previousBridgeName}`]).catch(() => {});
+    }
     await client.talk(["/interface/bridge/remove", `=numbers=${LEGACY_HOTSPOT_BRIDGE_NAME}`]).catch(() => {});
 
     // Interface lists (WAN / LAN) used for NAT/firewall scoping.
@@ -1003,19 +1008,37 @@ export async function provisionHotspotStack(
       await run(["/ip/hotspot/add", ...serverFields], "hotspot service");
     }
 
-    // Now safe to clean up any *other* leftover servers/profiles — the
-    // one actually in use was just /set above (by .id, not name), so
-    // nothing still-referenced gets pulled out from under it.
-    for (const server of existingHotspotServers) {
-      if (server[".id"] && server[".id"] !== matchingServer?.[".id"]) {
+    const configuredHotspotServers = await client.talk(["/ip/hotspot/print", `?name=${serverName}`]).catch(() => []);
+    const configuredServer =
+      configuredHotspotServers.find((s) => s.interface === bridgeName) ?? configuredHotspotServers[0];
+    if (configuredServer?.[".id"] && configuredServer?.["address-pool"] !== HOTSPOT_POOL_NAME) {
+      await run(
+        ["/ip/hotspot/set", `=numbers=${configuredServer[".id"]}`, `=address-pool=${HOTSPOT_POOL_NAME}`],
+        "repaired hotspot server address pool",
+      );
+    }
+
+    // Now safe to clean up any leftover servers/profiles, using a fresh
+    // read after RouterOS has applied the authoritative hotspot1 set/add.
+    // The previous cleanup iterated the pre-set snapshot, so a stale
+    // SAFELINKHUB-BRIDGE-hotspot row could survive beside the correct
+    // hotspot1 row after RouterOS normalized names/interfaces.
+    const finalHotspotServers = await client.talk(["/ip/hotspot/print"]).catch(() => []);
+    for (const server of finalHotspotServers) {
+      if (server[".id"] && server[".id"] !== configuredServer?.[".id"]) {
         await client.talk(["/ip/hotspot/remove", `=numbers=${server[".id"]}`]).catch(() => {});
+        log.push(`OK: removed duplicate hotspot server ${server.name || server[".id"]}`);
       }
     }
-    for (const profile of existingProfiles) {
-      if (profile[".id"] && profile.name !== "default" && profile[".id"] !== matchingProfile?.[".id"]) {
+
+    const finalProfiles = await client.talk(["/ip/hotspot/profile/print"]).catch(() => []);
+    const activeProfileName = configuredServer?.profile || hotspotProfileName;
+    for (const profile of finalProfiles) {
+      if (profile[".id"] && profile.name !== "default" && profile.name !== activeProfileName) {
         await client
           .talk(["/ip/hotspot/profile/remove", `=numbers=${profile[".id"]}`])
           .catch(() => {});
+        log.push(`OK: removed duplicate hotspot profile ${profile.name || profile[".id"]}`);
       }
     }
 
@@ -1632,11 +1655,13 @@ export async function provisionHotspotStack(
       client.talk(["/system/reboot"]).catch(() => {});
     }
 
+    const persistableOpts = { ...opts, reboot: undefined };
+    delete persistableOpts.bridgeName;
+
     // Persisted on every successful run (not just billed ones) so other
     // code paths that look up this router's live hotspot config (the
-    // connection test, captive-template assignment) resolve the name the
-    // admin actually chose instead of assuming the HOTSPOT/hotspot1
-    // defaults.
+    // connection test, captive-template assignment) resolve the canonical
+    // HOTSPOT bridge and the selected hotspot server name.
     await db
       .update(routers)
       .set({
@@ -1647,7 +1672,7 @@ export async function provisionHotspotStack(
         // later "Continuer l'auto-setup" repair replay this exact
         // configuration against whatever the audit found missing,
         // without the admin re-entering every wizard field.
-        lastAutoSetupConfig: { ...opts, reboot: undefined },
+        lastAutoSetupConfig: persistableOpts,
       })
       .where(eq(routers.id, routerId));
 

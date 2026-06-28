@@ -37,3 +37,12 @@ test("topology builder uses an original-style canvas layout", async () => {
   assert.match(source, /SAFELINKHUB-BRIDGE/);
   assert.match(source, /Pas de PPPoE/);
 });
+
+test("topology bridge save does not create a provisional RouterOS hotspot server", async () => {
+  const source = await readFile(new URL("../src/lib/mikrotik/bridges.ts", import.meta.url), "utf8");
+
+  assert.doesNotMatch(source, /\/ip\/hotspot\/add/);
+  assert.doesNotMatch(source, /\/ip\/hotspot\/profile\/add/);
+  assert.doesNotMatch(source, /\$\{name\}-hotspot/);
+  assert.match(source, /values\.bootstrapStatus = "pending"/);
+});

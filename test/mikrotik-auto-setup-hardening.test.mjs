@@ -81,3 +81,38 @@ test("default hotspot users are created and reconciled with password equal to us
   assert.ok(source.includes('`=numbers=${existingUser[0][".id"]}`'));
   assert.match(source, /`=password=\$\{name\}`/);
 });
+
+test("wizard keeps HOTSPOT as the only RouterOS hotspot bridge and hides system identity", async () => {
+  const autoSetup = await readFile(
+    new URL("../src/app/admin/settings/router-setup/AutoSetupSteps.tsx", import.meta.url),
+    "utf8",
+  );
+  const containerSetup = await containerSetupSource();
+
+  assert.doesNotMatch(autoSetup, /Identité système/);
+  assert.doesNotMatch(autoSetup, /setIdentity/);
+  assert.doesNotMatch(autoSetup, /identity:/);
+  assert.doesNotMatch(autoSetup, /Nom du bridge RouterOS/);
+  assert.doesNotMatch(autoSetup, /setBridgeName/);
+  assert.doesNotMatch(autoSetup, /bridgeName:/);
+  assert.match(containerSetup, /const bridgeName = HOTSPOT_BRIDGE_NAME/);
+  assert.doesNotMatch(containerSetup, /const bridgeName = opts\.bridgeName/);
+});
+
+test("hotspot server address pool is verified and repaired after RouterOS add/set", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /const configuredHotspotServers = await client\.talk\(\["\/ip\/hotspot\/print", `\?name=\$\{serverName\}`\]\)/);
+  assert.match(source, /configuredServer\?\.\["address-pool"\] !== HOTSPOT_POOL_NAME/);
+  assert.match(source, /\/ip\/hotspot\/set", `=numbers=\$\{configuredServer\["\.id"\]\}`, `=address-pool=\$\{HOTSPOT_POOL_NAME\}`/);
+  assert.match(source, /repaired hotspot server address pool/);
+});
+
+test("auto-setup re-reads hotspot servers before removing every duplicate", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /const finalHotspotServers = await client\.talk\(\["\/ip\/hotspot\/print"\]\)/);
+  assert.match(source, /server\["\.id"\] !== configuredServer\?\.\["\.id"\]/);
+  assert.match(source, /removed duplicate hotspot server/);
+  assert.doesNotMatch(source, /for \(const server of existingHotspotServers\)/);
+});
