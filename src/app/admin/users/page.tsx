@@ -2,8 +2,8 @@ import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, users } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { updateOrganizationVpnQuota } from "@/lib/billing/actions";
-import { getVpnQuotaStatus, VPN_QUOTA_GRANT_OPTIONS } from "@/lib/billing/vpn-quota";
+import { getVpnQuotaStatus } from "@/lib/billing/vpn-quota";
+import VpnQuotaForm from "./VpnQuotaForm";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -100,26 +100,7 @@ export default async function UsersPage() {
                       <span className="text-xs font-medium text-slate-600">
                         {quotaLabel(u)}
                       </span>
-                      <form action={updateOrganizationVpnQuota} className="flex items-center gap-2">
-                        <input type="hidden" name="userId" value={u.id} />
-                        <select
-                          name="grant"
-                          className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
-                          aria-label={`Quota VPN pour ${u.email}`}
-                        >
-                          {VPN_QUOTA_GRANT_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="submit"
-                          className="h-9 rounded-md bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-700"
-                        >
-                          Appliquer
-                        </button>
-                      </form>
+                      <VpnQuotaForm userId={u.id} userEmail={u.email} />
                     </div>
                   </td>
                 )}

@@ -57,16 +57,21 @@ export async function getVpnTrialStatus() {
   };
 }
 
-export async function updateOrganizationVpnQuota(formData: FormData) {
+export type UpdateVpnQuotaState = { success: true } | { success: false; error: string } | null;
+
+export async function updateOrganizationVpnQuota(
+  _prevState: UpdateVpnQuotaState,
+  formData: FormData,
+): Promise<UpdateVpnQuotaState> {
   const session = await getSession();
   if (!session || !isSuperAdmin(session.role)) {
-    return;
+    return { success: false, error: "Action non autorisée." };
   }
 
   const userId = String(formData.get("userId") ?? "");
   const grant = String(formData.get("grant") ?? "");
   if (!userId || !isVpnQuotaGrant(grant)) {
-    return;
+    return { success: false, error: "Sélection invalide." };
   }
 
   const db = getDb();
@@ -76,7 +81,7 @@ export async function updateOrganizationVpnQuota(formData: FormData) {
     .where(eq(users.id, userId))
     .limit(1);
   if (!targetUser) {
-    return;
+    return { success: false, error: "Utilisateur introuvable." };
   }
 
   const patch = computeVpnQuotaGrant(grant);
@@ -91,4 +96,6 @@ export async function updateOrganizationVpnQuota(formData: FormData) {
   revalidatePath("/admin/users");
   revalidatePath("/admin/remote-access");
   revalidatePath("/admin/billing");
+
+  return { success: true };
 }

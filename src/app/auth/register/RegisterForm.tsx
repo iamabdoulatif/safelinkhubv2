@@ -62,6 +62,7 @@ export default function RegisterForm() {
             name="password"
             required
             minLength={6}
+            autoComplete="new-password"
             className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
         </div>

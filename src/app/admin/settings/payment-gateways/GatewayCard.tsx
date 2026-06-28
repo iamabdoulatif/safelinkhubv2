@@ -72,8 +72,9 @@ export default function GatewayCard({
           type="button"
           role="switch"
           aria-checked={isEnabled}
+          aria-label={`Activer ${LABELS[provider]}`}
           onClick={() => setIsEnabled((v) => !v)}
-          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${
             isEnabled ? "bg-emerald-500" : "bg-slate-200"
           }`}
         >
@@ -114,7 +115,8 @@ export default function GatewayCard({
             name="merchantId"
             defaultValue={merchantId ?? ""}
             placeholder="ID marchand"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+            autoComplete="off"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
         </div>
         <div>
@@ -125,7 +127,8 @@ export default function GatewayCard({
             name="apiKey"
             type="password"
             placeholder={hasApiKey ? "••••••••••••" : "Clé API"}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+            autoComplete="off"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           <p className="mt-1 text-[11px] text-slate-400">
             Laissez vide pour conserver la clé actuelle.

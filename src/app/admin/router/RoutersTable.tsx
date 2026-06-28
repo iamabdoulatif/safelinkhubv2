@@ -1,10 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Info, Link2, Search } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
 import RouterDetailsModal from "./RouterDetailsModal";
+
+type StatusFilter = "all" | "online" | "offline";
+
+function isStatusFilter(value: string | null): value is StatusFilter {
+  return value === "all" || value === "online" || value === "offline";
+}
 
 export type RouterRow = {
   id: string;
@@ -87,9 +94,29 @@ function RemoteAccessToggle({ enabled }: { enabled: boolean }) {
 }
 
 export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
-  const [filter, setFilter] = useState<"all" | "online" | "offline">("all");
-  const [query, setQuery] = useState("");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const initialFilter = isStatusFilter(searchParams.get("status")) ? searchParams.get("status") as StatusFilter : "all";
+  const initialQuery = searchParams.get("q") ?? "";
+
+  const [filter, setFilter] = useState<StatusFilter>(initialFilter);
+  const [query, setQuery] = useState(initialQuery);
   const [detailsFor, setDetailsFor] = useState<RouterRow | null>(null);
+
+  // Keep the URL in sync with the active filter/search so the view is
+  // shareable and survives a refresh or browser back/forward.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filter !== "all") params.set("status", filter);
+    if (query) params.set("q", query);
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    }
+  }, [filter, query, pathname, router, searchParams]);
 
   const counts = useMemo(
     () => ({
@@ -191,8 +218,8 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                   <td className="px-4 py-3">
                     <ProvisioningBadge status={r.status} />
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{r.cpuLoad ?? 0}%</td>
-                  <td className="px-4 py-3 text-slate-600">{r.memoryUsage ?? "0"}%</td>
+                  <td className="px-4 py-3 tabular-nums text-slate-600">{r.cpuLoad ?? 0}%</td>
+                  <td className="px-4 py-3 tabular-nums text-slate-600">{r.memoryUsage ?? "0"}%</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={r.status} />
                   </td>

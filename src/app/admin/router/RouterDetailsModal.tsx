@@ -68,6 +68,7 @@ export default function RouterDetailsModal({
   }
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,8 +82,15 @@ export default function RouterDetailsModal({
     };
   }, [routerId]);
 
+  // Focus the close button on open, then restore focus to whatever
+  // triggered the modal (the "Détails" row button) when it unmounts —
+  // otherwise keyboard/screen-reader focus is dropped to <body>.
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     closeButtonRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -91,6 +99,23 @@ export default function RouterDetailsModal({
         const active = document.activeElement;
         if (active instanceof HTMLSelectElement) return;
         onClose();
+        return;
+      }
+
+      if (e.key === "Tab" && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -107,6 +132,7 @@ export default function RouterDetailsModal({
         }}
       />
       <div
+        ref={dialogRef}
         className="relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl"
         role="dialog"
         aria-modal="true"
@@ -121,8 +147,9 @@ export default function RouterDetailsModal({
             type="button"
             aria-label="Fermer"
             onClick={onClose}
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
-            <X className="h-5 w-5 text-slate-400" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 

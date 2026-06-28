@@ -85,7 +85,8 @@ export default function SmsGatewayCard({
             defaultValue={senderId ?? ""}
             placeholder="SafeLinkHub"
             maxLength={11}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+            autoComplete="off"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
         </div>
         <div>
@@ -96,7 +97,8 @@ export default function SmsGatewayCard({
             name="apiKey"
             type="password"
             placeholder={hasApiKey ? "••••••••••••" : "Clé API"}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+            autoComplete="off"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           <p className="mt-1 text-[11px] text-slate-400">
             Laissez vide pour conserver la clé actuelle.
