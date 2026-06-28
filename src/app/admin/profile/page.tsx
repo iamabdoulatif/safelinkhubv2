@@ -67,7 +67,7 @@ export default async function ProfilePage() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <div id="organisation" className="mt-4 scroll-mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
         <div className="flex items-center gap-2">
           <Building2 className="h-4 w-4 text-slate-400" />
           <h2 className="text-sm font-semibold text-slate-700">Organisation</h2>

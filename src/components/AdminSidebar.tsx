@@ -19,6 +19,7 @@ import {
   Settings,
   CreditCard,
   LifeBuoy,
+  ArrowUpRight,
   ChevronDown,
   Menu,
   X,
@@ -139,18 +140,18 @@ export default function AdminSidebar({
         </div>
 
         <div className="border-b border-slate-200 px-5 py-3">
-          <button
-            disabled
-            aria-disabled="true"
-            title="Changement d'organisation (bientôt disponible)"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          <Link
+            href="/admin/profile#organisation"
+            onClick={closeMobile}
+            title={`Voir les informations de ${orgName}`}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-900 text-[10px] font-semibold text-white">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-900 text-[10px] font-semibold text-white">
               {orgName.slice(0, 2).toUpperCase()}
             </span>
-            <span className="truncate">{orgName}</span>
-            <ChevronDown className="ml-auto h-4 w-4 text-slate-400" />
-          </button>
+            <span className="min-w-0 truncate">{orgName}</span>
+            <ArrowUpRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+          </Link>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-3">
