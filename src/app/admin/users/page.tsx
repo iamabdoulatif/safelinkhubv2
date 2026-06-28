@@ -70,7 +70,42 @@ export default async function UsersPage() {
           : "Membres de l'équipe ayant accès à cette organisation SafeLinkHub."}
       </p>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      {/* Mobile: stacked cards — avoids a 5-6 column horizontal-scroll table
+          on narrow screens, which is especially bad here since the quota
+          column embeds its own select + submit button. */}
+      <div className="mt-4 space-y-3 md:hidden">
+        {orgUsers.map((u) => (
+          <div key={u.id} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-slate-900">{u.name}</p>
+                <p className="truncate text-sm text-slate-500">{u.email}</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize text-slate-600">
+                {u.role}
+              </span>
+            </div>
+
+            {superadmin && (
+              <p className="mt-2 truncate text-xs text-slate-400">{u.orgName}</p>
+            )}
+
+            <p className="mt-2 text-xs text-slate-400">Inscrit le {formatDate(u.createdAt)}</p>
+
+            {superadmin && (
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <p className="mb-2 text-xs font-medium text-slate-600">
+                  Quota VPN — {quotaLabel(u)}
+                </p>
+                <VpnQuotaForm userId={u.id} userEmail={u.email} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop / tablet: table */}
+      <div className="mt-4 hidden overflow-hidden rounded-xl border border-slate-200 bg-white md:block">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">

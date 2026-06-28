@@ -114,9 +114,13 @@ body {
 .hover-lift {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.hover-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+/* Only lift on real pointer hover — touch browsers fire :hover on tap and
+   leave the card stuck "lifted" until the next tap elsewhere. */
+@media (hover: hover) and (pointer: fine) {
+  .hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
 }
 
 /* Icon spin on hover */

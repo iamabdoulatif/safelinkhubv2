@@ -190,46 +190,30 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
           </div>
         </div>
 
-        <div className="table-mobile-wrapper">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-100 text-xs font-medium text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Nom</th>
-              <th className="px-4 py-3">Provisionnement</th>
-              <th className="px-4 py-3">CPU</th>
-              <th className="px-4 py-3">Mémoire</th>
-              <th className="px-4 py-3">Statut</th>
-              <th className="px-4 py-3">Connexion</th>
-              <th className="px-4 py-3">Accès distant</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">
-                  Aucun routeur à afficher.
-                </td>
-              </tr>
-            ) : (
-              filtered.map((r) => (
-                <tr key={r.id} className="border-b border-slate-50 last:border-0">
-                  <td className="px-4 py-3 font-medium text-slate-700">{r.name}</td>
-                  <td className="px-4 py-3">
+        {filtered.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-slate-400">
+            Aucun routeur à afficher.
+          </p>
+        ) : (
+          <>
+            {/* Mobile: stacked cards — an 8-column table forces horizontal
+                scroll on narrow screens for what's really 3-4 key facts
+                per router. */}
+            <div className="space-y-3 p-3 md:hidden">
+              {filtered.map((r) => (
+                <div key={r.id} className="rounded-lg border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate font-medium text-slate-700">{r.name}</p>
                     <ProvisioningBadge status={r.status} />
-                  </td>
-                  <td className="px-4 py-3 tabular-nums text-slate-600">{r.cpuLoad ?? 0}%</td>
-                  <td className="px-4 py-3 tabular-nums text-slate-600">{r.memoryUsage ?? "0"}%</td>
-                  <td className="px-4 py-3">
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                     <StatusBadge status={r.status} />
-                  </td>
-                  <td className="px-4 py-3">
                     <ConnectionBadge connectionMethod={r.connectionMethod} />
-                  </td>
-                  <td className="px-4 py-3">
+                    <span className="tabular-nums">CPU {r.cpuLoad ?? 0}%</span>
+                    <span className="tabular-nums">Mém. {r.memoryUsage ?? "0"}%</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
                     <RemoteAccessToggle enabled={r.connectionMethod === "vpn"} />
-                  </td>
-                  <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -247,13 +231,70 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                       </button>
                       <RouterRowActions routerId={r.id} />
                     </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop / tablet: table */}
+            <div className="hidden md:block">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-100 text-xs font-medium text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Nom</th>
+                    <th className="px-4 py-3">Provisionnement</th>
+                    <th className="px-4 py-3">CPU</th>
+                    <th className="px-4 py-3">Mémoire</th>
+                    <th className="px-4 py-3">Statut</th>
+                    <th className="px-4 py-3">Connexion</th>
+                    <th className="px-4 py-3">Accès distant</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((r) => (
+                    <tr key={r.id} className="border-b border-slate-50 last:border-0">
+                      <td className="px-4 py-3 font-medium text-slate-700">{r.name}</td>
+                      <td className="px-4 py-3">
+                        <ProvisioningBadge status={r.status} />
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-slate-600">{r.cpuLoad ?? 0}%</td>
+                      <td className="px-4 py-3 tabular-nums text-slate-600">{r.memoryUsage ?? "0"}%</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={r.status} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <ConnectionBadge connectionMethod={r.connectionMethod} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <RemoteAccessToggle enabled={r.connectionMethod === "vpn"} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={r.status !== "online"}
+                            onClick={() => setDetailsFor(r)}
+                            title={
+                              r.status !== "online"
+                                ? "Le routeur doit être en ligne pour lire ses informations"
+                                : undefined
+                            }
+                            className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                            Détails
+                          </button>
+                          <RouterRowActions routerId={r.id} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-sm text-slate-500">
           <span>Affichage de {filtered.length} résultat(s)</span>

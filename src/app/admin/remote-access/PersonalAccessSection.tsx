@@ -156,11 +156,11 @@ function ReachableRoutersList({ routers }: { routers: ReachableRouter[] }) {
         <RouterIcon className="h-4 w-4 text-slate-400" />
         Une fois connecté, vos routeurs sont joignables sur :
       </p>
-      <ul className="mt-2 space-y-1 text-sm text-slate-600">
+      <ul className="mt-2 space-y-1.5 text-sm text-slate-600">
         {routers.map((r) => (
-          <li key={r.name} className="flex items-center justify-between">
-            <span>{r.name}</span>
-            <code className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+          <li key={r.name} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <span className="min-w-0 truncate">{r.name}</span>
+            <code className="w-fit shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
               {r.tunnelIp}
             </code>
           </li>
@@ -184,7 +184,7 @@ export default function PersonalAccessSection({
   const [method, setMethod] = useState<"wireguard" | "openvpn">("wireguard");
 
   return (
-    <div className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
+    <div className="mt-10 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
       <div className="flex items-center gap-2">
         <Laptop className="h-5 w-5 text-slate-700" />
         <h2 className="font-semibold text-slate-900">Accès VPN personnel</h2>

@@ -589,7 +589,7 @@ function TopologyCanvas({
         </button>
       </div>
 
-      <div className="grid min-h-[700px] grid-cols-1 md:grid-cols-[300px_1fr]">
+      <div className="grid min-h-[480px] grid-cols-1 md:min-h-[700px] md:grid-cols-[300px_1fr]">
         <aside className="border-b border-slate-200 bg-white p-6 md:border-b-0 md:border-r">
           <p className="text-sm font-medium text-emerald-600">
             Double-cliquez sur une ligne de connexion existante pour la
@@ -763,6 +763,18 @@ export default function TopologyBuilder({
   const [keyboardMode, setKeyboardMode] = useState(false);
   const gatewayIpRef = useRef<HTMLInputElement>(null);
 
+  // The visual canvas relies on absolutely-positioned, horizontally
+  // scrollable nodes that don't translate to small screens — default to
+  // the list+form "mode clavier" there instead. Must run post-mount
+  // (matchMedia isn't available during SSR), so this can't be a lazy
+  // useState initializer without a hydration mismatch.
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setKeyboardMode(true);
+    }
+  }, []);
+
   function changeNetworkClass(next: NetworkClass) {
     setNetworkClass(next);
     if (!CLASS_PREFIX_OPTIONS[next].includes(subnetBits)) {
@@ -915,7 +927,7 @@ export default function TopologyBuilder({
             role="dialog"
             aria-modal="true"
             aria-labelledby="bridge-config-title"
-            className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-xl"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-4 shadow-xl sm:p-8"
           >
             <input type="hidden" name="routerId" value={routerId} />
             {draftPorts.map((p) => (

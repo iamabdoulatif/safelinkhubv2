@@ -308,9 +308,9 @@ function RouterDirectAccess({
             : null;
           return (
             <div key={service} className="rounded-md px-0 py-1">
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-slate-600">{SERVICE_LABELS[service]}</span>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   {forward && <CopyableAddress value={`${relayHost}:${forward.publicPort}`} />}
                   {!isPublic && (
                     <select
@@ -434,43 +434,33 @@ function RouterDirectAccess({
               />
             </button>
             {showDetails && (
-              <div className="table-mobile-wrapper overflow-x-auto border-t border-slate-100">
-                <table className="w-full min-w-[760px] text-left text-[11px]">
-                <thead className="bg-slate-50 text-slate-500">
-                  <tr>
-                    <th className="px-2 py-1.5 font-medium">MAC WAN</th>
-                    <th className="px-2 py-1.5 font-medium">IP WAN</th>
-                    <th className="px-2 py-1.5 font-medium">IP publique</th>
-                    <th className="px-2 py-1.5 font-medium">IP tunnel</th>
-                    <th className="px-2 py-1.5 font-medium">Identity</th>
-                    <th className="px-2 py-1.5 font-medium">Version</th>
-                    <th className="px-2 py-1.5 font-medium">Board</th>
-                    <th className="px-2 py-1.5 font-medium">Uptime</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-slate-100">
-                    <td className="px-2 py-1.5 font-medium text-slate-700">
-                      {resourcesLoading && !resources ? (
-                        <span className="flex items-center gap-1 text-slate-400">
+              <div className="grid grid-cols-1 gap-x-4 gap-y-2 border-t border-slate-100 p-3 text-[11px] sm:grid-cols-2 lg:grid-cols-4">
+                {(
+                  [
+                    [
+                      "MAC WAN",
+                      resourcesLoading && !resources ? (
+                        <span key="loading" className="flex items-center gap-1 text-slate-400">
                           <Loader2 className="h-3 w-3 animate-spin" /> ...
                         </span>
                       ) : (
                         summary?.wanMacAddress || "—"
-                      )}
-                    </td>
-                    <td className="px-2 py-1.5 text-slate-600">{summary?.wanIpAddress || "—"}</td>
-                    <td className="px-2 py-1.5 text-slate-600">{relayHost || "—"}</td>
-                    <td className="px-2 py-1.5 text-slate-600">{summary?.tunnelIp || router.tunnelIp || "—"}</td>
-                    <td className="px-2 py-1.5 font-medium text-slate-700">
-                      {summary?.identity ?? resources?.identity ?? router.name}
-                    </td>
-                    <td className="px-2 py-1.5 text-slate-600">{resources?.version ?? "—"}</td>
-                    <td className="px-2 py-1.5 text-slate-600">{resources?.boardName ?? "—"}</td>
-                    <td className="px-2 py-1.5 text-slate-600">{resources?.uptime ?? "—"}</td>
-                  </tr>
-                </tbody>
-              </table>
+                      ),
+                    ],
+                    ["IP WAN", summary?.wanIpAddress || "—"],
+                    ["IP publique", relayHost || "—"],
+                    ["IP tunnel", summary?.tunnelIp || router.tunnelIp || "—"],
+                    ["Identity", summary?.identity ?? resources?.identity ?? router.name],
+                    ["Version", resources?.version ?? "—"],
+                    ["Board", resources?.boardName ?? "—"],
+                    ["Uptime", resources?.uptime ?? "—"],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label} className="min-w-0">
+                    <p className="text-slate-400">{label}</p>
+                    <p className="truncate font-medium text-slate-700">{value}</p>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -503,7 +493,7 @@ export default function DirectAccessSection({
   if (eligible.length === 0) return null;
 
   return (
-    <div className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
+    <div className="mt-10 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Globe2 className="h-5 w-5 text-slate-700" />

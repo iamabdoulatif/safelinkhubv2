@@ -82,7 +82,7 @@ export default async function BillingPage() {
         </dl>
       </div>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 hover-lift">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-6 hover-lift">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-slate-700" />
           <h2 className="font-semibold text-slate-900">Portefeuille</h2>
@@ -114,29 +114,18 @@ export default async function BillingPage() {
           <WalletTopupModal />
         </div>
 
-        <div className="mt-5 overflow-hidden rounded-lg border border-slate-100">
-          <div className="table-mobile-wrapper">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-100 bg-slate-50 text-slate-500">
-              <tr>
-                <th className="px-3 py-2 font-medium">Date</th>
-                <th className="px-3 py-2 font-medium">Type</th>
-                <th className="px-3 py-2 font-medium">Montant</th>
-                <th className="px-3 py-2 font-medium">Note</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {transactions.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-slate-400">
-                    Aucune transaction pour le moment.
-                  </td>
-                </tr>
-              )}
+        {transactions.length === 0 ? (
+          <p className="mt-5 rounded-lg border border-slate-100 px-3 py-6 text-center text-sm text-slate-400">
+            Aucune transaction pour le moment.
+          </p>
+        ) : (
+          <>
+            {/* Mobile: list of compact rows instead of a 4-column table —
+                date/note text wraps poorly next to the amount otherwise. */}
+            <div className="mt-5 space-y-2 sm:hidden">
               {transactions.map((t) => (
-                <tr key={t.id}>
-                  <td className="px-3 py-2 text-slate-600">{formatDateTime(t.createdAt)}</td>
-                  <td className="px-3 py-2">
+                <div key={t.id} className="rounded-lg border border-slate-100 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
                     <span
                       className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                         t.type === "topup"
@@ -146,22 +135,63 @@ export default async function BillingPage() {
                     >
                       {t.type === "topup" ? "Dépôt" : "Débit VPN"}
                     </span>
-                  </td>
-                  <td
-                    className={`px-3 py-2 font-medium ${
-                      t.type === "topup" ? "text-emerald-700" : "text-amber-700"
-                    }`}
-                  >
-                    {t.type === "topup" ? "+" : "-"}
-                    {formatFcfa(t.amountCents)}
-                  </td>
-                  <td className="px-3 py-2 text-slate-500">{t.note ?? "—"}</td>
-                </tr>
+                    <span
+                      className={`font-medium ${
+                        t.type === "topup" ? "text-emerald-700" : "text-amber-700"
+                      }`}
+                    >
+                      {t.type === "topup" ? "+" : "-"}
+                      {formatFcfa(t.amountCents)}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-slate-500">{formatDateTime(t.createdAt)}</p>
+                  {t.note && <p className="mt-0.5 text-slate-400">{t.note}</p>}
+                </div>
               ))}
-            </tbody>
-          </table>
-          </div>
-        </div>
+            </div>
+
+            {/* Desktop / tablet: table */}
+            <div className="mt-5 hidden overflow-hidden rounded-lg border border-slate-100 sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-100 bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Date</th>
+                    <th className="px-3 py-2 font-medium">Type</th>
+                    <th className="px-3 py-2 font-medium">Montant</th>
+                    <th className="px-3 py-2 font-medium">Note</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {transactions.map((t) => (
+                    <tr key={t.id}>
+                      <td className="px-3 py-2 text-slate-600">{formatDateTime(t.createdAt)}</td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                            t.type === "topup"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          {t.type === "topup" ? "Dépôt" : "Débit VPN"}
+                        </span>
+                      </td>
+                      <td
+                        className={`px-3 py-2 font-medium ${
+                          t.type === "topup" ? "text-emerald-700" : "text-amber-700"
+                        }`}
+                      >
+                        {t.type === "topup" ? "+" : "-"}
+                        {formatFcfa(t.amountCents)}
+                      </td>
+                      <td className="px-3 py-2 text-slate-500">{t.note ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6">
