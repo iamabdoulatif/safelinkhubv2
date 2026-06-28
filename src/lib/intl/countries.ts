@@ -1,24 +1,30 @@
 export type Country = { name: string; iso2: string; dialCode: string };
 
-// West/Central African markets first (primary user base for this hotspot
-// SaaS), then the rest of Africa, then a broad global tail so no real
-// signup is blocked by a missing country.
-export const COUNTRIES: Country[] = [
+// Primary go-to-market countries, in priority order — Afrique de l'Ouest,
+// puis Afrique centrale, puis Nigeria/Kenya. These appear first in every
+// selector so the overwhelming majority of signups don't have to scroll.
+const PRIMARY_MARKET_COUNTRIES: Country[] = [
   { name: "Côte d'Ivoire", iso2: "CI", dialCode: "+225" },
-  { name: "Sénégal", iso2: "SN", dialCode: "+221" },
-  { name: "Mali", iso2: "ML", dialCode: "+223" },
   { name: "Burkina Faso", iso2: "BF", dialCode: "+226" },
   { name: "Bénin", iso2: "BJ", dialCode: "+229" },
   { name: "Togo", iso2: "TG", dialCode: "+228" },
-  { name: "Niger", iso2: "NE", dialCode: "+227" },
+  { name: "Sénégal", iso2: "SN", dialCode: "+221" },
+  { name: "Mali", iso2: "ML", dialCode: "+223" },
   { name: "Guinée", iso2: "GN", dialCode: "+224" },
   { name: "Ghana", iso2: "GH", dialCode: "+233" },
-  { name: "Nigeria", iso2: "NG", dialCode: "+234" },
   { name: "Cameroun", iso2: "CM", dialCode: "+237" },
+  { name: "République Démocratique du Congo", iso2: "CD", dialCode: "+243" },
+  { name: "Tchad", iso2: "TD", dialCode: "+235" },
+  { name: "Nigeria", iso2: "NG", dialCode: "+234" },
+  { name: "Kenya", iso2: "KE", dialCode: "+254" },
+];
+
+// Rest of Africa, then a broad global tail so no real signup is blocked
+// by a missing country.
+const OTHER_COUNTRIES: Country[] = [
+  { name: "Niger", iso2: "NE", dialCode: "+227" },
   { name: "Gabon", iso2: "GA", dialCode: "+241" },
   { name: "Congo (Rép.)", iso2: "CG", dialCode: "+242" },
-  { name: "Congo (RDC)", iso2: "CD", dialCode: "+243" },
-  { name: "Tchad", iso2: "TD", dialCode: "+235" },
   { name: "République centrafricaine", iso2: "CF", dialCode: "+236" },
   { name: "Mauritanie", iso2: "MR", dialCode: "+222" },
   { name: "Guinée-Bissau", iso2: "GW", dialCode: "+245" },
@@ -28,7 +34,6 @@ export const COUNTRIES: Country[] = [
   { name: "Algérie", iso2: "DZ", dialCode: "+213" },
   { name: "Tunisie", iso2: "TN", dialCode: "+216" },
   { name: "Égypte", iso2: "EG", dialCode: "+20" },
-  { name: "Kenya", iso2: "KE", dialCode: "+254" },
   { name: "Tanzanie", iso2: "TZ", dialCode: "+255" },
   { name: "Ouganda", iso2: "UG", dialCode: "+256" },
   { name: "Rwanda", iso2: "RW", dialCode: "+250" },
@@ -56,6 +61,8 @@ export const COUNTRIES: Country[] = [
   { name: "Brésil", iso2: "BR", dialCode: "+55" },
   { name: "Autre", iso2: "XX", dialCode: "+" },
 ];
+
+export const COUNTRIES: Country[] = [...PRIMARY_MARKET_COUNTRIES, ...OTHER_COUNTRIES];
 
 export function findCountry(iso2: string): Country | undefined {
   return COUNTRIES.find((c) => c.iso2 === iso2);
