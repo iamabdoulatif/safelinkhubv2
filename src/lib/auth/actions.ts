@@ -1,11 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, users } from "@/lib/db/schema";
-import { createSession, destroySession } from "./session";
+import { createSession, destroySession, getSession } from "./session";
 
 function safeCallbackPath(callback: string) {
   if (callback.startsWith("/admin") && !callback.startsWith("//")) {
@@ -113,4 +114,62 @@ export async function register(_prevState: unknown, formData: FormData) {
 export async function logout() {
   await destroySession();
   redirect("/auth/login");
+}
+
+export type UpdateProfileState = { success: true } | { success: false; error: string } | null;
+
+export async function updateProfileName(
+  _prevState: UpdateProfileState,
+  formData: FormData,
+): Promise<UpdateProfileState> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Session expirée." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { success: false, error: "Le nom ne peut pas être vide." };
+
+  const db = getDb();
+  await db.update(users).set({ name }).where(eq(users.id, session.userId));
+
+  // The session JWT carries `name` for display — re-issue it so the
+  // sidebar/profile reflect the change without forcing a re-login.
+  await createSession({ ...session, name });
+
+  revalidatePath("/admin", "layout");
+  return { success: true };
+}
+
+export type ChangePasswordState = { success: true } | { success: false; error: string } | null;
+
+export async function changePassword(
+  _prevState: ChangePasswordState,
+  formData: FormData,
+): Promise<ChangePasswordState> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Session expirée." };
+
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  const newPassword = String(formData.get("newPassword") ?? "");
+  if (!currentPassword || !newPassword) {
+    return { success: false, error: "Tous les champs sont requis." };
+  }
+  if (newPassword.length < 6) {
+    return { success: false, error: "Le nouveau mot de passe doit contenir au moins 6 caractères." };
+  }
+
+  const db = getDb();
+  const [user] = await db
+    .select({ passwordHash: users.passwordHash })
+    .from(users)
+    .where(eq(users.id, session.userId))
+    .limit(1);
+  if (!user) return { success: false, error: "Session expirée." };
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) return { success: false, error: "Mot de passe actuel incorrect." };
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await db.update(users).set({ passwordHash }).where(eq(users.id, session.userId));
+
+  return { success: true };
 }

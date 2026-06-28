@@ -20,12 +20,11 @@ import {
   CreditCard,
   LifeBuoy,
   ChevronDown,
-  LogOut,
   Menu,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { logout } from "@/lib/auth/actions";
+import UserMenu from "./UserMenu";
 
 const mainLinks = [
   { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard },
@@ -60,9 +59,13 @@ const accountLinks = [
 export default function AdminSidebar({
   orgName,
   userName,
+  userEmail,
+  superadmin,
 }: {
   orgName: string;
   userName: string;
+  userEmail: string;
+  superadmin: boolean;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -227,18 +230,12 @@ export default function AdminSidebar({
           </ul>
         </nav>
 
-        <form action={logout} className="border-t border-slate-200 px-3 py-3">
-          <div className="mb-2 truncate px-2.5 text-xs text-slate-400">
-            {userName}
-          </div>
-          <button
-            type="submit"
-            className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-          >
-            <LogOut className="h-4 w-4 flex-shrink-0" />
-            Déconnexion
-          </button>
-        </form>
+        <UserMenu
+          userName={userName}
+          userEmail={userEmail}
+          superadmin={superadmin}
+          onNavigate={closeMobile}
+        />
       </aside>
     </>
   );
