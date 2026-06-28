@@ -1,8 +1,8 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers } from "@/lib/db/schema";
+import { routers, routerPortForwards } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
 import { REMOTE_ACCESS_PORT, DOCKER_WEB_PORT, HOTSPOT_BRIDGE_NAME } from "./constants";
@@ -74,14 +74,38 @@ export async function getMikhmonLink(routerId: string) {
     const hotspotIp = hotspotAddress?.address?.split("/")[0] ?? null;
     const localLink = hotspotIp ? `http://${hotspotIp}:${DOCKER_WEB_PORT}` : null;
 
+    // The router already maintains an outbound WireGuard/OpenVPN tunnel to
+    // SafeLinkHub's relay for management — toggling the "mikhmon" direct-
+    // access service (Accès distant) carries MikHmon over that same
+    // tunnel, bypassing the WAN/CGNAT situation entirely. The page used
+    // to only ever *mention* this in the warning text without showing the
+    // actual link, leaving the admin to go find it themselves — surfaced
+    // directly here instead whenever that service is already active.
+    const [mikhmonForward] = await db
+      .select({ publicPort: routerPortForwards.publicPort })
+      .from(routerPortForwards)
+      .where(
+        and(
+          eq(routerPortForwards.routerId, routerId),
+          eq(routerPortForwards.service, "mikhmon"),
+          eq(routerPortForwards.status, "active"),
+        ),
+      )
+      .limit(1);
+    const tunnelLink = mikhmonForward
+      ? `http://${process.env.WG_RELAY_HOST}:${mikhmonForward.publicPort}`
+      : null;
+
     if (!ddnsName) {
       return {
         success: true,
         ready: false,
         localLink,
+        tunnelLink,
         message:
           "Le nom DDNS du routeur n'est pas encore disponible — relancez l'auto-setup (étape MikroTik Cloud) ou réessayez dans quelques secondes." +
-          (localLink ? ` En attendant, l'accès local reste joignable : ${localLink}.` : ""),
+          (localLink ? ` En attendant, l'accès local reste joignable : ${localLink}.` : "") +
+          (tunnelLink ? ` Le lien via tunnel VPN reste joignable dans tous les cas : ${tunnelLink}.` : ""),
       };
     }
 
@@ -101,12 +125,15 @@ export async function getMikhmonLink(routerId: string) {
       link,
       ddnsName,
       localLink,
+      tunnelLink,
       message: reachable
         ? undefined
         : "Le DDNS et la redirection NAT sont bien configurés, mais le port 8088 ne répond pas depuis l'extérieur. C'est presque toujours dû à un CGNAT côté opérateur (fréquent sur connexion 4G/SIM) qui bloque les connexions entrantes vers l'IP publique, même si le routeur lui-même est correctement configuré — aucun réglage RouterOS ne peut contourner ça. Utilisez l'accès local ci-dessous si vous êtes sur le réseau du hotspot" +
-            (tunnelAvailable
-              ? ", ou activez « MikHmon (vouchers) » dans Accès distant pour y accéder via le tunnel VPN déjà utilisé pour la gestion à distance (fonctionne même derrière un CGNAT)."
-              : ", ou passez par une connexion WAN avec une vraie IP publique (fibre/ADSL) pour l'accès distant."),
+            (tunnelLink
+              ? `, ou le lien via tunnel VPN ci-dessous (fonctionne même derrière un CGNAT) : ${tunnelLink}.`
+              : tunnelAvailable
+                ? ", ou activez « MikHmon (vouchers) » dans Accès distant pour y accéder via le tunnel VPN déjà utilisé pour la gestion à distance (fonctionne même derrière un CGNAT)."
+                : ", ou passez par une connexion WAN avec une vraie IP publique (fibre/ADSL) pour l'accès distant."),
     };
   } catch (err) {
     return {

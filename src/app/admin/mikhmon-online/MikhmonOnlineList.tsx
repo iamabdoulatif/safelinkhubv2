@@ -8,7 +8,7 @@ type RouterRow = { id: string; name: string; status: string };
 
 type LinkResult =
   | { error: string }
-  | { success: true; ready: false; message: string; localLink: string | null }
+  | { success: true; ready: false; message: string; localLink: string | null; tunnelLink: string | null }
   | {
       success: true;
       ready: true;
@@ -16,6 +16,7 @@ type LinkResult =
       link: string;
       ddnsName: string;
       localLink: string | null;
+      tunnelLink: string | null;
       message?: string;
     }
   | null;
@@ -82,6 +83,22 @@ function RouterMikhmonCard({ router }: { router: RouterRow }) {
               </p>
             )}
           </div>
+          {result.tunnelLink && (
+            <div>
+              <p className="text-[11px] text-slate-400">
+                Accès via tunnel VPN (Accès distant — MikHmon, fonctionne même derrière un CGNAT)
+              </p>
+              <a
+                href={result.tunnelLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline"
+              >
+                {result.tunnelLink}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          )}
           {result.localLink && (
             <div>
               <p className="text-[11px] text-slate-400">
@@ -100,16 +117,31 @@ function RouterMikhmonCard({ router }: { router: RouterRow }) {
           )}
         </div>
       )}
-      {result && "success" in result && !result.ready && result.localLink && (
-        <a
-          href={result.localLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:underline"
-        >
-          {result.localLink}
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
+      {result && "success" in result && !result.ready && (result.localLink || result.tunnelLink) && (
+        <div className="mt-1 space-y-1">
+          {result.tunnelLink && (
+            <a
+              href={result.tunnelLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline"
+            >
+              {result.tunnelLink}
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+          {result.localLink && (
+            <a
+              href={result.localLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:underline"
+            >
+              {result.localLink}
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
       )}
     </div>
   );

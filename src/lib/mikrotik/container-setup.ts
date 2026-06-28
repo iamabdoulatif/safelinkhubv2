@@ -962,6 +962,19 @@ export async function provisionHotspotStack(
         }
       }
     }
+    // One-time cleanup for the rest of the now-removed SSH/Telnet
+    // progressive-ban chain (stages 2-5 above never carried a comment,
+    // so the by-comment loop just above only ever caught stage 1) —
+    // dst-port=22-23 is a signature unique to that removed feature, not
+    // used by anything else this script adds.
+    const staleBruteForceRules = await client
+      .talk(["/ip/firewall/filter/print", "?chain=input", "?dst-port=22-23"])
+      .catch(() => [] as Sentence[]);
+    for (const row of staleBruteForceRules) {
+      if (row[".id"]) {
+        await client.talk(["/ip/firewall/filter/remove", `=numbers=${row[".id"]}`]).catch(() => {});
+      }
+    }
     await run(
       ["/ip/firewall/filter/add", "=chain=input", "=connection-state=invalid", "=action=drop", "=comment=Drop Invalid Connections"],
       "firewall: drop invalid input",
@@ -1082,73 +1095,14 @@ export async function provisionHotspotStack(
       ],
       "firewall: drop listed port scanners",
     );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        "=connection-state=new",
-        "=protocol=tcp",
-        "=dst-port=22-23",
-        "=action=add-src-to-address-list",
-        "=address-list=SSH_BlackList_1",
-        "=address-list-timeout=1m",
-        "=comment=Drop SSH&TELNET Brute Forcers",
-      ],
-      "firewall: SSH/Telnet brute-force stage 1",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        "=connection-state=new",
-        "=protocol=tcp",
-        "=dst-port=22-23",
-        "=src-address-list=SSH_BlackList_1",
-        "=action=add-src-to-address-list",
-        "=address-list=SSH_BlackList_2",
-        "=address-list-timeout=1m",
-      ],
-      "firewall: SSH/Telnet brute-force stage 2",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        "=connection-state=new",
-        "=protocol=tcp",
-        "=dst-port=22-23",
-        "=src-address-list=SSH_BlackList_2",
-        "=action=add-src-to-address-list",
-        "=address-list=SSH_BlackList_3",
-        "=address-list-timeout=1m",
-      ],
-      "firewall: SSH/Telnet brute-force stage 3",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        "=connection-state=new",
-        "=protocol=tcp",
-        "=dst-port=22-23",
-        "=src-address-list=SSH_BlackList_3",
-        "=action=add-src-to-address-list",
-        "=address-list=IP_BlackList",
-        "=address-list-timeout=1d",
-      ],
-      "firewall: SSH/Telnet brute-force escalate to 1-day ban",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        "=protocol=tcp",
-        "=dst-port=22-23",
-        "=src-address-list=IP_BlackList",
-        "=action=drop",
-      ],
-      "firewall: drop blacklisted SSH/Telnet brute-forcers",
-    );
+    // The SSH/Telnet progressive-ban filter rules that used to live here
+    // (SSH_BlackList_1/2/3 -> IP_BlackList, 3 strikes -> 1-day ban) were
+    // removed — they keyed off dst-port 22-23 with no source restriction,
+    // so legitimate repeated SSH/SFTP connections (FileZilla retries, the
+    // admin's own personal VPN access) on port 22 got caught by the exact
+    // same escalation meant for brute-forcers, eventually self-banning the
+    // admin from their own router for a day. Telnet is disabled outright
+    // elsewhere anyway, so there's nothing on port 23 left to brute-force.
 
     // Raw firewall on the WAN side: only Winbox stays reachable from the
     // internet; every other management/remote-access port is dropped before
