@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { User, Mail, Lock, AlertCircle, Phone, Globe2, MessageCircle, Send } from "lucide-react";
 import { register } from "@/lib/auth/actions";
-import { COUNTRIES } from "@/lib/intl/countries";
+import { COUNTRIES, countryFlag } from "@/lib/intl/countries";
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
@@ -105,7 +105,7 @@ export default function RegisterForm() {
           >
             {COUNTRIES.map((c) => (
               <option key={c.iso2} value={c.iso2}>
-                {c.name}
+                {countryFlag(c.iso2)} {c.name}
               </option>
             ))}
           </select>
@@ -126,7 +126,7 @@ export default function RegisterForm() {
           >
             {COUNTRIES.map((c) => (
               <option key={`${c.iso2}-${c.dialCode}`} value={c.dialCode}>
-                {c.dialCode}
+                {countryFlag(c.iso2)} {c.dialCode}
               </option>
             ))}
           </select>

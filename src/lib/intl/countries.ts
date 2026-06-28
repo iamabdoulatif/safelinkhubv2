@@ -19,8 +19,8 @@ const PRIMARY_MARKET_COUNTRIES: Country[] = [
   { name: "Kenya", iso2: "KE", dialCode: "+254" },
 ];
 
-// Rest of Africa, then a broad global tail so no real signup is blocked
-// by a missing country.
+// Rest of Africa only — no European/American/Asian markets, this SaaS
+// only sells on the continent.
 const OTHER_COUNTRIES: Country[] = [
   { name: "Niger", iso2: "NE", dialCode: "+227" },
   { name: "Gabon", iso2: "GA", dialCode: "+241" },
@@ -30,40 +30,47 @@ const OTHER_COUNTRIES: Country[] = [
   { name: "Guinée-Bissau", iso2: "GW", dialCode: "+245" },
   { name: "Sierra Leone", iso2: "SL", dialCode: "+232" },
   { name: "Liberia", iso2: "LR", dialCode: "+231" },
+  { name: "Gambie", iso2: "GM", dialCode: "+220" },
+  { name: "Cap-Vert", iso2: "CV", dialCode: "+238" },
+  { name: "Guinée équatoriale", iso2: "GQ", dialCode: "+240" },
   { name: "Maroc", iso2: "MA", dialCode: "+212" },
   { name: "Algérie", iso2: "DZ", dialCode: "+213" },
   { name: "Tunisie", iso2: "TN", dialCode: "+216" },
+  { name: "Libye", iso2: "LY", dialCode: "+218" },
   { name: "Égypte", iso2: "EG", dialCode: "+20" },
+  { name: "Soudan", iso2: "SD", dialCode: "+249" },
   { name: "Tanzanie", iso2: "TZ", dialCode: "+255" },
   { name: "Ouganda", iso2: "UG", dialCode: "+256" },
   { name: "Rwanda", iso2: "RW", dialCode: "+250" },
+  { name: "Burundi", iso2: "BI", dialCode: "+257" },
   { name: "Éthiopie", iso2: "ET", dialCode: "+251" },
+  { name: "Somalie", iso2: "SO", dialCode: "+252" },
   { name: "Afrique du Sud", iso2: "ZA", dialCode: "+27" },
   { name: "Zambie", iso2: "ZM", dialCode: "+260" },
   { name: "Zimbabwe", iso2: "ZW", dialCode: "+263" },
+  { name: "Malawi", iso2: "MW", dialCode: "+265" },
   { name: "Mozambique", iso2: "MZ", dialCode: "+258" },
   { name: "Madagascar", iso2: "MG", dialCode: "+261" },
-  { name: "France", iso2: "FR", dialCode: "+33" },
-  { name: "Belgique", iso2: "BE", dialCode: "+32" },
-  { name: "Suisse", iso2: "CH", dialCode: "+41" },
-  { name: "Canada", iso2: "CA", dialCode: "+1" },
-  { name: "États-Unis", iso2: "US", dialCode: "+1" },
-  { name: "Royaume-Uni", iso2: "GB", dialCode: "+44" },
-  { name: "Allemagne", iso2: "DE", dialCode: "+49" },
-  { name: "Espagne", iso2: "ES", dialCode: "+34" },
-  { name: "Portugal", iso2: "PT", dialCode: "+351" },
-  { name: "Italie", iso2: "IT", dialCode: "+39" },
-  { name: "Pays-Bas", iso2: "NL", dialCode: "+31" },
-  { name: "Inde", iso2: "IN", dialCode: "+91" },
-  { name: "Chine", iso2: "CN", dialCode: "+86" },
-  { name: "Émirats arabes unis", iso2: "AE", dialCode: "+971" },
-  { name: "Arabie saoudite", iso2: "SA", dialCode: "+966" },
-  { name: "Brésil", iso2: "BR", dialCode: "+55" },
-  { name: "Autre", iso2: "XX", dialCode: "+" },
+  { name: "Botswana", iso2: "BW", dialCode: "+267" },
+  { name: "Namibie", iso2: "NA", dialCode: "+264" },
+  { name: "Angola", iso2: "AO", dialCode: "+244" },
+  { name: "Autre pays africain", iso2: "XX", dialCode: "+" },
 ];
 
 export const COUNTRIES: Country[] = [...PRIMARY_MARKET_COUNTRIES, ...OTHER_COUNTRIES];
 
 export function findCountry(iso2: string): Country | undefined {
   return COUNTRIES.find((c) => c.iso2 === iso2);
+}
+
+const REGIONAL_INDICATOR_OFFSET = 0x1f1e6 - "A".charCodeAt(0);
+
+/** Computed from the ISO2 code so every entry gets a flag without hardcoding emoji. */
+export function countryFlag(iso2: string): string {
+  if (iso2.length !== 2 || iso2 === "XX") return "🌍";
+  const codePoints = iso2
+    .toUpperCase()
+    .split("")
+    .map((char) => char.charCodeAt(0) + REGIONAL_INDICATOR_OFFSET);
+  return String.fromCodePoint(...codePoints);
 }

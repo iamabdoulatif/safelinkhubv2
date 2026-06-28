@@ -4,7 +4,7 @@ import { Building2, KeyRound, MessageCircle, Send, Shield, User as UserIcon } fr
 import { getDb } from "@/lib/db";
 import { organizations, users } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { findCountry } from "@/lib/intl/countries";
+import { countryFlag, findCountry } from "@/lib/intl/countries";
 import ProfileNameForm from "./ProfileNameForm";
 import ChangePasswordForm from "./ChangePasswordForm";
 import MfaSection from "./MfaSection";
@@ -122,7 +122,13 @@ export default async function ProfilePage() {
           <div>
             <dt className="text-slate-400">Pays de résidence</dt>
             <dd className="mt-0.5 font-medium text-slate-700">
-              {user.country ? findCountry(user.country)?.name ?? user.country : "—"}
+              {user.country ? (
+                <>
+                  {countryFlag(user.country)} {findCountry(user.country)?.name ?? user.country}
+                </>
+              ) : (
+                "—"
+              )}
             </dd>
           </div>
           <div>
