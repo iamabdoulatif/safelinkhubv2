@@ -280,10 +280,31 @@ export async function resetRouterDevice(routerId: string) {
   try {
     const client = await connectToRouter(router, 8000);
     try {
-      await client
-        .talk(["/system/reset-configuration", "=no-defaults=yes", "=skip-backup=yes"])
-        .catch(() => {});
+      // Matches the exact CLI form confirmed working directly on-device —
+      // skip-backup=yes used to be sent too, and its error (if RouterOS
+      // rejected it) was being silently swallowed by a blanket .catch,
+      // which then unconditionally reported deviceReset=true regardless
+      // of whether the command actually ran. The reset itself reboots the
+      // router immediately with no normal reply, so the connection
+      // dropping/timing out here IS the expected success signal — but a
+      // real rejection (bad parameter, permission denied) must still
+      // surface instead of being masked the same way.
+      await client.talk(["/system/reset-configuration", "=no-defaults=yes"]);
       deviceReset = true;
+    } catch (err) {
+      // RouterOS reboots almost immediately on a valid reset-configuration
+      // call, so the connection dropping/timing out IS the expected
+      // success signal here, not a failure — but a genuine rejection
+      // (bad parameter, permission denied) replies with a normal !trap
+      // first and never reboots, and that one must still be surfaced.
+      // client.ts's talk() turns a !trap into an Error carrying RouterOS's
+      // own =message= text — those don't look like network/socket
+      // failures, which is what distinguishes the two cases here.
+      const msg = err instanceof Error ? err.message : "";
+      const looksLikeConnectionDrop = /econnreset|closed|timeout|not connected|length prefix|EOF/i.test(
+        msg,
+      );
+      deviceReset = looksLikeConnectionDrop || msg === "";
     } finally {
       client.close();
     }
