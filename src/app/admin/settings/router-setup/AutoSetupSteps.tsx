@@ -211,6 +211,11 @@ export default function AutoSetupSteps({
   const [defaultHotspotUsers, setDefaultHotspotUsers] = useState("");
   const [hasUsbStorage, setHasUsbStorage] = useState(false);
   const [usbTouched, setUsbTouched] = useState(false);
+  // Manual override to skip MikHmon/Container entirely for this run, even
+  // on hardware that supports it — e.g. the admin is stuck waiting on the
+  // device-mode physical confirmation and wants the hotspot/Wi-Fi
+  // configured now, MikHmon later.
+  const [skipMikhmon, setSkipMikhmon] = useState(false);
   const [customProfiles, setCustomProfiles] = useState<VoucherProfile[]>([]);
   const [customProfileMeta, setCustomProfileMeta] = useState<
     { name: string; priceCents: number; durationValue: number; durationUnit: string }[]
@@ -353,7 +358,7 @@ export default function AutoSetupSteps({
           .map((u) => u.trim())
           .filter(Boolean),
         hasUsbStorage,
-        supportsContainers: archSupportsContainers,
+        supportsContainers: archSupportsContainers && !skipMikhmon,
         reboot: true,
         voucherProfiles: customProfiles,
         packagesToSync: customProfileMeta,
@@ -522,6 +527,7 @@ export default function AutoSetupSteps({
         description="MikHmon (gestion des vouchers) tourne dans un conteneur RouterOS — certains modèles ont besoin d'une clé USB pour ça."
         onBack={() => onStepChange(3)}
         onNext={() => onStepChange(5)}
+        nextDisabled={archSupportsContainers && containerBlockedReason === "device-mode" && !skipMikhmon}
       >
         {!archSupportsContainers && (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
@@ -530,7 +536,7 @@ export default function AutoSetupSteps({
           </p>
         )}
 
-        {archSupportsContainers && containerBlockedReason === "device-mode" && (
+        {archSupportsContainers && containerBlockedReason === "device-mode" && !skipMikhmon && (
           <>
             <p className="flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
               <span>Container verrouillé par le mode RouterOS sur cet appareil.</span>
@@ -540,20 +546,40 @@ export default function AutoSetupSteps({
                 disabled={revalidating}
                 className="shrink-0 rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
               >
-                {revalidating ? "Vérification..." : "Revérifier"}
+                {revalidating ? "Vérification..." : "Relancer la vérification"}
               </button>
             </p>
             <p className="mt-1.5 text-xs text-amber-600">
               La commande ci-dessous seule ne suffit pas — il faut aussi confirmer
               physiquement (bouton reset, ou débrancher/rebrancher l&apos;appareil) dans les
               10 minutes qui suivent. Cette page revérifie automatiquement toutes les 15s, ou
-              cliquez sur &quot;Revérifier&quot; juste après avoir confirmé.
+              cliquez sur &quot;Relancer la vérification&quot; juste après avoir confirmé.
+            </p>
+            <p className="mt-2 rounded-md bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800">
+              Tant que cette confirmation physique n&apos;est pas détectée, l&apos;étape suivante
+              (et le lancement de l&apos;auto-setup complet) reste bloquée — pour ne pas
+              configurer le hotspot en pensant que MikHmon est inclus alors qu&apos;il aurait
+              été ignoré silencieusement. Cliquez &quot;Relancer la vérification&quot; une fois
+              confirmé, ou cochez &quot;Ignorer MikHmon&quot; ci-dessous pour continuer sans.
             </p>
             <UnlockCommandBlock />
           </>
         )}
 
         {archSupportsContainers && (
+          <label className="mt-4 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            <input
+              type="checkbox"
+              checked={skipMikhmon}
+              onChange={(e) => setSkipMikhmon(e.target.checked)}
+              className="h-4 w-4 rounded border-amber-300"
+            />
+            Ignorer MikHmon pour cette installation (configurer seulement le hotspot/Wi-Fi —
+            vous pourrez relancer l&apos;auto-setup plus tard pour ajouter MikHmon)
+          </label>
+        )}
+
+        {archSupportsContainers && !skipMikhmon && (
           <label className="mt-4 flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -568,7 +594,7 @@ export default function AutoSetupSteps({
           </label>
         )}
 
-        {archSupportsContainers && requiresUsbForContainer && !hasUsbStorage && (
+        {archSupportsContainers && !skipMikhmon && requiresUsbForContainer && !hasUsbStorage && (
           <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
             Ce modèle n&apos;a pas assez de mémoire flash interne pour installer MikHmon sans clé
             USB — branchez une clé USB sur le routeur puis cochez la case ci-dessus avant de
@@ -741,7 +767,7 @@ export default function AutoSetupSteps({
           <Box className="h-5 w-5 text-slate-700" />
           <h2 className="font-semibold text-slate-900">
             Étape 7 : Récapitulatif & lancement
-            {archSupportsContainers ? " (Hotspot + MikHmon)" : " (Hotspot)"}
+            {archSupportsContainers && !skipMikhmon ? " (Hotspot + MikHmon)" : " (Hotspot)"}
           </h2>
         </div>
         {billing?.unlimited ? (
@@ -759,7 +785,7 @@ export default function AutoSetupSteps({
       <p className="mt-1 text-sm text-slate-500">
         Construit le bridge HOTSPOT sur tous les ports LAN, le pool/DHCP/profil du portail
         captif, installe le portail captif SafeLinkHub
-        {archSupportsContainers
+        {archSupportsContainers && !skipMikhmon
           ? ", le bridge DOCKERS + conteneur MikHmon (auto-démarré), les règles NAT nécessaires,"
           : " et les règles NAT nécessaires,"}{" "}
         puis verrouille les services, l&apos;heure, l&apos;identité et le NTP avant de redémarrer
@@ -863,7 +889,8 @@ export default function AutoSetupSteps({
           pending ||
           !hotspotBridge ||
           !hotspotName.trim() ||
-          (archSupportsContainers && requiresUsbForContainer && !hasUsbStorage) ||
+          (archSupportsContainers && !skipMikhmon && requiresUsbForContainer && !hasUsbStorage) ||
+          (archSupportsContainers && !skipMikhmon && containerBlockedReason === "device-mode") ||
           (billing !== null && !billing.sufficientBalance)
         }
         onClick={run}

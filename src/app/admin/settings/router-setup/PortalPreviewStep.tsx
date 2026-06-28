@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Loader2, Users, WifiOff, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Users, WifiOff, XCircle } from "lucide-react";
 import { testHotspotConfig } from "@/lib/mikrotik/bridges";
+import ConfigAuditBanner from "./ConfigAuditBanner";
+import type { ConfigAuditItem } from "@/lib/mikrotik/config-audit";
 
 type Bridge = { id: string; name: string; hotspotEnabled: boolean };
 
@@ -19,14 +21,24 @@ type BridgeResult =
     };
 
 export default function PortalPreviewStep({
+  routerId,
   bridges,
   onBack,
 }: {
+  routerId: string;
   bridges: Bridge[];
   onBack: () => void;
 }) {
   const hotspotBridges = bridges.filter((b) => b.hotspotEnabled);
   const [results, setResults] = useState<Record<string, BridgeResult>>({});
+  const [auditItems, setAuditItems] = useState<ConfigAuditItem[] | null>(null);
+  const portalItem = auditItems?.find((item) => item.key === "portal");
+  // "Terminé" used to be reachable even when the hotspot service tested as
+  // "running" but the actual login.html upload had silently failed (the
+  // exact bug this session's audit feature exists to catch) — block it
+  // until the live portal-file check confirms "ok", or there's no portal
+  // item at all (e.g. captive portal install was deliberately skipped).
+  const portalBlocking = portalItem !== undefined && portalItem.status !== "ok";
 
   const runTests = useCallback(async () => {
     for (const bridge of hotspotBridges) {
@@ -126,7 +138,24 @@ export default function PortalPreviewStep({
         </div>
       )}
 
-      <div className="mt-8 flex items-center justify-center gap-3">
+      <div className="mt-6">
+        <p className="mb-2 text-xs font-medium text-slate-500">
+          Vérification en direct du portail captif sur le routeur :
+        </p>
+        <ConfigAuditBanner routerId={routerId} onItemsChange={setAuditItems} />
+      </div>
+
+      {portalBlocking && (
+        <p className="mt-2 flex items-center gap-1.5 rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          Le portail captif n&apos;est pas confirmé installé sur le routeur (voir le détail
+          ci-dessus) — le bouton &quot;Terminé&quot; reste désactivé tant que ce n&apos;est pas
+          résolu, pour éviter de quitter l&apos;assistant en pensant que le portail est prêt
+          alors qu&apos;il ne l&apos;est pas.
+        </p>
+      )}
+
+      <div className="mt-4 flex items-center justify-center gap-3">
         <button
           type="button"
           onClick={onBack}
@@ -143,12 +172,23 @@ export default function PortalPreviewStep({
             Tester à nouveau
           </button>
         )}
-        <a
-          href="/admin/router"
-          className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          Terminé — Aller au tableau de bord
-        </a>
+        {portalBlocking ? (
+          <button
+            type="button"
+            disabled
+            title="Le portail captif n'est pas confirmé installé sur le routeur"
+            className="rounded-lg bg-slate-300 px-5 py-2.5 text-sm font-medium text-white cursor-not-allowed"
+          >
+            Terminé — Aller au tableau de bord
+          </button>
+        ) : (
+          <a
+            href="/admin/router"
+            className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            Terminé — Aller au tableau de bord
+          </a>
+        )}
       </div>
     </div>
   );

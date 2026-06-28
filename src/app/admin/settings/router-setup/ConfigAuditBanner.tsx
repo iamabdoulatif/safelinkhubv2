@@ -17,7 +17,16 @@ const STATUS_STYLES: Record<ConfigAuditItem["status"], { icon: typeof CheckCircl
  * manually, or from an interrupted previous auto-setup run — gets called
  * out by name instead of silently looking fine.
  */
-export default function ConfigAuditBanner({ routerId }: { routerId: string }) {
+export default function ConfigAuditBanner({
+  routerId,
+  onItemsChange,
+}: {
+  routerId: string;
+  // Lets a parent step gate its own "next/done" action on a specific item's
+  // live status (e.g. "portal" must be "ok") without this banner needing to
+  // know anything about that gating logic itself.
+  onItemsChange?: (items: ConfigAuditItem[]) => void;
+}) {
   const [state, setState] = useState<
     | { loading: true }
     | { loading: false; items?: ConfigAuditItem[]; canRepair?: boolean; error?: string }
@@ -35,7 +44,10 @@ export default function ConfigAuditBanner({ routerId }: { routerId: string }) {
   function runAudit(onComplete?: () => void) {
     auditRouterConfig(routerId).then((res) => {
       if (res?.error) setState({ loading: false, error: res.error });
-      else if (res?.items) setState({ loading: false, items: res.items, canRepair: res.canRepair });
+      else if (res?.items) {
+        setState({ loading: false, items: res.items, canRepair: res.canRepair });
+        onItemsChange?.(res.items);
+      }
       onComplete?.();
     });
   }

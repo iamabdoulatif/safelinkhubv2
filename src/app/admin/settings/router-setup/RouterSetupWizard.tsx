@@ -97,6 +97,7 @@ export default function RouterSetupWizard({
         />
       ) : (
         <PortalPreviewStep
+          routerId={routerId}
           bridges={initialBridges}
           onBack={() => setStep(8)}
         />
