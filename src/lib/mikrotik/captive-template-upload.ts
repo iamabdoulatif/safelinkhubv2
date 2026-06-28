@@ -55,9 +55,9 @@ export async function uploadCaptiveTemplatePackage(
       // never threw was still being recorded as uploaded even when
       // RouterOS never actually wrote the file. Check the reported
       // status explicitly instead of trusting "didn't throw".
-      const finalStatus = replies.at(-1)?.status;
-      if (finalStatus && finalStatus !== "finished") {
-        throw new Error(`fetch status: ${finalStatus}`);
+      const fetchStatus = replies.findLast((reply) => reply.status)?.status;
+      if (fetchStatus && fetchStatus !== "finished") {
+        throw new Error(`fetch status: ${fetchStatus}`);
       }
       result.uploaded.push(file.path);
     } catch (err) {

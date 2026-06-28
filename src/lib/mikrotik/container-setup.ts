@@ -1074,23 +1074,66 @@ export async function provisionHotspotStack(
       log.push("SKIP (captive portal): désactivé pour cette exécution — page de connexion par défaut RouterOS conservée.");
     } else {
       try {
-        let [packageTemplate] = opts.captiveTemplateId
-          ? await db
+        let packageTemplate: typeof captiveTemplates.$inferSelect | undefined;
+
+        if (opts.captiveTemplateId) {
+          [packageTemplate] = await db
+            .select()
+            .from(captiveTemplates)
+            .where(
+              and(
+                eq(captiveTemplates.id, opts.captiveTemplateId),
+                eq(captiveTemplates.orgId, router.orgId),
+                eq(captiveTemplates.templateType, "package"),
+              ),
+            )
+            .limit(1);
+        }
+
+        if (!packageTemplate) {
+          const [assignedHotspotBridge] = await db
+            .select({ captiveTemplateId: bridges.captiveTemplateId })
+            .from(bridges)
+            .where(and(eq(bridges.routerId, routerId), eq(bridges.hotspotEnabled, true)))
+            .limit(1);
+
+          if (assignedHotspotBridge?.captiveTemplateId) {
+            [packageTemplate] = await db
               .select()
               .from(captiveTemplates)
               .where(
                 and(
-                  eq(captiveTemplates.id, opts.captiveTemplateId),
+                  eq(captiveTemplates.id, assignedHotspotBridge.captiveTemplateId),
                   eq(captiveTemplates.orgId, router.orgId),
                   eq(captiveTemplates.templateType, "package"),
                 ),
               )
-              .limit(1)
-          : await db
-              .select()
-              .from(captiveTemplates)
-              .where(and(eq(captiveTemplates.orgId, router.orgId), eq(captiveTemplates.templateType, "package")))
               .limit(1);
+          }
+        }
+
+        if (!packageTemplate) {
+          [packageTemplate] = await db
+            .select()
+            .from(captiveTemplates)
+            .where(
+              and(
+                eq(captiveTemplates.orgId, router.orgId),
+                eq(captiveTemplates.templateType, "package"),
+                eq(captiveTemplates.isDefault, true),
+              ),
+            )
+            .limit(1);
+        }
+
+        if (!packageTemplate) {
+          [packageTemplate] = await db
+            .select()
+            .from(captiveTemplates)
+            .where(and(eq(captiveTemplates.orgId, router.orgId), eq(captiveTemplates.templateType, "package")))
+            .limit(1);
+        }
+
         if (!packageTemplate) {
           // Named after the client's own WiFi (SSID) when known, instead
           // of a generic "SafeLinkHub Hotspot" label that's identical

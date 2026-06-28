@@ -43,11 +43,25 @@ test("install completion endpoint marks router online and clears install token",
     "utf8",
   );
 
-  assert.match(source, /eq\(routers\.status, "installing"\)/);
-  assert.match(source, /status: result\.success \? "online" : "installing"/);
+  assert.doesNotMatch(source, /eq\(routers\.status, "installing"\)/);
+  assert.match(source, /const nowOnline = result\.success \|\| router\.status === "online"/);
+  assert.match(source, /status: nowOnline \? "online" : "installing"/);
   assert.match(source, /markOfflineOnFailure: false/);
   assert.match(source, /installTokenHash: null/);
   assert.match(source, /syncRouterStats\(router\.id/);
+});
+
+test("install completion endpoint matches by install token alone, not also live status", async () => {
+  const source = await readFile(
+    new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/installed/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  // Polling (checkRouterConnection) can flip status to "online" before
+  // this callback fires — requiring status="installing" here made that
+  // race the common case, returning 403 and leaving installTokenHash set
+  // forever instead of being cleared.
+  assert.match(source, /and\(eq\(routers\.orgId, org\.id\), eq\(routers\.installTokenHash, hashToken\(token\)\)\)/);
 });
 
 test("router setup polling accepts a router already confirmed online by callback", async () => {

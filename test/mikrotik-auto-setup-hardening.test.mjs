@@ -116,3 +116,27 @@ test("auto-setup re-reads hotspot servers before removing every duplicate", asyn
   assert.match(source, /removed duplicate hotspot server/);
   assert.doesNotMatch(source, /for \(const server of existingHotspotServers\)/);
 });
+
+test("auto-setup installs the captive portal assigned to the hotspot bridge before fallback templates", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /const \[assignedHotspotBridge\] = await db/);
+  assert.match(source, /eq\(bridges\.hotspotEnabled, true\)/);
+  assert.match(source, /eq\(captiveTemplates\.id, assignedHotspotBridge\.captiveTemplateId\)/);
+  assert.match(source, /eq\(captiveTemplates\.isDefault, true\)/);
+  assert.ok(
+    source.indexOf("assignedHotspotBridge") < source.indexOf("eq(captiveTemplates.isDefault, true)"),
+    "bridge assignment must be checked before default package fallback",
+  );
+});
+
+test("captive portal upload checks RouterOS fetch status replies, not only final done", async () => {
+  const source = await readFile(
+    new URL("../src/lib/mikrotik/captive-template-upload.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /const fetchStatus = replies\.findLast\(\(reply\) => reply\.status\)\?\.status/);
+  assert.match(source, /fetchStatus && fetchStatus !== "finished"/);
+  assert.doesNotMatch(source, /const finalStatus = replies\.at\(-1\)\?\.status/);
+});
