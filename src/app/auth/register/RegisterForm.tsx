@@ -1,9 +1,23 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { User, Mail, Lock, AlertCircle, Phone, Globe2, MessageCircle, Send } from "lucide-react";
+import {
+  User,
+  Mail,
+  Lock,
+  AlertCircle,
+  Phone,
+  Globe2,
+  MessageCircle,
+  Send,
+  Eye,
+  EyeOff,
+  Wand2,
+} from "lucide-react";
 import { register } from "@/lib/auth/actions";
 import { COUNTRIES, countryFlag } from "@/lib/intl/countries";
+import { generateStrongPassword } from "@/lib/auth/generate-password";
+import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
@@ -13,6 +27,18 @@ export default function RegisterForm() {
   const [dialCode, setDialCode] = useState(COUNTRIES[0].dialCode);
   const [whatsappSame, setWhatsappSame] = useState(true);
   const [telegramSame, setTelegramSame] = useState(true);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  function handleGeneratePassword() {
+    const generated = generateStrongPassword();
+    setPassword(generated);
+    setConfirmPassword(generated);
+    setShowPassword(true);
+    setShowConfirmPassword(true);
+  }
 
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
@@ -56,18 +82,40 @@ export default function RegisterForm() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Mot de passe</label>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <label className="block text-sm font-medium text-slate-700">Mot de passe</label>
+            <button
+              type="button"
+              onClick={handleGeneratePassword}
+              className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+            >
+              <Wand2 className="h-3 w-3" />
+              Générer
+            </button>
+          </div>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               name="password"
               required
               minLength={6}
               autoComplete="new-password"
-              className={inputClass}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Au moins 8 caractères, varié"
+              className={`${inputClass} pr-10`}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
+          <PasswordStrengthMeter password={password} />
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -76,14 +124,35 @@ export default function RegisterForm() {
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              type="password"
+              type={showConfirmPassword ? "text" : "password"}
               name="confirmPassword"
               required
               minLength={6}
               autoComplete="new-password"
-              className={inputClass}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className={`${inputClass} pr-10`}
             />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword((v) => !v)}
+              aria-label={showConfirmPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
+          {confirmPassword && (
+            <p
+              className={`mt-1.5 text-xs font-medium ${
+                confirmPassword === password ? "text-emerald-600" : "text-red-600"
+              }`}
+            >
+              {confirmPassword === password
+                ? "Les mots de passe correspondent."
+                : "Les mots de passe ne correspondent pas."}
+            </p>
+          )}
         </div>
       </div>
 
