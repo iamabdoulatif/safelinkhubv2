@@ -376,7 +376,7 @@ function RouterDeviceCard({
           Glissez un port pour le connecter à un bridge
         </span>
       </div>
-      <div className="flex flex-nowrap items-start justify-center gap-3 overflow-x-auto pb-1">
+      <div className="flex flex-nowrap items-start gap-3 overflow-x-auto pb-1">
         {ports === null && (
           <span className="py-8 text-sm text-slate-400">Chargement des interfaces...</span>
         )}
