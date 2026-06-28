@@ -1,3 +1,35 @@
+const LOWER = "abcdefghijkmnpqrstuvwxyz";
+const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const DIGITS = "23456789";
+const SYMBOLS = "!@#$%&*-_=+?";
+const ALL = LOWER + UPPER + DIGITS + SYMBOLS;
+
+function randomChar(set: string): string {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return set[bytes[0] % set.length];
+}
+
+/**
+ * Mixed-case + digit + symbol example, shown as a placeholder so the field
+ * demonstrates what a strong password looks like without auto-filling
+ * anything — the user still has to type their own.
+ */
+export function generateStrongPasswordExample(length = 12): string {
+  const required = [randomChar(LOWER), randomChar(UPPER), randomChar(DIGITS), randomChar(SYMBOLS)];
+  const rest = Array.from({ length: Math.max(0, length - required.length) }, () => randomChar(ALL));
+  const chars = [...required, ...rest];
+
+  for (let i = chars.length - 1; i > 0; i--) {
+    const bytes = new Uint32Array(1);
+    crypto.getRandomValues(bytes);
+    const j = bytes[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join("");
+}
+
 export type PasswordStrength = "empty" | "weak" | "medium" | "strong";
 
 export function passwordStrength(password: string): PasswordStrength {

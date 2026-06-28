@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Check, Eye, EyeOff, Loader2, X } from "lucide-react";
 import { changePassword } from "@/lib/auth/actions";
+import { generateStrongPasswordExample } from "@/lib/auth/password-strength";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 
 export default function ChangePasswordForm() {
@@ -10,10 +11,17 @@ export default function ChangePasswordForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const [newPassword, setNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [passwordExample, setPasswordExample] = useState("Au moins 8 caractères, varié");
 
   useEffect(() => {
     if (state?.success) formRef.current?.reset();
   }, [state]);
+
+  // Client-only so the SSR/hydration markup matches (see RegisterForm).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPasswordExample(generateStrongPasswordExample());
+  }, []);
 
   return (
     <form ref={formRef} action={formAction} className="space-y-3">
@@ -44,7 +52,7 @@ export default function ChangePasswordForm() {
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Au moins 8 caractères, varié"
+            placeholder={passwordExample}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-10 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           <button

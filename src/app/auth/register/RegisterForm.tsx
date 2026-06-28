@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   User,
   Mail,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { register } from "@/lib/auth/actions";
 import { COUNTRIES, countryFlag } from "@/lib/intl/countries";
+import { generateStrongPasswordExample } from "@/lib/auth/password-strength";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 
 const inputClass =
@@ -29,6 +30,15 @@ export default function RegisterForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordExample, setPasswordExample] = useState("Au moins 8 caractères, varié");
+
+  // Generated client-side only (crypto.getRandomValues) so the SSR markup
+  // and the first client render match — it then swaps in a real mixed-
+  // character example as a placeholder, never auto-filled into the field.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPasswordExample(generateStrongPasswordExample());
+  }, []);
 
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
@@ -83,7 +93,7 @@ export default function RegisterForm() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Au moins 8 caractères, varié"
+              placeholder={passwordExample}
               className={`${inputClass} pr-10`}
             />
             <button
