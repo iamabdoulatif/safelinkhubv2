@@ -10,8 +10,9 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Cable, Layers, Plus, SlidersHorizontal, Wifi, X } from "lucide-react";
+import { Box, Cable, Layers, Loader2, Plus, SlidersHorizontal, Wifi, X } from "lucide-react";
 import { listRouterInterfaces, saveBridge } from "@/lib/mikrotik/bridges";
+import { createDockerContainer } from "@/lib/mikrotik/container-setup";
 import {
   classForPrefix,
   CLASS_DEFAULT_PREFIX,
@@ -31,6 +32,8 @@ type SavedBridge = {
   hotspotEnabled: boolean;
 };
 type Line = { key: string; x1: number; y1: number; x2: number; y2: number };
+
+const GATEWAY_IP_PRESETS = ["10.0.0.1", "10.10.0.1", "10.10.10.1", "10.200.5.1"];
 
 function isWifiInterface(port: Pick<Port, "name" | "type">) {
   return port.type === "wlan" || port.type === "wifi" || port.name.startsWith("wifi");
@@ -220,6 +223,82 @@ function DockerBridgeNode({ ports, nodeRef }: { ports: string[]; nodeRef: (el: H
   );
 }
 
+function DockerBridgeCreatePanel({
+  routerId,
+  onCreated,
+}: {
+  routerId: string;
+  onCreated: () => void;
+}) {
+  const [hasUsbStorage, setHasUsbStorage] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<{ success?: boolean; error?: string; log?: string[] } | null>(
+    null,
+  );
+
+  function create() {
+    setPending(true);
+    setResult(null);
+    createDockerContainer(routerId, { hasUsbStorage }).then((res) => {
+      setResult(res);
+      setPending(false);
+      if (res?.success) onCreated();
+    });
+  }
+
+  return (
+    <div className="relative w-72 shrink-0 rounded-xl border border-dashed border-violet-300 bg-white/80 p-5 shadow-sm">
+      <div className="flex items-center gap-2">
+        <Layers className="h-5 w-5 text-violet-400" />
+        <p className="text-base font-semibold text-slate-700">DOCKERS</p>
+      </div>
+      <p className="mt-1.5 text-xs text-slate-500">
+        Bridge DOCKERS + veth MIKHMON + conteneur MikHmon — pas encore créés sur ce routeur.
+        Nécessite que <code className="rounded bg-slate-100 px-1">container=yes</code> ait déjà
+        été confirmé physiquement sur l&apos;appareil.
+      </p>
+
+      <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+        <input
+          type="checkbox"
+          checked={hasUsbStorage}
+          onChange={(e) => setHasUsbStorage(e.target.checked)}
+          className="h-3.5 w-3.5 rounded border-slate-300"
+        />
+        Le routeur a une clé USB branchée
+      </label>
+
+      <button
+        type="button"
+        onClick={create}
+        disabled={pending}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-violet-600 px-3 py-2 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-60"
+      >
+        {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {pending ? "Création en cours..." : "Créer le bridge DOCKERS + MikHmon"}
+      </button>
+
+      {result?.error && (
+        <p className="mt-2 text-xs text-red-600">{result.error}</p>
+      )}
+      {result?.success && (
+        <p className="mt-2 text-xs text-emerald-600">
+          Créé — actualisation de la topologie...
+        </p>
+      )}
+      {result?.log && result.log.length > 0 && (
+        <ul className="mt-2 max-h-28 space-y-0.5 overflow-y-auto text-[10px] text-slate-400">
+          {result.log
+            .filter((line) => line.startsWith("SKIP"))
+            .map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function InterfaceTile({
   port,
   used,
@@ -340,6 +419,7 @@ function TopologyMiniMap() {
 }
 
 function TopologyCanvas({
+  routerId,
   ports,
   initialBridges,
   assignedElsewhere,
@@ -348,12 +428,15 @@ function TopologyCanvas({
   onAddBridge,
   onDrop,
   onConfigure,
+  onRefreshPorts,
 }: {
+  routerId: string;
   ports: Port[] | null;
   initialBridges: SavedBridge[];
   assignedElsewhere: Set<string>;
   draftPorts: string[];
   hasDraft: boolean;
+  onRefreshPorts: () => void;
   onAddBridge: () => void;
   onDrop: (e: React.DragEvent) => void;
   onConfigure: () => void;
@@ -489,13 +572,15 @@ function TopologyCanvas({
                     Cliquez sur &quot;Ajouter un bridge&quot; pour commencer
                   </div>
                 )}
-                {hasDockerBridge && (
+                {hasDockerBridge ? (
                   <DockerBridgeNode
                     ports={dockerPorts}
                     nodeRef={(el) => {
                       dockerBridgeRef.current = el;
                     }}
                   />
+                ) : (
+                  <DockerBridgeCreatePanel routerId={routerId} onCreated={onRefreshPorts} />
                 )}
               </div>
             </>
@@ -651,6 +736,7 @@ export default function TopologyBuilder({
       </p>
 
       <TopologyCanvas
+        routerId={routerId}
         ports={ports}
         initialBridges={initialBridges}
         assignedElsewhere={assignedElsewhere}
@@ -659,6 +745,7 @@ export default function TopologyBuilder({
         onAddBridge={handleAddBridge}
         onDrop={handleDrop}
         onConfigure={openConfigure}
+        onRefreshPorts={() => setRetryCount((c) => c + 1)}
       />
 
       {configuring && (
@@ -717,18 +804,36 @@ export default function TopologyBuilder({
                 </div>
               </div>
 
-              <div className="flex items-center gap-6">
-                <label className="w-32 shrink-0 text-base font-medium text-slate-700">
+              <div className="flex items-start gap-6">
+                <label className="w-32 shrink-0 pt-2.5 text-base font-medium text-slate-700">
                   IP de la passerelle
                 </label>
-                <input
-                  name="gatewayIp"
-                  required
-                  placeholder="10.200.5.1"
-                  value={gatewayIp}
-                  onChange={(e) => setGatewayIp(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-base placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
-                />
+                <div className="flex-1">
+                  <input
+                    name="gatewayIp"
+                    required
+                    placeholder="10.200.5.1"
+                    value={gatewayIp}
+                    onChange={(e) => setGatewayIp(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-base placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+                  />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {GATEWAY_IP_PRESETS.map((ip) => (
+                      <button
+                        key={ip}
+                        type="button"
+                        onClick={() => setGatewayIp(ip)}
+                        className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                          gatewayIp === ip
+                            ? "border-slate-700 bg-slate-700 text-white"
+                            : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {ip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center gap-6">

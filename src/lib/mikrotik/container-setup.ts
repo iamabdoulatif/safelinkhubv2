@@ -142,6 +142,262 @@ async function waitForImageAndStart(client: RouterOSClient, log: string[]) {
   );
 }
 
+type RunFn = (words: string[], label: string, timeoutMs?: number) => Promise<void>;
+
+/**
+ * The DOCKERS bridge + MIKHMON veth + container engine + MikHmon
+ * container — extracted out of provisionHotspotStack so the Topology
+ * Builder page can trigger this exact same sequence on its own (the
+ * admin doesn't have to run the whole hotspot/Wi-Fi auto-setup just to
+ * get MikHmon up), without duplicating the logic.
+ *
+ * hotspotAddress is optional: when this runs standalone (no hotspot
+ * configured yet), the hotspot-gateway-scoped "Docker NAT" dst-nat rule
+ * is skipped — the full auto-setup adds it later once a hotspot address
+ * exists. The Docker subnet masquerade, ACCES DISTANT, and tunnel NAT
+ * rules don't depend on it and are always added.
+ */
+async function provisionDockerStack(
+  client: RouterOSClient,
+  log: string[],
+  run: RunFn,
+  opts: { supportsContainers: boolean; hasUsbStorage: boolean; hotspotAddress?: string },
+) {
+  // The UI's own architecture/device-mode check (DetectedModelBadge) is
+  // what sets opts.supportsContainers — but that detection runs once on
+  // page load and can be stale or wrong (e.g. the admin enabled container
+  // mode after detection ran). Re-verify directly against the router
+  // right before touching anything container-related, since every
+  // /container/* command below fails silently (caught by run()) when
+  // device-mode hasn't actually been confirmed — previously this meant
+  // the whole MikHmon step could quietly no-op without ever telling the
+  // admin why.
+  //
+  // Only device-mode's own "container" flag is checked — /system/package
+  // ?name=container was checked here too, but on ARM64 builds (e.g. hAP
+  // ax³, confirmed against a real unit) Container support ships built
+  // into the base RouterOS image rather than as a separate installable
+  // package, so that query always returned zero rows and blocked this
+  // step as "package not present" even with device-mode reporting
+  // container=yes and a manual WinBox container install working fine.
+  let containerPackageReady = opts.supportsContainers;
+  if (containerPackageReady) {
+    const [deviceMode] = await client
+      .talk(["/system/device-mode/print"])
+      .catch(() => [] as Sentence[]);
+    const deviceModeContainerEnabled = deviceMode ? rosBoolean(deviceMode.container) : false;
+    if (!deviceModeContainerEnabled) {
+      containerPackageReady = false;
+      log.push(
+        'SKIP (MikHmon container): RouterOS device-mode still reports container=no — run "/system/device-mode/update mode=advanced container=yes hotspot=yes scheduler=yes fetch=yes activation-timeout=10m", confirm physically with the reset/mode button or a cold power cycle, then re-run auto-setup.',
+      );
+    }
+  }
+
+  if (containerPackageReady) {
+    // DOCKERS bridge + veth pair: gives the MikHmon container its own
+    // subnet, isolated from the hotspot LAN, router as gateway.
+    await migrateLegacyDockerBridge(client, log);
+    const dockerBridgeRows = await client
+      .talk(["/interface/bridge/print", `?name=${DOCKER_BRIDGE_NAME}`])
+      .catch(() => [] as Sentence[]);
+    if (dockerBridgeRows.length === 0) {
+      await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], `${DOCKER_BRIDGE_NAME} bridge`);
+    } else {
+      log.push(`OK: ${DOCKER_BRIDGE_NAME} bridge already exists`);
+    }
+
+    await client.talk(["/interface/veth/remove", `=numbers=${VETH_NAME}`]).catch(() => {});
+    await run(
+      [
+        "/interface/veth/add",
+        `=name=${VETH_NAME}`,
+        `=address=${VETH_ADDRESS}`,
+        `=gateway=${VETH_GATEWAY}`,
+        '=gateway6=',
+        "=dhcp=no",
+      ],
+      "MIKHMON veth interface",
+    );
+    await run(
+      ["/interface/bridge/port/add", `=bridge=${DOCKER_BRIDGE_NAME}`, `=interface=${VETH_NAME}`],
+      `attach veth to ${DOCKER_BRIDGE_NAME} bridge`,
+    );
+
+    await removeAddressByAddress(client, `${VETH_GATEWAY}/28`);
+    await run(
+      [
+        "/ip/address/add",
+        `=address=${VETH_GATEWAY}/28`,
+        `=interface=${DOCKER_BRIDGE_NAME}`,
+        `=network=${DOCKER_NETWORK.split("/")[0]}`,
+      ],
+      `${DOCKER_BRIDGE_NAME} bridge gateway address`,
+    );
+
+    // Container engine: USB-equipped boards pull/extract on the stick
+    // (usb1/pull) to spare onboard flash; ax2 / hAP ax lite have no USB
+    // port and use the tmpfs scratch space instead.
+    let containerRootDir = "tmp/mikhmon-app";
+    let containerLayerDir = "tmp/mikhmon-layers";
+    if (opts.hasUsbStorage) {
+      // RouterOS exposes a plugged-in USB stick as an unformatted /disk
+      // entry (slot usb1) — /container/config's tmpdir=usb1/pull silently
+      // fails to pull/extract images until that slot is formatted ext4
+      // (this is MikroTik's own documented Container prerequisite, the
+      // same "Format Drive" step done by hand in WinBox). Re-running
+      // auto-setup on an already-formatted stick must not reformat it —
+      // that would wipe whatever's already pulled/cached — so this only
+      // formats when the slot isn't already ext4.
+      const usbDisks = await client.talk(["/disk/print"]).catch(() => []);
+      const usb1Disk = usbDisks.find((d) => d.slot === "usb1");
+      if (usb1Disk && usb1Disk["file-system"] !== "ext4") {
+        await run(
+          ["/disk/format-drive", "=slot=usb1", "=file-system=ext4"],
+          "format USB stick (usb1, ext4)",
+          60000,
+        );
+      } else if (!usb1Disk) {
+        log.push(
+          "SKIP (format USB stick): no disk reported at slot usb1 — plug the USB stick in and re-run auto-setup before MikHmon can use it.",
+        );
+      }
+
+      const usbRootDir = "usb1/mikhmon-app";
+      const usbLayerDir = "usb1/mikhmon-layers";
+      containerRootDir = usbRootDir;
+      containerLayerDir = usbLayerDir;
+      await run(
+        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${usbLayerDir}`],
+        "container engine config (USB storage)",
+      );
+    } else {
+      const existingDisks = await client.talk(["/disk/print"]).catch(() => []);
+      if (!existingDisks.some((d) => d.slot === "tmp")) {
+        await run(
+          ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
+          "tmpfs disk slot",
+        );
+      }
+      await run(
+        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull", `=layer-dir=${containerLayerDir}`],
+        "container engine config (tmpfs)",
+      );
+    }
+
+    for (const name of [CONTAINER_NAME, ...LEGACY_CONTAINER_NAMES]) {
+      await client.talk(["/container/remove", `=numbers=${name}`]).catch(() => {});
+    }
+    await run(
+      [
+        "/container/add",
+        `=interface=${VETH_NAME}`,
+        `=name=${CONTAINER_NAME}`,
+        `=remote-image=${REMOTE_IMAGE}`,
+        `=layer-dir=${containerLayerDir}`,
+        `=root-dir=${containerRootDir}`,
+        "=start-on-boot=yes",
+      ],
+      "container image install (auto-start on boot enabled)",
+    );
+    await waitForImageAndStart(client, log);
+
+    // NAT: Docker subnet masquerade, remote-access dst-nat, and a second
+    // dst-nat reachable via the hotspot gateway IP itself. Each checked
+    // by its (chain, action, comment) signature first — none of these
+    // are otherwise unique enough for RouterOS to reject a duplicate
+    // /add, so without this they'd pile up on every re-run.
+    const existingDockerMasquerade = await client
+      .talk(["/ip/firewall/nat/print", "?chain=srcnat", "?action=masquerade", "?comment=Docker NAT", `?src-address=${DOCKER_NETWORK}`])
+      .catch(() => []);
+    if (existingDockerMasquerade.length === 0) {
+      await run(
+        [
+          "/ip/firewall/nat/add",
+          "=chain=srcnat",
+          `=src-address=${DOCKER_NETWORK}`,
+          "=action=masquerade",
+          "=comment=Docker NAT",
+        ],
+        "Docker subnet masquerade",
+      );
+    }
+    const existingRemoteAccessNat = await client
+      .talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=ACCES DISTANT"])
+      .catch(() => []);
+    if (existingRemoteAccessNat.length === 0) {
+      await run(
+        [
+          "/ip/firewall/nat/add",
+          "=chain=dstnat",
+          `=dst-port=${REMOTE_ACCESS_PORT}`,
+          "=protocol=tcp",
+          "=action=dst-nat",
+          `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
+          "=to-ports=80",
+          "=comment=ACCES DISTANT",
+        ],
+        "remote-access dst-nat port forward",
+      );
+    }
+    if (opts.hotspotAddress) {
+      const existingDockerWebNat = await client
+        .talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=Docker NAT", `?dst-port=${DOCKER_WEB_PORT}`])
+        .catch(() => []);
+      if (existingDockerWebNat.length === 0) {
+        await run(
+          [
+            "/ip/firewall/nat/add",
+            "=chain=dstnat",
+            `=dst-address=${opts.hotspotAddress}`,
+            `=dst-port=${DOCKER_WEB_PORT}`,
+            "=protocol=tcp",
+            "=action=dst-nat",
+            `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
+            "=to-ports=80",
+            "=comment=Docker NAT",
+          ],
+          "Docker web dst-nat port forward",
+        );
+      }
+    } else {
+      log.push(
+        "SKIP (Docker web dst-nat port forward): no hotspot address configured yet — added automatically once the hotspot auto-setup runs.",
+      );
+    }
+
+    // Third path to MikHmon, deliberately with no dst-address filter (like
+    // ACCES DISTANT) so it answers a packet addressed to *any* IP the
+    // router owns — including its WireGuard/OpenVPN tunnel address. That
+    // lets SafeLinkHub's relay reach MikHmon over the same tunnel already
+    // used for WinBox/WebFig/SSH direct access, which works even when the
+    // router's WAN sits behind a carrier CGNAT that makes ACCES DISTANT
+    // (port 8088, WAN-only) unreachable from the public internet.
+    const existingTunnelNat = await client
+      .talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=MikHmon via tunnel"])
+      .catch(() => []);
+    if (existingTunnelNat.length === 0) {
+      await run(
+        [
+          "/ip/firewall/nat/add",
+          "=chain=dstnat",
+          `=dst-port=${TUNNEL_ACCESS_PORT}`,
+          "=protocol=tcp",
+          "=action=dst-nat",
+          `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
+          "=to-ports=80",
+          "=comment=MikHmon via tunnel",
+        ],
+        "MikHmon tunnel dst-nat port forward",
+      );
+    }
+  } else if (!opts.supportsContainers) {
+    log.push(
+      "SKIP (MikHmon container): architecture does not support RouterOS Container — hotspot/WiFi configured, no container step run",
+    );
+  }
+}
+
 export type HotspotStackOptions = {
   hotspotAddress: string; // chosen by the admin, e.g. "10.0.0.1"
   hotspotPrefixBits: number; // chosen by the admin, e.g. 8, 19, 23, 24
@@ -170,7 +426,7 @@ export type HotspotStackOptions = {
   ssid?: string;
   // RouterOS won't transmit on a WiFi radio until a regulatory country is
   // set — without it, disabled=no can silently leave the radio inactive.
-  wifiCountry?: string; // default "Ivory Coast" — SafeLinkHub's primary market
+  wifiCountry?: string; // default "United States" — widest-permissive regulatory domain
   // Captive-portal HTML directory name (RouterOS /hotspot/<dir>/, applied to
   // both html-directory and html-directory-override). Default "hotspot"
   // matches the directory the bundled portal templates already use.
@@ -460,7 +716,11 @@ export async function provisionHotspotStack(
     // harmless no-op, so this runs unconditionally rather than checking
     // first.
     if (opts.ssid?.trim()) {
-      const country = opts.wifiCountry?.trim() || "Ivory Coast";
+      // "United States" is RouterOS's widest-permissive regulatory domain
+      // (broadest channel/frequency set), used as the default so the
+      // auto-channel selection has the most room to find a valid one —
+      // not a claim about the router's actual physical operating country.
+      const country = opts.wifiCountry?.trim() || "United States";
       const wifiInterfaces = await client.talk(["/interface/wifi/print"]).catch(() => []);
       for (const wifi of wifiInterfaces) {
         if (!wifi.name) continue;
@@ -1116,234 +1376,12 @@ export async function provisionHotspotStack(
       );
     }
 
-    // The UI's own architecture/device-mode check (DetectedModelBadge) is
-    // what sets opts.supportsContainers — but that detection runs once on
-    // page load and can be stale or wrong (e.g. the admin enabled container
-    // mode after detection ran). Re-verify directly against the router
-    // right before touching anything container-related, since every
-    // /container/* command below fails silently (caught by run()) when
-    // device-mode hasn't actually been confirmed — previously this meant
-    // the whole MikHmon step could quietly no-op without ever telling the
-    // admin why.
-    //
-    // Only device-mode's own "container" flag is checked — /system/package
-    // ?name=container was checked here too, but on ARM64 builds (e.g. hAP
-    // ax³, confirmed against a real unit) Container support ships built
-    // into the base RouterOS image rather than as a separate installable
-    // package, so that query always returned zero rows and blocked this
-    // step as "package not present" even with device-mode reporting
-    // container=yes and a manual WinBox container install working fine.
-    let containerPackageReady = opts.supportsContainers;
-    if (containerPackageReady) {
-      const [deviceMode] = await client
-        .talk(["/system/device-mode/print"])
-        .catch(() => [] as Sentence[]);
-      const deviceModeContainerEnabled = deviceMode ? rosBoolean(deviceMode.container) : false;
-      if (!deviceModeContainerEnabled) {
-        containerPackageReady = false;
-        log.push(
-          'SKIP (MikHmon container): RouterOS device-mode still reports container=no — run "/system/device-mode/update mode=advanced container=yes hotspot=yes scheduler=yes fetch=yes activation-timeout=10m", confirm physically with the reset/mode button or a cold power cycle, then re-run auto-setup.',
-        );
-      }
-    }
+    await provisionDockerStack(client, log, run, {
+      supportsContainers: opts.supportsContainers,
+      hasUsbStorage: opts.hasUsbStorage,
+      hotspotAddress: opts.hotspotAddress,
+    });
 
-    if (containerPackageReady) {
-      // DOCKERS bridge + veth pair: gives the MikHmon container its own
-      // subnet, isolated from the hotspot LAN, router as gateway.
-      await migrateLegacyDockerBridge(client, log);
-      const dockerBridgeRows = await client
-        .talk(["/interface/bridge/print", `?name=${DOCKER_BRIDGE_NAME}`])
-        .catch(() => [] as Sentence[]);
-      if (dockerBridgeRows.length === 0) {
-        await run(["/interface/bridge/add", `=name=${DOCKER_BRIDGE_NAME}`], `${DOCKER_BRIDGE_NAME} bridge`);
-      } else {
-        log.push(`OK: ${DOCKER_BRIDGE_NAME} bridge already exists`);
-      }
-
-      await client.talk(["/interface/veth/remove", `=numbers=${VETH_NAME}`]).catch(() => {});
-      await run(
-        [
-          "/interface/veth/add",
-          `=name=${VETH_NAME}`,
-          `=address=${VETH_ADDRESS}`,
-          `=gateway=${VETH_GATEWAY}`,
-          '=gateway6=',
-          "=dhcp=no",
-        ],
-        "MIKHMON veth interface",
-      );
-      await run(
-        ["/interface/bridge/port/add", `=bridge=${DOCKER_BRIDGE_NAME}`, `=interface=${VETH_NAME}`],
-        `attach veth to ${DOCKER_BRIDGE_NAME} bridge`,
-      );
-
-      await removeAddressByAddress(client, `${VETH_GATEWAY}/28`);
-      await run(
-        [
-          "/ip/address/add",
-          `=address=${VETH_GATEWAY}/28`,
-          `=interface=${DOCKER_BRIDGE_NAME}`,
-          `=network=${DOCKER_NETWORK.split("/")[0]}`,
-        ],
-        `${DOCKER_BRIDGE_NAME} bridge gateway address`,
-      );
-
-      // Container engine: USB-equipped boards pull/extract on the stick
-      // (usb1/pull) to spare onboard flash; ax2 / hAP ax lite have no USB
-      // port and use the tmpfs scratch space instead.
-      let containerRootDir = "tmp/mikhmon-app";
-      let containerLayerDir = "tmp/mikhmon-layers";
-      if (opts.hasUsbStorage) {
-        // RouterOS exposes a plugged-in USB stick as an unformatted /disk
-        // entry (slot usb1) — /container/config's tmpdir=usb1/pull silently
-        // fails to pull/extract images until that slot is formatted ext4
-        // (this is MikroTik's own documented Container prerequisite, the
-        // same "Format Drive" step done by hand in WinBox). Re-running
-        // auto-setup on an already-formatted stick must not reformat it —
-        // that would wipe whatever's already pulled/cached — so this only
-        // formats when the slot isn't already ext4.
-        const usbDisks = await client.talk(["/disk/print"]).catch(() => []);
-        const usb1Disk = usbDisks.find((d) => d.slot === "usb1");
-        if (usb1Disk && usb1Disk["file-system"] !== "ext4") {
-          await run(
-            ["/disk/format-drive", "=slot=usb1", "=file-system=ext4"],
-            "format USB stick (usb1, ext4)",
-            60000,
-          );
-        } else if (!usb1Disk) {
-          log.push(
-            "SKIP (format USB stick): no disk reported at slot usb1 — plug the USB stick in and re-run auto-setup before MikHmon can use it.",
-          );
-        }
-
-        const usbRootDir = "usb1/mikhmon-app";
-        const usbLayerDir = "usb1/mikhmon-layers";
-        containerRootDir = usbRootDir;
-        containerLayerDir = usbLayerDir;
-        await run(
-          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${usbLayerDir}`],
-          "container engine config (USB storage)",
-        );
-      } else {
-        const existingDisks = await client.talk(["/disk/print"]).catch(() => []);
-        if (!existingDisks.some((d) => d.slot === "tmp")) {
-          await run(
-            ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
-            "tmpfs disk slot",
-          );
-        }
-        await run(
-          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull", `=layer-dir=${containerLayerDir}`],
-          "container engine config (tmpfs)",
-        );
-      }
-
-      for (const name of [CONTAINER_NAME, ...LEGACY_CONTAINER_NAMES]) {
-        await client.talk(["/container/remove", `=numbers=${name}`]).catch(() => {});
-      }
-      await run(
-        [
-          "/container/add",
-          `=interface=${VETH_NAME}`,
-          `=name=${CONTAINER_NAME}`,
-          `=remote-image=${REMOTE_IMAGE}`,
-          `=layer-dir=${containerLayerDir}`,
-          `=root-dir=${containerRootDir}`,
-          "=start-on-boot=yes",
-        ],
-        "container image install (auto-start on boot enabled)",
-      );
-      await waitForImageAndStart(client, log);
-
-      // NAT: Docker subnet masquerade, remote-access dst-nat, and a second
-      // dst-nat reachable via the hotspot gateway IP itself. Each checked
-      // by its (chain, action, comment) signature first — none of these
-      // are otherwise unique enough for RouterOS to reject a duplicate
-      // /add, so without this they'd pile up on every re-run.
-      const existingDockerMasquerade = await client
-        .talk(["/ip/firewall/nat/print", "?chain=srcnat", "?action=masquerade", "?comment=Docker NAT", `?src-address=${DOCKER_NETWORK}`])
-        .catch(() => []);
-      if (existingDockerMasquerade.length === 0) {
-        await run(
-          [
-            "/ip/firewall/nat/add",
-            "=chain=srcnat",
-            `=src-address=${DOCKER_NETWORK}`,
-            "=action=masquerade",
-            "=comment=Docker NAT",
-          ],
-          "Docker subnet masquerade",
-        );
-      }
-      const existingRemoteAccessNat = await client
-        .talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=ACCES DISTANT"])
-        .catch(() => []);
-      if (existingRemoteAccessNat.length === 0) {
-        await run(
-          [
-            "/ip/firewall/nat/add",
-            "=chain=dstnat",
-            `=dst-port=${REMOTE_ACCESS_PORT}`,
-            "=protocol=tcp",
-            "=action=dst-nat",
-            `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
-            "=to-ports=80",
-            "=comment=ACCES DISTANT",
-          ],
-          "remote-access dst-nat port forward",
-        );
-      }
-      const existingDockerWebNat = await client
-        .talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=Docker NAT", `?dst-port=${DOCKER_WEB_PORT}`])
-        .catch(() => []);
-      if (existingDockerWebNat.length === 0) {
-        await run(
-          [
-            "/ip/firewall/nat/add",
-            "=chain=dstnat",
-            `=dst-address=${opts.hotspotAddress}`,
-            `=dst-port=${DOCKER_WEB_PORT}`,
-            "=protocol=tcp",
-            "=action=dst-nat",
-            `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
-            "=to-ports=80",
-            "=comment=Docker NAT",
-          ],
-          "Docker web dst-nat port forward",
-        );
-      }
-
-      // Third path to MikHmon, deliberately with no dst-address filter (like
-      // ACCES DISTANT) so it answers a packet addressed to *any* IP the
-      // router owns — including its WireGuard/OpenVPN tunnel address. That
-      // lets SafeLinkHub's relay reach MikHmon over the same tunnel already
-      // used for WinBox/WebFig/SSH direct access, which works even when the
-      // router's WAN sits behind a carrier CGNAT that makes ACCES DISTANT
-      // (port 8088, WAN-only) unreachable from the public internet.
-      const existingTunnelNat = await client
-        .talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=MikHmon via tunnel"])
-        .catch(() => []);
-      if (existingTunnelNat.length === 0) {
-        await run(
-          [
-            "/ip/firewall/nat/add",
-            "=chain=dstnat",
-            `=dst-port=${TUNNEL_ACCESS_PORT}`,
-            "=protocol=tcp",
-            "=action=dst-nat",
-            `=to-addresses=${VETH_ADDRESS.split("/")[0]}`,
-            "=to-ports=80",
-            "=comment=MikHmon via tunnel",
-          ],
-          "MikHmon tunnel dst-nat port forward",
-        );
-      }
-    } else if (!opts.supportsContainers) {
-      log.push(
-        "SKIP (MikHmon container): architecture does not support RouterOS Container — hotspot/WiFi configured, no container step run",
-      );
-    }
-    // (else: the package-check block above already logged the specific reason)
 
     // Lock down unused management services. Winbox (8291), WebFig (www —
     // moved to :85 below) and the API stay enabled and reachable: the admin
@@ -1688,4 +1726,74 @@ export async function repairRouterConfig(routerId: string) {
     ...(router.lastAutoSetupConfig as HotspotStackOptions),
     reboot: false,
   });
+}
+
+/**
+ * Creates the DOCKERS bridge + MIKHMON veth + container engine + MikHmon
+ * container on its own, from the Topology Builder page — without running
+ * the rest of the hotspot/Wi-Fi auto-setup first. Useful when the admin
+ * wants MikHmon up before (or instead of) configuring the hotspot, or
+ * just confirmed the device-mode container unlock and wants to create it
+ * immediately rather than re-running the whole wizard.
+ *
+ * If a hotspot bridge already exists for this router (saved from the
+ * topology builder itself), its gateway IP is passed through so the
+ * hotspot-scoped "Docker NAT" port forward gets created in this same run
+ * too — otherwise that one rule is just added later by the full
+ * auto-setup once a hotspot address exists.
+ */
+export async function createDockerContainer(routerId: string, opts: { hasUsbStorage: boolean }) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || router.orgId !== session.orgId) {
+    return { error: "Router not found." };
+  }
+
+  const [existingBridge] = await db
+    .select({ gatewayIp: bridges.gatewayIp })
+    .from(bridges)
+    .where(and(eq(bridges.routerId, routerId), eq(bridges.hotspotEnabled, true)))
+    .limit(1);
+
+  let client: RouterOSClient;
+  try {
+    client = await connectClient(router);
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Could not connect: ${err.message}` : "Could not connect.",
+    };
+  }
+
+  const log: string[] = [];
+  const run: RunFn = async (words, label, timeoutMs) => {
+    try {
+      await client.talk(words, timeoutMs);
+      log.push(`OK: ${label}`);
+    } catch (err) {
+      log.push(`SKIP (${label}): ${err instanceof Error ? err.message : "error"}`);
+    }
+  };
+
+  try {
+    await provisionDockerStack(client, log, run, {
+      supportsContainers: true,
+      hasUsbStorage: opts.hasUsbStorage,
+      hotspotAddress: existingBridge?.gatewayIp?.split("/")[0],
+    });
+    return { success: true, log };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec : ${err.message}` : "Échec de la création du conteneur.",
+      log,
+    };
+  } finally {
+    client.close();
+  }
 }
