@@ -393,6 +393,35 @@ export async function provisionHotspotStack(
     }
   };
 
+  // Mandatory firmware update check, run first and over this same API
+  // connection (not blind inside the one-shot VPN bootstrap script) so
+  // SafeLinkHub can actually see and report what happened. check-for-updates
+  // populates installed-version/latest-version; install only fires
+  // (downloading the matching version of every currently-installed package
+  // — routeros, container, wifi-qcom, zerotier, etc. — and rebooting to
+  // apply it) when they differ. The reboot drops this connection, so the
+  // rest of provisioning can't continue this run — surfaced as its own
+  // result rather than mixed into the step log, so the wizard can tell the
+  // admin to simply retry once the router is back online.
+  try {
+    await client.talk(["/system/package/update/check-for-updates"]).catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    const [updateStatus] = await client.talk(["/system/package/update/print"]).catch(() => []);
+    const installedVersion = updateStatus?.["installed-version"];
+    const latestVersion = updateStatus?.["latest-version"];
+    if (installedVersion && latestVersion && installedVersion !== latestVersion) {
+      await client.talk(["/system/package/update/install"]).catch(() => {});
+      client.close();
+      return {
+        firmwareUpdating: true as const,
+        message: `Mise à jour RouterOS ${installedVersion} → ${latestVersion} en cours — le routeur redémarre. Relancez l'auto-setup une fois qu'il est de nouveau accessible.`,
+      };
+    }
+  } catch {
+    // Best-effort: an update-check failure (e.g. no internet on the
+    // router's WAN yet) shouldn't block the rest of provisioning.
+  }
+
   try {
     // Permanent WAN port rename, with real visibility in the log instead of
     // a silent fire-and-forget — if neither E1-WAN-FAI nor ether1 exist,

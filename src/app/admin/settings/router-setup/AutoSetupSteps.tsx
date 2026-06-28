@@ -240,9 +240,13 @@ export default function AutoSetupSteps({
   }, []);
 
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<{ success?: boolean; error?: string; log?: string[] } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    success?: boolean;
+    error?: string;
+    log?: string[];
+    firmwareUpdating?: boolean;
+    message?: string;
+  } | null>(null);
 
   // defaultHasUsbStorage from detection arrives after mount — adopt it
   // once available, as long as the admin hasn't already flipped the
@@ -822,6 +826,9 @@ export default function AutoSetupSteps({
 
       {result?.error && (
         <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{result.error}</p>
+      )}
+      {result?.firmwareUpdating && (
+        <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">{result.message}</p>
       )}
       {result?.success && (
         <div className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
