@@ -6,6 +6,7 @@ import { organizations, users } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import ProfileNameForm from "./ProfileNameForm";
 import ChangePasswordForm from "./ChangePasswordForm";
+import MfaSection from "./MfaSection";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(date);
@@ -30,7 +31,13 @@ export default async function ProfilePage() {
 
   const db = getDb();
   const [user] = await db
-    .select({ name: users.name, email: users.email, role: users.role, createdAt: users.createdAt })
+    .select({
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      createdAt: users.createdAt,
+      mfaEnabled: users.mfaEnabled,
+    })
     .from(users)
     .where(eq(users.id, session.userId))
     .limit(1);
@@ -113,6 +120,17 @@ export default async function ProfilePage() {
         </p>
         <div className="mt-3">
           <ChangePasswordForm />
+        </div>
+
+        <hr className="my-5 border-slate-100" />
+
+        <h2 className="text-sm font-semibold text-slate-700">Double authentification (MFA)</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Exige un code temporaire en plus du mot de passe à la connexion. Fortement recommandé
+          pour les comptes superadmin.
+        </p>
+        <div className="mt-3">
+          <MfaSection mfaEnabled={user.mfaEnabled} />
         </div>
       </div>
     </div>

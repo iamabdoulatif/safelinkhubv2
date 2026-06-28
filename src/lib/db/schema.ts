@@ -44,6 +44,25 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("admin"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // TOTP secret, AES-256-GCM encrypted at rest with the same AUTH_SECRET-
+  // derived key used for router credentials (lib/mikrotik/crypto.ts) — null
+  // until enrollment is confirmed with a valid code (see lib/auth/mfa.ts).
+  mfaSecretEncrypted: text("mfa_secret_encrypted"),
+  mfaEnabled: boolean("mfa_enabled").notNull().default(false),
+  // JSON array of bcrypt hashes, one per unused recovery code. Each is
+  // removed from the array the moment it's redeemed (single use).
+  mfaBackupCodesHash: text("mfa_backup_codes_hash"),
+});
+
+// Every login attempt (success or failure), kept just long enough to
+// compute the rate-limit windows in lib/auth/rate-limit.ts. Not a full
+// audit log — rows older than the longest window are pruned on insert.
+export const loginAttempts = pgTable("login_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull(),
+  ipAddress: text("ip_address").notNull(),
+  success: boolean("success").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const routers = pgTable("routers", {

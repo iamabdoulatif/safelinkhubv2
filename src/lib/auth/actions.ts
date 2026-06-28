@@ -6,7 +6,25 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, users } from "@/lib/db/schema";
-import { createSession, destroySession, getSession } from "./session";
+import {
+  clearMfaPendingToken,
+  createMfaPendingToken,
+  createSession,
+  destroySession,
+  getMfaPendingToken,
+  getSession,
+} from "./session";
+import { getClientIp } from "./client-ip";
+import { checkLoginRateLimit, recordLoginAttempt } from "./rate-limit";
+import {
+  consumeBackupCode,
+  encryptMfaSecret,
+  generateBackupCodes,
+  generateMfaSecret,
+  hashBackupCodes,
+  mfaEnrollmentUri,
+  verifyTotpCode,
+} from "./mfa";
 
 function safeCallbackPath(callback: string) {
   if (callback.startsWith("/admin") && !callback.startsWith("//")) {
@@ -15,7 +33,12 @@ function safeCallbackPath(callback: string) {
   return "/admin";
 }
 
-export async function login(_prevState: unknown, formData: FormData) {
+export type LoginState =
+  | { error: string; mfaRequired?: undefined }
+  | { mfaRequired: true; error?: undefined }
+  | undefined;
+
+export async function login(_prevState: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
@@ -26,6 +49,13 @@ export async function login(_prevState: unknown, formData: FormData) {
     return { error: "L'email et le mot de passe sont requis." };
   }
 
+  const ip = await getClientIp();
+  const rateLimit = await checkLoginRateLimit(email, ip);
+  if (!rateLimit.allowed) {
+    const minutes = Math.ceil(rateLimit.retryAfterSeconds / 60);
+    return { error: `Trop de tentatives. Réessayez dans ${minutes} minute${minutes > 1 ? "s" : ""}.` };
+  }
+
   const db = getDb();
   const [user] = await db
     .select()
@@ -34,14 +64,32 @@ export async function login(_prevState: unknown, formData: FormData) {
     .limit(1);
 
   if (!user) {
+    await recordLoginAttempt(email, ip, false);
     return { error: "Email ou mot de passe invalide." };
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
+    await recordLoginAttempt(email, ip, false);
     return { error: "Email ou mot de passe invalide." };
   }
 
+  if (user.mfaEnabled) {
+    // Password is correct but access isn't granted yet — don't record a
+    // success (or failure) until the second factor is checked too, so the
+    // same rate-limit window covers both steps.
+    await createMfaPendingToken({
+      userId: user.id,
+      orgId: user.orgId,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      callback: safeCallbackPath(callback),
+    });
+    return { mfaRequired: true };
+  }
+
+  await recordLoginAttempt(email, ip, true);
   await createSession({
     userId: user.id,
     orgId: user.orgId,
@@ -51,6 +99,68 @@ export async function login(_prevState: unknown, formData: FormData) {
   });
 
   redirect(safeCallbackPath(callback));
+}
+
+export type VerifyMfaState = { error: string } | undefined;
+
+export async function verifyMfaLogin(
+  _prevState: VerifyMfaState,
+  formData: FormData,
+): Promise<VerifyMfaState> {
+  const pending = await getMfaPendingToken();
+  if (!pending) {
+    return { error: "Session de connexion expirée, recommencez." };
+  }
+
+  const code = String(formData.get("code") ?? "").trim();
+  if (!code) return { error: "Code requis." };
+
+  const ip = await getClientIp();
+  const rateLimit = await checkLoginRateLimit(pending.email, ip);
+  if (!rateLimit.allowed) {
+    const minutes = Math.ceil(rateLimit.retryAfterSeconds / 60);
+    return { error: `Trop de tentatives. Réessayez dans ${minutes} minute${minutes > 1 ? "s" : ""}.` };
+  }
+
+  const db = getDb();
+  const [user] = await db
+    .select({
+      mfaSecretEncrypted: users.mfaSecretEncrypted,
+      mfaBackupCodesHash: users.mfaBackupCodesHash,
+    })
+    .from(users)
+    .where(eq(users.id, pending.userId))
+    .limit(1);
+
+  if (!user?.mfaSecretEncrypted) {
+    return { error: "Configuration MFA invalide, recommencez la connexion." };
+  }
+
+  const totpValid = verifyTotpCode(user.mfaSecretEncrypted, code);
+
+  if (!totpValid) {
+    const backupResult = await consumeBackupCode(user.mfaBackupCodesHash, code);
+    if (!backupResult) {
+      await recordLoginAttempt(pending.email, ip, false);
+      return { error: "Code invalide." };
+    }
+    await db
+      .update(users)
+      .set({ mfaBackupCodesHash: backupResult.remaining })
+      .where(eq(users.id, pending.userId));
+  }
+
+  await recordLoginAttempt(pending.email, ip, true);
+  await clearMfaPendingToken();
+  await createSession({
+    userId: pending.userId,
+    orgId: pending.orgId,
+    email: pending.email,
+    name: pending.name,
+    role: pending.role,
+  });
+
+  redirect(pending.callback);
 }
 
 export async function register(_prevState: unknown, formData: FormData) {
@@ -171,5 +281,90 @@ export async function changePassword(
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await db.update(users).set({ passwordHash }).where(eq(users.id, session.userId));
 
+  return { success: true };
+}
+
+export type StartMfaEnrollmentState =
+  | { success: true; secretEncrypted: string; manualEntryKey: string; uri: string }
+  | { success: false; error: string }
+  | null;
+
+export async function startMfaEnrollment(): Promise<StartMfaEnrollmentState> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Session expirée." };
+
+  const secret = generateMfaSecret();
+  return {
+    success: true,
+    secretEncrypted: encryptMfaSecret(secret),
+    manualEntryKey: secret,
+    uri: mfaEnrollmentUri(session.email, secret),
+  };
+}
+
+export type ConfirmMfaEnrollmentState =
+  | { success: true; backupCodes: string[] }
+  | { success: false; error: string }
+  | null;
+
+export async function confirmMfaEnrollment(
+  _prevState: ConfirmMfaEnrollmentState,
+  formData: FormData,
+): Promise<ConfirmMfaEnrollmentState> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Session expirée." };
+
+  const secretEncrypted = String(formData.get("secretEncrypted") ?? "");
+  const code = String(formData.get("code") ?? "").trim();
+  if (!secretEncrypted || !code) {
+    return { success: false, error: "Code requis." };
+  }
+
+  if (!verifyTotpCode(secretEncrypted, code)) {
+    return { success: false, error: "Code invalide — vérifiez l'heure de votre appareil et réessayez." };
+  }
+
+  const backupCodes = generateBackupCodes();
+  const backupCodesHash = await hashBackupCodes(backupCodes);
+
+  const db = getDb();
+  await db
+    .update(users)
+    .set({ mfaSecretEncrypted: secretEncrypted, mfaEnabled: true, mfaBackupCodesHash: backupCodesHash })
+    .where(eq(users.id, session.userId));
+
+  revalidatePath("/admin/profile");
+  return { success: true, backupCodes };
+}
+
+export type DisableMfaState = { success: true } | { success: false; error: string } | null;
+
+export async function disableMfa(
+  _prevState: DisableMfaState,
+  formData: FormData,
+): Promise<DisableMfaState> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Session expirée." };
+
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  if (!currentPassword) return { success: false, error: "Mot de passe requis." };
+
+  const db = getDb();
+  const [user] = await db
+    .select({ passwordHash: users.passwordHash })
+    .from(users)
+    .where(eq(users.id, session.userId))
+    .limit(1);
+  if (!user) return { success: false, error: "Session expirée." };
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) return { success: false, error: "Mot de passe incorrect." };
+
+  await db
+    .update(users)
+    .set({ mfaEnabled: false, mfaSecretEncrypted: null, mfaBackupCodesHash: null })
+    .where(eq(users.id, session.userId));
+
+  revalidatePath("/admin/profile");
   return { success: true };
 }
