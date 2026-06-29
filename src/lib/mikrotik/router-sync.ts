@@ -124,9 +124,13 @@ export async function syncRouterStats(
  * The Vercel Cron health check only runs once a day on the Hobby plan, so a
  * router whose WireGuard/OpenVPN handshake silently dies can sit shown as
  * "online" for up to 24h. As a cheap complement, pages that display router
- * status call this first: it re-syncs any router marked "online" whose
- * last successful sync is older than `staleAfterMs`, so simply opening the
- * dashboard self-corrects a stale status instead of waiting for the cron.
+ * status call this first: it re-syncs any router whose last successful sync
+ * is older than `staleAfterMs`, so simply opening the dashboard self-corrects
+ * a stale status instead of waiting for the cron.
+ *
+ * This must also include routers already marked "offline" — otherwise a
+ * router whose tunnel recovers (or one that never had its first successful
+ * sync) stays stuck showing offline forever, since nothing else re-checks it.
  */
 export async function refreshStaleRouters(orgId: string, staleAfterMs = 5 * 60 * 1000) {
   const db = getDb();
@@ -138,7 +142,7 @@ export async function refreshStaleRouters(orgId: string, staleAfterMs = 5 * 60 *
     .where(
       and(
         eq(routers.orgId, orgId),
-        inArray(routers.status, ["online", "installing"]),
+        inArray(routers.status, ["online", "installing", "offline"]),
         or(isNull(routers.lastSyncAt), lt(routers.lastSyncAt, cutoff)),
       ),
     );
