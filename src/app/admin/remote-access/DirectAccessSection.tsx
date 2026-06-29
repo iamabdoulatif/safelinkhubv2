@@ -211,10 +211,12 @@ function RouterDirectAccess({
   router,
   forwards,
   relayHost,
+  unlimited,
 }: {
   router: RouterRow;
   forwards: ForwardRow[];
   relayHost: string;
+  unlimited: boolean;
 }) {
   const navRouter = useRouter();
   const [pendingService, setPendingService] = useState<string | null>(null);
@@ -368,8 +370,14 @@ function RouterDirectAccess({
               {isPublic && (
                 <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-slate-400">
                   <CreditCard className="h-3 w-3" />
-                  Plan {planLabel}
-                  {expiry && <> · renouvellement le {expiry}</>}
+                  {unlimited ? (
+                    "Forfait illimité"
+                  ) : (
+                    <>
+                      Plan {planLabel}
+                      {expiry && <> · renouvellement le {expiry}</>}
+                    </>
+                  )}
                 </p>
               )}
             </div>
@@ -554,6 +562,7 @@ export default function DirectAccessSection({
             router={r}
             forwards={forwardsByRouter[r.id] ?? []}
             relayHost={relayHost}
+            unlimited={Boolean(vpnTrial?.unlimited)}
           />
         ))}
       </div>
