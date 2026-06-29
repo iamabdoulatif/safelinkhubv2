@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerPortForwards, routers, organizations, walletTransactions } from "@/lib/db/schema";
-import { shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
+import { getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { allocatePortForward, revokePortForward } from "./relay";
 import { connectToRouter } from "./router-sync";
@@ -77,6 +77,7 @@ async function enablePortForwardForRouter(
   routerId: string,
   service: string,
   billingPeriod: BillingPeriod = "monthly",
+  isSuperAdminSession = false,
 ) {
   const targetPort = getPortForwardTargetPort(service);
   if (!targetPort) return { error: "Unknown service." };
@@ -147,10 +148,18 @@ async function enablePortForwardForRouter(
     };
   }
 
-  // Payment isn't wired up yet — every plan is granted for free for now,
-  // but the chosen period + computed expiry are recorded so the UI can
-  // already show "expires on"/renewal, and so enforcement can switch on
-  // later without a data migration once billing actually goes live.
+  // An org the superadmin has granted unlimited VPN quota never actually
+  // expires, however the access was activated (manual toggle or the
+  // auto-enable that fires right after a fresh install) — store no expiry
+  // so this isn't just a display quirk: anything that later enforces
+  // expiresAt also sees it as never-expiring.
+  const [org] = await db
+    .select({ vpnQuotaMode: organizations.vpnQuotaMode, vpnQuotaExpiresAt: organizations.vpnQuotaExpiresAt })
+    .from(organizations)
+    .where(eq(organizations.id, router.orgId))
+    .limit(1);
+  const isUnlimited = isSuperAdminSession || (org ? getVpnQuotaStatus(org).unlimited : false);
+
   const [forward] = await db
     .insert(routerPortForwards)
     .values({
@@ -161,7 +170,7 @@ async function enablePortForwardForRouter(
       tunnelIp: router.tunnelIp,
       status: "active",
       billingPeriod,
-      expiresAt: expiresAtFor(billingPeriod),
+      expiresAt: isUnlimited ? null : expiresAtFor(billingPeriod),
     })
     .returning();
 
@@ -235,7 +244,12 @@ export async function enablePortForward(
     return { error: "Router not found." };
   }
 
-  const result = await enablePortForwardForRouter(routerId, service, billingPeriod);
+  const result = await enablePortForwardForRouter(
+    routerId,
+    service,
+    billingPeriod,
+    isSuperAdmin(session.role),
+  );
 
   if (result.success && result.created) {
     const [org] = await db
