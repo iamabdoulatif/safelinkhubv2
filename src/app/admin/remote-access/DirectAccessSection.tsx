@@ -338,7 +338,7 @@ function RouterDirectAccess({
                       <option value="semiannual">6 mois — {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}</option>
                       <option value="yearly">12 mois — {formatFcfa(PERIOD_PRICE_CENTS.yearly)}</option>
                       {unlimited && (
-                        <option value="__unlimited__">Illimité — Gratuit</option>
+                        <option value="__unlimited__">Forfait illimité</option>
                       )}
                     </select>
                   )}
