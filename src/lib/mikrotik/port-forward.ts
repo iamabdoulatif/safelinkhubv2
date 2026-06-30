@@ -123,13 +123,11 @@ async function enablePortForwardForRouter(
       client = await connectToRouter(router);
       if (service === "mikhmon") await ensureMikhmonTunnelNat(client);
       if (service === "ssh") await setSshServiceEnabled(client, true);
-    } catch (err) {
-      return {
-        error:
-          err instanceof Error
-            ? `Could not prepare ${service} access on router: ${err.message}`
-            : `Could not prepare ${service} access on router.`,
-      };
+    } catch {
+      // Router is unreachable (offline, tunnel down) — proceed with port
+      // allocation anyway so the forward exists and is usable the moment
+      // the router reconnects. SSH / MikHmon NAT will be applied on the
+      // next successful connection or when the admin retries manually.
     } finally {
       client?.close();
     }
