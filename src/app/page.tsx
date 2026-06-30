@@ -1,5 +1,6 @@
 import Link from "next/link";
 import BackToTop from "@/components/BackToTop";
+import SplashLoader from "@/components/SplashLoader";
 import {
   CreditCard,
   Monitor,
@@ -579,6 +580,7 @@ export default function Home() {
       </footer>
 
       <BackToTop />
+      <SplashLoader />
     </div>
   );
 }
