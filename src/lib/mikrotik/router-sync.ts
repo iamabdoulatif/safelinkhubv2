@@ -10,6 +10,7 @@ type RouterRow = typeof routers.$inferSelect;
 export async function connectToRouter(
   router: RouterRow,
   timeoutMs = 20000,
+  maxAttempts = 3,
 ): Promise<RouterOSClient> {
   if (!router.host || !router.username || !router.passwordEncrypted) {
     throw new Error("Router is missing connection details.");
@@ -18,7 +19,12 @@ export async function connectToRouter(
   const client = new RouterOSClient();
 
   if (router.connectionMethod === "vpn" || router.connectionMethod === "openvpn") {
-    const tunnel = await openRouterTunnelWithRetry(router.host, router.apiPort ?? 8728, timeoutMs);
+    const tunnel = await openRouterTunnelWithRetry(
+      router.host,
+      router.apiPort ?? 8728,
+      timeoutMs,
+      maxAttempts,
+    );
     await client.connectViaStream(tunnel.stream, router.username, password, timeoutMs);
   } else {
     await client.connect(router.host, router.apiPort ?? 8728, router.username, password, timeoutMs);
@@ -45,9 +51,8 @@ function parseUptimeToSeconds(uptime: string): number {
 
 export async function syncRouterStats(
   routerId: string,
-  opts: { timeoutMs?: number; markOfflineOnFailure?: boolean } = {},
+  opts: { timeoutMs?: number; markOfflineOnFailure?: boolean; maxAttempts?: number } = {},
 ) {
-  const timeoutMs = opts.timeoutMs ?? 20000;
   const markOfflineOnFailure = opts.markOfflineOnFailure ?? true;
   const db = getDb();
   const [router] = await db
@@ -61,9 +66,16 @@ export async function syncRouterStats(
     return { success: false, error: "Router is missing connection details." };
   }
 
+  // Routers already known to be offline: use a short timeout and single
+  // attempt — no point waiting 60+ seconds for something we already know
+  // is unreachable. Online/installing routers keep the generous defaults.
+  const isKnownOffline = router.status === "offline";
+  const timeoutMs = opts.timeoutMs ?? (isKnownOffline ? 5000 : 20000);
+  const maxAttempts = opts.maxAttempts ?? (isKnownOffline ? 1 : 3);
+
   let client: RouterOSClient;
   try {
-    client = await connectToRouter(router, timeoutMs);
+    client = await connectToRouter(router, timeoutMs, maxAttempts);
   } catch (err) {
     if (markOfflineOnFailure) {
       await db

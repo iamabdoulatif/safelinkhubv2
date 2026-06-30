@@ -263,7 +263,7 @@ export function openRouterTunnel(
       settled = true;
       log("TIMEOUT before tunnel established");
       conn.end();
-      reject(new Error("SSH tunnel setup timed out"));
+      reject(new Error("Routeur inaccessible — tunnel VPN inactif ou routeur hors ligne"));
     }, timeoutMs);
 
     log(`connecting to relay ${host} as ${username}`);
@@ -331,7 +331,7 @@ export async function openRouterTunnelWithRetry(
       }
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error("SSH tunnel setup failed");
+  throw lastErr instanceof Error ? lastErr : new Error("Routeur inaccessible après plusieurs tentatives");
 }
 
 /**
