@@ -16,11 +16,14 @@ import {
   Globe,
   ChevronDown,
   Quote,
+  TrendingUp,
 } from "lucide-react";
 
+// Brand name must never be machine-translated
 function Logo({ dark = false }: { dark?: boolean }) {
   return (
     <span
+      translate="no"
       className={`text-xl font-bold tracking-tight ${
         dark ? "text-white" : "text-slate-900"
       }`}
@@ -67,7 +70,8 @@ const quickFeatures = [
   },
   {
     title: "Gestion automatisée des utilisateurs",
-    description: "Provisionnez, expirez et facturez automatiquement les utilisateurs hotspot et PPPoE.",
+    description:
+      "Provisionnez, expirez et facturez automatiquement les utilisateurs hotspot et PPPoE.",
     icon: Users,
   },
   {
@@ -79,7 +83,7 @@ const quickFeatures = [
 
 const platformFeatures = [
   {
-    title: "Facturation et facturation automatisées complètes",
+    title: "Facturation automatisée complète",
     description:
       "Du Mobile Money (MTN, Airtel) aux paiements par carte et virements bancaires, automatisez tout votre cycle de revenus.",
     icon: Receipt,
@@ -91,13 +95,13 @@ const platformFeatures = [
     icon: Wifi,
   },
   {
-    title: "Noyau RADIUS puissant (indépendant du matériel)",
+    title: "Noyau RADIUS puissant",
     description:
-      "Notre puissant serveur RADIUS cloud s'intègre au matériel que vous possédez déjà.",
+      "Notre puissant serveur RADIUS cloud s'intègre au matériel que vous possédez déjà, indépendant du constructeur.",
     icon: Server,
   },
   {
-    title: "Système Agent et Point de Vente (POS)",
+    title: "Système Agent et Point de Vente",
     description:
       "Notre fonctionnalité Agent unique permet à votre équipe de vendre des forfaits internet en espèces.",
     icon: UserCheck,
@@ -105,7 +109,7 @@ const platformFeatures = [
   {
     title: "Analytique et rapports détaillés",
     description:
-      "Surveillez la santé du réseau en temps réel, suivez l'utilisation des données, la charge CPU des routeurs et analysez la croissance de vos revenus.",
+      "Surveillez la santé du réseau en temps réel, suivez l'utilisation des données, la charge CPU et analysez la croissance de vos revenus.",
     icon: BarChart3,
   },
   {
@@ -124,17 +128,20 @@ const hardware = [
   },
   {
     name: "Ruijie Reyee",
-    description: "Points d'accès et switches Reyee gérés depuis le cloud, facturés et surveillés depuis SafeLinkHub.",
+    description:
+      "Points d'accès et switches Reyee gérés depuis le cloud, facturés et surveillés depuis SafeLinkHub.",
     icon: Wifi,
   },
   {
     name: "TP-Link",
-    description: "Gérez votre matériel TP-Link Omada au même endroit que le reste de votre réseau.",
+    description:
+      "Gérez votre matériel TP-Link Omada au même endroit que le reste de votre réseau.",
     icon: Monitor,
   },
   {
     name: "Ubiquiti UniFi",
-    description: "Intégrez les clients et sites de votre contrôleur UniFi à la facturation et l'analytique SafeLinkHub.",
+    description:
+      "Intégrez les clients et sites de votre contrôleur UniFi à la facturation et l'analytique SafeLinkHub.",
     icon: Globe,
   },
 ];
@@ -187,298 +194,390 @@ const faqs = [
   },
 ];
 
+const mockStats = [
+  { label: "Ventes nettes", value: "428 500 FCFA", trend: "+12 %" },
+  { label: "Ventes de vouchers", value: "186 000 FCFA", trend: "+8 %" },
+  { label: "Clients actifs", value: "847", trend: "+23" },
+];
+
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6 py-4">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <Logo dark />
-          <nav className="hidden items-center gap-8 text-sm font-medium text-slate-300 sm:flex">
-            <a href="#features" className="hover:text-white">
+          <nav aria-label="Navigation principale" className="hidden items-center gap-8 text-sm font-medium text-slate-300 sm:flex">
+            <a
+              href="#features"
+              className="rounded hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+            >
               Fonctionnalités
             </a>
-            <a href="#solutions" className="hover:text-white">
+            <a
+              href="#solutions"
+              className="rounded hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+            >
               Solutions
             </a>
-            <a href="#blog" className="hover:text-white">
+            <a
+              href="/blog"
+              className="rounded hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+            >
               Blog
             </a>
           </nav>
           <Link
             href="/auth/login"
-            className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-200"
+            className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
           >
             Commencer
           </Link>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-slate-950">
-        <div className="relative mx-auto flex max-w-4xl flex-col items-center px-4 sm:px-6 pt-20 sm:pt-24 pb-16 text-center">
-          <h1 className="text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl">
-            Le n°1 de la facturation Hotspot &amp; plateforme d&apos;automatisation FAI
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg text-slate-300">
-            SafeLinkHub est la plateforme d&apos;automatisation Hotspot et FAI la plus
-            avancée, conçue pour gérer, automatiser et développer n&apos;importe quel réseau.
-          </p>
-          <Link
-            href="/auth/login"
-            className="mt-8 rounded-full bg-emerald-500 px-8 py-3 text-base font-semibold text-slate-950 hover:bg-orange-500"
-          >
-            Démarrer gratuitement
-          </Link>
+      <main>
+        {/* ── Hero ───────────────────────────────────────────────────────── */}
+        <section className="bg-slate-950">
+          <div className="mx-auto flex max-w-4xl flex-col items-center px-4 pb-16 pt-20 text-center sm:px-6 sm:pt-24">
+            <h1 className="text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl">
+              Le n°1 de la facturation Hotspot &amp; plateforme d&apos;automatisation FAI
+            </h1>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+              SafeLinkHub est la plateforme d&apos;automatisation Hotspot et FAI la plus
+              avancée, conçue pour gérer, automatiser et développer n&apos;importe quel réseau.
+            </p>
+            <Link
+              href="/auth/login"
+              className="mt-8 rounded-full bg-emerald-500 px-8 py-3 text-base font-semibold text-slate-950 hover:bg-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+            >
+              Démarrer gratuitement
+            </Link>
 
-          {/* product preview */}
-          <div className="mt-16 w-full rounded-t-2xl border border-orange-500/50 bg-slate-900 p-2 shadow-2xl">
-            <div className="overflow-hidden rounded-xl border border-slate-800 bg-white">
-              <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2">
-                <span className="h-3 w-3 rounded-full bg-red-400" />
-                <span className="h-3 w-3 rounded-full bg-yellow-400" />
-                <span className="h-3 w-3 rounded-full bg-green-400" />
-                <span className="ml-3 truncate text-xs text-slate-400">
-                  web.safelinkhub.net/admin
+            {/* Dashboard preview */}
+            <div className="mt-16 w-full overflow-hidden rounded-t-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+              {/* Browser chrome */}
+              <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-950 px-4 py-3">
+                <span aria-hidden="true" className="h-3 w-3 rounded-full bg-red-500/70" />
+                <span aria-hidden="true" className="h-3 w-3 rounded-full bg-yellow-500/70" />
+                <span aria-hidden="true" className="h-3 w-3 rounded-full bg-emerald-500/70" />
+                <span className="ml-3 truncate rounded-sm bg-slate-800 px-3 py-0.5 text-xs text-slate-400">
+                  app.safelinkhub.net/admin
                 </span>
               </div>
-              <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
-                {["Ventes nettes", "Ventes de vouchers", "Crédit du compte"].map(
-                  (label) => (
-                    <div
-                      key={label}
-                      className="rounded-lg border border-slate-200 p-3 text-left"
-                    >
-                      <p className="text-xs text-slate-500">{label}</p>
-                      <p className="mt-2 text-lg font-semibold text-slate-900">
-                        FCFA 0
-                      </p>
-                    </div>
-                  ),
-                )}
+              {/* Stats row */}
+              <div className="grid grid-cols-1 gap-px bg-slate-800 sm:grid-cols-3">
+                {mockStats.map((s) => (
+                  <div key={s.label} className="bg-slate-900 p-4 text-left">
+                    <p className="text-xs text-slate-500">{s.label}</p>
+                    <p className="mt-1.5 text-xl font-semibold tabular-nums text-white">
+                      {s.value}
+                    </p>
+                    <p className="mt-1 flex items-center gap-1 text-xs font-medium text-emerald-400">
+                      <TrendingUp aria-hidden="true" className="h-3 w-3" />
+                      {s.trend} ce mois
+                    </p>
+                  </div>
+                ))}
+              </div>
+              {/* Mini router status bar */}
+              <div className="flex items-center gap-3 border-t border-slate-800 bg-slate-950 px-4 py-2">
+                <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  12 routeurs en ligne
+                </span>
+                <span aria-hidden="true" className="h-3 w-px bg-slate-700" />
+                <span className="text-xs text-slate-500">847 connexions actives</span>
+              </div>
+            </div>
+
+            {/* Vendor compatibility strip */}
+            <div className="mt-14 w-full border-t border-slate-800 pt-10">
+              <p className="mb-5 text-xs font-semibold uppercase tracking-widest text-slate-500">
+                Compatible avec
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {vendors.map((v) => (
+                  <span
+                    key={v}
+                    translate="no"
+                    className="rounded-full border border-slate-700 px-3 py-1 text-xs font-medium text-slate-400"
+                  >
+                    {v}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
+        </section>
 
-          {/* vendor logos */}
-          <div className="mt-14 grid w-full grid-cols-2 gap-4 border-t border-slate-800 pt-10 text-sm font-medium text-slate-400 sm:grid-cols-4 lg:grid-cols-8">
-            {vendors.map((v) => (
-              <span key={v} className="text-center">
-                {v}
-              </span>
-            ))}
+        {/* ── Value proposition ──────────────────────────────────────────── */}
+        <section className="bg-white py-20">
+          <div className="mx-auto max-w-4xl px-4 sm:px-6">
+            <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
+              Arrêtez de jongler entre systèmes. Faites grandir votre réseau.
+            </h2>
+            <p className="mx-auto mt-6 max-w-2xl text-center text-base leading-7 text-slate-500">
+              Gérer un FAI ou un hotspot présente des défis uniques. SafeLinkHub remplace
+              votre configuration multi-systèmes par une seule plateforme puissante et
+              automatisée.
+            </p>
+            <ul className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3" role="list">
+              {[
+                { pain: "Création manuelle des utilisateurs PPPoE et des vouchers", fix: "Provisionnement automatique" },
+                { pain: "Suivi des paiements sur tableurs et outils éparpillés", fix: "Facturation centralisée" },
+                { pain: "Pertes de revenus faute de visibilité en temps réel", fix: "Tableau de bord unifié" },
+              ].map((item) => (
+                <li
+                  key={item.fix}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-5"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                    {item.fix}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{item.pain}</p>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Stop juggling systems */}
-      <section className="bg-white py-20">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900">
-            Arrêtez de jongler entre systèmes. Faites grandir votre réseau.
-          </h2>
-          <p className="mt-6 text-base leading-7 text-slate-500">
-            Gérer un FAI ou un hotspot présente des défis uniques. La création
-            manuelle d&apos;utilisateurs PPPoE, le suivi des paiements, la gestion
-            de différentes marques de routeurs et la prévention des pertes de
-            revenus sont des combats constants. Vous avez besoin d&apos;une
-            solution unique qui fonctionne vraiment. SafeLinkHub est le
-            logiciel de gestion FAI conçu pour résoudre exactement ces
-            problèmes. Nous remplaçons votre configuration multi-systèmes
-            complexe par une seule plateforme puissante et automatisée, vous
-            redonnant votre temps et boostant vos profits.
-          </p>
-        </div>
-      </section>
+        {/* ── Quick features ─────────────────────────────────────────────── */}
+        <section id="features" className="bg-slate-50 py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
+              Tout ce dont vous avez besoin pour gérer une activité hotspot
+            </h2>
+            <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {quickFeatures.map((f, i) => {
+                const Icon = f.icon;
+                return (
+                  <div
+                    key={f.title}
+                    className="hover-lift rounded-xl border border-slate-200 bg-white p-6 animate-fade-in-up"
+                    style={{ animationDelay: `${(i % 3) * 80}ms` }}
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="font-semibold text-slate-900">{f.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">{f.description}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
 
-      {/* Quick features */}
-      <section id="features" className="bg-slate-50 py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
-            Tout ce dont vous avez besoin pour gérer une activité hotspot
-          </h2>
-          <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {quickFeatures.map((f, i) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={f.title}
+        {/* ── Hardware compatibility ──────────────────────────────────────── */}
+        <section id="solutions" className="bg-white py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
+              Une seule plateforme. Tout votre matériel.
+            </h2>
+            <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2">
+              {hardware.map((h) => {
+                const Icon = h.icon;
+                return (
+                  <div
+                    key={h.name}
+                    className="hover-lift rounded-xl border border-slate-200 p-6"
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-500"
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="font-semibold text-slate-900" translate="no">
+                      {h.name}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">{h.description}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Complete platform ──────────────────────────────────────────── */}
+        <section className="bg-slate-950 py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <h2 className="text-center text-3xl font-bold tracking-tight text-white">
+              Une plateforme complète pour un contrôle réseau total
+            </h2>
+            <div className="mt-12 grid grid-cols-1 gap-px bg-slate-800 sm:grid-cols-2 lg:grid-cols-3">
+              {platformFeatures.map((f, i) => {
+                const Icon = f.icon;
+                return (
+                  <div
+                    key={f.title}
+                    className="bg-slate-950 p-6 animate-fade-in-up hover:bg-slate-900 transition-colors"
+                    style={{ animationDelay: `${(i % 3) * 80}ms` }}
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500"
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="font-semibold text-white">{f.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">{f.description}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Testimonials ──────────────────────────────────────────────── */}
+        <section className="bg-slate-50 py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
+              Adopté par les FAI à travers l&apos;Afrique de l&apos;Est
+            </h2>
+            <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
+              {testimonials.map((t, i) => (
+                <figure
+                  key={t.author}
                   className="hover-lift rounded-xl border border-slate-200 bg-white p-6 animate-fade-in-up"
-                  style={{ animationDelay: `${(i % 3) * 100}ms` }}
+                  style={{ animationDelay: `${i * 80}ms` }}
                 >
-                  <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
-                    <Icon className="h-5 w-5" />
+                  <div aria-hidden="true" className="mb-4 text-emerald-500">
+                    <Quote className="h-6 w-6" />
                   </div>
-                  <h3 className="font-semibold text-slate-900">{f.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    {f.description}
-                  </p>
-                </div>
-              );
-            })}
+                  <blockquote className="text-sm leading-6 text-slate-600">
+                    &ldquo;{t.quote}&rdquo;
+                  </blockquote>
+                  <figcaption className="mt-4 text-sm font-semibold text-slate-900">
+                    {t.author}
+                    <span className="ml-1 font-normal text-slate-400">
+                      · {t.company}
+                    </span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Hardware compatibility */}
-      <section id="solutions" className="bg-white py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
-            Une seule plateforme. Tout votre matériel.
-          </h2>
-          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2">
-            {hardware.map((h) => {
-              const Icon = h.icon;
-              return (
-                <div
-                  key={h.name}
-                  className="hover-lift rounded-xl border border-slate-200 p-6"
-                >
-                  <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="font-semibold text-slate-900">{h.name}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    {h.description}
-                  </p>
-                </div>
-              );
-            })}
+        {/* ── FAQ ───────────────────────────────────────────────────────── */}
+        <section className="bg-white py-20">
+          <div className="mx-auto max-w-3xl px-4 sm:px-6">
+            <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
+              Questions fréquentes
+            </h2>
+            <div className="mt-10 divide-y divide-slate-200">
+              {faqs.map((f) => (
+                <details key={f.q} className="group py-4">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded">
+                    {f.q}
+                    <ChevronDown
+                      aria-hidden="true"
+                      className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180"
+                    />
+                  </summary>
+                  <p className="mt-3 text-sm leading-6 text-slate-500">{f.a}</p>
+                </details>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Complete platform */}
-      <section className="bg-slate-950 py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight text-white">
-            Une plateforme complète pour un contrôle réseau total
-          </h2>
-          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {platformFeatures.map((f, i) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={f.title}
-                  className="hover-lift rounded-xl border border-slate-800 bg-white/[0.03] p-6 animate-fade-in-up"
-                  style={{ animationDelay: `${(i % 3) * 100}ms` }}
-                >
-                  <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-500">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="font-semibold text-white">{f.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    {f.description}
-                  </p>
-                </div>
-              );
-            })}
+        {/* ── CTA band ──────────────────────────────────────────────────── */}
+        <section className="bg-emerald-500 py-16">
+          <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+            <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              Prêt à automatiser votre réseau ?
+            </h2>
+            <p className="mt-4 text-base text-emerald-50">
+              Commencez gratuitement. Aucune carte bancaire requise.
+            </p>
+            <Link
+              href="/auth/login"
+              className="mt-8 inline-block rounded-full bg-slate-950 px-8 py-3 text-base font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-500"
+            >
+              Créer un compte gratuit
+            </Link>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      {/* Testimonials */}
-      <section className="bg-slate-50 py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
-            Adopté par les FAI à travers l&apos;Afrique de l&apos;Est
-          </h2>
-          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
-            {testimonials.map((t, i) => (
-              <figure
-                key={t.author}
-                className="hover-lift rounded-xl border border-slate-200 bg-white p-6 animate-fade-in-up"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <div className="mb-4 text-emerald-500">
-                  <Quote className="h-6 w-6" />
-                </div>
-                <blockquote className="text-sm leading-6 text-slate-600">
-                  &ldquo;{t.quote}&rdquo;
-                </blockquote>
-                <figcaption className="mt-4 text-sm font-semibold text-slate-900">
-                  {t.author}
-                  <span className="ml-1 font-normal text-slate-400">
-                    · {t.company}
-                  </span>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section className="bg-white py-20">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight text-slate-900">
-            Questions fréquentes
-          </h2>
-          <div className="mt-10 divide-y divide-slate-200">
-            {faqs.map((f) => (
-              <details key={f.q} className="group py-4">
-                <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold text-slate-900">
-                  {f.q}
-                  <ChevronDown className="ml-4 h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
-                </summary>
-                <p className="mt-2 text-sm leading-6 text-slate-500">{f.a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
+      {/* ── Footer ────────────────────────────────────────────────────────── */}
       <footer className="border-t border-slate-200 bg-white py-12">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex flex-col items-start justify-between gap-8 sm:flex-row">
-            <div>
+          <div className="flex flex-col items-start justify-between gap-10 sm:flex-row">
+            <div className="shrink-0">
               <Logo />
-              <p className="mt-3 text-sm font-medium text-slate-500">
-                Le réseau commence ici.
-              </p>
+              <p className="mt-3 text-sm text-slate-500">Le réseau commence ici.</p>
             </div>
             <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-3">
               <div>
                 <p className="font-semibold text-slate-900">Produit</p>
-                <ul className="mt-3 space-y-2 text-slate-500">
-                  <li>Accueil</li>
-                  <li>Fonctionnalités</li>
-                  <li>Solutions</li>
-                  <li>Commencer</li>
+                <ul className="mt-3 space-y-2" role="list">
+                  <li><a href="/" className="text-slate-500 hover:text-slate-900">Accueil</a></li>
+                  <li><a href="#features" className="text-slate-500 hover:text-slate-900">Fonctionnalités</a></li>
+                  <li><a href="#solutions" className="text-slate-500 hover:text-slate-900">Solutions</a></li>
+                  <li><Link href="/auth/login" className="text-slate-500 hover:text-slate-900">Commencer</Link></li>
                 </ul>
               </div>
               <div>
                 <p className="font-semibold text-slate-900">Entreprise</p>
-                <ul className="mt-3 space-y-2 text-slate-500">
-                  <li>Contact</li>
-                  <li>SafeLinkHub Systems</li>
-                  <li>Carrières</li>
+                <ul className="mt-3 space-y-2" role="list">
+                  <li><a href="/contact" className="text-slate-500 hover:text-slate-900">Contact</a></li>
+                  <li><a href="/" className="text-slate-500 hover:text-slate-900" translate="no">SafeLinkHub Systems</a></li>
+                  <li><a href="/careers" className="text-slate-500 hover:text-slate-900">Carrières</a></li>
                 </ul>
               </div>
               <div>
                 <p className="font-semibold text-slate-900">Ressources</p>
-                <ul className="mt-3 space-y-2 text-slate-500">
-                  <li>Blog</li>
-                  <li>Conditions d&apos;utilisation</li>
-                  <li>Politique de confidentialité</li>
-                  <li>Support</li>
+                <ul className="mt-3 space-y-2" role="list">
+                  <li><a href="/blog" className="text-slate-500 hover:text-slate-900">Blog</a></li>
+                  <li><a href="/legal/terms" className="text-slate-500 hover:text-slate-900">Conditions d&apos;utilisation</a></li>
+                  <li><a href="/legal/privacy" className="text-slate-500 hover:text-slate-900">Politique de confidentialité</a></li>
+                  <li><a href="/support" className="text-slate-500 hover:text-slate-900">Support</a></li>
                 </ul>
               </div>
             </div>
           </div>
+
           <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-slate-200 pt-6 sm:flex-row">
             <p className="text-sm text-slate-400">
               © {new Date().getFullYear()} SafeLinkHub. Tous droits réservés.
             </p>
-            <div className="flex gap-4 text-sm text-slate-400">
-              <span>Twitter / X</span>
-              <span>LinkedIn</span>
-              <span>TikTok</span>
-            </div>
+            <nav aria-label="Réseaux sociaux" className="flex gap-5">
+              <a
+                href="https://x.com/safelinkhub"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-slate-400 hover:text-slate-600"
+              >
+                Twitter / X
+              </a>
+              <a
+                href="https://linkedin.com/company/safelinkhub"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-slate-400 hover:text-slate-600"
+              >
+                LinkedIn
+              </a>
+              <a
+                href="https://tiktok.com/@safelinkhub"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-slate-400 hover:text-slate-600"
+              >
+                TikTok
+              </a>
+            </nav>
           </div>
         </div>
       </footer>
+
       <BackToTop />
     </div>
   );
