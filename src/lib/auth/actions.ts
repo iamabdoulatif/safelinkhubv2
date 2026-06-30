@@ -240,7 +240,6 @@ export async function register(_prevState: unknown, formData: FormData) {
 
 export async function logout() {
   await destroySession();
-  redirect("/auth/login");
 }
 
 export type UpdateProfileState = { success: true } | { success: false; error: string } | null;

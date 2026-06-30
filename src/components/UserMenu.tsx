@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { ChevronsUpDown, LogOut, Shield, User as UserIcon } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronsUpDown, Loader2, LogOut, Shield, User as UserIcon } from "lucide-react";
 import { logout } from "@/lib/auth/actions";
 
 export default function UserMenu({
@@ -17,6 +18,8 @@ export default function UserMenu({
   onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [loggingOut, startLogout] = useTransition();
+  const navRouter = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,16 +83,25 @@ export default function UserMenu({
               Mon profil
             </Link>
 
-            <form action={logout}>
-              <button
-                type="submit"
-                role="menuitem"
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-              >
+            <button
+              type="button"
+              role="menuitem"
+              disabled={loggingOut}
+              onClick={() => {
+                startLogout(async () => {
+                  await logout();
+                  navRouter.replace("/auth/login");
+                });
+              }}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+            >
+              {loggingOut ? (
+                <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin" />
+              ) : (
                 <LogOut className="h-4 w-4 flex-shrink-0" />
-                Déconnexion
-              </button>
-            </form>
+              )}
+              Déconnexion
+            </button>
           </div>
         </div>
       )}
