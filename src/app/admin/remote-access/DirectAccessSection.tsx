@@ -278,6 +278,23 @@ function RouterDirectAccess({
     });
   }
 
+  const ALL_SERVICES = ["winbox", "webfig", "ssh", "mikhmon"] as const;
+
+  function handleEnableAll() {
+    setError(null);
+    const inactive = ALL_SERVICES.filter((s) => !activeServices.has(s));
+    if (inactive.length === 0) return;
+    startTransition(async () => {
+      for (const service of inactive) {
+        setPendingService(service);
+        const res = await enablePortForward(router.id, service, "yearly");
+        if (res?.error) { setError(res.error); break; }
+      }
+      setPendingService(null);
+      navRouter.refresh();
+    });
+  }
+
   return (
     <div className="rounded-lg border border-slate-200 p-3">
       <button
@@ -296,9 +313,21 @@ function RouterDirectAccess({
             </span>
           )}
         </span>
-        {router.status !== "online" && (
-          <span className="text-xs text-slate-400">Routeur hors ligne</span>
-        )}
+        <span className="flex items-center gap-2">
+          {router.status !== "online" && (
+            <span className="text-xs text-slate-400">Routeur hors ligne</span>
+          )}
+          {unlimited && activeServices.size < 4 && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={(e) => { e.stopPropagation(); setCardOpen(true); handleEnableAll(); }}
+              className="rounded-full bg-emerald-500 px-2.5 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
+            >
+              {pending ? "Activation…" : "Tout activer"}
+            </button>
+          )}
+        </span>
       </button>
 
       {cardOpen && (
@@ -346,7 +375,7 @@ function RouterDirectAccess({
                     type="button"
                     role="switch"
                     aria-checked={isPublic}
-                    disabled={busy || (!isPublic && router.status !== "online")}
+                    disabled={busy || (!isPublic && router.status !== "online" && !unlimited)}
                     onClick={() =>
                       isPublic ? handleDisable(forward!.id) : handleEnable(service)
                     }
