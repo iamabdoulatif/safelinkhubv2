@@ -42,7 +42,7 @@ export default function RootLayout({
                 if(!el)return;
                 function dismiss(){
                   el.classList.add('slh-fade');
-                  setTimeout(function(){el.remove();},400);
+                  setTimeout(function(){el.remove();},4100);
                 }
                 if(document.readyState==='complete'){dismiss();}
                 else{window.addEventListener('load',dismiss);}
