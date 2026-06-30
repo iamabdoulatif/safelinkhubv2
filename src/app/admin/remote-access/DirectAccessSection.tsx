@@ -229,7 +229,12 @@ function RouterDirectAccess({
   // Billing isn't enforced yet (see port-forward.ts), but the choice is
   // still recorded so the UI already reflects what a real subscription
   // would look like once payment goes live.
-  const [selectedPlans, setSelectedPlans] = useState<Record<string, BillingPeriod>>({});
+  // "__unlimited__" is a UI-only sentinel for superadmin: the server already
+  // ignores billingPeriod and sets expiresAt=null for unlimited accounts.
+  const [selectedPlans, setSelectedPlans] = useState<Record<string, BillingPeriod | "__unlimited__">>({});
+
+  const defaultPlan = (service: string): BillingPeriod | "__unlimited__" =>
+    selectedPlans[service] ?? (unlimited ? "__unlimited__" : "monthly");
 
   const activeServices = new Set(forwards.map((f) => f.service));
   const hasActiveAccess = activeServices.size > 0;
@@ -255,7 +260,8 @@ function RouterDirectAccess({
   function handleEnable(service: string) {
     setPendingService(service);
     setError(null);
-    const plan = selectedPlans[service] ?? "monthly";
+    const raw = defaultPlan(service);
+    const plan: BillingPeriod = raw === "__unlimited__" ? "yearly" : raw;
     startTransition(async () => {
       const res = await enablePortForward(router.id, service, plan);
       setPendingService(null);
@@ -316,11 +322,11 @@ function RouterDirectAccess({
                   {forward && <CopyableAddress value={`${relayHost}:${forward.publicPort}`} />}
                   {!isPublic && (
                     <select
-                      value={selectedPlans[service] ?? "monthly"}
+                      value={defaultPlan(service)}
                       onChange={(e) =>
                         setSelectedPlans((prev) => ({
                           ...prev,
-                          [service]: e.target.value as BillingPeriod,
+                          [service]: e.target.value as BillingPeriod | "__unlimited__",
                         }))
                       }
                       disabled={busy}
@@ -331,6 +337,9 @@ function RouterDirectAccess({
                       <option value="quarterly">3 mois — {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}</option>
                       <option value="semiannual">6 mois — {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}</option>
                       <option value="yearly">12 mois — {formatFcfa(PERIOD_PRICE_CENTS.yearly)}</option>
+                      {unlimited && (
+                        <option value="__unlimited__">Illimité — Gratuit</option>
+                      )}
                     </select>
                   )}
                   <button
