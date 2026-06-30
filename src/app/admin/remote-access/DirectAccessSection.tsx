@@ -282,16 +282,22 @@ function RouterDirectAccess({
 
   function handleEnableAll() {
     setError(null);
+    setCardOpen(true);
     const inactive = ALL_SERVICES.filter((s) => !activeServices.has(s));
     if (inactive.length === 0) return;
     startTransition(async () => {
+      let failed = false;
       for (const service of inactive) {
         setPendingService(service);
         const res = await enablePortForward(router.id, service, "yearly");
-        if (res?.error) { setError(res.error); break; }
+        if (res?.error) {
+          setError(res.error);
+          failed = true;
+          break;
+        }
       }
       setPendingService(null);
-      navRouter.refresh();
+      if (!failed) navRouter.refresh();
     });
   }
 
@@ -321,10 +327,17 @@ function RouterDirectAccess({
             <button
               type="button"
               disabled={pending}
-              onClick={(e) => { e.stopPropagation(); setCardOpen(true); handleEnableAll(); }}
-              className="rounded-full bg-emerald-500 px-2.5 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
+              onClick={(e) => { e.stopPropagation(); handleEnableAll(); }}
+              className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-2.5 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
             >
-              {pending ? "Activation…" : "Tout activer"}
+              {pending && pendingService && (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              )}
+              {pending
+                ? pendingService
+                  ? `${SERVICE_LABELS[pendingService] ?? pendingService}…`
+                  : "Activation…"
+                : `Tout activer (${4 - activeServices.size})`}
             </button>
           )}
         </span>
