@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BackToTop from "@/components/BackToTop";
 import {
   CreditCard,
   Monitor,
@@ -478,6 +479,7 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      <BackToTop />
     </div>
   );
 }
