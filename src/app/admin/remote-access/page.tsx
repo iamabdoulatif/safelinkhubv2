@@ -9,7 +9,6 @@ import RemoteAccessSidebar from "./RemoteAccessSidebar";
 import PersonalAccessSection from "./PersonalAccessSection";
 import BackToHomeSection from "./BackToHomeSection";
 import DirectAccessSection from "./DirectAccessSection";
-import MndpRelaySection from "./MndpRelaySection";
 import { listPersonalVpnAccess } from "@/lib/mikrotik/personal-access";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { getVpnTrialStatus } from "@/lib/billing/actions";
@@ -184,11 +183,6 @@ export default async function RemoteAccessPage() {
             />
           </section>
 
-          {session && (
-            <section id="section-neighbors" className="scroll-mt-4">
-              <MndpRelaySection orgId={session.orgId} />
-            </section>
-          )}
         </div>
       </div>
     </div>

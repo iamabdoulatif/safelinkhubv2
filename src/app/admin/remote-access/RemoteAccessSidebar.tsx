@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Globe2, Laptop, Radar, ShieldCheck, Smartphone } from "lucide-react";
+import { Globe2, Laptop, ShieldCheck, Smartphone } from "lucide-react";
 
 type Router = { id: string; name: string; status: string };
 
@@ -10,7 +10,6 @@ const SECTIONS = [
   { id: "section-vpn-perso",     label: "Accès VPN personnel",   icon: Laptop     },
   { id: "section-back-to-home",  label: "Back To Home",          icon: Smartphone },
   { id: "section-direct-access", label: "Accès direct WinBox",   icon: Globe2     },
-  { id: "section-neighbors",     label: "Découverte Neighbors",  icon: Radar      },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
@@ -58,7 +57,6 @@ export default function RemoteAccessSidebar({
     "section-vpn-perso":    personalAccessCount || null,
     "section-back-to-home": routers.length      || null,
     "section-direct-access": activeForwardsCount || null,
-    "section-neighbors":    null,
   };
 
   return (
