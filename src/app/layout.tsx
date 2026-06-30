@@ -40,6 +40,13 @@ export default function RootLayout({
               (function(){
                 var el=document.getElementById('slh-splash');
                 if(!el)return;
+                // Only show splash on the landing page — admin and auth
+                // pages have heavy JS hydration that delays window.load
+                // indefinitely, causing an infinite blocking overlay.
+                if(window.location.pathname !== '/'){
+                  el.remove();
+                  return;
+                }
                 function dismiss(){
                   el.classList.add('slh-fade');
                   setTimeout(function(){el.remove();},4100);
