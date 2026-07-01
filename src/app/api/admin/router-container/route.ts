@@ -50,6 +50,10 @@ export async function POST(request: NextRequest) {
       return Response.json({ ok: true, message: "Container already running.", status });
     }
 
+    if (status !== "stopped") {
+      return Response.json({ ok: false, message: `Container is in state: ${status} — not starting.`, status, id: mikhmon[".id"], name: mikhmon.name });
+    }
+
     await client.talk(["/container/start", `=numbers=${mikhmon[".id"]}`]);
     return Response.json({ ok: true, message: "Container start command sent.", was: status, id: mikhmon[".id"], name: mikhmon.name });
   } catch (err) {
