@@ -45,17 +45,8 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
-    const status = mikhmon.status;
-    if (status === "running") {
-      return Response.json({ ok: true, message: "Container already running.", status });
-    }
-
-    if (status !== "stopped") {
-      return Response.json({ ok: false, message: `Container is in state: ${status} — not starting.`, status, id: mikhmon[".id"], name: mikhmon.name });
-    }
-
-    await client.talk(["/container/start", `=numbers=${mikhmon[".id"]}`]);
-    return Response.json({ ok: true, message: "Container start command sent.", was: status, id: mikhmon[".id"], name: mikhmon.name });
+    // Return full container object to diagnose field names
+    return Response.json({ ok: true, debug: true, container: mikhmon });
   } catch (err) {
     return Response.json({
       error: `Container operation failed: ${err instanceof Error ? err.message : "unknown"}`,
