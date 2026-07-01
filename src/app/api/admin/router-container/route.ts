@@ -45,8 +45,23 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
-    // Return full container object to diagnose field names
-    return Response.json({ ok: true, debug: true, container: mikhmon });
+    const isRunning = mikhmon.running === "true";
+
+    // Check NAT rules for MikHmon tunnel
+    const natRules = await client.talk(["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat"]);
+    const mikhmonNat = natRules.find((r) => r.comment === "MikHmon via tunnel" || String(r["to-addresses"] ?? "").includes("11.11.11.11"));
+
+    if (!isRunning) {
+      await client.talk(["/container/start", `=numbers=${mikhmon[".id"]}`]);
+    }
+
+    return Response.json({
+      ok: true,
+      containerRunning: isRunning,
+      containerStartSent: !isRunning,
+      mikhmonNatRule: mikhmonNat ?? null,
+      allNatDstnat: natRules.map((r) => ({ id: r[".id"], comment: r.comment, "dst-port": r["dst-port"], "to-addresses": r["to-addresses"], "to-ports": r["to-ports"] })),
+    });
   } catch (err) {
     return Response.json({
       error: `Container operation failed: ${err instanceof Error ? err.message : "unknown"}`,
