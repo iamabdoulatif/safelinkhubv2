@@ -1,9 +1,10 @@
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers } from "@/lib/db/schema";
+import { routers, routerPortForwards } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { RouterOSClient } from "./client";
+import { getMikhmonTunnelNatCommands } from "./port-forward-rules";
 
 type RouterRow = typeof routers.$inferSelect;
 
@@ -114,6 +115,34 @@ export async function syncRouterStats(
         activeUsers: activeUsers.length,
       })
       .where(eq(routers.id, routerId));
+
+    // Re-apply MikHmon NAT rule if an active forward exists — it may have
+    // been skipped when the forward was first enabled because the router
+    // was offline at that time (ensureMikhmonTunnelNat is a no-op if the
+    // rule already exists, so this is safe to call on every successful sync).
+    const [mikhmonForward] = await db
+      .select({ id: routerPortForwards.id })
+      .from(routerPortForwards)
+      .where(
+        and(
+          eq(routerPortForwards.routerId, routerId),
+          eq(routerPortForwards.service, "mikhmon"),
+          eq(routerPortForwards.status, "active"),
+        ),
+      )
+      .limit(1);
+    if (mikhmonForward) {
+      try {
+        const commands = getMikhmonTunnelNatCommands();
+        const existing = await client.talk(commands.findExisting);
+        if (existing.length === 0) {
+          await client.talk(commands.add);
+        }
+      } catch {
+        // Non-fatal — the port forward on the relay side is still valid,
+        // and the NAT rule will be retried on the next successful sync.
+      }
+    }
   } catch (err) {
     if (markOfflineOnFailure) {
       await db
