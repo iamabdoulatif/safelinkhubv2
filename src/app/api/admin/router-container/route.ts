@@ -31,11 +31,18 @@ export async function POST(request: NextRequest) {
   try {
     const containers = await client.talk(["/container/print"]);
     const mikhmon = containers.find(
-      (c) => c.name === "mikhmon" || String(c["root-dir"] ?? "").includes("mikhmon"),
+      (c) =>
+        c.name === "mikhmonv3-safelinkhub:latest" ||
+        c.name === "mikhmon-sf-v1:latest" ||
+        String(c.name ?? "").includes("mikhmon") ||
+        String(c["root-dir"] ?? "").includes("mikhmon"),
     );
 
     if (!mikhmon) {
-      return Response.json({ error: "MikHmon container not found on router." }, { status: 404 });
+      return Response.json({
+        error: "MikHmon container not found on router.",
+        allContainers: containers.map((c) => ({ id: c[".id"], name: c.name, status: c.status, rootDir: c["root-dir"] })),
+      }, { status: 404 });
     }
 
     const status = mikhmon.status;
@@ -44,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     await client.talk(["/container/start", `=numbers=${mikhmon[".id"]}`]);
-    return Response.json({ ok: true, message: "Container start command sent.", was: status });
+    return Response.json({ ok: true, message: "Container start command sent.", was: status, id: mikhmon[".id"], name: mikhmon.name });
   } catch (err) {
     return Response.json({
       error: `Container operation failed: ${err instanceof Error ? err.message : "unknown"}`,
