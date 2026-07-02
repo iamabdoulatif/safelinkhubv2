@@ -19,7 +19,14 @@ import { generateStrongPasswordExample } from "@/lib/auth/password-strength";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
+  "w-full border-2 border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand/35";
+
+const labelClass = "mb-1.5 block text-sm font-bold text-ink";
+
+const iconClass = "absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft";
+
+const choiceClass =
+  "h-4 w-4 border-2 border-line text-brand focus:outline-none focus:ring-4 focus:ring-brand/35";
 
 export default function RegisterForm() {
   const [state, formAction, pending] = useActionState(register, undefined);
@@ -43,16 +50,16 @@ export default function RegisterForm() {
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
       {state?.error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-600">
+        <div className="flex items-center gap-2 border-2 border-err bg-[#FFF3ED] px-3 py-2.5 text-sm font-semibold text-err">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <p>{state.error}</p>
         </div>
       )}
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">Nom complet</label>
+        <label className={labelClass}>Nom complet</label>
         <div className="relative">
-          <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <User className={iconClass} />
           <input
             type="text"
             name="name"
@@ -65,9 +72,9 @@ export default function RegisterForm() {
       </div>
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
+        <label className={labelClass}>Email</label>
         <div className="relative">
-          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Mail className={iconClass} />
           <input
             type="email"
             name="email"
@@ -82,9 +89,9 @@ export default function RegisterForm() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Mot de passe</label>
+          <label className={labelClass}>Mot de passe</label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Lock className={iconClass} />
             <input
               type={showPassword ? "text" : "password"}
               name="password"
@@ -100,7 +107,7 @@ export default function RegisterForm() {
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:bg-brand hover:text-[#1C1917]"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -108,11 +115,11 @@ export default function RegisterForm() {
           <PasswordStrengthMeter password={password} />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className={labelClass}>
             Confirmez le mot de passe
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Lock className={iconClass} />
             <input
               type={showConfirmPassword ? "text" : "password"}
               name="confirmPassword"
@@ -127,7 +134,7 @@ export default function RegisterForm() {
               type="button"
               onClick={() => setShowConfirmPassword((v) => !v)}
               aria-label={showConfirmPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:bg-brand hover:text-[#1C1917]"
             >
               {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -135,7 +142,7 @@ export default function RegisterForm() {
           {confirmPassword && (
             <p
               className={`mt-1.5 text-xs font-medium ${
-                confirmPassword === password ? "text-emerald-600" : "text-red-600"
+                confirmPassword === password ? "text-ok" : "text-err"
               }`}
             >
               {confirmPassword === password
@@ -147,11 +154,11 @@ export default function RegisterForm() {
       </div>
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Pays de résidence
         </label>
         <div className="relative">
-          <Globe2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Globe2 className={iconClass} />
           <select
             name="country"
             required
@@ -172,7 +179,7 @@ export default function RegisterForm() {
       </div>
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">
+        <label className={labelClass}>
           Numéro de téléphone
         </label>
         <div className="flex gap-2">
@@ -181,7 +188,7 @@ export default function RegisterForm() {
             value={dialCode}
             onChange={(e) => setDialCode(e.target.value)}
             aria-label="Indicatif téléphonique"
-            className="w-24 shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-3 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-24 shrink-0 border-2 border-line bg-paper px-2 py-3 text-sm text-ink focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand/35"
           >
             {COUNTRIES.map((c) => (
               <option key={`${c.iso2}-${c.dialCode}`} value={c.dialCode}>
@@ -190,7 +197,7 @@ export default function RegisterForm() {
             ))}
           </select>
           <div className="relative flex-1">
-            <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Phone className={iconClass} />
             <input
               type="tel"
               name="phone"
@@ -204,18 +211,18 @@ export default function RegisterForm() {
       </div>
 
       <div>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm font-medium text-ink-soft">
           <input
             type="checkbox"
             checked={whatsappSame}
             onChange={(e) => setWhatsappSame(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 focus:outline-none"
+            className={choiceClass}
           />
           Mon numéro WhatsApp est le même que ci-dessus
         </label>
         {!whatsappSame && (
           <div className="relative mt-2">
-            <MessageCircle className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <MessageCircle className={iconClass} />
             <input
               type="tel"
               name="whatsapp"
@@ -227,18 +234,18 @@ export default function RegisterForm() {
       </div>
 
       <div>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm font-medium text-ink-soft">
           <input
             type="checkbox"
             checked={telegramSame}
             onChange={(e) => setTelegramSame(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 focus:outline-none"
+            className={choiceClass}
           />
           Mon numéro Telegram est le même que ci-dessus
         </label>
         {!telegramSame && (
           <div className="relative mt-2">
-            <Send className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Send className={iconClass} />
             <input
               type="tel"
               name="telegram"
@@ -252,7 +259,7 @@ export default function RegisterForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-slate-950 py-3 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
+        className="w-full border-2 border-line bg-brand px-5 py-3 text-sm font-extrabold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? "Création du compte..." : "S'inscrire"}
       </button>

@@ -9,14 +9,14 @@ const LABELS = {
 } as const;
 
 const COLORS = {
-  weak: "bg-red-500",
-  medium: "bg-amber-500",
+  weak: "bg-err",
+  medium: "bg-warn",
   strong: "bg-brand",
 } as const;
 
 const TEXT_COLORS = {
-  weak: "text-red-600",
-  medium: "text-amber-600",
+  weak: "text-err",
+  medium: "text-warn",
   strong: "text-ok",
 } as const;
 
@@ -33,8 +33,8 @@ export default function PasswordStrengthMeter({ password }: { password: string }
         {[0, 1, 2].map((i) => (
           <span
             key={i}
-            className={`h-1 flex-1 rounded-full transition-colors ${
-              i < bars.length ? COLORS[strength] : "bg-slate-200"
+            className={`h-1.5 flex-1 transition-colors ${
+              i < bars.length ? COLORS[strength] : "bg-line-soft"
             }`}
           />
         ))}

@@ -1,32 +1,44 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import AuthShell from "@/components/auth/AuthShell";
 import LoginForm from "./LoginForm";
 
 export default function LoginPage() {
   return (
-    <div className="flex flex-1 justify-center bg-slate-50 px-4 pt-16 pb-12 sm:px-6 sm:pt-24">
-      <div className="w-full max-w-sm">
-        <div className="text-center">
-          <span className="text-2xl font-bold tracking-tight text-slate-900">
-            Safe<span className="text-emerald-500">LinkHub</span>
-          </span>
-          <p className="mt-2 text-sm text-slate-500">Connexion à SafeLinkHub</p>
-        </div>
-
-        <Suspense>
-          <LoginForm />
-        </Suspense>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
+    <AuthShell
+      eyebrow="Espace sécurisé"
+      title={
+        <>
+          Reprendre le contrôle de votre <span className="marker">réseau.</span>
+        </>
+      }
+      description="Connectez-vous au tableau de bord qui pilote vos routeurs, ventes, accès VPN et opérations terrain."
+      footer={
+        <>
           Vous n&apos;avez pas de compte ?{" "}
           <Link
             href="/auth/register"
-            className="font-semibold text-emerald-600 hover:text-orange-500"
+            className="font-bold text-brand-deep underline decoration-2 underline-offset-4 hover:bg-brand hover:text-[#1C1917]"
           >
             Inscrivez-vous
           </Link>
+        </>
+      }
+    >
+      <div>
+        <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
+          Connexion
         </p>
+        <h2 className="mt-2 font-display text-3xl font-extrabold text-ink">
+          Accès au dashboard
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-ink-soft">
+          Vos sessions restent protégées avec vérification MFA si elle est activée.
+        </p>
+        <Suspense>
+          <LoginForm />
+        </Suspense>
       </div>
-    </div>
+    </AuthShell>
   );
 }
