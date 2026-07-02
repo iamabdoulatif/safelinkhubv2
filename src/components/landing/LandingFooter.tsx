@@ -35,7 +35,10 @@ const socials = [
   { href: "https://tiktok.com/@safelinkhub", label: "TikTok" },
 ] as const;
 
-export default function LandingFooter() {
+export default function LandingFooter({ anchorPrefix = "" }: { anchorPrefix?: string }) {
+  const getHref = (href: string) =>
+    href.startsWith("#") ? `${anchorPrefix}${href}` : href;
+
   return (
     <footer className="bg-ink py-14 text-paper">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -60,7 +63,7 @@ export default function LandingFooter() {
                         {l.label}
                       </Link>
                     ) : (
-                      <a href={l.href} className="text-sm text-paper hover:bg-brand hover:text-[#1C1917]">
+                      <a href={getHref(l.href)} className="text-sm text-paper hover:bg-brand hover:text-[#1C1917]">
                         {l.label}
                       </a>
                     )}

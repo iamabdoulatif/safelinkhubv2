@@ -1,4 +1,5 @@
 import LandingNav from "@/components/landing/LandingNav";
+import LandingFooter from "@/components/landing/LandingFooter";
 
 type AuthShellProps = {
   eyebrow: string;
@@ -68,6 +69,7 @@ export default function AuthShell({
           </section>
         </div>
       </main>
+      <LandingFooter anchorPrefix="/" />
     </div>
   );
 }
