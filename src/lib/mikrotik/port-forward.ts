@@ -6,13 +6,12 @@ import { getDb } from "@/lib/db";
 import { routerPortForwards, routers, organizations, walletTransactions } from "@/lib/db/schema";
 import { getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { allocatePortForward, revokePortForward } from "./relay";
+import { allocatePortForward, getRelayPublicHost, revokePortForward } from "./relay";
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
-import {
-  getMikhmonTunnelNatCommands,
-  getPortForwardTargetPort,
-} from "./port-forward-rules";
+import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
+import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
+import { getPortForwardTargetPort } from "./port-forward-rules";
 import { PERIOD_PRICE_CENTS, BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
 
 export type { BillingPeriod } from "./billing-plans";
@@ -25,13 +24,6 @@ export type { BillingPeriod } from "./billing-plans";
  * reachable by anyone who finds it, protected only by the router's own
  * login, same exposure model as giving the router a public IP.
  */
-
-async function ensureMikhmonTunnelNat(client: RouterOSClient) {
-  const commands = getMikhmonTunnelNatCommands();
-  const existing = await client.talk(commands.findExisting);
-  if (existing.length > 0) return;
-  await client.talk(commands.add);
-}
 
 // provisionHotspotStack's hardening step disables RouterOS's own ssh
 // service (/ip/service set ssh disabled=yes) — without re-enabling it here,
@@ -112,7 +104,7 @@ async function enablePortForwardForRouter(
     return {
       success: true,
       publicPort: existing[0].publicPort,
-      relayHost: process.env.WG_RELAY_HOST,
+      relayHost: getRelayPublicHost(),
       created: false as const,
     };
   }
@@ -121,8 +113,8 @@ async function enablePortForwardForRouter(
     let client: RouterOSClient | null = null;
     try {
       client = await connectToRouter(router);
-      if (service === "mikhmon") await ensureMikhmonTunnelNat(client);
-      if (service === "ssh") await setSshServiceEnabled(client, true);
+      if (service === "mikhmon") await ensureMikhmonTunnelAccess(client);
+      if (service === "ssh") await ensureSshTunnelAccess(client, [], router.username ?? undefined);
     } catch {
       // Router is unreachable (offline, tunnel down) — proceed with port
       // allocation anyway so the forward exists and is usable the moment
@@ -175,7 +167,7 @@ async function enablePortForwardForRouter(
   return {
     success: true,
     publicPort,
-    relayHost: process.env.WG_RELAY_HOST,
+    relayHost: getRelayPublicHost(),
     created: true as const,
     forwardId: forward.id,
   };
@@ -210,11 +202,11 @@ async function chargeWalletForActivation(opts: {
 /**
  * Services auto-enabled right after a WireGuard/OpenVPN install completes
  * (see installed/route.ts), so a freshly installed router is immediately
- * reachable from WinBox/WebFig without the admin having to find and click
- * the "Accès distant" page first — the gap that caused a fresh install to
- * look "broken" even though the tunnel itself was healthy.
+ * reachable from WinBox/WebFig/SSH/MikHmon without the admin having to find
+ * and click the "Accès distant" page first — the gap that caused a fresh
+ * install to look "broken" even though the tunnel itself was healthy.
  */
-const AUTO_ENABLED_SERVICES_AFTER_INSTALL = ["winbox", "webfig", "ssh"] as const;
+const AUTO_ENABLED_SERVICES_AFTER_INSTALL = ["winbox", "webfig", "ssh", "mikhmon"] as const;
 
 export async function autoEnablePostInstallAccess(routerId: string) {
   const results: Record<string, Awaited<ReturnType<typeof enablePortForwardForRouter>>> = {};

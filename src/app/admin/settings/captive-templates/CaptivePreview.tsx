@@ -26,23 +26,23 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
 
   return (
     <div
-      className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-slate-200 p-4 sm:p-6 lg:p-8 text-center"
+      className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-line-soft p-4 sm:p-6 lg:p-8 text-center"
       style={{ backgroundColor: data.backgroundColor || "#f8fafc" }}
     >
       {data.logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={data.logoUrl} alt="Logo" className="h-12 max-w-[160px] object-contain" />
       ) : (
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-500">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-clay text-sm font-semibold text-ink-soft">
           Logo
         </div>
       )}
 
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="text-lg font-semibold text-ink">
           {data.title || "Bienvenue sur le réseau Wi-Fi"}
         </h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-ink-soft">
           {data.subtitle || "Entrez votre code d'accès pour vous connecter."}
         </p>
       </div>
@@ -51,7 +51,7 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
         <input
           disabled
           placeholder={data.voucherFieldLabel || "Code d'accès"}
-          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-500 placeholder:text-slate-400"
+          className="w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink-soft placeholder:text-ink-soft"
         />
         <button
           type="button"
@@ -65,10 +65,10 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
 
       {data.mobileMoneyEnabled && (
         <div className="w-full max-w-xs">
-          <div className="flex items-center gap-2 text-[11px] text-slate-400">
-            <span className="h-px flex-1 bg-slate-200" />
+          <div className="flex items-center gap-2 text-[11px] text-ink-soft">
+            <span className="h-px flex-1 bg-clay" />
             ou payer maintenant
-            <span className="h-px flex-1 bg-slate-200" />
+            <span className="h-px flex-1 bg-clay" />
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {MOBILE_MONEY_PROVIDERS.map((p) => (
@@ -86,10 +86,10 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
       )}
 
       {data.termsText && (
-        <p className="max-w-xs text-[11px] text-slate-400">{data.termsText}</p>
+        <p className="max-w-xs text-[11px] text-ink-soft">{data.termsText}</p>
       )}
       {data.footerText && (
-        <p className="text-[11px] text-slate-400">{data.footerText}</p>
+        <p className="text-[11px] text-ink-soft">{data.footerText}</p>
       )}
 
       {activeProvider && (

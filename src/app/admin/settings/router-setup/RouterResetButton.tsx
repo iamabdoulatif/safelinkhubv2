@@ -36,7 +36,7 @@ export default function RouterResetButton({
   if (confirming) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-500">{confirmLabel} ?</span>
+        <span className="text-sm text-ink-soft">{confirmLabel} ?</span>
         <button
           type="button"
           onClick={handleConfirm}
@@ -49,7 +49,7 @@ export default function RouterResetButton({
           type="button"
           onClick={() => setConfirming(false)}
           disabled={pending}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          className="rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-clay"
         >
           Annuler
         </button>

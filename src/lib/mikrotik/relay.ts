@@ -1,5 +1,21 @@
 import { Client } from "ssh2";
 
+export function normalizeRelayPublicHost(value: string | undefined | null): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const withoutProtocol = trimmed.replace(/^https?:\/\//i, "");
+  return withoutProtocol.split("/")[0].split(":")[0];
+}
+
+export function getRelayPublicHost(): string {
+  return normalizeRelayPublicHost(process.env.WG_RELAY_PUBLIC_HOST || process.env.WG_RELAY_HOST);
+}
+
+function shellArg(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 function getRelayPrivateKey(): string {
   const b64 = process.env.WG_RELAY_SSH_KEY_B64;
   if (!b64) throw new Error("WG_RELAY_SSH_KEY_B64 is not set");
@@ -72,9 +88,11 @@ export type VpnPeer = {
 
 export async function allocateVpnPeer(name: string): Promise<VpnPeer> {
   const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 40) || "router";
-  const output = await runOnRelay(`sudo bash -s -- ${safeName} <<'SCRIPT'
+  const publicHost = getRelayPublicHost();
+  const output = await runOnRelay(`sudo bash -s -- ${shellArg(safeName)} ${shellArg(publicHost)} <<'SCRIPT'
 set -euo pipefail
 NAME="$1"
+PUBLIC_HOST="$2"
 cd /etc/wireguard
 
 declare -A used
@@ -103,7 +121,7 @@ PEER_IP="10.66.0.\${NEXT_OCTET}/32"
 PEER_PRIV=$(wg genkey)
 PEER_PUB=$(echo "$PEER_PRIV" | wg pubkey)
 SERVER_PUB=$(cat server_public.key)
-SERVER_IP=$(curl -fsS https://checkip.amazonaws.com)
+SERVER_HOST="\${PUBLIC_HOST:-$(curl -fsS https://checkip.amazonaws.com)}"
 
 wg set wg0 peer "$PEER_PUB" allowed-ips "$PEER_IP"
 wg-quick save wg0 >/dev/null 2>&1 || true
@@ -116,7 +134,7 @@ echo "Address = \${PEER_IP}"
 echo ""
 echo "[Peer]"
 echo "PublicKey = \${SERVER_PUB}"
-echo "Endpoint = \${SERVER_IP}:51820"
+echo "Endpoint = \${SERVER_HOST}:51820"
 echo "AllowedIPs = 10.66.0.0/24"
 echo "PersistentKeepalive = 25"
 SCRIPT`);
@@ -161,9 +179,11 @@ export async function allocateOpenvpnPeer(name: string): Promise<OpenvpnPeer> {
   // as its real OpenVPN username — it's just a string both RouterOS and the
   // relay's checkpsw.sh treat as an opaque login, not an actual DNS lookup.
   const safeName = name.replace(/[^a-zA-Z0-9@._-]/g, "-").slice(0, 64) || "router";
-  const output = await runOnRelay(`sudo bash -s -- ${safeName} <<'SCRIPT'
+  const publicHost = getRelayPublicHost();
+  const output = await runOnRelay(`sudo bash -s -- ${shellArg(safeName)} ${shellArg(publicHost)} <<'SCRIPT'
 set -euo pipefail
 NAME="$1"
+PUBLIC_HOST="$2"
 mkdir -p /etc/openvpn/ccd /etc/openvpn/users
 
 declare -A used
@@ -190,7 +210,7 @@ fi
 
 CLIENT_IP="10.67.0.\${NEXT_OCTET}"
 PASSWORD=$(openssl rand -base64 18 | tr -dc 'a-zA-Z0-9')
-SERVER_IP=$(curl -fsS https://checkip.amazonaws.com)
+SERVER_HOST="\${PUBLIC_HOST:-$(curl -fsS https://checkip.amazonaws.com)}"
 
 echo "ifconfig-push \${CLIENT_IP} 255.255.255.0" > /etc/openvpn/ccd/"\${NAME}"
 echo -n "\${PASSWORD}" > /etc/openvpn/users/"\${NAME}".pass
@@ -199,7 +219,7 @@ chmod 600 /etc/openvpn/users/"\${NAME}".pass
 echo "Username = \${NAME}"
 echo "Password = \${PASSWORD}"
 echo "ClientIp = \${CLIENT_IP}"
-echo "Endpoint = \${SERVER_IP}:1194"
+echo "Endpoint = \${SERVER_HOST}:1194"
 SCRIPT`);
 
   const get = (key: string) => {

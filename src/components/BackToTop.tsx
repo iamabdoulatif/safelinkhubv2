@@ -17,7 +17,7 @@ export default function BackToTop() {
       type="button"
       aria-label="Retour en haut"
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-      className={`fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg transition-all duration-300 hover:bg-emerald-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 ${
+      className={`fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center border-2 border-line bg-brand text-[#1C1917] transition-all duration-300 hover:bg-ink hover:text-paper ${
         visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0 pointer-events-none"
       }`}
     >

@@ -63,8 +63,8 @@ export default async function UsersPage() {
 
   return (
     <div className="animate-fade-in-up">
-      <h1 className="text-2xl font-bold text-slate-900">Utilisateurs</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="text-2xl font-bold text-ink">Utilisateurs</h1>
+      <p className="mt-1 text-sm text-ink-soft">
         {superadmin
           ? "Utilisateurs inscrits sur le SaaS et quota VPN gratuit/payant par organisation."
           : "Membres de l'équipe ayant accès à cette organisation SafeLinkHub."}
@@ -75,26 +75,26 @@ export default async function UsersPage() {
           column embeds its own select + submit button. */}
       <div className="mt-4 space-y-3 md:hidden">
         {orgUsers.map((u) => (
-          <div key={u.id} className="rounded-xl border border-slate-200 bg-white p-4">
+          <div key={u.id} className="border-2 border-line bg-paper p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="truncate font-medium text-slate-900">{u.name}</p>
-                <p className="truncate text-sm text-slate-500">{u.email}</p>
+                <p className="truncate font-medium text-ink">{u.name}</p>
+                <p className="truncate text-sm text-ink-soft">{u.email}</p>
               </div>
-              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize text-slate-600">
+              <span className="shrink-0 rounded-full bg-clay px-2 py-0.5 text-xs font-medium capitalize text-ink-soft">
                 {u.role}
               </span>
             </div>
 
             {superadmin && (
-              <p className="mt-2 truncate text-xs text-slate-400">{u.orgName}</p>
+              <p className="mt-2 truncate text-xs text-ink-soft">{u.orgName}</p>
             )}
 
-            <p className="mt-2 text-xs text-slate-400">Inscrit le {formatDate(u.createdAt)}</p>
+            <p className="mt-2 text-xs text-ink-soft">Inscrit le {formatDate(u.createdAt)}</p>
 
             {superadmin && (
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <p className="mb-2 text-xs font-medium text-slate-600">
+              <div className="mt-3 border-t border-line-soft pt-3">
+                <p className="mb-2 text-xs font-medium text-ink-soft">
                   Quota VPN — {quotaLabel(u)}
                 </p>
                 <VpnQuotaForm userId={u.id} userEmail={u.email} />
@@ -105,10 +105,10 @@ export default async function UsersPage() {
       </div>
 
       {/* Desktop / tablet: table */}
-      <div className="mt-4 hidden overflow-hidden rounded-xl border border-slate-200 bg-white md:block">
+      <div className="mt-4 hidden overflow-hidden border-2 border-line bg-paper md:block">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+          <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">Nom</th>
               <th className="px-4 py-3 font-medium">Email</th>
@@ -118,28 +118,28 @@ export default async function UsersPage() {
               <th className="px-4 py-3 font-medium">Inscrit le</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-line-soft">
             {orgUsers.map((u) => (
               <tr key={u.id}>
-                <td className="px-4 py-3 text-slate-900">{u.name}</td>
-                <td className="px-4 py-3 text-slate-600">{u.email}</td>
-                {superadmin && <td className="px-4 py-3 text-slate-600">{u.orgName}</td>}
+                <td className="px-4 py-3 text-ink">{u.name}</td>
+                <td className="px-4 py-3 text-ink-soft">{u.email}</td>
+                {superadmin && <td className="px-4 py-3 text-ink-soft">{u.orgName}</td>}
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize text-slate-600">
+                  <span className="rounded-full bg-clay px-2 py-0.5 text-xs font-medium capitalize text-ink-soft">
                     {u.role}
                   </span>
                 </td>
                 {superadmin && (
                   <td className="px-4 py-3">
                     <div className="flex min-w-64 flex-col gap-2">
-                      <span className="text-xs font-medium text-slate-600">
+                      <span className="text-xs font-medium text-ink-soft">
                         {quotaLabel(u)}
                       </span>
                       <VpnQuotaForm userId={u.id} userEmail={u.email} />
                     </div>
                   </td>
                 )}
-                <td className="px-4 py-3 text-slate-600">
+                <td className="px-4 py-3 text-ink-soft">
                   {formatDate(u.createdAt)}
                 </td>
               </tr>

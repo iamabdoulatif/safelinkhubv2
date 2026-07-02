@@ -47,16 +47,16 @@ export default function VoucherTable({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Vouchers</h1>
+        <h1 className="text-2xl font-bold text-ink">Vouchers</h1>
         <div className="flex items-center gap-2">
           {headerExtra}
           <DownloadVouchersModal selectedUsernames={selectedUsernames} />
         </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white table-mobile-wrapper">
+      <div className="mt-4 overflow-hidden border-2 border-line bg-paper table-mobile-wrapper">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+          <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="w-10 px-4 py-3">
                 <input
@@ -75,10 +75,10 @@ export default function VoucherTable({
               <th className="px-4 py-3 font-medium">Créé le</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-line-soft">
             {vouchers.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-ink-soft">
                   Aucun voucher pour le moment. Générez votre premier lot.
                 </td>
               </tr>
@@ -92,25 +92,25 @@ export default function VoucherTable({
                     onChange={() => toggleOne(v.id)}
                   />
                 </td>
-                <td className="px-4 py-3 font-mono text-slate-900">
+                <td className="px-4 py-3 font-mono text-ink">
                   {v.username}
                 </td>
-                <td className="px-4 py-3 text-slate-600">{v.packageName}</td>
+                <td className="px-4 py-3 text-ink-soft">{v.packageName}</td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">
+                  <span className="rounded-full bg-ink px-2 py-0.5 text-xs font-medium text-white">
                     {v.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{v.firstLogin}</td>
-                <td className="px-4 py-3 text-slate-600">{v.expiresOn}</td>
-                <td className="px-4 py-3 text-slate-600">{v.useCase}</td>
-                <td className="px-4 py-3 text-slate-600">{v.note}</td>
-                <td className="px-4 py-3 text-slate-600">{v.createdOn}</td>
+                <td className="px-4 py-3 text-ink-soft">{v.firstLogin}</td>
+                <td className="px-4 py-3 text-ink-soft">{v.expiresOn}</td>
+                <td className="px-4 py-3 text-ink-soft">{v.useCase}</td>
+                <td className="px-4 py-3 text-ink-soft">{v.note}</td>
+                <td className="px-4 py-3 text-ink-soft">{v.createdOn}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-500">
+        <div className="flex items-center justify-between border-t border-line-soft px-4 py-3 text-sm text-ink-soft">
           <span>
             {selected.size} sur {vouchers.length} ligne(s) sélectionnée(s).
           </span>

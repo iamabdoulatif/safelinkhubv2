@@ -53,7 +53,7 @@ export default function GenerateOpenvpnScriptForm() {
 
   if (connection === "connected") {
     return (
-      <div className="rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+      <div className="rounded-md bg-clay px-4 py-3 text-sm text-ok">
         Routeur connecté avec succès via le tunnel OpenVPN. Consultez les
         statistiques en direct sur le{" "}
         <a href="/admin/router" className="font-semibold underline">
@@ -67,27 +67,27 @@ export default function GenerateOpenvpnScriptForm() {
   if (state?.success && state.command) {
     return (
       <div>
-        <h3 className="text-sm font-medium text-slate-700">
+        <h3 className="text-sm font-medium text-ink">
           Script d&apos;installation OpenVPN
         </h3>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-ink-soft">
           Copiez cette commande et collez-la dans le terminal MikroTik
           RouterOS.
         </p>
         <div className="relative mt-2">
-          <pre className="overflow-x-auto rounded-md bg-slate-900 p-4 pr-12 text-xs text-emerald-300">
+          <pre className="code-block p-4 pr-12">
             {state.command}
           </pre>
           <button
             onClick={copyCommand}
-            className="absolute right-2 top-2 rounded-md bg-slate-800 p-1.5 text-slate-300 hover:bg-slate-700"
+            className="absolute right-2 top-2 rounded-md bg-[#3A362F] p-1.5 text-clay hover:bg-[#3A362F]"
             title="Copier la commande"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </button>
         </div>
 
-        <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+        <div className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
           {connection === "waiting" && (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -95,7 +95,7 @@ export default function GenerateOpenvpnScriptForm() {
             </>
           )}
           {connection === "timeout" && (
-            <span className="text-amber-600">
+            <span className="text-warn">
               Toujours en attente après 5 minutes. Vérifiez que la commande
               s&apos;est exécutée sans erreur sur le routeur, et que le port
               UDP 1194 est bien ouvert vers le relais.
@@ -114,20 +114,20 @@ export default function GenerateOpenvpnScriptForm() {
         </p>
       )}
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">
+        <label className="mb-1 block text-sm font-medium text-ink">
           Nom du routeur
         </label>
         <input
           name="name"
           required
           placeholder="hAP ac lite"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
         />
       </div>
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
       >
         {pending ? "Génération..." : "Générer le script d'installation"}
       </button>

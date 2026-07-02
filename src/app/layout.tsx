@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Syne, Instrument_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const syne = Syne({
+  variable: "--font-syne",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+});
+
+const instrumentSans = Instrument_Sans({
+  variable: "--font-instrument-sans",
   subsets: ["latin"],
 });
 
@@ -26,9 +32,9 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased overflow-x-hidden`}
+      className={`${syne.variable} ${instrumentSans.variable} ${geistMono.variable} h-full antialiased overflow-x-hidden`}
     >
-      <body className="min-h-full flex flex-col bg-white text-slate-900">
+      <body className="min-h-full flex flex-col bg-paper text-ink">
         {children}
       </body>
     </html>

@@ -71,32 +71,32 @@ export default async function RouterDashboardPage() {
         }))}
       />
 
-      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-8">
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-line-soft pt-8">
         <div className="flex flex-wrap items-center gap-2">
-          <Router className="h-5 w-5 text-slate-700" />
-          <h2 className="text-xl font-bold text-slate-900">
+          <Router className="h-5 w-5 text-ink" />
+          <h2 className="text-xl font-bold text-ink">
             Détails — {router.name}
           </h2>
         </div>
         <RefreshButton routerId={router.id} />
       </div>
 
-      <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-slate-500">
+      <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-ink-soft">
         <span
           className={`flex items-center gap-1.5 ${
-            router.status === "online" ? "text-emerald-600" : "text-red-500"
+            router.status === "online" ? "text-ok" : "text-red-500"
           }`}
         >
           <span
             className={`h-2 w-2 rounded-full ${
-              router.status === "online" ? "bg-emerald-500" : "bg-red-500"
+              router.status === "online" ? "bg-ok" : "bg-red-500"
             }`}
           />
           {router.status === "online" ? "En ligne" : "Hors ligne"}
         </span>
         <span>Dernière synchro : {timeAgo(router.lastSyncAt)}</span>
       </div>
-      <p className="mt-1 text-sm text-slate-400">
+      <p className="mt-1 text-sm text-ink-soft">
         Routeur : {router.model} ({router.host})
       </p>
 
@@ -104,10 +104,10 @@ export default async function RouterDashboardPage() {
         {stats.map((s, i) => (
           <div
             key={s.label}
-            className={`rounded-xl border border-slate-200 bg-white p-4 hover-lift delay-${(i + 1) * 100}`}
+            className={`border-2 border-line bg-paper p-4 hover-lift delay-${(i + 1) * 100}`}
           >
-            <p className="text-sm text-slate-500">{s.label}</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">
+            <p className="text-sm text-ink-soft">{s.label}</p>
+            <p className="mt-2 text-2xl font-semibold text-ink">
               {s.value}
             </p>
           </div>

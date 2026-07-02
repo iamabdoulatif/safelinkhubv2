@@ -10,12 +10,12 @@ export default async function PaymentGatewaysPage() {
   return (
     <div className="mx-auto max-w-4xl animate-fade-in-up">
       <div className="flex items-center gap-2">
-        <CreditCard className="h-5 w-5 text-slate-700" />
-        <h1 className="text-2xl font-bold text-slate-900">
+        <CreditCard className="h-5 w-5 text-ink" />
+        <h1 className="text-2xl font-bold text-ink">
           Passerelles de paiement
         </h1>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Connectez vos comptes marchands. Paystack, Genius Pay et PawaPay sont
         des agrégateurs : chacun couvre déjà Wave, Orange Money, Moov Money,
         MTN MoMo et carte bancaire en interne — inutile de configurer ces
@@ -37,7 +37,7 @@ export default async function PaymentGatewaysPage() {
         })}
       </div>
 
-      <p className="mt-6 rounded-md bg-amber-50 px-4 py-3 text-xs text-amber-700">
+      <p className="mt-6 rounded-md bg-clay px-4 py-3 text-xs text-warn">
         Les clés sont chiffrées au repos. Le bouton de paiement affiché sur le
         portail captif (voir Modèles de portail captif) est pour l&apos;instant
         une maquette d&apos;interface — aucun débit réel n&apos;est encore

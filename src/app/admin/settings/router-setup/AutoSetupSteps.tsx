@@ -70,9 +70,9 @@ function StepShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="animate-fade-slide-up mt-8 rounded-xl border border-slate-200 bg-white p-6">
-      <h2 className="font-semibold text-slate-900">{title}</h2>
-      {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+    <div className="animate-fade-slide-up mt-8 border-2 border-line bg-paper p-6">
+      <h2 className="font-semibold text-ink">{title}</h2>
+      {description && <p className="mt-1 text-sm text-ink-soft">{description}</p>}
 
       <div className="mt-4">{children}</div>
 
@@ -80,7 +80,7 @@ function StepShell({
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          className="flex items-center gap-1.5 rounded-lg border border-line-soft px-4 py-2.5 text-sm font-medium text-ink-soft hover:bg-clay"
         >
           <ArrowLeft className="h-4 w-4" />
           Précédent
@@ -90,7 +90,7 @@ function StepShell({
             type="button"
             onClick={onNext}
             disabled={nextDisabled}
-            className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {nextLabel}
           </button>
@@ -103,14 +103,14 @@ function StepShell({
 function UnlockCommandBlock() {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="mt-2 rounded-md bg-amber-50 px-3 py-2.5">
-      <p className="text-xs font-medium text-amber-700">
+    <div className="mt-2 rounded-md bg-clay px-3 py-2.5">
+      <p className="text-xs font-medium text-warn">
         Container verrouillé par le mode RouterOS — collez cette commande dans le terminal
         Winbox/SSH, puis confirmez en appuyant sur le bouton reset/mode (ou en
         débranchant/rebranchant l&apos;appareil) dans les 10 minutes :
       </p>
       <div className="relative mt-1.5">
-        <pre className="overflow-x-auto rounded-md bg-slate-900 px-3 py-2 pr-10 text-xs text-emerald-300">
+        <pre className="code-block px-3 py-2 pr-10">
           {UNLOCK_COMMAND}
         </pre>
         <button
@@ -125,7 +125,7 @@ function UnlockCommandBlock() {
             setTimeout(() => setCopied(false), 2000);
           }}
           title="Copier la commande"
-          className="absolute right-1.5 top-1.5 rounded-md bg-slate-800 p-1.5 text-slate-300 hover:bg-slate-700"
+          className="absolute right-1.5 top-1.5 rounded-md bg-[#3A362F] p-1.5 text-clay hover:bg-[#3A362F]"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
@@ -383,14 +383,14 @@ export default function AutoSetupSteps({
         </div>
 
         {!hotspotBridge ? (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <p className="rounded-md bg-clay px-3 py-2 text-sm text-warn">
             Configurez d&apos;abord un bridge hotspot à l&apos;Étape 2 (Topologie réseau) — son
             adresse IP de passerelle sera réutilisée ici automatiquement.
           </p>
         ) : (
-          <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <p className="rounded-md bg-clay px-3 py-2 text-xs text-ink-soft">
             Adresse IP du hotspot (passerelle) :{" "}
-            <span className="font-medium text-slate-800">
+            <span className="font-medium text-ink">
               {hotspotAddress}/{hotspotPrefixBits}
             </span>{" "}
             — héritée du bridge configuré à l&apos;Étape 2.
@@ -399,63 +399,63 @@ export default function AutoSetupSteps({
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
+            <label className="mb-1 block text-xs font-medium text-ink-soft">
               Nom du hotspot / profil
             </label>
             <input
               value={hotspotName}
               onChange={(e) => setHotspotName(e.target.value)}
               placeholder="MIRADOR-WIFI"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
+            <label className="mb-1 block text-xs font-medium text-ink-soft">
               Nom de domaine du portail (DNS name)
             </label>
             <input
               value={dnsName}
               onChange={(e) => setDnsName(e.target.value)}
               placeholder="mirador.ci"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
+            <label className="mb-1 block text-xs font-medium text-ink-soft">
               Nom du réseau WiFi (SSID)
             </label>
             <input
               value={ssid}
               onChange={(e) => setSsid(e.target.value)}
               placeholder="MIRADOR WIFI"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
+            <label className="mb-1 block text-xs font-medium text-ink-soft">
               Nom du serveur hotspot (avancé)
             </label>
             <input
               value={serverName}
               onChange={(e) => setServerName(e.target.value)}
               placeholder="hotspot1"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
             />
-            <p className="mt-1 text-[11px] text-slate-400">
+            <p className="mt-1 text-[11px] text-ink-soft">
               Laissez vide pour garder &quot;hotspot1&quot;.
             </p>
           </div>
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-slate-500">
+            <label className="mb-1 block text-xs font-medium text-ink-soft">
               Utilisateurs hotspot par défaut (optionnel)
             </label>
             <input
               value={defaultHotspotUsers}
               onChange={(e) => setDefaultHotspotUsers(e.target.value)}
               placeholder="admin, president01@"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
             />
-            <p className="mt-1 text-[11px] text-slate-400">
+            <p className="mt-1 text-[11px] text-ink-soft">
               Séparés par des virgules. Chaque mot de passe sera identique au nom utilisateur.
               Laissez vide si vous gérez les accès via les profils voucher.
             </p>
@@ -463,14 +463,14 @@ export default function AutoSetupSteps({
         </div>
 
         {subnet ? (
-          <div className="mt-3 rounded-md bg-sky-50 px-3 py-2.5 text-xs text-sky-800">
+          <div className="mt-3 rounded-md bg-clay px-3 py-2.5 text-xs text-ink">
             <p className="font-medium">
               {hotspotAddress.trim()}/{hotspotPrefixBits} → réseau {subnet.networkAddress}/
               {hotspotPrefixBits}, plage utilisable {subnet.firstUsable} – {subnet.lastUsable} (
               {subnet.usableHostCount.toLocaleString("fr-FR")} adresses, dont une réservée pour la
               passerelle).
             </p>
-            <p className="mt-1 text-sky-700">{getImpactNote(hotspotPrefixBits)}</p>
+            <p className="mt-1 text-ink">{getImpactNote(hotspotPrefixBits)}</p>
           </div>
         ) : (
           hotspotAddress.trim() && (
@@ -494,7 +494,7 @@ export default function AutoSetupSteps({
         nextDisabled={archSupportsContainers && containerBlockedReason === "device-mode" && !skipMikhmon}
       >
         {!archSupportsContainers && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <p className="rounded-md bg-clay px-3 py-2 text-sm text-warn">
             Container indisponible sur cet appareil (architecture non compatible) —
             l&apos;étape MikHmon sera automatiquement ignorée, seul le hotspot sera configuré.
           </p>
@@ -502,24 +502,24 @@ export default function AutoSetupSteps({
 
         {archSupportsContainers && containerBlockedReason === "device-mode" && !skipMikhmon && (
           <>
-            <p className="flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            <p className="flex items-center justify-between gap-2 rounded-md bg-clay px-3 py-2 text-sm text-warn">
               <span>Container verrouillé par le mode RouterOS sur cet appareil.</span>
               <button
                 type="button"
                 onClick={revalidateDetection}
                 disabled={revalidating}
-                className="shrink-0 rounded-md border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                className="shrink-0 rounded-md border border-warn px-2 py-1 text-xs font-medium text-warn hover:bg-clay disabled:opacity-50"
               >
                 {revalidating ? "Vérification..." : "Relancer la vérification"}
               </button>
             </p>
-            <p className="mt-1.5 text-xs text-amber-600">
+            <p className="mt-1.5 text-xs text-warn">
               La commande ci-dessous seule ne suffit pas — il faut aussi confirmer
               physiquement (bouton reset, ou débrancher/rebrancher l&apos;appareil) dans les
               10 minutes qui suivent. Cette page revérifie automatiquement toutes les 15s, ou
               cliquez sur &quot;Relancer la vérification&quot; juste après avoir confirmé.
             </p>
-            <p className="mt-2 rounded-md bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800">
+            <p className="mt-2 rounded-md bg-clay px-3 py-2 text-xs font-medium text-warn">
               Tant que cette confirmation physique n&apos;est pas détectée, l&apos;étape suivante
               (et le lancement de l&apos;auto-setup complet) reste bloquée — pour ne pas
               configurer le hotspot en pensant que MikHmon est inclus alors qu&apos;il aurait
@@ -531,12 +531,12 @@ export default function AutoSetupSteps({
         )}
 
         {archSupportsContainers && (
-          <label className="mt-4 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <label className="mt-4 flex items-center gap-2 rounded-md border border-warn bg-clay px-3 py-2 text-sm text-warn">
             <input
               type="checkbox"
               checked={skipMikhmon}
               onChange={(e) => setSkipMikhmon(e.target.checked)}
-              className="h-4 w-4 rounded border-amber-300"
+              className="h-4 w-4 rounded border-warn"
             />
             Ignorer MikHmon pour cette installation (configurer seulement le hotspot/Wi-Fi —
             vous pourrez relancer l&apos;auto-setup plus tard pour ajouter MikHmon)
@@ -544,7 +544,7 @@ export default function AutoSetupSteps({
         )}
 
         {archSupportsContainers && !skipMikhmon && (
-          <label className="mt-4 flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700">
+          <label className="mt-4 flex items-center gap-2 rounded-md border border-line-soft px-3 py-2 text-sm text-ink">
             <input
               type="checkbox"
               checked={hasUsbStorage}
@@ -552,14 +552,14 @@ export default function AutoSetupSteps({
                 setUsbTouched(true);
                 setHasUsbStorage(e.target.checked);
               }}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-line-soft"
             />
             Le routeur a une clé USB branchée
           </label>
         )}
 
         {archSupportsContainers && !skipMikhmon && requiresUsbForContainer && !hasUsbStorage && (
-          <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <p className="mt-3 rounded-md bg-clay px-3 py-2 text-xs text-warn">
             Ce modèle n&apos;a pas assez de mémoire flash interne pour installer MikHmon sans clé
             USB — branchez une clé USB sur le routeur puis cochez la case ci-dessus avant de
             lancer la configuration, sous peine d&apos;échec ou de saturation de la flash.
@@ -578,28 +578,28 @@ export default function AutoSetupSteps({
         onBack={() => onStepChange(4)}
         onNext={() => onStepChange(6)}
       >
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-soft">
           Gérables ensuite depuis MikHmon (image{" "}
-          <code className="rounded bg-slate-100 px-1 py-0.5">latif225/mikhmonv3-safelinkhub:latest</code>
+          <code className="rounded bg-clay px-1 py-0.5">latif225/mikhmonv3-safelinkhub:latest</code>
           ).
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {customProfiles.length === 0 && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-ink-soft">
               Aucun profil encore — créez-en au moins un ci-dessous.
             </p>
           )}
           {customProfiles.map((profile) => (
             <span
               key={profile.name}
-              className="flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-700"
+              className="flex items-center gap-1.5 rounded-md border border-ok bg-clay px-3 py-1.5 text-sm text-ok"
             >
               {profile.label}
               <button
                 type="button"
                 onClick={() => removeCustomProfile(profile.name)}
                 title="Retirer ce profil"
-                className="text-emerald-500 hover:text-emerald-700"
+                className="text-ok hover:text-ok"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -609,7 +609,7 @@ export default function AutoSetupSteps({
 
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-500">
+            <label className="mb-1 block text-[11px] font-medium text-ink-soft">
               Créer un profil personnalisé
             </label>
             <div className="flex gap-2">
@@ -618,12 +618,12 @@ export default function AutoSetupSteps({
                 min={1}
                 value={customAmount}
                 onChange={(e) => setCustomAmount(e.target.value)}
-                className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-20 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-line-soft focus:outline-none"
               />
               <select
                 value={customUnit}
                 onChange={(e) => setCustomUnit(e.target.value as DurationUnit)}
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+                className="rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-line-soft focus:outline-none"
               >
                 {DURATION_UNIT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -634,7 +634,7 @@ export default function AutoSetupSteps({
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-500">
+            <label className="mb-1 block text-[11px] font-medium text-ink-soft">
               Prix (FCFA)
             </label>
             <input
@@ -643,13 +643,13 @@ export default function AutoSetupSteps({
               value={customPrice}
               onChange={(e) => setCustomPrice(e.target.value)}
               placeholder="0"
-              className="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-24 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-line-soft focus:outline-none"
             />
           </div>
           <button
             type="button"
             onClick={addCustomProfile}
-            className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="flex items-center gap-1 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
           >
             <Plus className="h-3.5 w-3.5" />
             Ajouter ce profil
@@ -669,16 +669,16 @@ export default function AutoSetupSteps({
         onBack={() => onStepChange(5)}
         onNext={() => onStepChange(7)}
       >
-        <label className="flex items-center gap-3 rounded-md border border-slate-200 px-4 py-3 text-sm text-slate-700">
+        <label className="flex items-center gap-3 rounded-md border border-line-soft px-4 py-3 text-sm text-ink">
           <input
             type="checkbox"
             checked={installCaptivePortal}
             onChange={(e) => setInstallCaptivePortal(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
+            className="h-4 w-4 rounded border-line-soft"
           />
           <span>
             <span className="block font-medium">Installer automatiquement le portail captif SafeLinkHub</span>
-            <span className="mt-0.5 block text-xs text-slate-400">
+            <span className="mt-0.5 block text-xs text-ink-soft">
               Remplace la page de connexion par défaut RouterOS par le portail SafeLinkHub
               (logo, plans, paiement mobile money, vendeurs agréés). Réutilise vos coordonnées
               déjà personnalisées si vous en avez (page Modèles de portail captif), sinon installe
@@ -688,21 +688,21 @@ export default function AutoSetupSteps({
         </label>
 
         {installCaptivePortal && packageTemplates.length > 1 && (
-          <div className="mt-3 rounded-md border border-slate-200 px-4 py-3">
-            <p className="text-xs font-medium text-slate-500">Quel modèle installer ?</p>
+          <div className="mt-3 rounded-md border border-line-soft px-4 py-3">
+            <p className="text-xs font-medium text-ink-soft">Quel modèle installer ?</p>
             <div className="mt-2 space-y-1.5">
               {packageTemplates.map((tpl) => (
-                <label key={tpl.id} className="flex items-center gap-2 text-sm text-slate-700">
+                <label key={tpl.id} className="flex items-center gap-2 text-sm text-ink">
                   <input
                     type="radio"
                     name="captive-template"
                     checked={selectedTemplateId === tpl.id}
                     onChange={() => setSelectedTemplateId(tpl.id)}
-                    className="h-4 w-4 border-slate-300"
+                    className="h-4 w-4 border-line-soft"
                   />
                   {tpl.name}
                   {tpl.isDefault && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                    <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-warn">
                       Par défaut
                     </span>
                   )}
@@ -713,7 +713,7 @@ export default function AutoSetupSteps({
         )}
 
         {!installCaptivePortal && (
-          <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <p className="mt-3 rounded-md bg-clay px-3 py-2 text-xs text-warn">
             La page de connexion par défaut de RouterOS sera conservée. Vous pourrez installer le
             portail captif SafeLinkHub plus tard depuis{" "}
             <span className="font-medium">Modèles de portail captif</span>.
@@ -725,11 +725,11 @@ export default function AutoSetupSteps({
 
   // step === 7
   return (
-    <div key={step} className="animate-fade-slide-up mt-8 rounded-xl border border-slate-200 bg-white p-6">
+    <div key={step} className="animate-fade-slide-up mt-8 border-2 border-line bg-paper p-6">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Box className="h-5 w-5 text-slate-700" />
-          <h2 className="font-semibold text-slate-900">
+          <Box className="h-5 w-5 text-ink" />
+          <h2 className="font-semibold text-ink">
             Étape 7 : Récapitulatif & lancement
             {archSupportsContainers && !skipMikhmon ? " (Hotspot + MikHmon)" : " (Hotspot)"}
           </h2>
@@ -746,7 +746,7 @@ export default function AutoSetupSteps({
           )
         )}
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Construit le bridge HOTSPOT sur tous les ports LAN, le pool/DHCP/profil du portail
         captif, installe le portail captif SafeLinkHub
         {archSupportsContainers && !skipMikhmon
@@ -772,40 +772,40 @@ export default function AutoSetupSteps({
         </div>
       )}
 
-      <dl className="mt-4 grid grid-cols-1 gap-3 rounded-md bg-slate-50 p-3 text-xs sm:grid-cols-2">
+      <dl className="mt-4 grid grid-cols-1 gap-3 rounded-md bg-clay p-3 text-xs sm:grid-cols-2">
         <div>
-          <dt className="text-slate-400">Adresse IP hotspot</dt>
-          <dd className="font-medium text-slate-700">
+          <dt className="text-ink-soft">Adresse IP hotspot</dt>
+          <dd className="font-medium text-ink">
             {hotspotBridge ? `${hotspotAddress}/${hotspotPrefixBits}` : "— (à configurer)"}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-400">Nom du hotspot</dt>
-          <dd className="font-medium text-slate-700">{hotspotName || "—"}</dd>
+          <dt className="text-ink-soft">Nom du hotspot</dt>
+          <dd className="font-medium text-ink">{hotspotName || "—"}</dd>
         </div>
         <div>
-          <dt className="text-slate-400">Domaine du portail</dt>
-          <dd className="font-medium text-slate-700">{dnsName || "—"}</dd>
+          <dt className="text-ink-soft">Domaine du portail</dt>
+          <dd className="font-medium text-ink">{dnsName || "—"}</dd>
         </div>
         <div>
-          <dt className="text-slate-400">SSID Wi-Fi</dt>
-          <dd className="font-medium text-slate-700">{ssid || "—"}</dd>
+          <dt className="text-ink-soft">SSID Wi-Fi</dt>
+          <dd className="font-medium text-ink">{ssid || "—"}</dd>
         </div>
         <div>
-          <dt className="text-slate-400">Clé USB</dt>
-          <dd className="font-medium text-slate-700">{hasUsbStorage ? "Oui" : "Non"}</dd>
+          <dt className="text-ink-soft">Clé USB</dt>
+          <dd className="font-medium text-ink">{hasUsbStorage ? "Oui" : "Non"}</dd>
         </div>
         <div>
-          <dt className="text-slate-400">Portail captif</dt>
-          <dd className="font-medium text-slate-700">
+          <dt className="text-ink-soft">Portail captif</dt>
+          <dd className="font-medium text-ink">
             {installCaptivePortal
               ? packageTemplates.find((t) => t.id === selectedTemplateId)?.name ?? "Modèle par défaut"
               : "Page par défaut RouterOS"}
           </dd>
         </div>
         <div className="sm:col-span-2">
-          <dt className="text-slate-400">Profils voucher ({customProfiles.length})</dt>
-          <dd className="font-medium text-slate-700">
+          <dt className="text-ink-soft">Profils voucher ({customProfiles.length})</dt>
+          <dd className="font-medium text-ink">
             {customProfiles.map((p) => p.label).join(", ") || "Aucun"}
           </dd>
         </div>
@@ -815,16 +815,16 @@ export default function AutoSetupSteps({
         <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{result.error}</p>
       )}
       {result?.firmwareUpdating && (
-        <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">{result.message}</p>
+        <p className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-warn">{result.message}</p>
       )}
       {result?.success && (
-        <div className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <div className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-ok">
           <p className="font-medium">
             Configuration appliquée. Le routeur redémarre — patientez ~1 minute avant de joindre
             le portail.
           </p>
           {result.log && (
-            <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-emerald-600/80">
+            <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-ok/80">
               {result.log.map((line, i) => (
                 <li key={i}>{line}</li>
               ))}
@@ -835,7 +835,7 @@ export default function AutoSetupSteps({
 
       {result?.success && (
         <div className="mt-4">
-          <p className="mb-2 text-xs font-medium text-slate-500">
+          <p className="mb-2 text-xs font-medium text-ink-soft">
             Vérification en direct sur le routeur (relisez l&apos;état réel une fois qu&apos;il a
             redémarré, avec le bouton « Réessayer » si besoin) :
           </p>
@@ -854,7 +854,7 @@ export default function AutoSetupSteps({
           (billing !== null && !billing.sufficientBalance)
         }
         onClick={run}
-        className="mt-4 flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+        className="mt-4 flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
       >
         {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         {pending ? "Configuration en cours..." : "Lancer l'auto-setup complet"}
@@ -864,7 +864,7 @@ export default function AutoSetupSteps({
         <button
           type="button"
           onClick={() => onStepChange(6)}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          className="flex items-center gap-1.5 rounded-lg border border-line-soft px-4 py-2.5 text-sm font-medium text-ink-soft hover:bg-clay"
         >
           <ArrowLeft className="h-4 w-4" />
           Précédent
@@ -872,7 +872,7 @@ export default function AutoSetupSteps({
         <button
           type="button"
           onClick={() => onStepChange(8)}
-          className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
+          className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A362F]"
         >
           Suivant : Tester la connexion
         </button>

@@ -6,8 +6,8 @@ import { auditRouterConfig, type ConfigAuditItem } from "@/lib/mikrotik/config-a
 import { repairRouterConfig } from "@/lib/mikrotik/container-setup";
 
 const STATUS_STYLES: Record<ConfigAuditItem["status"], { icon: typeof CheckCircle2; pill: string; text: string }> = {
-  ok: { icon: CheckCircle2, pill: "bg-emerald-50 text-emerald-700", text: "text-emerald-700" },
-  incomplete: { icon: AlertTriangle, pill: "bg-amber-50 text-amber-700", text: "text-amber-700" },
+  ok: { icon: CheckCircle2, pill: "bg-clay text-ok", text: "text-ok" },
+  incomplete: { icon: AlertTriangle, pill: "bg-clay text-warn", text: "text-warn" },
   missing: { icon: XCircle, pill: "bg-red-50 text-red-600", text: "text-red-600" },
 };
 
@@ -74,7 +74,7 @@ export default function ConfigAuditBanner({
 
   if (state.loading) {
     return (
-      <p className="mb-4 flex items-center gap-2 text-sm text-slate-400">
+      <p className="mb-4 flex items-center gap-2 text-sm text-ink-soft">
         <Loader2 className="h-4 w-4 animate-spin" />
         Vérification de la configuration existante sur le routeur...
       </p>
@@ -86,13 +86,13 @@ export default function ConfigAuditBanner({
     // common right after the auto-setup's own reboot, while the router is
     // still coming back up and briefly unreachable.
     return state.error ? (
-      <div className="mb-4 flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+      <div className="mb-4 flex items-center justify-between gap-2 rounded-md bg-clay px-3 py-2 text-xs text-warn">
         <span>{state.error}</span>
         <button
           type="button"
           onClick={refresh}
           disabled={refreshing}
-          className="flex shrink-0 items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 font-medium hover:bg-amber-100 disabled:opacity-50"
+          className="flex shrink-0 items-center gap-1 rounded-md border border-warn bg-paper px-2 py-1 font-medium hover:bg-clay disabled:opacity-50"
         >
           <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
           Réessayer
@@ -104,12 +104,12 @@ export default function ConfigAuditBanner({
   const issues = state.items.filter((i) => i.status !== "ok");
 
   return (
-    <div className="animate-fade-slide-up mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5">
+    <div className="animate-fade-slide-up mb-4 rounded-md border border-line-soft bg-clay px-3 py-2.5">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-slate-600">
+        <p className="text-xs font-medium text-ink-soft">
           Configuration détectée sur le routeur
           {issues.length === 0 && (
-            <span className="ml-1.5 text-emerald-600">— tout est en ordre</span>
+            <span className="ml-1.5 text-ok">— tout est en ordre</span>
           )}
         </p>
         <button
@@ -117,7 +117,7 @@ export default function ConfigAuditBanner({
           onClick={refresh}
           disabled={refreshing}
           title="Revérifier"
-          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-ink-soft hover:bg-clay hover:text-ink-soft disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
         </button>
@@ -151,14 +151,14 @@ export default function ConfigAuditBanner({
       )}
 
       {issues.length > 0 && (
-        <div className="mt-2.5 border-t border-slate-200 pt-2.5">
+        <div className="mt-2.5 border-t border-line-soft pt-2.5">
           {state.canRepair ? (
             <>
               <button
                 type="button"
                 onClick={repair}
                 disabled={repairing}
-                className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
               >
                 {repairing ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -167,13 +167,13 @@ export default function ConfigAuditBanner({
                 )}
                 {repairing ? "Réparation en cours..." : "Continuer l'auto-setup"}
               </button>
-              <p className="mt-1.5 text-[11px] text-slate-400">
+              <p className="mt-1.5 text-[11px] text-ink-soft">
                 Rejoue la même configuration que le dernier auto-setup — ne touche que ce qui
                 est manquant ci-dessus, le reste est laissé tel quel.
               </p>
             </>
           ) : (
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-ink-soft">
               Lancez d&apos;abord l&apos;assistant complet (Configuration routeur) une fois pour
               pouvoir réparer une étape manquante depuis ici.
             </p>
@@ -183,9 +183,9 @@ export default function ConfigAuditBanner({
             <div
               className={`mt-2 rounded-md px-2.5 py-2 text-xs ${
                 repairResult.success
-                  ? "bg-emerald-50 text-emerald-700"
+                  ? "bg-clay text-ok"
                   : repairResult.firmwareUpdating
-                    ? "bg-amber-50 text-amber-700"
+                    ? "bg-clay text-warn"
                     : "bg-red-50 text-red-600"
               }`}
             >
@@ -197,7 +197,7 @@ export default function ConfigAuditBanner({
                 <p>{repairResult.error ?? "Échec de la réparation."}</p>
               )}
               {repairResult.log && repairResult.log.length > 0 && (
-                <ul className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+                <ul className="mt-1 space-y-0.5 text-[11px] text-ink-soft">
                   {repairResult.log
                     .filter((line) => line.startsWith("SKIP"))
                     .map((line, i) => (

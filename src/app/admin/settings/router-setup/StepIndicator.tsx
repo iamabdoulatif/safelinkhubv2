@@ -17,17 +17,17 @@ export default function StepIndicator({
             <div
               className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium transition-colors ${
                 active
-                  ? "bg-emerald-500 text-white ring-2 ring-emerald-200"
+                  ? "bg-brand text-[#1C1917] ring-2 ring-ink"
                   : done
-                    ? "bg-emerald-500 text-white"
-                    : "bg-slate-100 text-slate-400"
+                    ? "bg-brand text-[#1C1917]"
+                    : "bg-clay text-ink-soft"
               }`}
             >
               {step}
             </div>
             {i < steps.length - 1 && (
               <ChevronRight
-                className={`h-4 w-4 shrink-0 ${done ? "text-emerald-400" : "text-slate-300"}`}
+                className={`h-4 w-4 shrink-0 ${done ? "text-brand" : "text-clay"}`}
               />
             )}
           </div>

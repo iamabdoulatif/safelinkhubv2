@@ -71,41 +71,41 @@ export default async function SalesPage() {
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <div className="flex items-center gap-2">
-        <TrendingUp className="h-5 w-5 text-slate-700" />
-        <h1 className="text-2xl font-bold text-slate-900">Ventes</h1>
+        <TrendingUp className="h-5 w-5 text-ink" />
+        <h1 className="text-2xl font-bold text-ink">Ventes</h1>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Revenu généré par la vente de vouchers, basé sur les forfaits émis.
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 hover-lift">
-          <p className="text-sm font-medium text-slate-500">Revenu total</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">
+        <div className="border-2 border-line bg-paper p-5 hover-lift">
+          <p className="text-sm font-medium text-ink-soft">Revenu total</p>
+          <p className="mt-1 text-2xl font-bold text-ink">
             {formatFcfa(totalRevenueCents)}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 hover-lift">
-          <p className="text-sm font-medium text-slate-500">Revenu aujourd&apos;hui</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">
+        <div className="border-2 border-line bg-paper p-5 hover-lift">
+          <p className="text-sm font-medium text-ink-soft">Revenu aujourd&apos;hui</p>
+          <p className="mt-1 text-2xl font-bold text-ink">
             {formatFcfa(todayRevenueCents)}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 hover-lift">
-          <p className="text-sm font-medium text-slate-500">Ventes / Commissions</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">
+        <div className="border-2 border-line bg-paper p-5 hover-lift">
+          <p className="text-sm font-medium text-ink-soft">Ventes / Commissions</p>
+          <p className="mt-1 text-2xl font-bold text-ink">
             {sales.length}{" "}
-            <span className="text-sm font-normal text-slate-400">
+            <span className="text-sm font-normal text-ink-soft">
               ({formatFcfa(totalCommissionCents)} en commissions)
             </span>
           </p>
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="mt-6 overflow-hidden border-2 border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+          <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">Voucher</th>
               <th className="px-4 py-3 font-medium">Forfait</th>
@@ -114,29 +114,29 @@ export default async function SalesPage() {
               <th className="px-4 py-3 font-medium">Date</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-line-soft">
             {sales.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-ink-soft">
                   Aucune vente pour le moment.
                 </td>
               </tr>
             )}
             {sales.map((s) => (
               <tr key={s.id}>
-                <td className="px-4 py-3 font-medium text-slate-900">
+                <td className="px-4 py-3 font-medium text-ink">
                   {s.username}
                 </td>
-                <td className="px-4 py-3 text-slate-600">{s.packageName}</td>
-                <td className="px-4 py-3 font-medium text-emerald-700">
+                <td className="px-4 py-3 text-ink-soft">{s.packageName}</td>
+                <td className="px-4 py-3 font-medium text-ok">
                   {formatFcfa(s.priceCents)}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                  <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ink-soft">
                     {s.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-slate-500">
+                <td className="px-4 py-3 text-ink-soft">
                   {formatDate(s.createdAt)}
                 </td>
               </tr>

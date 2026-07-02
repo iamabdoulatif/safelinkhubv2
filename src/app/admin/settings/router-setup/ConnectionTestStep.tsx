@@ -43,11 +43,11 @@ export default function ConnectionTestStep({
   }, [runTest]);
 
   return (
-    <div className="animate-fade-slide-up mt-8 rounded-xl border border-slate-200 bg-white p-6 text-center">
-      <h2 className="font-semibold text-slate-900">
+    <div className="animate-fade-slide-up mt-8 border-2 border-line bg-paper p-6 text-center">
+      <h2 className="font-semibold text-ink">
         Étape 8 : Test de connexion final
       </h2>
-      <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+      <p className="mx-auto mt-1 max-w-md text-sm text-ink-soft">
         Vérification que SafeLinkHub peut communiquer avec {routerName} via
         l&apos;API et le tunnel configurés.
       </p>
@@ -55,16 +55,16 @@ export default function ConnectionTestStep({
       <div className="mt-8 flex flex-col items-center gap-3">
         {status === "testing" && (
           <>
-            <Loader2 className="h-10 w-10 animate-spin text-slate-400" />
-            <p className="text-sm text-slate-500">
+            <Loader2 className="h-10 w-10 animate-spin text-ink-soft" />
+            <p className="text-sm text-ink-soft">
               Test de la connexion en cours...
             </p>
           </>
         )}
         {status === "success" && (
           <>
-            <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-            <p className="text-sm font-medium text-emerald-700">
+            <CheckCircle2 className="h-10 w-10 text-ok" />
+            <p className="text-sm font-medium text-ok">
               Connexion confirmée. {routerName} est opérationnel.
             </p>
           </>
@@ -83,7 +83,7 @@ export default function ConnectionTestStep({
         <button
           type="button"
           onClick={onBack}
-          className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          className="rounded-lg border border-line-soft px-5 py-2.5 text-sm font-medium text-ink-soft hover:bg-clay"
         >
           Retour à la topologie
         </button>
@@ -91,7 +91,7 @@ export default function ConnectionTestStep({
           <button
             type="button"
             onClick={runTest}
-            className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
+            className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A362F]"
           >
             Réessayer
           </button>
@@ -99,7 +99,7 @@ export default function ConnectionTestStep({
           <button
             type="button"
             onClick={onNext}
-            className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+            className="rounded-lg bg-brand-deep px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-deep"
           >
             Suivant : Tester le portail captif
           </button>

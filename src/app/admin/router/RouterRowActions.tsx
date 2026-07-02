@@ -50,7 +50,7 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
         : "Supprimer définitivement ce routeur";
     return (
       <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-        <span className="text-xs text-slate-500">{label} ?</span>
+        <span className="text-xs text-ink-soft">{label} ?</span>
         <button
           type="button"
           onClick={handleConfirm}
@@ -63,7 +63,7 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
           type="button"
           onClick={() => setConfirming(null)}
           disabled={pending}
-          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          className="rounded-md border border-line-soft px-2.5 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
         >
           Annuler
         </button>
@@ -77,20 +77,20 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+        className="rounded-md p-1.5 text-ink-soft hover:bg-clay hover:text-ink-soft"
         title="Actions"
       >
         <MoreVertical className="h-4 w-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-8 z-10 w-56 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute right-0 top-8 z-10 w-56 rounded-md border-2 border-line bg-paper py-1">
           <button
             type="button"
             onClick={() => {
               setOpen(false);
               setConfirming("reset");
             }}
-            className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-clay"
           >
             Réinitialiser le processus
           </button>

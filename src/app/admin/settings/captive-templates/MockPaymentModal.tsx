@@ -34,24 +34,24 @@ export default function MockPaymentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-xl bg-paper p-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">
+          <h3 className="text-sm font-semibold text-ink">
             Payer avec {LABELS[provider] ?? provider}
           </h3>
           <button type="button" onClick={onClose}>
-            <X className="h-5 w-5 text-slate-400" />
+            <X className="h-5 w-5 text-ink-soft" />
           </button>
         </div>
 
-        <p className="mt-1 rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-700">
+        <p className="mt-1 rounded-md bg-clay px-2.5 py-1.5 text-[11px] text-warn">
           Maquette — aucun débit réel n&apos;est effectué.
         </p>
 
         {step === "phone" && (
           <form onSubmit={submitPhone} className="mt-4 space-y-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
+              <label className="mb-1 block text-sm font-medium text-ink">
                 {isCard
                   ? `Email pour le reçu ${LABELS[provider] ?? provider}`
                   : `Numéro ${LABELS[provider] ?? provider}`}
@@ -61,12 +61,12 @@ export default function MockPaymentModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder={isCard ? "client@email.com" : "07 00 00 00 00"}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
               />
             </div>
             <button
               type="submit"
-              className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              className="w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-[#3A362F]"
             >
               {isCard ? "Continuer vers le paiement" : "Envoyer la demande de paiement"}
             </button>
@@ -75,32 +75,32 @@ export default function MockPaymentModal({
 
         {step === "pending" && (
           <div className="mt-6 flex flex-col items-center gap-3 py-4 text-center">
-            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-            <p className="text-sm text-slate-600">
+            <Loader2 className="h-6 w-6 animate-spin text-ink-soft" />
+            <p className="text-sm text-ink-soft">
               {isCard
                 ? `Redirection vers la page de paiement sécurisée ${LABELS[provider] ?? provider}...`
                 : `Confirmez le paiement sur votre téléphone (${phone})...`}
             </p>
-            {!isCard && <Smartphone className="h-5 w-5 text-slate-300" />}
+            {!isCard && <Smartphone className="h-5 w-5 text-clay" />}
           </div>
         )}
 
         {step === "done" && (
           <div className="mt-6 flex flex-col items-center gap-3 py-4 text-center">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-clay text-ok">
               <Check className="h-5 w-5" />
             </span>
-            <p className="text-sm font-medium text-slate-900">
+            <p className="text-sm font-medium text-ink">
               Paiement simulé reçu
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-soft">
               Dans la version finale, un voucher serait généré et connecté
               automatiquement ici.
             </p>
             <button
               type="button"
               onClick={onClose}
-              className="mt-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="mt-2 rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
             >
               Fermer
             </button>

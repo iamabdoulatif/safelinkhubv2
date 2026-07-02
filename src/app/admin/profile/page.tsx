@@ -17,7 +17,7 @@ function RoleBadge({ superadmin }: { superadmin: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-        superadmin ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-600"
+        superadmin ? "bg-clay text-brand-deep" : "bg-clay text-ink-soft"
       }`}
     >
       <Shield className="h-3 w-3" />
@@ -60,48 +60,48 @@ export default async function ProfilePage() {
   return (
     <div className="mx-auto max-w-2xl animate-fade-in-up">
       <div className="flex items-center gap-2">
-        <UserIcon className="h-5 w-5 text-slate-700" />
-        <h1 className="text-2xl font-bold text-slate-900">Mon profil</h1>
+        <UserIcon className="h-5 w-5 text-ink" />
+        <h1 className="text-2xl font-bold text-ink">Mon profil</h1>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Vos informations de compte sur SafeLinkHub.
       </p>
 
-      <div className="mt-6 flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-900 text-lg font-semibold text-white">
+      <div className="mt-6 flex items-center gap-4 border-2 border-line bg-paper p-4 sm:p-6">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-ink text-lg font-semibold text-white">
           {user.name.slice(0, 2).toUpperCase()}
         </span>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-lg font-semibold text-slate-900">{user.name}</p>
+            <p className="truncate text-lg font-semibold text-ink">{user.name}</p>
             <RoleBadge superadmin={superadmin} />
           </div>
-          <p className="truncate text-sm text-slate-500">{user.email}</p>
+          <p className="truncate text-sm text-ink-soft">{user.email}</p>
         </div>
       </div>
 
-      <div id="organisation" className="mt-4 scroll-mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <div id="organisation" className="mt-4 scroll-mt-6 border-2 border-line bg-paper p-4 sm:p-6">
         <div className="flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-slate-400" />
-          <h2 className="text-sm font-semibold text-slate-700">Organisation</h2>
+          <Building2 className="h-4 w-4 text-ink-soft" />
+          <h2 className="text-sm font-semibold text-ink">Organisation</h2>
         </div>
         <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-slate-400">Nom</dt>
-            <dd className="mt-0.5 font-medium text-slate-700">{org?.name ?? "—"}</dd>
+            <dt className="text-ink-soft">Nom</dt>
+            <dd className="mt-0.5 font-medium text-ink">{org?.name ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Client depuis</dt>
-            <dd className="mt-0.5 font-medium text-slate-700">
+            <dt className="text-ink-soft">Client depuis</dt>
+            <dd className="mt-0.5 font-medium text-ink">
               {org ? formatDate(org.createdAt) : "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-slate-400">Membre depuis</dt>
-            <dd className="mt-0.5 font-medium text-slate-700">{formatDate(user.createdAt)}</dd>
+            <dt className="text-ink-soft">Membre depuis</dt>
+            <dd className="mt-0.5 font-medium text-ink">{formatDate(user.createdAt)}</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Rôle</dt>
+            <dt className="text-ink-soft">Rôle</dt>
             <dd className="mt-0.5">
               <RoleBadge superadmin={superadmin} />
             </dd>
@@ -109,19 +109,19 @@ export default async function ProfilePage() {
         </dl>
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-slate-700">Informations personnelles</h2>
+      <div className="mt-4 border-2 border-line bg-paper p-4 sm:p-6">
+        <h2 className="text-sm font-semibold text-ink">Informations personnelles</h2>
         <div className="mt-3">
           <ProfileNameForm currentName={user.name} />
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-slate-700">Contact</h2>
+      <div className="mt-4 border-2 border-line bg-paper p-4 sm:p-6">
+        <h2 className="text-sm font-semibold text-ink">Contact</h2>
         <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-slate-400">Pays de résidence</dt>
-            <dd className="mt-0.5 font-medium text-slate-700">
+            <dt className="text-ink-soft">Pays de résidence</dt>
+            <dd className="mt-0.5 font-medium text-ink">
               {user.country ? (
                 <>
                   {countryFlag(user.country)} {findCountry(user.country)?.name ?? user.country}
@@ -132,46 +132,46 @@ export default async function ProfilePage() {
             </dd>
           </div>
           <div>
-            <dt className="text-slate-400">Téléphone</dt>
-            <dd className="mt-0.5 font-medium text-slate-700">
+            <dt className="text-ink-soft">Téléphone</dt>
+            <dd className="mt-0.5 font-medium text-ink">
               {user.phone ? `${user.phoneDialCode ?? ""} ${user.phone}` : "—"}
             </dd>
           </div>
           <div>
-            <dt className="flex items-center gap-1 text-slate-400">
+            <dt className="flex items-center gap-1 text-ink-soft">
               <MessageCircle className="h-3 w-3" /> WhatsApp
             </dt>
-            <dd className="mt-0.5 font-medium text-slate-700">
+            <dd className="mt-0.5 font-medium text-ink">
               {user.whatsapp ?? (user.phone ? `${user.phoneDialCode ?? ""} ${user.phone}` : "—")}
             </dd>
           </div>
           <div>
-            <dt className="flex items-center gap-1 text-slate-400">
+            <dt className="flex items-center gap-1 text-ink-soft">
               <Send className="h-3 w-3" /> Telegram
             </dt>
-            <dd className="mt-0.5 font-medium text-slate-700">
+            <dd className="mt-0.5 font-medium text-ink">
               {user.telegram ?? (user.phone ? `${user.phoneDialCode ?? ""} ${user.phone}` : "—")}
             </dd>
           </div>
         </dl>
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <div className="mt-4 border-2 border-line bg-paper p-4 sm:p-6">
         <div className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4 text-slate-400" />
-          <h2 className="text-sm font-semibold text-slate-700">Sécurité</h2>
+          <KeyRound className="h-4 w-4 text-ink-soft" />
+          <h2 className="text-sm font-semibold text-ink">Sécurité</h2>
         </div>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-ink-soft">
           Changez votre mot de passe régulièrement pour protéger votre compte.
         </p>
         <div className="mt-3">
           <ChangePasswordForm />
         </div>
 
-        <hr className="my-5 border-slate-100" />
+        <hr className="my-5 border-line-soft" />
 
-        <h2 className="text-sm font-semibold text-slate-700">Double authentification (MFA)</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <h2 className="text-sm font-semibold text-ink">Double authentification (MFA)</h2>
+        <p className="mt-1 text-xs text-ink-soft">
           Exige un code temporaire en plus du mot de passe à la connexion. Fortement recommandé
           pour les comptes superadmin.
         </p>

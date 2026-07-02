@@ -15,7 +15,7 @@ export default function VpnQuotaForm({ userId, userEmail }: { userId: string; us
         <select
           name="grant"
           disabled={pending}
-          className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60"
+          className="h-9 rounded-md border-2 border-line bg-paper px-2 text-xs text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-60"
           aria-label={`Quota VPN pour ${userEmail}`}
         >
           {VPN_QUOTA_GRANT_OPTIONS.map((option) => (
@@ -27,7 +27,7 @@ export default function VpnQuotaForm({ userId, userEmail }: { userId: string; us
         <button
           type="submit"
           disabled={pending}
-          className="flex h-9 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex h-9 items-center gap-1.5 rounded-md bg-ink px-3 text-xs font-semibold text-white hover:bg-[#3A362F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending && <Loader2 className="h-3 w-3 animate-spin" />}
           {pending ? "Application..." : "Appliquer"}
@@ -36,10 +36,10 @@ export default function VpnQuotaForm({ userId, userEmail }: { userId: string; us
 
       <div role="status" aria-live="polite" className="min-h-[1.1rem] text-xs">
         {pending && (
-          <span className="text-slate-400">Mise à jour en cours...</span>
+          <span className="text-ink-soft">Mise à jour en cours...</span>
         )}
         {!pending && state?.success && (
-          <span className="flex items-center gap-1 text-emerald-600">
+          <span className="flex items-center gap-1 text-ok">
             <Check className="h-3.5 w-3.5" />
             Quota mis à jour.
           </span>

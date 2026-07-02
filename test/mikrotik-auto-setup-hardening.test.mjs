@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 
 const containerSetupSource = () =>
   readFile(new URL("../src/lib/mikrotik/container-setup.ts", import.meta.url), "utf8");
+const mikhmonTunnelAccessSource = () =>
+  readFile(new URL("../src/lib/mikrotik/mikhmon-tunnel-access.ts", import.meta.url), "utf8");
 
 test("auto-setup targets the audited MikHmon v3 container image", async () => {
   const source = await containerSetupSource();
@@ -15,9 +17,18 @@ test("auto-setup targets the audited MikHmon v3 container image", async () => {
 test("auto-setup migrates legacy Docker bridge names before assigning the Docker gateway", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /LEGACY_DOCKER_BRIDGE_NAMES = \["CONTAINERS", "dockers", "DOCKER-SAFELINKHUB"\]/);
+  assert.match(source, /LEGACY_DOCKER_BRIDGE_NAMES = \["CONTAINERS", "dockers", "DOCKER-SAFELINKHUB", "DOCKER"\]/);
   assert.match(source, /migrateLegacyDockerBridge/);
   assert.match(source, /removeAddressByAddress\(client, `\$\{VETH_GATEWAY\}\/28`\)/);
+});
+
+test("auto-setup repairs MikHmon tunnel access and removes duplicate legacy Docker gateways", async () => {
+  const containerSetup = await containerSetupSource();
+  const helper = await mikhmonTunnelAccessSource();
+
+  assert.match(containerSetup, /ensureMikhmonTunnelAccess\(client, log\)/);
+  assert.match(helper, /getDockerBridgeCleanupCommands/);
+  assert.match(helper, /MIKHMON_TUNNEL_INTERFACES/);
 });
 
 test("USB container installs use USB paths instead of internal flash layer paths", async () => {

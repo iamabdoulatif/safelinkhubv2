@@ -28,10 +28,10 @@ export default async function CaptiveTemplatesPage() {
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
-      <h1 className="text-2xl font-bold text-slate-900">
+      <h1 className="text-2xl font-bold text-ink">
         Modèles de portail captif
       </h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Personnalisez l&apos;apparence de la page que vos clients voient en se
         connectant au Wi-Fi (logo, couleurs, textes), puis assignez un modèle
         à chaque bridge hotspot.

@@ -53,36 +53,36 @@ export default async function GeneralSettingsPage() {
   return (
     <div className="mx-auto max-w-3xl animate-fade-in-up">
       <div className="flex items-center gap-2">
-        <SettingsIcon className="h-5 w-5 text-slate-700" />
-        <h1 className="text-2xl font-bold text-slate-900">Général</h1>
+        <SettingsIcon className="h-5 w-5 text-ink" />
+        <h1 className="text-2xl font-bold text-ink">Général</h1>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Vue d&apos;ensemble de votre organisation et accès rapide aux autres paramètres.
       </p>
 
       {org && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <div className="mt-6 border-2 border-line bg-paper p-4 sm:p-6">
           <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-slate-400" />
-            <h2 className="text-sm font-semibold text-slate-700">Organisation</h2>
+            <Building2 className="h-4 w-4 text-ink-soft" />
+            <h2 className="text-sm font-semibold text-ink">Organisation</h2>
           </div>
           <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-400">Nom</dt>
-              <dd className="mt-0.5 truncate font-medium text-slate-700">{org.name}</dd>
+              <dt className="text-ink-soft">Nom</dt>
+              <dd className="mt-0.5 truncate font-medium text-ink">{org.name}</dd>
             </div>
             <div>
-              <dt className="text-slate-400">Identifiant (slug)</dt>
-              <dd className="mt-0.5 truncate font-medium text-slate-700">{org.slug}</dd>
+              <dt className="text-ink-soft">Identifiant (slug)</dt>
+              <dd className="mt-0.5 truncate font-medium text-ink">{org.slug}</dd>
             </div>
             <div>
-              <dt className="text-slate-400">Client depuis</dt>
-              <dd className="mt-0.5 font-medium text-slate-700">{formatDate(org.createdAt)}</dd>
+              <dt className="text-ink-soft">Client depuis</dt>
+              <dd className="mt-0.5 font-medium text-ink">{formatDate(org.createdAt)}</dd>
             </div>
           </dl>
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-ink-soft">
             Pour renommer ou supprimer l&apos;organisation, voir{" "}
-            <Link href="/admin/settings/advanced" className="font-medium text-emerald-600 hover:text-emerald-700">
+            <Link href="/admin/settings/advanced" className="font-medium text-ok hover:text-ok">
               Avancé
             </Link>
             .
@@ -95,17 +95,17 @@ export default async function GeneralSettingsPage() {
           <Link
             key={href}
             href={href}
-            className="group flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-emerald-200 hover:bg-emerald-50/30"
+            className="group flex items-start gap-3 border-2 border-line bg-paper p-4 transition-colors hover:border-ok hover:bg-clay/30"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 group-hover:bg-white group-hover:text-emerald-600">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-clay text-ink-soft group-hover:bg-paper group-hover:text-ok">
               <Icon className="h-4.5 w-4.5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-1.5 font-medium text-slate-900">
+              <span className="flex items-center gap-1.5 font-medium text-ink">
                 {title}
-                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-500" />
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-clay transition-transform group-hover:translate-x-0.5 group-hover:text-ok" />
               </span>
-              <span className="mt-0.5 block text-xs text-slate-500">{description}</span>
+              <span className="mt-0.5 block text-xs text-ink-soft">{description}</span>
             </span>
           </Link>
         ))}

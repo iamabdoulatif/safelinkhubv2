@@ -11,13 +11,13 @@ const LABELS = {
 const COLORS = {
   weak: "bg-red-500",
   medium: "bg-amber-500",
-  strong: "bg-emerald-500",
+  strong: "bg-brand",
 } as const;
 
 const TEXT_COLORS = {
   weak: "text-red-600",
   medium: "text-amber-600",
-  strong: "text-emerald-600",
+  strong: "text-ok",
 } as const;
 
 export default function PasswordStrengthMeter({ password }: { password: string }) {

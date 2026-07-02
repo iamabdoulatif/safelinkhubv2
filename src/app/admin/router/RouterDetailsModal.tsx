@@ -18,9 +18,9 @@ function hzToMHz(raw: string) {
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-slate-50 py-2 text-sm last:border-0">
-      <span className="text-slate-500">{label}</span>
-      <span className="rounded bg-slate-50 px-2.5 py-1 font-medium text-slate-700">
+    <div className="flex items-center justify-between gap-3 border-b border-line-soft py-2 text-sm last:border-0">
+      <span className="text-ink-soft">{label}</span>
+      <span className="rounded bg-clay px-2.5 py-1 font-medium text-ink">
         {value || "—"}
       </span>
     </div>
@@ -38,8 +38,8 @@ function Section({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-        <Icon className="h-4 w-4 text-slate-400" />
+      <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <Icon className="h-4 w-4 text-ink-soft" />
         {title}
       </div>
       <div className="mt-2">{children}</div>
@@ -133,13 +133,13 @@ export default function RouterDetailsModal({
       />
       <div
         ref={dialogRef}
-        className="relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl"
+        className="relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-paper"
         role="dialog"
         aria-modal="true"
         aria-labelledby="router-details-title"
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 id="router-details-title" className="text-lg font-semibold text-slate-900">
+        <div className="flex items-center justify-between border-b border-line-soft px-6 py-4">
+          <h2 id="router-details-title" className="text-lg font-semibold text-ink">
             {state.loading || !state.resources ? routerName : state.resources.identity}
           </h2>
           <button
@@ -147,7 +147,7 @@ export default function RouterDetailsModal({
             type="button"
             aria-label="Fermer"
             onClick={onClose}
-            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="rounded-md p-1 text-ink-soft hover:bg-clay hover:text-ink-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
           >
             <X className="h-5 w-5" />
           </button>
@@ -155,7 +155,7 @@ export default function RouterDetailsModal({
 
         <div className="overflow-y-auto px-6 py-4">
           {state.loading && (
-            <div className="flex flex-col items-center gap-2 py-8 text-sm text-slate-400">
+            <div className="flex flex-col items-center gap-2 py-8 text-sm text-ink-soft">
               <Loader2 className="h-5 w-5 animate-spin" />
               Lecture des informations en direct...
             </div>

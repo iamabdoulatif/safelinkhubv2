@@ -59,12 +59,12 @@ function CopyableAddress({ value }: { value: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="flex items-center gap-1.5 rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
+      className="flex items-center gap-1.5 rounded bg-clay px-2 py-1 text-xs font-medium text-ink hover:bg-clay"
       title="Copier"
     >
       {value}
-      <Copy className="h-3 w-3 text-slate-400" />
-      {copied && <span className="text-emerald-600">Copié</span>}
+      <Copy className="h-3 w-3 text-ink-soft" />
+      {copied && <span className="text-ok">Copié</span>}
     </button>
   );
 }
@@ -113,24 +113,24 @@ function SshFileZillaTutorial({
   }, []);
 
   return (
-    <div className="mt-2 rounded-md border border-slate-100 bg-white">
+    <div className="mt-2 rounded-md border border-line-soft bg-paper">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-2.5 py-2 text-left text-[11px] font-medium text-slate-600"
+        className="flex w-full items-center justify-between px-2.5 py-2 text-left text-[11px] font-medium text-ink-soft"
       >
         Configurer FileZilla (SFTP)
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="border-t border-slate-100 px-2.5 py-2 text-[11px] text-slate-600">
-          <p className="font-medium text-slate-700">
+        <div className="border-t border-line-soft px-2.5 py-2 text-[11px] text-ink-soft">
+          <p className="font-medium text-ink">
             Étape 1 (une seule fois par ordinateur) — faire de FileZilla le gestionnaire par
-            défaut du lien <code className="rounded bg-slate-100 px-1">sftp://</code>
+            défaut du lien <code className="rounded bg-clay px-1">sftp://</code>
           </p>
-          <p className="mt-1 text-slate-500">
+          <p className="mt-1 text-ink-soft">
             Le bouton <ExternalLink className="inline h-3 w-3" /> ci-dessus ouvre un lien{" "}
-            <code className="rounded bg-slate-100 px-1">sftp://</code> — c&apos;est{" "}
+            <code className="rounded bg-clay px-1">sftp://</code> — c&apos;est{" "}
             {os === "windows" ? "Windows" : "le système (macOS Launch Services ou équivalent)"},
             pas FileZilla ni ce site, qui décide quelle app reçoit ce lien. Si une autre app (VLC,
             par exemple) s&apos;est enregistrée pour ce type de lien, faites ceci{" "}
@@ -140,30 +140,30 @@ function SshFileZillaTutorial({
 
           {os === "windows" ? (
             <>
-              <p className="mt-1.5 text-slate-500">
+              <p className="mt-1.5 text-ink-soft">
                 Ouvrez PowerShell et lancez (ajustez le chemin si FileZilla n&apos;est pas
-                installé dans <code className="rounded bg-slate-100 px-1">Program Files</code>) :
+                installé dans <code className="rounded bg-clay px-1">Program Files</code>) :
               </p>
-              <pre className="mt-1.5 overflow-x-auto rounded-md bg-slate-900 px-3 py-2 text-[11px] text-emerald-300">
+              <pre className="mt-1.5 code-block px-3 py-2 text-[11px]">
                 {`reg add "HKCU\\Software\\Classes\\sftp" /ve /d "URL:SFTP Protocol" /f
 reg add "HKCU\\Software\\Classes\\sftp" /v "URL Protocol" /d "" /f
 reg add "HKCU\\Software\\Classes\\sftp\\shell\\open\\command" /ve /d "\\"C:\\Program Files\\FileZilla FTP Client\\filezilla.exe\\" \\"%1\\"" /f`}
               </pre>
-              <p className="mt-1 text-slate-500">
+              <p className="mt-1 text-ink-soft">
                 Fermez et rouvrez le navigateur après la commande. Vous pouvez vérifier le chemin
-                exact de <code className="rounded bg-slate-100 px-1">filezilla.exe</code> via un
+                exact de <code className="rounded bg-clay px-1">filezilla.exe</code> via un
                 clic droit sur son raccourci → Propriétés.
               </p>
             </>
           ) : (
             <>
-              <p className="mt-1.5 text-slate-500">Dans le Terminal :</p>
-              <pre className="mt-1.5 overflow-x-auto rounded-md bg-slate-900 px-3 py-2 text-[11px] text-emerald-300">
+              <p className="mt-1.5 text-ink-soft">Dans le Terminal :</p>
+              <pre className="mt-1.5 code-block px-3 py-2 text-[11px]">
                 brew install duti{"\n"}duti -s org.filezilla-project.filezilla sftp all
               </pre>
-              <p className="mt-1 text-slate-500">
+              <p className="mt-1 text-ink-soft">
                 (Sans Homebrew : installez-le d&apos;abord avec{" "}
-                <code className="rounded bg-slate-100 px-1">
+                <code className="rounded bg-clay px-1">
                   /bin/bash -c &quot;$(curl -fsSL
                   https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)&quot;
                 </code>
@@ -171,12 +171,12 @@ reg add "HKCU\\Software\\Classes\\sftp\\shell\\open\\command" /ve /d "\\"C:\\Pro
               </p>
             </>
           )}
-          <p className="mt-1 text-slate-500">
+          <p className="mt-1 text-ink-soft">
             Une fois fait, le bouton ci-dessus ouvrira directement FileZilla, hôte/port/
             utilisateur déjà pré-remplis.
           </p>
 
-          <p className="mt-2 font-medium text-slate-700">
+          <p className="mt-2 font-medium text-ink">
             Étape 2 — si vous préférez configurer à la main (Gestionnaire de sites)
           </p>
           <ol className="mt-1 list-decimal space-y-1 pl-4">
@@ -196,9 +196,9 @@ reg add "HKCU\\Software\\Classes\\sftp\\shell\\open\\command" /ve /d "\\"C:\\Pro
             </li>
             <li>Connexion</li>
           </ol>
-          <p className="mt-1.5 text-amber-600">
+          <p className="mt-1.5 text-warn">
             Avec la barre Quickconnect plutôt que le Gestionnaire de sites, préfixez l&apos;hôte
-            avec <code className="rounded bg-amber-50 px-1">sftp://</code>, sinon FileZilla tente
+            avec <code className="rounded bg-clay px-1">sftp://</code>, sinon FileZilla tente
             du FTP classique et la connexion échoue.
           </p>
         </div>
@@ -302,7 +302,7 @@ function RouterDirectAccess({
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 p-3">
+    <div className="rounded-lg border border-line-soft p-3">
       <button
         type="button"
         onClick={() => setCardOpen((v) => !v)}
@@ -310,25 +310,25 @@ function RouterDirectAccess({
       >
         <span className="flex items-center gap-2">
           <ChevronDown
-            className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${cardOpen ? "rotate-180" : ""}`}
+            className={`h-3.5 w-3.5 shrink-0 text-ink-soft transition-transform ${cardOpen ? "rotate-180" : ""}`}
           />
-          <span className="text-sm font-medium text-slate-700">{router.name}</span>
+          <span className="text-sm font-medium text-ink">{router.name}</span>
           {hasActiveAccess && (
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
+            <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-ok">
               {activeServices.size} actif{activeServices.size > 1 ? "s" : ""}
             </span>
           )}
         </span>
         <span className="flex items-center gap-2">
           {router.status !== "online" && (
-            <span className="text-xs text-slate-400">Routeur hors ligne</span>
+            <span className="text-xs text-ink-soft">Routeur hors ligne</span>
           )}
           {unlimited && activeServices.size < 4 && (
             <button
               type="button"
               disabled={pending}
               onClick={(e) => { e.stopPropagation(); handleEnableAll(); }}
-              className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-2.5 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-[#1C1917] hover:bg-brand-deep disabled:opacity-60"
             >
               {pending && pendingService && (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -359,7 +359,7 @@ function RouterDirectAccess({
           return (
             <div key={service} className="rounded-md px-0 py-1">
               <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-slate-600">{SERVICE_LABELS[service]}</span>
+                <span className="text-ink-soft">{SERVICE_LABELS[service]}</span>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   {forward && <CopyableAddress value={`${relayHost}:${forward.publicPort}`} />}
                   {!isPublic && (
@@ -373,7 +373,7 @@ function RouterDirectAccess({
                       }
                       disabled={busy}
                       title="Plan de facturation (paiement non encore activé)"
-                      className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[11px] text-slate-600 focus:border-slate-400 focus:outline-none disabled:opacity-50"
+                      className="rounded-md border-2 border-line bg-paper px-1.5 py-1 text-[11px] text-ink-soft focus:border-line-soft focus:outline-none disabled:opacity-50"
                     >
                       <option value="monthly">1 mois — {formatFcfa(PERIOD_PRICE_CENTS.monthly)}</option>
                       <option value="quarterly">3 mois — {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}</option>
@@ -393,18 +393,18 @@ function RouterDirectAccess({
                       isPublic ? handleDisable(forward!.id) : handleEnable(service)
                     }
                     className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-                      isPublic ? "bg-red-500" : "bg-slate-300"
+                      isPublic ? "bg-red-500" : "bg-line-soft"
                     }`}
                   >
                     <span
-                      className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
+                      className={`inline-block h-4.5 w-4.5 transform rounded-full bg-paper shadow transition-transform ${
                         isPublic ? "translate-x-6" : "translate-x-1"
                       }`}
                     />
                   </button>
                   <span
                     className={`flex w-14 items-center gap-1 text-xs font-medium ${
-                      isPublic ? "text-red-600" : "text-slate-500"
+                      isPublic ? "text-red-600" : "text-ink-soft"
                     }`}
                   >
                     {pendingService === service ? (
@@ -419,7 +419,7 @@ function RouterDirectAccess({
                 </div>
               </div>
               {isPublic && (
-                <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-slate-400">
+                <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-ink-soft">
                   <CreditCard className="h-3 w-3" />
                   {unlimited ? (
                     "Forfait illimité"
@@ -435,26 +435,26 @@ function RouterDirectAccess({
           );
         })}
       </div>
-      <p className="mt-2 text-[11px] text-slate-400">
+      <p className="mt-2 text-[11px] text-ink-soft">
         {hasActiveAccess
           ? "Connectez-vous directement avec ces adresses, sans VPN ni app à installer."
           : "Aucun accès direct actif."}
       </p>
 
       {hasActiveAccess && (
-        <div className="mt-3 rounded-md border border-slate-100 bg-slate-50/60 p-3">
+        <div className="mt-3 rounded-md border border-line-soft bg-clay/60 p-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {forwards.map((forward) => {
               const address = `${relayHost}:${forward.publicPort}`;
               const url = serviceUrl(forward.service, address, router.username);
               return (
                 <div key={forward.id} className="min-w-0">
-                  <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-white px-2.5 py-2 text-xs">
+                  <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-paper px-2.5 py-2 text-xs">
                     <div className="min-w-0">
-                      <p className="font-medium text-slate-700">
+                      <p className="font-medium text-ink">
                         {SERVICE_LABELS[forward.service] ?? forward.service}
                       </p>
-                      <p className="truncate text-slate-500">{address}</p>
+                      <p className="truncate text-ink-soft">{address}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <CopyableAddress value={address} />
@@ -465,7 +465,7 @@ function RouterDirectAccess({
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="rounded bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
+                          className="rounded bg-clay p-1.5 text-ink-soft hover:bg-clay"
                           title={forward.service === "ssh" ? "Ouvrir dans FileZilla" : "Ouvrir"}
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -481,25 +481,25 @@ function RouterDirectAccess({
             })}
           </div>
 
-          <div className="mt-3 rounded-md border border-slate-100 bg-white">
+          <div className="mt-3 rounded-md border border-line-soft bg-paper">
             <button
               type="button"
               onClick={() => setShowDetails((v) => !v)}
-              className="flex w-full items-center justify-between px-2.5 py-2 text-left text-[11px] font-medium text-slate-600"
+              className="flex w-full items-center justify-between px-2.5 py-2 text-left text-[11px] font-medium text-ink-soft"
             >
               {showDetails ? "Masquer les détails du routeur" : "Afficher les détails du routeur"}
               <ChevronDown
-                className={`h-3.5 w-3.5 text-slate-400 transition-transform ${showDetails ? "rotate-180" : ""}`}
+                className={`h-3.5 w-3.5 text-ink-soft transition-transform ${showDetails ? "rotate-180" : ""}`}
               />
             </button>
             {showDetails && (
-              <div className="grid grid-cols-1 gap-x-4 gap-y-2 border-t border-slate-100 p-3 text-[11px] sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-x-4 gap-y-2 border-t border-line-soft p-3 text-[11px] sm:grid-cols-2 lg:grid-cols-4">
                 {(
                   [
                     [
                       "MAC WAN",
                       resourcesLoading && !resources ? (
-                        <span key="loading" className="flex items-center gap-1 text-slate-400">
+                        <span key="loading" className="flex items-center gap-1 text-ink-soft">
                           <Loader2 className="h-3 w-3 animate-spin" /> ...
                         </span>
                       ) : (
@@ -507,7 +507,7 @@ function RouterDirectAccess({
                       ),
                     ],
                     ["IP WAN", summary?.wanIpAddress || "—"],
-                    ["IP publique", relayHost || "—"],
+                    ["Adresse publique", relayHost || "—"],
                     ["IP tunnel", summary?.tunnelIp || router.tunnelIp || "—"],
                     ["Identity", summary?.identity ?? resources?.identity ?? router.name],
                     ["Version", resources?.version ?? "—"],
@@ -516,8 +516,8 @@ function RouterDirectAccess({
                   ] as const
                 ).map(([label, value]) => (
                   <div key={label} className="min-w-0">
-                    <p className="text-slate-400">{label}</p>
-                    <p className="truncate font-medium text-slate-700">{value}</p>
+                    <p className="text-ink-soft">{label}</p>
+                    <p className="truncate font-medium text-ink">{value}</p>
                   </div>
                 ))}
               </div>
@@ -552,11 +552,11 @@ export default function DirectAccessSection({
   if (eligible.length === 0) return null;
 
   return (
-    <div className="mt-10 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+    <div className="mt-10 border-2 border-line bg-paper p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Globe2 className="h-5 w-5 text-slate-700" />
-          <h2 className="font-semibold text-slate-900">
+          <Globe2 className="h-5 w-5 text-ink" />
+          <h2 className="font-semibold text-ink">
             Accès direct sans VPN (WinBox / WebFig)
           </h2>
         </div>
@@ -581,14 +581,14 @@ export default function DirectAccessSection({
           )
         )}
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Ouvre une adresse publique (relais:port) qui redirige directement
         vers le routeur — aucun client VPN, aucune app à installer sur
         l&apos;appareil qui se connecte. Fonctionne depuis n&apos;importe
         quel PC, téléphone, ou WinBox.
       </p>
 
-      <p className="mt-3 flex items-start gap-1.5 rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-700">
+      <p className="mt-3 flex items-start gap-1.5 rounded-md bg-clay px-3 py-2 text-xs text-ink">
         <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         Chaque accès est activable pour 1, 3, 6 ou 12 mois — choisissez la durée avant
         d&apos;activer un service.{" "}

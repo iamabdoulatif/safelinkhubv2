@@ -39,14 +39,14 @@ export default async function PackagesPage() {
     <div className="animate-fade-in-up">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Gérer les forfaits</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-ink">Gérer les forfaits</h1>
+          <p className="mt-1 text-sm text-ink-soft">
             Créez et gérez vos forfaits Hotspot et abonnements PPPoE.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <CreatePackageModal />
-          <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+          <button className="rounded-md border border-line-soft bg-paper px-3 py-2 text-sm font-medium text-ink-soft hover:bg-clay">
             Colonnes
           </button>
         </div>
@@ -54,13 +54,13 @@ export default async function PackagesPage() {
 
       <input
         placeholder="Filtrer les forfaits..."
-        className="mt-4 w-full sm:w-64 rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+        className="mt-4 w-full sm:w-64 rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
       />
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="mt-4 overflow-hidden border-2 border-line bg-paper">
         <div className="table-mobile-wrapper">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+            <thead className="border-b border-line-soft bg-clay text-ink-soft">
               <tr>
                 <th className="w-10 px-4 py-3">
                   <input type="checkbox" />
@@ -73,10 +73,10 @@ export default async function PackagesPage() {
                 <th className="px-4 py-3 font-medium">Statut</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line-soft">
               {orgPackages.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-ink-soft">
                     Aucun forfait pour le moment. Créez le premier.
                   </td>
                 </tr>
@@ -86,17 +86,17 @@ export default async function PackagesPage() {
                   <td className="px-4 py-3">
                     <input type="checkbox" />
                   </td>
-                  <td className="px-4 py-3 text-slate-900">{p.name}</td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="px-4 py-3 text-ink">{p.name}</td>
+                  <td className="px-4 py-3 text-ink-soft">
                     {formatUgx(p.priceCents)}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="px-4 py-3 text-ink-soft">
                     {formatDuration(p.durationValue, p.durationUnit)}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="px-4 py-3 text-ink-soft">
                     {formatUgx(p.commissionCents)}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="px-4 py-3 text-ink-soft">
                     {p.uploadMbps}M/{p.downloadMbps}M
                   </td>
                   <td className="px-4 py-3">
@@ -107,13 +107,13 @@ export default async function PackagesPage() {
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-t border-slate-200 px-4 py-3 text-sm text-slate-500">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-t border-line-soft px-4 py-3 text-sm text-ink-soft">
           <span>0 sur {orgPackages.length} ligne(s) sélectionnée(s).</span>
           <div className="flex gap-2">
-            <button className="rounded-md border border-slate-300 px-3 py-1">
+            <button className="rounded-md border border-line-soft px-3 py-1">
               Précédent
             </button>
-            <button className="rounded-md border border-slate-300 px-3 py-1">
+            <button className="rounded-md border border-line-soft px-3 py-1">
               Suivant
             </button>
           </div>

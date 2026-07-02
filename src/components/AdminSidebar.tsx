@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import UserMenu from "./UserMenu";
+import Logo from "./landing/Logo";
 
 const mainLinks = [
   { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard },
@@ -91,24 +92,22 @@ export default function AdminSidebar({
   return (
     <>
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4">
+      <div className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b-2 border-line bg-paper px-4 lg:hidden">
         <button
           onClick={() => setMobileOpen(true)}
-          className="flex items-center justify-center rounded-md p-2 text-slate-700 hover:bg-slate-100"
+          className="flex items-center justify-center border-2 border-line p-1.5 text-ink hover:bg-clay"
           aria-label="Ouvrir le menu"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-4 w-4" />
         </button>
-        <span className="text-base font-bold tracking-tight text-slate-900">
-          Safe<span className="text-emerald-500">LinkHub</span>
-        </span>
+        <Logo />
         <div className="w-9" />
       </div>
 
-      {/* Mobile overlay */}
+      {/* Mobile overlay — aplat opaque, pas de blur */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={closeMobile}
           role="button"
           aria-label="Fermer le menu"
@@ -121,36 +120,34 @@ export default function AdminSidebar({
 
       {/* Sidebar — desktop always visible, mobile drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:w-60 flex-shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-shrink-0 flex-col border-r-2 border-line bg-paper transition-transform duration-300 ease-in-out lg:static lg:w-60 lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Mobile close button inside sidebar */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <span className="text-lg font-bold tracking-tight text-slate-900">
-            Safe<span className="text-emerald-500">LinkHub</span>
-          </span>
+        <div className="flex items-center justify-between border-b-2 border-line px-5 py-4">
+          <Logo />
           <button
             onClick={closeMobile}
-            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 lg:hidden"
+            className="border-2 border-line p-1 text-ink hover:bg-clay lg:hidden"
             aria-label="Fermer le menu"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="border-b border-slate-200 px-5 py-3">
+        <div className="border-b-2 border-line-soft px-4 py-3">
           <Link
             href="/admin/profile#organisation"
             onClick={closeMobile}
             title={`Voir les informations de ${orgName}`}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            className="flex w-full items-center gap-2 px-1 py-1.5 text-sm font-semibold text-ink hover:bg-clay"
           >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-900 text-[10px] font-semibold text-white">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center bg-ink font-display text-[10px] font-bold text-paper">
               {orgName.slice(0, 2).toUpperCase()}
             </span>
             <span className="min-w-0 truncate">{orgName}</span>
-            <ArrowUpRight className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <ArrowUpRight className="ml-auto h-3.5 w-3.5 shrink-0 text-ink-soft" />
           </Link>
         </div>
 
@@ -161,10 +158,10 @@ export default function AdminSidebar({
                 <Link
                   href={href}
                   onClick={closeMobile}
-                  className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
                     isActive(href)
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "text-slate-600 hover:bg-slate-50"
+                      ? "bg-brand font-bold text-[#1C1917]"
+                      : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
                   }`}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
@@ -176,31 +173,31 @@ export default function AdminSidebar({
             <li>
               <button
                 onClick={() => setSettingsOpen((v) => !v)}
-                className={`flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
+                className={`flex w-full items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
                   pathname?.startsWith("/admin/settings")
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "text-slate-600 hover:bg-slate-50"
+                    ? "bg-brand font-bold text-[#1C1917]"
+                    : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
                 }`}
               >
                 <Settings className="h-4 w-4 flex-shrink-0" />
                 <span className="truncate">Paramètres</span>
                 <ChevronDown
-                  className={`ml-auto h-4 w-4 text-slate-400 transition-transform duration-300 ${
+                  className={`ml-auto h-4 w-4 transition-transform duration-300 ${
                     settingsOpen ? "rotate-180" : ""
                   }`}
                 />
               </button>
               {settingsOpen && (
-                <ul className="mt-0.5 ml-7 space-y-0.5 border-l border-slate-200 pl-3 animate-fade-in">
+                <ul className="ml-5 mt-0.5 space-y-0.5 border-l-2 border-line-soft pl-3 animate-fade-in">
                   {settingsLinks.map((s) => (
                     <li key={s.href}>
                       <Link
                         href={s.href}
                         onClick={closeMobile}
-                        className={`block rounded-md px-2 py-1.5 text-sm transition-colors ${
+                        className={`block px-2 py-1.5 text-sm transition-colors ${
                           pathname === s.href
-                            ? "font-medium text-emerald-700"
-                            : "text-slate-500 hover:text-slate-800"
+                            ? "font-bold text-brand-deep"
+                            : "text-ink-soft hover:text-ink"
                         }`}
                       >
                         {s.label}
@@ -212,8 +209,8 @@ export default function AdminSidebar({
             </li>
           </ul>
 
-          <p className="mt-5 px-2.5 text-[11px] font-semibold tracking-wide text-slate-400">
-            COMPTE
+          <p className="mt-5 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-soft">
+            Compte
           </p>
           <ul className="mt-1 space-y-0.5">
             {accountLinks.map(({ href, label, icon: Icon }) => (
@@ -221,7 +218,11 @@ export default function AdminSidebar({
                 <Link
                   href={href}
                   onClick={closeMobile}
-                  className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                  className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
+                    isActive(href)
+                      ? "bg-brand font-bold text-[#1C1917]"
+                      : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
+                  }`}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
                   <span className="truncate">{label}</span>

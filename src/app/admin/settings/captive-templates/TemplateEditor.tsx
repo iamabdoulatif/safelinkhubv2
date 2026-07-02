@@ -50,14 +50,14 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
+      <label className="mb-1 block text-sm font-medium text-ink">{label}</label>
       <input
         name={name}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+        className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
       />
     </div>
   );
@@ -107,13 +107,13 @@ export default function TemplateEditor({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-full max-w-4xl max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">
+      <div className="flex w-full max-w-4xl max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-paper">
+        <div className="flex items-center justify-between border-b border-line-soft px-6 py-4">
+          <h2 className="text-lg font-semibold text-ink">
             {isEdit ? "Modifier le modèle" : "Nouveau modèle de portail captif"}
           </h2>
           <button type="button" onClick={onClose}>
-            <X className="h-5 w-5 text-slate-400" />
+            <X className="h-5 w-5 text-ink-soft" />
           </button>
         </div>
 
@@ -149,7 +149,7 @@ export default function TemplateEditor({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-medium text-ink">
                   Couleur principale
                 </label>
                 <input
@@ -157,11 +157,11 @@ export default function TemplateEditor({
                   type="color"
                   value={form.primaryColor}
                   onChange={(e) => set("primaryColor", e.target.value)}
-                  className="h-10 w-full rounded-md border border-slate-300"
+                  className="h-10 w-full rounded-md border border-line-soft"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+                <label className="mb-1 block text-sm font-medium text-ink">
                   Couleur de fond
                 </label>
                 <input
@@ -169,7 +169,7 @@ export default function TemplateEditor({
                   type="color"
                   value={form.backgroundColor}
                   onChange={(e) => set("backgroundColor", e.target.value)}
-                  className="h-10 w-full rounded-md border border-slate-300"
+                  className="h-10 w-full rounded-md border border-line-soft"
                 />
               </div>
             </div>
@@ -211,18 +211,18 @@ export default function TemplateEditor({
               onChange={(v) => set("footerText", v)}
             />
 
-            <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+            <label className="flex items-center gap-2 rounded-md border border-line-soft px-3 py-2.5 text-sm text-ink">
               <input
                 type="checkbox"
                 name="mobileMoneyEnabled"
                 checked={mobileMoneyEnabled}
                 onChange={(e) => setMobileMoneyEnabled(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-4 w-4 rounded border-line-soft"
               />
               Afficher les boutons de paiement mobile money (Wave, Orange
               Money, Moov Money) sur le portail
             </label>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-ink-soft">
               Maquette d&apos;interface uniquement pour l&apos;instant — voir{" "}
               <a
                 href="/admin/settings/payment-gateways"
@@ -237,14 +237,14 @@ export default function TemplateEditor({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
               >
                 {pending ? "Enregistrement..." : "Enregistrer"}
               </button>
@@ -252,7 +252,7 @@ export default function TemplateEditor({
           </form>
 
           <div>
-            <p className="mb-2 text-sm font-medium text-slate-700">Aperçu</p>
+            <p className="mb-2 text-sm font-medium text-ink">Aperçu</p>
             <div className="h-[480px]">
               <CaptivePreview data={previewData} />
             </div>

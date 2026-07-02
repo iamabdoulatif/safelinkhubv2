@@ -51,6 +51,12 @@ test("install completion endpoint marks router online and clears install token",
   assert.match(source, /syncRouterStats\(router\.id/);
 });
 
+test("post-install access auto-enables WinBox, WebFig, SSH and MikHmon together", async () => {
+  const source = await readFile(new URL("../src/lib/mikrotik/port-forward.ts", import.meta.url), "utf8");
+
+  assert.match(source, /AUTO_ENABLED_SERVICES_AFTER_INSTALL = \["winbox", "webfig", "ssh", "mikhmon"\]/);
+});
+
 test("install completion endpoint matches by install token alone, not also live status", async () => {
   const source = await readFile(
     new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/installed/route.ts", import.meta.url),
@@ -88,6 +94,21 @@ test("RouterOS VPN script removes API user before its group during reinstall", a
   );
 });
 
+test("RouterOS install scripts grant the managed API user SSH/SFTP policy for FileZilla access", async () => {
+  const wireguard = await readFile(
+    new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/route.ts", import.meta.url),
+    "utf8",
+  );
+  const openvpn = await readFile(
+    new URL("../src/app/api/router/v1/[slug]/scripts/install-openvpn/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  for (const source of [wireguard, openvpn]) {
+    assert.match(source, /user group add name=safelinkhub-group policy=api,read,write,test,sensitive,ssh,ftp/);
+  }
+});
+
 test("VPN script can be fetched again while a router is still installing", async () => {
   const source = await readFile(
     new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/route.ts", import.meta.url),
@@ -107,6 +128,17 @@ test("RouterOS WireGuard install script prepares DOCKERS bridge and MIKHMON veth
   assert.match(source, /\/interface veth add name=MIKHMON address=11\.11\.11\.11\/28 gateway=11\.11\.11\.1/);
   assert.match(source, /\/interface bridge port add bridge=DOCKERS interface=MIKHMON/);
   assert.match(source, /\/ip address add address=11\.11\.11\.1\/28 interface=DOCKERS network=11\.11\.11\.0/);
+});
+
+test("RouterOS WireGuard install script removes duplicate legacy DOCKER gateway before using DOCKERS", async () => {
+  const source = await readFile(
+    new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /"DOCKER"/);
+  assert.match(source, /\/ip address remove \[find interface=\$oldBridge address=11\.11\.11\.1\/28\]/);
+  assert.match(source, /\/interface bridge remove \[find name=\$oldBridge\]/);
 });
 
 test("relay peer allocation uses live WireGuard allowed IPs to pick the next tunnel address", async () => {

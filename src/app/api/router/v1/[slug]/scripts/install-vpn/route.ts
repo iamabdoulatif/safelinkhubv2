@@ -37,6 +37,10 @@ function buildScript(opts: {
 # Prepare the MikHmon container network early so the topology and later
 # auto-setup both see the same DOCKERS bridge, MIKHMON veth and gateway.
 :do {
+  :foreach oldBridge in={"CONTAINERS";"dockers";"DOCKER-SAFELINKHUB";"DOCKER"} do={
+    /ip address remove [find interface=$oldBridge address=11.11.11.1/28]
+    :if (([:len [/interface bridge find where name=$oldBridge]] > 0) && ([:len [/interface bridge port find where bridge=$oldBridge]] = 0)) do={ /interface bridge remove [find name=$oldBridge] }
+  }
   :if ([:len [/interface bridge find where name="DOCKERS"]] = 0) do={ /interface bridge add name=DOCKERS }
   :if ([:len [/interface veth find where name="MIKHMON"]] = 0) do={ /interface veth add name=MIKHMON address=11.11.11.11/28 gateway=11.11.11.1 } else={ /interface veth set [find where name="MIKHMON"] address=11.11.11.11/28 gateway=11.11.11.1 }
   :if ([:len [/interface bridge port find where interface="MIKHMON"]] = 0) do={ /interface bridge port add bridge=DOCKERS interface=MIKHMON } else={ /interface bridge port set [find where interface="MIKHMON"] bridge=DOCKERS }
@@ -86,7 +90,7 @@ function buildScript(opts: {
 
 /user remove [find name=safelinkhub-api]
 /user group remove [find name=safelinkhub-group]
-/user group add name=safelinkhub-group policy=api,read,write,test,sensitive
+/user group add name=safelinkhub-group policy=api,read,write,test,sensitive,ssh,ftp
 /user add name=safelinkhub-api password="${opts.apiPassword}" group=safelinkhub-group
 
 

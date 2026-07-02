@@ -23,7 +23,7 @@ export default async function AdminLayout({
     .limit(1);
 
   return (
-    <div className="flex min-h-screen flex-1 bg-slate-50 overflow-x-hidden">
+    <div className="flex min-h-screen flex-1 bg-paper overflow-x-hidden">
       <AdminSidebar
         orgName={org?.name ?? "Organisation"}
         userName={session.name}

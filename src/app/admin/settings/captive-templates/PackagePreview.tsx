@@ -51,7 +51,7 @@ export default function PackagePreview({ files }: { files: unknown }) {
       style={{ backgroundColor: bgBody }}
     >
       <div
-        className="flex w-full max-w-[220px] flex-col items-center gap-3 rounded-xl p-5 shadow-sm"
+        className="flex w-full max-w-[220px] flex-col items-center gap-3 rounded-xl p-5"
         style={{ backgroundColor: bgCard }}
       >
         <span

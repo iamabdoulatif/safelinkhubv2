@@ -37,7 +37,7 @@ export default function SmsGatewayCard({
   const [isEnabled, setIsEnabled] = useState(enabled);
 
   return (
-    <form action={formAction} className="rounded-xl border border-slate-200 bg-white p-5">
+    <form action={formAction} className="border-2 border-line bg-paper p-5">
       <input type="hidden" name="provider" value={provider} />
 
       <div className="flex items-center justify-between">
@@ -49,25 +49,25 @@ export default function SmsGatewayCard({
             height={512}
             className="h-8 w-8 object-contain"
           />
-          <h3 className="font-semibold text-slate-900">{LABELS[provider]}</h3>
+          <h3 className="font-semibold text-ink">{LABELS[provider]}</h3>
         </div>
       </div>
-      <p className="mt-1.5 text-xs text-slate-500">{SUBTITLES[provider]}</p>
+      <p className="mt-1.5 text-xs text-ink-soft">{SUBTITLES[provider]}</p>
       <div className="mt-2 flex items-center justify-between">
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm text-ink-soft">
           <input
             type="checkbox"
             name="enabled"
             checked={isEnabled}
             onChange={(e) => setIsEnabled(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
+            className="h-4 w-4 rounded border-line-soft"
           />
           Activée
         </label>
       </div>
 
       {state?.success && (
-        <p className="mt-3 flex items-center gap-1.5 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+        <p className="mt-3 flex items-center gap-1.5 rounded-md bg-clay px-3 py-2 text-xs text-ok">
           <Check className="h-3.5 w-3.5" /> Enregistré
         </p>
       )}
@@ -77,7 +77,7 @@ export default function SmsGatewayCard({
 
       <div className="mt-4 space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500">
+          <label className="mb-1 block text-xs font-medium text-ink-soft">
             {SENDER_LABELS[provider]}
           </label>
           <input
@@ -86,21 +86,21 @@ export default function SmsGatewayCard({
             placeholder="SafeLinkHub"
             maxLength={11}
             autoComplete="off"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500">
-            Clé API {hasApiKey && <span className="text-emerald-600">(déjà enregistrée)</span>}
+          <label className="mb-1 block text-xs font-medium text-ink-soft">
+            Clé API {hasApiKey && <span className="text-ok">(déjà enregistrée)</span>}
           </label>
           <input
             name="apiKey"
             type="password"
             placeholder={hasApiKey ? "••••••••••••" : "Clé API"}
             autoComplete="off"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
           />
-          <p className="mt-1 text-[11px] text-slate-400">
+          <p className="mt-1 text-[11px] text-ink-soft">
             Laissez vide pour conserver la clé actuelle.
           </p>
         </div>
@@ -109,7 +109,7 @@ export default function SmsGatewayCard({
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+        className="mt-4 w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
       >
         {pending ? "Enregistrement..." : "Enregistrer"}
       </button>

@@ -19,7 +19,7 @@ export default function DeleteExpenseButton({ expenseId }: { expenseId: string }
           router.refresh();
         })
       }
-      className="text-slate-400 hover:text-red-600 disabled:opacity-50"
+      className="text-ink-soft hover:text-red-600 disabled:opacity-50"
       title="Supprimer"
     >
       <Trash2 className="h-4 w-4" />

@@ -31,10 +31,10 @@ export default async function AgentPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <UserCog className="h-5 w-5 text-slate-700" />
-            <h1 className="text-2xl font-bold text-slate-900">Agent</h1>
+            <UserCog className="h-5 w-5 text-ink" />
+            <h1 className="text-2xl font-bold text-ink">Agent</h1>
           </div>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-ink-soft">
             Vendez des forfaits internet en espèces via votre équipe — chaque vente
             génère un voucher et crédite automatiquement le solde flottant.
           </p>

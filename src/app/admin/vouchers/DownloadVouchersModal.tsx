@@ -62,29 +62,29 @@ export default function DownloadVouchersModal({
       <button
         onClick={() => setOpen(true)}
         disabled={count === 0}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-40"
+        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-40"
       >
         Télécharger la sélection
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-2xl rounded-xl bg-paper p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">
+                <h2 className="text-lg font-semibold text-ink">
                   Télécharger {count} voucher(s) sélectionné(s)
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-ink-soft">
                   {count} voucher(s) prêt(s) à télécharger
                 </p>
               </div>
               <button onClick={() => setOpen(false)}>
-                <X className="h-5 w-5 text-slate-400" />
+                <X className="h-5 w-5 text-ink-soft" />
               </button>
             </div>
 
-            <h3 className="mt-5 text-sm font-semibold text-slate-700">
+            <h3 className="mt-5 text-sm font-semibold text-ink">
               Choisir un modèle PDF
             </h3>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -94,15 +94,15 @@ export default function DownloadVouchersModal({
                   onClick={() => setSelected(i)}
                   className={`rounded-lg border p-3 text-left ${
                     selected === i
-                      ? "border-slate-900 ring-1 ring-slate-900"
-                      : "border-slate-200 hover:border-slate-300"
+                      ? "border-line ring-1 ring-ink"
+                      : "border-line-soft hover:border-line-soft"
                   }`}
                 >
-                  <div className="mb-2 h-16 rounded-md bg-slate-50" />
-                  <p className="text-sm font-medium text-slate-900">
+                  <div className="mb-2 h-16 rounded-md bg-clay" />
+                  <p className="text-sm font-medium text-ink">
                     {t.name}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-ink-soft">
                     {t.description}
                   </p>
                   {t.tags.length > 0 && (
@@ -110,7 +110,7 @@ export default function DownloadVouchersModal({
                       {t.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500"
+                          className="rounded bg-clay px-1.5 py-0.5 text-[10px] text-ink-soft"
                         >
                           {tag}
                         </span>
@@ -124,13 +124,13 @@ export default function DownloadVouchersModal({
             <div className="mt-6 flex justify-end gap-2">
               <button
                 onClick={() => setOpen(false)}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
               >
                 Annuler
               </button>
               <button
                 onClick={handleDownload}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F]"
               >
                 Télécharger
               </button>

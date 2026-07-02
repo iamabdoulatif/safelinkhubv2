@@ -33,7 +33,7 @@ export default async function TransactionsPage() {
   if (!session) {
     return (
       <div className="mx-auto max-w-5xl">
-        <h1 className="text-2xl font-bold text-slate-900">Transactions</h1>
+        <h1 className="text-2xl font-bold text-ink">Transactions</h1>
       </div>
     );
   }
@@ -86,45 +86,45 @@ export default async function TransactionsPage() {
   const visible = entries.slice(0, 300);
 
   const categoryStyle: Record<LedgerEntry["category"], string> = {
-    Dépôt: "bg-emerald-50 text-emerald-700",
-    Vente: "bg-emerald-50 text-emerald-700",
-    Retrait: "bg-amber-50 text-amber-700",
+    Dépôt: "bg-clay text-ok",
+    Vente: "bg-clay text-ok",
+    Retrait: "bg-clay text-warn",
     Dépense: "bg-red-50 text-red-700",
   };
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <div className="flex items-center gap-2">
-        <ArrowLeftRight className="h-5 w-5 text-slate-700" />
-        <h1 className="text-2xl font-bold text-slate-900">Transactions</h1>
+        <ArrowLeftRight className="h-5 w-5 text-ink" />
+        <h1 className="text-2xl font-bold text-ink">Transactions</h1>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Journal combiné de tous les mouvements financiers — dépôts/retraits du solde
         flottant, dépenses et ventes de vouchers.
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 hover-lift">
-          <p className="text-sm font-medium text-slate-500">Total entrées</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-700">{formatFcfa(totalIn)}</p>
+        <div className="border-2 border-line bg-paper p-5 hover-lift">
+          <p className="text-sm font-medium text-ink-soft">Total entrées</p>
+          <p className="mt-1 text-2xl font-bold text-ok">{formatFcfa(totalIn)}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 hover-lift">
-          <p className="text-sm font-medium text-slate-500">Total sorties</p>
+        <div className="border-2 border-line bg-paper p-5 hover-lift">
+          <p className="text-sm font-medium text-ink-soft">Total sorties</p>
           <p className="mt-1 text-2xl font-bold text-red-600">{formatFcfa(totalOut)}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 hover-lift">
-          <p className="text-sm font-medium text-slate-500">Net</p>
-          <p className={`mt-1 text-2xl font-bold ${net < 0 ? "text-red-600" : "text-slate-900"}`}>
+        <div className="border-2 border-line bg-paper p-5 hover-lift">
+          <p className="text-sm font-medium text-ink-soft">Net</p>
+          <p className={`mt-1 text-2xl font-bold ${net < 0 ? "text-red-600" : "text-ink"}`}>
             {net < 0 ? "-" : ""}
             {formatFcfa(net)}
           </p>
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="mt-6 overflow-hidden border-2 border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+          <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">Date</th>
               <th className="px-4 py-3 font-medium">Catégorie</th>
@@ -133,39 +133,39 @@ export default async function TransactionsPage() {
               <th className="px-4 py-3 font-medium">Note</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-line-soft">
             {visible.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-ink-soft">
                   Aucune transaction pour le moment.
                 </td>
               </tr>
             )}
             {visible.map((e) => (
               <tr key={`${e.category}-${e.id}`}>
-                <td className="px-4 py-3 text-slate-600">{formatDate(e.date)}</td>
+                <td className="px-4 py-3 text-ink-soft">{formatDate(e.date)}</td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${categoryStyle[e.category]}`}>
                     {e.category}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-slate-700">{e.label}</td>
+                <td className="px-4 py-3 text-ink">{e.label}</td>
                 <td
                   className={`px-4 py-3 font-medium ${
-                    e.amountCents < 0 ? "text-red-600" : "text-emerald-700"
+                    e.amountCents < 0 ? "text-red-600" : "text-ok"
                   }`}
                 >
                   {e.amountCents < 0 ? "-" : "+"}
                   {formatFcfa(e.amountCents)}
                 </td>
-                <td className="px-4 py-3 text-slate-500">{e.note ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-soft">{e.note ?? "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
         </div>
         {entries.length > visible.length && (
-          <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-400">
+          <p className="border-t border-line-soft px-4 py-3 text-xs text-ink-soft">
             Affichage des {visible.length} transactions les plus récentes sur {entries.length}.
           </p>
         )}

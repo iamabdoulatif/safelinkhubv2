@@ -70,17 +70,17 @@ export default function PortalPreviewStep({
   }, []);
 
   return (
-    <div className="animate-fade-slide-up mt-8 rounded-xl border border-slate-200 bg-white p-6">
-      <h2 className="font-semibold text-slate-900">
+    <div className="animate-fade-slide-up mt-8 border-2 border-line bg-paper p-6">
+      <h2 className="font-semibold text-ink">
         Étape 9 : Aperçu et test du portail captif
       </h2>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Vérification que le portail captif (hotspot) est bien actif sur
         chaque bridge où il a été configuré.
       </p>
 
       {hotspotBridges.length === 0 ? (
-        <div className="mt-6 flex items-center gap-2 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        <div className="mt-6 flex items-center gap-2 rounded-md bg-clay px-4 py-3 text-sm text-warn">
           <WifiOff className="h-4 w-4 shrink-0" />
           Aucun bridge n&apos;a le hotspot activé. Retournez à l&apos;étape 2 pour en
           configurer un si vous souhaitez utiliser le portail captif.
@@ -92,12 +92,12 @@ export default function PortalPreviewStep({
             return (
               <div
                 key={bridge.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3"
+                className="flex items-center justify-between rounded-lg border border-line-soft px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-medium text-slate-700">{bridge.name}</p>
+                  <p className="text-sm font-medium text-ink">{bridge.name}</p>
                   {result?.state === "done" && (
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-ink-soft">
                       {result.message ??
                         `Passerelle ${result.gatewayIp} · adresse hotspot ${result.hotspotAddress}`}
                     </p>
@@ -109,14 +109,14 @@ export default function PortalPreviewStep({
 
                 <div className="flex items-center gap-3">
                   {result?.state === "done" && result.running && (
-                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                    <span className="flex items-center gap-1 text-xs text-ink-soft">
                       <Users className="h-3.5 w-3.5" />
                       {result.activeUsers ?? 0} connecté(s)
                     </span>
                   )}
 
                   {!result || result.state === "testing" ? (
-                    <span className="flex items-center gap-1.5 text-sm text-slate-400">
+                    <span className="flex items-center gap-1.5 text-sm text-ink-soft">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Test...
                     </span>
@@ -126,7 +126,7 @@ export default function PortalPreviewStep({
                       Inactif
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-ok">
                       <CheckCircle2 className="h-4 w-4" />
                       Actif
                     </span>
@@ -139,7 +139,7 @@ export default function PortalPreviewStep({
       )}
 
       <div className="mt-6">
-        <p className="mb-2 text-xs font-medium text-slate-500">
+        <p className="mb-2 text-xs font-medium text-ink-soft">
           Vérification en direct du portail captif sur le routeur :
         </p>
         <ConfigAuditBanner routerId={routerId} onItemsChange={setAuditItems} />
@@ -159,7 +159,7 @@ export default function PortalPreviewStep({
         <button
           type="button"
           onClick={onBack}
-          className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          className="rounded-lg border border-line-soft px-5 py-2.5 text-sm font-medium text-ink-soft hover:bg-clay"
         >
           Retour
         </button>
@@ -167,7 +167,7 @@ export default function PortalPreviewStep({
           <button
             type="button"
             onClick={runTests}
-            className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className="rounded-lg border border-line-soft px-5 py-2.5 text-sm font-medium text-ink-soft hover:bg-clay"
           >
             Tester à nouveau
           </button>
@@ -177,14 +177,14 @@ export default function PortalPreviewStep({
             type="button"
             disabled
             title="Le portail captif n'est pas confirmé installé sur le routeur"
-            className="rounded-lg bg-slate-300 px-5 py-2.5 text-sm font-medium text-white cursor-not-allowed"
+            className="rounded-lg bg-line-soft px-5 py-2.5 text-sm font-medium text-white cursor-not-allowed"
           >
             Terminé — Aller au tableau de bord
           </button>
         ) : (
           <a
             href="/admin/router"
-            className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+            className="rounded-lg bg-brand-deep px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-deep"
           >
             Terminé — Aller au tableau de bord
           </a>

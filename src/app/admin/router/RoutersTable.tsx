@@ -26,20 +26,20 @@ export type RouterRow = {
 function ProvisioningBadge({ status }: { status: string }) {
   if (status === "online") {
     return (
-      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+      <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ok">
         Provisionné
       </span>
     );
   }
   if (status === "installing" || status === "pending") {
     return (
-      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+      <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-warn">
         En cours
       </span>
     );
   }
   return (
-    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
+    <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ink-soft">
       Hors service
     </span>
   );
@@ -50,10 +50,10 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`flex items-center gap-1.5 text-sm font-medium ${
-        online ? "text-emerald-600" : "text-red-500"
+        online ? "text-ok" : "text-red-500"
       }`}
     >
-      <span className={`h-2 w-2 rounded-full ${online ? "bg-emerald-500" : "bg-red-500"}`} />
+      <span className={`h-2 w-2 rounded-full ${online ? "bg-ok" : "bg-red-500"}`} />
       {online ? "En ligne" : "Hors ligne"}
     </span>
   );
@@ -64,7 +64,7 @@ function ConnectionBadge({ connectionMethod }: { connectionMethod: string }) {
   return (
     <span
       className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-        isVpn ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-500"
+        isVpn ? "bg-clay text-ink" : "bg-clay text-ink-soft"
       }`}
     >
       {isVpn ? "WireGuard" : "Direct"}
@@ -81,11 +81,11 @@ function RemoteAccessToggle({ enabled }: { enabled: boolean }) {
           : "Aucun tunnel d'accès distant (connexion directe)"
       }
       className={`relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors ${
-        enabled ? "bg-emerald-500" : "bg-slate-200"
+        enabled ? "bg-brand" : "bg-clay"
       }`}
     >
       <span
-        className={`absolute h-4.5 w-4.5 rounded-full bg-white shadow transition-transform ${
+        className={`absolute h-4.5 w-4.5 rounded-full bg-paper shadow transition-transform ${
           enabled ? "translate-x-5" : "translate-x-1"
         }`}
       />
@@ -138,22 +138,22 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
     <div className="animate-fade-in-up">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Routeurs MikroTik</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-ink">Routeurs MikroTik</h1>
+          <p className="mt-1 text-sm text-ink-soft">
             Pour commencer, ajoutez un routeur MikroTik en cliquant sur le
             bouton &quot;Lier un MikroTik&quot;.
           </p>
         </div>
         <Link
           href="/admin/settings/router-setup"
-          className="flex items-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600"
+          className="flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-[#1C1917] hover:bg-brand-deep hover:text-white"
         >
           <Link2 className="h-4 w-4" />
           Lier un MikroTik
         </Link>
       </div>
 
-      <div className="mt-6 flex w-fit items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+      <div className="mt-6 flex w-fit items-center gap-1 border-2 border-line bg-paper p-1">
         {([
           ["all", "Tous"],
           ["online", "En ligne"],
@@ -165,33 +165,33 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
             onClick={() => setFilter(key)}
             className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
               filter === key
-                ? "bg-slate-100 text-slate-900"
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-clay text-ink"
+                : "text-ink-soft hover:text-ink"
             }`}
           >
             {label}
-            <span className="rounded bg-slate-100 px-1.5 text-xs text-slate-500">
+            <span className="rounded bg-clay px-1.5 text-xs text-ink-soft">
               {counts[key]}
             </span>
           </button>
         ))}
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-end border-b border-slate-100 p-3">
+      <div className="mt-4 overflow-hidden border-2 border-line bg-paper">
+        <div className="flex items-center justify-end border-b border-line-soft p-3">
           <div className="relative w-full max-w-xs">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-ink-soft" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Rechercher"
-              className="w-full rounded-md border border-slate-300 py-1.5 pl-8 pr-3 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-line-soft py-1.5 pl-8 pr-3 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
             />
           </div>
         </div>
 
         {filtered.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-slate-400">
+          <p className="px-4 py-10 text-center text-sm text-ink-soft">
             Aucun routeur à afficher.
           </p>
         ) : (
@@ -201,18 +201,18 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                 per router. */}
             <div className="space-y-3 p-3 md:hidden">
               {filtered.map((r) => (
-                <div key={r.id} className="rounded-lg border border-slate-200 p-3">
+                <div key={r.id} className="rounded-lg border border-line-soft p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 truncate font-medium text-slate-700">{r.name}</p>
+                    <p className="min-w-0 truncate font-medium text-ink">{r.name}</p>
                     <ProvisioningBadge status={r.status} />
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ink-soft">
                     <StatusBadge status={r.status} />
                     <ConnectionBadge connectionMethod={r.connectionMethod} />
                     <span className="tabular-nums">CPU {r.cpuLoad ?? 0}%</span>
                     <span className="tabular-nums">Mém. {r.memoryUsage ?? "0"}%</span>
                   </div>
-                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft pt-2.5">
                     <RemoteAccessToggle enabled={r.connectionMethod === "vpn"} />
                     <div className="flex items-center gap-2">
                       <button
@@ -224,7 +224,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                             ? "Le routeur doit être en ligne pour lire ses informations"
                             : undefined
                         }
-                        className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Info className="h-3.5 w-3.5" />
                         Détails
@@ -239,7 +239,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
             {/* Desktop / tablet: table */}
             <div className="hidden md:block">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-100 text-xs font-medium text-slate-500">
+                <thead className="border-b border-line-soft text-xs font-medium text-ink-soft">
                   <tr>
                     <th className="px-4 py-3">Nom</th>
                     <th className="px-4 py-3">Provisionnement</th>
@@ -253,13 +253,13 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
-                    <tr key={r.id} className="border-b border-slate-50 last:border-0">
-                      <td className="px-4 py-3 font-medium text-slate-700">{r.name}</td>
+                    <tr key={r.id} className="border-b border-line-soft last:border-0">
+                      <td className="px-4 py-3 font-medium text-ink">{r.name}</td>
                       <td className="px-4 py-3">
                         <ProvisioningBadge status={r.status} />
                       </td>
-                      <td className="px-4 py-3 tabular-nums text-slate-600">{r.cpuLoad ?? 0}%</td>
-                      <td className="px-4 py-3 tabular-nums text-slate-600">{r.memoryUsage ?? "0"}%</td>
+                      <td className="px-4 py-3 tabular-nums text-ink-soft">{r.cpuLoad ?? 0}%</td>
+                      <td className="px-4 py-3 tabular-nums text-ink-soft">{r.memoryUsage ?? "0"}%</td>
                       <td className="px-4 py-3">
                         <StatusBadge status={r.status} />
                       </td>
@@ -280,7 +280,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                                 ? "Le routeur doit être en ligne pour lire ses informations"
                                 : undefined
                             }
-                            className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <Info className="h-3.5 w-3.5" />
                             Détails
@@ -296,7 +296,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
           </>
         )}
 
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-sm text-slate-500">
+        <div className="flex items-center justify-between border-t border-line-soft px-4 py-2.5 text-sm text-ink-soft">
           <span>Affichage de {filtered.length} résultat(s)</span>
         </div>
       </div>

@@ -22,9 +22,9 @@ const LABELS: Record<Provider, string> = {
 };
 
 const ACCENTS: Record<Provider, string> = {
-  genius_pay: "hover:ring-violet-200",
-  paystack: "hover:ring-sky-200",
-  pawapay: "hover:ring-slate-300",
+  genius_pay: "hover:ring-line-soft",
+  paystack: "hover:ring-line-soft",
+  pawapay: "hover:ring-line-soft",
 };
 
 const SUBTITLES: Record<Provider, string> = {
@@ -51,7 +51,7 @@ export default function GatewayCard({
   return (
     <form
       action={formAction}
-      className={`rounded-xl border border-slate-200 bg-white p-5 ring-1 ring-transparent transition-shadow ${ACCENTS[provider]}`}
+      className={`border-2 border-line bg-paper p-5 ring-1 ring-transparent transition-shadow ${ACCENTS[provider]}`}
     >
       <input type="hidden" name="provider" value={provider} />
 
@@ -65,7 +65,7 @@ export default function GatewayCard({
             className={logo.standalone ? "h-7 w-auto object-contain" : "h-8 w-8 object-contain"}
           />
           {!logo.standalone && (
-            <span className="font-semibold text-slate-900">{LABELS[provider]}</span>
+            <span className="font-semibold text-ink">{LABELS[provider]}</span>
           )}
         </div>
         <button
@@ -74,29 +74,29 @@ export default function GatewayCard({
           aria-checked={isEnabled}
           aria-label={`Activer ${LABELS[provider]}`}
           onClick={() => setIsEnabled((v) => !v)}
-          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${
-            isEnabled ? "bg-emerald-500" : "bg-slate-200"
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 ${
+            isEnabled ? "bg-brand" : "bg-clay"
           }`}
         >
           <input type="checkbox" name="enabled" checked={isEnabled} readOnly className="sr-only" />
           <span
-            className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
+            className={`inline-block h-4.5 w-4.5 transform rounded-full bg-paper shadow transition-transform ${
               isEnabled ? "translate-x-6" : "translate-x-1"
             }`}
           />
         </button>
       </div>
 
-      <p className="mt-3 text-xs text-slate-500">{SUBTITLES[provider]}</p>
+      <p className="mt-3 text-xs text-ink-soft">{SUBTITLES[provider]}</p>
 
       <p className="mt-2 text-xs font-medium">
-        <span className={isEnabled ? "text-emerald-600" : "text-slate-400"}>
+        <span className={isEnabled ? "text-ok" : "text-ink-soft"}>
           {isEnabled ? "Activée" : "Désactivée"}
         </span>
       </p>
 
       {state?.success && (
-        <p className="mt-3 flex items-center gap-1.5 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+        <p className="mt-3 flex items-center gap-1.5 rounded-md bg-clay px-3 py-2 text-xs text-ok">
           <Check className="h-3.5 w-3.5" /> Enregistré
         </p>
       )}
@@ -108,7 +108,7 @@ export default function GatewayCard({
 
       <div className="mt-4 space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500">
+          <label className="mb-1 block text-xs font-medium text-ink-soft">
             Identifiant marchand
           </label>
           <input
@@ -116,21 +116,21 @@ export default function GatewayCard({
             defaultValue={merchantId ?? ""}
             placeholder="ID marchand"
             autoComplete="off"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500">
-            Clé API {hasApiKey && <span className="text-emerald-600">(déjà enregistrée)</span>}
+          <label className="mb-1 block text-xs font-medium text-ink-soft">
+            Clé API {hasApiKey && <span className="text-ok">(déjà enregistrée)</span>}
           </label>
           <input
             name="apiKey"
             type="password"
             placeholder={hasApiKey ? "••••••••••••" : "Clé API"}
             autoComplete="off"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
           />
-          <p className="mt-1 text-[11px] text-slate-400">
+          <p className="mt-1 text-[11px] text-ink-soft">
             Laissez vide pour conserver la clé actuelle.
           </p>
         </div>
@@ -139,7 +139,7 @@ export default function GatewayCard({
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+        className="mt-4 w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3A362F] disabled:opacity-60"
       >
         {pending ? "Enregistrement..." : "Enregistrer"}
       </button>

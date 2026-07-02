@@ -20,6 +20,8 @@ import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { loadSafelinkhubDefaultPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import { getWalletBalanceCents } from "@/lib/wallet/actions";
+import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
+import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -54,7 +56,7 @@ const DOCKER_BRIDGE_NAME = ROUTER_SETUP_PROFILE.containerBridge.name;
 // profile was normalized to DOCKERS (matching the operator's own reference
 // RouterOS config verbatim).
 const LEGACY_HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
-const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKER-SAFELINKHUB"];
+const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKER-SAFELINKHUB", "DOCKER"];
 const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
@@ -419,6 +421,7 @@ async function provisionDockerStack(
         "MikHmon tunnel dst-nat port forward",
       );
     }
+    await ensureMikhmonTunnelAccess(client, log);
   } else if (!opts.supportsContainers) {
     log.push(
       "SKIP (MikHmon container): architecture does not support RouterOS Container — hotspot/WiFi configured, no container step run",
@@ -1541,6 +1544,9 @@ export async function provisionHotspotStack(
       log.push("OK: API service left open on its current address (direct LAN connection) — Winbox/WebFig/API all unaffected");
       await run(["/ip/service/set", "=numbers=ssh", "=disabled=yes"], "disable ssh (direct LAN connection, no VPN tunnel to scope it to)");
     }
+    if (router.connectionMethod === "vpn" || router.connectionMethod === "openvpn") {
+      await ensureSshTunnelAccess(client, log, router.username ?? undefined);
+    }
 
     await run(["/system/clock/set", "=time-zone-name=Africa/Abidjan"], "timezone Africa/Abidjan");
     await run(["/ip/cloud/set", "=ddns-enabled=yes", "=update-time=yes"], "MikroTik Cloud DDNS/time enabled");
@@ -1681,11 +1687,11 @@ export async function provisionHotspotStack(
     }
 
     // Restricted API user group: scopes whatever account SafeLinkHub
-    // connects with to just what the app needs (read/write/test/sensitive/
-    // api), explicitly denying every interactive-access policy (winbox,
-    // ssh, telnet, web, local, reboot, password, sniff, romon, rest-api)
-    // so a leaked API credential can't be used to log into the router
-    // directly through any of those surfaces.
+    // connects with to what the app needs (read/write/test/sensitive/api),
+    // plus ssh/ftp so the same managed account can authenticate SFTP
+    // through the SafeLinkHub tunnel when the admin explicitly enables the
+    // SSH/SFTP relay forward. Telnet, WinBox, WebFig, local, reboot,
+    // password, sniff, romon and rest-api stay denied.
     //
     // "ftp" is granted, not denied — RouterOS overloads that single policy
     // bit for two unrelated things: (1) logging into the FTP *server*
@@ -1703,7 +1709,7 @@ export async function provisionHotspotStack(
       [
         "/user/group/add",
         "=name=safelinkhub-group",
-        "=policy=read,write,test,sensitive,api,ftp,!local,!telnet,!ssh,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api",
+        "=policy=read,write,test,sensitive,api,ssh,ftp,!local,!telnet,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api",
       ],
       "SafeLinkHub API user group",
     );

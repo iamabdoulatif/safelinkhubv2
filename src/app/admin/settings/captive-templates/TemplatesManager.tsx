@@ -30,7 +30,7 @@ export default function TemplatesManager({
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-700">Vos modèles</h2>
+        <h2 className="text-sm font-semibold text-ink">Vos modèles</h2>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -42,7 +42,7 @@ export default function TemplatesManager({
                 else router.refresh();
               })
             }
-            className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
           >
             <Package className="h-4 w-4" />
             Importer le portail SafeLinkHub
@@ -57,7 +57,7 @@ export default function TemplatesManager({
                 else router.refresh();
               })
             }
-            className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
           >
             <Package className="h-4 w-4" />
             Importer le portail SafeLink Africa
@@ -65,7 +65,7 @@ export default function TemplatesManager({
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3A362F]"
           >
             <Plus className="h-4 w-4" />
             Nouveau modèle
@@ -78,15 +78,15 @@ export default function TemplatesManager({
       )}
 
       {templates.length === 0 ? (
-        <p className="mt-4 rounded-md border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-400">
+        <p className="mt-4 rounded-md border border-dashed border-line-soft px-4 py-10 text-center text-sm text-ink-soft">
           Aucun modèle pour le moment. Créez-en un pour personnaliser la page
           que vos clients voient en se connectant au Wi-Fi.
         </p>
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => (
-            <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3">
-              <div className="h-40 overflow-hidden rounded-lg bg-slate-50">
+            <div key={t.id} className="border-2 border-line bg-paper p-3">
+              <div className="h-40 overflow-hidden rounded-lg bg-clay">
                 {t.templateType === "package" ? (
                   <PackagePreview files={t.packageFiles} />
                 ) : (
@@ -113,16 +113,16 @@ export default function TemplatesManager({
               </div>
 
               <div className="mt-3 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
                   {t.name}
                   {t.isDefault && (
-                    <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                    <span className="flex items-center gap-1 rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-warn">
                       <Star className="h-3 w-3" />
                       Par défaut
                     </span>
                   )}
                   {t.templateType === "package" && (
-                    <span className="flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+                    <span className="flex items-center gap-1 rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-brand-deep">
                       <Package className="h-3 w-3" />
                       Package
                     </span>
@@ -135,7 +135,7 @@ export default function TemplatesManager({
                   <button
                     type="button"
                     onClick={() => setEditingBranding(t)}
-                    className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                    className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Coordonnées
@@ -144,7 +144,7 @@ export default function TemplatesManager({
                   <button
                     type="button"
                     onClick={() => setEditing(t)}
-                    className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                    className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Modifier
@@ -160,7 +160,7 @@ export default function TemplatesManager({
                       else router.refresh();
                     })
                   }
-                  className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   Dupliquer
@@ -176,7 +176,7 @@ export default function TemplatesManager({
                         else router.refresh();
                       })
                     }
-                    className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                    className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                   >
                     <Star className="h-3.5 w-3.5" />
                     Par défaut
@@ -206,7 +206,7 @@ export default function TemplatesManager({
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteId(null)}
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                      className="rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                     >
                       Annuler
                     </button>

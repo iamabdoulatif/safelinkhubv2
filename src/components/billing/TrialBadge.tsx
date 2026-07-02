@@ -29,11 +29,11 @@ export default function TrialBadge({
 }) {
   if (active) {
     return (
-      <span className="animate-fade-slide-up inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+      <span className="animate-fade-slide-up inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-[#1C1917]">
         <Sparkles className="h-3.5 w-3.5" />
         {activeLabel}
         {typeof daysRemaining === "number" && (
-          <span className="rounded-full bg-white/25 px-1.5 py-0.5 text-[11px] font-medium">
+          <span className="rounded-full bg-paper/25 px-1.5 py-0.5 text-[11px] font-medium">
             {humanizeDaysRemaining(daysRemaining)}
           </span>
         )}
@@ -41,7 +41,7 @@ export default function TrialBadge({
     );
   }
   return (
-    <span className="animate-fade-slide-up inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+    <span className="animate-fade-slide-up inline-flex items-center gap-1.5 rounded-full bg-clay px-3 py-1 text-xs font-medium text-ink-soft">
       {endedLabel}
     </span>
   );

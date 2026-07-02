@@ -26,7 +26,7 @@ export default function ChangePasswordForm() {
   return (
     <form ref={formRef} action={formAction} className="space-y-3">
       <div>
-        <label htmlFor="current-password" className="mb-1.5 block text-sm font-medium text-slate-700">
+        <label htmlFor="current-password" className="mb-1.5 block text-sm font-medium text-ink">
           Mot de passe actuel
         </label>
         <input
@@ -35,11 +35,11 @@ export default function ChangePasswordForm() {
           type="password"
           required
           autoComplete="current-password"
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
         />
       </div>
       <div>
-        <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium text-slate-700">
+        <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium text-ink">
           Nouveau mot de passe
         </label>
         <div className="relative">
@@ -53,13 +53,13 @@ export default function ChangePasswordForm() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder={passwordExample}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-10 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-lg border border-line-soft px-3 py-2 pr-10 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
           />
           <button
             type="button"
             onClick={() => setShowNewPassword((v) => !v)}
             aria-label={showNewPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink-soft"
           >
             {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -71,14 +71,14 @@ export default function ChangePasswordForm() {
         <button
           type="submit"
           disabled={pending}
-          className="flex items-center gap-1.5 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {pending ? "Mise à jour..." : "Changer le mot de passe"}
         </button>
         <div role="status" aria-live="polite" className="text-xs">
           {!pending && state?.success && (
-            <span className="flex items-center gap-1 text-emerald-600">
+            <span className="flex items-center gap-1 text-ok">
               <Check className="h-3.5 w-3.5" /> Mot de passe modifié.
             </span>
           )}

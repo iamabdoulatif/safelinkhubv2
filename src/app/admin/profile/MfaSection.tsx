@@ -30,7 +30,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
 
   if (!enrollment) {
     return (
-      <p className="flex items-center gap-2 text-sm text-slate-400">
+      <p className="flex items-center gap-2 text-sm text-ink-soft">
         <Loader2 className="h-4 w-4 animate-spin" /> Préparation...
       </p>
     );
@@ -42,18 +42,18 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
 
   if (confirmState?.success) {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-        <p className="flex items-center gap-1.5 text-sm font-medium text-amber-800">
+      <div className="rounded-lg border border-warn bg-clay p-4">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-warn">
           <AlertTriangle className="h-4 w-4" />
           Codes de récupération — à noter maintenant, ils ne seront plus affichés
         </p>
-        <p className="mt-1 text-xs text-amber-700">
+        <p className="mt-1 text-xs text-warn">
           Chaque code ne peut être utilisé qu&apos;une fois, si vous perdez l&apos;accès à votre
           application d&apos;authentification.
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-sm text-slate-700 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-sm text-ink sm:grid-cols-4">
           {confirmState.backupCodes.map((code) => (
-            <span key={code} className="rounded bg-white px-2 py-1 text-center">
+            <span key={code} className="rounded bg-paper px-2 py-1 text-center">
               {code}
             </span>
           ))}
@@ -64,7 +64,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
             onDone();
             router.refresh();
           }}
-          className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          className="mt-4 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F]"
         >
           J&apos;ai sauvegardé mes codes
         </button>
@@ -73,8 +73,8 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 p-4">
-      <p className="text-sm text-slate-600">
+    <div className="rounded-lg border border-line-soft p-4">
+      <p className="text-sm text-ink-soft">
         1. Scannez ce QR code avec Google Authenticator, Authy, ou une app équivalente.
       </p>
       <div className="mt-3 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
@@ -85,12 +85,12 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
             alt="QR code de configuration MFA"
             width={160}
             height={160}
-            className="rounded-md border border-slate-100"
+            className="rounded-md border border-line-soft"
           />
         )}
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-ink-soft">
           <p>Ou entrez cette clé manuellement :</p>
-          <code className="mt-1 block rounded bg-slate-100 px-2 py-1 font-mono text-slate-700">
+          <code className="mt-1 block rounded bg-clay px-2 py-1 font-mono text-ink">
             {enrollment.manualEntryKey}
           </code>
         </div>
@@ -99,7 +99,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
       <form action={confirmAction} className="mt-4 space-y-3">
         <input type="hidden" name="secretEncrypted" value={enrollment.secretEncrypted} />
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className="mb-1.5 block text-sm font-medium text-ink">
             2. Entrez le code à 6 chiffres affiché par l&apos;app
           </label>
           <input
@@ -108,7 +108,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"
-            className="w-40 rounded-lg border border-slate-300 px-3 py-2 text-center tracking-widest focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-40 rounded-lg border border-line-soft px-3 py-2 text-center tracking-widest focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
           />
         </div>
         {confirmState && !confirmState.success && (
@@ -120,14 +120,14 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
           <button
             type="submit"
             disabled={confirmPending}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+            className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
           >
             {confirmPending ? "Vérification..." : "Activer"}
           </button>
           <button
             type="button"
             onClick={onDone}
-            className="text-sm text-slate-500 hover:text-slate-700"
+            className="text-sm text-ink-soft hover:text-ink"
           >
             Annuler
           </button>
@@ -160,7 +160,7 @@ function DisableMfaFlow({ onDone }: { onDone: () => void }) {
         required
         autoComplete="current-password"
         placeholder="Mot de passe actuel"
-        className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+        className="w-full max-w-xs rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
       />
       {state && !state.success && (
         <p className="text-xs text-red-600">{state.error}</p>
@@ -173,7 +173,7 @@ function DisableMfaFlow({ onDone }: { onDone: () => void }) {
         >
           {pending ? "Désactivation..." : "Désactiver la double authentification"}
         </button>
-        <button type="button" onClick={onDone} className="text-sm text-slate-500 hover:text-slate-700">
+        <button type="button" onClick={onDone} className="text-sm text-ink-soft hover:text-ink">
           Annuler
         </button>
       </div>
@@ -195,7 +195,7 @@ export default function MfaSection({ mfaEnabled }: { mfaEnabled: boolean }) {
     <div className="flex flex-wrap items-center justify-between gap-3">
       <span
         className={`flex items-center gap-1.5 text-sm font-medium ${
-          mfaEnabled ? "text-emerald-600" : "text-slate-500"
+          mfaEnabled ? "text-ok" : "text-ink-soft"
         }`}
       >
         {mfaEnabled ? <ShieldCheck className="h-4 w-4" /> : <ShieldOff className="h-4 w-4" />}
@@ -206,7 +206,7 @@ export default function MfaSection({ mfaEnabled }: { mfaEnabled: boolean }) {
         <button
           type="button"
           onClick={() => setMode("disabling")}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          className="rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-clay"
         >
           Désactiver
         </button>
@@ -214,7 +214,7 @@ export default function MfaSection({ mfaEnabled }: { mfaEnabled: boolean }) {
         <button
           type="button"
           onClick={() => setMode("enrolling")}
-          className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3A362F]"
         >
           <Check className="h-3.5 w-3.5" />
           Activer la double authentification

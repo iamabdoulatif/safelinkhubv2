@@ -57,7 +57,7 @@ export default function DetectedModelBadge({
 
   if (state.loading) {
     return (
-      <p className="mt-4 flex items-center gap-2 text-sm text-slate-400">
+      <p className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
         <Loader2 className="h-4 w-4 animate-spin" />
         Détection du modèle de routeur...
       </p>
@@ -83,24 +83,24 @@ export default function DetectedModelBadge({
     detected.containerFeatureEnabled === false;
 
   return (
-    <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+    <div className="mt-4 rounded-md border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-        <Cpu className="h-4 w-4 text-slate-400" />
+        <Cpu className="h-4 w-4 text-ink-soft" />
         <span>
-          Modèle détecté : <span className="font-medium text-slate-800">{detected.boardName || "inconnu"}</span>
+          Modèle détecté : <span className="font-medium text-ink">{detected.boardName || "inconnu"}</span>
           {" "}
           ({archLabel}, Wi-Fi{" "}
           {detected.dualBand ? "2,4 + 5 GHz" : detected.model?.wifiBands === "none" ? "aucune (filaire)" : "2,4 GHz seul"})
           {!detected.model && (
-            <span className="text-amber-600">
+            <span className="text-warn">
               {" "}
               — absent du catalogue SafeLinkHub, mais les capacités ont été détectées
               directement sur l&apos;appareil (fiable malgré tout).
             </span>
           )}
           {detected.hasUsbStorage && (
-            <span className="text-emerald-600"> · clé USB détectée</span>
+            <span className="text-ok"> · clé USB détectée</span>
           )}
         </span>
         </div>
@@ -109,13 +109,13 @@ export default function DetectedModelBadge({
           onClick={refresh}
           disabled={refreshing}
           title="Revérifier l'état du routeur"
-          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-ink-soft hover:bg-clay hover:text-ink-soft disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
         </button>
       </div>
 
-      <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-slate-500">
+      <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-ink-soft">
         <span>
           RouterOS {detected.routerosVersion || "version inconnue"}
           {detected.deviceMode && <> · Mode : {detected.deviceMode}</>}
@@ -124,7 +124,7 @@ export default function DetectedModelBadge({
               {" "}
               · Container :{" "}
               {detected.containerFeatureEnabled && (
-                <span className="text-emerald-600">activé</span>
+                <span className="text-ok">activé</span>
               )}
             </>
           )}
@@ -146,7 +146,7 @@ export default function DetectedModelBadge({
                 .getElementById("device-mode-unlock")
                 ?.scrollIntoView({ behavior: "smooth", block: "center" });
             }}
-            className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-200"
+            className="flex items-center gap-1 rounded-full bg-clay px-2.5 py-1 text-xs font-semibold text-warn hover:bg-line-soft"
           >
             désactivé — copier la commande pour l&apos;activer
             <ChevronDown className="h-3 w-3" />
@@ -158,7 +158,7 @@ export default function DetectedModelBadge({
             onClick={refresh}
             disabled={refreshing}
             title="Si vous avez déjà activé container=yes ailleurs (WinBox, SSH...), revérifiez ici plutôt que de recopier la commande."
-            className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-slate-600 disabled:opacity-50"
+            className="flex items-center gap-1 text-xs font-medium text-ink-soft hover:text-ink-soft disabled:opacity-50"
           >
             <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
             déjà activé ? revérifier
@@ -167,7 +167,7 @@ export default function DetectedModelBadge({
       </p>
 
       {!detected.supportsContainers && (
-        <p className="mt-2 text-amber-700">
+        <p className="mt-2 text-warn">
           Cette architecture ({archLabel}) ne supporte pas RouterOS Container (réservé à ARM, ARM64
           et Tile) — l&apos;étape MikHmon sera automatiquement ignorée ; seul le hotspot/Wi-Fi sera
           configuré.
@@ -175,7 +175,7 @@ export default function DetectedModelBadge({
       )}
 
       {detected.supportsContainers && detected.requiresUsbForContainer && !detected.hasUsbStorage && (
-        <p className="mt-2 text-amber-700">
+        <p className="mt-2 text-warn">
           Ce modèle nécessite une clé USB pour installer MikHmon (flash interne insuffisante) —
           aucune clé n&apos;est détectée actuellement. Branchez-en une avant de lancer la
           configuration automatique.
@@ -212,7 +212,7 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
   }
 
   return (
-    <div id="device-mode-unlock" className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-amber-800">
+    <div id="device-mode-unlock" className="mt-2 rounded-md bg-clay px-3 py-2 text-warn">
       <p className="font-medium">
         Container désactivé par le mode RouterOS — le matériel le supporte, mais la fonctionnalité
         est verrouillée par défaut (vrai pour tous les modes sauf ROSE).
@@ -225,39 +225,39 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
         non autorisé.
       </p>
 
-      <p className="mt-2 text-xs font-medium text-amber-700">
+      <p className="mt-2 text-xs font-medium text-warn">
         Option 1 — coller cette commande vous-même dans le terminal Winbox/SSH :
       </p>
       <div className="relative mt-1">
-        <pre className="overflow-x-auto rounded-md bg-slate-900 px-3 py-2 pr-10 text-xs text-emerald-300">
+        <pre className="code-block px-3 py-2 pr-10">
           {UNLOCK_COMMAND}
         </pre>
         <button
           type="button"
           onClick={copyCommand}
           title="Copier la commande"
-          className="absolute right-1.5 top-1.5 rounded-md bg-slate-800 p-1.5 text-slate-300 hover:bg-slate-700"
+          className="absolute right-1.5 top-1.5 rounded-md bg-[#3A362F] p-1.5 text-clay hover:bg-[#3A362F]"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
       </div>
 
       {result?.error && <p className="mt-2 text-red-700">{result.error}</p>}
-      {result?.success && <p className="mt-2 text-emerald-700">{result.message}</p>}
+      {result?.success && <p className="mt-2 text-ok">{result.message}</p>}
 
-      <p className="mt-2 text-xs font-medium text-amber-700">
+      <p className="mt-2 text-xs font-medium text-warn">
         Option 2 — laisser SafeLinkHub l&apos;envoyer pour vous :
       </p>
       <button
         type="button"
         disabled={pending}
         onClick={run}
-        className="mt-1 flex items-center gap-2 rounded-md bg-amber-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-800 disabled:opacity-60"
+        className="mt-1 flex items-center gap-2 rounded-md bg-warn px-3 py-1.5 text-xs font-medium text-white hover:bg-ink disabled:opacity-60"
       >
         {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5" />}
         {pending ? "Envoi de la demande..." : "Envoyer la demande de déverrouillage"}
       </button>
-      <p className="mt-1 text-[11px] text-amber-600">
+      <p className="mt-1 text-[11px] text-warn">
         Dans les deux cas, la confirmation physique reste obligatoire. Une fois confirmé, le
         routeur redémarre seul — attendez ~1 minute, puis cliquez sur l&apos;icône{" "}
         <RefreshCw className="inline h-3 w-3" /> en haut de cet encart pour revérifier l&apos;état

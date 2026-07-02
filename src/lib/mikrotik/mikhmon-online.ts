@@ -6,6 +6,7 @@ import { routers, routerPortForwards } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
 import { REMOTE_ACCESS_PORT, DOCKER_WEB_PORT, HOTSPOT_BRIDGE_NAME } from "./constants";
+import { getRelayPublicHost } from "./relay";
 
 /**
  * MikHmon is exposed through two dst-nat rules provisionHotspotStack
@@ -93,7 +94,7 @@ export async function getMikhmonLink(routerId: string) {
       )
       .limit(1);
     const tunnelLink = mikhmonForward
-      ? `http://${process.env.WG_RELAY_HOST}:${mikhmonForward.publicPort}`
+      ? `http://${getRelayPublicHost()}:${mikhmonForward.publicPort}`
       : null;
 
     if (!ddnsName) {

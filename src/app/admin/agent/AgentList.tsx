@@ -30,7 +30,7 @@ function DeleteAgentButton({ agentId }: { agentId: string }) {
   if (confirming) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-xs text-slate-500">Supprimer ?</span>
+        <span className="text-xs text-ink-soft">Supprimer ?</span>
         <button
           type="button"
           disabled={pending}
@@ -48,7 +48,7 @@ function DeleteAgentButton({ agentId }: { agentId: string }) {
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          className="rounded-md border border-line-soft px-2.5 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
         >
           Annuler
         </button>
@@ -91,18 +91,18 @@ function SellPackageModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form action={formAction} className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+      <form action={formAction} className="w-full max-w-md rounded-xl bg-paper p-6">
         <input type="hidden" name="agentId" value={agent.id} />
 
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 className="text-lg font-semibold text-ink">
             Vendre un forfait — {agent.name}
           </h2>
           <button type="button" onClick={onClose}>
-            <X className="h-5 w-5 text-slate-400" />
+            <X className="h-5 w-5 text-ink-soft" />
           </button>
         </div>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-ink-soft">
           L&apos;agent collecte le paiement en espèces ; un voucher est généré et le
           solde flottant est crédité automatiquement du prix du forfait.
         </p>
@@ -112,11 +112,11 @@ function SellPackageModal({
         )}
 
         {state?.success && (
-          <div className="mt-4 rounded-md bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700">
+          <div className="mt-4 rounded-md bg-clay px-3 py-2.5 text-sm text-ok">
             <p className="font-medium">Vente enregistrée — {state.packageName}</p>
             <p className="mt-1">
               Voucher :{" "}
-              <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-mono font-semibold">
+              <span className="rounded bg-clay px-1.5 py-0.5 font-mono font-semibold">
                 {state.voucherCode}
               </span>{" "}
               ({formatFcfa(state.priceCents ?? 0)})
@@ -125,7 +125,7 @@ function SellPackageModal({
         )}
 
         {activePackages.length === 0 ? (
-          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <p className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-warn">
             Aucun forfait actif — créez-en un depuis la page Forfaits avant de vendre.
           </p>
         ) : (
@@ -133,7 +133,7 @@ function SellPackageModal({
             {activePackages.map((pkg) => (
               <label
                 key={pkg.id}
-                className="flex cursor-pointer items-center justify-between rounded-md border border-slate-200 px-3 py-2.5 text-sm hover:bg-slate-50"
+                className="flex cursor-pointer items-center justify-between rounded-md border border-line-soft px-3 py-2.5 text-sm hover:bg-clay"
               >
                 <span className="flex items-center gap-2">
                   <input
@@ -141,12 +141,12 @@ function SellPackageModal({
                     name="packageId"
                     value={pkg.id}
                     required
-                    className="h-4 w-4 border-slate-300"
+                    className="h-4 w-4 border-line-soft"
                   />
-                  <span className="font-medium text-slate-800">{pkg.name}</span>
+                  <span className="font-medium text-ink">{pkg.name}</span>
                 </span>
-                <span className="text-right text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700">{formatFcfa(pkg.priceCents)}</span>
+                <span className="text-right text-xs text-ink-soft">
+                  <span className="font-semibold text-ink">{formatFcfa(pkg.priceCents)}</span>
                   <br />
                   commission {formatFcfa(pkg.commissionCents)}
                 </span>
@@ -159,7 +159,7 @@ function SellPackageModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
           >
             Fermer
           </button>
@@ -167,7 +167,7 @@ function SellPackageModal({
             <button
               type="submit"
               disabled={pending}
-              className="flex items-center gap-1.5 rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
             >
               <Banknote className="h-4 w-4" />
               {pending ? "Enregistrement..." : "Encaisser & générer le voucher"}
@@ -190,10 +190,10 @@ export default function AgentList({
 
   if (agents.length === 0) {
     return (
-      <div className="mt-6 rounded-xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
-        <Users className="mx-auto h-8 w-8 text-slate-300" />
-        <p className="mt-2 text-sm font-medium text-slate-600">Aucun agent pour le moment</p>
-        <p className="mt-1 text-sm text-slate-400">
+      <div className="mt-6 rounded-xl border border-dashed border-line-soft bg-paper px-6 py-10 text-center">
+        <Users className="mx-auto h-8 w-8 text-clay" />
+        <p className="mt-2 text-sm font-medium text-ink-soft">Aucun agent pour le moment</p>
+        <p className="mt-1 text-sm text-ink-soft">
           Ajoutez un agent pour commencer à vendre des forfaits en espèces sur le terrain.
         </p>
       </div>
@@ -202,10 +202,10 @@ export default function AgentList({
 
   return (
     <>
-      <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="mt-6 overflow-hidden border-2 border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+          <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">Agent</th>
               <th className="px-4 py-3 font-medium">Ventes</th>
@@ -215,25 +215,25 @@ export default function AgentList({
               <th className="px-4 py-3 font-medium" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-line-soft">
             {agents.map((agent) => (
               <tr key={agent.id}>
                 <td className="px-4 py-3">
-                  <p className="font-medium text-slate-900">{agent.name}</p>
-                  <p className="text-xs text-slate-400">{agent.email}</p>
+                  <p className="font-medium text-ink">{agent.name}</p>
+                  <p className="text-xs text-ink-soft">{agent.email}</p>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{agent.salesCount}</td>
-                <td className="px-4 py-3 font-medium text-emerald-700">
+                <td className="px-4 py-3 text-ink-soft">{agent.salesCount}</td>
+                <td className="px-4 py-3 font-medium text-ok">
                   {formatFcfa(agent.revenueCents)}
                 </td>
-                <td className="px-4 py-3 text-slate-600">{formatFcfa(agent.commissionCents)}</td>
-                <td className="px-4 py-3 text-slate-500">{formatDate(agent.createdAt)}</td>
+                <td className="px-4 py-3 text-ink-soft">{formatFcfa(agent.commissionCents)}</td>
+                <td className="px-4 py-3 text-ink-soft">{formatDate(agent.createdAt)}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setSellingFor(agent)}
-                      className="flex items-center gap-1.5 rounded-md bg-slate-950 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                      className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A362F]"
                     >
                       <Banknote className="h-3.5 w-3.5" />
                       Vendre

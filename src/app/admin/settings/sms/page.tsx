@@ -10,10 +10,10 @@ export default async function SmsSettingsPage() {
   return (
     <div className="mx-auto max-w-4xl animate-fade-in-up">
       <div className="flex items-center gap-2">
-        <MessageSquare className="h-5 w-5 text-slate-700" />
-        <h1 className="text-2xl font-bold text-slate-900">SMS</h1>
+        <MessageSquare className="h-5 w-5 text-ink" />
+        <h1 className="text-2xl font-bold text-ink">SMS</h1>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Connectez une passerelle SMS pour envoyer automatiquement les codes voucher,
         rappels d&apos;expiration et alertes aux clients et agents.
       </p>
@@ -33,7 +33,7 @@ export default async function SmsSettingsPage() {
         })}
       </div>
 
-      <p className="mt-6 rounded-md bg-amber-50 px-4 py-3 text-xs text-amber-700">
+      <p className="mt-6 rounded-md bg-clay px-4 py-3 text-xs text-warn">
         Les clés sont chiffrées au repos. L&apos;envoi effectif de SMS (codes voucher,
         rappels) n&apos;est pas encore branché à ces identifiants — pour l&apos;instant
         cette page enregistre les identifiants de connexion seulement, aucun SMS

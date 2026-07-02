@@ -4,7 +4,8 @@ import { routers, routerPortForwards } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { RouterOSClient } from "./client";
-import { getMikhmonTunnelNatCommands } from "./port-forward-rules";
+import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
+import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 
 type RouterRow = typeof routers.$inferSelect;
 
@@ -116,31 +117,35 @@ export async function syncRouterStats(
       })
       .where(eq(routers.id, routerId));
 
-    // Re-apply MikHmon NAT rule if an active forward exists — it may have
-    // been skipped when the forward was first enabled because the router
-    // was offline at that time (ensureMikhmonTunnelNat is a no-op if the
-    // rule already exists, so this is safe to call on every successful sync).
-    const [mikhmonForward] = await db
-      .select({ id: routerPortForwards.id })
+    // Re-apply tunnel-only service repairs if active forwards exist — NAT,
+    // firewall allow rules, or legacy Docker bridge cleanup may have been
+    // skipped when a forward was first enabled because the router was
+    // offline at that time. Repairs are idempotent, so they are safe to call
+    // on every successful sync.
+    const activeManagedForwards = await db
+      .select({ service: routerPortForwards.service })
       .from(routerPortForwards)
       .where(
         and(
           eq(routerPortForwards.routerId, routerId),
-          eq(routerPortForwards.service, "mikhmon"),
           eq(routerPortForwards.status, "active"),
         ),
       )
-      .limit(1);
-    if (mikhmonForward) {
+    const activeServices = new Set(activeManagedForwards.map((forward) => forward.service));
+    if (activeServices.has("mikhmon")) {
       try {
-        const commands = getMikhmonTunnelNatCommands();
-        const existing = await client.talk(commands.findExisting);
-        if (existing.length === 0) {
-          await client.talk(commands.add);
-        }
+        await ensureMikhmonTunnelAccess(client);
       } catch {
         // Non-fatal — the port forward on the relay side is still valid,
         // and the NAT rule will be retried on the next successful sync.
+      }
+    }
+    if (activeServices.has("ssh")) {
+      try {
+        await ensureSshTunnelAccess(client, [], router.username ?? undefined);
+      } catch {
+        // Non-fatal — the public forward on the relay side is still valid,
+        // and the SSH/SFTP input allow rule will be retried on the next sync.
       }
     }
   } catch (err) {

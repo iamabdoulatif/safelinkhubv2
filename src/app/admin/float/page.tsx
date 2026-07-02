@@ -36,19 +36,19 @@ export default async function FloatPage() {
   return (
     <div className="mx-auto max-w-4xl animate-fade-in-up">
       <div className="flex items-center gap-2">
-        <Droplet className="h-5 w-5 text-slate-700" />
-        <h1 className="text-2xl font-bold text-slate-900">Solde flottant</h1>
+        <Droplet className="h-5 w-5 text-ink" />
+        <h1 className="text-2xl font-bold text-ink">Solde flottant</h1>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-ink-soft">
         Suivez la liquidité disponible pour payer les commissions et gérer
         les opérations courantes.
       </p>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 hover-lift">
-        <p className="text-sm font-medium text-slate-500">Solde actuel</p>
+      <div className="mt-6 border-2 border-line bg-paper p-6 hover-lift">
+        <p className="text-sm font-medium text-ink-soft">Solde actuel</p>
         <p
           className={`mt-1 text-3xl font-bold ${
-            balanceCents < 0 ? "text-red-600" : "text-slate-900"
+            balanceCents < 0 ? "text-red-600" : "text-ink"
           }`}
         >
           {formatFcfa(balanceCents)}
@@ -60,10 +60,10 @@ export default async function FloatPage() {
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="mt-6 overflow-hidden border-2 border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+          <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">Date</th>
               <th className="px-4 py-3 font-medium">Type</th>
@@ -71,25 +71,25 @@ export default async function FloatPage() {
               <th className="px-4 py-3 font-medium">Note</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-line-soft">
             {transactions.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={4} className="px-4 py-8 text-center text-ink-soft">
                   Aucune transaction pour le moment.
                 </td>
               </tr>
             )}
             {transactions.map((t) => (
               <tr key={t.id}>
-                <td className="px-4 py-3 text-slate-600">
+                <td className="px-4 py-3 text-ink-soft">
                   {formatDate(t.createdAt)}
                 </td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                       t.type === "deposit"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-amber-50 text-amber-700"
+                        ? "bg-clay text-ok"
+                        : "bg-clay text-warn"
                     }`}
                   >
                     {t.type === "deposit" ? "Dépôt" : "Retrait"}
@@ -97,13 +97,13 @@ export default async function FloatPage() {
                 </td>
                 <td
                   className={`px-4 py-3 font-medium ${
-                    t.type === "deposit" ? "text-emerald-700" : "text-amber-700"
+                    t.type === "deposit" ? "text-ok" : "text-warn"
                   }`}
                 >
                   {t.type === "deposit" ? "+" : "-"}
                   {formatFcfa(t.amountCents)}
                 </td>
-                <td className="px-4 py-3 text-slate-500">{t.note ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-soft">{t.note ?? "—"}</td>
               </tr>
             ))}
           </tbody>

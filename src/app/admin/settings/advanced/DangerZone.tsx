@@ -19,7 +19,7 @@ export default function DangerZone({ slug }: { slug: string }) {
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="mt-4 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+          className="mt-4 rounded-md border border-red-300 bg-paper px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
         >
           Supprimer l&apos;organisation
         </button>
@@ -41,7 +41,7 @@ export default function DangerZone({ slug }: { slug: string }) {
             <button
               type="button"
               onClick={() => setConfirming(false)}
-              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="rounded-md border border-line-soft bg-paper px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
             >
               Annuler
             </button>

@@ -41,10 +41,10 @@ export default async function RouterSetupPage() {
   return (
     <div className={`mx-auto ${isOnline ? "max-w-6xl" : "max-w-3xl"}`}>
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-ink">
           Configuration automatique du routeur
         </h1>
-        <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+        <p className="mx-auto mt-2 max-w-xl text-sm text-ink-soft">
           Configurez votre appareil MikroTik RouterOS avec SafeLinkHub.
           D&apos;abord, installez le tunnel d&apos;accès distant sécurisé, concevez
           ensuite votre topologie réseau, puis vérifiez la connexion finale.
@@ -56,8 +56,8 @@ export default async function RouterSetupPage() {
           <StepIndicator steps={[1, 2, 3, 4, 5, 6, 7, 8, 9]} currentStep={1} />
 
           {router && (
-            <div className="mt-4 flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5">
-              <span className="text-sm text-slate-500">
+            <div className="mt-4 flex items-center justify-between rounded-md border border-line-soft bg-clay px-4 py-2.5">
+              <span className="text-sm text-ink-soft">
                 Configuration en cours pour &quot;{router.name}&quot;
                 {router.status === "pending" || router.status === "installing"
                   ? " (en attente de connexion)"
