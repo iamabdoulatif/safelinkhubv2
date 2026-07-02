@@ -6,10 +6,9 @@ import { routers, routerPortForwards } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import RemoteAccessTabs from "./RemoteAccessTabs";
 import RemoteAccessSidebar from "./RemoteAccessSidebar";
-import PersonalAccessSection from "./PersonalAccessSection";
 import BackToHomeSection from "./BackToHomeSection";
 import DirectAccessSection from "./DirectAccessSection";
-import { listPersonalVpnAccess } from "@/lib/mikrotik/personal-access";
+import { getRelayPublicHost } from "@/lib/mikrotik/relay";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { getVpnTrialStatus } from "@/lib/billing/actions";
 
@@ -35,7 +34,6 @@ export default async function RemoteAccessPage() {
         .orderBy(desc(routers.createdAt))
     : [];
 
-  const personalAccessRows = await listPersonalVpnAccess();
   const vpnTrial = session ? await getVpnTrialStatus() : null;
 
   const routerIds = allRouters.map((r) => r.id);
@@ -53,9 +51,6 @@ export default async function RemoteAccessPage() {
   // Badge counts for sidebar
   const tunnelCount = allRouters.filter(
     (r) => r.connectionMethod === "vpn" || r.connectionMethod === "openvpn",
-  ).length;
-  const personalAccessCount = personalAccessRows.filter(
-    (r) => r.status === "active",
   ).length;
   const activeForwardsCount = forwards.filter((f) => f.status === "active").length;
 
@@ -133,7 +128,6 @@ export default async function RemoteAccessPage() {
             status: r.status,
           }))}
           tunnelCount={tunnelCount}
-          personalAccessCount={personalAccessCount}
           activeForwardsCount={activeForwardsCount}
         />
 
@@ -141,20 +135,6 @@ export default async function RemoteAccessPage() {
         <div className="space-y-10">
           <section id="section-tunnel" className="scroll-mt-4">
             <RemoteAccessTabs />
-          </section>
-
-          <section id="section-vpn-perso" className="scroll-mt-4">
-            <PersonalAccessSection
-              rows={personalAccessRows}
-              reachableRouters={allRouters
-                .filter((r) => r.tunnelIp)
-                .map((r) => ({
-                  name: r.name,
-                  tunnelIp: r.tunnelIp!,
-                  method: r.connectionMethod,
-                  status: r.status,
-                }))}
-            />
           </section>
 
           <section id="section-back-to-home" className="scroll-mt-4">
@@ -178,7 +158,7 @@ export default async function RemoteAccessPage() {
                 username: r.username,
               }))}
               forwardsByRouter={forwardsByRouter}
-              relayHost={process.env.WG_RELAY_HOST ?? ""}
+              relayHost={getRelayPublicHost()}
               vpnTrial={vpnTrial}
             />
           </section>

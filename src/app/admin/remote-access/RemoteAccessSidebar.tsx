@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Globe2, Laptop, ShieldCheck, Smartphone } from "lucide-react";
+import { Globe2, ShieldCheck, Smartphone } from "lucide-react";
 
 type Router = { id: string; name: string; status: string };
 
 const SECTIONS = [
   { id: "section-tunnel",        label: "Installer un tunnel",   icon: ShieldCheck },
-  { id: "section-vpn-perso",     label: "Accès VPN personnel",   icon: Laptop     },
   { id: "section-back-to-home",  label: "Back To Home",          icon: Smartphone },
   { id: "section-direct-access", label: "Accès direct WinBox",   icon: Globe2     },
 ] as const;
@@ -17,12 +16,10 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 export default function RemoteAccessSidebar({
   routers,
   tunnelCount,
-  personalAccessCount,
   activeForwardsCount,
 }: {
   routers: Router[];
   tunnelCount: number;
-  personalAccessCount: number;
   activeForwardsCount: number;
 }) {
   const [activeId, setActiveId] = useState<SectionId>("section-tunnel");
@@ -54,7 +51,6 @@ export default function RemoteAccessSidebar({
 
   const badges: Record<SectionId, number | null> = {
     "section-tunnel":        tunnelCount        || null,
-    "section-vpn-perso":    personalAccessCount || null,
     "section-back-to-home": routers.length      || null,
     "section-direct-access": activeForwardsCount || null,
   };
