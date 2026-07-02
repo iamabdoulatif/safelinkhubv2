@@ -12,8 +12,9 @@ const links = [
   { href: "#faq", label: "FAQ" },
 ] as const;
 
-export default function LandingNav() {
+export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: string }) {
   const [open, setOpen] = useState(false);
+  const getHref = (href: string) => `${anchorPrefix}${href}`;
 
   return (
     <header className="sticky top-0 z-30 border-b-2 border-line bg-paper">
@@ -27,7 +28,11 @@ export default function LandingNav() {
           className="hidden items-center gap-7 text-sm font-semibold text-ink md:flex"
         >
           {links.map((l) => (
-            <a key={l.href} href={l.href} className="hover:bg-brand hover:text-[#1C1917] px-1">
+            <a
+              key={l.href}
+              href={getHref(l.href)}
+              className="px-1 hover:bg-brand hover:text-[#1C1917]"
+            >
               {l.label}
             </a>
           ))}
@@ -70,7 +75,7 @@ export default function LandingNav() {
             {links.map((l) => (
               <li key={l.href}>
                 <a
-                  href={l.href}
+                  href={getHref(l.href)}
                   onClick={() => setOpen(false)}
                   className="block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay"
                 >
