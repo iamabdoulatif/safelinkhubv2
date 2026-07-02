@@ -156,6 +156,35 @@ body {
   animation: iso-float 5s ease-in-out infinite;
 }
 
+/* Flux discret le long des câbles */
+@keyframes iso-link-flow {
+  to { stroke-dashoffset: -20; }
+}
+.iso-link {
+  stroke-dasharray: 10 10;
+  animation: iso-link-flow 1.8s linear infinite;
+}
+
+/* Pulsation des arrivées Internet et des routeurs distribués */
+@keyframes iso-node-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.045); }
+}
+.iso-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: iso-node-pulse 2.6s ease-in-out infinite;
+}
+
+/* Petit flottement indépendant pour les routeurs périphériques */
+@keyframes iso-drift {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+.iso-drift {
+  animation: iso-drift 4.2s ease-in-out infinite;
+}
+
 /* ── Splash Bitume (landing page) ──────────────────────────────────
    Wordmark Syne + balayage marqueur moutarde + barre crantée,
    sortie en rideau vertical net. Aplats opaques uniquement. */
