@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-label="Routeur MikroTik pour hotspot">
+  <rect width="800" height="450" fill="#F0EDE6"/>
+  <!-- trame décorative -->
+  <g stroke="#D8D2C6" stroke-width="3">
+    <path d="M100 100h24M112 88v24"/>
+    <path d="M680 120h24M692 108v24"/>
+    <path d="M660 340h24M672 328v24"/>
+    <path d="M110 330h24M122 318v24"/>
+  </g>
+
+  <!-- ondes émises -->
+  <g fill="none" stroke="#EAB308" stroke-width="8" stroke-linecap="square">
+    <path d="M258 150a54 54 0 0 1 76 0"/>
+    <path d="M238 122a90 90 0 0 1 116 0"/>
+    <path d="M466 150a54 54 0 0 1 76 0"/>
+    <path d="M446 122a90 90 0 0 1 116 0"/>
+  </g>
+
+  <!-- antennes -->
+  <g stroke="#1C1917" stroke-width="8">
+    <line x1="296" y1="160" x2="296" y2="252"/>
+    <line x1="504" y1="160" x2="504" y2="252"/>
+  </g>
+  <circle cx="296" cy="160" r="11" fill="#1C1917"/>
+  <circle cx="504" cy="160" r="11" fill="#1C1917"/>
+
+  <!-- châssis du routeur -->
+  <rect x="190" y="252" width="420" height="96" fill="#FBFAF8" stroke="#1C1917" stroke-width="7"/>
+  <rect x="190" y="252" width="420" height="26" fill="#EAB308"/>
+  <!-- leds -->
+  <g>
+    <circle cx="232" cy="315" r="8" fill="#15803D"/>
+    <circle cx="264" cy="315" r="8" fill="#EAB308"/>
+    <circle cx="296" cy="315" r="8" fill="#D8D2C6"/>
+  </g>
+  <!-- ports ethernet -->
+  <g fill="#1C1917">
+    <rect x="418" y="300" width="34" height="30"/>
+    <rect x="462" y="300" width="34" height="30"/>
+    <rect x="506" y="300" width="34" height="30"/>
+    <rect x="550" y="300" width="34" height="30"/>
+  </g>
+
+  <!-- câble vers le sol -->
+  <g stroke="#1C1917" stroke-width="6" fill="none">
+    <path d="M400 348v40h180"/>
+  </g>
+  <rect x="580" y="372" width="30" height="30" fill="#EAB308" stroke="#1C1917" stroke-width="5"/>
+</svg>

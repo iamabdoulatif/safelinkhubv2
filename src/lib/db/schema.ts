@@ -342,6 +342,46 @@ export const walletTransactions = pgTable("wallet_transactions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/**
+ * Articles du blog public du SaaS — gérés exclusivement par le rôle
+ * superadmin (lib/auth/session.ts), d'où l'absence d'orgId contrairement
+ * aux autres tables : le blog appartient à la plateforme, pas à une
+ * organisation cliente. Seuls les articles published=true sont visibles
+ * sur /blog.
+ */
+export const blogPosts = pgTable("blog_posts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  excerpt: text("excerpt"),
+  content: text("content").notNull(),
+  // Chemin public (/blog/xxx.svg) ou URL absolue de l'illustration de
+  // couverture — affichée sur la liste /blog et en tête d'article.
+  coverImageUrl: text("cover_image_url"),
+  published: boolean("published").notNull().default(false),
+  // Fixée à la première publication et conservée ensuite — dépublier puis
+  // republier ne remonte pas artificiellement l'article en tête de liste.
+  publishedAt: timestamp("published_at"),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Messages envoyés depuis le formulaire public /contact — les expéditeurs
+ * sont des visiteurs anonymes (pas de orgId ni userId). Consultés et
+ * triés par le superadmin dans /admin/contact.
+ */
+export const contactMessages = pgTable("contact_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  subject: text("subject"),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("new"), // new | read | archived
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const supportTickets = pgTable("support_tickets", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")

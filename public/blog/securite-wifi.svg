@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-label="Sécurité d'un réseau Wi-Fi public">
+  <rect width="800" height="450" fill="#F0EDE6"/>
+  <!-- trame décorative -->
+  <g stroke="#D8D2C6" stroke-width="3">
+    <path d="M110 90h24M122 78v24"/>
+    <path d="M670 100h24M682 88v24"/>
+    <path d="M650 350h24M662 338v24"/>
+    <path d="M120 340h24M132 328v24"/>
+  </g>
+
+  <!-- ondes wi-fi derrière le bouclier -->
+  <g fill="none" stroke="#EAB308" stroke-width="9" stroke-linecap="square">
+    <path d="M250 170a150 150 0 0 1 300 0" opacity="0.9"/>
+    <path d="M300 190a100 100 0 0 1 200 0"/>
+  </g>
+
+  <!-- bouclier -->
+  <path d="M400 108l128 42v96c0 84-62 130-128 152-66-22-128-68-128-152v-96z"
+        fill="#FBFAF8" stroke="#1C1917" stroke-width="7"/>
+  <path d="M400 108l128 42v20l-128-42-128 42v-20z" fill="#EAB308"/>
+
+  <!-- cadenas -->
+  <g>
+    <path d="M362 238v-22a38 38 0 0 1 76 0v22" fill="none" stroke="#1C1917" stroke-width="8"/>
+    <rect x="346" y="238" width="108" height="86" fill="#EAB308" stroke="#1C1917" stroke-width="6"/>
+    <rect x="392" y="266" width="16" height="34" fill="#1C1917"/>
+  </g>
+</svg>

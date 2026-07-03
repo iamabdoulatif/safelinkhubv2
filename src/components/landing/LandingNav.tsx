@@ -10,11 +10,16 @@ const links = [
   { href: "#plateforme", label: "Plateforme" },
   { href: "#materiel", label: "Matériel" },
   { href: "#faq", label: "FAQ" },
+  { href: "/blog", label: "Blog" },
+  { href: "/contact", label: "Contact" },
 ] as const;
 
 export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: string }) {
   const [open, setOpen] = useState(false);
-  const getHref = (href: string) => `${anchorPrefix}${href}`;
+  // Seules les ancres ont besoin du préfixe (retour vers la landing depuis
+  // /auth, /blog, /contact…) — les vraies routes restent telles quelles.
+  const getHref = (href: string) =>
+    href.startsWith("#") ? `${anchorPrefix}${href}` : href;
 
   return (
     <header className="sticky top-0 z-30 border-b-2 border-line bg-paper">
@@ -27,15 +32,25 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
           aria-label="Navigation principale"
           className="hidden items-center gap-7 text-sm font-semibold text-ink md:flex"
         >
-          {links.map((l) => (
-            <a
-              key={l.href}
-              href={getHref(l.href)}
-              className="px-1 hover:bg-brand hover:text-[#1C1917]"
-            >
-              {l.label}
-            </a>
-          ))}
+          {links.map((l) =>
+            l.href.startsWith("#") ? (
+              <a
+                key={l.href}
+                href={getHref(l.href)}
+                className="px-1 hover:bg-brand hover:text-[#1C1917]"
+              >
+                {l.label}
+              </a>
+            ) : (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="px-1 hover:bg-brand hover:text-[#1C1917]"
+              >
+                {l.label}
+              </Link>
+            ),
+          )}
         </nav>
 
         <div className="flex items-center gap-3">
@@ -74,13 +89,23 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
           <ul role="list" className="divide-y divide-line-soft">
             {links.map((l) => (
               <li key={l.href}>
-                <a
-                  href={getHref(l.href)}
-                  onClick={() => setOpen(false)}
-                  className="block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay"
-                >
-                  {l.label}
-                </a>
+                {l.href.startsWith("#") ? (
+                  <a
+                    href={getHref(l.href)}
+                    onClick={() => setOpen(false)}
+                    className="block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay"
+                  >
+                    {l.label}
+                  </a>
+                ) : (
+                  <Link
+                    href={l.href}
+                    onClick={() => setOpen(false)}
+                    className="block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay"
+                  >
+                    {l.label}
+                  </Link>
+                )}
               </li>
             ))}
             <li>

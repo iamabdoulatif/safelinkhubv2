@@ -19,6 +19,8 @@ import {
   Settings,
   CreditCard,
   LifeBuoy,
+  Newspaper,
+  Mail,
   ArrowUpRight,
   ChevronDown,
   Menu,
@@ -56,6 +58,13 @@ const settingsLinks = [
 const accountLinks = [
   { href: "/admin/billing", label: "Facturation", icon: CreditCard },
   { href: "/admin/support", label: "Support", icon: LifeBuoy },
+];
+
+// Sections réservées au superadmin — le lien n'est qu'un raccourci visuel,
+// chaque page/action vérifie elle-même isSuperAdmin côté serveur.
+const superadminLinks = [
+  { href: "/admin/blog", label: "Blog", icon: Newspaper },
+  { href: "/admin/contact", label: "Messages de contact", icon: Mail },
 ];
 
 export default function AdminSidebar({
@@ -230,6 +239,32 @@ export default function AdminSidebar({
               </li>
             ))}
           </ul>
+
+          {superadmin && (
+            <>
+              <p className="mt-5 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-soft">
+                Superadmin
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {superadminLinks.map(({ href, label, icon: Icon }) => (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      onClick={closeMobile}
+                      className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
+                        isActive(href)
+                          ? "bg-brand font-bold text-[#1C1917]"
+                          : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{label}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </nav>
 
         <UserMenu
