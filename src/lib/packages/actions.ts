@@ -1,10 +1,28 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { packages } from "@/lib/db/schema";
 import { requireAdminSession } from "@/lib/auth/session";
+
+/** Forfaits actifs de l'organisation — utilisé par l'auto-setup routeur
+ * pour pré-remplir les profils voucher sans les ressaisir à la main. */
+export async function listActivePackages() {
+  const session = await requireAdminSession();
+  if (!session) return [];
+  const db = getDb();
+  return db
+    .select({
+      id: packages.id,
+      name: packages.name,
+      priceCents: packages.priceCents,
+      durationValue: packages.durationValue,
+      durationUnit: packages.durationUnit,
+    })
+    .from(packages)
+    .where(and(eq(packages.orgId, session.orgId), eq(packages.active, true)));
+}
 
 export async function createPackage(_prevState: unknown, formData: FormData) {
   const session = await requireAdminSession();

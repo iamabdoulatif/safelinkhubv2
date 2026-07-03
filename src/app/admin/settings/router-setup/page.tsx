@@ -45,15 +45,15 @@ export default async function RouterSetupPage() {
           Configuration automatique du routeur
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-ink-soft">
-          Configurez votre appareil MikroTik RouterOS avec SafeLinkHub.
-          D&apos;abord, installez le tunnel d&apos;accès distant sécurisé, concevez
-          ensuite votre topologie réseau, puis vérifiez la connexion finale.
+          Configurez votre appareil MikroTik RouterOS avec SafeLinkHub en trois
+          étapes : connexion de l&apos;appareil, topologie réseau, puis
+          configuration automatique complète.
         </p>
       </div>
 
       {!isOnline ? (
         <>
-          <StepIndicator steps={[1, 2, 3, 4, 5, 6, 7, 8, 9]} currentStep={1} />
+          <StepIndicator steps={[1, 2, 3]} currentStep={1} />
 
           {router && (
             <div className="mt-4 flex items-center justify-between rounded-md border border-line-soft bg-clay px-4 py-2.5">

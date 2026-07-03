@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import TopologyBuilder from "./TopologyBuilder";
-import AutoSetupSteps from "./AutoSetupSteps";
-import ConnectionTestStep from "./ConnectionTestStep";
-import PortalPreviewStep from "./PortalPreviewStep";
+import AutoSetupStep from "./AutoSetupStep";
 import RouterResetButton from "./RouterResetButton";
 import StepIndicator from "./StepIndicator";
 
@@ -17,7 +15,9 @@ type SavedBridge = {
   hotspotEnabled: boolean;
 };
 
-type Step = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+// 1 = connexion (gérée par la page quand le routeur est hors ligne),
+// 2 = topologie, 3 = configuration automatique complète.
+type Step = 2 | 3;
 
 export default function RouterSetupWizard({
   routerId,
@@ -39,7 +39,7 @@ export default function RouterSetupWizard({
 
   return (
     <div>
-      <StepIndicator steps={[1, 2, 3, 4, 5, 6, 7, 8, 9]} currentStep={step} />
+      <StepIndicator steps={[1, 2, 3]} currentStep={step} />
 
       {step === 2 ? (
         <div className="animate-fade-slide-up mt-8 border-2 border-line bg-paper p-6">
@@ -80,26 +80,12 @@ export default function RouterSetupWizard({
             </button>
           </div>
         </div>
-      ) : step === 3 || step === 4 || step === 5 || step === 6 || step === 7 ? (
-        <AutoSetupSteps
-          step={step}
-          onStepChange={setStep}
+      ) : (
+        <AutoSetupStep
+          onBack={() => setStep(2)}
           routerId={routerId}
           hotspotBridge={hotspotBridge}
           savedHotspotNames={savedHotspotNames}
-        />
-      ) : step === 8 ? (
-        <ConnectionTestStep
-          routerId={routerId}
-          routerName={routerName}
-          onBack={() => setStep(7)}
-          onNext={() => setStep(9)}
-        />
-      ) : (
-        <PortalPreviewStep
-          routerId={routerId}
-          bridges={initialBridges}
-          onBack={() => setStep(8)}
         />
       )}
     </div>
