@@ -43,8 +43,8 @@ export default function Hero() {
         </div>
 
         {/* Scène isométrique animée */}
-        <div className="lg:col-span-5 lg:flex lg:justify-end lg:pt-24 xl:pt-20">
-          <IsoRouterScene className="mx-auto w-full max-w-md lg:mx-0 lg:max-w-xs xl:max-w-sm" />
+        <div className="lg:col-span-5 lg:flex lg:justify-end lg:pt-20 xl:-mr-24 xl:pt-16">
+          <IsoRouterScene className="mx-auto w-full max-w-md lg:mx-0 lg:max-w-[25rem] xl:max-w-[31rem]" />
         </div>
       </div>
 

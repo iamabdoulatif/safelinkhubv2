@@ -71,11 +71,17 @@ function MiniRouter({
   x,
   y,
   label,
+  labelX = 28,
+  labelY = 61,
+  labelAlign = "middle",
   delay = "0s",
 }: {
   x: number;
   y: number;
   label: string;
+  labelX?: number;
+  labelY?: number;
+  labelAlign?: "start" | "middle" | "end";
   delay?: string;
 }) {
   return (
@@ -86,7 +92,7 @@ function MiniRouter({
         <path d="M 28 2 L 56 16 L 28 30 L 0 16 Z" fill="#F0EDE6" stroke="#1C1917" strokeWidth="2" />
         <path d="M 28 8 L 43 16 L 28 24 L 13 16 Z" fill="#EAB308" />
         <path className="iso-led" d="M 39 33 l 5 -2.5 l 0 5 l -5 2.5 Z" fill="#EAB308" />
-        <Label x={28} y={61}>{label}</Label>
+        <Label x={labelX} y={labelY} align={labelAlign}>{label}</Label>
       </g>
     </g>
   );
@@ -95,7 +101,7 @@ function MiniRouter({
 export default function IsoRouterScene({ className = "" }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 520 420"
+      viewBox="0 0 520 455"
       className={className}
       role="img"
       aria-label="Schéma d'un MikroTik connecté à la fibre et à Starlink, distribuant le réseau vers plusieurs routeurs"
@@ -185,12 +191,20 @@ export default function IsoRouterScene({ className = "" }: { className?: string 
           style={{ animationDelay: "0.45s" }}
         />
       </g>
-      <Label x={260} y={290}>MikroTik · dual WAN</Label>
+      <Label x={260} y={294}>MikroTik · dual WAN</Label>
 
       {/* Routeurs/AP distribués */}
-      <MiniRouter x={58} y={302} label="AP Hotspot" />
-      <MiniRouter x={386} y={304} label="Routeur site B" delay="0.7s" />
-      <MiniRouter x={232} y={342} label="Routeur site C" delay="1.2s" />
+      <MiniRouter x={46} y={308} label="AP Hotspot" labelX={2} labelY={70} labelAlign="start" />
+      <MiniRouter
+        x={398}
+        y={304}
+        label="Routeur site B"
+        labelX={54}
+        labelY={70}
+        labelAlign="end"
+        delay="0.7s"
+      />
+      <MiniRouter x={232} y={344} label="Routeur site C" labelY={78} delay="1.2s" />
 
       {/* Clients autour du réseau */}
       <g transform="translate(82 236)">
@@ -198,20 +212,20 @@ export default function IsoRouterScene({ className = "" }: { className?: string 
         <path d="M 22 35 L 44 24 L 44 43 L 22 54 Z" fill="#57534E" />
         <path d="M 22 13 L 44 24 L 22 35 L 0 24 Z" fill="#F0EDE6" stroke="#1C1917" strokeWidth="2" />
         <path d="M 22 18 L 35 24.5 L 22 31 L 9 24.5 Z" fill="#EAB308" />
-        <Label x={22} y={72}>clients</Label>
+        <Label x={6} y={70} align="start">clients</Label>
       </g>
 
       <g transform="translate(400 238)">
         <path d="M 0 42 L 28 56 L 56 42 L 28 28 Z" fill="#F0EDE6" stroke="#1C1917" strokeWidth="2" />
         <path d="M 0 42 L 0 8 L 28 -6 L 28 28 Z" fill="#1C1917" />
         <path d="M 5 34 L 5 14 L 23 5 L 23 25 Z" fill="#EAB308" />
-        <Label x={28} y={74}>supervision</Label>
+        <Label x={56} y={70} align="end">supervision</Label>
       </g>
 
       {/* Légende */}
       <g fontFamily="var(--font-geist-mono), monospace" fontSize="10.5" fill="#57534E">
-        <rect x="144" y="398" width="6" height="6" fill="#15803D" />
-        <text x="156" y="405">internet redondant → routeurs/AP</text>
+        <rect x="150" y="440" width="6" height="6" fill="#15803D" />
+        <text x="162" y="447">internet redondant → routeurs/AP</text>
       </g>
     </svg>
   );
