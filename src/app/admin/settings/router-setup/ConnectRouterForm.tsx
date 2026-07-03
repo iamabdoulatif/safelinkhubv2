@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { connectRouter } from "@/lib/mikrotik/actions";
 
 export default function ConnectRouterForm() {
@@ -11,9 +12,9 @@ export default function ConnectRouterForm() {
       <div className="rounded-md bg-clay px-4 py-3 text-sm text-ok">
         Routeur connecté avec succès. Consultez les statistiques en direct
         sur le{" "}
-        <a href="/admin/router" className="font-semibold underline">
+        <Link href="/admin/router" className="font-semibold underline">
           tableau de bord du routeur
-        </a>
+        </Link>
         .
       </div>
     );

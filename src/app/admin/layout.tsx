@@ -30,7 +30,10 @@ export default async function AdminLayout({
         userEmail={session.email}
         superadmin={isSuperAdmin(session.role)}
       />
-      <main className="flex-1 w-full overflow-y-auto p-4 pt-[4.5rem] md:p-6 lg:p-8 lg:pt-8">{children}</main>
+      {/* La top bar mobile fixe (h-14, visible < lg) impose un pt de
+          dégagement jusqu'au breakpoint lg inclus — md:p-6 seul l'écrasait
+          et le contenu passait sous la barre entre 768 et 1023px. */}
+      <main className="flex-1 w-full overflow-y-auto p-4 pt-[4.5rem] md:p-6 md:pt-[4.5rem] lg:p-8 lg:pt-8">{children}</main>
     </div>
   );
 }

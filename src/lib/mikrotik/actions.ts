@@ -9,7 +9,7 @@ import { getSession } from "@/lib/auth/session";
 import { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
 import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
-import { syncRouterStats, connectToRouter } from "./router-sync";
+import { syncRouterStats, connectToRouter, refreshStaleRouters } from "./router-sync";
 import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 
 export async function connectRouter(_prevState: unknown, formData: FormData) {
@@ -86,6 +86,19 @@ export async function refreshRouterStats(routerId: string) {
 
   const result = await syncRouterStats(routerId);
   if (!result.success) return { error: result.error };
+
+  revalidatePath("/admin/router");
+  return { success: true };
+}
+
+/** Resynchronise tous les routeurs de l'organisation (bouton "Synchroniser"
+ * de la liste) — délègue à refreshStaleRouters avec un seuil nul pour forcer
+ * la lecture même des routeurs synchronisés récemment. */
+export async function refreshAllRouters() {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  await refreshStaleRouters(session.orgId, 0);
 
   revalidatePath("/admin/router");
   return { success: true };

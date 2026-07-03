@@ -92,6 +92,32 @@ export const quickFeatures: {
   },
 ];
 
+export const processSteps: {
+  title: string;
+  description: string;
+}[] = [
+  {
+    title: "Connexion instantanée",
+    description:
+      "Connectez n'importe quel routeur MikroTik en un seul script. Aucune configuration manuelle, aucun technicien sur site.",
+  },
+  {
+    title: "Provisionnement automatique",
+    description:
+      "Vos utilisateurs hotspot et PPPoE sont créés, limités et expirés automatiquement, sans intervention manuelle.",
+  },
+  {
+    title: "Paiement encaissé",
+    description:
+      "Mobile money, carte ou virement : chaque forfait vendu est facturé et réconcilié en temps réel.",
+  },
+  {
+    title: "Suivi en temps réel",
+    description:
+      "Uptime, charge, utilisateurs actifs : tout votre réseau, visible depuis un tableau de bord unique.",
+  },
+] as const;
+
 export const platformFeatures: {
   title: string;
   description: string;

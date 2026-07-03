@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Check, Copy, Loader2 } from "lucide-react";
 import { generateOpenvpnInstallScript, checkRouterConnection } from "@/lib/mikrotik/actions";
 
@@ -56,9 +57,9 @@ export default function GenerateOpenvpnScriptForm() {
       <div className="rounded-md bg-clay px-4 py-3 text-sm text-ok">
         Routeur connecté avec succès via le tunnel OpenVPN. Consultez les
         statistiques en direct sur le{" "}
-        <a href="/admin/router" className="font-semibold underline">
+        <Link href="/admin/router" className="font-semibold underline">
           tableau de bord du routeur
-        </a>
+        </Link>
         .
       </div>
     );

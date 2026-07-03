@@ -2,6 +2,7 @@ import BackToTop from "@/components/BackToTop";
 import SplashLoader from "@/components/SplashLoader";
 import LandingNav from "@/components/landing/LandingNav";
 import Hero from "@/components/landing/Hero";
+import ScrollProcess from "@/components/landing/ScrollProcess";
 import FeaturesGrid from "@/components/landing/FeaturesGrid";
 import ProductDemo from "@/components/landing/ProductDemo";
 import PlatformDark from "@/components/landing/PlatformDark";
@@ -17,6 +18,7 @@ export default function Home() {
       <LandingNav />
       <main>
         <Hero />
+        <ScrollProcess />
         <FeaturesGrid />
         <ProductDemo />
         <PlatformDark />

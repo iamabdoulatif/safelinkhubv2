@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Loader2, Users, WifiOff, XCircle } from "lucide-react";
 import { testHotspotConfig } from "@/lib/mikrotik/bridges";
 import ConfigAuditBanner from "./ConfigAuditBanner";
@@ -182,12 +183,12 @@ export default function PortalPreviewStep({
             Terminé — Aller au tableau de bord
           </button>
         ) : (
-          <a
+          <Link
             href="/admin/router"
             className="rounded-lg bg-brand-deep px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-deep"
           >
             Terminé — Aller au tableau de bord
-          </a>
+          </Link>
         )}
       </div>
     </div>

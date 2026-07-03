@@ -3,92 +3,68 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Info, Link2, Search } from "lucide-react";
+import { ArrowUpRight, Link2, Router as RouterIcon, Search } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
-import RouterDetailsModal from "./RouterDetailsModal";
+import SyncAllButton from "./SyncAllButton";
 
-type StatusFilter = "all" | "online" | "offline";
+type StatusFilter = "all" | "online" | "offline" | "config";
 
 function isStatusFilter(value: string | null): value is StatusFilter {
-  return value === "all" || value === "online" || value === "offline";
+  return value === "all" || value === "online" || value === "offline" || value === "config";
 }
 
 export type RouterRow = {
   id: string;
   name: string;
   model: string | null;
+  host: string | null;
+  apiPort: number | null;
   status: string;
   cpuLoad: number | null;
   memoryUsage: string | null;
+  activeUsers: number | null;
+  lastSyncAtMs: number | null;
   connectionMethod: string;
 };
 
-function ProvisioningBadge({ status }: { status: string }) {
-  if (status === "online") {
-    return (
-      <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ok">
-        Provisionné
-      </span>
-    );
-  }
-  if (status === "installing" || status === "pending") {
-    return (
-      <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-warn">
-        En cours
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ink-soft">
-      Hors service
-    </span>
-  );
+function isConfiguring(status: string) {
+  return status === "pending" || status === "installing";
+}
+
+export function timeAgo(ms: number | null) {
+  if (!ms) return "jamais";
+  const seconds = Math.floor((Date.now() - ms) / 1000);
+  if (seconds < 60) return "à l'instant";
+  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)} min`;
+  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)} h`;
+  return `il y a ${Math.floor(seconds / 86400)} j`;
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const config = isConfiguring(status);
   const online = status === "online";
   return (
-    <span
-      className={`flex items-center gap-1.5 text-sm font-medium ${
-        online ? "text-ok" : "text-red-500"
-      }`}
-    >
-      <span className={`h-2 w-2 rounded-full ${online ? "bg-ok" : "bg-red-500"}`} />
-      {online ? "En ligne" : "Hors ligne"}
-    </span>
-  );
-}
-
-function ConnectionBadge({ connectionMethod }: { connectionMethod: string }) {
-  const isVpn = connectionMethod === "vpn";
-  return (
-    <span
-      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-        isVpn ? "bg-clay text-ink" : "bg-clay text-ink-soft"
-      }`}
-    >
-      {isVpn ? "WireGuard" : "Direct"}
-    </span>
-  );
-}
-
-function RemoteAccessToggle({ enabled }: { enabled: boolean }) {
-  return (
-    <span
-      title={
-        enabled
-          ? "Accès distant actif via le tunnel WireGuard"
-          : "Aucun tunnel d'accès distant (connexion directe)"
-      }
-      className={`relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors ${
-        enabled ? "bg-brand" : "bg-clay"
-      }`}
-    >
+    <span className="inline-flex items-center gap-1.5 border border-line-soft bg-paper px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-ink">
       <span
-        className={`absolute h-4.5 w-4.5 rounded-full bg-paper shadow transition-transform ${
-          enabled ? "translate-x-5" : "translate-x-1"
+        aria-hidden="true"
+        className={`h-2 w-2 rounded-full ${
+          online ? "bg-ok" : config ? "bg-warn" : "bg-err"
         }`}
       />
+      {online ? "En ligne" : config ? "Configuration" : "Hors ligne"}
+    </span>
+  );
+}
+
+/** Petite jauge éditoriale : barre plate bordée, remplissage moutarde. */
+function MeterCell({ percent }: { percent: number }) {
+  const clamped = Math.max(0, Math.min(100, percent));
+  return (
+    <span className="flex items-center gap-2">
+      <span aria-hidden="true" className="h-2 w-14 shrink-0 border border-line bg-paper">
+        <span className="block h-full bg-brand" style={{ width: `${clamped}%` }} />
+      </span>
+      <span className="tabular-nums text-ink-soft">{clamped}%</span>
     </span>
   );
 }
@@ -98,12 +74,13 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const initialFilter = isStatusFilter(searchParams.get("status")) ? searchParams.get("status") as StatusFilter : "all";
+  const initialFilter = isStatusFilter(searchParams.get("status"))
+    ? (searchParams.get("status") as StatusFilter)
+    : "all";
   const initialQuery = searchParams.get("q") ?? "";
 
   const [filter, setFilter] = useState<StatusFilter>(initialFilter);
   const [query, setQuery] = useState(initialQuery);
-  const [detailsFor, setDetailsFor] = useState<RouterRow | null>(null);
 
   // Keep the URL in sync with the active filter/search so the view is
   // shareable and survives a refresh or browser back/forward.
@@ -122,191 +99,233 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
     () => ({
       all: routers.length,
       online: routers.filter((r) => r.status === "online").length,
-      offline: routers.filter((r) => r.status !== "online").length,
+      offline: routers.filter((r) => r.status !== "online" && !isConfiguring(r.status)).length,
+      config: routers.filter((r) => isConfiguring(r.status)).length,
     }),
     [routers],
   );
 
   const filtered = routers.filter((r) => {
     if (filter === "online" && r.status !== "online") return false;
-    if (filter === "offline" && r.status === "online") return false;
-    if (query && !r.name.toLowerCase().includes(query.toLowerCase())) return false;
+    if (filter === "offline" && (r.status === "online" || isConfiguring(r.status))) return false;
+    if (filter === "config" && !isConfiguring(r.status)) return false;
+    if (query) {
+      const q = query.toLowerCase();
+      const haystack = `${r.name} ${r.host ?? ""} ${r.model ?? ""}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
     return true;
   });
 
   return (
-    <div className="animate-fade-in-up">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      {/* En-tête éditorial */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Routeurs MikroTik</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
+            Routeurs MikroTik
+          </h1>
           <p className="mt-1 text-sm text-ink-soft">
-            Pour commencer, ajoutez un routeur MikroTik en cliquant sur le
-            bouton &quot;Lier un MikroTik&quot;.
+            Gestion, synchronisation et provisionnement de vos MikroTik.
           </p>
         </div>
-        <Link
-          href="/admin/settings/router-setup"
-          className="flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-[#1C1917] hover:bg-brand-deep hover:text-white"
-        >
-          <Link2 className="h-4 w-4" />
-          Lier un MikroTik
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <SyncAllButton />
+          <Link
+            href="/admin/settings/router-setup"
+            className="flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper"
+          >
+            <Link2 aria-hidden="true" className="h-4 w-4" />
+            Lier un MikroTik
+          </Link>
+        </div>
       </div>
 
-      <div className="mt-6 flex w-fit items-center gap-1 border-2 border-line bg-paper p-1">
-        {([
-          ["all", "Tous"],
-          ["online", "En ligne"],
-          ["offline", "Hors ligne"],
-        ] as const).map(([key, label]) => (
+      {/* Filtres en chips */}
+      <div className="mt-6 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrer par statut">
+        {(
+          [
+            ["all", "Tous"],
+            ["online", "En ligne"],
+            ["offline", "Hors ligne"],
+            ["config", "Configuration"],
+          ] as const
+        ).map(([key, label]) => (
           <button
             key={key}
             type="button"
+            aria-pressed={filter === key}
             onClick={() => setFilter(key)}
-            className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
+            className={`flex items-center gap-2 border-2 border-line px-3 py-1.5 text-sm font-bold transition-colors duration-150 ${
               filter === key
-                ? "bg-clay text-ink"
-                : "text-ink-soft hover:text-ink"
+                ? "bg-brand text-[#1C1917]"
+                : "bg-paper text-ink-soft hover:bg-clay hover:text-ink"
             }`}
           >
             {label}
-            <span className="rounded bg-clay px-1.5 text-xs text-ink-soft">
+            <span
+              className={`px-1.5 font-mono text-xs ${
+                filter === key ? "bg-[#1C1917] text-brand" : "bg-clay text-ink-soft"
+              }`}
+            >
               {counts[key]}
             </span>
           </button>
         ))}
       </div>
 
-      <div className="mt-4 overflow-hidden border-2 border-line bg-paper">
-        <div className="flex items-center justify-end border-b border-line-soft p-3">
-          <div className="relative w-full max-w-xs">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-ink-soft" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher"
-              className="w-full rounded-md border border-line-soft py-1.5 pl-8 pr-3 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
-            />
-          </div>
-        </div>
-
-        {filtered.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-ink-soft">
-            Aucun routeur à afficher.
-          </p>
-        ) : (
-          <>
-            {/* Mobile: stacked cards — an 8-column table forces horizontal
-                scroll on narrow screens for what's really 3-4 key facts
-                per router. */}
-            <div className="space-y-3 p-3 md:hidden">
-              {filtered.map((r) => (
-                <div key={r.id} className="rounded-lg border border-line-soft p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 truncate font-medium text-ink">{r.name}</p>
-                    <ProvisioningBadge status={r.status} />
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ink-soft">
-                    <StatusBadge status={r.status} />
-                    <ConnectionBadge connectionMethod={r.connectionMethod} />
-                    <span className="tabular-nums">CPU {r.cpuLoad ?? 0}%</span>
-                    <span className="tabular-nums">Mém. {r.memoryUsage ?? "0"}%</span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft pt-2.5">
-                    <RemoteAccessToggle enabled={r.connectionMethod === "vpn"} />
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={r.status !== "online"}
-                        onClick={() => setDetailsFor(r)}
-                        title={
-                          r.status !== "online"
-                            ? "Le routeur doit être en ligne pour lire ses informations"
-                            : undefined
-                        }
-                        className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Info className="h-3.5 w-3.5" />
-                        Détails
-                      </button>
-                      <RouterRowActions routerId={r.id} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop / tablet: table */}
-            <div className="hidden md:block">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-line-soft text-xs font-medium text-ink-soft">
-                  <tr>
-                    <th className="px-4 py-3">Nom</th>
-                    <th className="px-4 py-3">Provisionnement</th>
-                    <th className="px-4 py-3">CPU</th>
-                    <th className="px-4 py-3">Mémoire</th>
-                    <th className="px-4 py-3">Statut</th>
-                    <th className="px-4 py-3">Connexion</th>
-                    <th className="px-4 py-3">Accès distant</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r) => (
-                    <tr key={r.id} className="border-b border-line-soft last:border-0">
-                      <td className="px-4 py-3 font-medium text-ink">{r.name}</td>
-                      <td className="px-4 py-3">
-                        <ProvisioningBadge status={r.status} />
-                      </td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{r.cpuLoad ?? 0}%</td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{r.memoryUsage ?? "0"}%</td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={r.status} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <ConnectionBadge connectionMethod={r.connectionMethod} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <RemoteAccessToggle enabled={r.connectionMethod === "vpn"} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={r.status !== "online"}
-                            onClick={() => setDetailsFor(r)}
-                            title={
-                              r.status !== "online"
-                                ? "Le routeur doit être en ligne pour lire ses informations"
-                                : undefined
-                            }
-                            className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Info className="h-3.5 w-3.5" />
-                            Détails
-                          </button>
-                          <RouterRowActions routerId={r.id} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        <div className="flex items-center justify-between border-t border-line-soft px-4 py-2.5 text-sm text-ink-soft">
-          <span>Affichage de {filtered.length} résultat(s)</span>
-        </div>
+      {/* Recherche large */}
+      <div className="relative mt-4">
+        <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Rechercher par nom, IP ou identité..."
+          aria-label="Rechercher un routeur par nom, IP ou identité"
+          className="w-full border-2 border-line bg-paper py-2.5 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        />
       </div>
 
-      {detailsFor && (
-        <RouterDetailsModal
-          routerId={detailsFor.id}
-          routerName={detailsFor.name}
-          onClose={() => setDetailsFor(null)}
-        />
+      {filtered.length === 0 ? (
+        <div className="mt-4 border-2 border-line bg-paper px-4 py-14 text-center">
+          <RouterIcon aria-hidden="true" className="mx-auto h-8 w-8 text-ink-soft" />
+          <p className="mt-3 font-display text-lg font-bold text-ink">
+            {routers.length === 0 ? "Aucun routeur lié" : "Aucun résultat"}
+          </p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-ink-soft">
+            {routers.length === 0
+              ? "Commencez par lier un MikroTik : le provisionnement et la supervision se font ensuite automatiquement."
+              : "Aucun routeur ne correspond à ce filtre ou à cette recherche."}
+          </p>
+          {routers.length === 0 && (
+            <Link
+              href="/admin/settings/router-setup"
+              className="mt-5 inline-flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper"
+            >
+              <Link2 aria-hidden="true" className="h-4 w-4" />
+              Lier un MikroTik
+            </Link>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Mobile : cartes empilées */}
+          <ul className="mt-4 space-y-3 md:hidden">
+            {filtered.map((r) => (
+              <li key={r.id} className="border-2 border-line bg-paper p-4 transition-transform duration-150">
+                <div className="flex items-start justify-between gap-2">
+                  <Link
+                    href={`/admin/router/${r.id}`}
+                    className="min-w-0 font-display text-base font-bold text-ink hover:text-brand-deep"
+                  >
+                    <span className="block truncate">{r.name}</span>
+                    <span className="block truncate font-mono text-xs font-medium text-ink-soft">
+                      {r.host ? `${r.host}:${r.apiPort ?? 8728}` : "—"}
+                    </span>
+                  </Link>
+                  <StatusBadge status={r.status} />
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-line-soft pt-3 text-xs">
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-ink-soft">Identité</dt>
+                    <dd className="truncate font-medium text-ink">{r.model ?? "—"}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-ink-soft">Utilisateurs</dt>
+                    <dd className="tabular-nums font-medium text-ink">{r.activeUsers ?? 0}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-ink-soft">CPU</dt>
+                    <dd className="tabular-nums font-medium text-ink">{r.cpuLoad ?? 0}%</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-ink-soft">RAM</dt>
+                    <dd className="tabular-nums font-medium text-ink">{Math.round(Number(r.memoryUsage ?? 0))}%</dd>
+                  </div>
+                  <div className="col-span-2 flex justify-between gap-2">
+                    <dt className="text-ink-soft">Dernière synchro</dt>
+                    <dd className="font-medium text-ink">{timeAgo(r.lastSyncAtMs)}</dd>
+                  </div>
+                </dl>
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft pt-3">
+                  <Link
+                    href={`/admin/router/${r.id}`}
+                    className="flex items-center gap-1 border-2 border-line px-2.5 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-clay"
+                  >
+                    Détails
+                    <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+                  </Link>
+                  <RouterRowActions routerId={r.id} />
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* Desktop / tablette : table éditoriale */}
+          <div className="mt-4 hidden overflow-x-auto border-2 border-line bg-paper md:block">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b-2 border-line bg-clay">
+                <tr className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
+                  <th scope="col" className="px-4 py-3">Routeur</th>
+                  <th scope="col" className="px-4 py-3">Identité</th>
+                  <th scope="col" className="px-4 py-3">Statut</th>
+                  <th scope="col" className="px-4 py-3">CPU</th>
+                  <th scope="col" className="px-4 py-3">RAM</th>
+                  <th scope="col" className="px-4 py-3">Utilisateurs</th>
+                  <th scope="col" className="px-4 py-3">Dernière synchro</th>
+                  <th scope="col" className="px-4 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="border-b border-line-soft transition-colors duration-150 last:border-0 hover:bg-clay"
+                  >
+                    <td className="px-4 py-3">
+                      <Link href={`/admin/router/${r.id}`} className="group block">
+                        <span className="font-bold text-ink group-hover:text-brand-deep">{r.name}</span>
+                        <span className="block font-mono text-xs text-ink-soft">
+                          {r.host ? `${r.host}:${r.apiPort ?? 8728}` : "—"}
+                        </span>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-ink">{r.model ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={r.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <MeterCell percent={r.cpuLoad ?? 0} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <MeterCell percent={Math.round(Number(r.memoryUsage ?? 0))} />
+                    </td>
+                    <td className="px-4 py-3 tabular-nums text-ink">{r.activeUsers ?? 0}</td>
+                    <td className="px-4 py-3 text-ink-soft">{timeAgo(r.lastSyncAtMs)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/admin/router/${r.id}`}
+                          className="flex items-center gap-1 border-2 border-line px-2.5 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-brand"
+                        >
+                          Détails
+                          <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+                        </Link>
+                        <RouterRowActions routerId={r.id} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-2 font-mono text-xs text-ink-soft">
+            {filtered.length} routeur{filtered.length > 1 ? "s" : ""} affiché{filtered.length > 1 ? "s" : ""}
+          </p>
+        </>
       )}
     </div>
   );
