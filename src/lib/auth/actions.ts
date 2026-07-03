@@ -182,8 +182,8 @@ export async function register(_prevState: unknown, formData: FormData) {
   if (!name || !email || !password || !confirmPassword || !country || !phoneDialCode || !phone) {
     return { error: "Tous les champs sont requis." };
   }
-  if (password.length < 6) {
-    return { error: "Le mot de passe doit contenir au moins 6 caractères." };
+  if (password.length < 8) {
+    return { error: "Le mot de passe doit contenir au moins 8 caractères." };
   }
   if (password !== confirmPassword) {
     return { error: "Les mots de passe ne correspondent pas." };
@@ -279,8 +279,8 @@ export async function changePassword(
   if (!currentPassword || !newPassword) {
     return { success: false, error: "Tous les champs sont requis." };
   }
-  if (newPassword.length < 6) {
-    return { success: false, error: "Le nouveau mot de passe doit contenir au moins 6 caractères." };
+  if (newPassword.length < 8) {
+    return { success: false, error: "Le nouveau mot de passe doit contenir au moins 8 caractères." };
   }
 
   const db = getDb();

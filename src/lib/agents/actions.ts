@@ -87,8 +87,8 @@ export async function createAgent(_prevState: unknown, formData: FormData) {
   if (!name || !email || !password) {
     return { error: "Le nom, l'email et le mot de passe sont requis." };
   }
-  if (password.length < 6) {
-    return { error: "Le mot de passe doit contenir au moins 6 caractères." };
+  if (password.length < 8) {
+    return { error: "Le mot de passe doit contenir au moins 8 caractères." };
   }
 
   const db = getDb();

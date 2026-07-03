@@ -114,6 +114,105 @@ Un routeur qui chauffe, une utilisation CPU anormale, un nombre de connexions in
 
 La sécurité d'un hotspot n'est pas un projet ponctuel mais une hygiène de fonctionnement. La bonne nouvelle : une fois ces sept pratiques en place, l'essentiel se maintient tout seul, surtout si votre plateforme de gestion applique ces réglages automatiquement à chaque nouveau routeur.`,
   },
+  {
+    slug: "portail-captif-augmenter-conversions",
+    coverImageUrl: "/blog/portail-captif.svg",
+    title: "Portail captif : 5 réglages qui font vraiment vendre plus",
+    excerpt:
+      "La page de connexion de votre hotspot est votre vitrine et votre caisse. Cinq ajustements concrets — testés sur le terrain — pour transformer plus de visiteurs en acheteurs.",
+    daysAgo: 4,
+    content: `Chaque personne qui se connecte à votre Wi-Fi passe par le portail captif. C'est le seul écran que 100 % de vos clients potentiels verront — et pourtant, la plupart des opérateurs le laissent tel quel, avec un formulaire brut et zéro argument de vente. Voici cinq réglages qui changent les chiffres.
+
+## 1. Annoncez les prix avant de demander un code
+
+Un visiteur qui découvre votre portail ne sait ni ce que coûte l'accès, ni où l'acheter. S'il doit chercher, il abandonne. Affichez la grille des forfaits directement sur la page de connexion : « 1 h — 100 F · 24 h — 500 F · 7 jours — 2 000 F ». Le passant comprend l'offre en trois secondes.
+
+## 2. Indiquez où acheter, avec un vrai contact
+
+Si vos codes se vendent en boutique ou via des vendeurs, mettez leurs noms, quartiers et numéros WhatsApp sur le portail. Un bouton « Acheter un code » qui ouvre une conversation WhatsApp transforme le portail en canal de vente, même sans paiement en ligne.
+
+## 3. Adaptez la page à votre clientèle
+
+Un portail en français à Abidjan, oui — mais si votre zone est anglophone ou bilingue, proposez les deux. Et surtout, restez lisible : un fond photo chargé avec du texte blanc fin est illisible sur un téléphone d'entrée de gamme en plein soleil. Contraste fort, boutons larges, polices grandes.
+
+## 4. Activez le paiement mobile money intégré
+
+Le taux de conversion explose quand l'achat se fait sans quitter la page : le client choisit un forfait, saisit son numéro mobile money, valide sur son téléphone et reçoit son code instantanément. Plus besoin d'attendre l'ouverture de la boutique — les ventes de nuit et du dimanche sont souvent celles qu'on perdait.
+
+## 5. Testez depuis un vrai téléphone client
+
+Ouvrez votre portail depuis un smartphone bas de gamme, en 3G, écran fissuré si possible. C'est l'expérience réelle de votre clientèle. Si la page met plus de trois secondes à s'afficher, allégez les images ; si un bouton est trop petit pour un pouce, agrandissez-le.
+
+## Mesurer, puis itérer
+
+Un portail n'est jamais « terminé ». Comparez chaque semaine le nombre de connexions au portail et le nombre de codes utilisés : l'écart entre les deux, c'est votre marge de progression. Modifiez un seul élément à la fois et observez l'effet sur sept jours.`,
+  },
+  {
+    slug: "starlink-mikrotik-hotspot-rural",
+    coverImageUrl: "/blog/starlink-rural.svg",
+    title: "Starlink + MikroTik : monter un hotspot rentable là où la fibre n'arrive pas",
+    excerpt:
+      "Dans les zones rurales sans fibre ni 4G stable, l'internet par satellite change la donne. Architecture, dimensionnement et rentabilité d'un hotspot Starlink partagé.",
+    daysAgo: 9,
+    content: `Des milliers de localités n'ont ni fibre, ni 4G digne de ce nom — mais une demande énorme de connectivité. L'internet par satellite en orbite basse, Starlink en tête, permet aujourd'hui d'y monter un hotspot communautaire rentable. À condition de bien penser l'installation.
+
+## Le principe : un abonnement, tout un village
+
+Un kit satellite unique fournit 50 à 200 Mbps selon la zone et l'heure. Partagé via un routeur MikroTik et quelques points d'accès bien placés, il peut servir des dizaines de clients simultanés. L'abonnement mensuel se rentabilise dès 40 à 60 clients réguliers à des tarifs accessibles — un seuil atteignable dans la plupart des gros villages et petites villes.
+
+## L'architecture qui fonctionne
+
+Le kit satellite fait uniquement office de source Internet : désactivez son Wi-Fi intégré et placez le routeur MikroTik derrière, en mode routeur principal. C'est lui qui gère le portail captif, les vouchers, la limitation de débit par client et la comptabilité. Ajoutez des points d'accès extérieurs pour couvrir la place du marché, les commerces, la gare routière — les lieux où les gens attendent.
+
+## Dimensionner les forfaits pour une capacité limitée
+
+Contrairement à la fibre, la capacité satellite est précieuse. Limitez le débit par utilisateur (2 à 5 Mbps suffisent pour les réseaux sociaux et la vidéo en qualité normale) et privilégiez les forfaits à durée courte plutôt que l'illimité. Sans limitation par appareil, trois gros téléchargeurs peuvent saturer la liaison pour tout le monde.
+
+## L'alimentation électrique, le vrai défi
+
+En zone rurale, les coupures sont la norme. Prévoyez une batterie avec onduleur pour le kit satellite et le routeur : quatre à six heures d'autonomie couvrent la plupart des coupures. Un hotspot qui tombe à chaque délestage perd vite sa clientèle — la fiabilité est votre premier argument commercial.
+
+## La supervision à distance n'est plus optionnelle
+
+Quand le site est à trois heures de route, impossible de passer « voir si ça marche ». Une plateforme de supervision centralisée — état du routeur, clients connectés, ventes du jour — permet de gérer plusieurs sites ruraux depuis la ville, et de n'envoyer un technicien que quand c'est vraiment nécessaire.
+
+## Ce qu'il faut retenir
+
+Le triptyque gagnant en zone rurale : une source satellite stable, un MikroTik qui monétise, et une supervision à distance. Le tout s'installe en une journée et peut devenir l'infrastructure numérique d'une localité entière.`,
+  },
+  {
+    slug: "gerer-agents-vendeurs-commissions",
+    coverImageUrl: "/blog/agents-ventes.svg",
+    title: "Vendeurs et agents : structurer la revente de vos codes Wi-Fi sans perdre le contrôle",
+    excerpt:
+      "Déléguer la vente des vouchers multiplie vos points de distribution — et les risques de coulage. Commissions, suivi des ventes, bonnes pratiques : le mode d'emploi.",
+    daysAgo: 15,
+    content: `Votre hotspot tourne, les codes se vendent — mais vous ne pouvez pas être partout. La boutique du coin, le kiosque téléphonique, le gérant du maquis : autant de points de vente potentiels pour vos vouchers. Bien structuré, un réseau d'agents démultiplie vos revenus. Mal géré, c'est la porte ouverte au coulage.
+
+## Pourquoi déléguer la vente
+
+Un client achète un code au moment où il en a besoin, à l'endroit où il se trouve. Chaque point de vente supplémentaire capte des clients que vous n'auriez jamais vus. Les vendeurs y trouvent leur compte : une commission sur chaque code vendu, sans investissement ni stock périssable.
+
+## Le modèle de commission qui marche
+
+La pratique courante : 10 à 15 % du prix de vente pour l'agent. En dessous, personne ne se donne la peine de vendre ; au-dessus, votre marge fond. Définissez la commission par forfait dès la création du forfait — un montant fixe par code vendu est plus simple à comprendre et à vérifier qu'un pourcentage.
+
+## Le piège du carnet de codes papier
+
+Distribuer des lots de codes imprimés à ses vendeurs semble simple, jusqu'au premier litige : codes « perdus », déjà utilisés, revendus à double… Sans traçabilité, impossible de savoir qui dit vrai. Chaque code doit être rattaché à l'agent qui l'a reçu, avec son statut en temps réel : provisionné, vendu, utilisé, expiré.
+
+## Un compte par agent, des ventes tracées
+
+La bonne pratique : chaque vendeur dispose de son propre accès (un rôle « agent », sans accès à votre administration) depuis lequel il vend ses codes. Chaque vente est horodatée et rattachée à son compte : vous voyez qui vend combien, les commissions se calculent toutes seules, et le règlement de fin de semaine se fait sur des chiffres que personne ne conteste.
+
+## Payer les commissions sans friction
+
+Fixez un rythme court et régulier — hebdomadaire de préférence. Un agent payé vite et juste reste motivé ; un agent qui attend son dû depuis trois semaines arrête de vendre, ou pire, se sert sur la caisse. Le mobile money rend le versement instantané et traçable.
+
+## Faire grandir le réseau
+
+Commencez avec deux ou trois vendeurs fiables et des zones bien définies pour éviter qu'ils se cannibalisent. Suivez le ratio codes vendus / codes distribués par agent : c'est votre meilleur indicateur pour décider qui mérite plus de stock, et où ouvrir le prochain point de vente.`,
+  },
 ];
 
 async function main() {

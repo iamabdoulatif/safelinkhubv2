@@ -124,8 +124,8 @@ export default function AddAgentModal() {
                   name="password"
                   type="password"
                   required
-                  minLength={6}
-                  placeholder="Au moins 6 caractères"
+                  minLength={8}
+                  placeholder="Au moins 8 caractères"
                   className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-ink-soft">

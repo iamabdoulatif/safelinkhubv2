@@ -28,21 +28,24 @@ export default function AuthShell({
     <div className="flex flex-1 flex-col bg-paper text-ink">
       <LandingNav anchorPrefix="/" />
       <main className="flex flex-1">
-        <div className="mx-auto grid min-h-[calc(100dvh-65px)] w-full max-w-6xl grid-cols-1 border-x-2 border-line bg-paper lg:grid-cols-12">
-          <section className="flex min-h-[300px] flex-col justify-between border-b-2 border-line bg-clay px-5 py-8 sm:px-8 lg:col-span-5 lg:min-h-[calc(100dvh-65px)] lg:border-b-0 lg:border-r-2">
-            <div className="py-8 lg:py-0">
+        <div className="mx-auto grid min-h-[calc(100dvh-70px)] w-full max-w-6xl grid-cols-1 border-x-2 border-line bg-paper lg:grid-cols-12">
+          {/* Sur mobile le panneau promo est compacté (titre réduit,
+              métriques masquées) pour que le formulaire — la raison d'être
+              de la page — reste proche de la ligne de flottaison. */}
+          <section className="flex flex-col justify-between border-b-2 border-line bg-clay px-5 py-6 sm:px-8 lg:col-span-5 lg:min-h-[calc(100dvh-70px)] lg:border-b-0 lg:border-r-2 lg:py-8">
+            <div className="lg:py-0">
               <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
                 {eyebrow}
               </p>
-              <h1 className="mt-5 max-w-md font-display text-4xl font-extrabold leading-[1.05] text-ink sm:text-5xl">
+              <h1 className="mt-3 max-w-md font-display text-3xl font-extrabold leading-[1.05] text-ink sm:text-4xl lg:mt-5 lg:text-5xl">
                 {title}
               </h1>
-              <p className="mt-5 max-w-md text-base leading-7 text-ink-soft">
+              <p className="mt-3 max-w-md text-sm leading-6 text-ink-soft sm:text-base sm:leading-7 lg:mt-5">
                 {description}
               </p>
             </div>
 
-            <dl className="grid grid-cols-3 border-2 border-line bg-paper">
+            <dl className="mt-6 hidden grid-cols-3 border-2 border-line bg-paper lg:grid">
               {metrics.map((metric, index) => (
                 <div
                   key={metric.label}

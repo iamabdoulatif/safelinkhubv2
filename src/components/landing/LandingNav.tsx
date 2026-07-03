@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { LayoutDashboard, Menu, X } from "lucide-react";
 import Logo from "./Logo";
 
 const links = [
@@ -16,6 +16,25 @@ const links = [
 
 export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: string }) {
   const [open, setOpen] = useState(false);
+  // Le cookie de session est httpOnly : on interroge /api/session côté
+  // client plutôt que de lire cookies() dans les pages, ce qui rendrait
+  // dynamiques des pages aujourd'hui statiques (/, /blog, /contact).
+  // Tant que la réponse n'est pas arrivée, on affiche les boutons
+  // Connexion/Commencer par défaut.
+  const [authenticated, setAuthenticated] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/session")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.authenticated) setAuthenticated(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Seules les ancres ont besoin du préfixe (retour vers la landing depuis
   // /auth, /blog, /contact…) — les vraies routes restent telles quelles.
   const getHref = (href: string) =>
@@ -54,18 +73,30 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
         </nav>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/auth/login"
-            className="hidden border-2 border-line px-4 py-2 text-sm font-bold text-ink hover:bg-clay sm:inline-block"
-          >
-            Connexion
-          </Link>
-          <Link
-            href="/auth/register"
-            className="border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper sm:px-4"
-          >
-            Commencer
-          </Link>
+          {authenticated ? (
+            <Link
+              href="/admin"
+              className="flex items-center gap-2 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper sm:px-4"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/auth/login"
+                className="hidden border-2 border-line px-4 py-2 text-sm font-bold text-ink hover:bg-clay sm:inline-block"
+              >
+                Connexion
+              </Link>
+              <Link
+                href="/auth/register"
+                className="border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper sm:px-4"
+              >
+                Commencer
+              </Link>
+            </>
+          )}
           <button
             type="button"
             aria-expanded={open}
@@ -109,12 +140,21 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
               </li>
             ))}
             <li>
-              <Link
-                href="/auth/login"
-                className="block px-6 py-4 font-display text-lg font-bold text-brand-deep hover:bg-clay"
-              >
-                Connexion
-              </Link>
+              {authenticated ? (
+                <Link
+                  href="/admin"
+                  className="block px-6 py-4 font-display text-lg font-bold text-brand-deep hover:bg-clay"
+                >
+                  Dashboard
+                </Link>
+              ) : (
+                <Link
+                  href="/auth/login"
+                  className="block px-6 py-4 font-display text-lg font-bold text-brand-deep hover:bg-clay"
+                >
+                  Connexion
+                </Link>
+              )}
             </li>
           </ul>
         </nav>

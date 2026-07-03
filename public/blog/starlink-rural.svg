@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-label="Hotspot Starlink en zone rurale">
+  <rect width="800" height="450" fill="#F0EDE6"/>
+  <g stroke="#D8D2C6" stroke-width="3">
+    <path d="M95 95h24M107 83v24"/>
+    <path d="M685 90h24M697 78v24"/>
+    <path d="M120 330h24M132 318v24"/>
+  </g>
+
+  <!-- satellite -->
+  <g transform="rotate(-12 600 120)">
+    <rect x="575" y="105" width="50" height="30" fill="#FBFAF8" stroke="#1C1917" stroke-width="5"/>
+    <rect x="527" y="110" width="40" height="20" fill="#EAB308" stroke="#1C1917" stroke-width="4"/>
+    <rect x="633" y="110" width="40" height="20" fill="#EAB308" stroke="#1C1917" stroke-width="4"/>
+  </g>
+
+  <!-- signal descendant -->
+  <g stroke="#EAB308" stroke-width="6" stroke-dasharray="2 14" stroke-linecap="round">
+    <path d="M585 160L420 265" fill="none"/>
+  </g>
+
+  <!-- antenne parabole -->
+  <g>
+    <ellipse cx="400" cy="280" rx="62" ry="26" fill="#FBFAF8" stroke="#1C1917" stroke-width="6" transform="rotate(-18 400 280)"/>
+    <line x1="400" y1="298" x2="400" y2="360" stroke="#1C1917" stroke-width="7"/>
+    <line x1="368" y1="360" x2="432" y2="360" stroke="#1C1917" stroke-width="7"/>
+  </g>
+
+  <!-- sol -->
+  <line x1="90" y1="392" x2="710" y2="392" stroke="#1C1917" stroke-width="5"/>
+
+  <!-- maisons du village -->
+  <g stroke="#1C1917" stroke-width="5" fill="#FBFAF8">
+    <path d="M130 392v-52h64v52"/>
+    <path d="M122 340l40-30 40 30" fill="none"/>
+    <path d="M232 392v-40h52v40"/>
+    <path d="M226 352l32-24 32 24" fill="none"/>
+  </g>
+  <rect x="152" y="362" width="20" height="30" fill="#EAB308" stroke="#1C1917" stroke-width="4"/>
+
+  <!-- ondes wi-fi locales -->
+  <g fill="none" stroke="#1C1917" stroke-width="6" stroke-linecap="square">
+    <path d="M560 340a44 44 0 0 1 62 0"/>
+    <path d="M576 362a22 22 0 0 1 30 0"/>
+  </g>
+  <rect x="584" y="378" width="14" height="14" fill="#EAB308" stroke="#1C1917" stroke-width="3"/>
+</svg>

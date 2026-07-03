@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-label="Gestion des agents et des ventes">
+  <rect width="800" height="450" fill="#F0EDE6"/>
+  <g stroke="#D8D2C6" stroke-width="3">
+    <path d="M100 100h24M112 88v24"/>
+    <path d="M675 105h24M687 93v24"/>
+    <path d="M650 345h24M662 333v24"/>
+  </g>
+
+  <!-- agent (buste) -->
+  <g>
+    <circle cx="255" cy="175" r="42" fill="#FBFAF8" stroke="#1C1917" stroke-width="6"/>
+    <path d="M175 330c0-46 36-76 80-76s80 30 80 76" fill="#EAB308" stroke="#1C1917" stroke-width="6"/>
+  </g>
+
+  <!-- tickets vendus -->
+  <g>
+    <rect x="360" y="140" width="110" height="62" fill="#FBFAF8" stroke="#1C1917" stroke-width="5" transform="rotate(-6 415 171)"/>
+    <text x="415" y="180" font-family="ui-monospace, Menlo, monospace" font-size="20" font-weight="bold" fill="#A16207" text-anchor="middle" transform="rotate(-6 415 171)">1H</text>
+    <rect x="392" y="205" width="110" height="62" fill="#EAB308" stroke="#1C1917" stroke-width="5" transform="rotate(4 447 236)"/>
+    <text x="447" y="245" font-family="ui-monospace, Menlo, monospace" font-size="20" font-weight="bold" fill="#1C1917" text-anchor="middle" transform="rotate(4 447 236)">24H</text>
+  </g>
+
+  <!-- graphique de commissions -->
+  <g>
+    <rect x="545" y="150" width="150" height="180" fill="#FBFAF8" stroke="#1C1917" stroke-width="6"/>
+    <rect x="565" y="270" width="24" height="40" fill="#D8D2C6" stroke="#1C1917" stroke-width="3"/>
+    <rect x="603" y="240" width="24" height="70" fill="#EAB308" stroke="#1C1917" stroke-width="3"/>
+    <rect x="641" y="200" width="24" height="110" fill="#1C1917"/>
+    <path d="M565 235l40-28 44-40" fill="none" stroke="#1C1917" stroke-width="4"/>
+    <path d="M636 162l16 2-6 15z" fill="#1C1917"/>
+  </g>
+
+  <!-- pièce commission -->
+  <circle cx="330" cy="330" r="34" fill="#EAB308" stroke="#1C1917" stroke-width="5"/>
+  <text x="330" y="342" font-family="ui-monospace, Menlo, monospace" font-size="30" font-weight="bold" fill="#1C1917" text-anchor="middle">F</text>
+</svg>

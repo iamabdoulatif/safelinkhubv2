@@ -26,7 +26,7 @@ export default async function BlogPage() {
     <div className="flex flex-1 flex-col">
       <LandingNav anchorPrefix="/" />
       <main className="flex-1 bg-paper">
-        <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
+        <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
           <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-brand-deep">
             Ressources
           </p>
@@ -44,40 +44,40 @@ export default async function BlogPage() {
               </p>
             </div>
           ) : (
-            <ul className="mt-10 space-y-6" role="list">
+            <ul className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2" role="list">
               {posts.map((post) => (
                 <li key={post.id}>
                   <Link
                     href={`/blog/${post.slug}`}
-                    className="group block border-2 border-line bg-paper transition-colors hover:bg-clay sm:flex"
+                    className="group flex h-full flex-col border-2 border-line bg-paper transition-colors hover:bg-clay"
                   >
                     {post.coverImageUrl && (
-                      <div className="shrink-0 border-b-2 border-line sm:w-64 sm:border-b-0 sm:border-r-2">
+                      <div className="border-b-2 border-line">
                         <Image
                           src={post.coverImageUrl}
                           alt=""
                           width={800}
                           height={450}
                           unoptimized
-                          className="h-full w-full object-cover"
+                          className="w-full"
                         />
                       </div>
                     )}
-                    <div className="p-6">
-                    <p className="font-mono text-xs text-ink-soft">
-                      {formatDate(post.publishedAt ?? post.createdAt)}
-                    </p>
-                    <h2 className="mt-2 font-display text-2xl font-bold text-ink group-hover:underline">
-                      {post.title}
-                    </h2>
-                    {post.excerpt && (
-                      <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-                        {post.excerpt}
+                    <div className="flex flex-1 flex-col p-6">
+                      <p className="font-mono text-xs text-ink-soft">
+                        {formatDate(post.publishedAt ?? post.createdAt)}
                       </p>
-                    )}
-                    <span className="mt-4 inline-block text-sm font-bold text-brand-deep">
-                      Lire l&apos;article →
-                    </span>
+                      <h2 className="mt-2 font-display text-xl font-bold leading-snug text-ink group-hover:underline">
+                        {post.title}
+                      </h2>
+                      {post.excerpt && (
+                        <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+                          {post.excerpt}
+                        </p>
+                      )}
+                      <span className="mt-auto pt-4 text-sm font-bold text-brand-deep">
+                        Lire l&apos;article →
+                      </span>
                     </div>
                   </Link>
                 </li>

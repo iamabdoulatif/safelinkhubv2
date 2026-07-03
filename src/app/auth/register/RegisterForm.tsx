@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Phone,
   Globe2,
+  ChevronDown,
   MessageCircle,
   Send,
   Eye,
@@ -19,14 +20,14 @@ import { generateStrongPasswordExample } from "@/lib/auth/password-strength";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 
 const inputClass =
-  "w-full border-2 border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand/35";
+  "w-full border-2 border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35";
 
 const labelClass = "mb-1.5 block text-sm font-bold text-ink";
 
 const iconClass = "absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft";
 
 const choiceClass =
-  "h-4 w-4 border-2 border-line text-brand focus:outline-none focus:ring-4 focus:ring-brand/35";
+  "h-4 w-4 accent-brand focus:outline-none focus:ring-4 focus:ring-brand/35";
 
 export default function RegisterForm() {
   const [state, formAction, pending] = useActionState(register, undefined);
@@ -50,7 +51,7 @@ export default function RegisterForm() {
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
       {state?.error && (
-        <div className="flex items-center gap-2 border-2 border-err bg-[#FFF3ED] px-3 py-2.5 text-sm font-semibold text-err">
+        <div className="flex items-center gap-2 border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-semibold text-err">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <p>{state.error}</p>
         </div>
@@ -96,7 +97,7 @@ export default function RegisterForm() {
               type={showPassword ? "text" : "password"}
               name="password"
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -124,7 +125,7 @@ export default function RegisterForm() {
               type={showConfirmPassword ? "text" : "password"}
               name="confirmPassword"
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -167,7 +168,7 @@ export default function RegisterForm() {
               const country = COUNTRIES.find((c) => c.iso2 === e.target.value);
               if (country) setDialCode(country.dialCode);
             }}
-            className={`${inputClass} appearance-none pl-10`}
+            className={`${inputClass} appearance-none pl-10 pr-10`}
           >
             {COUNTRIES.map((c) => (
               <option key={c.iso2} value={c.iso2}>
@@ -175,6 +176,7 @@ export default function RegisterForm() {
               </option>
             ))}
           </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
         </div>
       </div>
 
@@ -188,7 +190,7 @@ export default function RegisterForm() {
             value={dialCode}
             onChange={(e) => setDialCode(e.target.value)}
             aria-label="Indicatif téléphonique"
-            className="w-24 shrink-0 border-2 border-line bg-paper px-2 py-3 text-sm text-ink focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand/35"
+            className="w-24 shrink-0 border-2 border-line bg-paper px-2 py-3 text-sm text-ink focus:outline-none focus:ring-4 focus:ring-brand/35"
           >
             {COUNTRIES.map((c) => (
               <option key={`${c.iso2}-${c.dialCode}`} value={c.dialCode}>

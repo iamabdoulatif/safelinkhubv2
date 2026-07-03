@@ -6,7 +6,7 @@ import { Mail, Lock, AlertCircle, ShieldCheck } from "lucide-react";
 import { login, verifyMfaLogin } from "@/lib/auth/actions";
 
 const fieldClass =
-  "w-full border-2 border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand/35";
+  "w-full border-2 border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35";
 
 const primaryButtonClass =
   "w-full border-2 border-line bg-brand px-5 py-3 text-sm font-extrabold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60";
@@ -22,7 +22,7 @@ function MfaStep() {
       </div>
 
       {state?.error && (
-        <div className="flex items-center gap-2 border-2 border-err bg-[#FFF3ED] px-3 py-2.5 text-sm font-semibold text-err">
+        <div className="flex items-center gap-2 border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-semibold text-err">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <p>{state.error}</p>
         </div>
@@ -40,7 +40,7 @@ function MfaStep() {
           inputMode="numeric"
           autoComplete="one-time-code"
           placeholder="123456 ou un code de récupération"
-          className="w-full border-2 border-line bg-paper px-3 py-3 text-center text-lg tracking-widest text-ink placeholder:text-sm placeholder:tracking-normal placeholder:text-ink-soft/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand/35"
+          className="w-full border-2 border-line bg-paper px-3 py-3 text-center text-lg tracking-widest text-ink placeholder:text-sm placeholder:tracking-normal placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35"
         />
       </div>
 
@@ -69,7 +69,7 @@ export default function LoginForm() {
       <input type="hidden" name="callback" value={callback} />
 
       {state?.error && (
-        <div className="flex items-center gap-2 border-2 border-err bg-[#FFF3ED] px-3 py-2.5 text-sm font-semibold text-err">
+        <div className="flex items-center gap-2 border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-semibold text-err">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <p>{state.error}</p>
         </div>

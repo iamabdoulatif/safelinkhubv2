@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-label="Page de portail captif Wi-Fi">
+  <rect width="800" height="450" fill="#F0EDE6"/>
+  <g stroke="#D8D2C6" stroke-width="3">
+    <path d="M100 90h24M112 78v24"/>
+    <path d="M680 110h24M692 98v24"/>
+    <path d="M660 350h24M672 338v24"/>
+    <path d="M115 335h24M127 323v24"/>
+  </g>
+
+  <!-- fenêtre navigateur -->
+  <rect x="215" y="95" width="370" height="260" fill="#FBFAF8" stroke="#1C1917" stroke-width="7"/>
+  <rect x="215" y="95" width="370" height="42" fill="#1C1917"/>
+  <circle cx="243" cy="116" r="7" fill="#EAB308"/>
+  <circle cx="269" cy="116" r="7" fill="#FBFAF8"/>
+  <circle cx="295" cy="116" r="7" fill="#FBFAF8"/>
+
+  <!-- contenu du portail -->
+  <g fill="none" stroke="#1C1917" stroke-width="7" stroke-linecap="square">
+    <path d="M365 190a50 50 0 0 1 70 0"/>
+    <path d="M380 212a28 28 0 0 1 40 0"/>
+  </g>
+  <rect x="393" y="228" width="14" height="14" fill="#1C1917"/>
+
+  <!-- champ code -->
+  <rect x="270" y="262" width="180" height="38" fill="#F0EDE6" stroke="#1C1917" stroke-width="4"/>
+  <text x="286" y="287" font-family="ui-monospace, Menlo, monospace" font-size="18" font-weight="bold" fill="#57534E">CODE-1234</text>
+  <!-- bouton -->
+  <rect x="462" y="262" width="70" height="38" fill="#EAB308" stroke="#1C1917" stroke-width="4"/>
+  <text x="497" y="287" font-family="ui-monospace, Menlo, monospace" font-size="17" font-weight="bold" fill="#1C1917" text-anchor="middle">OK</text>
+
+  <!-- curseur -->
+  <path d="M540 320l26 62 10-26 26-10z" fill="#1C1917"/>
+
+  <!-- badge conversion -->
+  <g transform="rotate(8 655 175)">
+    <rect x="610" y="150" width="90" height="50" fill="#EAB308" stroke="#1C1917" stroke-width="5"/>
+    <text x="655" y="182" font-family="ui-monospace, Menlo, monospace" font-size="20" font-weight="bold" fill="#1C1917" text-anchor="middle">+38%</text>
+  </g>
+</svg>
