@@ -6,12 +6,15 @@ import { usePathname } from "next/navigation";
 // Onglets du hub Paramètres — chaque entrée pointe vers une page réelle.
 // "Abonnement" vit hors de /settings (facturation) mais appartient
 // fonctionnellement au même hub, d'où sa présence ici.
+// Vocabulaire unique pour tout le hub Paramètres : ces libellés doivent
+// rester identiques à ceux des cartes de la page Général (la sidebar,
+// elle, n'expose plus qu'une entrée "Paramètres" — un seul système).
 const TABS = [
   { href: "/admin/settings/general", label: "Général" },
   { href: "/admin/settings/router-setup", label: "Configuration routeur" },
-  { href: "/admin/settings/payment-gateways", label: "Paiements" },
+  { href: "/admin/settings/payment-gateways", label: "Passerelles de paiement" },
   { href: "/admin/settings/captive-templates", label: "Portail captif" },
-  { href: "/admin/settings/sms", label: "Notifications" },
+  { href: "/admin/settings/sms", label: "SMS" },
   { href: "/admin/billing", label: "Abonnement" },
   { href: "/admin/settings/advanced", label: "Avancé" },
 ];

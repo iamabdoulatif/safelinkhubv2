@@ -22,11 +22,10 @@ import {
   Newspaper,
   Mail,
   ArrowUpRight,
-  ChevronDown,
   Menu,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import UserMenu from "./UserMenu";
 import Logo from "./landing/Logo";
 
@@ -46,14 +45,9 @@ const mainLinks = [
   { href: "/admin/mikhmon-online", label: "Mikhmon Online", icon: Globe },
 ];
 
-const settingsLinks = [
-  { href: "/admin/settings/general", label: "Général" },
-  { href: "/admin/settings/router-setup", label: "Configuration routeur" },
-  { href: "/admin/settings/captive-templates", label: "Modèles de portail captif" },
-  { href: "/admin/settings/sms", label: "SMS" },
-  { href: "/admin/settings/payment-gateways", label: "Passerelles de paiement" },
-  { href: "/admin/settings/advanced", label: "Avancé" },
-];
+// Une seule entrée "Paramètres" : la navigation interne du hub (Général,
+// Configuration routeur, Passerelles…) appartient aux onglets SettingsTabs
+// — pas de deuxième système de navigation concurrent dans la sidebar.
 
 const accountLinks = [
   { href: "/admin/billing", label: "Facturation", icon: CreditCard },
@@ -80,22 +74,50 @@ export default function AdminSidebar({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(
-    pathname?.startsWith("/admin/settings") ?? false,
-  );
+  const asideRef = useRef<HTMLElement>(null);
 
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname?.startsWith(href);
 
   const closeMobile = () => setMobileOpen(false);
 
+  // Drawer mobile : verrouille le scroll du fond, piège le focus dans le
+  // panneau (Tab/Shift+Tab bouclent), Échap ferme, et le focus revient à
+  // l'élément déclencheur à la fermeture.
   useEffect(() => {
     if (!mobileOpen) return;
+    const aside = asideRef.current;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    aside?.querySelector<HTMLElement>("a[href], button")?.focus();
+
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") closeMobile();
+      if (e.key === "Escape") {
+        closeMobile();
+        return;
+      }
+      if (e.key !== "Tab" || !aside) return;
+      const focusables = aside.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
   }, [mobileOpen]);
 
   return (
@@ -131,7 +153,8 @@ export default function AdminSidebar({
 
       {/* Sidebar — desktop always visible, mobile drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-shrink-0 flex-col border-r-2 border-line bg-paper transition-transform duration-300 ease-in-out lg:static lg:w-60 lg:translate-x-0 ${
+        ref={asideRef}
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-shrink-0 flex-col overscroll-contain border-r-2 border-line bg-paper transition-transform duration-300 ease-in-out lg:static lg:w-60 lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -188,9 +211,10 @@ export default function AdminSidebar({
             ))}
 
             <li>
-              <button
-                onClick={() => setSettingsOpen((v) => !v)}
-                className={`flex w-full items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
+              <Link
+                href="/admin/settings/general"
+                onClick={closeMobile}
+                className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
                   pathname?.startsWith("/admin/settings")
                     ? "bg-brand font-bold text-[#1C1917]"
                     : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
@@ -198,31 +222,7 @@ export default function AdminSidebar({
               >
                 <Settings className="h-4 w-4 flex-shrink-0" />
                 <span className="truncate">Paramètres</span>
-                <ChevronDown
-                  className={`ml-auto h-4 w-4 transition-transform duration-300 ${
-                    settingsOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-              {settingsOpen && (
-                <ul className="ml-5 mt-0.5 space-y-0.5 border-l-2 border-line-soft pl-3 animate-fade-in">
-                  {settingsLinks.map((s) => (
-                    <li key={s.href}>
-                      <Link
-                        href={s.href}
-                        onClick={closeMobile}
-                        className={`block px-2 py-1.5 text-sm transition-colors ${
-                          pathname === s.href
-                            ? "font-bold text-brand-deep"
-                            : "text-ink-soft hover:text-ink"
-                        }`}
-                      >
-                        {s.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              </Link>
             </li>
           </ul>
 

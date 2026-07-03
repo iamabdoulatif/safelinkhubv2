@@ -83,16 +83,20 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
   const [query, setQuery] = useState(initialQuery);
 
   // Keep the URL in sync with the active filter/search so the view is
-  // shareable and survives a refresh or browser back/forward.
+  // shareable and survives a refresh or browser back/forward. Debounced:
+  // router.replace à chaque frappe ferait un aller-retour RSC par lettre.
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (filter !== "all") params.set("status", filter);
-    if (query) params.set("q", query);
-    const next = params.toString();
-    const current = searchParams.toString();
-    if (next !== current) {
-      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
-    }
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (filter !== "all") params.set("status", filter);
+      if (query) params.set("q", query);
+      const next = params.toString();
+      const current = searchParams.toString();
+      if (next !== current) {
+        router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
   }, [filter, query, pathname, router, searchParams]);
 
   const counts = useMemo(
@@ -178,9 +182,11 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
       <div className="relative mt-4">
         <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
         <input
+          type="search"
+          name="router-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Rechercher par nom, IP ou identité..."
+          placeholder="Rechercher par nom, IP ou identité…"
           aria-label="Rechercher un routeur par nom, IP ou identité"
           className="w-full border-2 border-line bg-paper py-2.5 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
         />
@@ -244,7 +250,12 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                   </div>
                   <div className="col-span-2 flex justify-between gap-2">
                     <dt className="text-ink-soft">Dernière synchro</dt>
-                    <dd className="font-medium text-ink">{timeAgo(r.lastSyncAtMs)}</dd>
+                    {/* timeAgo dépend de Date.now() : le texte serveur peut
+                        différer d'une poignée de secondes au moment de
+                        l'hydratation — écart attendu, pas un bug. */}
+                    <dd suppressHydrationWarning className="font-medium text-ink">
+                      {timeAgo(r.lastSyncAtMs)}
+                    </dd>
                   </div>
                 </dl>
                 <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft pt-3">
@@ -303,7 +314,9 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                       <MeterCell percent={Math.round(Number(r.memoryUsage ?? 0))} />
                     </td>
                     <td className="px-4 py-3 tabular-nums text-ink">{r.activeUsers ?? 0}</td>
-                    <td className="px-4 py-3 text-ink-soft">{timeAgo(r.lastSyncAtMs)}</td>
+                    <td suppressHydrationWarning className="px-4 py-3 text-ink-soft">
+                      {timeAgo(r.lastSyncAtMs)}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <Link

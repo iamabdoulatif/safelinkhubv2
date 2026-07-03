@@ -24,7 +24,7 @@ const sections = [
   {
     href: "/admin/settings/captive-templates",
     icon: LayoutTemplate,
-    title: "Modèles de portail captif",
+    title: "Portail captif",
     description: "Personnalisez la page de connexion hotspot de vos clients.",
   },
   {
