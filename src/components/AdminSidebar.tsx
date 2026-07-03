@@ -109,7 +109,9 @@ export default function AdminSidebar({
         >
           <Menu className="h-4 w-4" />
         </button>
-        <Logo />
+        <Link href="/" aria-label="SafeLinkHub — retour à la landing page">
+          <Logo />
+        </Link>
         <div className="w-9" />
       </div>
 
@@ -135,7 +137,13 @@ export default function AdminSidebar({
       >
         {/* Mobile close button inside sidebar */}
         <div className="flex items-center justify-between border-b-2 border-line px-5 py-4">
-          <Logo />
+          <Link
+            href="/"
+            onClick={closeMobile}
+            aria-label="SafeLinkHub — retour à la landing page"
+          >
+            <Logo />
+          </Link>
           <button
             onClick={closeMobile}
             className="border-2 border-line p-1 text-ink hover:bg-clay lg:hidden"
