@@ -8,6 +8,7 @@ import RemoteAccessTabs from "./RemoteAccessTabs";
 import RemoteAccessSidebar from "./RemoteAccessSidebar";
 import BackToHomeSection from "./BackToHomeSection";
 import DirectAccessSection from "./DirectAccessSection";
+import Ipv6BypassSection from "./Ipv6BypassSection";
 import { getRelayPublicHost } from "@/lib/mikrotik/relay";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { getVpnTrialStatus } from "@/lib/billing/actions";
@@ -53,6 +54,7 @@ export default async function RemoteAccessPage() {
     (r) => r.connectionMethod === "vpn" || r.connectionMethod === "openvpn",
   ).length;
   const activeForwardsCount = forwards.filter((f) => f.status === "active").length;
+  const ipv6BypassCount = allRouters.filter((r) => r.ipv6BypassEnabled).length;
 
   return (
     <div className="animate-fade-in-up">
@@ -129,6 +131,7 @@ export default async function RemoteAccessPage() {
           }))}
           tunnelCount={tunnelCount}
           activeForwardsCount={activeForwardsCount}
+          ipv6BypassCount={ipv6BypassCount}
         />
 
         {/* Main content — each section gets an id for anchor + scroll-mt */}
@@ -160,6 +163,19 @@ export default async function RemoteAccessPage() {
               forwardsByRouter={forwardsByRouter}
               relayHost={getRelayPublicHost()}
               vpnTrial={vpnTrial}
+            />
+          </section>
+
+          <section id="section-ipv6-bypass" className="scroll-mt-4">
+            <Ipv6BypassSection
+              routers={allRouters.map((r) => ({
+                id: r.id,
+                name: r.name,
+                status: r.status,
+                connectionMethod: r.connectionMethod,
+                ipv6BypassEnabled: r.ipv6BypassEnabled,
+              }))}
+              relayHost={getRelayPublicHost()}
             />
           </section>
 

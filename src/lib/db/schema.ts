@@ -99,6 +99,13 @@ export const routers = pgTable("routers", {
   connectionMethod: text("connection_method").notNull().default("direct"),
   tunnelIp: text("tunnel_ip"),
   wgPeerPublicKey: text("wg_peer_public_key"),
+  // "Bypass IPv6": when true, the router routes its hotspot clients' Internet
+  // traffic into the existing SafeLinkHub WireGuard tunnel so it exits via the
+  // VPS-relay's public IPv4 (exit-node / full-tunnel mode for FAI IPv6/CGNAT/
+  // DS-Lite). Toggled per router from the remote-access page — see
+  // lib/mikrotik/ipv6-bypass.ts. Only meaningful when connectionMethod="vpn".
+  ipv6BypassEnabled: boolean("ipv6_bypass_enabled").notNull().default(false),
+  ipv6BypassEnabledAt: timestamp("ipv6_bypass_enabled_at"),
   installTokenHash: text("install_token_hash"),
   installTokenExpiresAt: timestamp("install_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
