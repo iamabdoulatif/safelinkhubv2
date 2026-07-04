@@ -196,14 +196,19 @@ export async function auditRouterConfig(routerId: string) {
             : "Bridge/veth Docker présents mais le conteneur n'a jamais été créé — relancez l'auto-setup pour le pull depuis Docker Hub.",
       });
     } else {
+      // RouterOS ≤7.22 exposes a "status" property over the API; 7.23+
+      // dropped it and only reports the boolean "running" — read whichever
+      // is present so an up-and-serving container isn't flagged as stuck.
+      const containerStatus =
+        container[0].status ?? (container[0].running === "true" ? "running" : "stopped");
       items.push({
         key: "mikhmon",
         label: "Conteneur MikHmon",
-        status: container[0].status === "running" ? "ok" : "incomplete",
+        status: containerStatus === "running" ? "ok" : "incomplete",
         detail:
-          container[0].status === "running"
+          containerStatus === "running"
             ? undefined
-            : `Conteneur présent mais statut "${container[0].status}" — peut nécessiter quelques minutes après un /system/reboot pour démarrer.`,
+            : `Conteneur présent mais statut "${containerStatus}" — peut nécessiter quelques minutes après un /system/reboot pour démarrer.`,
       });
     }
   } finally {

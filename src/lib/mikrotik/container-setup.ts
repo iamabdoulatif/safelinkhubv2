@@ -120,7 +120,13 @@ async function waitForImageAndStart(client: RouterOSClient, log: string[]) {
       continue;
     }
     const container = rows.find((r) => r.name === CONTAINER_NAME);
-    const status = container?.status ?? "";
+    // RouterOS ≤7.22 reports "status"; 7.23+ replaced it with the boolean
+    // "running" property. While the image is still extracting the row has
+    // no name yet, so container stays undefined and "" keeps waiting on
+    // both generations.
+    const status =
+      container?.status ??
+      (container ? (container.running === "true" ? "running" : "stopped") : "");
 
     if (status === "stopped") {
       try {
