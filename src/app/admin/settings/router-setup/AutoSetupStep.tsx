@@ -707,51 +707,53 @@ export default function AutoSetupStep({
       </div>
 
       {/* ── Portail captif ────────────────────────────────────────────── */}
-      <div className="mt-4 rounded-md border border-line-soft p-4">
-        <label className="flex items-center gap-3 text-sm text-ink">
+      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+        <label className="flex items-start gap-3 text-sm text-ink cursor-pointer">
           <input
             type="checkbox"
             checked={installCaptivePortal}
             onChange={(e) => setInstallCaptivePortal(e.target.checked)}
-            className="h-4 w-4 rounded border-line-soft"
+            className="mt-0.5 h-4 w-4 rounded border-line-soft accent-brand"
           />
           <span>
-            <span className="block font-medium">Installer le portail captif SafeLinkHub</span>
-            <span className="mt-0.5 block text-xs text-ink-soft">
+            <span className="block font-semibold">Installer le portail captif SafeLinkHub</span>
+            <span className="mt-1 block text-sm leading-relaxed text-ink-soft">
               Remplace la page de connexion RouterOS par le portail SafeLinkHub (plans, paiement
               mobile money, vendeurs agréés).
             </span>
           </span>
         </label>
         {installCaptivePortal && packageTemplates.length > 0 && (
-          <div className="mt-3 space-y-1.5 border-t border-line-soft pt-3">
-            <p className="text-xs text-ink-soft">
+          <div className="mt-4 space-y-2 border-t border-line-soft pt-4">
+            <p className="text-sm text-ink-soft">
               Choisissez le portail à installer — importez les vôtres depuis{" "}
               <Link
                 href={`/admin/settings/captive-templates?retour=${routerId}`}
-                className="underline"
+                className="font-medium text-brand-deep underline hover:text-ink transition-colors"
               >
                 Paramètres → Portail captif
               </Link>
               .
             </p>
-            {packageTemplates.map((tpl) => (
-              <label key={tpl.id} className="flex items-center gap-2 text-sm text-ink">
-                <input
-                  type="radio"
-                  name="captive-template"
-                  checked={selectedTemplateId === tpl.id}
-                  onChange={() => setSelectedTemplateId(tpl.id)}
-                  className="h-4 w-4 border-line-soft"
-                />
-                {tpl.name}
-                {tpl.isDefault && (
-                  <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-warn">
-                    Par défaut
-                  </span>
-                )}
-              </label>
-            ))}
+            <div className="space-y-2">
+              {packageTemplates.map((tpl) => (
+                <label key={tpl.id} className="flex items-center gap-2.5 rounded-md border border-line-soft px-3 py-2.5 text-sm text-ink hover:bg-clay cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="captive-template"
+                    checked={selectedTemplateId === tpl.id}
+                    onChange={() => setSelectedTemplateId(tpl.id)}
+                    className="h-4 w-4 border-line-soft accent-brand"
+                  />
+                  <span className="font-medium">{tpl.name}</span>
+                  {tpl.isDefault && (
+                    <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-warn">
+                      Par défaut
+                    </span>
+                  )}
+                </label>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -773,36 +775,43 @@ export default function AutoSetupStep({
       )}
 
       {/* ── Récapitulatif ─────────────────────────────────────────────── */}
-      <dl className="mt-4 grid grid-cols-1 gap-3 rounded-md bg-clay p-3 text-xs sm:grid-cols-3">
-        <div>
-          <dt className="text-ink-soft">Hotspot</dt>
-          <dd className="font-medium text-ink">
-            {hotspotName || "—"} · {hotspotAddress}/{hotspotPrefixBits}
-            {!hotspotBridge && " (bridge manquant à l'Étape 2)"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-ink-soft">Wi-Fi / domaine</dt>
-          <dd className="font-medium text-ink">
-            {ssid || "—"} · {dnsName || "—"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-ink-soft">MikHmon / portail</dt>
-          <dd className="font-medium text-ink">
-            {mikhmonIncluded ? "Inclus" : "Ignoré"} ·{" "}
-            {installCaptivePortal
-              ? (packageTemplates.find((t) => t.id === selectedTemplateId)?.name ?? "Portail par défaut")
-              : "Page RouterOS"}
-          </dd>
-        </div>
-        <div className="sm:col-span-3">
-          <dt className="text-ink-soft">Profils voucher ({customProfiles.length})</dt>
-          <dd className="font-medium text-ink">
-            {customProfiles.map((p) => p.label).join(", ") || "Aucun"}
-          </dd>
-        </div>
-      </dl>
+      <div className="mt-5 rounded-md border border-line-soft bg-clay p-4 sm:p-5">
+        <p className="text-sm font-semibold text-ink mb-3">Récapitulatif avant lancement</p>
+        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3 text-sm">
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-ink-soft mb-1">Hotspot</dt>
+            <dd className="font-semibold text-ink leading-snug">
+              {hotspotName || "—"} · {hotspotAddress}/{hotspotPrefixBits}
+              {!hotspotBridge && (
+                <span className="block text-xs text-warn mt-0.5">bridge manquant à l&apos;Étape 2</span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-ink-soft mb-1">Wi-Fi / domaine</dt>
+            <dd className="font-semibold text-ink leading-snug">
+              {ssid || "—"} · {dnsName || "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-ink-soft mb-1">MikHmon / portail</dt>
+            <dd className="font-semibold text-ink leading-snug">
+              {mikhmonIncluded ? "Inclus" : "Ignoré"} ·{" "}
+              {installCaptivePortal
+                ? (packageTemplates.find((t) => t.id === selectedTemplateId)?.name ?? "Portail par défaut")
+                : "Page RouterOS"}
+            </dd>
+          </div>
+          <div className="sm:col-span-3 border-t border-line-soft pt-3 mt-1">
+            <dt className="text-xs font-medium uppercase tracking-wide text-ink-soft mb-1">
+              Profils voucher ({customProfiles.length})
+            </dt>
+            <dd className="font-semibold text-ink leading-snug">
+              {customProfiles.map((p) => p.label).join(", ") || "Aucun — ajoutez au moins un profil"}
+            </dd>
+          </div>
+        </dl>
+      </div>
 
       {pending && (
         <div className="mt-6 flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-md border-2 border-line bg-paper p-8">

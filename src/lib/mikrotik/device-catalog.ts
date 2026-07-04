@@ -13,7 +13,7 @@ export type MikrotikModel = {
   wifiBands: WifiBands;
   /**
    * True on container-capable boards whose onboard flash is too small to
-   * pull/extract the MikHmon image on its own (e.g. L009, hAP ax³, RB3011,
+   * pull/extract the MikHmon image on its own (e.g. L009, hAP ax³,
    * Chateau PRO ax) — these need a USB stick plugged in for /container/
    * config's tmpdir, or the pull silently fails / fills the flash. False on
    * boards confirmed to work fine off onboard flash/tmpfs alone (hAP ax
@@ -24,14 +24,14 @@ export type MikrotikModel = {
    */
   requiresUsbForContainer?: boolean;
   /**
-   * True on boards with enough onboard flash to hold the MikHmon image
-   * directly (e.g. RB4011's 128MB NAND vs hAP ax lite/ax²'s ~16MB) — these
-   * use a plain "disk1" directory on the router's own Files/flash storage
-   * for /container's root-dir/layer-dir instead of the RAM-backed tmpfs
-   * scratch space, since the image would otherwise just be lost on every
-   * reboot for no reason on a board that has the flash to spare. Mutually
-   * exclusive in practice with requiresUsbForContainer (a board needing USB
-   * has too little flash to qualify here) but both default to false/unset.
+   * True on boards with enough onboard storage to hold the MikHmon image
+   * directly (RB4011 series, RB3011, RB5009 — vs hAP ax lite/ax²'s ~16MB)
+   * — these host MikHmon on the router's own internal disk (the /disk slot
+   * named "disk1"/"disk…", or a plain Files directory when no slot is
+   * listed) instead of a USB stick or the RAM-backed tmpfs scratch space:
+   * no key to plug in, and the image survives reboots. NEVER falls back to
+   * tmpfs on these boards. Mutually exclusive in practice with
+   * requiresUsbForContainer; both default to false/unset.
    */
   hasLargeOnboardStorage?: boolean;
 };
@@ -127,12 +127,34 @@ export const MIKROTIK_MODELS: MikrotikModel[] = [
     requiresUsbForContainer: true,
   },
 
-  // Wired-only ARM boards with Container support but no onboard WiFi.
+  // Wired-only ARM/ARM64 boards with Container support but no onboard
+  // WiFi. All of these have enough internal storage to host MikHmon
+  // directly (RB4011 512MB NAND, RB3011 128MB NAND, RB5009 1GB NAND) —
+  // no USB stick and never the tmpfs fallback (confirmed in the field:
+  // the RB3011/RB4011 install was wrongly asking for a key).
+  {
+    boardName: "RB4011iGS+RM",
+    architecture: "arm",
+    wifiBands: "none",
+    hasLargeOnboardStorage: true,
+  },
   {
     boardName: "RB3011UiAS-RM",
     architecture: "arm",
     wifiBands: "none",
-    requiresUsbForContainer: true,
+    hasLargeOnboardStorage: true,
+  },
+  {
+    boardName: "RB5009UG+S+IN",
+    architecture: "arm64",
+    wifiBands: "none",
+    hasLargeOnboardStorage: true,
+  },
+  {
+    boardName: "RB5009UPr+S+IN",
+    architecture: "arm64",
+    wifiBands: "none",
+    hasLargeOnboardStorage: true,
   },
 
   // Legacy MIPS boards — still common in the field, but no Container
@@ -147,7 +169,11 @@ export const MIKROTIK_MODELS: MikrotikModel[] = [
 ];
 
 function normalize(s: string) {
-  return s.toLowerCase().replace(/[\s²³]/g, "").replace(/-/g, "");
+  // ² / ³ deviennent "2" / "3" (et non supprimés) — sinon "hAP ax²" et
+  // "hAP ax³" se normalisent tous deux en "hapax" et le premier de la
+  // liste gagne : un vrai ax³ matchait l'entrée ax² et perdait son flag
+  // requiresUsbForContainer.
+  return s.toLowerCase().replace(/²/g, "2").replace(/³/g, "3").replace(/[\s-]/g, "");
 }
 
 /**

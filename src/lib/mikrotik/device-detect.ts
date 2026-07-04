@@ -83,15 +83,16 @@ export type DetectedRouter = {
    * step to actually run. */
   containerFeatureEnabled: boolean | null;
   /** True on boards confirmed to need a USB stick for MikHmon's container
-   * storage (L009, hAP ax³, RB3011, Chateau PRO ax — onboard flash is too
-   * small) — see device-catalog.ts. False for boards confirmed to work off
+   * storage (L009, hAP ax³, Chateau PRO ax — onboard flash is too small)
+   * — see device-catalog.ts. False for boards confirmed to work off
    * onboard flash/tmpfs alone (hAP ax lite, hAP ax²), and also false for
    * any unrecognized board (no basis to warn either way). */
   requiresUsbForContainer: boolean;
-  /** True on boards confirmed to have enough onboard flash (e.g. RB4011) to
-   * hold the MikHmon image directly in a "disk1" Files directory instead of
-   * the RAM-backed tmpfs scratch space — see device-catalog.ts. Only takes
-   * effect when hasUsbStorage is false (a plugged-in USB stick still wins). */
+  /** True on boards with enough internal storage (RB4011 series, RB3011,
+   * RB5009) to hold the MikHmon image directly on their own disk slot or
+   * Files directory instead of the RAM-backed tmpfs scratch space — see
+   * device-catalog.ts. Only takes effect when hasUsbStorage is false (a
+   * plugged-in USB stick still wins). */
   hasLargeOnboardStorage: boolean;
 };
 
@@ -158,12 +159,13 @@ export async function detectRouterModel(routerId: string) {
       routerosVersion: resource?.version ?? "",
       deviceMode: deviceModeRow?.mode ?? null,
       requiresUsbForContainer: model?.requiresUsbForContainer ?? false,
-      // Live disk1-slot detection (same signal install-vpn/route.ts's
+      // Live internal-disk-slot detection (same signal install-vpn/route.ts's
       // bootstrap script uses) takes priority over the static catalog flag,
-      // so any board reporting its own internal disk slot is recognized
-      // even if it isn't listed in device-catalog.ts yet.
+      // so any board reporting its own internal disk slot ("disk1", "disk2",
+      // …) is recognized even if it isn't listed in device-catalog.ts yet.
       hasLargeOnboardStorage:
-        diskRows.some((d) => d.slot === "disk1") || (model?.hasLargeOnboardStorage ?? false),
+        diskRows.some((d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot)) ||
+        (model?.hasLargeOnboardStorage ?? false),
       containerFeatureEnabled: deviceModeRow ? parseRosBoolean(deviceModeRow.container) : null,
     };
 

@@ -67,30 +67,44 @@ function buildScript(opts: {
 
 # Container engine storage, auto-detected per board instead of hardcoded —
 # boards differ in what storage they actually have:
-#   - USB-equipped boards (hAP ax3, etc.) pull/extract on the stick just
-#     formatted above, to spare onboard flash.
-#   - USB-less ARM boards with their own internal disk slot (e.g. RB4011's
-#     "disk1") use that instead.
-#   - Everything else (ax2 / hAP ax lite, no USB and no extra disk) falls
-#     back to a tmpfs scratch slot created here if it doesn't exist yet.
+#   - USB-equipped boards (hAP ax3, Chateau PRO ax, L009…) pull/extract on
+#     the stick just formatted above, to spare onboard flash.
+#   - USB-less boards with their own internal disk slot (RB4011 series:
+#     "disk1", "disk2", … — matched by name pattern, not hardcoded) use
+#     that slot.
+#   - Boards with a large internal flash but no listed disk slot (RB3011,
+#     RB5009…, detected via total-hdd-space) use a plain Files directory —
+#     never tmpfs on these, the image must survive reboots.
+#   - Everything else (ax2 / hAP ax lite: ~16MB flash) falls back to a
+#     tmpfs scratch slot created here if it doesn't exist yet.
 # /container/config/set goes through [:parse] for the same reason as the
 # veth block above — without the container package the /container menu
 # doesn't exist and an inline command would kill the whole import at
 # parse time instead of being caught by on-error.
 :do {
-  :local storeRoot "tmp"
+  :local tmpDir "tmp/pull"
+  :local layerDir "tmp/mikhmon-layers"
   :if ([:len [/disk find where slot="usb1" and file-system="ext4"]] > 0) do={
-    :set storeRoot "usb1"
+    :set tmpDir "usb1/pull"
+    :set layerDir "usb1/mikhmon-layers"
   } else={
-    :if ([:len [/disk find where slot="disk1"]] > 0) do={
-      :set storeRoot "disk1"
+    :local internalDisks [/disk find where slot~"^disk"]
+    :if ([:len $internalDisks] > 0) do={
+      :local diskSlot [/disk get [:pick $internalDisks 0] slot]
+      :set tmpDir ($diskSlot . "/pull")
+      :set layerDir ($diskSlot . "/mikhmon-layers")
     } else={
-      :if ([:len [/disk find where slot="tmp"]] = 0) do={
-        /disk add slot=tmp type=tmpfs tmpfs-max-size=150000000
+      :if ([/system resource get total-hdd-space] > 100000000) do={
+        :set tmpDir "pull"
+        :set layerDir "mikhmon-layers"
+      } else={
+        :if ([:len [/disk find where slot="tmp"]] = 0) do={
+          /disk add slot=tmp type=tmpfs tmpfs-max-size=150000000
+        }
       }
     }
   }
-  :local containerCfg [:parse "/container/config/set registry-url=https://registry-1.docker.io tmpdir=$storeRoot/pull layer-dir=$storeRoot/mikhmon-layers"]
+  :local containerCfg [:parse "/container/config/set registry-url=https://registry-1.docker.io tmpdir=$tmpDir layer-dir=$layerDir"]
   $containerCfg
 } on-error={ :log warning "SafeLinkHub could not configure container storage during VPN install (container package likely missing); auto-setup will retry" }
 

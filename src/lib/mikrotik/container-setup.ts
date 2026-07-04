@@ -249,11 +249,13 @@ async function provisionDockerStack(
     );
 
     // Container engine: USB-equipped boards pull/extract on the stick
-    // (usb1/pull) to spare onboard flash; boards with enough onboard flash
-    // to spare (RB4011 and other large-storage boards — see
-    // hasLargeOnboardStorage) use a plain "disk1" Files directory directly;
-    // ax2 / hAP ax lite have neither USB nor flash to spare and fall back to
-    // the RAM-backed tmpfs scratch space.
+    // (usb1/pull) to spare onboard flash; boards with enough internal
+    // storage (RB4011 series, RB3011, RB5009 — see hasLargeOnboardStorage)
+    // host everything on their own disk slot ("disk1"/"disk…", live-
+    // detected by name) or directly on the Files storage when no slot is
+    // listed — never tmpfs for those; ax2 / hAP ax lite have neither USB
+    // nor flash to spare and fall back to the RAM-backed tmpfs scratch
+    // space.
     let containerRootDir = "tmp/mikhmon-app";
     let containerLayerDir = "tmp/mikhmon-layers";
     if (opts.hasUsbStorage) {
@@ -287,38 +289,44 @@ async function provisionDockerStack(
         ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${usbLayerDir}`],
         "container engine config (USB storage)",
       );
-    } else if (
-      opts.hasLargeOnboardStorage ||
-      (await client.talk(["/disk/print"]).catch(() => [])).some((d) => d.slot === "disk1")
-    ) {
-      // No USB stick, but the board reports its own internal "disk1" slot
-      // (RB4011 and any other board with enough onboard flash to spare) —
-      // live-detected the same way install-vpn/route.ts's bootstrap script
-      // does, so this isn't limited to boards hardcoded in device-catalog.ts.
-      // No /disk/add or formatting needed, "disk1" is just a plain directory
-      // on the router's own Files/flash storage, unlike usb1 (separate disk
-      // slot, needs ext4 formatting) or tmp (RAM-backed, lost on reboot,
-      // capped at 150MB).
-      const flashRootDir = "disk1/mikhmon-app";
-      const flashLayerDir = "disk1/mikhmon-layers";
-      containerRootDir = flashRootDir;
-      containerLayerDir = flashLayerDir;
-      await run(
-        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=disk1/pull", `=layer-dir=${flashLayerDir}`],
-        "container engine config (onboard flash storage)",
-      );
     } else {
-      const existingDisks = await client.talk(["/disk/print"]).catch(() => []);
-      if (!existingDisks.some((d) => d.slot === "tmp")) {
+      const disks = await client.talk(["/disk/print"]).catch(() => []);
+      const internalDisk = disks.find(
+        (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot),
+      );
+      if (internalDisk?.slot || opts.hasLargeOnboardStorage) {
+        // No USB stick, but the board either reports its own internal disk
+        // slot ("disk1", "disk2", … — RB4011 and friends, live-detected so
+        // this isn't limited to boards hardcoded in device-catalog.ts) or
+        // is flagged large-storage in the catalog (RB3011 : assez de
+        // mémoire interne pour héberger MikHmon, pas de clé USB, jamais
+        // tmpfs). When no slot is listed, the paths are plain directories
+        // on the router's own Files/flash storage — no /disk/add, no
+        // formatting.
+        const root = internalDisk?.slot ? `${internalDisk.slot}/` : "";
+        containerRootDir = `${root}mikhmon-app`;
+        containerLayerDir = `${root}mikhmon-layers`;
         await run(
-          ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
-          "tmpfs disk slot",
+          [
+            "/container/config/set",
+            "=registry-url=https://registry-1.docker.io",
+            `=tmpdir=${root}pull`,
+            `=layer-dir=${containerLayerDir}`,
+          ],
+          `container engine config (stockage interne${internalDisk?.slot ? ` ${internalDisk.slot}` : ""})`,
+        );
+      } else {
+        if (!disks.some((d) => d.slot === "tmp")) {
+          await run(
+            ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
+            "tmpfs disk slot",
+          );
+        }
+        await run(
+          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull", `=layer-dir=${containerLayerDir}`],
+          "container engine config (tmpfs)",
         );
       }
-      await run(
-        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull", `=layer-dir=${containerLayerDir}`],
-        "container engine config (tmpfs)",
-      );
     }
 
     for (const name of [CONTAINER_NAME, ...LEGACY_CONTAINER_NAMES]) {
