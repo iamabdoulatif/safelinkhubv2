@@ -764,17 +764,30 @@ export async function provisionHotspotStack(
       // not a claim about the router's actual physical operating country.
       const country = opts.wifiCountry?.trim() || "United States";
       const wifiInterfaces = await client.talk(["/interface/wifi/print"]).catch(() => []);
+      // Band is read from what each radio actually supports
+      // (/interface/wifi/radio reports e.g. "2ghz-g:…,2ghz-ax:…" and names
+      // the interface it backs), not from the wifi1/wifi2 naming convention:
+      // dual-radio ax boards (hAP ax², ax³) do map wifi1 to the 5GHz radio,
+      // but on a single-radio board (hAP ax lite, confirmed live on a real
+      // unit) wifi1 is the 2.4GHz radio — asking it for 5ghz-ax made
+      // RouterOS reject the whole atomic /interface/wifi/set, so the SSID
+      // silently never applied there.
+      const wifiRadios = await client.talk(["/interface/wifi/radio/print"]).catch(() => []);
       for (const wifi of wifiInterfaces) {
         if (!wifi.name) continue;
-        // default-name is used to pick the band (5GHz on the first radio,
-        // 2.4GHz on the second) the same way the manual export does it —
-        // boards with only one radio just get one pass through this loop.
-        const isPrimaryRadio = wifi["default-name"] === "wifi1" || wifi.name === "wifi1";
+        const radio = wifiRadios.find(
+          (r) => r.interface === wifi.name || r.interface === wifi["default-name"],
+        );
+        // Fallback when the radio row can't be read: wifi1 only means 5GHz
+        // when a second radio exists; a lone radio is assumed 2.4GHz.
+        const use5ghz = radio
+          ? (radio.bands ?? "").includes("5ghz")
+          : (wifi["default-name"] === "wifi1" || wifi.name === "wifi1") && wifiInterfaces.length > 1;
         await run(
           [
             "/interface/wifi/set",
             `=numbers=${wifi.name}`,
-            `=channel.band=${isPrimaryRadio ? "5ghz-ax" : "2ghz-ax"}`,
+            `=channel.band=${use5ghz ? "5ghz-ax" : "2ghz-ax"}`,
             // No explicit channel.frequency: RouterOS auto-selects a valid
             // channel within whatever band/country is set above. An
             // earlier version hardcoded "2300-75000" here, which isn't a
@@ -786,7 +799,7 @@ export async function provisionHotspotStack(
             // whatever state it was already in. That's almost certainly
             // why WiFi looked dead even though the script reported success.
             "=channel.skip-dfs-channels=all",
-            `=channel.width=${isPrimaryRadio ? "20/40/80mhz" : "20/40mhz"}`,
+            `=channel.width=${use5ghz ? "20/40/80mhz" : "20/40mhz"}`,
             `=configuration.country=${country}`,
             "=configuration.mode=ap",
             `=configuration.ssid=${opts.ssid.trim()}`,

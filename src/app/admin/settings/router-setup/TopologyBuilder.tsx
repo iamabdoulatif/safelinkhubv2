@@ -44,9 +44,16 @@ function isVethInterface(port: Pick<Port, "name" | "type">) {
   return port.type === "veth";
 }
 
-function interfaceLabel(port: Pick<Port, "name" | "type">) {
-  if (port.name === "wifi1") return "wifi1 5GHz";
-  if (port.name === "wifi2") return "wifi2 2GHz";
+function interfaceLabel(
+  port: Pick<Port, "name" | "type">,
+  allPorts?: readonly Pick<Port, "name" | "type">[] | null,
+) {
+  // MikroTik only maps wifi1 to the 5GHz radio on dual-radio boards
+  // (hAP ax², ax³, ...) — when wifi1 is the board's only radio (hAP ax
+  // lite) it is the 2.4GHz one, so the band tag depends on wifi2 existing.
+  const dualRadio = allPorts ? allPorts.some((p) => p.name === "wifi2") : true;
+  if (port.name === "wifi1") return dualRadio ? "wifi1 5GHz" : "wifi1 2,4GHz";
+  if (port.name === "wifi2") return "wifi2 2,4GHz";
   return port.name;
 }
 
@@ -337,12 +344,14 @@ function DockerBridgeCreatePanel({
 
 function InterfaceTile({
   port,
+  allPorts,
   used,
   selected,
   onSelect,
   tileRef,
 }: {
   port: Port;
+  allPorts: readonly Port[];
   used: boolean;
   selected: boolean;
   onSelect: () => void;
@@ -407,7 +416,7 @@ function InterfaceTile({
       ) : (
         <Cable className={`h-4 w-4 ${port.disabled ? "text-clay" : "text-ok"}`} />
       )}
-      <span className="max-w-full truncate px-1 leading-tight">{interfaceLabel(port)}</span>
+      <span className="max-w-full truncate px-1 leading-tight">{interfaceLabel(port, allPorts)}</span>
     </div>
   );
 }
@@ -450,6 +459,7 @@ function RouterDeviceCard({
           <InterfaceTile
             key={port.name}
             port={port}
+            allPorts={ports}
             used={assignedElsewhere.has(port.name) || draftPorts.includes(port.name)}
             selected={selectedPort === port.name}
             onSelect={() => onSelectPort(port.name)}
@@ -657,7 +667,7 @@ function TopologyCanvas({
                         defaultChecked={used}
                         className="h-4 w-4 rounded border-line-soft text-ok focus:ring-ink focus:outline-none"
                       />
-                      <span className="text-sm text-ink">{interfaceLabel(port)}</span>
+                      <span className="text-sm text-ink">{interfaceLabel(port, ports)}</span>
                       {port.disabled && (
                         <span className="ml-auto text-[10px] text-ink-soft">(désactivé)</span>
                       )}
