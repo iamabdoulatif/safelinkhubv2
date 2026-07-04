@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
@@ -7,9 +9,18 @@ import TemplatesManager from "./TemplatesManager";
 import BridgeAssignments from "./BridgeAssignments";
 import ThemeGallery from "./ThemeGallery";
 
-export default async function CaptiveTemplatesPage() {
+export default async function CaptiveTemplatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ retour?: string }>;
+}) {
   const session = await getSession();
   const db = getDb();
+  // "?retour=<routerId>" : l'admin est arrivé ici depuis l'étape « Portail
+  // captif » du wizard de configuration routeur — offre le chemin inverse
+  // vers ce même wizard, sinon il n'a aucun lien pour y retourner après
+  // avoir importé/choisi son portail.
+  const { retour } = await searchParams;
 
   const templates = await listCaptiveTemplates();
 
@@ -29,6 +40,15 @@ export default async function CaptiveTemplatesPage() {
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
+      {retour && (
+        <Link
+          href={`/admin/settings/router-setup?router=${encodeURIComponent(retour)}`}
+          className="mb-4 inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-clay px-3 py-1.5 text-sm font-medium text-ink hover:border-ok"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Revenir à la configuration du routeur
+        </Link>
+      )}
       <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink">
         Portail captif
       </h1>

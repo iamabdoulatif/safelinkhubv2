@@ -722,7 +722,10 @@ export default function AutoSetupStep({
           <div className="mt-3 space-y-1.5 border-t border-line-soft pt-3">
             <p className="text-xs text-ink-soft">
               Choisissez le portail à installer — importez les vôtres depuis{" "}
-              <a href="/admin/settings/captive-templates" className="underline">
+              <a
+                href={`/admin/settings/captive-templates?retour=${routerId}`}
+                className="underline"
+              >
                 Paramètres → Portail captif
               </a>
               .
