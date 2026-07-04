@@ -213,9 +213,14 @@ export default function AutoSetupStep({
   const [dnsName, setDnsName] = useState("");
   const [dnsTouched, setDnsTouched] = useState(false);
 
+  // Facultatif, et sans objet sur les modèles filaires (RB4011iGS+RM,
+  // RB3011, RB5009, hEX…) : le champ SSID est alors masqué et aucun SSID
+  // n'est dérivé du nom du hotspot ni envoyé au routeur.
+  const hasWifi = detected?.hasWifi ?? true;
+
   function onHotspotNameChange(value: string) {
     setHotspotName(value);
-    if (!ssidTouched) setSsid(value);
+    if (!ssidTouched && hasWifi) setSsid(value);
     if (!dnsTouched) {
       const slug = slugifyDomain(value);
       setDnsName(slug ? `${slug}.wifi` : "");
@@ -369,7 +374,9 @@ export default function AutoSetupStep({
         hotspotPrefixBits,
         hotspotName,
         dnsName,
-        ssid: ssid.trim() || undefined,
+        // Jamais de SSID vers un modèle sans Wi-Fi — même si le champ a été
+        // auto-rempli avant que la détection ne réponde.
+        ssid: hasWifi ? ssid.trim() || undefined : undefined,
         defaultHotspotUsers: [],
         hasUsbStorage,
         hasLargeOnboardStorage: detected?.hasLargeOnboardStorage ?? false,
@@ -438,22 +445,22 @@ export default function AutoSetupStep({
       )}
 
       {/* ── Réseau du hotspot (passerelle, classe, sous-réseau) ───────── */}
-      <div className="mt-4 rounded-md border border-line-soft p-4">
-        <p className="text-sm font-medium text-ink">Réseau du hotspot</p>
-        <p className="mt-0.5 text-xs text-ink-soft">
+      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+        <p className="text-sm font-semibold text-ink">Réseau du hotspot</p>
+        <p className="mt-1 text-sm leading-relaxed text-ink-soft">
           Pré-rempli depuis l&apos;Étape 2 — même sélecteur que le configurateur de bridge,
           appliqué au routeur et resynchronisé sur la topologie au lancement.
         </p>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label htmlFor="as-gateway-ip" className="mb-1 block text-xs font-medium text-ink-soft">
+            <label htmlFor="as-gateway-ip" className="mb-1.5 block text-sm font-medium text-ink-soft">
               IP de la passerelle
             </label>
             <select
               id="as-gateway-ip"
               value={hotspotAddress}
               onChange={(e) => setHotspotAddress(e.target.value)}
-              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
             >
               {gatewayOptions.map((ip) => (
                 <option key={ip} value={ip}>
@@ -463,14 +470,14 @@ export default function AutoSetupStep({
             </select>
           </div>
           <div>
-            <label htmlFor="as-network-class" className="mb-1 block text-xs font-medium text-ink-soft">
+            <label htmlFor="as-network-class" className="mb-1.5 block text-sm font-medium text-ink-soft">
               Classe réseau
             </label>
             <select
               id="as-network-class"
               value={networkClass}
               onChange={(e) => changeNetworkClass(e.target.value as NetworkClass)}
-              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
             >
               {(["any", "A", "B", "C"] as NetworkClass[]).map((c) => (
                 <option key={c} value={c}>
@@ -480,14 +487,14 @@ export default function AutoSetupStep({
             </select>
           </div>
           <div>
-            <label htmlFor="as-subnet-bits" className="mb-1 block text-xs font-medium text-ink-soft">
+            <label htmlFor="as-subnet-bits" className="mb-1.5 block text-sm font-medium text-ink-soft">
               Taille du sous-réseau
             </label>
             <select
               id="as-subnet-bits"
               value={hotspotPrefixBits}
               onChange={(e) => setHotspotPrefixBits(Number(e.target.value))}
-              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
             >
               {CLASS_PREFIX_OPTIONS[networkClass].map((bits) => (
                 <option key={bits} value={bits}>
@@ -498,62 +505,68 @@ export default function AutoSetupStep({
           </div>
         </div>
         {subnet && (
-          <p className="mt-2 rounded-md bg-clay px-3 py-2 text-xs text-ink-soft">
-            Réseau hotspot : <span className="font-medium text-ink">{hotspotAddress}/{hotspotPrefixBits}</span>{" "}
+          <p className="mt-3 rounded-md bg-clay px-3 py-2.5 text-sm text-ink-soft">
+            Réseau hotspot : <span className="font-semibold text-ink">{hotspotAddress}/{hotspotPrefixBits}</span>{" "}
             — {getImpactNote(hotspotPrefixBits)}
           </p>
         )}
       </div>
 
       {/* ── Identité du hotspot ─────────────────────────────────────── */}
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div>
-          <label htmlFor="as-hotspot-name" className="mb-1 block text-xs font-medium text-ink-soft">
-            Nom du hotspot
-          </label>
-          <input
-            id="as-hotspot-name"
-            value={hotspotName}
-            onChange={(e) => onHotspotNameChange(e.target.value)}
-            placeholder="MIRADOR-WIFI"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
-          />
+      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label htmlFor="as-hotspot-name" className="mb-1.5 block text-sm font-medium text-ink-soft">
+              Nom du hotspot
+            </label>
+            <input
+              id="as-hotspot-name"
+              value={hotspotName}
+              onChange={(e) => onHotspotNameChange(e.target.value)}
+              placeholder="MIRADOR-WIFI"
+              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
+            />
+          </div>
+          {hasWifi && (
+            <div>
+              <label htmlFor="as-ssid" className="mb-1.5 block text-sm font-medium text-ink-soft">
+                Nom du réseau Wi-Fi (SSID){" "}
+                <span className="font-normal text-ink-soft/70">(facultatif)</span>
+              </label>
+              <input
+                id="as-ssid"
+                value={ssid}
+                onChange={(e) => {
+                  setSsidTouched(true);
+                  setSsid(e.target.value);
+                }}
+                placeholder="Identique au nom du hotspot"
+                className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
+              />
+            </div>
+          )}
+          <div>
+            <label htmlFor="as-dns" className="mb-1.5 block text-sm font-medium text-ink-soft">
+              Domaine du portail
+            </label>
+            <input
+              id="as-dns"
+              value={dnsName}
+              onChange={(e) => {
+                setDnsTouched(true);
+                setDnsName(e.target.value);
+              }}
+              placeholder="mirador.wifi"
+              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
+            />
+          </div>
         </div>
-        <div>
-          <label htmlFor="as-ssid" className="mb-1 block text-xs font-medium text-ink-soft">
-            Nom du réseau Wi-Fi (SSID)
-          </label>
-          <input
-            id="as-ssid"
-            value={ssid}
-            onChange={(e) => {
-              setSsidTouched(true);
-              setSsid(e.target.value);
-            }}
-            placeholder="Identique au nom du hotspot"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
-          />
-        </div>
-        <div>
-          <label htmlFor="as-dns" className="mb-1 block text-xs font-medium text-ink-soft">
-            Domaine du portail
-          </label>
-          <input
-            id="as-dns"
-            value={dnsName}
-            onChange={(e) => {
-              setDnsTouched(true);
-              setDnsName(e.target.value);
-            }}
-            placeholder="mirador.wifi"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
-          />
-        </div>
+        <p className="mt-2 text-sm text-ink-soft/80">
+          {hasWifi
+            ? "SSID et domaine se remplissent automatiquement depuis le nom du hotspot — modifiez-les seulement si besoin."
+            : "Ce modèle n'a pas de Wi-Fi — le domaine se remplit automatiquement depuis le nom du hotspot, le SSID est ignoré."}
+        </p>
       </div>
-      <p className="mt-1.5 text-[11px] text-ink-soft">
-        SSID et domaine se remplissent automatiquement depuis le nom du hotspot — modifiez-les
-        seulement si besoin.
-      </p>
 
       {/* ── MikHmon : décision automatique, avertissements ciblés ────── */}
       {containerBlockedReason === "architecture" && (
@@ -627,22 +640,22 @@ export default function AutoSetupStep({
       )}
 
       {/* ── Profils voucher (pré-remplis depuis les Forfaits) ─────────── */}
-      <div className="mt-5 rounded-md border border-line-soft p-4">
-        <p className="text-sm font-medium text-ink">Profils voucher</p>
-        <p className="mt-0.5 text-xs text-ink-soft">
+      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+        <p className="text-sm font-semibold text-ink">Profils voucher</p>
+        <p className="mt-1 text-sm leading-relaxed text-ink-soft">
           Pré-remplis depuis vos forfaits actifs — chaque profil est créé sur le routeur avec
           expiration automatique, et les nouveaux sont synchronisés sur la page Forfaits.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {customProfiles.length === 0 && (
-            <p className="text-xs text-ink-soft">
+            <p className="text-sm text-ink-soft italic">
               Aucun profil — créez-en au moins un ci-dessous (ex : 1 jour, 500 FCFA).
             </p>
           )}
           {customProfiles.map((profile) => (
             <span
               key={profile.name}
-              className="flex items-center gap-1.5 rounded-md border border-ok bg-clay px-3 py-1.5 text-sm text-ok"
+              className="flex items-center gap-1.5 rounded-md border border-ok bg-clay px-3 py-1.5 text-sm font-medium text-ok"
             >
               {profile.label}
               <button
@@ -650,16 +663,16 @@ export default function AutoSetupStep({
                 onClick={() => removeCustomProfile(profile.name)}
                 title="Retirer ce profil"
                 aria-label={`Retirer le profil ${profile.label}`}
-                className="text-ok hover:text-ok"
+                className="text-ok hover:text-ink transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </span>
           ))}
         </div>
-        <div className="mt-3 flex flex-wrap items-end gap-2">
+        <div className="mt-4 flex flex-wrap items-end gap-3">
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-ink-soft">Durée</label>
+            <label className="mb-1.5 block text-sm font-medium text-ink-soft">Durée</label>
             <div className="flex gap-2">
               <input
                 type="number"
@@ -667,13 +680,13 @@ export default function AutoSetupStep({
                 value={customAmount}
                 onChange={(e) => setCustomAmount(e.target.value)}
                 aria-label="Durée du profil"
-                className="w-20 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-line-soft focus:outline-none"
+                className="w-20 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
               />
               <select
                 value={customUnit}
                 onChange={(e) => setCustomUnit(e.target.value as DurationUnit)}
                 aria-label="Unité de durée"
-                className="rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-line-soft focus:outline-none"
+                className="rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
               >
                 {DURATION_UNIT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -684,26 +697,26 @@ export default function AutoSetupStep({
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-ink-soft">Prix (FCFA)</label>
+            <label className="mb-1.5 block text-sm font-medium text-ink-soft">Prix (FCFA)</label>
             <input
               type="number"
               min={0}
               value={customPrice}
               onChange={(e) => setCustomPrice(e.target.value)}
               placeholder="0"
-              className="w-24 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-line-soft focus:outline-none"
+              className="w-24 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
             />
           </div>
           <button
             type="button"
             onClick={addCustomProfile}
-            className="flex items-center gap-1 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
+            className="flex items-center gap-1 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             Ajouter
           </button>
         </div>
-        {customProfileError && <p className="mt-1.5 text-xs text-err">{customProfileError}</p>}
+        {customProfileError && <p className="mt-2 text-sm text-err">{customProfileError}</p>}
       </div>
 
       {/* ── Portail captif ────────────────────────────────────────────── */}
@@ -790,7 +803,7 @@ export default function AutoSetupStep({
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-ink-soft mb-1">Wi-Fi / domaine</dt>
             <dd className="font-semibold text-ink leading-snug">
-              {ssid || "—"} · {dnsName || "—"}
+              {hasWifi ? ssid || "—" : "Pas de Wi-Fi"} · {dnsName || "—"}
             </dd>
           </div>
           <div>

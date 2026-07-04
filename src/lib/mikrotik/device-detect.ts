@@ -68,6 +68,13 @@ export type DetectedRouter = {
    * model", since it's read straight from RouterOS instead of guessed from
    * a name string that varies by firmware/locale. */
   dualBand: boolean;
+  /** False on wired-only boards (RB4011iGS+RM, RB3011, RB5009, hEX…) —
+   * the device reports no /interface/wifi rows and the catalog confirms
+   * wifiBands "none". The auto-setup then treats the SSID as not
+   * applicable instead of deriving one from the hotspot name. Unknown
+   * boards with no live rows but no catalog entry stay true (show the
+   * field rather than wrongly hiding it). */
+  hasWifi: boolean;
   /** RouterOS Container only runs on arm/arm64/tile builds — mipsbe/mmips/
    * smips boards (RB951, hEX, hEX S, plain wAP, ...) can't run MikHmon at
    * all, so the auto-setup must skip that step on those rather than fail. */
@@ -153,6 +160,10 @@ export async function detectRouterModel(routerId: string) {
       // already confirms a dual-band board, trust that too — a flaky/empty
       // /interface/wifi/print read should never under-report capability.
       dualBand: wifiRows.some((r) => r.name === "wifi2") || model?.wifiBands === "2.4+5",
+      // Live radios win; with none listed, the catalog decides — and an
+      // unrecognized board defaults to true so the SSID field never
+      // disappears wrongly.
+      hasWifi: wifiRows.length > 0 || (model ? model.wifiBands !== "none" : true),
       // Read straight from the device's reported architecture, not the
       // catalog match — works even for boards absent from the table above.
       supportsContainers: architecture ? architectureSupportsContainers(architecture) : true,

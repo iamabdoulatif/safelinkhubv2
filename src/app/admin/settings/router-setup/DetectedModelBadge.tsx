@@ -92,7 +92,7 @@ export default function DetectedModelBadge({
           Modèle détecté : <span className="font-medium text-ink">{detected.boardName || "inconnu"}</span>
           {" "}
           ({archLabel}, Wi-Fi{" "}
-          {detected.dualBand ? "2,4 + 5 GHz" : detected.model?.wifiBands === "none" ? "aucune (filaire)" : "2,4 GHz seul"})
+          {!detected.hasWifi ? "aucun (filaire)" : detected.dualBand ? "2,4 + 5 GHz" : "2,4 GHz seul"})
           {!detected.model && (
             <span className="text-warn">
               {" "}
