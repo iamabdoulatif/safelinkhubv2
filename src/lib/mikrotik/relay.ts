@@ -426,3 +426,63 @@ done
 command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
 SCRIPT`);
 }
+
+/**
+ * "Bypass IPv6" exit-node NAT: makes the relay masquerade all traffic coming
+ * from a router's tunnel IP out its own WAN interface, so the router's hotspot
+ * clients reach the Internet with the relay's public IPv4 (the point of the
+ * feature, for FAI IPv6/CGNAT/DS-Lite). The router src-nats client packets to
+ * its tunnel IP before sending them into the tunnel (so wg0's cryptokey-routing
+ * accepts src=10.66.0.X), and this rule then rewrites that to the relay's WAN
+ * IP. Idempotent (iptables -C guards) and scoped to a single tunnel IP so it
+ * can be toggled per router without touching other peers' rules.
+ */
+export async function enableExitNat(tunnelIp: string): Promise<void> {
+  await runOnRelay(`sudo bash -s -- ${shellArg(tunnelIp)} <<'SCRIPT'
+set -euo pipefail
+TUNNEL_IP="$1"
+WAN=$(ip route show default | awk '{print $5; exit}')
+if [[ -z "$WAN" ]]; then
+  echo "Could not determine WAN egress interface" >&2
+  exit 1
+fi
+
+sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+
+iptables -t nat -C POSTROUTING -s "\${TUNNEL_IP}/32" -o "$WAN" -j MASQUERADE 2>/dev/null || \
+  iptables -t nat -A POSTROUTING -s "\${TUNNEL_IP}/32" -o "$WAN" -j MASQUERADE
+iptables -C FORWARD -s "\${TUNNEL_IP}/32" -j ACCEPT 2>/dev/null || \
+  iptables -A FORWARD -s "\${TUNNEL_IP}/32" -j ACCEPT
+iptables -C FORWARD -d "\${TUNNEL_IP}/32" -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+  iptables -A FORWARD -d "\${TUNNEL_IP}/32" -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
+SCRIPT`);
+}
+
+/** Tears down the exit-node NAT rules for a tunnel IP (see enableExitNat). */
+export async function disableExitNat(tunnelIp: string): Promise<void> {
+  await runOnRelay(`sudo bash -s -- ${shellArg(tunnelIp)} <<'SCRIPT'
+set -euo pipefail
+TUNNEL_IP="$1"
+WAN=$(ip route show default | awk '{print $5; exit}')
+
+# The MASQUERADE rule is scoped to the WAN interface it was added with, so
+# only remove it when that interface is known; the two FORWARD rules aren't.
+if [[ -n "$WAN" ]]; then
+  while iptables -t nat -C POSTROUTING -s "\${TUNNEL_IP}/32" -o "$WAN" -j MASQUERADE 2>/dev/null; do
+    iptables -t nat -D POSTROUTING -s "\${TUNNEL_IP}/32" -o "$WAN" -j MASQUERADE
+  done
+fi
+
+while iptables -C FORWARD -s "\${TUNNEL_IP}/32" -j ACCEPT 2>/dev/null; do
+  iptables -D FORWARD -s "\${TUNNEL_IP}/32" -j ACCEPT
+done
+
+while iptables -C FORWARD -d "\${TUNNEL_IP}/32" -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; do
+  iptables -D FORWARD -d "\${TUNNEL_IP}/32" -m state --state ESTABLISHED,RELATED -j ACCEPT
+done
+
+command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
+SCRIPT`);
+}
