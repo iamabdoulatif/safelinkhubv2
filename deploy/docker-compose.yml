@@ -1,0 +1,38 @@
+# Runs on the Hostinger VPS. Pulls the image built by GitHub Actions and lets
+# the VPS's existing Traefik (Hostinger "Docker + Traefik" template) route
+# safelinkhub.io → this container with automatic Let's Encrypt TLS.
+#
+# BEFORE FIRST RUN, verify two template-specific values and adjust below:
+#   1. Traefik's docker network name:   docker network ls
+#   2. Traefik's certresolver name:     docker inspect traefik | grep certresolver
+# Then set them in deploy/.env (TRAEFIK_NETWORK, TRAEFIK_CERTRESOLVER).
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/OWNER/REPO:latest}
+    container_name: safelinkhub-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    expose:
+      - "3000"
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      # Apex + www → this app, HTTPS only.
+      - "traefik.http.routers.safelinkhub.rule=Host(`safelinkhub.io`) || Host(`www.safelinkhub.io`)"
+      - "traefik.http.routers.safelinkhub.entrypoints=websecure"
+      - "traefik.http.routers.safelinkhub.tls=true"
+      - "traefik.http.routers.safelinkhub.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+      - "traefik.http.services.safelinkhub.loadbalancer.server.port=3000"
+      # Redirect www → apex (optional; comment out if not wanted).
+      - "traefik.http.routers.safelinkhub.middlewares=www-to-apex"
+      - "traefik.http.middlewares.www-to-apex.redirectregex.regex=^https://www\\.(.*)"
+      - "traefik.http.middlewares.www-to-apex.redirectregex.replacement=https://$${1}"
+
+networks:
+  web:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}
