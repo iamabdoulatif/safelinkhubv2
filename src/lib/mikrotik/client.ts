@@ -236,15 +236,25 @@ export class RouterOSClient {
     this.conn.write(words);
 
     const results: Sentence[] = [];
+    // A failed command replies "!trap ... !done" — the terminating !done
+    // still belongs to THIS command. Throwing as soon as the !trap arrives
+    // left that !done unread, so the next talk() consumed it as its own
+    // (empty) response and every reply after that was shifted one command
+    // back: /system/device-mode/print could literally return a WiFi
+    // interface row. Read until !done first, then throw.
+    let trapMessage: string | null = null;
     while (true) {
       const reply = await this.conn.readSentence(timeoutMs);
       const type = reply[0];
       if (type === "!done") break;
+      if (type === "!fatal") {
+        // Fatal errors close the connection — no !done follows.
+        throw new Error(reply.slice(1).join(" ") || "RouterOS connection terminated");
+      }
       if (type === "!trap") {
         const message = reply.find((w) => w.startsWith("=message="));
-        throw new Error(
-          message ? message.replace("=message=", "") : "RouterOS command failed",
-        );
+        trapMessage = message ? message.replace("=message=", "") : "RouterOS command failed";
+        continue;
       }
       if (type === "!re") {
         const sentence: Sentence = {};
@@ -257,6 +267,7 @@ export class RouterOSClient {
         results.push(sentence);
       }
     }
+    if (trapMessage !== null) throw new Error(trapMessage);
     return results;
   }
 
