@@ -5,7 +5,7 @@ export const ROUTER_SETUP_PROFILE = {
   identityPrefix: "HSPT",
   wanInterface: "E1-WAN-FAI",
   hotspotBridge: {
-    name: "HOTSPOT",
+    name: "SAFELINKHUB-BRIDGE",
     gateway: "10.0.0.1/8",
     poolName: "POOL-HOTSPOT",
     poolRange: "10.0.0.2-10.255.255.254",

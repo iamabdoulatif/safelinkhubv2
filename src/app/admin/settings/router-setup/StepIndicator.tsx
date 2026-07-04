@@ -15,9 +15,12 @@ export default function StepIndicator({
         return (
           <div key={step} className="flex items-center gap-1.5">
             <div
+              // key sur l'étape courante : relance l'animation scale-in à
+              // chaque changement d'étape pour marquer la progression.
+              key={active ? `active-${currentStep}` : undefined}
               className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium transition-colors ${
                 active
-                  ? "bg-brand text-[#1C1917] ring-2 ring-ink"
+                  ? "animate-scale-in bg-brand text-[#1C1917] ring-2 ring-ink"
                   : done
                     ? "bg-brand text-[#1C1917]"
                     : "bg-clay text-ink-soft"

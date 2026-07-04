@@ -10,14 +10,13 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Cable, Layers, Loader2, Plus, SlidersHorizontal, Wifi, X } from "lucide-react";
+import { Box, Cable, Layers, Plus, SlidersHorizontal, Wifi, X } from "lucide-react";
 import { listRouterInterfaces, saveBridge } from "@/lib/mikrotik/bridges";
-import { createDockerContainer } from "@/lib/mikrotik/container-setup";
-import { detectRouterModel } from "@/lib/mikrotik/device-detect";
 import {
   classForPrefix,
   CLASS_DEFAULT_PREFIX,
   CLASS_PREFIX_OPTIONS,
+  GATEWAY_IP_PRESETS,
   type NetworkClass,
 } from "@/lib/net/subnet";
 import BootstrapModal from "./BootstrapModal";
@@ -33,8 +32,6 @@ type SavedBridge = {
   hotspotEnabled: boolean;
 };
 type Line = { key: string; x1: number; y1: number; x2: number; y2: number };
-
-const GATEWAY_IP_PRESETS = ["10.0.0.1", "10.10.0.1", "10.10.10.1", "10.200.5.1"];
 
 function isWifiInterface(port: Pick<Port, "name" | "type">) {
   return port.type === "wlan" || port.type === "wifi" || port.name.startsWith("wifi");
@@ -243,42 +240,12 @@ function DockerBridgeNode({ ports, nodeRef }: { ports: string[]; nodeRef: (el: H
   );
 }
 
-function DockerBridgeCreatePanel({
-  routerId,
-  onCreated,
-}: {
-  routerId: string;
-  onCreated: () => void;
-}) {
-  const [hasUsbStorage, setHasUsbStorage] = useState(false);
-  const [hasLargeOnboardStorage, setHasLargeOnboardStorage] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<{ success?: boolean; error?: string; log?: string[] } | null>(
-    null,
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    detectRouterModel(routerId).then((res) => {
-      if (cancelled || !res?.success) return;
-      setHasUsbStorage(res.detected.hasUsbStorage);
-      setHasLargeOnboardStorage(res.detected.hasLargeOnboardStorage);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [routerId]);
-
-  function create() {
-    setPending(true);
-    setResult(null);
-    createDockerContainer(routerId, { hasUsbStorage, hasLargeOnboardStorage }).then((res) => {
-      setResult(res);
-      setPending(false);
-      if (res?.success) onCreated();
-    });
-  }
-
+// Placeholder shown before the auto-setup has provisioned the container
+// stack. The manual "Créer le bridge DOCKERS + MikHmon" panel that used to
+// live here duplicated the auto-setup's own provisioning path (two buttons
+// building the same bridge/veth/container) — the auto-setup step is now the
+// single place that creates it.
+function DockerBridgePlaceholder() {
   return (
     <div className="relative w-72 shrink-0 rounded-xl border border-dashed border-line-soft bg-paper/80 p-5">
       <div className="flex items-center gap-2">
@@ -286,58 +253,10 @@ function DockerBridgeCreatePanel({
         <p className="text-base font-semibold text-ink">DOCKERS</p>
       </div>
       <p className="mt-1.5 text-xs text-ink-soft">
-        Bridge DOCKERS + veth MIKHMON + conteneur MikHmon — pas encore créés sur ce routeur.
-        Nécessite que <code className="rounded bg-clay px-1">container=yes</code> ait déjà
-        été confirmé physiquement sur l&apos;appareil.
+        Bridge DOCKERS + veth MIKHMON + conteneur MikHmon — créés
+        automatiquement par la configuration automatique (Étape 3), aucune
+        action nécessaire ici.
       </p>
-
-      <label className="mt-3 flex items-center gap-2 text-xs text-ink-soft">
-        <input
-          type="checkbox"
-          checked={hasUsbStorage}
-          onChange={(e) => setHasUsbStorage(e.target.checked)}
-          className="h-3.5 w-3.5 rounded border-line-soft"
-        />
-        Le routeur a une clé USB branchée
-      </label>
-
-      <label className="mt-1.5 flex items-center gap-2 text-xs text-ink-soft">
-        <input
-          type="checkbox"
-          checked={hasLargeOnboardStorage}
-          onChange={(e) => setHasLargeOnboardStorage(e.target.checked)}
-          className="h-3.5 w-3.5 rounded border-line-soft"
-        />
-        Grand espace de stockage interne (ex: RB4011) — installe sur disk1
-      </label>
-
-      <button
-        type="button"
-        onClick={create}
-        disabled={pending}
-        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-ink px-3 py-2 text-xs font-medium text-white hover:bg-brand-deep disabled:opacity-60"
-      >
-        {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-        {pending ? "Création en cours..." : "Créer le bridge DOCKERS + MikHmon"}
-      </button>
-
-      {result?.error && (
-        <p className="mt-2 text-xs text-red-600">{result.error}</p>
-      )}
-      {result?.success && (
-        <p className="mt-2 text-xs text-ok">
-          Créé — actualisation de la topologie...
-        </p>
-      )}
-      {result?.log && result.log.length > 0 && (
-        <ul className="mt-2 max-h-28 space-y-0.5 overflow-y-auto text-[10px] text-ink-soft">
-          {result.log
-            .filter((line) => line.startsWith("SKIP"))
-            .map((line, i) => (
-              <li key={i}>{line}</li>
-            ))}
-        </ul>
-      )}
     </div>
   );
 }
@@ -481,7 +400,6 @@ function TopologyCanvas({
   onAddBridge,
   onDrop,
   onConfigure,
-  onRefreshPorts,
   keyboardMode,
   setKeyboardMode,
   formAction,
@@ -492,7 +410,6 @@ function TopologyCanvas({
   assignedElsewhere: Set<string>;
   draftPorts: string[];
   hasDraft: boolean;
-  onRefreshPorts: () => void;
   onAddBridge: () => void;
   onDrop: (e: React.DragEvent) => void;
   onConfigure: () => void;
@@ -733,7 +650,7 @@ function TopologyCanvas({
                         }}
                       />
                     ) : (
-                      <DockerBridgeCreatePanel routerId={routerId} onCreated={onRefreshPorts} />
+                      <DockerBridgePlaceholder />
                     )}
                   </div>
                 </>
@@ -796,8 +713,14 @@ export default function TopologyBuilder({
     const existing = initialBridges[0];
     if (existing && existing.gatewayIp !== "Not configured") {
       setGatewayIp(existing.gatewayIp);
-      setSubnetBits(existing.subnetBits);
-      setNetworkClass(classForPrefix(existing.subnetBits));
+      const cls = classForPrefix(existing.subnetBits);
+      // Bridges saved before the /8–/24 cap may carry a prefix the
+      // dropdown no longer offers — snap those to the class default.
+      const bits = CLASS_PREFIX_OPTIONS[cls].includes(existing.subnetBits)
+        ? existing.subnetBits
+        : CLASS_DEFAULT_PREFIX[cls];
+      setSubnetBits(bits);
+      setNetworkClass(cls);
     } else {
       setGatewayIp("10.200.5.1");
       setSubnetBits(19);
@@ -919,7 +842,6 @@ export default function TopologyBuilder({
         onAddBridge={handleAddBridge}
         onDrop={handleDrop}
         onConfigure={openConfigure}
-        onRefreshPorts={() => setRetryCount((c) => c + 1)}
         keyboardMode={keyboardMode}
         setKeyboardMode={setKeyboardMode}
         formAction={formAction}

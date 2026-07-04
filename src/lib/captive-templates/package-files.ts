@@ -13,11 +13,23 @@ export type PackageVendor = {
   phone: string; // e.g. "+225 07 08 09 10 11" — digits are stripped for the wa.me link
 };
 
+// Forfait actif de l'org (table packages) injecté dans les placeholders
+// {{PLANS_HTML}} / {{PLANS_JSON}} / {{MIN_PLAN_PRICE}} au moment où le
+// routeur télécharge les fichiers — les prix affichés sur le portail
+// suivent donc automatiquement la page Forfaits, sans réédition du HTML.
+export type PortalPlan = {
+  name: string; // technical voucher-profile name, e.g. "3j"
+  priceCents: number; // stored as whole FCFA units across the app
+  durationValue: number;
+  durationUnit: string; // "Minutes" | "Hours" | "Days" | "Weeks" | "Months"
+};
+
 export type PackageBrandingVars = {
   ssid: string;
   supportWhatsapp?: string | null; // e.g. "+225 00 00 00 00 00"
   supportPhone?: string | null;
   vendors?: PackageVendor[] | null;
+  plans?: PortalPlan[] | null;
 };
 
 function escapeHtml(value: string): string {
@@ -65,6 +77,69 @@ function renderSupportLinksHtml(supportWhatsapp?: string | null, supportPhone?: 
     );
   }
   return links.join("\n");
+}
+
+const DURATION_UNIT_LABELS: Record<string, { singular: string; plural: string; short: string }> = {
+  Minutes: { singular: "Minute", plural: "Minutes", short: "min" },
+  Hours: { singular: "Heure", plural: "Heures", short: "h" },
+  Days: { singular: "Jour", plural: "Jours", short: "j" },
+  Weeks: { singular: "Semaine", plural: "Semaines", short: "sem" },
+  Months: { singular: "Mois", plural: "Mois", short: "mois" },
+};
+
+function planDisplayName(plan: PortalPlan): string {
+  const unit = DURATION_UNIT_LABELS[plan.durationUnit];
+  if (!unit) return plan.name;
+  const label = plan.durationValue > 1 ? unit.plural : unit.singular;
+  return `${String(plan.durationValue).padStart(2, "0")} ${label}`;
+}
+
+function planMetaLabel(plan: PortalPlan): string {
+  const unit = DURATION_UNIT_LABELS[plan.durationUnit];
+  return unit ? `${plan.durationValue} ${unit.short}` : plan.name;
+}
+
+function formatFcfa(amount: number): string {
+  return `${amount.toLocaleString("fr-FR")} FCFA`;
+}
+
+// Card markup matching the plan-card/plan-radio/plan-name/plan-price/
+// plan-meta CSS-class family shared by the bundled portals and the
+// operator-made ones derived from them — the import-time
+// auto-parameterization (see autoParameterizePortalFiles) swaps a
+// portal's hardcoded cards for {{PLANS_HTML}}, so its own stylesheet
+// keeps styling these.
+function renderPlansHtml(plans: PortalPlan[] | null | undefined): string {
+  if (!plans || plans.length === 0) return "";
+  return plans
+    .map(
+      (plan) => `        <div class="plan-card" onclick="this.querySelector('input').checked=true">
+          <div class="plan-radio"></div>
+          <input type="radio" name="plan" value="${escapeHtml(plan.name)}" data-price="${plan.priceCents}" style="position:absolute;opacity:0;" />
+          <div class="plan-name">${escapeHtml(planDisplayName(plan))}</div>
+          <div class="plan-price"><span class="currency">F</span>${plan.priceCents.toLocaleString("fr-FR")}</div>
+          <div class="plan-meta"><span class="icon">&#9716;</span> ${escapeHtml(planMetaLabel(plan))}</div>
+        </div>`,
+    )
+    .join("\n");
+}
+
+function renderPlansJson(plans: PortalPlan[] | null | undefined): string {
+  return JSON.stringify(
+    (plans ?? []).map((plan) => ({
+      name: plan.name,
+      label: planDisplayName(plan),
+      price: plan.priceCents,
+      priceLabel: formatFcfa(plan.priceCents),
+      durationValue: plan.durationValue,
+      durationUnit: plan.durationUnit,
+    })),
+  );
+}
+
+function minPlanPriceLabel(plans: PortalPlan[] | null | undefined): string {
+  if (!plans || plans.length === 0) return "";
+  return formatFcfa(Math.min(...plans.map((p) => p.priceCents)));
 }
 
 const TEXT_EXTENSIONS = new Set([".html", ".css", ".js", ".svg", ".txt"]);
@@ -156,10 +231,19 @@ const EXT_TO_CONTENT_TYPE: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
   ".avif": "image/avif",
+  ".woff": "font/woff",
   ".woff2": "font/woff2",
   ".txt": "text/plain; charset=utf-8",
 };
+
+// Everything a portal folder may legitimately contain — the import action
+// rejects anything else (executables, archives, dotfiles) outright.
+export const PORTAL_ALLOWED_EXTENSIONS = new Set(Object.keys(EXT_TO_CONTENT_TYPE));
+export const PORTAL_TEXT_EXTENSIONS = TEXT_EXTENSIONS;
 
 export function contentTypeForPath(relativePath: string) {
   return EXT_TO_CONTENT_TYPE[path.extname(relativePath)] ?? "application/octet-stream";
@@ -167,15 +251,111 @@ export function contentTypeForPath(relativePath: string) {
 
 /**
  * Substitutes the branding placeholders in a package file's rendered
- * content: {{SSID}} with the router's live WiFi SSID, and
- * {{VENDORS_HTML}} / {{SUPPORT_LINKS_HTML}} with markup generated from
- * the template's configurable support contact and vendor list.
+ * content: {{SSID}} with the router's live WiFi SSID, {{VENDORS_HTML}} /
+ * {{SUPPORT_LINKS_HTML}} with markup generated from the template's
+ * configurable support contact and vendor list, {{PLANS_HTML}} /
+ * {{PLANS_JSON}} / {{MIN_PLAN_PRICE}} with the org's live Forfaits, and
+ * {{SUPPORT_PHONE}} / {{SUPPORT_PHONE_TEL}} / {{SUPPORT_WHATSAPP}} with
+ * the template's support contact.
  */
 export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars): Buffer {
   if (file.encoding === "base64") return Buffer.from(file.content, "base64");
+  const supportPhoneDigits = (vars.supportPhone ?? "").replace(/[^0-9]/g, "");
   const rendered = file.content
     .replaceAll("{{SSID}}", vars.ssid)
     .replaceAll("{{VENDORS_HTML}}", renderVendorsHtml(vars.vendors))
-    .replaceAll("{{SUPPORT_LINKS_HTML}}", renderSupportLinksHtml(vars.supportWhatsapp, vars.supportPhone));
+    .replaceAll("{{SUPPORT_LINKS_HTML}}", renderSupportLinksHtml(vars.supportWhatsapp, vars.supportPhone))
+    .replaceAll("{{PLANS_HTML}}", renderPlansHtml(vars.plans))
+    .replaceAll("{{PLANS_JSON}}", renderPlansJson(vars.plans))
+    .replaceAll("{{MIN_PLAN_PRICE}}", minPlanPriceLabel(vars.plans))
+    .replaceAll("{{SUPPORT_PHONE}}", vars.supportPhone ?? "")
+    .replaceAll("{{SUPPORT_PHONE_TEL}}", supportPhoneDigits ? `tel:+${supportPhoneDigits}` : "#")
+    .replaceAll("{{SUPPORT_WHATSAPP}}", vars.supportWhatsapp ?? "");
   return Buffer.from(rendered, "utf8");
+}
+
+/**
+ * Replaces the inner content of the first `<div class="...${className}...">`
+ * with `replacement`, matching the closing tag by depth so nested divs
+ * inside the block don't truncate it. Returns null when no such div exists.
+ */
+function replaceDivContents(html: string, className: string, replacement: string): string | null {
+  const openTag = new RegExp(`<div[^>]*class="[^"]*\\b${className}\\b[^"]*"[^>]*>`, "i").exec(html);
+  if (!openTag) return null;
+  const start = openTag.index + openTag[0].length;
+  const tagRe = /<div\b[^>]*>|<\/div>/gi;
+  tagRe.lastIndex = start;
+  let depth = 1;
+  let match: RegExpExecArray | null;
+  while ((match = tagRe.exec(html))) {
+    depth += match[0].startsWith("</") ? -1 : 1;
+    if (depth === 0) {
+      return html.slice(0, start) + replacement + html.slice(match.index);
+    }
+  }
+  return null;
+}
+
+/**
+ * Import-time auto-parameterization of an operator-uploaded portal, so a
+ * portal exported from a working hotspot (hardcoded SSID/prices/phone)
+ * becomes dynamic without hand-editing its HTML:
+ *
+ * - `$(hostname)` (RouterOS's own identity variable, e.g. "HSPT-X") →
+ *   {{SSID}}, so the portal shows the customer-facing WiFi name instead;
+ * - a hardcoded `plans-grid` of `plan-card`s → {{PLANS_HTML}}, rendered
+ *   from the org's live Forfaits at install time;
+ * - a hardcoded `promo-banner-price` → {{MIN_PLAN_PRICE}};
+ * - hardcoded `href="tel:..."` links → {{SUPPORT_PHONE_TEL}}, wired to
+ *   the template's configurable support phone (Coordonnées editor).
+ *
+ * Files that already carry {{...}} placeholders are left as-is for that
+ * placeholder — an author who placed them deliberately wins over the
+ * heuristics. Non-HTML and binary files pass through untouched.
+ */
+export function autoParameterizePortalFiles(files: PackageFile[]): {
+  files: PackageFile[];
+  substitutions: string[];
+} {
+  const substitutions = new Set<string>();
+  const transformed = files.map((file) => {
+    if (file.encoding !== "utf8" || !file.path.endsWith(".html")) return file;
+    let content = file.content;
+
+    if (content.includes("$(hostname)")) {
+      content = content.replaceAll("$(hostname)", "{{SSID}}");
+      substitutions.add("$(hostname) → {{SSID}}");
+    }
+
+    if (!content.includes("{{PLANS_HTML}}") && content.includes("plan-card")) {
+      const replaced = replaceDivContents(content, "plans-grid", "\n{{PLANS_HTML}}\n      ");
+      if (replaced) {
+        content = replaced;
+        substitutions.add("forfaits codés en dur → {{PLANS_HTML}} (synchronisés avec la page Forfaits)");
+      }
+    }
+
+    if (!content.includes("{{MIN_PLAN_PRICE}}")) {
+      const withPromo = content.replace(
+        /(<span[^>]*class="[^"]*\bpromo-banner-price\b[^"]*"[^>]*>)[\s\S]*?(<\/span>)/i,
+        "$1{{MIN_PLAN_PRICE}}$2",
+      );
+      if (withPromo !== content) {
+        content = withPromo;
+        substitutions.add("prix promo codé en dur → {{MIN_PLAN_PRICE}}");
+      }
+    }
+
+    if (!content.includes("{{SUPPORT_PHONE_TEL}}")) {
+      const withPhone = content.replace(/href="tel:[^"]*"/gi, 'href="{{SUPPORT_PHONE_TEL}}"');
+      if (withPhone !== content) {
+        content = withPhone;
+        substitutions.add("numéro codé en dur → téléphone de support du modèle");
+      }
+    }
+
+    return content === file.content ? file : { ...file, content };
+  });
+
+  return { files: transformed, substitutions: [...substitutions] };
 }

@@ -8,7 +8,7 @@ import {
 describe("ROUTER_SETUP_PROFILE", () => {
   it("matches the audited SafeLinkHub hotspot topology", () => {
     assert.equal(ROUTER_SETUP_PROFILE.wanInterface, "E1-WAN-FAI");
-    assert.equal(ROUTER_SETUP_PROFILE.hotspotBridge.name, "HOTSPOT");
+    assert.equal(ROUTER_SETUP_PROFILE.hotspotBridge.name, "SAFELINKHUB-BRIDGE");
     assert.equal(ROUTER_SETUP_PROFILE.hotspotBridge.gateway, "10.0.0.1/8");
     assert.equal(ROUTER_SETUP_PROFILE.containerBridge.name, "DOCKERS");
     assert.equal(ROUTER_SETUP_PROFILE.containerBridge.gateway, "11.11.11.1/28");

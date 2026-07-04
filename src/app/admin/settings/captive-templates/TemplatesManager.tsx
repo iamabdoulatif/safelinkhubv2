@@ -11,6 +11,7 @@ import {
   setDefaultCaptiveTemplate,
 } from "@/lib/captive-templates/actions";
 import CaptivePreview from "./CaptivePreview";
+import ImportPortalButton from "./ImportPortalButton";
 import PackagePreview from "./PackagePreview";
 import TemplateEditor, { type CaptiveTemplateRow } from "./TemplateEditor";
 import PackageBrandingEditor from "./PackageBrandingEditor";
@@ -31,7 +32,8 @@ export default function TemplatesManager({
     <div className="mt-6">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink">Vos modèles</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <ImportPortalButton />
           <button
             type="button"
             disabled={pending}

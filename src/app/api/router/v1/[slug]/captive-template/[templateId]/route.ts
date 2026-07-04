@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { organizations, captiveTemplates } from "@/lib/db/schema";
+import { organizations, captiveTemplates, packages } from "@/lib/db/schema";
 import {
   contentTypeForPath,
   renderPackageFile,
@@ -53,11 +53,26 @@ export async function GET(
     return new Response("File not found", { status: 404 });
   }
 
+  // Forfaits actifs de l'org, injectés dans {{PLANS_HTML}} / {{PLANS_JSON}}
+  // / {{MIN_PLAN_PRICE}} — le portail affiche donc toujours les prix de la
+  // page Forfaits au moment où le routeur télécharge ses fichiers.
+  const plans = await db
+    .select({
+      name: packages.name,
+      priceCents: packages.priceCents,
+      durationValue: packages.durationValue,
+      durationUnit: packages.durationUnit,
+    })
+    .from(packages)
+    .where(and(eq(packages.orgId, org.id), eq(packages.active, true)))
+    .orderBy(asc(packages.priceCents));
+
   const body = renderPackageFile(file, {
     ssid,
     supportWhatsapp: template.packageSupportWhatsapp,
     supportPhone: template.packageSupportPhone,
     vendors: template.packageVendors as PackageVendor[] | null,
+    plans,
   });
   return new Response(new Uint8Array(body), {
     status: 200,

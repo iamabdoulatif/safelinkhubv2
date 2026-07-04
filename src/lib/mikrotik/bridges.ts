@@ -277,7 +277,7 @@ export async function testHotspotConfig(bridgeId: string) {
     // The auto-setup (container-setup.ts) never names the server/profile
     // after the bridge — it creates a server attached to whichever bridge
     // interface name the admin chose there (default HOTSPOT_BRIDGE_NAME,
-    // "HOTSPOT"), persisted on the router row. Looking up
+    // "SAFELINKHUB-BRIDGE"), persisted on the router row. Looking up
     // "${bridge.name}-hotspot"/"${bridge.name}-profile" here matched
     // nothing that auto-setup (or anything else) ever creates, so this
     // check reported "Aucun serveur hotspot trouvé" unconditionally even

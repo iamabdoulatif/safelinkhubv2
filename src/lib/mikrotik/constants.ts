@@ -15,7 +15,9 @@ export const DOCKER_WEB_PORT = 8087;
 
 // LAN bridge name provisionHotspotStack builds — needed here to look up the
 // hotspot gateway's current IP address for the local MikHmon link.
-export const HOTSPOT_BRIDGE_NAME = "HOTSPOT";
+// Renamed from the earlier "HOTSPOT" canonical name; the auto-setup
+// migrates live routers in place (rename, never a second bridge).
+export const HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
 
 // Port the "MikHmon via tunnel" dst-nat rule forwards to the MikHmon
 // container, with no dst-address filter so it answers regardless of which

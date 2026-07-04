@@ -52,10 +52,10 @@ type Sentence = Record<string, string>;
  */
 const WAN_INTERFACE_NAME = "E1-WAN-FAI";
 const DOCKER_BRIDGE_NAME = ROUTER_SETUP_PROFILE.containerBridge.name;
-// Bridge name used by earlier SafeLinkHub installs before the audited hAP ax²
-// profile was normalized to DOCKERS (matching the operator's own reference
-// RouterOS config verbatim).
-const LEGACY_HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
+// Bridge name used by earlier SafeLinkHub installs, before the managed LAN
+// bridge was renamed to SAFELINKHUB-BRIDGE — live routers still carrying it
+// get migrated in place (rename or port-move + remove), never duplicated.
+const LEGACY_HOTSPOT_BRIDGE_NAME = "HOTSPOT";
 const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKER-SAFELINKHUB", "DOCKER"];
 const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
@@ -498,8 +498,8 @@ export type HotspotStackOptions = {
   }[];
   // Deprecated compatibility field: older saved auto-setup configs may
   // still contain a custom bridge name, but the managed hotspot bridge is
-  // now canonicalized to HOTSPOT so WiFi, DHCP, hotspot and captive-portal
-  // checks all target the same RouterOS interface.
+  // now canonicalized to SAFELINKHUB-BRIDGE so WiFi, DHCP, hotspot and
+  // captive-portal checks all target the same RouterOS interface.
   bridgeName?: string;
   // Lets the admin rename the RouterOS hotspot server instead of always
   // getting "hotspot1". Trimmed and falls back to the default when blank.
@@ -588,9 +588,9 @@ export async function getAutoSetupBillingStatus(routerId: string, supportsContai
 /**
  * Provisions a full SafeLinkHub hotspot router end to end, mirroring a
  * working device export (RouterOS 7.23, container-capable hAP/CCR boards):
- * renames the WAN port, builds the HOTSPOT bridge across every remaining
+ * renames the WAN port, builds the SAFELINKHUB-BRIDGE across every remaining
  * ethernet port, sets up the hotspot pool/DHCP/profile/DNS name, opens the
- * required NAT rules, then provisions the DOCKER-SAFELINKHUB bridge + veth + container
+ * required NAT rules, then provisions the DOCKERS bridge + veth + container
  * (MikHmon) the same way every time, and finally locks down services,
  * timezone, identity and NTP before rebooting.
  */
@@ -810,7 +810,7 @@ export async function provisionHotspotStack(
       }
     }
 
-    // HOTSPOT bridge across every ethernet port that isn't the WAN uplink,
+    // SAFELINKHUB-BRIDGE across every ethernet port that isn't the WAN uplink,
     // plus every WiFi radio (wifi1/wifi2) — without the radios in the
     // bridge, WiFi clients never enter the hotspot's L2 domain at all, so
     // the hotspot service never sees their traffic and the captive portal
@@ -895,10 +895,23 @@ export async function provisionHotspotStack(
     // moved off it by the migration loop above — the shell bridge itself
     // is now empty and safe to remove instead of lingering as orphaned
     // clutter.
-    if (previousBridgeName !== bridgeName) {
-      await client.talk(["/interface/bridge/remove", `=numbers=${previousBridgeName}`]).catch(() => {});
+    // RouterOS refuses to remove a bridge that still has an IP address
+    // assigned, so strip any leftover addresses off the stale bridges
+    // first — otherwise the remove silently fails and the old bridge
+    // lingers next to the new one as a duplicate.
+    for (const staleBridgeName of new Set(
+      [previousBridgeName, LEGACY_HOTSPOT_BRIDGE_NAME].filter((n) => n !== bridgeName),
+    )) {
+      const staleAddresses = await client
+        .talk(["/ip/address/print", `?interface=${staleBridgeName}`])
+        .catch(() => []);
+      for (const row of staleAddresses) {
+        if (row[".id"]) {
+          await client.talk(["/ip/address/remove", `=numbers=${row[".id"]}`]).catch(() => {});
+        }
+      }
+      await client.talk(["/interface/bridge/remove", `=numbers=${staleBridgeName}`]).catch(() => {});
     }
-    await client.talk(["/interface/bridge/remove", `=numbers=${LEGACY_HOTSPOT_BRIDGE_NAME}`]).catch(() => {});
 
     // Interface lists (WAN / LAN) used for NAT/firewall scoping.
     await run(["/interface/list/add", "=name=WAN"], "WAN interface list");
@@ -953,13 +966,12 @@ export async function provisionHotspotStack(
     );
 
     // Cleans up the pool RouterOS's own Hotspot Setup wizard names after
-    // the bridge ("<bridge>-pool", e.g. "HOTSPOT-pool") and the one left
-    // from the pre-rename "SAFELINKHUB-BRIDGE" topology — neither is
-    // HOTSPOT_POOL_NAME, so the unconditional remove above never touched
-    // them. Harmless clutter once the hotspot server is repointed at
-    // POOL-HOTSPOT (done above this run), but still visible as a
-    // confusing leftover ("SAFELINKHUB-BRIDGE-pool") in WinBox until
-    // explicitly removed.
+    // the bridge ("<bridge>-pool") and the one left from the pre-rename
+    // "HOTSPOT" topology — neither is HOTSPOT_POOL_NAME, so the
+    // unconditional remove above never touched them. Harmless clutter
+    // once the hotspot server is repointed at POOL-HOTSPOT (done above
+    // this run), but still visible as a confusing leftover in WinBox
+    // until explicitly removed.
     for (const legacyPoolName of [`${LEGACY_HOTSPOT_BRIDGE_NAME}-pool`, `${bridgeName}-pool`]) {
       if (legacyPoolName === HOTSPOT_POOL_NAME) continue;
       await client.talk(["/ip/pool/remove", `=numbers=${legacyPoolName}`]).catch(() => {});
@@ -1075,8 +1087,8 @@ export async function provisionHotspotStack(
     // Now safe to clean up any leftover servers/profiles, using a fresh
     // read after RouterOS has applied the authoritative hotspot1 set/add.
     // The previous cleanup iterated the pre-set snapshot, so a stale
-    // SAFELINKHUB-BRIDGE-hotspot row could survive beside the correct
-    // hotspot1 row after RouterOS normalized names/interfaces.
+    // legacy-named row could survive beside the correct hotspot1 row
+    // after RouterOS normalized names/interfaces.
     const finalHotspotServers = await client.talk(["/ip/hotspot/print"]).catch(() => []);
     for (const server of finalHotspotServers) {
       if (server[".id"] && server[".id"] !== configuredServer?.[".id"]) {
@@ -1762,7 +1774,7 @@ export async function provisionHotspotStack(
     // Persisted on every successful run (not just billed ones) so other
     // code paths that look up this router's live hotspot config (the
     // connection test, captive-template assignment) resolve the canonical
-    // HOTSPOT bridge and the selected hotspot server name.
+    // SAFELINKHUB-BRIDGE and the selected hotspot server name.
     await db
       .update(routers)
       .set({
@@ -1777,16 +1789,20 @@ export async function provisionHotspotStack(
       })
       .where(eq(routers.id, routerId));
 
-    // Keep the draft `bridges` row (named e.g. "SAFELINKHUB-BRIDGE" from
-    // when it was first sketched in the topology builder, before this
-    // router was ever provisioned) in sync with whatever the live
-    // RouterOS bridge is actually named now — otherwise every other
-    // screen reading bridges.name (captive-template assignment, the
-    // recap step) keeps showing the stale draft name forever, alongside
-    // "HOTSPOT" being the real interface name on the router itself.
+    // Keep the draft `bridges` row (sketched in the topology builder,
+    // possibly before this router was ever provisioned) in sync with the
+    // live RouterOS state — name AND gateway/prefix, since the auto-setup
+    // step now lets the admin pick a different gateway/subnet than the
+    // topology draft. Without this every other screen reading the bridges
+    // row (captive-template assignment, the topology canvas, the recap)
+    // keeps showing stale values forever, looking like a duplicate config.
     await db
       .update(bridges)
-      .set({ name: bridgeName })
+      .set({
+        name: bridgeName,
+        gatewayIp: opts.hotspotAddress.trim(),
+        subnetBits: opts.hotspotPrefixBits,
+      })
       .where(and(eq(bridges.routerId, routerId), eq(bridges.hotspotEnabled, true)));
 
     if (billableCents !== null) {
@@ -1854,76 +1870,7 @@ export async function repairRouterConfig(routerId: string) {
   });
 }
 
-/**
- * Creates the DOCKERS bridge + MIKHMON veth + container engine + MikHmon
- * container on its own, from the Topology Builder page — without running
- * the rest of the hotspot/Wi-Fi auto-setup first. Useful when the admin
- * wants MikHmon up before (or instead of) configuring the hotspot, or
- * just confirmed the device-mode container unlock and wants to create it
- * immediately rather than re-running the whole wizard.
- *
- * If a hotspot bridge already exists for this router (saved from the
- * topology builder itself), its gateway IP is passed through so the
- * hotspot-scoped "Docker NAT" port forward gets created in this same run
- * too — otherwise that one rule is just added later by the full
- * auto-setup once a hotspot address exists.
- */
-export async function createDockerContainer(
-  routerId: string,
-  opts: { hasUsbStorage: boolean; hasLargeOnboardStorage?: boolean },
-) {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated." };
-
-  const db = getDb();
-  const [router] = await db
-    .select()
-    .from(routers)
-    .where(eq(routers.id, routerId))
-    .limit(1);
-  if (!router || router.orgId !== session.orgId) {
-    return { error: "Router not found." };
-  }
-
-  const [existingBridge] = await db
-    .select({ gatewayIp: bridges.gatewayIp })
-    .from(bridges)
-    .where(and(eq(bridges.routerId, routerId), eq(bridges.hotspotEnabled, true)))
-    .limit(1);
-
-  let client: RouterOSClient;
-  try {
-    client = await connectClient(router);
-  } catch (err) {
-    return {
-      error: err instanceof Error ? `Could not connect: ${err.message}` : "Could not connect.",
-    };
-  }
-
-  const log: string[] = [];
-  const run: RunFn = async (words, label, timeoutMs) => {
-    try {
-      await client.talk(words, timeoutMs);
-      log.push(`OK: ${label}`);
-    } catch (err) {
-      log.push(`SKIP (${label}): ${err instanceof Error ? err.message : "error"}`);
-    }
-  };
-
-  try {
-    await provisionDockerStack(client, log, run, {
-      supportsContainers: true,
-      hasUsbStorage: opts.hasUsbStorage,
-      hasLargeOnboardStorage: opts.hasLargeOnboardStorage,
-      hotspotAddress: existingBridge?.gatewayIp?.split("/")[0],
-    });
-    return { success: true, log };
-  } catch (err) {
-    return {
-      error: err instanceof Error ? `Échec : ${err.message}` : "Échec de la création du conteneur.",
-      log,
-    };
-  } finally {
-    client.close();
-  }
-}
+// The standalone createDockerContainer entry point (DOCKERS bridge + MikHmon
+// from the topology step) was removed: it duplicated provisionDockerStack's
+// invocation inside provisionHotspotStack — the auto-setup step is now the
+// single path that provisions the container stack.

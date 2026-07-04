@@ -9,7 +9,7 @@ describe("buildRouterAccessSummary", () => {
       tunnelIp: "10.66.0.5",
       identityRows: [{ name: "GUEASSO-HSPT" }],
       addressRows: [
-        { address: "10.0.0.1/8", interface: "HOTSPOT", dynamic: "false" },
+        { address: "10.0.0.1/8", interface: "SAFELINKHUB-BRIDGE", dynamic: "false" },
         { address: "10.66.0.5/32", interface: "safelinkhub-wg0", dynamic: "false" },
         { address: "192.168.1.65/24", interface: "E1-WAN-FAI", dynamic: "true" },
       ],

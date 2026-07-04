@@ -8,7 +8,12 @@ import { getSession } from "@/lib/auth/session";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
 import { HOTSPOT_BRIDGE_NAME } from "@/lib/mikrotik/constants";
-import type { PackageFile, PackageVendor } from "./package-files";
+import {
+  autoParameterizePortalFiles,
+  PORTAL_ALLOWED_EXTENSIONS,
+  type PackageFile,
+  type PackageVendor,
+} from "./package-files";
 
 export type CaptiveTemplateInput = {
   name: string;
@@ -154,6 +159,90 @@ async function importBundledPackage(name: string, files: PackageFile[]) {
 export async function importSafelinkhubDefaultPackage() {
   const { loadSafelinkhubDefaultPackage } = await import("./package-files");
   return importBundledPackage("SafeLinkHub Hotspot (portail complet)", loadSafelinkhubDefaultPackage());
+}
+
+// Guards for operator-uploaded portals: enough headroom for a full
+// multi-page portal with images/fonts, small enough to keep the jsonb row
+// and the Server Action payload reasonable.
+const PORTAL_MAX_FILES = 80;
+const PORTAL_MAX_TOTAL_BYTES = 6 * 1024 * 1024;
+
+/**
+ * Imports an operator-uploaded portal folder (login.html + css/js/img) as
+ * a "package" template, after validating paths/extensions/size and
+ * running the import-time auto-parameterization (SSID, forfaits, prix,
+ * téléphone — see autoParameterizePortalFiles). The imported portal then
+ * behaves exactly like the bundled ones: choisissable dans l'auto-setup,
+ * assignable à un bridge, rendu avec les Forfaits actifs de l'org au
+ * moment de l'installation sur le routeur.
+ */
+export async function importCustomPackageTemplate(payload: {
+  name: string;
+  files: PackageFile[];
+}) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const name = payload.name.trim();
+  if (!name) return { error: "Le nom du portail est requis." };
+  if (!Array.isArray(payload.files) || payload.files.length === 0) {
+    return { error: "Aucun fichier reçu — sélectionnez le dossier du portail." };
+  }
+  if (payload.files.length > PORTAL_MAX_FILES) {
+    return { error: `Trop de fichiers (${payload.files.length}) — maximum ${PORTAL_MAX_FILES}.` };
+  }
+
+  let totalBytes = 0;
+  const seenPaths = new Set<string>();
+  for (const file of payload.files) {
+    const filePath = String(file.path ?? "").replaceAll("\\", "/");
+    if (
+      !filePath ||
+      filePath.startsWith("/") ||
+      filePath.split("/").some((segment) => !segment || segment === ".." || segment.startsWith("."))
+    ) {
+      return { error: `Chemin de fichier invalide : "${file.path}".` };
+    }
+    if (seenPaths.has(filePath)) {
+      return { error: `Fichier en double dans le dossier : "${filePath}".` };
+    }
+    seenPaths.add(filePath);
+    const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+    if (!PORTAL_ALLOWED_EXTENSIONS.has(ext)) {
+      return {
+        error: `Extension non autorisée : "${filePath}". Autorisées : ${[...PORTAL_ALLOWED_EXTENSIONS].join(", ")}.`,
+      };
+    }
+    if (file.encoding !== "utf8" && file.encoding !== "base64") {
+      return { error: `Encodage invalide pour "${filePath}".` };
+    }
+    totalBytes +=
+      file.encoding === "base64"
+        ? Math.floor((file.content.length * 3) / 4)
+        : Buffer.byteLength(file.content, "utf8");
+  }
+  if (totalBytes > PORTAL_MAX_TOTAL_BYTES) {
+    return {
+      error: `Portail trop volumineux (${(totalBytes / (1024 * 1024)).toFixed(1)} Mo) — maximum ${PORTAL_MAX_TOTAL_BYTES / (1024 * 1024)} Mo. Compressez les images.`,
+    };
+  }
+  if (!seenPaths.has("login.html")) {
+    return {
+      error:
+        "Le dossier doit contenir un login.html à sa racine — c'est la page que RouterOS sert aux clients du hotspot.",
+    };
+  }
+
+  const normalized = payload.files.map((f) => ({
+    path: String(f.path).replaceAll("\\", "/"),
+    content: f.content,
+    encoding: f.encoding,
+  }));
+  const { files, substitutions } = autoParameterizePortalFiles(normalized);
+
+  const result = await importBundledPackage(name, files);
+  if ("error" in result && result.error) return result;
+  return { ...result, substitutions };
 }
 
 export async function importYahyaWifiPackage() {

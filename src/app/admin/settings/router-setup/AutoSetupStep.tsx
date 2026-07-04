@@ -20,7 +20,15 @@ import { ArrowLeft, Box, Check, Copy, Loader2, Plus, Trash2 } from "lucide-react
 import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
 import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
 import { listActivePackages } from "@/lib/packages/actions";
-import { computeSubnetInfo } from "@/lib/net/subnet";
+import {
+  classForPrefix,
+  CLASS_DEFAULT_PREFIX,
+  CLASS_PREFIX_OPTIONS,
+  computeSubnetInfo,
+  GATEWAY_IP_PRESETS,
+  getImpactNote,
+  type NetworkClass,
+} from "@/lib/net/subnet";
 import {
   buildCustomDurationCode,
   buildCustomProfileLabel,
@@ -163,8 +171,38 @@ export default function AutoSetupStep({
     return () => window.clearInterval(interval);
   }, [containerBlockedReason, routerId]);
 
-  const hotspotAddress = hotspotBridge?.gatewayIp ?? "";
-  const hotspotPrefixBits = hotspotBridge?.subnetBits ?? 24;
+  // ── Réseau du hotspot : pré-rempli depuis le bridge de l'Étape 2, mais
+  // modifiable ici via les mêmes sélecteurs (IP de passerelle, classe
+  // réseau, taille du sous-réseau /8→/24) que le configurateur de bridge —
+  // une seule source de vérité, resynchronisée en DB au lancement.
+  const savedPrefixBits = hotspotBridge?.subnetBits ?? 24;
+  const initialClass = classForPrefix(savedPrefixBits);
+  const [hotspotAddress, setHotspotAddress] = useState(
+    hotspotBridge?.gatewayIp && hotspotBridge.gatewayIp !== "Not configured"
+      ? hotspotBridge.gatewayIp
+      : GATEWAY_IP_PRESETS[0],
+  );
+  const [networkClass, setNetworkClass] = useState<NetworkClass>(initialClass);
+  const [hotspotPrefixBits, setHotspotPrefixBits] = useState(
+    CLASS_PREFIX_OPTIONS[initialClass].includes(savedPrefixBits)
+      ? savedPrefixBits
+      : CLASS_DEFAULT_PREFIX[initialClass],
+  );
+
+  function changeNetworkClass(next: NetworkClass) {
+    setNetworkClass(next);
+    if (!CLASS_PREFIX_OPTIONS[next].includes(hotspotPrefixBits)) {
+      setHotspotPrefixBits(CLASS_DEFAULT_PREFIX[next]);
+    }
+  }
+
+  // L'IP courante peut venir d'un bridge saisi à la main — on la garde
+  // dans le sélecteur même si elle n'est pas dans les presets partagés.
+  const gatewayOptions = GATEWAY_IP_PRESETS.includes(
+    hotspotAddress as (typeof GATEWAY_IP_PRESETS)[number],
+  )
+    ? [...GATEWAY_IP_PRESETS]
+    : [hotspotAddress, ...GATEWAY_IP_PRESETS];
 
   // ── Essentiels : un seul champ obligatoire, le reste est dérivé ──────
   const [hotspotName, setHotspotName] = useState("");
@@ -317,9 +355,7 @@ export default function AutoSetupStep({
     setCustomProfileMeta((prev) => prev.filter((p) => p.name !== name));
   }
 
-  const subnet = hotspotBridge
-    ? computeSubnetInfo(hotspotAddress.trim(), hotspotPrefixBits)
-    : null;
+  const subnet = computeSubnetInfo(hotspotAddress.trim(), hotspotPrefixBits);
 
   const mikhmonIncluded = archSupportsContainers && !skipMikhmon;
 
@@ -350,13 +386,16 @@ export default function AutoSetupStep({
   const launchBlocked =
     pending ||
     !hotspotBridge ||
+    !subnet ||
     !hotspotName.trim() ||
     (mikhmonIncluded && requiresUsbForContainer && !hasUsbStorage) ||
     (mikhmonIncluded && containerBlockedReason === "device-mode") ||
     (billing !== null && !billing.sufficientBalance);
 
   return (
-    <div className="animate-fade-slide-up mt-8 border-2 border-line bg-paper p-6">
+    // L'animation d'entrée (slide/fondu) est portée par le wrapper d'étape
+    // du RouterSetupWizard pour suivre la direction de navigation.
+    <div className="mt-8 border-2 border-line bg-paper p-6">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Box className="h-5 w-5 text-ink" />
@@ -386,20 +425,80 @@ export default function AutoSetupStep({
         <DetectedModelBadge routerId={routerId} onDetected={setDetected} />
       </div>
 
-      {!hotspotBridge ? (
+      {!hotspotBridge && (
         <p className="mt-3 rounded-md bg-clay px-3 py-2 text-sm text-warn">
-          Configurez d&apos;abord un bridge hotspot à l&apos;Étape 2 (Topologie réseau) — son
-          adresse IP de passerelle sera réutilisée ici automatiquement.
+          Configurez d&apos;abord un bridge hotspot à l&apos;Étape 2 (Topologie réseau) — ses
+          ports seront réutilisés ici, et le réseau choisi ci-dessous y sera resynchronisé.
         </p>
-      ) : (
-        subnet && (
-          <p className="mt-3 rounded-md bg-clay px-3 py-2 text-xs text-ink-soft">
-            Réseau hotspot : <span className="font-medium text-ink">{hotspotAddress}/{hotspotPrefixBits}</span>{" "}
-            — {subnet.usableHostCount.toLocaleString("fr-FR")}&nbsp;adresses utilisables,
-            hérité de l&apos;Étape 2.
-          </p>
-        )
       )}
+
+      {/* ── Réseau du hotspot (passerelle, classe, sous-réseau) ───────── */}
+      <div className="mt-4 rounded-md border border-line-soft p-4">
+        <p className="text-sm font-medium text-ink">Réseau du hotspot</p>
+        <p className="mt-0.5 text-xs text-ink-soft">
+          Pré-rempli depuis l&apos;Étape 2 — même sélecteur que le configurateur de bridge,
+          appliqué au routeur et resynchronisé sur la topologie au lancement.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div>
+            <label htmlFor="as-gateway-ip" className="mb-1 block text-xs font-medium text-ink-soft">
+              IP de la passerelle
+            </label>
+            <select
+              id="as-gateway-ip"
+              value={hotspotAddress}
+              onChange={(e) => setHotspotAddress(e.target.value)}
+              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+            >
+              {gatewayOptions.map((ip) => (
+                <option key={ip} value={ip}>
+                  {ip}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="as-network-class" className="mb-1 block text-xs font-medium text-ink-soft">
+              Classe réseau
+            </label>
+            <select
+              id="as-network-class"
+              value={networkClass}
+              onChange={(e) => changeNetworkClass(e.target.value as NetworkClass)}
+              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+            >
+              {(["any", "A", "B", "C"] as NetworkClass[]).map((c) => (
+                <option key={c} value={c}>
+                  {c === "any" ? "Toutes" : `Classe ${c}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="as-subnet-bits" className="mb-1 block text-xs font-medium text-ink-soft">
+              Taille du sous-réseau
+            </label>
+            <select
+              id="as-subnet-bits"
+              value={hotspotPrefixBits}
+              onChange={(e) => setHotspotPrefixBits(Number(e.target.value))}
+              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+            >
+              {CLASS_PREFIX_OPTIONS[networkClass].map((bits) => (
+                <option key={bits} value={bits}>
+                  /{bits}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {subnet && (
+          <p className="mt-2 rounded-md bg-clay px-3 py-2 text-xs text-ink-soft">
+            Réseau hotspot : <span className="font-medium text-ink">{hotspotAddress}/{hotspotPrefixBits}</span>{" "}
+            — {getImpactNote(hotspotPrefixBits)}
+          </p>
+        )}
+      </div>
 
       {/* ── Identité du hotspot ─────────────────────────────────────── */}
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -619,8 +718,15 @@ export default function AutoSetupStep({
             </span>
           </span>
         </label>
-        {installCaptivePortal && packageTemplates.length > 1 && (
+        {installCaptivePortal && packageTemplates.length > 0 && (
           <div className="mt-3 space-y-1.5 border-t border-line-soft pt-3">
+            <p className="text-xs text-ink-soft">
+              Choisissez le portail à installer — importez les vôtres depuis{" "}
+              <a href="/admin/settings/captive-templates" className="underline">
+                Paramètres → Portail captif
+              </a>
+              .
+            </p>
             {packageTemplates.map((tpl) => (
               <label key={tpl.id} className="flex items-center gap-2 text-sm text-ink">
                 <input
@@ -663,7 +769,8 @@ export default function AutoSetupStep({
         <div>
           <dt className="text-ink-soft">Hotspot</dt>
           <dd className="font-medium text-ink">
-            {hotspotName || "—"} · {hotspotBridge ? `${hotspotAddress}/${hotspotPrefixBits}` : "bridge manquant"}
+            {hotspotName || "—"} · {hotspotAddress}/{hotspotPrefixBits}
+            {!hotspotBridge && " (bridge manquant à l'Étape 2)"}
           </dd>
         </div>
         <div>

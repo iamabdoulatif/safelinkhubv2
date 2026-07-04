@@ -4,14 +4,28 @@ function rangeArray(start: number, end: number): number[] {
   return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
+// Gateway IPs offered by every bridge/auto-setup selector (topology step,
+// auto-setup step, services wizard) — one shared list so the two screens
+// never drift apart. 192.168.88.1 is MikroTik's own factory default.
+export const GATEWAY_IP_PRESETS = [
+  "192.168.88.1",
+  "192.168.10.1",
+  "10.10.10.1",
+  "10.10.0.1",
+  "10.0.0.1",
+  "172.16.0.1",
+  "10.200.5.1",
+] as const;
+
 // Picking a class narrows the /bits dropdown to that class's conventional
-// range; "Any" exposes the full usable range (a /31 or /32 has no usable
-// hotspot hosts, so this stops at /30).
+// range; "Any" exposes the full supported range. Hotspot subnets are
+// deliberately capped between /8 (whole class A block) and /24 (254
+// hosts) — narrower prefixes starve DHCP, wider ones are never needed.
 export const CLASS_PREFIX_OPTIONS: Record<NetworkClass, number[]> = {
-  any: rangeArray(1, 30),
+  any: rangeArray(8, 24),
   A: rangeArray(8, 15),
   B: rangeArray(16, 23),
-  C: rangeArray(24, 30),
+  C: [24],
 };
 
 export const CLASS_DEFAULT_PREFIX: Record<NetworkClass, number> = {
