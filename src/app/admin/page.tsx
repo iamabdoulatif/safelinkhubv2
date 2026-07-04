@@ -204,7 +204,7 @@ export default async function DashboardPage({
             <RouterIcon aria-hidden="true" className="h-5 w-5 text-ink-soft" />
             <p className="mt-2 text-sm font-medium text-ink-soft">Aucun routeur lié</p>
             <Link
-              href="/admin/settings/router-setup"
+              href="/admin/settings/router-setup?new=1"
               className="mt-1 text-xs font-bold text-brand-deep hover:underline"
             >
               Lier un MikroTik →

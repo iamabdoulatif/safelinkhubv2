@@ -19,20 +19,41 @@ import RouterResetButton from "./RouterResetButton";
 // will never arrive.
 export const maxDuration = 300;
 
-export default async function RouterSetupPage() {
+export default async function RouterSetupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string; router?: string }>;
+}) {
   const session = await getSession();
   const db = getDb();
+  const params = await searchParams;
 
-  const [router] = session
+  const orgRouters = session
     ? await db
         .select()
         .from(routers)
         .where(eq(routers.orgId, session.orgId))
         .orderBy(desc(routers.createdAt))
-        .limit(1)
     : [];
 
-  const isOnline = Boolean(router && router.status === "online");
+  // "?new=1" (bouton « Lier un MikroTik ») force l'Étape 1 de connexion
+  // même quand un routeur déjà configuré est en ligne — sans ce mode, la
+  // page rouvrait toujours le wizard du dernier routeur et il était
+  // impossible d'en lier un deuxième. "?router=<id>" ouvre le wizard d'un
+  // routeur précis. Par défaut : le plus récent (comportement historique).
+  const forceNew = params.new === "1";
+  const router = params.router
+    ? orgRouters.find((r) => r.id === params.router) ?? orgRouters[0]
+    : orgRouters[0];
+
+  // Dans le mode « nouveau », la bannière d'état ne doit référencer qu'une
+  // liaison encore en cours (routeur pas encore en ligne) — jamais le
+  // routeur déjà configuré.
+  const pendingRouter = orgRouters.find((r) => r.status !== "online");
+  const onlineRouter = orgRouters.find((r) => r.status === "online");
+
+  const isOnline = !forceNew && Boolean(router && router.status === "online");
+  const bannerRouter = forceNew ? pendingRouter : router;
 
   const routerBridges = isOnline
     ? await db.select().from(bridges).where(eq(bridges.routerId, router!.id))
@@ -55,17 +76,31 @@ export default async function RouterSetupPage() {
         <>
           <StepIndicator steps={[1, 2, 3]} currentStep={1} />
 
-          {router && (
+          {forceNew && onlineRouter && (
+            <div className="mt-4 rounded-md border border-line-soft bg-clay px-4 py-2.5 text-sm text-ink-soft">
+              Vous liez un nouvel appareil. &quot;{onlineRouter.name}&quot; reste
+              configuré —{" "}
+              <a
+                href={`/admin/settings/router-setup?router=${onlineRouter.id}`}
+                className="font-medium text-ink underline"
+              >
+                reprendre sa configuration
+              </a>
+              .
+            </div>
+          )}
+
+          {bannerRouter && (
             <div className="mt-4 flex items-center justify-between rounded-md border border-line-soft bg-clay px-4 py-2.5">
               <span className="text-sm text-ink-soft">
-                Configuration en cours pour &quot;{router.name}&quot;
-                {router.status === "pending" || router.status === "installing"
+                Configuration en cours pour &quot;{bannerRouter.name}&quot;
+                {bannerRouter.status === "pending" || bannerRouter.status === "installing"
                   ? " (en attente de connexion)"
                   : ""}
                 .
               </span>
               <RouterResetButton
-                routerId={router.id}
+                routerId={bannerRouter.id}
                 label="Réinitialiser le processus"
                 confirmLabel="Annuler cette configuration et repartir de zéro"
               />
@@ -74,21 +109,31 @@ export default async function RouterSetupPage() {
           <MethodTabs />
         </>
       ) : (
-        <RouterSetupWizard
-          routerId={router!.id}
-          routerName={router!.name}
-          initialBridges={routerBridges.map((b) => ({
-            id: b.id,
-            name: b.name,
-            gatewayIp: b.gatewayIp,
-            subnetBits: b.subnetBits,
-            ports: b.ports,
-            hotspotEnabled: b.hotspotEnabled,
-          }))}
-          savedHotspotNames={{
-            serverName: router!.hotspotServerName,
-          }}
-        />
+        <>
+          <div className="mt-2 text-center">
+            <a
+              href="/admin/settings/router-setup?new=1"
+              className="text-sm text-ink-soft underline hover:text-ink"
+            >
+              Lier un autre MikroTik
+            </a>
+          </div>
+          <RouterSetupWizard
+            routerId={router!.id}
+            routerName={router!.name}
+            initialBridges={routerBridges.map((b) => ({
+              id: b.id,
+              name: b.name,
+              gatewayIp: b.gatewayIp,
+              subnetBits: b.subnetBits,
+              ports: b.ports,
+              hotspotEnabled: b.hotspotEnabled,
+            }))}
+            savedHotspotNames={{
+              serverName: router!.hotspotServerName,
+            }}
+          />
+        </>
       )}
     </div>
   );

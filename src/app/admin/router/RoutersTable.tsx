@@ -136,7 +136,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
         <div className="flex flex-wrap items-center gap-3">
           <SyncAllButton />
           <Link
-            href="/admin/settings/router-setup"
+            href="/admin/settings/router-setup?new=1"
             className="flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper"
           >
             <Link2 aria-hidden="true" className="h-4 w-4" />
@@ -205,7 +205,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
           </p>
           {routers.length === 0 && (
             <Link
-              href="/admin/settings/router-setup"
+              href="/admin/settings/router-setup?new=1"
               className="mt-5 inline-flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper"
             >
               <Link2 aria-hidden="true" className="h-4 w-4" />
