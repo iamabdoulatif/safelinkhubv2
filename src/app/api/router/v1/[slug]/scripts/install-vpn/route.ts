@@ -36,17 +36,23 @@ function buildScript(opts: {
 
 # Prepare the MikHmon container network early so the topology and later
 # auto-setup both see the same DOCKERS bridge, MIKHMON veth and gateway.
+# The veth commands live inside a [:parse]-ed string, NOT inline: on a
+# board without the container package (fresh RB4011, mipsbe, ...) the
+# /interface/veth menu doesn't exist, and an inline command would fail at
+# PARSE time — aborting the whole /import with "expected end of command",
+# which :do on-error cannot catch. A runtime :parse failure is catchable,
+# so those boards just log the warning and continue installing the VPN.
 :do {
   :foreach oldBridge in={"CONTAINERS";"dockers";"DOCKER-SAFELINKHUB";"DOCKER"} do={
     /ip address remove [find interface=$oldBridge address=11.11.11.1/28]
     :if (([:len [/interface bridge find where name=$oldBridge]] > 0) && ([:len [/interface bridge port find where bridge=$oldBridge]] = 0)) do={ /interface bridge remove [find name=$oldBridge] }
   }
   :if ([:len [/interface bridge find where name="DOCKERS"]] = 0) do={ /interface bridge add name=DOCKERS }
-  :if ([:len [/interface veth find where name="MIKHMON"]] = 0) do={ /interface veth add name=MIKHMON address=11.11.11.11/28 gateway=11.11.11.1 } else={ /interface veth set [find where name="MIKHMON"] address=11.11.11.11/28 gateway=11.11.11.1 }
-  :if ([:len [/interface bridge port find where interface="MIKHMON"]] = 0) do={ /interface bridge port add bridge=DOCKERS interface=MIKHMON } else={ /interface bridge port set [find where interface="MIKHMON"] bridge=DOCKERS }
+  :local vethPrep [:parse ":if ([:len [/interface veth find where name=\\"MIKHMON\\"]] = 0) do={ /interface veth add name=MIKHMON address=11.11.11.11/28 gateway=11.11.11.1 } else={ /interface veth set [find where name=\\"MIKHMON\\"] address=11.11.11.11/28 gateway=11.11.11.1 }; :if ([:len [/interface bridge port find where interface=\\"MIKHMON\\"]] = 0) do={ /interface bridge port add bridge=DOCKERS interface=MIKHMON } else={ /interface bridge port set [find where interface=\\"MIKHMON\\"] bridge=DOCKERS }"]
+  $vethPrep
   /ip address remove [find interface=DOCKERS address=11.11.11.1/28]
   /ip address add address=11.11.11.1/28 interface=DOCKERS network=11.11.11.0
-} on-error={ :log warning "SafeLinkHub could not prepare DOCKERS/MIKHMON during VPN install; auto-setup will retry" }
+} on-error={ :log warning "SafeLinkHub could not prepare DOCKERS/MIKHMON during VPN install (container package likely missing); auto-setup will retry" }
 
 # Format a plugged-in USB stick to ext4 early too, same as the container
 # step does later — MikroTik's documented Container prerequisite, without
@@ -67,20 +73,26 @@ function buildScript(opts: {
 #     "disk1") use that instead.
 #   - Everything else (ax2 / hAP ax lite, no USB and no extra disk) falls
 #     back to a tmpfs scratch slot created here if it doesn't exist yet.
+# /container/config/set goes through [:parse] for the same reason as the
+# veth block above — without the container package the /container menu
+# doesn't exist and an inline command would kill the whole import at
+# parse time instead of being caught by on-error.
 :do {
+  :local storeRoot "tmp"
   :if ([:len [/disk find where slot="usb1" and file-system="ext4"]] > 0) do={
-    /container/config/set registry-url=https://registry-1.docker.io tmpdir=usb1/pull layer-dir=usb1/mikhmon-layers
+    :set storeRoot "usb1"
   } else={
     :if ([:len [/disk find where slot="disk1"]] > 0) do={
-      /container/config/set registry-url=https://registry-1.docker.io tmpdir=disk1/pull layer-dir=disk1/mikhmon-layers
+      :set storeRoot "disk1"
     } else={
       :if ([:len [/disk find where slot="tmp"]] = 0) do={
         /disk add slot=tmp type=tmpfs tmpfs-max-size=150000000
       }
-      /container/config/set registry-url=https://registry-1.docker.io tmpdir=tmp/pull layer-dir=tmp/mikhmon-layers
     }
   }
-} on-error={ :log warning "SafeLinkHub could not configure container storage during VPN install; auto-setup will retry" }
+  :local containerCfg [:parse "/container/config/set registry-url=https://registry-1.docker.io tmpdir=$storeRoot/pull layer-dir=$storeRoot/mikhmon-layers"]
+  $containerCfg
+} on-error={ :log warning "SafeLinkHub could not configure container storage during VPN install (container package likely missing); auto-setup will retry" }
 
 # A /32 interface address has no implicit subnet route, so without this the
 # router can decrypt inbound tunnel packets but has no route to send replies

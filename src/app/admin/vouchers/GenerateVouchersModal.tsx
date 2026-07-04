@@ -158,7 +158,7 @@ export default function GenerateVouchersModal({
               <button
                 type="submit"
                 disabled={pending || packages.length === 0}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-[#1C1917] hover:bg-brand disabled:opacity-60"
+                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
               >
                 {pending ? "Génération..." : "Générer"}
               </button>

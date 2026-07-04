@@ -40,7 +40,7 @@ export default function CreatePackageModal() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-[#1C1917] hover:bg-brand"
+        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand"
       >
         + Créer un forfait
       </button>
@@ -203,7 +203,7 @@ export default function CreatePackageModal() {
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-[#1C1917] hover:bg-brand disabled:opacity-60"
+                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
               >
                 {pending ? "Création..." : "Créer le forfait"}
               </button>

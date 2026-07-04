@@ -450,6 +450,40 @@ html {
   background: #A8A29E;
 }
 
+/* ── FancyLoader keyframes ─────────────────────────────────── */
+
+@keyframes spin-slice {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes signal {
+  0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes orbit {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes orbit-reverse {
+  0% { transform: rotate(360deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.animate-signal {
+  animation: signal 1.2s ease-in-out infinite;
+}
+
+.animate-orbit {
+  animation: orbit 2s linear infinite;
+}
+
+.animate-orbit-reverse {
+  animation: orbit-reverse 2.5s linear infinite;
+}
+
 /* ============================================
    ACCESSIBILITY — focus & reduced motion
    ============================================ */

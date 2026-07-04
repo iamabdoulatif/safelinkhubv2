@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { ButtonLoader } from "@/components/FancyLoader";
 import { deleteRouter } from "@/lib/mikrotik/actions";
 
 export default function RouterResetButton({
@@ -43,7 +44,7 @@ export default function RouterResetButton({
           disabled={pending}
           className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
         >
-          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Oui, supprimer"}
+          {pending ? <ButtonLoader size="sm" color="white" /> : "Oui, supprimer"}
         </button>
         <button
           type="button"

@@ -81,7 +81,7 @@ export default function GenerateOpenvpnScriptForm() {
           </pre>
           <button
             onClick={copyCommand}
-            className="absolute right-2 top-2 rounded-md bg-[#3A362F] p-1.5 text-clay hover:bg-[#3A362F]"
+            className="absolute right-2 top-2 rounded-md bg-[#3A362F] p-1.5 text-white hover:bg-[#3A362F]"
             title="Copier la commande"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}

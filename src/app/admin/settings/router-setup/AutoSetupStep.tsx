@@ -16,10 +16,12 @@
  */
 
 import { useEffect, useState, useTransition } from "react";
-import { ArrowLeft, Box, Check, Copy, Loader2, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, Box, Check, Copy, Plus, Trash2 } from "lucide-react";
 import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
 import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
 import { listActivePackages } from "@/lib/packages/actions";
+import FancyLoader from "@/components/FancyLoader";
 import {
   classForPrefix,
   CLASS_DEFAULT_PREFIX,
@@ -104,7 +106,7 @@ function UnlockCommandBlock() {
             setTimeout(() => setCopied(false), 2000);
           }}
           title="Copier la commande"
-          className="absolute right-1.5 top-1.5 rounded-md bg-[#3A362F] p-1.5 text-clay hover:bg-[#3A362F]"
+          className="absolute right-1.5 top-1.5 rounded-md bg-[#3A362F] p-1.5 text-white hover:bg-[#3A362F]"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
@@ -395,27 +397,30 @@ export default function AutoSetupStep({
   return (
     // L'animation d'entrée (slide/fondu) est portée par le wrapper d'étape
     // du RouterSetupWizard pour suivre la direction de navigation.
-    <div className="mt-8 border-2 border-line bg-paper p-6">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Box className="h-5 w-5 text-ink" />
-          <h2 className="font-semibold text-ink">
-            Étape 3 : Configuration automatique {mikhmonIncluded ? "(Hotspot + MikHmon)" : "(Hotspot)"}
+    <div className="mt-6 sm:mt-8 border-2 border-line bg-paper p-4 sm:p-6">
+      <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Box className="h-5 w-5 shrink-0 text-ink" />
+          <h2 className="font-display text-lg sm:text-xl font-extrabold tracking-tight text-ink">
+            Étape 3 : Auto-config
+            <span className="hidden sm:inline"> {mikhmonIncluded ? "(Hotspot + MikHmon)" : "(Hotspot)"}</span>
           </h2>
         </div>
-        {billing?.unlimited ? (
-          <TrialBadge active activeLabel="Compte illimité — Superadmin" />
-        ) : (
-          billing &&
-          (billing.isFree || billing.alreadyBilled) && (
-            <TrialBadge
-              active
-              activeLabel={billing.alreadyBilled ? "Déjà configuré" : "1er routeur gratuit"}
-            />
-          )
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {billing?.unlimited ? (
+            <TrialBadge active activeLabel="Compte illimité — Superadmin" />
+          ) : (
+            billing &&
+            (billing.isFree || billing.alreadyBilled) && (
+              <TrialBadge
+                active
+                activeLabel={billing.alreadyBilled ? "Déjà configuré" : "1er routeur gratuit"}
+              />
+            )
+          )}
+        </div>
       </div>
-      <p className="mt-1 text-sm text-ink-soft">
+      <p className="mt-2 text-sm leading-relaxed text-ink-soft max-w-3xl">
         Tout est pré-configuré : donnez un nom à votre hotspot, vérifiez le récapitulatif et
         lancez. Le script construit le hotspot, le portail captif, les profils voucher
         {mikhmonIncluded ? ", MikHmon" : ""} et les règles NAT, puis redémarre le routeur.
@@ -722,12 +727,12 @@ export default function AutoSetupStep({
           <div className="mt-3 space-y-1.5 border-t border-line-soft pt-3">
             <p className="text-xs text-ink-soft">
               Choisissez le portail à installer — importez les vôtres depuis{" "}
-              <a
+              <Link
                 href={`/admin/settings/captive-templates?retour=${routerId}`}
                 className="underline"
               >
                 Paramètres → Portail captif
-              </a>
+              </Link>
               .
             </p>
             {packageTemplates.map((tpl) => (
@@ -799,6 +804,19 @@ export default function AutoSetupStep({
         </div>
       </dl>
 
+      {pending && (
+        <div className="mt-6 flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-md border-2 border-line bg-paper p-8">
+          <FancyLoader variant="router-orbit" size="lg" color="brand" />
+          <p className="text-center text-sm font-medium text-ink animate-pulse">
+            Configuration en cours sur le routeur…
+          </p>
+          <p className="text-center text-xs text-ink-soft">
+            Hotspot, portail captif, profils voucher et règles NAT sont en cours de déploiement.
+            Ne fermez pas cette page.
+          </p>
+        </div>
+      )}
+
       {result?.error && (
         <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{result.error}</p>
       )}
@@ -831,11 +849,11 @@ export default function AutoSetupStep({
         </div>
       )}
 
-      <div className="mt-6 flex items-center justify-between">
+      <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:justify-between">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 rounded-lg border border-line-soft px-4 py-2.5 text-sm font-medium text-ink-soft hover:bg-clay"
+          className="flex items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-line-soft px-4 py-3 sm:py-2.5 text-sm font-medium text-ink-soft hover:bg-clay transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Précédent
@@ -844,9 +862,9 @@ export default function AutoSetupStep({
           type="button"
           disabled={launchBlocked}
           onClick={run}
-          className="flex items-center gap-2 rounded-md bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center sm:justify-start gap-2 rounded-md bg-ink px-5 py-3 sm:py-2.5 text-sm font-medium text-white hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
         >
-          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {pending && <FancyLoader variant="spinner-slice" size="sm" color="white" className="inline-flex" />}
           {pending ? "Configuration en cours…" : "Lancer l'auto-setup complet"}
         </button>
       </div>

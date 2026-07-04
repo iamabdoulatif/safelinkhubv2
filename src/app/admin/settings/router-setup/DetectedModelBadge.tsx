@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Check, ChevronDown, Copy, Cpu, Loader2, RefreshCw, Unlock } from "lucide-react";
+import { Check, ChevronDown, Copy, Cpu, RefreshCw, Unlock } from "lucide-react";
+import { ButtonLoader } from "@/components/FancyLoader";
 import {
   detectRouterModel,
   requestDeviceModeUnlock,
@@ -58,7 +59,7 @@ export default function DetectedModelBadge({
   if (state.loading) {
     return (
       <p className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <ButtonLoader size="sm" color="currentColor" />
         Détection du modèle de routeur...
       </p>
     );
@@ -236,7 +237,7 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
           type="button"
           onClick={copyCommand}
           title="Copier la commande"
-          className="absolute right-1.5 top-1.5 rounded-md bg-[#3A362F] p-1.5 text-clay hover:bg-[#3A362F]"
+          className="absolute right-1.5 top-1.5 rounded-md bg-[#3A362F] p-1.5 text-white hover:bg-[#3A362F]"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
@@ -254,7 +255,7 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
         onClick={run}
         className="mt-1 flex items-center gap-2 rounded-md bg-warn px-3 py-1.5 text-xs font-medium text-white hover:bg-ink disabled:opacity-60"
       >
-        {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5" />}
+        {pending ? <ButtonLoader size="xs" color="white" /> : <Unlock className="h-3.5 w-3.5" />}
         {pending ? "Envoi de la demande..." : "Envoyer la demande de déverrouillage"}
       </button>
       <p className="mt-1 text-[11px] text-warn">

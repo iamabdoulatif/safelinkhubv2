@@ -22,7 +22,7 @@ export const maxDuration = 300;
 export default async function RouterSetupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ new?: string; router?: string }>;
+  searchParams: Promise<{ new?: string; router?: string; etape?: string }>;
 }) {
   const session = await getSession();
   const db = getDb();
@@ -132,6 +132,7 @@ export default async function RouterSetupPage({
             savedHotspotNames={{
               serverName: router!.hotspotServerName,
             }}
+            initialStep={params.etape === "3" ? 3 : 2}
           />
         </>
       )}

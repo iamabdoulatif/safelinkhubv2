@@ -2,7 +2,8 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Loader2 } from "lucide-react";
+import { Check, Copy } from "lucide-react";
+import { ButtonLoader } from "@/components/FancyLoader";
 import { generateInstallScript, checkRouterConnection } from "@/lib/mikrotik/actions";
 
 type ConnectionState = "idle" | "waiting" | "connected" | "timeout";
@@ -81,7 +82,7 @@ export default function GenerateScriptForm() {
           </pre>
           <button
             onClick={copyCommand}
-            className="absolute right-2 top-2 rounded-md bg-[#3A362F] p-1.5 text-clay hover:bg-[#3A362F]"
+            className="absolute right-2 top-2 rounded-md bg-[#3A362F] p-1.5 text-white hover:bg-[#3A362F]"
             title="Copier la commande"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -91,7 +92,7 @@ export default function GenerateScriptForm() {
         <div className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
           {connection === "waiting" && (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <ButtonLoader size="sm" color="currentColor" />
               En attente de connexion du routeur...
             </>
           )}

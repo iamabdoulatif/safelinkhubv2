@@ -46,7 +46,7 @@ export default function AddAgentModal() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex shrink-0 items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-[#1C1917] hover:bg-brand"
+        className="flex shrink-0 items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand"
       >
         + Ajouter un agent
       </button>
@@ -146,7 +146,7 @@ export default function AddAgentModal() {
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-[#1C1917] hover:bg-brand disabled:opacity-60"
+                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
               >
                 {pending ? "Ajout..." : "Ajouter l'agent"}
               </button>

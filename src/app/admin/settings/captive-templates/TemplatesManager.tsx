@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Copy, Package, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import {
   deleteCaptiveTemplate,
@@ -10,6 +10,7 @@ import {
   importYahyaWifiPackage,
   setDefaultCaptiveTemplate,
 } from "@/lib/captive-templates/actions";
+import { ButtonLoader } from "@/components/FancyLoader";
 import CaptivePreview from "./CaptivePreview";
 import ImportPortalButton from "./ImportPortalButton";
 import PackagePreview from "./PackagePreview";
@@ -22,11 +23,22 @@ export default function TemplatesManager({
   templates: CaptiveTemplateRow[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const retour = searchParams.get("retour");
+
   const [editing, setEditing] = useState<CaptiveTemplateRow | null | "new">(null);
   const [editingBranding, setEditingBranding] = useState<CaptiveTemplateRow | null>(null);
   const [pending, startTransition] = useTransition();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  function goBackIfRetour() {
+    if (retour) {
+      router.push(`/admin/settings/router-setup?router=${encodeURIComponent(retour)}`);
+    } else {
+      router.refresh();
+    }
+  }
 
   return (
     <div className="mt-6">
@@ -41,12 +53,12 @@ export default function TemplatesManager({
               startTransition(async () => {
                 const res = await importSafelinkhubDefaultPackage();
                 if (res?.error) setError(res.error);
-                else router.refresh();
+                else goBackIfRetour();
               })
             }
             className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
           >
-            <Package className="h-4 w-4" />
+            {pending ? <ButtonLoader size="sm" color="currentColor" /> : <Package className="h-4 w-4" />}
             Importer le portail SafeLinkHub
           </button>
           <button
@@ -56,12 +68,12 @@ export default function TemplatesManager({
               startTransition(async () => {
                 const res = await importYahyaWifiPackage();
                 if (res?.error) setError(res.error);
-                else router.refresh();
+                else goBackIfRetour();
               })
             }
             className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
           >
-            <Package className="h-4 w-4" />
+            {pending ? <ButtonLoader size="sm" color="currentColor" /> : <Package className="h-4 w-4" />}
             Importer le portail SafeLink Africa
           </button>
           <button
@@ -175,7 +187,7 @@ export default function TemplatesManager({
                       startTransition(async () => {
                         const res = await setDefaultCaptiveTemplate(t.id);
                         if (res?.error) setError(res.error);
-                        else router.refresh();
+                        else goBackIfRetour();
                       })
                     }
                     className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"

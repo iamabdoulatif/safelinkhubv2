@@ -137,7 +137,7 @@ export default function BootstrapModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-[#1C1917] hover:bg-brand"
+                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand"
               >
                 Continuer
               </button>
@@ -158,7 +158,7 @@ export default function BootstrapModal({
               <button
                 type="button"
                 onClick={copyCommand}
-                className="absolute right-2 top-2 rounded-md bg-[#3A362F] p-1.5 text-clay hover:bg-[#3A362F]"
+                className="absolute right-2 top-2 rounded-md bg-[#3A362F] p-1.5 text-white hover:bg-[#3A362F]"
                 title="Copier la commande"
                 aria-label="Copier la commande"
               >
@@ -211,7 +211,7 @@ export default function BootstrapModal({
                 type="button"
                 onClick={handleRanIt}
                 disabled={checking}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-[#1C1917] hover:bg-brand disabled:opacity-60"
+                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
               >
                 {checking ? "Vérification..." : "J'ai exécuté la commande"}
               </button>

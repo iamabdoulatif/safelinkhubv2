@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import FancyLoader from "@/components/FancyLoader";
 import TopologyBuilder from "./TopologyBuilder";
 import AutoSetupStep from "./AutoSetupStep";
 import RouterResetButton from "./RouterResetButton";
@@ -29,13 +29,20 @@ export default function RouterSetupWizard({
   routerName,
   initialBridges,
   savedHotspotNames,
+  initialStep = 2,
 }: {
   routerId: string;
   routerName: string;
   initialBridges: SavedBridge[];
   savedHotspotNames: { serverName: string | null };
+  // "?etape=3" : revenir directement sur la configuration automatique —
+  // utilisé par le retour d'import de portail captif pour reprendre
+  // l'auto-setup là où l'admin s'était arrêté.
+  initialStep?: Step;
 }) {
-  const [step, setStep] = useState<Step>(2);
+  const [step, setStep] = useState<Step>(
+    initialStep === 3 && initialBridges.length > 0 ? 3 : 2,
+  );
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [transitioning, setTransitioning] = useState(false);
   const transitionTimer = useRef<number | null>(null);
@@ -67,9 +74,13 @@ export default function RouterSetupWizard({
       <StepIndicator steps={[1, 2, 3]} currentStep={step} />
 
       {transitioning ? (
-        <div className="animate-fade-in mt-8 flex min-h-[280px] flex-col items-center justify-center gap-3 border-2 border-line bg-paper p-6">
-          <Loader2 className="h-8 w-8 animate-spin text-ink" />
-          <p className="text-sm font-medium text-ink-soft">
+        <div className="animate-fade-in mt-6 sm:mt-8 flex min-h-[200px] sm:min-h-[280px] flex-col items-center justify-center gap-4 border-2 border-line bg-paper p-4 sm:p-6">
+          <FancyLoader
+            variant={direction === "forward" ? "wifi-signal" : "router-orbit"}
+            size="lg"
+            color="brand"
+          />
+          <p className="text-sm font-medium text-ink animate-pulse text-center px-4">
             {direction === "forward"
               ? "Préparation de la configuration automatique…"
               : "Retour à la topologie réseau…"}
@@ -78,14 +89,14 @@ export default function RouterSetupWizard({
       ) : step === 2 ? (
         <div
           key="step-2"
-          className={`${direction === "back" ? "animate-slide-in-left" : "animate-fade-slide-up"} mt-8 border-2 border-line bg-paper p-6`}
+          className={`${direction === "back" ? "animate-slide-in-left" : "animate-fade-slide-up"} mt-6 sm:mt-8 border-2 border-line bg-paper p-4 sm:p-6`}
         >
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-ink">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h2 className="font-display text-xl sm:text-2xl font-extrabold tracking-tight text-ink">
               Étape 2 : Topologie réseau
             </h2>
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 text-sm text-ok">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <span className="flex items-center gap-1.5 text-xs sm:text-sm text-ok">
                 <span className="relative h-2 w-2 rounded-full bg-ok animate-pulse-ring" />
                 {routerName} connecté
               </span>
@@ -111,7 +122,7 @@ export default function RouterSetupWizard({
                   ? "Configurez au moins un bridge avant de continuer"
                   : undefined
               }
-              className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full sm:w-auto rounded-lg bg-ink px-5 py-3 sm:py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Suivant : Configuration automatique
             </button>

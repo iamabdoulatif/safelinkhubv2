@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Wrench, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw, Wrench, XCircle } from "lucide-react";
+import { ButtonLoader } from "@/components/FancyLoader";
 import { auditRouterConfig, type ConfigAuditItem } from "@/lib/mikrotik/config-audit";
 import { repairRouterConfig } from "@/lib/mikrotik/container-setup";
 
@@ -75,7 +76,7 @@ export default function ConfigAuditBanner({
   if (state.loading) {
     return (
       <p className="mb-4 flex items-center gap-2 text-sm text-ink-soft">
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <ButtonLoader size="sm" color="currentColor" />
         Vérification de la configuration existante sur le routeur...
       </p>
     );
@@ -161,7 +162,7 @@ export default function ConfigAuditBanner({
                 className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
               >
                 {repairing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <ButtonLoader size="xs" color="white" />
                 ) : (
                   <Wrench className="h-3.5 w-3.5" />
                 )}

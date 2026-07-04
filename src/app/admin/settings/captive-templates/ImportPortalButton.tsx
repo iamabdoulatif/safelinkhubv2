@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { FolderUp, Loader2, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FolderUp, X } from "lucide-react";
 import { importCustomPackageTemplate } from "@/lib/captive-templates/actions";
 import type { PackageFile } from "@/lib/captive-templates/package-files";
+import { ButtonLoader } from "@/components/FancyLoader";
 
 // Mirrors the server-side allowlist (PORTAL_ALLOWED_EXTENSIONS) so junk
 // files (.DS_Store, sources maps, archives…) are dropped client-side
@@ -69,6 +70,8 @@ async function readPortalFolder(fileList: FileList): Promise<{
 
 export default function ImportPortalButton() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const retour = searchParams.get("retour");
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
   const [reading, setReading] = useState(false);
@@ -115,7 +118,15 @@ export default function ImportPortalButton() {
       }
       setResult({ substitutions: (res as { substitutions?: string[] }).substitutions });
       setDraft(null);
-      router.refresh();
+      if (retour) {
+        // etape=3 : reprendre directement l'étape « Configuration
+        // automatique » d'où venait l'admin, pas le début du wizard.
+        router.push(
+          `/admin/settings/router-setup?router=${encodeURIComponent(retour)}&etape=3`,
+        );
+      } else {
+        router.refresh();
+      }
     });
   }
 
@@ -137,7 +148,7 @@ export default function ImportPortalButton() {
         onClick={() => inputRef.current?.click()}
         className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
       >
-        {reading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderUp className="h-4 w-4" />}
+        {reading || pending ? <ButtonLoader size="sm" color="currentColor" /> : <FolderUp className="h-4 w-4" />}
         Importer un portail personnalisé
       </button>
 
@@ -221,7 +232,7 @@ export default function ImportPortalButton() {
                 disabled={pending || !draft.name.trim()}
                 className="flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
               >
-                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {pending && <ButtonLoader size="sm" color="white" />}
                 {pending ? "Import en cours…" : "Importer"}
               </button>
             </div>

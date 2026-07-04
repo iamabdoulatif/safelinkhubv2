@@ -606,7 +606,7 @@ function TopologyCanvas({
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-[#1C1917] hover:bg-brand"
+                  className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-brand"
                 >
                   Enregistrer les modifications
                 </button>
@@ -1044,7 +1044,7 @@ export default function TopologyBuilder({
               <button
                 type="submit"
                 disabled={pending || draftPorts.length === 0}
-                className="rounded-lg bg-ink px-5 py-2.5 text-base font-medium text-[#1C1917] hover:bg-brand disabled:opacity-60"
+                className="rounded-lg bg-ink px-5 py-2.5 text-base font-medium text-white hover:bg-brand disabled:opacity-60"
               >
                 {pending ? "Enregistrement..." : "Enregistrer les modifications"}
               </button>

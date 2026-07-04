@@ -134,7 +134,7 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 1500);
                   }}
-                  className="absolute right-1 top-1 rounded bg-[#3A362F] p-1 text-clay hover:bg-[#3A362F]"
+                  className="absolute right-1 top-1 rounded bg-[#3A362F] p-1 text-white hover:bg-[#3A362F]"
                 >
                   {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                 </button>
