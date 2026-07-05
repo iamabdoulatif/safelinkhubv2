@@ -163,6 +163,7 @@ export default async function RemoteAccessPage() {
               }))}
               forwardsByRouter={forwardsByRouter}
               relayHost={getRelayPublicHost()}
+              relayBaseDomain={process.env.RELAY_BASE_DOMAIN ?? null}
               vpnTrial={vpnTrial}
             />
           </section>

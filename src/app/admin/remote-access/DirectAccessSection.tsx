@@ -6,6 +6,7 @@ import { ChevronDown, Copy, CreditCard, ExternalLink, Globe2, Loader2, ShieldOff
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
 import { PERIOD_PRICE_CENTS, type BillingPeriod } from "@/lib/mikrotik/billing-plans";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
+import { isWebAccessService, webAccessSubdomain } from "@/lib/mikrotik/remote-access-host";
 import TrialBadge from "@/components/billing/TrialBadge";
 
 type RouterRow = {
@@ -214,11 +215,13 @@ function RouterDirectAccess({
   router,
   forwards,
   relayHost,
+  relayBaseDomain,
   unlimited,
 }: {
   router: RouterRow;
   forwards: ForwardRow[];
   relayHost: string;
+  relayBaseDomain: string | null;
   unlimited: boolean;
 }) {
   const navRouter = useRouter();
@@ -364,7 +367,15 @@ function RouterDirectAccess({
               <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-ink-soft">{SERVICE_LABELS[service]}</span>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {forward && <CopyableAddress value={`${relayHost}:${forward.publicPort}`} />}
+                  {forward && (
+                    <CopyableAddress
+                      value={
+                        relayBaseDomain && router.tunnelIp && isWebAccessService(service)
+                          ? `https://${webAccessSubdomain(router.tunnelIp, service)}.${relayBaseDomain}`
+                          : `${relayHost}:${forward.publicPort}`
+                      }
+                    />
+                  )}
                   {!isPublic && (
                     <select
                       value={defaultPlan(service)}
@@ -448,8 +459,18 @@ function RouterDirectAccess({
         <div className="mt-3 rounded-md border border-line-soft bg-clay/60 p-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {forwards.map((forward) => {
-              const address = `${relayHost}:${forward.publicPort}`;
-              const url = serviceUrl(forward.service, address, router.username);
+              // Browser services are served over HTTPS via the relay's Traefik
+              // at a wildcard-cert subdomain (works under HTTPS-First); WinBox/
+              // SSH keep their raw host:port. Fall back to the port form when
+              // the relay isn't TLS-enabled (no base domain).
+              const webHost =
+                relayBaseDomain && router.tunnelIp && isWebAccessService(forward.service)
+                  ? `${webAccessSubdomain(router.tunnelIp, forward.service)}.${relayBaseDomain}`
+                  : null;
+              const address = webHost ? `https://${webHost}` : `${relayHost}:${forward.publicPort}`;
+              const url = webHost
+                ? `https://${webHost}`
+                : serviceUrl(forward.service, address, router.username);
               return (
                 <div key={forward.id} className="min-w-0">
                   <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-paper px-2.5 py-2 text-xs">
@@ -538,11 +559,13 @@ export default function DirectAccessSection({
   routers,
   forwardsByRouter,
   relayHost,
+  relayBaseDomain,
   vpnTrial,
 }: {
   routers: RouterRow[];
   forwardsByRouter: Record<string, ForwardRow[]>;
   relayHost: string;
+  relayBaseDomain: string | null;
   vpnTrial: {
     active: boolean;
     daysRemaining: number;
@@ -616,6 +639,7 @@ export default function DirectAccessSection({
             router={r}
             forwards={forwardsByRouter[r.id] ?? []}
             relayHost={r.relayHost ?? relayHost}
+            relayBaseDomain={relayBaseDomain}
             unlimited={Boolean(vpnTrial?.unlimited)}
           />
         ))}
