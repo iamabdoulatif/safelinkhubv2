@@ -380,16 +380,23 @@ export async function allocatePortForward(
   tunnelIp: string,
   targetPort: number,
   shard?: string | null,
+  // Browser services (WebFig/MikHmon) are TLS-terminated by nginx on the
+  // public port instead of raw-DNAT'd — browsers force HTTPS and a plain DNAT
+  // port only speaks HTTP. For those we don't add a DNAT; we add a no-op
+  // marker rule so the public port still counts as "used" by the allocator
+  // (which scans iptables), and nginx binds and terminates TLS on it.
+  tlsTerminated = false,
 ): Promise<{ publicPort: number }> {
   // Sharded routers draw their public port from their shard's disjoint range
   // (e.g. s2 → 39000–47999); everything else uses the legacy 30000–30999 pool.
   const [rangeStart, rangeEnd] = portRangeForShard(shard);
-  const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${rangeStart} ${rangeEnd} <<'SCRIPT'
+  const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${rangeStart} ${rangeEnd} ${tlsTerminated ? 1 : 0} <<'SCRIPT'
 set -euo pipefail
 TUNNEL_IP="$1"
 TARGET_PORT="$2"
 RANGE_START="$3"
 RANGE_END="$4"
+TLS_TERMINATED="$5"
 
 USED=$(iptables -t nat -L PREROUTING -n | grep -oP 'dpt:\\K[0-9]+' || true)
 PORT=""
@@ -404,9 +411,14 @@ if [[ -z "$PORT" ]]; then
   exit 1
 fi
 
-iptables -t nat -A PREROUTING -p tcp --dport "$PORT" -j DNAT --to-destination "\${TUNNEL_IP}:\${TARGET_PORT}"
-iptables -t nat -A POSTROUTING -d "$TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE
-iptables -A FORWARD -p tcp -d "$TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT
+if [[ "$TLS_TERMINATED" == "1" ]]; then
+  # Reserve the port in the iptables scan; nginx (TLS) will bind and proxy it.
+  iptables -t nat -A PREROUTING -p tcp --dport "$PORT" -j ACCEPT
+else
+  iptables -t nat -A PREROUTING -p tcp --dport "$PORT" -j DNAT --to-destination "\${TUNNEL_IP}:\${TARGET_PORT}"
+  iptables -t nat -A POSTROUTING -d "$TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE
+  iptables -A FORWARD -p tcp -d "$TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT
+fi
 command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
 
 echo "Port = \${PORT}"
@@ -421,12 +433,19 @@ export async function revokePortForward(
   tunnelIp: string,
   targetPort: number,
   publicPort: number,
+  tlsTerminated = false,
 ): Promise<void> {
-  await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${publicPort} <<'SCRIPT'
+  await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${publicPort} ${tlsTerminated ? 1 : 0} <<'SCRIPT'
 set -euo pipefail
 TUNNEL_IP="$1"
 TARGET_PORT="$2"
 PUBLIC_PORT="$3"
+TLS_TERMINATED="$4"
+
+# TLS-terminated (nginx) forwards only have the no-op reservation marker.
+while iptables -t nat -C PREROUTING -p tcp --dport "$PUBLIC_PORT" -j ACCEPT 2>/dev/null; do
+  iptables -t nat -D PREROUTING -p tcp --dport "$PUBLIC_PORT" -j ACCEPT
+done
 
 while iptables -t nat -C PREROUTING -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "$TUNNEL_IP:$TARGET_PORT" 2>/dev/null; do
   iptables -t nat -D PREROUTING -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "$TUNNEL_IP:$TARGET_PORT"

@@ -59,7 +59,7 @@ export default function TemplatesManager({
             className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
           >
             {pending ? <ButtonLoader size="sm" color="currentColor" /> : <Package className="h-4 w-4" />}
-            Importer le portail SafeLinkHub
+            Importer le portail hotspot-sfh1
           </button>
           <button
             type="button"
@@ -74,7 +74,7 @@ export default function TemplatesManager({
             className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
           >
             {pending ? <ButtonLoader size="sm" color="currentColor" /> : <Package className="h-4 w-4" />}
-            Importer le portail SafeLink Africa
+            Importer le portail hotspot-sfh2
           </button>
           <button
             type="button"

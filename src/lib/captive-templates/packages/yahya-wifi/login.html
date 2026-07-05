@@ -205,86 +205,12 @@
       </span>
       Acheter un Forfait
     </div>
-    <div class="price-card">
-      <div class="price-left">
-        <div class="price-duration-badge badge-10h">
-          <span class="num">1</span>
-          <span class="unit">jour</span>
-        </div>
-        <div class="price-info">
-          <h3>Forfait 01 Jour</h3>
-          <p><i class="fas fa-check-circle"></i> 1 jour de connexion illimit&eacute;e</p>
-        </div>
-      </div>
-      <button onclick="openPhoneModal('1jour')" class="btn-pay">
-        <i class="fas fa-cart-shopping"></i>
-        <span class="price-amount">200 F</span>
-      </button>
-    </div>
-    <div class="price-card">
-      <div class="price-left">
-        <div class="price-duration-badge badge-5j">
-          <span class="num">5</span>
-          <span class="unit">jours</span>
-        </div>
-        <div class="price-info">
-          <h3>Forfait 05 Jours</h3>
-          <p><i class="fas fa-check-circle"></i> 5 jours de connexion illimit&eacute;e</p>
-        </div>
-      </div>
-      <button onclick="openPhoneModal('1semaine')" class="btn-pay">
-        <i class="fas fa-cart-shopping"></i>
-        <span class="price-amount">500 F</span>
-      </button>
-    </div>
-    <div class="price-card">
-      <div class="price-left">
-        <div class="price-duration-badge badge-1sem">
-          <span class="num">7</span>
-          <span class="unit">jours</span>
-        </div>
-        <div class="price-info">
-          <h3>Forfait 01 Semaine</h3>
-          <p><i class="fas fa-check-circle"></i> 7 jours de connexion illimit&eacute;e</p>
-        </div>
-      </div>
-      <button onclick="openPhoneModal('1semaine')" class="btn-pay">
-        <i class="fas fa-cart-shopping"></i>
-        <span class="price-amount">700 F</span>
-      </button>
-    </div>
-    <div class="price-card">
-      <div class="price-left">
-        <div class="price-duration-badge badge-2sem">
-          <span class="num">14</span>
-          <span class="unit">jours</span>
-        </div>
-        <div class="price-info">
-          <h3>Forfait 02 Semaines</h3>
-          <p><i class="fas fa-check-circle"></i> 14 jours de connexion illimit&eacute;e</p>
-        </div>
-      </div>
-      <button onclick="openPhoneModal('2semaines')" class="btn-pay">
-        <i class="fas fa-cart-shopping"></i>
-        <span class="price-amount">1200 F</span>
-      </button>
-    </div>
-    <div class="price-card">
-      <div class="price-left">
-        <div class="price-duration-badge badge-1mois">
-          <span class="num">30</span>
-          <span class="unit">jours</span>
-        </div>
-        <div class="price-info">
-          <h3>Forfait 01 Mois</h3>
-          <p><i class="fas fa-check-circle"></i> 30 jours de connexion illimit&eacute;e</p>
-        </div>
-      </div>
-      <button onclick="openPhoneModal('1mois')" class="btn-pay">
-        <i class="fas fa-cart-shopping"></i>
-        <span class="price-amount">2 000 F</span>
-      </button>
-    </div>
+    <!-- Forfaits injectes dynamiquement depuis les Forfaits actifs de
+         l'org (= les profils de prix pousses sur le MikroTik) au moment ou
+         le routeur telecharge la page — voir renderPriceCardsHtml et le
+         placeholder PRICE_CARDS_HTML dans package-files.ts. Editez les prix
+         sur la page Forfaits ou dans l'auto-setup, pas ici. -->
+{{PRICE_CARDS_HTML}}
   </div>
 
   <!-- ============ POINTS DE VENTE ============ -->

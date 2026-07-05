@@ -7,6 +7,7 @@ import { routerPortForwards, routers, organizations, walletTransactions } from "
 import { getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { allocatePortForward, getRelayPublicHost, revokePortForward } from "./relay";
+import { isWebAccessService } from "./remote-access-host";
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
@@ -127,7 +128,12 @@ async function enablePortForwardForRouter(
 
   let publicPort: number;
   try {
-    const result = await allocatePortForward(router.tunnelIp, targetPort, router.relayShard);
+    const result = await allocatePortForward(
+      router.tunnelIp,
+      targetPort,
+      router.relayShard,
+      isWebAccessService(service),
+    );
     publicPort = result.publicPort;
   } catch (err) {
     return {
@@ -301,7 +307,12 @@ export async function disablePortForward(forwardId: string) {
   }
 
   try {
-    await revokePortForward(forward.tunnelIp, forward.targetPort, forward.publicPort);
+    await revokePortForward(
+      forward.tunnelIp,
+      forward.targetPort,
+      forward.publicPort,
+      isWebAccessService(forward.service),
+    );
   } catch (err) {
     return {
       error: err instanceof Error ? `Could not revoke: ${err.message}` : "Could not revoke.",

@@ -94,33 +94,100 @@ function planDisplayName(plan: PortalPlan): string {
   return `${String(plan.durationValue).padStart(2, "0")} ${label}`;
 }
 
-function planMetaLabel(plan: PortalPlan): string {
-  const unit = DURATION_UNIT_LABELS[plan.durationUnit];
-  return unit ? `${plan.durationValue} ${unit.short}` : plan.name;
-}
-
 function formatFcfa(amount: number): string {
   return `${amount.toLocaleString("fr-FR")} FCFA`;
 }
 
-// Card markup matching the plan-card/plan-radio/plan-name/plan-price/
-// plan-meta CSS-class family shared by the bundled portals and the
-// operator-made ones derived from them — the import-time
+// Card markup matching the plan-card/plan-info/plan-name/plan-details/
+// plan-price/plan-btn CSS-class family of the bundled SafeLinkHub portal
+// and the operator-made ones derived from it — the import-time
 // auto-parameterization (see autoParameterizePortalFiles) swaps a
-// portal's hardcoded cards for {{PLANS_HTML}}, so its own stylesheet
-// keeps styling these.
+// portal's hardcoded `plans-grid` cards for {{PLANS_HTML}}, so the
+// portal's own stylesheet keeps styling these. The `.plan-btn` carries
+// both the human `data-price` ("200 FCFA", used by the portal's own JS
+// toast) and a machine-readable `data-price-cents` for any payment flow
+// that needs the raw amount; `data-plan` holds the display label.
 function renderPlansHtml(plans: PortalPlan[] | null | undefined): string {
   if (!plans || plans.length === 0) return "";
   return plans
-    .map(
-      (plan) => `        <div class="plan-card" onclick="this.querySelector('input').checked=true">
-          <div class="plan-radio"></div>
-          <input type="radio" name="plan" value="${escapeHtml(plan.name)}" data-price="${plan.priceCents}" style="position:absolute;opacity:0;" />
-          <div class="plan-name">${escapeHtml(planDisplayName(plan))}</div>
-          <div class="plan-price"><span class="currency">F</span>${plan.priceCents.toLocaleString("fr-FR")}</div>
-          <div class="plan-meta"><span class="icon">&#9716;</span> ${escapeHtml(planMetaLabel(plan))}</div>
-        </div>`,
-    )
+    .map((plan) => {
+      const label = escapeHtml(planDisplayName(plan));
+      const priceLabel = escapeHtml(formatFcfa(plan.priceCents));
+      return `          <div class="plan-card">
+            <div class="plan-info">
+              <span class="plan-name">${label}</span>
+              <span class="plan-details">Illimité</span>
+            </div>
+            <span class="plan-price">${priceLabel}</span>
+            <button class="plan-btn" data-plan="${label}" data-price="${priceLabel}" data-price-cents="${plan.priceCents}">Acheter</button>
+          </div>`;
+    })
+    .join("\n");
+}
+
+// Bundled "SafeLink Africa" (Yahya) portal renders forfaits with a
+// different card family — `.price-card` / `.price-duration-badge` /
+// `.price-info` / `.btn-pay` / `.price-amount` — and its own mobile-money
+// purchase flow (`openPhoneModal('<planName>')` → POST /api/payments/
+// initiate with `planName`). So it gets its own {{PRICE_CARDS_HTML}}
+// placeholder rather than reusing {{PLANS_HTML}} (whose markup matches
+// the SafeLinkHub card family instead). The colour of the duration badge
+// has no default background in the stylesheet, so each card is assigned
+// one of the defined `badge-*` colour classes in rotation.
+const YAHYA_BADGE_CLASSES = [
+  "badge-10h",
+  "badge-5j",
+  "badge-1sem",
+  "badge-2sem",
+  "badge-1mois",
+  "badge-1j",
+  "badge-3h",
+];
+
+/**
+ * Escapes a value for safe use inside `onclick="openPhoneModal('<here>')"`:
+ * the JS string is single-quoted (so backslashes and single quotes are
+ * JS-escaped) and the HTML attribute is double-quoted (so the result is
+ * then HTML-escaped, turning any `"` into `&quot;`).
+ */
+function escapeForOnclickArg(value: string): string {
+  return escapeHtml(value.replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+}
+
+function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
+  if (!plans || plans.length === 0) return "";
+  return plans
+    .map((plan, index) => {
+      const unit = DURATION_UNIT_LABELS[plan.durationUnit];
+      const unitWord = unit
+        ? (plan.durationValue > 1 ? unit.plural : unit.singular).toLowerCase()
+        : "";
+      const badge = YAHYA_BADGE_CLASSES[index % YAHYA_BADGE_CLASSES.length];
+      const title = escapeHtml(`Forfait ${planDisplayName(plan)}`);
+      const num = escapeHtml(String(plan.durationValue));
+      const unitHtml = escapeHtml(unitWord);
+      const details = escapeHtml(
+        unitWord ? `${plan.durationValue} ${unitWord} de connexion illimitée` : "Connexion illimitée",
+      );
+      const priceLabel = escapeHtml(`${plan.priceCents.toLocaleString("fr-FR")} F`);
+      const onclickArg = escapeForOnclickArg(plan.name);
+      return `    <div class="price-card">
+      <div class="price-left">
+        <div class="price-duration-badge ${badge}">
+          <span class="num">${num}</span>
+          <span class="unit">${unitHtml}</span>
+        </div>
+        <div class="price-info">
+          <h3>${title}</h3>
+          <p><i class="fas fa-check-circle"></i> ${details}</p>
+        </div>
+      </div>
+      <button onclick="openPhoneModal('${onclickArg}')" class="btn-pay">
+        <i class="fas fa-cart-shopping"></i>
+        <span class="price-amount">${priceLabel}</span>
+      </button>
+    </div>`;
+    })
     .join("\n");
 }
 
@@ -254,7 +321,9 @@ export function contentTypeForPath(relativePath: string) {
  * content: {{SSID}} with the router's live WiFi SSID, {{VENDORS_HTML}} /
  * {{SUPPORT_LINKS_HTML}} with markup generated from the template's
  * configurable support contact and vendor list, {{PLANS_HTML}} /
- * {{PLANS_JSON}} / {{MIN_PLAN_PRICE}} with the org's live Forfaits, and
+ * {{PRICE_CARDS_HTML}} / {{PLANS_JSON}} / {{MIN_PLAN_PRICE}} with the
+ * org's live Forfaits ({{PLANS_HTML}} for the SafeLinkHub card family,
+ * {{PRICE_CARDS_HTML}} for the SafeLink Africa / Yahya one), and
  * {{SUPPORT_PHONE}} / {{SUPPORT_PHONE_TEL}} / {{SUPPORT_WHATSAPP}} with
  * the template's support contact.
  */
@@ -266,6 +335,7 @@ export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars):
     .replaceAll("{{VENDORS_HTML}}", renderVendorsHtml(vars.vendors))
     .replaceAll("{{SUPPORT_LINKS_HTML}}", renderSupportLinksHtml(vars.supportWhatsapp, vars.supportPhone))
     .replaceAll("{{PLANS_HTML}}", renderPlansHtml(vars.plans))
+    .replaceAll("{{PRICE_CARDS_HTML}}", renderPriceCardsHtml(vars.plans))
     .replaceAll("{{PLANS_JSON}}", renderPlansJson(vars.plans))
     .replaceAll("{{MIN_PLAN_PRICE}}", minPlanPriceLabel(vars.plans))
     .replaceAll("{{SUPPORT_PHONE}}", vars.supportPhone ?? "")

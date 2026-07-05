@@ -187,7 +187,7 @@ function BridgeNode({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <span className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-semibold text-[#1C1917]">
+        <span className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-semibold text-ink">
           {bridge.hotspotEnabled ? "Hotspot" : "Pas de Hotspot"}
         </span>
         <span className="rounded-full bg-clay px-2.5 py-1 text-[11px] font-semibold text-ink-soft">
@@ -507,7 +507,7 @@ function TopologyCanvas({
           onClick={() => setKeyboardMode(!keyboardMode)}
           className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
             keyboardMode
-              ? "bg-brand text-[#1C1917] hover:bg-brand-deep"
+              ? "bg-brand text-ink hover:bg-brand-deep"
               : "border border-line-soft bg-paper text-ink-soft hover:bg-clay"
           }`}
           aria-pressed={keyboardMode}

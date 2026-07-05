@@ -72,9 +72,35 @@ describe("renderPackageFile", () => {
     assert.ok(body.includes("MIRADOR-WIFI"));
     assert.ok(body.includes("03 Jours"));
     assert.ok(body.includes("01 Semaine"));
-    assert.ok(body.includes('data-price="500"'));
+    assert.ok(body.includes('data-price-cents="500"'));
+    assert.ok(body.includes('data-price="500 FCFA"'));
     assert.ok(body.includes("500 FCFA"), "min plan price rendered");
     assert.ok(body.includes('href="tel:+22507080910111"') || body.includes('href="tel:+2250708091011"'));
+    assert.ok(!body.includes("{{"), "no unreplaced placeholder left");
+  });
+
+  it("renders the Yahya price-card family into {{PRICE_CARDS_HTML}} with a safe onclick arg", () => {
+    const file: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: '<div class="pricing-section">{{PRICE_CARDS_HTML}}</div>',
+    };
+    const body = renderPackageFile(file, {
+      ssid: "X",
+      plans: [
+        { name: "Forfait 1 Jour", priceCents: 200, durationValue: 1, durationUnit: "Days" },
+        { name: "L'Hebdo", priceCents: 700, durationValue: 1, durationUnit: "Weeks" },
+      ],
+    }).toString("utf8");
+
+    assert.equal((body.match(/<div class="price-card">/g) ?? []).length, 2);
+    assert.ok(body.includes("<h3>Forfait 01 Jour</h3>"));
+    assert.ok(body.includes("<h3>Forfait 01 Semaine</h3>"));
+    assert.ok(body.includes('<span class="price-amount">200 F</span>'));
+    // a plan name with a single quote must not break the JS string literal
+    assert.ok(body.includes("openPhoneModal('L\\'Hebdo')"));
+    // every card gets a coloured badge class (base .price-duration-badge has no default background)
+    assert.ok(!/price-duration-badge\s*"/.test(body), "each badge carries a colour class");
     assert.ok(!body.includes("{{"), "no unreplaced placeholder left");
   });
 });

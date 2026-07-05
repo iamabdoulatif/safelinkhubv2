@@ -195,62 +195,13 @@
     <div class="card animate-fade-in animate-delay-1">
       <div class="plans-section">
         <h2 class="section-title">Acheter un forfait</h2>
+        <!-- Forfaits injectes dynamiquement depuis les Forfaits actifs de
+             l'org (= les profils de prix pousses sur le MikroTik) au moment
+             ou le routeur telecharge la page — voir renderPlansHtml et le
+             placeholder PLANS_HTML dans package-files.ts. Editez les prix
+             sur la page Forfaits ou dans l'auto-setup, pas ici. -->
         <div class="plans-grid">
-
-          <div class="plan-card">
-            <div class="plan-info">
-              <span class="plan-name">5 Heures</span>
-              <span class="plan-details">Illimité</span>
-            </div>
-            <span class="plan-price">100 FCFA</span>
-            <button class="plan-btn" data-plan="5 Heures" data-price="100 FCFA">Acheter</button>
-          </div>
-
-          <div class="plan-card">
-            <div class="plan-info">
-              <span class="plan-name">1 Jour</span>
-              <span class="plan-details">Illimité</span>
-            </div>
-            <span class="plan-price">200 FCFA</span>
-            <button class="plan-btn" data-plan="1 Jour" data-price="200 FCFA">Acheter</button>
-          </div>
-
-          <div class="plan-card">
-            <div class="plan-info">
-              <span class="plan-name">4 Jours</span>
-              <span class="plan-details">Illimité</span>
-            </div>
-            <span class="plan-price">500 FCFA</span>
-            <button class="plan-btn" data-plan="4 Jours" data-price="500 FCFA">Acheter</button>
-          </div>
-
-          <div class="plan-card">
-            <div class="plan-info">
-              <span class="plan-name">7 Jours</span>
-              <span class="plan-details">Illimité</span>
-            </div>
-            <span class="plan-price">700 FCFA</span>
-            <button class="plan-btn" data-plan="7 Jours" data-price="700 FCFA">Acheter</button>
-          </div>
-
-          <div class="plan-card">
-            <div class="plan-info">
-              <span class="plan-name">14 Jours</span>
-              <span class="plan-details">Illimité</span>
-            </div>
-            <span class="plan-price">1200 FCFA</span>
-            <button class="plan-btn" data-plan="14 Jours" data-price="1 200 FCFA">Acheter</button>
-          </div>
-
-          <div class="plan-card">
-            <div class="plan-info">
-              <span class="plan-name">1 Mois</span>
-              <span class="plan-details">Illimité</span>
-            </div>
-            <span class="plan-price">2500 FCFA</span>
-            <button class="plan-btn" data-plan="30 Jours" data-price="2 000 FCFA">Acheter</button>
-          </div>
-
+{{PLANS_HTML}}
         </div>
       </div>
     </div>

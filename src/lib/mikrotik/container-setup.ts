@@ -1135,10 +1135,11 @@ export async function provisionHotspotStack(
       }
     }
 
-    // Captive portal: pushes the bundled SafeLinkHub multi-file hotspot
-    // portal onto the html-directory the profile above just pointed at, the
-    // same way a manual "Importer le portail SafeLinkHub" + "assign to
-    // bridge" would (see captive-templates/actions.ts) — except this runs
+    // Captive portal: pushes the bundled hotspot-sfh1 (SafeLinkHub)
+    // multi-file hotspot portal onto the html-directory the profile above
+    // just pointed at, the same way a manual "Importer le portail
+    // hotspot-sfh1" + "assign to bridge" would (see
+    // captive-templates/actions.ts) — except this runs
     // as part of the one-click auto-setup, so RouterOS never falls back to
     // its bare factory-default login page. Reuses the org's existing
     // "package" template if one was already created (so customized support
@@ -1209,13 +1210,13 @@ export async function provisionHotspotStack(
         }
 
         if (!packageTemplate) {
-          // Named after the client's own WiFi (SSID) when known, instead
-          // of a generic "SafeLinkHub Hotspot" label that's identical
-          // across every org and gives the admin no way to tell which
-          // portail belongs to which hotspot once they have more than one.
+          // Auto-seeds the SafeLinkHub bundled portal ("hotspot-sfh1"),
+          // suffixed with the client's own WiFi (SSID) when known so an
+          // admin with more than one hotspot can still tell which portail
+          // belongs to which.
           const templateName = opts.ssid?.trim()
-            ? `${opts.ssid.trim()} (portail complet)`
-            : "SafeLinkHub Hotspot (portail complet)";
+            ? `hotspot-sfh1 — ${opts.ssid.trim()}`
+            : "hotspot-sfh1";
           [packageTemplate] = await db
             .insert(captiveTemplates)
             .values({

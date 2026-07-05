@@ -577,19 +577,21 @@ export default function AutoSetupStep({
       )}
 
       {archSupportsContainers && containerBlockedReason === "device-mode" && !skipMikhmon && (
-        <div className="mt-4">
-          <p className="flex items-center justify-between gap-2 rounded-md bg-clay px-3 py-2 text-sm text-warn">
-            <span>Container verrouillé par le mode RouterOS sur cet appareil.</span>
+        <div className="mt-5 rounded-md border border-warn/30 bg-clay p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-sm font-medium text-warn">
+              Container verrouillé par le mode RouterOS sur cet appareil.
+            </p>
             <button
               type="button"
               onClick={revalidateDetection}
               disabled={revalidating}
-              className="shrink-0 rounded-md border border-warn px-2 py-1 text-xs font-medium text-warn hover:bg-clay disabled:opacity-50"
+              className="shrink-0 rounded-md border border-warn px-3 py-1.5 text-sm font-medium text-warn hover:bg-clay disabled:opacity-50 transition-colors"
             >
               {revalidating ? "Vérification…" : "Relancer la vérification"}
             </button>
-          </p>
-          <p className="mt-1.5 text-xs text-warn">
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-warn/80">
             La commande seule ne suffit pas — confirmez aussi physiquement (bouton reset, ou
             débrancher/rebrancher) dans les 10 minutes. Re-vérification automatique toutes les
             15 s. Le lancement reste bloqué tant que ce n&apos;est pas confirmé — ou cochez
@@ -729,9 +731,9 @@ export default function AutoSetupStep({
             className="mt-0.5 h-4 w-4 rounded border-line-soft accent-brand"
           />
           <span>
-            <span className="block font-semibold">Installer le portail captif SafeLinkHub</span>
+            <span className="block font-semibold">Installer le portail captif</span>
             <span className="mt-1 block text-sm leading-relaxed text-ink-soft">
-              Remplace la page de connexion RouterOS par le portail SafeLinkHub (plans, paiement
+              Remplace la page de connexion RouterOS par le portail captif (plans, paiement
               mobile money, vendeurs agréés).
             </span>
           </span>

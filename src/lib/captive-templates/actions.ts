@@ -158,7 +158,7 @@ async function importBundledPackage(name: string, files: PackageFile[]) {
 
 export async function importSafelinkhubDefaultPackage() {
   const { loadSafelinkhubDefaultPackage } = await import("./package-files");
-  return importBundledPackage("SafeLinkHub Hotspot (portail complet)", loadSafelinkhubDefaultPackage());
+  return importBundledPackage("hotspot-sfh1", loadSafelinkhubDefaultPackage());
 }
 
 // Guards for operator-uploaded portals: enough headroom for a full
@@ -246,12 +246,11 @@ export async function importCustomPackageTemplate(payload: {
 }
 
 export async function importYahyaWifiPackage() {
-  // Named after the page's own <title> ("SafeLink Africa - WiFi") rather
-  // than the source client's name (Yahya) it was originally built for —
-  // this is offered to every org as a generic second portal choice, not
-  // just that one client's branding.
+  // Second bundled portal choice (the SafeLink Africa / Yahya design),
+  // named "hotspot-sfh2" to sit alongside the SafeLinkHub "hotspot-sfh1"
+  // in the operator's portal list.
   const { loadYahyaWifiPackage } = await import("./package-files");
-  return importBundledPackage("SafeLink Africa (portail complet)", loadYahyaWifiPackage());
+  return importBundledPackage("hotspot-sfh2", loadYahyaWifiPackage());
 }
 
 export async function updateCaptiveTemplate(

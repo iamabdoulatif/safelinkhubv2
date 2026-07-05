@@ -6,7 +6,7 @@ import { ChevronDown, Copy, CreditCard, ExternalLink, Globe2, Loader2, ShieldOff
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
 import { PERIOD_PRICE_CENTS, type BillingPeriod } from "@/lib/mikrotik/billing-plans";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
-import { isWebAccessService, webAccessSubdomain } from "@/lib/mikrotik/remote-access-host";
+import { isWebAccessService } from "@/lib/mikrotik/remote-access-host";
 import TrialBadge from "@/components/billing/TrialBadge";
 
 type RouterRow = {
@@ -370,8 +370,8 @@ function RouterDirectAccess({
                   {forward && (
                     <CopyableAddress
                       value={
-                        relayBaseDomain && router.tunnelIp && isWebAccessService(service)
-                          ? `https://${webAccessSubdomain(router.tunnelIp, service)}.${relayBaseDomain}`
+                        relayBaseDomain && isWebAccessService(service)
+                          ? `https://${relayHost}:${forward.publicPort}`
                           : `${relayHost}:${forward.publicPort}`
                       }
                     />
@@ -459,17 +459,15 @@ function RouterDirectAccess({
         <div className="mt-3 rounded-md border border-line-soft bg-clay/60 p-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {forwards.map((forward) => {
-              // Browser services are served over HTTPS via the relay's Traefik
-              // at a wildcard-cert subdomain (works under HTTPS-First); WinBox/
-              // SSH keep their raw host:port. Fall back to the port form when
-              // the relay isn't TLS-enabled (no base domain).
-              const webHost =
-                relayBaseDomain && router.tunnelIp && isWebAccessService(forward.service)
-                  ? `${webAccessSubdomain(router.tunnelIp, forward.service)}.${relayBaseDomain}`
-                  : null;
-              const address = webHost ? `https://${webHost}` : `${relayHost}:${forward.publicPort}`;
-              const url = webHost
-                ? `https://${webHost}`
+              // Browser services are served over HTTPS on their public port by
+              // the relay's nginx (wildcard *.<base> cert) so they work under
+              // browsers' HTTPS-First mode; WinBox/SSH keep their raw host:port.
+              const isWebHttps = Boolean(relayBaseDomain) && isWebAccessService(forward.service);
+              const address = isWebHttps
+                ? `https://${relayHost}:${forward.publicPort}`
+                : `${relayHost}:${forward.publicPort}`;
+              const url = isWebHttps
+                ? address
                 : serviceUrl(forward.service, address, router.username);
               return (
                 <div key={forward.id} className="min-w-0">
