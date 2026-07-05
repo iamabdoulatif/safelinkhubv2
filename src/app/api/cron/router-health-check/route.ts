@@ -22,15 +22,18 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getDb();
+  // "offline" is included so a router that got marked offline by a transient
+  // failure (some devices' API takes >10s under hotspot load) heals itself on
+  // the next run instead of staying offline until an admin loads a page.
   const candidates = await db
     .select({ id: routers.id, name: routers.name })
     .from(routers)
-    .where(inArray(routers.status, ["online", "installing"]));
+    .where(inArray(routers.status, ["online", "installing", "offline"]));
 
   const results = await Promise.all(
     candidates.map(async (r) => {
       const result = await syncRouterStats(r.id, {
-        timeoutMs: 10000,
+        timeoutMs: 30000,
         markOfflineOnFailure: true,
       });
       return { id: r.id, name: r.name, success: result.success, error: result.error };
