@@ -42,10 +42,19 @@ export async function GET(request: NextRequest) {
     Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, async () => {
       while (cursor < candidates.length) {
         const r = candidates[cursor++];
-        const result = await syncRouterStats(r.id, {
+        // MikroTik's API gets erratically slow under hotspot load (peak-hour
+        // probes rotate randomly between OK and >30s), so one failed probe
+        // says little — only mark offline after a second miss in a row.
+        let result = await syncRouterStats(r.id, {
           timeoutMs: 30000,
-          markOfflineOnFailure: true,
+          markOfflineOnFailure: false,
         });
+        if (!result.success) {
+          result = await syncRouterStats(r.id, {
+            timeoutMs: 30000,
+            markOfflineOnFailure: true,
+          });
+        }
         results.push({ id: r.id, name: r.name, success: result.success, error: result.error });
       }
     }),
