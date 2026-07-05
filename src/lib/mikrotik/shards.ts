@@ -13,14 +13,15 @@
 export const SHARDS = ["s1", "s2", "s3", "s4"] as const;
 export type Shard = (typeof SHARDS)[number];
 
-// Per-shard public TCP DNAT port ranges (30k each → ~120k total vs the old
-// single 1000-port pool). Disjoint so a shard can later become its own
-// physical machine without reallocation.
+// Per-shard public TCP DNAT port ranges (9k each). TCP ports are 16-bit
+// (max 65535) and all shard hostnames currently resolve to the same relay
+// IP, so every range must fit — and stay disjoint — within 30000–65499.
+// If a shard later moves to its own machine it can widen its range there.
 const SHARD_RANGES: Record<Shard, readonly [number, number]> = {
-  s1: [30000, 59999],
-  s2: [60000, 89999],
-  s3: [90000, 119999],
-  s4: [120000, 149999],
+  s1: [30000, 38999],
+  s2: [39000, 47999],
+  s3: [48000, 56999],
+  s4: [57000, 65499],
 };
 
 // Legacy pool used when sharding is disabled — unchanged from the original

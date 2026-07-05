@@ -382,7 +382,7 @@ export async function allocatePortForward(
   shard?: string | null,
 ): Promise<{ publicPort: number }> {
   // Sharded routers draw their public port from their shard's disjoint range
-  // (e.g. s2 → 60000–89999); everything else uses the legacy 30000–30999 pool.
+  // (e.g. s2 → 39000–47999); everything else uses the legacy 30000–30999 pool.
   const [rangeStart, rangeEnd] = portRangeForShard(shard);
   const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${rangeStart} ${rangeEnd} <<'SCRIPT'
 set -euo pipefail

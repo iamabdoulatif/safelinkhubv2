@@ -42,8 +42,8 @@ describe("relay shards", () => {
     assert.deepEqual(portRangeForShard("s3"), LEGACY_PORT_RANGE);
 
     process.env.RELAY_BASE_DOMAIN = "safelinkhub.io";
-    assert.deepEqual(portRangeForShard("s1"), [30000, 59999]);
-    assert.deepEqual(portRangeForShard("s3"), [90000, 119999]);
+    assert.deepEqual(portRangeForShard("s1"), [30000, 38999]);
+    assert.deepEqual(portRangeForShard("s3"), [48000, 56999]);
     // Unknown shard falls back to the legacy pool even when enabled.
     assert.deepEqual(portRangeForShard(null), LEGACY_PORT_RANGE);
   });
