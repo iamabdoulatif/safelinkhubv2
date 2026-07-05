@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { randomBytes, randomUUID } from "crypto";
-import { eq } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
@@ -11,6 +11,17 @@ import { encryptSecret } from "./crypto";
 import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
 import { syncRouterStats, connectToRouter, refreshStaleRouters } from "./router-sync";
 import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
+import { shardForIndex } from "./shards";
+
+/**
+ * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
+ * current router count, so the fleet stays evenly spread across shards. Stored
+ * once at creation and never changed (see shards.ts / the relay-sharding spec).
+ */
+async function nextRelayShard(db: ReturnType<typeof getDb>): Promise<string> {
+  const [row] = await db.select({ n: count() }).from(routers);
+  return shardForIndex(Number(row?.n ?? 0));
+}
 
 export async function connectRouter(_prevState: unknown, formData: FormData) {
   const session = await getSession();
@@ -59,6 +70,7 @@ export async function connectRouter(_prevState: unknown, formData: FormData) {
     passwordEncrypted: encryptSecret(password),
     status: "online",
     lastSyncAt: new Date(),
+    relayShard: await nextRelayShard(db),
   });
 
   revalidatePath("/admin/router");
@@ -140,6 +152,7 @@ export async function generateInstallScript(
       connectionMethod: "vpn",
       installTokenHash: hashToken(installToken),
       installTokenExpiresAt: new Date(Date.now() + INSTALL_TOKEN_TTL_MS),
+      relayShard: await nextRelayShard(db),
     })
     .returning();
 
@@ -394,6 +407,7 @@ export async function generateOpenvpnInstallScript(
       connectionMethod: "openvpn",
       installTokenHash: hashToken(installToken),
       installTokenExpiresAt: new Date(Date.now() + INSTALL_TOKEN_TTL_MS),
+      relayShard: await nextRelayShard(db),
     })
     .returning();
 

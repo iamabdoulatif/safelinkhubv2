@@ -1,4 +1,5 @@
 import { Client } from "ssh2";
+import { shardingEnabled, isShard, portRangeForShard } from "./shards";
 
 export function normalizeRelayPublicHost(value: string | undefined | null): string {
   if (!value) return "";
@@ -8,7 +9,17 @@ export function normalizeRelayPublicHost(value: string | undefined | null): stri
   return withoutProtocol.split("/")[0].split(":")[0];
 }
 
-export function getRelayPublicHost(): string {
+/**
+ * Public hostname used to build direct-access URLs (`host:port`) and new
+ * WireGuard endpoints. With sharding enabled (RELAY_BASE_DOMAIN set) and a
+ * router's shard passed in, returns `<shard>.<RELAY_BASE_DOMAIN>` (e.g.
+ * s2.safelinkhub.io); otherwise falls back to the single legacy relay host.
+ * See lib/mikrotik/shards.ts for the gating.
+ */
+export function getRelayPublicHost(shard?: string | null): string {
+  if (shardingEnabled() && isShard(shard)) {
+    return `${shard}.${process.env.RELAY_BASE_DOMAIN}`;
+  }
   return normalizeRelayPublicHost(process.env.WG_RELAY_PUBLIC_HOST || process.env.WG_RELAY_HOST);
 }
 
@@ -368,15 +379,21 @@ export async function openRouterTunnelWithRetry(
 export async function allocatePortForward(
   tunnelIp: string,
   targetPort: number,
+  shard?: string | null,
 ): Promise<{ publicPort: number }> {
-  const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} <<'SCRIPT'
+  // Sharded routers draw their public port from their shard's disjoint range
+  // (e.g. s2 → 60000–89999); everything else uses the legacy 30000–30999 pool.
+  const [rangeStart, rangeEnd] = portRangeForShard(shard);
+  const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${rangeStart} ${rangeEnd} <<'SCRIPT'
 set -euo pipefail
 TUNNEL_IP="$1"
 TARGET_PORT="$2"
+RANGE_START="$3"
+RANGE_END="$4"
 
 USED=$(iptables -t nat -L PREROUTING -n | grep -oP 'dpt:\\K[0-9]+' || true)
 PORT=""
-for candidate in $(seq 30000 30999); do
+for candidate in $(seq "$RANGE_START" "$RANGE_END"); do
   if ! grep -qx "$candidate" <<< "$USED"; then
     PORT="$candidate"
     break

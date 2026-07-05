@@ -99,6 +99,11 @@ export const routers = pgTable("routers", {
   connectionMethod: text("connection_method").notNull().default("direct"),
   tunnelIp: text("tunnel_ip"),
   wgPeerPublicKey: text("wg_peer_public_key"),
+  // Relay shard ("s1".."s4") this router's direct-access URLs + port pool are
+  // bound to — assigned round-robin once at creation, immutable after. Only
+  // takes visible effect once sharding is enabled (RELAY_BASE_DOMAIN set,
+  // Phase 3 cutover). See lib/mikrotik/shards.ts + the relay-sharding spec.
+  relayShard: text("relay_shard"),
   // "Bypass IPv6": when true, the router routes its hotspot clients' Internet
   // traffic into the existing SafeLinkHub WireGuard tunnel so it exits via the
   // VPS-relay's public IPv4 (exit-node / full-tunnel mode for FAI IPv6/CGNAT/

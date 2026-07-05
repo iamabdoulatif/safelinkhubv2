@@ -15,6 +15,9 @@ type RouterRow = {
   connectionMethod: string;
   tunnelIp: string | null;
   username: string | null;
+  // Per-router relay host (shard-aware, computed server-side). Falls back to
+  // the section-wide relayHost when absent (legacy / sharding disabled).
+  relayHost?: string;
 };
 
 export type ForwardRow = {
@@ -612,7 +615,7 @@ export default function DirectAccessSection({
             key={r.id}
             router={r}
             forwards={forwardsByRouter[r.id] ?? []}
-            relayHost={relayHost}
+            relayHost={r.relayHost ?? relayHost}
             unlimited={Boolean(vpnTrial?.unlimited)}
           />
         ))}

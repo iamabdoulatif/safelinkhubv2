@@ -159,6 +159,7 @@ export default async function RemoteAccessPage() {
                 connectionMethod: r.connectionMethod,
                 tunnelIp: r.tunnelIp,
                 username: r.username,
+                relayHost: getRelayPublicHost(r.relayShard),
               }))}
               forwardsByRouter={forwardsByRouter}
               relayHost={getRelayPublicHost()}

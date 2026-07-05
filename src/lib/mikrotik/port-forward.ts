@@ -104,7 +104,7 @@ async function enablePortForwardForRouter(
     return {
       success: true,
       publicPort: existing[0].publicPort,
-      relayHost: getRelayPublicHost(),
+      relayHost: getRelayPublicHost(router.relayShard),
       created: false as const,
     };
   }
@@ -127,7 +127,7 @@ async function enablePortForwardForRouter(
 
   let publicPort: number;
   try {
-    const result = await allocatePortForward(router.tunnelIp, targetPort);
+    const result = await allocatePortForward(router.tunnelIp, targetPort, router.relayShard);
     publicPort = result.publicPort;
   } catch (err) {
     return {
@@ -167,7 +167,7 @@ async function enablePortForwardForRouter(
   return {
     success: true,
     publicPort,
-    relayHost: getRelayPublicHost(),
+    relayHost: getRelayPublicHost(router.relayShard),
     created: true as const,
     forwardId: forward.id,
   };

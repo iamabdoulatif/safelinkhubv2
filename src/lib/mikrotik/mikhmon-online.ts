@@ -94,7 +94,7 @@ export async function getMikhmonLink(routerId: string) {
       )
       .limit(1);
     const tunnelLink = mikhmonForward
-      ? `http://${getRelayPublicHost()}:${mikhmonForward.publicPort}`
+      ? `http://${getRelayPublicHost(router.relayShard)}:${mikhmonForward.publicPort}`
       : null;
 
     if (!ddnsName) {
