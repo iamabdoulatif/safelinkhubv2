@@ -1,0 +1,75 @@
+name: Build & deploy (self-hosted VPS)
+
+# Builds the Docker image in GitHub's runners (the 1 vCPU / 4 GB VPS can't build
+# Next.js reliably), pushes it to GHCR, then SSHes into the Hostinger VPS to
+# pull + restart the container. Runs on pushes to main and can be triggered by
+# hand. Vercel keeps working in parallel until you decommission it.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    # Opt-in: set repo variable DEPLOY_ENABLED=true once the VPS + secrets are
+    # ready, so merging to main before then builds the image without a failing
+    # deploy step.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    # Requires repo secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY (private key with
+    # access to the VPS), and the VPS having ~/safelinkhub/docker-compose.yml
+    # + .env in place (see deploy/README.md).
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd ~/safelinkhub
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            export APP_IMAGE=ghcr.io/${{ github.repository }}:${{ github.sha }}
+            docker compose pull
+            docker compose up -d
+            docker image prune -f

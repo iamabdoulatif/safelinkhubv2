@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Minimal, self-contained server bundle (.next/standalone/server.js) for the
+  // Docker image used to self-host on the Hostinger VPS. Ignored by Vercel,
+  // which uses its own build pipeline — safe to keep enabled everywhere.
+  output: "standalone",
   serverExternalPackages: ["ssh2"],
   experimental: {
     serverActions: {
