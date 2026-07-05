@@ -22,10 +22,15 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# NOTE: if any page/route hits the DB at build time (e.g. static blog params),
-# pass the needed vars as build args in the CI workflow. The admin app is
-# almost entirely dynamic, so a plain build should not need DATABASE_URL.
-RUN npm run build
+# Public DB-backed pages (e.g. /blog) are statically rendered at build, exactly
+# like on Vercel, so the build needs DATABASE_URL. Passed as BuildKit secrets
+# (mounted only for this step, never persisted in an image layer). The Server
+# Actions encryption key is pinned at build so action IDs stay stable across
+# rebuilds — same value must be provided at runtime (see deploy/.env).
+RUN --mount=type=secret,id=dburl --mount=type=secret,id=sakey \
+    DATABASE_URL="$(cat /run/secrets/dburl)" \
+    NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(cat /run/secrets/sakey)" \
+    npm run build
 
 # --- runner: minimal runtime --------------------------------------------
 FROM node:22-bookworm-slim AS runner
