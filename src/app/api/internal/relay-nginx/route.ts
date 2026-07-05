@@ -41,7 +41,6 @@ export async function GET(request: NextRequest) {
     blocks.push(
       `server {\n` +
         `  listen ${r.publicPort} ssl;\n` +
-        `  http2 on;\n` +
         `  server_name ${getRelayPublicHost(r.shard)};\n` +
         `  ssl_certificate     /etc/nginx/certs/wildcard.crt;\n` +
         `  ssl_certificate_key /etc/nginx/certs/wildcard.key;\n` +
