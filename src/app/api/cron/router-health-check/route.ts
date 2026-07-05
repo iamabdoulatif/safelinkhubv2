@@ -5,7 +5,7 @@ import { routers } from "@/lib/db/schema";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
 import { syncMndpAnnouncementsForAllOrgs } from "@/lib/mikrotik/mndp-relay";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * Runs on a Vercel Cron schedule (see vercel.json) to catch routers whose
@@ -30,13 +30,24 @@ export async function GET(request: NextRequest) {
     .from(routers)
     .where(inArray(routers.status, ["online", "installing", "offline"]));
 
-  const results = await Promise.all(
-    candidates.map(async (r) => {
-      const result = await syncRouterStats(r.id, {
-        timeoutMs: 30000,
-        markOfflineOnFailure: true,
-      });
-      return { id: r.id, name: r.name, success: result.success, error: result.error };
+  // Probes go through a single relay host (one SSH connection each), so an
+  // unbounded Promise.all stampedes it — 12 concurrent SSH handshakes on the
+  // 1-vCPU relay starve each other into spurious "Read timed out" failures
+  // that mark healthy routers offline. A small worker pool keeps the relay
+  // load flat; 4 × 30s worst-case waves stay well under maxDuration.
+  const CONCURRENCY = 4;
+  const results: Array<{ id: string; name: string; success: boolean; error?: string }> = [];
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, async () => {
+      while (cursor < candidates.length) {
+        const r = candidates[cursor++];
+        const result = await syncRouterStats(r.id, {
+          timeoutMs: 30000,
+          markOfflineOnFailure: true,
+        });
+        results.push({ id: r.id, name: r.name, success: result.success, error: result.error });
+      }
     }),
   );
 
