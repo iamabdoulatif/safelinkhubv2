@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Syne, Instrument_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import AnalyticsScripts from "@/components/analytics/AnalyticsScripts";
+import { getMarketingSettings } from "@/lib/marketing/queries";
 
 const syne = Syne({
   variable: "--font-syne",
@@ -24,17 +26,20 @@ export const metadata: Metadata = {
     "SafeLinkHub is the most advanced Hotspot and ISP Automation Platform, built to manage, automate, and grow any network.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const marketing = await getMarketingSettings();
+
   return (
     <html
       lang="fr"
       className={`${syne.variable} ${instrumentSans.variable} ${geistMono.variable} h-full antialiased overflow-x-hidden`}
     >
       <body className="min-h-full flex flex-col bg-paper text-ink">
+        <AnalyticsScripts settings={marketing} />
         {children}
       </body>
     </html>

@@ -3,7 +3,9 @@ import Link from "next/link";
 import Image from "next/image";
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
+import BlogAd from "@/components/analytics/BlogAd";
 import { listPublishedPosts } from "@/lib/blog/queries";
+import { getMarketingSettings } from "@/lib/marketing/queries";
 
 export const metadata: Metadata = {
   title: "Blog | SafeLinkHub",
@@ -21,6 +23,10 @@ function formatDate(date: Date) {
 
 export default async function BlogPage() {
   const posts = await listPublishedPosts();
+  const marketing = await getMarketingSettings();
+  const showAd = Boolean(
+    marketing.adsenseEnabled && marketing.adsenseClientId && marketing.adsenseSlotId,
+  );
 
   return (
     <div className="flex flex-1 flex-col">
@@ -83,6 +89,15 @@ export default async function BlogPage() {
                 </li>
               ))}
             </ul>
+          )}
+
+          {showAd && (
+            <div className="mt-12 border-t-2 border-line pt-6">
+              <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-ink-soft">
+                Publicité
+              </p>
+              <BlogAd client={marketing.adsenseClientId!} slot={marketing.adsenseSlotId!} />
+            </div>
           )}
         </section>
       </main>

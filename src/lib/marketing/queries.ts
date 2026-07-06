@@ -1,0 +1,59 @@
+// Lecture des réglages marketing (pixels & analytics) — hors "use server"
+// pour être importable par les server components (dont le root layout).
+//
+// Le résultat est mis en cache (tag "marketing-settings") pour que l'injection
+// des tags dans le <head> ne force PAS le rendu dynamique de tout le site :
+// la landing et le blog restent statiques / cachés au bord (Cloudflare). La
+// sauvegarde côté superadmin invalide ce cache via revalidateTag.
+
+import { unstable_cache } from "next/cache";
+import { getDb } from "@/lib/db";
+import { marketingSettings } from "@/lib/db/schema";
+
+export const MARKETING_SETTINGS_TAG = "marketing-settings";
+
+export type MarketingSettings = {
+  metaPixelId: string | null;
+  ga4MeasurementId: string | null;
+  gtmId: string | null;
+  tiktokPixelId: string | null;
+  adsenseClientId: string | null;
+  adsenseSlotId: string | null;
+  adsenseEnabled: boolean;
+};
+
+const EMPTY: MarketingSettings = {
+  metaPixelId: null,
+  ga4MeasurementId: null,
+  gtmId: null,
+  tiktokPixelId: null,
+  adsenseClientId: null,
+  adsenseSlotId: null,
+  adsenseEnabled: false,
+};
+
+/** Lecture directe (non cachée) — utilisée par la page d'admin qui doit voir
+ * la valeur fraîche juste après sauvegarde. Renvoie des scalaires purs. */
+export async function readMarketingSettings(): Promise<MarketingSettings> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      metaPixelId: marketingSettings.metaPixelId,
+      ga4MeasurementId: marketingSettings.ga4MeasurementId,
+      gtmId: marketingSettings.gtmId,
+      tiktokPixelId: marketingSettings.tiktokPixelId,
+      adsenseClientId: marketingSettings.adsenseClientId,
+      adsenseSlotId: marketingSettings.adsenseSlotId,
+      adsenseEnabled: marketingSettings.adsenseEnabled,
+    })
+    .from(marketingSettings)
+    .limit(1);
+  return row ?? EMPTY;
+}
+
+/** Version cachée pour le rendu du site public (root layout, blog). */
+export const getMarketingSettings = unstable_cache(
+  readMarketingSettings,
+  ["marketing-settings"],
+  { tags: [MARKETING_SETTINGS_TAG] },
+);

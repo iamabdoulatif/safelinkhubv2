@@ -23,6 +23,7 @@ import {
   Mail,
   ShieldCheck,
   ShoppingBag,
+  Megaphone,
   ArrowUpRight,
   Menu,
   X,
@@ -61,6 +62,7 @@ const accountLinks = [
 // chaque page/action vérifie elle-même isSuperAdmin côté serveur.
 const superadminLinks = [
   { href: "/admin/blog", label: "Blog", icon: Newspaper },
+  { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
   { href: "/admin/contact", label: "Messages de contact", icon: Mail },
   { href: "/admin/authorizations", label: "Autorisations", icon: ShieldCheck },
 ];

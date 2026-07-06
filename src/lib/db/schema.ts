@@ -475,6 +475,26 @@ export const remoteAccessAuthorizations = pgTable("remote_access_authorizations"
 // technologique (routeurs, antennes, accessoires…) aux opérateurs. Le
 // superadmin gère le catalogue (CRUD + image) ; les admins parcourent et
 // commandent via WhatsApp (pas de paiement intégré pour l'instant).
+// Réglages marketing globaux de la plateforme (pixels & analytics), gérés
+// exclusivement par le superadmin — d'où l'absence d'orgId, comme le blog :
+// ces tags concernent le site public (landing + blog + boutique), pas une
+// organisation cliente. Une seule ligne en pratique (singleton). Les valeurs
+// sont injectées dans le <head> du site via components/analytics.
+export const marketingSettings = pgTable("marketing_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  metaPixelId: text("meta_pixel_id"),
+  ga4MeasurementId: text("ga4_measurement_id"),
+  gtmId: text("gtm_id"),
+  tiktokPixelId: text("tiktok_pixel_id"),
+  // AdSense : client "ca-pub-…" + éventuel slot d'unité manuelle pour le blog.
+  adsenseClientId: text("adsense_client_id"),
+  adsenseSlotId: text("adsense_slot_id"),
+  // Interrupteur d'affichage des pubs sur le blog (le script reste chargé si
+  // le client est renseigné, mais aucune unité n'est rendue si désactivé).
+  adsenseEnabled: boolean("adsense_enabled").notNull().default(false),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Catégories de la boutique — gérées par le superadmin (ajout / renommage /
 // suppression). Référencées par leur libellé texte depuis products.category
 // (pas de clé étrangère : supprimer une catégorie ne casse pas les produits,

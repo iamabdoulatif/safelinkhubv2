@@ -4,7 +4,9 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
+import BlogAd from "@/components/analytics/BlogAd";
 import { getPublishedPost } from "@/lib/blog/queries";
+import { getMarketingSettings } from "@/lib/marketing/queries";
 
 export async function generateMetadata({
   params,
@@ -57,6 +59,11 @@ export default async function BlogPostPage({
   const post = await getPublishedPost(slug);
   if (!post) notFound();
 
+  const marketing = await getMarketingSettings();
+  const showAd = Boolean(
+    marketing.adsenseEnabled && marketing.adsenseClientId && marketing.adsenseSlotId,
+  );
+
   return (
     <div className="flex flex-1 flex-col">
       <LandingNav anchorPrefix="/" />
@@ -92,6 +99,14 @@ export default async function BlogPostPage({
           <div className="mt-6">
             <ContentBlocks content={post.content} />
           </div>
+          {showAd && (
+            <div className="mt-10 border-t-2 border-line pt-6">
+              <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-ink-soft">
+                Publicité
+              </p>
+              <BlogAd client={marketing.adsenseClientId!} slot={marketing.adsenseSlotId!} />
+            </div>
+          )}
         </article>
       </main>
       <LandingFooter anchorPrefix="/" />
