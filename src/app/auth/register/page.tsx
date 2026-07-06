@@ -1,8 +1,14 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
+import { getSession } from "@/lib/auth/session";
 import RegisterForm from "./RegisterForm";
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  // Un utilisateur déjà connecté n'a rien à faire sur l'inscription.
+  const session = await getSession();
+  if (session) redirect("/admin");
+
   return (
     <AuthShell
       eyebrow="Création gratuite"

@@ -5,9 +5,18 @@ export { formatFcfa, buildWhatsappLink } from "@/lib/billing/auto-setup-gate-con
 
 export const PRODUCT_CATEGORIES = [
   "Routeurs",
+  "Point-to-Point",
   "Antennes",
   "Switchs",
+  "Outils réseau",
+  "Outils PC",
+  "Mac / macOS",
+  "Apple Watch",
+  "Périphériques",
+  "Power banks & Énergie",
   "Onduleurs",
+  "Caméras IP",
+  "Appareils photo",
   "Accessoires",
   "Câbles",
 ] as const;
@@ -43,6 +52,28 @@ export function buildProductOrderMessage(opts: {
     `Produit : ${opts.productName}`,
     `Prix : ${opts.priceFcfa.toLocaleString("fr-FR")} FCFA`,
     ...(opts.color ? [`Couleur : ${opts.color}`] : []),
+    ...(buyer ? [`Client : ${buyer}`] : []),
+  ].join("\n");
+}
+
+/** Message WhatsApp pour commander un panier complet. */
+export function buildCartOrderMessage(opts: {
+  items: { name: string; priceFcfa: number; color: string | null; quantity: number }[];
+  totalFcfa: number;
+  buyerName?: string;
+  buyerEmail?: string;
+}): string {
+  const buyer = [opts.buyerName, opts.buyerEmail].filter(Boolean).join(" ");
+  const lines = opts.items.map(
+    (i, n) =>
+      `${n + 1}. ${i.name}${i.color ? ` (${i.color})` : ""} × ${i.quantity} — ${(
+        i.priceFcfa * i.quantity
+      ).toLocaleString("fr-FR")} FCFA`,
+  );
+  return [
+    "*Commande boutique — SafeLinkHub*",
+    ...lines,
+    `Total : ${opts.totalFcfa.toLocaleString("fr-FR")} FCFA`,
     ...(buyer ? [`Client : ${buyer}`] : []),
   ].join("\n");
 }

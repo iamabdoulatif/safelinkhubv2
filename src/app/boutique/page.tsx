@@ -9,7 +9,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { listActiveProducts } from "@/lib/shop/service";
 import { getManualPaymentContact } from "@/lib/billing/manual-payment";
-import ShopCatalog from "@/app/admin/shop/ShopCatalog";
+import ShopExperience from "@/app/admin/shop/ShopExperience";
 
 export const metadata: Metadata = {
   title: "Boutique | SafeLinkHub",
@@ -49,7 +49,7 @@ export default async function BoutiquePage() {
             )}
           </div>
 
-          <ShopCatalog
+          <ShopExperience
             products={products}
             whatsappNumber={contact.whatsappNumber}
             buyerName={session?.name ?? ""}

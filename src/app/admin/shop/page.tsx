@@ -7,7 +7,7 @@ import { Settings } from "lucide-react";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { listActiveProducts } from "@/lib/shop/service";
 import { getManualPaymentContact } from "@/lib/billing/manual-payment";
-import ShopCatalog from "./ShopCatalog";
+import ShopExperience from "./ShopExperience";
 
 export default async function ShopPage() {
   const session = await getSession();
@@ -39,7 +39,7 @@ export default async function ShopPage() {
         )}
       </div>
 
-      <ShopCatalog
+      <ShopExperience
         products={products}
         whatsappNumber={contact.whatsappNumber}
         buyerName={session.name}

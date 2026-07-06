@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
+import { getSession } from "@/lib/auth/session";
 import LoginForm from "./LoginForm";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Déjà connecté → droit au tableau de bord.
+  const session = await getSession();
+  if (session) redirect("/admin");
+
   return (
     <AuthShell
       eyebrow="Espace sécurisé"
