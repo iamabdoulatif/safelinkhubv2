@@ -475,6 +475,18 @@ export const remoteAccessAuthorizations = pgTable("remote_access_authorizations"
 // technologique (routeurs, antennes, accessoires…) aux opérateurs. Le
 // superadmin gère le catalogue (CRUD + image) ; les admins parcourent et
 // commandent via WhatsApp (pas de paiement intégré pour l'instant).
+// Catégories de la boutique — gérées par le superadmin (ajout / renommage /
+// suppression). Référencées par leur libellé texte depuis products.category
+// (pas de clé étrangère : supprimer une catégorie ne casse pas les produits,
+// on remet simplement leur category à null — voir deleteCategory dans
+// lib/shop/actions.ts). `position` ordonne la sidebar du catalogue.
+export const productCategories = pgTable("product_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const products = pgTable("products", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),

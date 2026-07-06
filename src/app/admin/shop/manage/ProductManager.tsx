@@ -5,19 +5,27 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, Loader2, ShoppingBag, X } from "lucide-react";
-import type { ProductRow } from "@/lib/shop/service";
-import { createProduct, updateProduct, deleteProduct } from "@/lib/shop/actions";
+import { Plus, Pencil, Trash2, Loader2, ShoppingBag, X, Tag, Check } from "lucide-react";
+import type { ProductRow, CategoryRow } from "@/lib/shop/service";
 import {
-  PRODUCT_CATEGORIES,
-  COLOR_PALETTE,
-  colorHex,
-  formatFcfa,
-} from "@/lib/shop/shop-config";
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  createCategory,
+  renameCategory,
+  deleteCategory,
+} from "@/lib/shop/actions";
+import { COLOR_PALETTE, colorHex, formatFcfa } from "@/lib/shop/shop-config";
 
 const INPUT_CLS = "w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:outline-none";
 
-export default function ProductManager({ products }: { products: ProductRow[] }) {
+export default function ProductManager({
+  products,
+  categories,
+}: {
+  products: ProductRow[];
+  categories: CategoryRow[];
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<ProductRow | null>(null);
   const [creating, setCreating] = useState(false);
@@ -36,9 +44,11 @@ export default function ProductManager({ products }: { products: ProductRow[] })
 
   return (
     <div className="mt-6">
+      <CategoryManager categories={categories} />
+
       <button
         onClick={() => setCreating(true)}
-        className="inline-flex items-center gap-1.5 rounded-md bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        className="mt-8 inline-flex items-center gap-1.5 rounded-md bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:opacity-90"
       >
         <Plus className="h-4 w-4" /> Ajouter un produit
       </button>
@@ -105,6 +115,7 @@ export default function ProductManager({ products }: { products: ProductRow[] })
       {(creating || editing) && (
         <ProductFormModal
           product={editing}
+          categories={categories}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -122,10 +133,12 @@ export default function ProductManager({ products }: { products: ProductRow[] })
 
 function ProductFormModal({
   product,
+  categories,
   onClose,
   onSaved,
 }: {
   product: ProductRow | null;
+  categories: CategoryRow[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -217,9 +230,9 @@ function ProductFormModal({
             <Field label="Catégorie">
               <select name="category" defaultValue={product?.category ?? ""} className={INPUT_CLS}>
                 <option value="">—</option>
-                {PRODUCT_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {categories.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
                   </option>
                 ))}
               </select>
@@ -300,5 +313,156 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-xs font-medium text-ink-soft">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
+  );
+}
+
+// Gestion des catégories (superadmin) : ajout, renommage inline, suppression.
+function CategoryManager({ categories }: { categories: CategoryRow[] }) {
+  const router = useRouter();
+  const [newName, setNewName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function handleAdd(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const name = newName.trim();
+    if (!name) return;
+    startTransition(async () => {
+      const res = await createCategory(name);
+      if ("error" in res) {
+        setError(res.error);
+        return;
+      }
+      setNewName("");
+      router.refresh();
+    });
+  }
+
+  function saveRename(id: string) {
+    const name = editName.trim();
+    if (!name) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await renameCategory(id, name);
+      if ("error" in res) {
+        setError(res.error);
+        return;
+      }
+      setEditingId(null);
+      router.refresh();
+    });
+  }
+
+  function handleDelete(id: string, name: string) {
+    if (
+      !confirm(
+        `Supprimer la catégorie « ${name} » ? Les produits associés repasseront à "sans catégorie".`,
+      )
+    )
+      return;
+    setError(null);
+    startTransition(async () => {
+      await deleteCategory(id);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-line-soft bg-paper p-4">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <Tag className="h-4 w-4" /> Catégories
+      </h2>
+      <p className="mt-0.5 text-xs text-ink-soft">
+        Elles apparaissent dans la sidebar du catalogue et dans le formulaire produit.
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {categories.length === 0 && (
+          <span className="text-xs text-ink-soft">Aucune catégorie pour l&apos;instant.</span>
+        )}
+        {categories.map((c) =>
+          editingId === c.id ? (
+            <div
+              key={c.id}
+              className="inline-flex items-center gap-1 rounded-full border border-brand-deep bg-brand/5 py-0.5 pl-2.5 pr-1"
+            >
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveRename(c.id);
+                  if (e.key === "Escape") setEditingId(null);
+                }}
+                autoFocus
+                className="w-28 bg-transparent text-xs text-ink focus:outline-none"
+              />
+              <button
+                onClick={() => saveRename(c.id)}
+                disabled={pending}
+                className="rounded-full p-1 text-green-600 hover:bg-green-50"
+                title="Enregistrer"
+              >
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setEditingId(null)}
+                className="rounded-full p-1 text-ink-soft hover:bg-clay"
+                title="Annuler"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div
+              key={c.id}
+              className="group inline-flex items-center gap-1 rounded-full border border-line-soft bg-paper py-1 pl-3 pr-1.5 text-xs text-ink"
+            >
+              {c.name}
+              <button
+                onClick={() => {
+                  setEditingId(c.id);
+                  setEditName(c.name);
+                  setError(null);
+                }}
+                className="rounded-full p-1 text-ink-soft hover:bg-clay hover:text-ink"
+                title="Renommer"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => handleDelete(c.id, c.name)}
+                disabled={pending}
+                className="rounded-full p-1 text-ink-soft hover:bg-red-50 hover:text-red-600"
+                title="Supprimer"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ),
+        )}
+      </div>
+
+      <form onSubmit={handleAdd} className="mt-3 flex gap-2">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="Nouvelle catégorie"
+          className="flex-1 rounded-md border border-line-soft px-3 py-1.5 text-sm focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={pending || !newName.trim()}
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+        >
+          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          Ajouter
+        </button>
+      </form>
+
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+    </div>
   );
 }

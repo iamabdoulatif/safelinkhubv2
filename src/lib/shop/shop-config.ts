@@ -3,23 +3,9 @@
 
 export { formatFcfa, buildWhatsappLink } from "@/lib/billing/auto-setup-gate-config";
 
-export const PRODUCT_CATEGORIES = [
-  "Routeurs",
-  "Point-to-Point",
-  "Antennes",
-  "Switchs",
-  "Outils réseau",
-  "Outils PC",
-  "Mac / macOS",
-  "Apple Watch",
-  "Périphériques",
-  "Power banks & Énergie",
-  "Onduleurs",
-  "Caméras IP",
-  "Appareils photo",
-  "Accessoires",
-  "Câbles",
-] as const;
+// Les catégories de la boutique sont désormais gérées en base
+// (table product_categories) et éditables par le superadmin — voir
+// lib/shop/service.ts (listCategories) et lib/shop/actions.ts.
 
 // Palette proposée pour les couleurs d'un produit (le superadmin coche celles
 // disponibles ; l'acheteur en choisit une à la commande).

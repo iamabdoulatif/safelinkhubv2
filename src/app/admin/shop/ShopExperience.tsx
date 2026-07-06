@@ -26,6 +26,7 @@ import {
 
 export default function ShopExperience(props: {
   products: ProductRow[];
+  categories?: string[];
   whatsappNumber: string;
   buyerName: string;
   buyerEmail: string;
@@ -39,11 +40,13 @@ export default function ShopExperience(props: {
 
 function ShopInner({
   products,
+  categories: definedCategories = [],
   whatsappNumber,
   buyerName,
   buyerEmail,
 }: {
   products: ProductRow[];
+  categories?: string[];
   whatsappNumber: string;
   buyerName: string;
   buyerEmail: string;
@@ -52,37 +55,67 @@ function ShopInner({
   const [category, setCategory] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Sidebar = catégories définies (superadmin), suivies de toute catégorie
+  // présente sur un produit mais non listée (données héritées), pour ne jamais
+  // rendre un produit inaccessible au filtre.
   const categories = useMemo(() => {
-    const set = new Set<string>();
-    products.forEach((p) => p.category && set.add(p.category));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"));
-  }, [products]);
+    const ordered = [...definedCategories];
+    const seen = new Set(ordered);
+    products.forEach((p) => {
+      if (p.category && !seen.has(p.category)) {
+        seen.add(p.category);
+        ordered.push(p.category);
+      }
+    });
+    return ordered;
+  }, [definedCategories, products]);
 
+  const countFor = (c: string) => products.filter((p) => p.category === c).length;
   const filtered = category ? products.filter((p) => p.category === category) : products;
 
   return (
-    <div className="mt-6">
-      {/* Filtres catégorie */}
+    <div className="mt-6 lg:grid lg:grid-cols-[220px_1fr] lg:gap-8">
+      {/* Sidebar catégories */}
       {categories.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <Chip active={category === null} onClick={() => setCategory(null)} label="Tout" />
-          {categories.map((c) => (
-            <Chip key={c} active={category === c} onClick={() => setCategory(c)} label={c} />
-          ))}
-        </div>
+        <aside className="lg:sticky lg:top-6 lg:self-start">
+          <h2 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-ink-soft lg:block">
+            Catégories
+          </h2>
+          {/* Desktop : liste verticale ; mobile : chips scrollables */}
+          <nav className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0">
+            <SidebarItem
+              active={category === null}
+              onClick={() => setCategory(null)}
+              label="Tout"
+              count={products.length}
+            />
+            {categories.map((c) => (
+              <SidebarItem
+                key={c}
+                active={category === c}
+                onClick={() => setCategory(c)}
+                label={c}
+                count={countFor(c)}
+              />
+            ))}
+          </nav>
+        </aside>
       )}
 
-      {filtered.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-line-soft bg-paper p-10 text-center text-sm text-ink-soft">
-          Aucun produit dans cette catégorie.
-        </div>
-      ) : (
-        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} onAdd={cart.add} />
-          ))}
-        </div>
-      )}
+      {/* Catalogue */}
+      <div className={categories.length > 0 ? "mt-6 lg:mt-0" : ""}>
+        {filtered.length === 0 ? (
+          <div className="rounded-2xl border border-line-soft bg-paper p-10 text-center text-sm text-ink-soft">
+            Aucun produit dans cette catégorie.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((p) => (
+              <ProductCard key={p.id} product={p} onAdd={cart.add} />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Bouton panier flottant */}
       <button
@@ -109,25 +142,34 @@ function ShopInner({
   );
 }
 
-function Chip({
+function SidebarItem({
   active,
   onClick,
   label,
+  count,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
+  count: number;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+      className={`inline-flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm font-medium transition lg:w-full lg:rounded-lg lg:border-transparent lg:px-3 lg:py-2 lg:text-left ${
         active
-          ? "border-brand-deep bg-brand-deep text-white"
-          : "border-line-soft bg-paper text-ink-soft hover:border-brand-deep hover:text-ink"
+          ? "border-brand-deep bg-brand-deep text-white lg:border-transparent lg:bg-brand/10 lg:text-brand-deep"
+          : "border-line-soft bg-paper text-ink-soft hover:border-brand-deep hover:text-ink lg:bg-transparent lg:hover:bg-clay/60"
       }`}
     >
-      {label}
+      <span className="truncate">{label}</span>
+      <span
+        className={`shrink-0 text-xs tabular-nums ${
+          active ? "text-white/80 lg:text-brand-deep/70" : "text-ink-soft/70"
+        }`}
+      >
+        {count}
+      </span>
     </button>
   );
 }

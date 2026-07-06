@@ -7,7 +7,7 @@ import { Settings } from "lucide-react";
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { listActiveProducts } from "@/lib/shop/service";
+import { listActiveProducts, listCategories } from "@/lib/shop/service";
 import { getManualPaymentContact } from "@/lib/billing/manual-payment";
 import ShopExperience from "@/app/admin/shop/ShopExperience";
 
@@ -18,7 +18,11 @@ export const metadata: Metadata = {
 };
 
 export default async function BoutiquePage() {
-  const [session, products] = await Promise.all([getSession(), listActiveProducts()]);
+  const [session, products, categories] = await Promise.all([
+    getSession(),
+    listActiveProducts(),
+    listCategories(),
+  ]);
   const contact = getManualPaymentContact();
   const superadmin = isSuperAdmin(session?.role);
 
@@ -51,6 +55,7 @@ export default async function BoutiquePage() {
 
           <ShopExperience
             products={products}
+            categories={categories.map((c) => c.name)}
             whatsappNumber={contact.whatsappNumber}
             buyerName={session?.name ?? ""}
             buyerEmail={session?.email ?? ""}

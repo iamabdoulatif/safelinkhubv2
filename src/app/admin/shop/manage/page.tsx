@@ -4,14 +4,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { listAllProducts } from "@/lib/shop/service";
+import { listAllProducts, listCategories } from "@/lib/shop/service";
 import ProductManager from "./ProductManager";
 
 export default async function ShopManagePage() {
   const session = await getSession();
   if (!isSuperAdmin(session?.role)) redirect("/admin");
 
-  const products = await listAllProducts();
+  const [products, categories] = await Promise.all([listAllProducts(), listCategories()]);
 
   return (
     <div className="animate-fade-in-up">
@@ -26,7 +26,7 @@ export default async function ShopManagePage() {
         Ajoutez, modifiez ou masquez les produits de la boutique.
       </p>
 
-      <ProductManager products={products} />
+      <ProductManager products={products} categories={categories} />
     </div>
   );
 }

@@ -1,10 +1,20 @@
 // Lecture de la boutique — module "plain", importé par les server components.
 
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { products } from "@/lib/db/schema";
+import { products, productCategories } from "@/lib/db/schema";
 
 export type ProductRow = typeof products.$inferSelect;
+export type CategoryRow = typeof productCategories.$inferSelect;
+
+/** Catégories de la boutique, ordonnées pour la sidebar du catalogue. */
+export async function listCategories(): Promise<CategoryRow[]> {
+  const db = getDb();
+  return db
+    .select()
+    .from(productCategories)
+    .orderBy(asc(productCategories.position), asc(productCategories.name));
+}
 
 /** Produits visibles au catalogue (actifs), récents d'abord. */
 export async function listActiveProducts(): Promise<ProductRow[]> {

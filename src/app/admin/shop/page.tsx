@@ -5,7 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Settings } from "lucide-react";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { listActiveProducts } from "@/lib/shop/service";
+import { listActiveProducts, listCategories } from "@/lib/shop/service";
 import { getManualPaymentContact } from "@/lib/billing/manual-payment";
 import ShopExperience from "./ShopExperience";
 
@@ -13,8 +13,9 @@ export default async function ShopPage() {
   const session = await getSession();
   if (!session) redirect("/auth/login");
 
-  const [products, contact] = await Promise.all([
+  const [products, categories, contact] = await Promise.all([
     listActiveProducts(),
+    listCategories(),
     Promise.resolve(getManualPaymentContact()),
   ]);
   const superadmin = isSuperAdmin(session.role);
@@ -41,6 +42,7 @@ export default async function ShopPage() {
 
       <ShopExperience
         products={products}
+        categories={categories.map((c) => c.name)}
         whatsappNumber={contact.whatsappNumber}
         buyerName={session.name}
         buyerEmail={session.email}
