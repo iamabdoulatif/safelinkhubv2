@@ -1,0 +1,63 @@
+// Boutique publique — visible depuis la navigation du site, sans connexion.
+// Le catalogue est en lecture pour tous ; la commande se fait via WhatsApp.
+
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Settings } from "lucide-react";
+import LandingNav from "@/components/landing/LandingNav";
+import LandingFooter from "@/components/landing/LandingFooter";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { listActiveProducts } from "@/lib/shop/service";
+import { getManualPaymentContact } from "@/lib/billing/manual-payment";
+import ShopCatalog from "@/app/admin/shop/ShopCatalog";
+
+export const metadata: Metadata = {
+  title: "Boutique | SafeLinkHub",
+  description:
+    "Équipement technologique pour opérateurs de hotspot : routeurs MikroTik, antennes, switchs PoE et accessoires. Commande via WhatsApp.",
+};
+
+export default async function BoutiquePage() {
+  const [session, products] = await Promise.all([getSession(), listActiveProducts()]);
+  const contact = getManualPaymentContact();
+  const superadmin = isSuperAdmin(session?.role);
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <LandingNav anchorPrefix="/" />
+      <main className="flex-1 bg-paper">
+        <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-brand-deep">
+                Matériel
+              </p>
+              <h1 className="mt-2 font-display text-4xl font-bold text-ink">Boutique</h1>
+              <p className="mt-3 max-w-xl text-ink-soft">
+                Équipement technologique pour opérateurs de hotspot — routeurs, antennes, switchs
+                et accessoires. Choisissez, puis commandez directement via WhatsApp.
+              </p>
+            </div>
+            {superadmin && (
+              <Link
+                href="/admin/shop/manage"
+                className="inline-flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F]"
+              >
+                <Settings className="h-4 w-4" />
+                Gérer la boutique
+              </Link>
+            )}
+          </div>
+
+          <ShopCatalog
+            products={products}
+            whatsappNumber={contact.whatsappNumber}
+            buyerName={session?.name ?? ""}
+            buyerEmail={session?.email ?? ""}
+          />
+        </section>
+      </main>
+      <LandingFooter anchorPrefix="/" />
+    </div>
+  );
+}

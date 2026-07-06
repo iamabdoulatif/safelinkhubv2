@@ -28,19 +28,21 @@ export function colorHex(name: string): string {
   return COLOR_PALETTE.find((c) => c.name.toLowerCase() === name.toLowerCase())?.hex ?? "#9CA3AF";
 }
 
-/** Message WhatsApp pré-rempli pour commander un produit. */
+/** Message WhatsApp pré-rempli pour commander un produit. Les infos client
+ * sont incluses seulement si connues (commande possible sans connexion). */
 export function buildProductOrderMessage(opts: {
   productName: string;
   priceFcfa: number;
   color: string | null;
-  buyerName: string;
-  buyerEmail: string;
+  buyerName?: string;
+  buyerEmail?: string;
 }): string {
+  const buyer = [opts.buyerName, opts.buyerEmail].filter(Boolean).join(" ");
   return [
     "*Commande boutique — SafeLinkHub*",
     `Produit : ${opts.productName}`,
     `Prix : ${opts.priceFcfa.toLocaleString("fr-FR")} FCFA`,
     ...(opts.color ? [`Couleur : ${opts.color}`] : []),
-    `Client : ${opts.buyerName} (${opts.buyerEmail})`,
+    ...(buyer ? [`Client : ${buyer}`] : []),
   ].join("\n");
 }
