@@ -1,29 +1,38 @@
 "use client";
 
-// Expérience boutique : filtre par catégorie, cartes produit avec choix de
-// couleur et ajout au panier, panier (tiroir) et commande via WhatsApp.
+// Expérience boutique (mobile-first) : recherche en tête, catégories en
+// carrousel, grille compacte de cartes image-forward, quick-view au tap,
+// panier flottant compact + tiroir, commande via WhatsApp.
+//
+// Design 100 % tokens (paper/ink/brand/line…) → compatible mode sombre.
+// Aucune ombre diffuse hors carte, cibles tactiles ≥ 44px, images lazy +
+// skeleton, animations sur transform/opacity (GPU).
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ShoppingBag,
   ShoppingCart,
   ExternalLink,
-  PackageX,
   Plus,
   Minus,
   Trash2,
   X,
   Check,
   Search,
+  Sparkles,
 } from "lucide-react";
 import type { ProductRow } from "@/lib/shop/service";
 import { CartProvider, useCart } from "@/lib/shop/cart";
+import { availabilityOf, isNewProduct, type AvailabilityTone } from "@/lib/shop/product-status";
 import {
   buildCartOrderMessage,
+  buildProductOrderMessage,
   buildWhatsappLink,
   colorHex,
   formatFcfa,
 } from "@/lib/shop/shop-config";
+
+type Buyer = { whatsappNumber: string; buyerName: string; buyerEmail: string };
 
 export default function ShopExperience(props: {
   products: ProductRow[];
@@ -53,13 +62,12 @@ function ShopInner({
   buyerEmail: string;
 }) {
   const cart = useCart();
+  const buyer: Buyer = { whatsappNumber, buyerName, buyerEmail };
   const [category, setCategory] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [quickView, setQuickView] = useState<ProductRow | null>(null);
 
-  // Sidebar = catégories définies (superadmin), suivies de toute catégorie
-  // présente sur un produit mais non listée (données héritées), pour ne jamais
-  // rendre un produit inaccessible au filtre.
   const categories = useMemo(() => {
     const ordered = [...definedCategories];
     const seen = new Set(ordered);
@@ -85,24 +93,50 @@ function ShopInner({
     });
   }, [products, category, q]);
 
+  const openCart = () => setDrawerOpen(true);
+
   return (
-    <div className="mt-6 lg:grid lg:grid-cols-[220px_1fr] lg:gap-8">
-      {/* Sidebar catégories */}
+    <div className="mt-5">
+      {/* Recherche — pleine largeur, prioritaire, visible dès l'arrivée */}
+      <div className="rounded-2xl border-2 border-line-soft bg-paper p-2">
+        <div className="relative flex items-center">
+          <Search className="pointer-events-none absolute left-3 h-5 w-5 text-ink-soft" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher un routeur, une marque…"
+            aria-label="Rechercher dans la boutique"
+            enterKeyHint="search"
+            className="h-11 w-full rounded-xl bg-clay/60 pl-11 pr-10 text-[15px] text-ink placeholder:text-ink-soft focus:bg-paper focus:outline-none focus:ring-2 focus:ring-brand"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              aria-label="Effacer la recherche"
+              className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-full text-ink-soft hover:bg-clay hover:text-ink"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Carrousel de catégories */}
       {categories.length > 0 && (
-        <aside className="lg:sticky lg:top-6 lg:self-start">
-          <h2 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-ink-soft lg:block">
-            Catégories
-          </h2>
-          {/* Desktop : liste verticale ; mobile : chips scrollables */}
-          <nav className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0">
-            <SidebarItem
+        <div className="mt-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <nav
+            aria-label="Catégories"
+            className="flex snap-x gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <CategoryChip
               active={category === null}
               onClick={() => setCategory(null)}
               label="Tout"
               count={products.length}
             />
             {categories.map((c) => (
-              <SidebarItem
+              <CategoryChip
                 key={c}
                 active={category === c}
                 onClick={() => setCategory(c)}
@@ -111,74 +145,54 @@ function ShopInner({
               />
             ))}
           </nav>
-        </aside>
+        </div>
       )}
 
-      {/* Catalogue */}
-      <div className={categories.length > 0 ? "mt-6 lg:mt-0" : ""}>
-        {/* Barre de recherche */}
-        <div className="relative mb-5">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher un produit, une marque…"
-            aria-label="Rechercher dans la boutique"
-            className="w-full rounded-full border border-line-soft bg-paper py-2.5 pl-10 pr-10 text-sm text-ink placeholder:text-ink-soft/70 focus:border-brand-deep focus:outline-none"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              aria-label="Effacer la recherche"
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-ink-soft hover:bg-clay hover:text-ink"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+      {/* Grille produits */}
+      {filtered.length === 0 ? (
+        <div className="mt-8 rounded-2xl border-2 border-line bg-paper p-10 text-center text-sm text-ink-soft">
+          {q
+            ? `Aucun produit ne correspond à « ${query.trim()} ».`
+            : "Aucun produit dans cette catégorie."}
         </div>
+      ) : (
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
+          {filtered.map((p) => (
+            <ProductCard
+              key={p.id}
+              product={p}
+              onAdd={cart.add}
+              onOpen={() => setQuickView(p)}
+              onViewCart={openCart}
+            />
+          ))}
+        </div>
+      )}
 
-        {filtered.length === 0 ? (
-          <div className="rounded-2xl border border-line-soft bg-paper p-10 text-center text-sm text-ink-soft">
-            {q
-              ? `Aucun produit ne correspond à « ${query.trim()} ».`
-              : "Aucun produit dans cette catégorie."}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((p) => (
-              <ProductCard key={p.id} product={p} onAdd={cart.add} />
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Panier flottant compact */}
+      <FloatingCart count={cart.count} onClick={openCart} />
 
-      {/* Bouton panier flottant */}
-      <button
-        onClick={() => setDrawerOpen(true)}
-        className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-brand-deep px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-90"
-      >
-        <ShoppingCart className="h-5 w-5" />
-        Panier
-        {cart.count > 0 && (
-          <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-xs font-bold text-brand-deep">
-            {cart.count}
-          </span>
-        )}
-      </button>
+      {quickView && (
+        <QuickView
+          product={quickView}
+          buyer={buyer}
+          onClose={() => setQuickView(null)}
+          onViewCart={() => {
+            setQuickView(null);
+            openCart();
+          }}
+          onAdd={cart.add}
+        />
+      )}
 
-      <CartDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        whatsappNumber={whatsappNumber}
-        buyerName={buyerName}
-        buyerEmail={buyerEmail}
-      />
+      <CartDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} buyer={buyer} />
     </div>
   );
 }
 
-function SidebarItem({
+/* ── Catégories ─────────────────────────────────────────────────────────── */
+
+function CategoryChip({
   active,
   onClick,
   label,
@@ -192,35 +206,248 @@ function SidebarItem({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm font-medium transition lg:w-full lg:rounded-lg lg:border-transparent lg:px-3 lg:py-2 lg:text-left ${
+      aria-pressed={active}
+      className={`flex h-10 shrink-0 snap-start items-center gap-1.5 rounded-full border-2 px-4 text-sm font-semibold transition-colors ${
         active
-          ? "border-brand-deep bg-brand-deep text-white lg:border-transparent lg:bg-brand/10 lg:text-brand-deep"
-          : "border-line-soft bg-paper text-ink-soft hover:border-brand-deep hover:text-ink lg:bg-transparent lg:hover:bg-clay/60"
+          ? "border-brand bg-brand text-[#1C1917]"
+          : "border-line-soft bg-paper text-ink-soft hover:border-ink hover:text-ink"
       }`}
     >
-      <span className="truncate">{label}</span>
-      <span
-        className={`shrink-0 text-xs tabular-nums ${
-          active ? "text-white/80 lg:text-brand-deep/70" : "text-ink-soft/70"
-        }`}
-      >
+      <span className="whitespace-nowrap">{label}</span>
+      <span className={`text-xs tabular-nums ${active ? "text-[#1C1917]/60" : "text-ink-soft/60"}`}>
         {count}
       </span>
     </button>
   );
 }
 
+/* ── Image avec skeleton ────────────────────────────────────────────────── */
+
+function ProductImage({
+  src,
+  alt,
+  eager,
+}: {
+  src: string | null;
+  alt: string;
+  eager?: boolean;
+}) {
+  const [loaded, setLoaded] = useState(false);
+
+  if (!src) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-clay/60">
+        <ShoppingBag className="h-8 w-8 text-ink-soft/25" />
+      </div>
+    );
+  }
+  return (
+    <div className="relative h-full w-full">
+      {!loaded && <div className="absolute inset-0 animate-pulse bg-clay" aria-hidden />}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        className={`h-full w-full object-cover transition-opacity duration-300 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </div>
+  );
+}
+
+/* ── Badges & disponibilité ─────────────────────────────────────────────── */
+
+const TONE_STYLES: Record<AvailabilityTone, string> = {
+  ok: "text-ok",
+  low: "text-warn",
+  out: "text-err",
+};
+const TONE_DOT: Record<AvailabilityTone, string> = {
+  ok: "bg-ok",
+  low: "bg-warn",
+  out: "bg-err",
+};
+
+function AvailabilityPill({ stock }: { stock: number }) {
+  const a = availabilityOf(stock);
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${TONE_STYLES[a.tone]}`}>
+      <span className={`h-2 w-2 rounded-full ${TONE_DOT[a.tone]}`} aria-hidden />
+      {a.label}
+    </span>
+  );
+}
+
+/* ── Carte produit ──────────────────────────────────────────────────────── */
+
 function ProductCard({
   product,
   onAdd,
+  onOpen,
+  onViewCart,
 }: {
   product: ProductRow;
+  onAdd: ReturnType<typeof useCart>["add"];
+  onOpen: () => void;
+  onViewCart: () => void;
+}) {
+  const [justAdded, setJustAdded] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  const outOfStock = product.stockQuantity <= 0;
+  const isNew = isNewProduct(product.createdAt);
+  const defaultColor = product.colors?.[0] ?? null;
+
+  function add(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (outOfStock) return;
+    onAdd({
+      productId: product.id,
+      name: product.name,
+      priceFcfa: product.priceFcfa,
+      color: defaultColor,
+      imageUrl: product.imageUrl,
+    });
+    setJustAdded(true);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setJustAdded(false), 2200);
+  }
+
+  return (
+    <article
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Voir ${product.name}`}
+      className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border-2 border-line-soft bg-paper transition-[transform,border-color] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.99] hover:border-ink motion-reduce:transition-none"
+    >
+      {/* Image */}
+      <div className="relative aspect-square overflow-hidden bg-clay/40">
+        <div className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transform-none">
+          <ProductImage src={product.imageUrl} alt={product.name} />
+        </div>
+
+        {/* Badges superposés */}
+        <div className="pointer-events-none absolute inset-x-2 top-2 flex items-start justify-between gap-1">
+          {isNew && !outOfStock ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1C1917]">
+              <Sparkles className="h-3 w-3" /> Nouveau
+            </span>
+          ) : (
+            <span />
+          )}
+          {outOfStock && (
+            <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-paper">
+              Rupture
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Contenu — hiérarchie : marque › nom › prix › dispo › desc › CTA */}
+      <div className="flex flex-1 flex-col p-3">
+        {product.brand && (
+          <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+            {product.brand}
+          </p>
+        )}
+        <h3 className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-ink">
+          {product.name}
+        </h3>
+
+        <p className="mt-1.5 text-lg font-extrabold text-brand-deep">
+          {formatFcfa(product.priceFcfa)}
+        </p>
+
+        <div className="mt-1">
+          <AvailabilityPill stock={product.stockQuantity} />
+        </div>
+
+        {product.description && (
+          <p className="mt-1.5 line-clamp-1 text-xs text-ink-soft">{product.description}</p>
+        )}
+
+        {/* CTA — indépendant de la navigation carte */}
+        <div className="mt-auto pt-3">
+          <button
+            onClick={add}
+            disabled={outOfStock}
+            aria-label={`Ajouter ${product.name} au panier`}
+            className={`flex h-11 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-semibold transition-colors motion-reduce:transition-none ${
+              outOfStock
+                ? "cursor-not-allowed bg-clay text-ink-soft"
+                : justAdded
+                  ? "bg-ok text-white"
+                  : "bg-ink text-paper hover:bg-[#3A362F] active:scale-[0.98]"
+            }`}
+          >
+            {justAdded ? (
+              <>
+                <Check className="h-4 w-4" /> Ajouté
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                <span className="truncate">Ajouter</span>
+              </>
+            )}
+          </button>
+          {justAdded && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewCart();
+              }}
+              className="mt-1.5 flex w-full items-center justify-center text-xs font-semibold text-brand-deep hover:underline"
+            >
+              Voir le panier →
+            </button>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/* ── Quick-view (fiche rapide) ──────────────────────────────────────────── */
+
+function QuickView({
+  product,
+  buyer,
+  onClose,
+  onViewCart,
+  onAdd,
+}: {
+  product: ProductRow;
+  buyer: Buyer;
+  onClose: () => void;
+  onViewCart: () => void;
   onAdd: ReturnType<typeof useCart>["add"];
 }) {
   const colors = product.colors ?? [];
   const [selectedColor, setSelectedColor] = useState<string | null>(colors[0] ?? null);
-  const [justAdded, setJustAdded] = useState(false);
+  const [added, setAdded] = useState(false);
   const outOfStock = product.stockQuantity <= 0;
+
+  const orderUrl = buildWhatsappLink(
+    buyer.whatsappNumber,
+    buildProductOrderMessage({
+      productName: product.name,
+      priceFcfa: product.priceFcfa,
+      color: selectedColor,
+      buyerName: buyer.buyerName || undefined,
+      buyerEmail: buyer.buyerEmail || undefined,
+    }),
+  );
 
   function add() {
     onAdd({
@@ -230,123 +457,158 @@ function ProductCard({
       color: selectedColor,
       imageUrl: product.imageUrl,
     });
-    setJustAdded(true);
-    window.setTimeout(() => setJustAdded(false), 1400);
+    setAdded(true);
   }
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-2xl border border-line-soft bg-paper shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-clay/40">
-        {product.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <ShoppingBag className="h-10 w-10 text-ink-soft/30" />
-        )}
-        {product.category && (
-          <span className="absolute left-2.5 top-2.5 rounded-full bg-paper/90 px-2.5 py-0.5 text-[11px] font-medium text-ink-soft backdrop-blur">
-            {product.category}
-          </span>
-        )}
-        {outOfStock && (
-          <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700">
-            <PackageX className="h-3 w-3" /> Rupture
-          </span>
-        )}
-      </div>
-
-      <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="truncate font-semibold text-ink">{product.name}</h3>
-            {product.brand && <p className="text-xs text-ink-soft">{product.brand}</p>}
-          </div>
-          <p className="shrink-0 font-bold text-ink">{formatFcfa(product.priceFcfa)}</p>
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={product.name}>
+      <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} />
+      <div className="absolute inset-x-0 bottom-0 max-h-[92vh] overflow-y-auto rounded-t-3xl border-t-2 border-line bg-paper animate-fade-slide-up sm:inset-0 sm:m-auto sm:h-fit sm:max-w-lg sm:rounded-3xl sm:border-2">
+        <div className="sticky top-0 flex items-center justify-between border-b-2 border-line bg-paper px-4 py-3">
+          <span className="mx-auto h-1 w-10 rounded-full bg-line-soft sm:hidden" aria-hidden />
+          <button
+            onClick={onClose}
+            aria-label="Fermer"
+            className="absolute right-3 flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-clay hover:text-ink"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        {product.description && (
-          <p className="mt-1.5 line-clamp-2 text-sm text-ink-soft">{product.description}</p>
-        )}
-
-        {colors.length > 0 && (
-          <div className="mt-3 flex items-center gap-1.5">
-            {colors.map((c) => {
-              const active = c === selectedColor;
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setSelectedColor(c)}
-                  title={c}
-                  aria-label={`Couleur ${c}`}
-                  className={`h-6 w-6 rounded-full border-2 transition ${
-                    active ? "border-brand-deep ring-2 ring-brand/40" : "border-line-soft"
-                  }`}
-                  style={{ backgroundColor: colorHex(c) }}
-                />
-              );
-            })}
-            {selectedColor && <span className="ml-1 text-xs text-ink-soft">{selectedColor}</span>}
+        <div className="p-4 sm:p-5">
+          <div className="aspect-square overflow-hidden rounded-2xl border-2 border-line-soft bg-clay/40">
+            <ProductImage src={product.imageUrl} alt={product.name} eager />
           </div>
-        )}
 
-        <div className="mt-auto pt-3">
-          <p className="mb-2 text-xs text-ink-soft">
-            {outOfStock ? "Indisponible" : `${product.stockQuantity} en stock`}
-          </p>
-          <button
-            onClick={add}
-            disabled={outOfStock}
-            className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
-              outOfStock
-                ? "cursor-not-allowed bg-clay text-ink-soft"
-                : justAdded
-                  ? "bg-green-600 text-white"
-                  : "bg-ink text-white hover:bg-[#3A362F]"
-            }`}
-          >
-            {justAdded ? (
-              <>
-                <Check className="h-4 w-4" /> Ajouté
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" /> Ajouter au panier
-              </>
+          <div className="mt-4">
+            {product.brand && (
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                {product.brand}
+              </p>
             )}
-          </button>
+            <h2 className="mt-0.5 font-display text-xl font-bold text-ink">{product.name}</h2>
+            <p className="mt-2 text-2xl font-extrabold text-brand-deep">
+              {formatFcfa(product.priceFcfa)}
+            </p>
+            <div className="mt-2">
+              <AvailabilityPill stock={product.stockQuantity} />
+            </div>
+
+            {product.description && (
+              <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-soft">
+                {product.description}
+              </p>
+            )}
+
+            {colors.length > 0 && (
+              <div className="mt-4">
+                <p className="mb-1.5 text-xs font-semibold text-ink-soft">Couleur</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {colors.map((c) => {
+                    const active = c === selectedColor;
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setSelectedColor(c)}
+                        title={c}
+                        aria-label={`Couleur ${c}`}
+                        aria-pressed={active}
+                        className={`h-9 w-9 rounded-full border-2 transition ${
+                          active ? "border-brand-deep ring-2 ring-brand/40" : "border-line-soft"
+                        }`}
+                        style={{ backgroundColor: colorHex(c) }}
+                      />
+                    );
+                  })}
+                  {selectedColor && (
+                    <span className="text-xs text-ink-soft">{selectedColor}</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Actions collantes */}
+        <div
+          className="sticky bottom-0 space-y-2 border-t-2 border-line bg-paper p-4"
+          style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+        >
+          {added ? (
+            <button
+              onClick={onViewCart}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ok text-sm font-bold text-white"
+            >
+              <Check className="h-5 w-5" /> Ajouté — Voir le panier
+            </button>
+          ) : (
+            <button
+              onClick={add}
+              disabled={outOfStock}
+              className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold transition-colors ${
+                outOfStock
+                  ? "cursor-not-allowed bg-clay text-ink-soft"
+                  : "bg-ink text-paper hover:bg-[#3A362F] active:scale-[0.99]"
+              }`}
+            >
+              <Plus className="h-5 w-5" /> Ajouter au panier
+            </button>
+          )}
+          <a
+            href={orderUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-line bg-paper text-sm font-bold text-ink hover:bg-clay"
+          >
+            Commander via WhatsApp <ExternalLink className="h-4 w-4" />
+          </a>
         </div>
       </div>
     </div>
   );
 }
 
+/* ── Panier flottant compact ────────────────────────────────────────────── */
+
+function FloatingCart({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={`Ouvrir le panier${count > 0 ? ` (${count} article${count > 1 ? "s" : ""})` : ""}`}
+      className="fixed right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full border-2 border-line bg-ink text-paper shadow-[4px_4px_0_var(--color-line)] transition-transform hover:-translate-y-0.5 active:scale-95 motion-reduce:transition-none"
+      style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+    >
+      <ShoppingCart className="h-6 w-6" />
+      {count > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-paper bg-brand px-1 text-xs font-bold tabular-nums text-[#1C1917]">
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/* ── Tiroir panier ──────────────────────────────────────────────────────── */
+
 function CartDrawer({
   open,
   onClose,
-  whatsappNumber,
-  buyerName,
-  buyerEmail,
+  buyer,
 }: {
   open: boolean;
   onClose: () => void;
-  whatsappNumber: string;
-  buyerName: string;
-  buyerEmail: string;
+  buyer: Buyer;
 }) {
   const cart = useCart();
 
   const orderUrl = buildWhatsappLink(
-    whatsappNumber,
+    buyer.whatsappNumber,
     buildCartOrderMessage({
       items: cart.items,
       totalFcfa: cart.total,
-      buyerName,
-      buyerEmail,
+      buyerName: buyer.buyerName || undefined,
+      buyerEmail: buyer.buyerEmail || undefined,
     }),
   );
 
@@ -363,15 +625,19 @@ function CartDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Panier"
-        className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-paper shadow-2xl transition-transform duration-300 ${
+        className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l-2 border-line bg-paper transition-transform duration-300 ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between border-b border-line-soft p-4">
+        <div className="flex items-center justify-between border-b-2 border-line p-4">
           <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
             <ShoppingCart className="h-5 w-5" /> Votre panier
           </h2>
-          <button onClick={onClose} className="text-ink-soft hover:text-ink" aria-label="Fermer">
+          <button
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-clay hover:text-ink"
+            aria-label="Fermer"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -387,74 +653,82 @@ function CartDrawer({
               {cart.items.map((i) => (
                 <div
                   key={`${i.productId}::${i.color ?? ""}`}
-                  className="flex gap-3 rounded-lg border border-line-soft p-2.5"
+                  className="flex gap-3 rounded-xl border-2 border-line-soft p-2.5"
                 >
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-clay/40">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-clay/40">
                     {i.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={i.imageUrl} alt={i.name} className="h-full w-full object-cover" />
+                      <img
+                        src={i.imageUrl}
+                        alt={i.name}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <ShoppingBag className="h-5 w-5 text-ink-soft/40" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">{i.name}</p>
+                    <p className="truncate text-sm font-semibold text-ink">{i.name}</p>
                     <p className="text-xs text-ink-soft">
                       {i.color ? `${i.color} · ` : ""}
                       {formatFcfa(i.priceFcfa)}
                     </p>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <div className="inline-flex items-center rounded-md border border-line-soft">
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="inline-flex items-center rounded-lg border-2 border-line-soft">
                         <button
                           onClick={() => cart.setQuantity(i.productId, i.color, i.quantity - 1)}
-                          className="p-1 text-ink-soft hover:bg-clay"
-                          aria-label="Diminuer"
+                          className="flex h-8 w-8 items-center justify-center text-ink-soft hover:bg-clay"
+                          aria-label="Diminuer la quantité"
                         >
-                          <Minus className="h-3.5 w-3.5" />
+                          <Minus className="h-4 w-4" />
                         </button>
-                        <span className="min-w-6 text-center text-xs font-medium text-ink">
+                        <span className="min-w-8 text-center text-sm font-semibold text-ink">
                           {i.quantity}
                         </span>
                         <button
                           onClick={() => cart.setQuantity(i.productId, i.color, i.quantity + 1)}
-                          className="p-1 text-ink-soft hover:bg-clay"
-                          aria-label="Augmenter"
+                          className="flex h-8 w-8 items-center justify-center text-ink-soft hover:bg-clay"
+                          aria-label="Augmenter la quantité"
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <Plus className="h-4 w-4" />
                         </button>
                       </div>
                       <button
                         onClick={() => cart.remove(i.productId, i.color)}
-                        className="text-ink-soft hover:text-red-600"
-                        aria-label="Retirer"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft hover:bg-clay hover:text-err"
+                        aria-label="Retirer l'article"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
-                  <p className="shrink-0 text-sm font-semibold text-ink">
+                  <p className="shrink-0 text-sm font-bold text-ink">
                     {formatFcfa(i.priceFcfa * i.quantity)}
                   </p>
                 </div>
               ))}
             </div>
 
-            <div className="border-t border-line-soft p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-ink-soft">Total</span>
-                <span className="text-lg font-bold text-ink">{formatFcfa(cart.total)}</span>
+            <div
+              className="border-t-2 border-line p-4"
+              style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-ink-soft">Total</span>
+                <span className="text-xl font-extrabold text-ink">{formatFcfa(cart.total)}</span>
               </div>
               <a
                 href={orderUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-deep px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
+                className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand text-sm font-bold text-[#1C1917] hover:bg-brand-deep hover:text-white"
               >
                 Commander via WhatsApp <ExternalLink className="h-4 w-4" />
               </a>
               <button
                 onClick={cart.clear}
-                className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="mt-2 flex h-10 w-full items-center justify-center gap-2 text-sm font-medium text-ink-soft hover:text-err"
               >
                 <Trash2 className="h-4 w-4" /> Vider le panier
               </button>

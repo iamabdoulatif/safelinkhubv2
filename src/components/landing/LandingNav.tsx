@@ -43,7 +43,7 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
 
   return (
     <header className="sticky top-0 z-30 border-b-2 border-line bg-paper">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6">
         <Link href="/" aria-label="SafeLinkHub — accueil">
           <Logo />
         </Link>

@@ -30,25 +30,21 @@ export default async function BoutiquePage() {
     <div className="flex flex-1 flex-col">
       <LandingNav anchorPrefix="/" />
       <main className="flex-1 bg-paper">
-        <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-brand-deep">
-                Matériel
-              </p>
-              <h1 className="mt-2 font-display text-4xl font-bold text-ink">Boutique</h1>
-              <p className="mt-3 max-w-xl text-ink-soft">
-                Équipement technologique pour opérateurs de hotspot — routeurs, antennes, switchs
-                et accessoires. Choisissez, puis commandez directement via WhatsApp.
+              <h1 className="font-display text-3xl font-bold text-ink sm:text-4xl">Boutique</h1>
+              <p className="mt-1 text-sm text-ink-soft sm:text-base">
+                Routeurs, antennes, switchs et accessoires professionnels.
               </p>
             </div>
             {superadmin && (
               <Link
                 href="/admin/shop/manage"
-                className="inline-flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F]"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-paper hover:bg-[#3A362F]"
               >
                 <Settings className="h-4 w-4" />
-                Gérer la boutique
+                Gérer
               </Link>
             )}
           </div>
