@@ -1,10 +1,13 @@
 import { redirect } from "next/navigation";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { listAllCategories } from "@/lib/blog/queries";
 import BlogPostForm from "../BlogPostForm";
 
 export default async function NewBlogPostPage() {
   const session = await getSession();
   if (!isSuperAdmin(session?.role)) redirect("/admin");
+
+  const categories = await listAllCategories();
 
   return (
     <div className="animate-fade-in-up">
@@ -14,7 +17,7 @@ export default async function NewBlogPostPage() {
         brouillon reste invisible sur le site public.
       </p>
       <div className="mt-4">
-        <BlogPostForm />
+        <BlogPostForm categories={categories} />
       </div>
     </div>
   );

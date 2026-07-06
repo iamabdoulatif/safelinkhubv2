@@ -68,18 +68,43 @@ export default async function BlogPostPage({
     <div className="flex flex-1 flex-col">
       <LandingNav anchorPrefix="/" />
       <main className="flex-1 bg-paper">
-        <article className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
-          <Link href="/blog" className="text-sm font-bold text-brand-deep hover:underline">
-            ← Tous les articles
-          </Link>
-          <p className="mt-6 font-mono text-xs text-ink-soft">
-            {formatDate(post.publishedAt ?? post.createdAt)}
-          </p>
-          <h1 className="mt-2 font-display text-4xl font-bold leading-tight text-ink">
-            {post.title}
-          </h1>
+        {/* Hero article (bande anthracite) */}
+        <div className="dark border-b-2 border-line bg-paper">
+          <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
+            <Link
+              href="/blog"
+              className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold uppercase tracking-widest text-brand hover:text-ink"
+            >
+              ← Tous les articles
+            </Link>
+            <div className="mt-6 flex flex-wrap items-center gap-2 font-mono text-[11px] text-ink-soft">
+              <time>{formatDate(post.publishedAt ?? post.createdAt)}</time>
+              {post.category && (
+                <>
+                  <span aria-hidden>·</span>
+                  <Link
+                    href={`/blog?sujet=${encodeURIComponent(post.category)}`}
+                    className="bg-brand px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[#1C1917]"
+                  >
+                    {post.category}
+                  </Link>
+                </>
+              )}
+            </div>
+            <h1 className="mt-3 font-display text-4xl font-extrabold leading-[1.05] tracking-tight text-ink sm:text-5xl">
+              {post.title}
+            </h1>
+            {post.excerpt && (
+              <p className="mt-5 border-l-2 border-brand pl-4 text-lg text-ink-soft">
+                {post.excerpt}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
           {post.coverImageUrl && (
-            <div className="mt-6 border-2 border-line">
+            <div className="mb-8 border-2 border-line">
               <Image
                 src={post.coverImageUrl}
                 alt=""
@@ -91,12 +116,7 @@ export default async function BlogPostPage({
               />
             </div>
           )}
-          {post.excerpt && (
-            <p className="mt-4 border-l-4 border-brand pl-4 text-lg text-ink-soft">
-              {post.excerpt}
-            </p>
-          )}
-          <div className="mt-6">
+          <div>
             <ContentBlocks content={post.content} />
           </div>
           {showAd && (

@@ -367,6 +367,9 @@ export const blogPosts = pgTable("blog_posts", {
   title: text("title").notNull(),
   excerpt: text("excerpt"),
   content: text("content").notNull(),
+  // Catégorie / sujet de l'article (texte libre saisi par le superadmin) —
+  // alimente la sidebar de filtres du blog public. Null = "non classé".
+  category: text("category"),
   // Chemin public (/blog/xxx.svg) ou URL absolue de l'illustration de
   // couverture — affichée sur la liste /blog et en tête d'article.
   coverImageUrl: text("cover_image_url"),

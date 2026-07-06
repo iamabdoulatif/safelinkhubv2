@@ -12,6 +12,7 @@ export async function listPublishedPosts() {
       slug: blogPosts.slug,
       title: blogPosts.title,
       excerpt: blogPosts.excerpt,
+      category: blogPosts.category,
       coverImageUrl: blogPosts.coverImageUrl,
       publishedAt: blogPosts.publishedAt,
       createdAt: blogPosts.createdAt,
@@ -19,6 +20,30 @@ export async function listPublishedPosts() {
     .from(blogPosts)
     .where(eq(blogPosts.published, true))
     .orderBy(desc(blogPosts.publishedAt));
+}
+
+/** Catégories distinctes présentes parmi les articles publiés, triées. */
+export async function listPublishedCategories(): Promise<string[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ category: blogPosts.category })
+    .from(blogPosts)
+    .where(eq(blogPosts.published, true));
+  return uniqueSorted(rows.map((r) => r.category));
+}
+
+/** Toutes les catégories existantes (brouillons inclus) — pour l'autocomplétion
+ * du formulaire d'admin. */
+export async function listAllCategories(): Promise<string[]> {
+  const db = getDb();
+  const rows = await db.select({ category: blogPosts.category }).from(blogPosts);
+  return uniqueSorted(rows.map((r) => r.category));
+}
+
+function uniqueSorted(values: (string | null)[]): string[] {
+  const set = new Set<string>();
+  for (const v of values) if (v) set.add(v);
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"));
 }
 
 export async function getPublishedPost(slug: string) {

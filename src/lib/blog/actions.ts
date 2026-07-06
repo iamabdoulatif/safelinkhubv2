@@ -43,6 +43,7 @@ export async function saveBlogPost(_prevState: unknown, formData: FormData) {
   const published = formData.get("published") === "on";
   const rawSlug = String(formData.get("slug") ?? "").trim();
   const coverImageUrl = String(formData.get("coverImageUrl") ?? "").trim();
+  const category = String(formData.get("category") ?? "").trim();
 
   if (coverImageUrl && !/^(\/|https:\/\/)/.test(coverImageUrl)) {
     return { error: "L'image de couverture doit être un chemin (/blog/…) ou une URL https." };
@@ -86,6 +87,7 @@ export async function saveBlogPost(_prevState: unknown, formData: FormData) {
         title,
         slug,
         excerpt: excerpt || null,
+        category: category || null,
         content,
         coverImageUrl: coverImageUrl || null,
         published,
@@ -102,6 +104,7 @@ export async function saveBlogPost(_prevState: unknown, formData: FormData) {
       title,
       slug,
       excerpt: excerpt || null,
+      category: category || null,
       content,
       coverImageUrl: coverImageUrl || null,
       published,

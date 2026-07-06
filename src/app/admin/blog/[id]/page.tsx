@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { getPostById } from "@/lib/blog/queries";
+import { getPostById, listAllCategories } from "@/lib/blog/queries";
 import BlogPostForm from "../BlogPostForm";
 
 export default async function EditBlogPostPage({
@@ -12,7 +12,7 @@ export default async function EditBlogPostPage({
   if (!isSuperAdmin(session?.role)) redirect("/admin");
 
   const { id } = await params;
-  const post = await getPostById(id);
+  const [post, categories] = await Promise.all([getPostById(id), listAllCategories()]);
   if (!post) notFound();
 
   return (
@@ -24,7 +24,7 @@ export default async function EditBlogPostPage({
           : "Brouillon — invisible sur le site public tant qu'il n'est pas publié."}
       </p>
       <div className="mt-4">
-        <BlogPostForm post={post} />
+        <BlogPostForm post={post} categories={categories} />
       </div>
     </div>
   );

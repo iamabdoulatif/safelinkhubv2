@@ -10,13 +10,15 @@ type BlogPostFormProps = {
     title: string;
     slug: string;
     excerpt: string | null;
+    category: string | null;
     content: string;
     coverImageUrl: string | null;
     published: boolean;
   };
+  categories?: string[];
 };
 
-export default function BlogPostForm({ post }: BlogPostFormProps) {
+export default function BlogPostForm({ post, categories = [] }: BlogPostFormProps) {
   const [state, formAction, pending] = useActionState(saveBlogPost, undefined);
 
   return (
@@ -55,6 +57,25 @@ export default function BlogPostForm({ post }: BlogPostFormProps) {
             placeholder="monetiser-son-hotspot-wifi"
             className="w-full rounded-md border border-line-soft px-3 py-2 font-mono text-sm focus:border-line-soft focus:outline-none"
           />
+        </div>
+
+        <div>
+          <label htmlFor="post-category" className="mb-1 block text-sm font-medium text-ink">
+            Catégorie <span className="font-normal text-ink-soft">(optionnel — sujet affiché dans la sidebar du blog)</span>
+          </label>
+          <input
+            id="post-category"
+            name="category"
+            list="blog-category-suggestions"
+            defaultValue={post?.category ?? ""}
+            placeholder="Ex : MikroTik, Mobile Money, Tutoriels"
+            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+          />
+          <datalist id="blog-category-suggestions">
+            {categories.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
         </div>
 
         <div>
