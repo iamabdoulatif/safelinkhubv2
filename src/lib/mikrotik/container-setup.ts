@@ -19,6 +19,10 @@ import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { loadSafelinkhubDefaultPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
+import {
+  evaluateAutoSetupGate,
+  consumeAuthorization,
+} from "@/lib/billing/auto-setup-authorization-service";
 import { getWalletBalanceCents } from "@/lib/wallet/actions";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
@@ -627,6 +631,19 @@ export async function provisionHotspotStack(
     return { error: "Router not found." };
   }
 
+  // TEMPORAIRE — porte de monétisation manuelle : hors superadmin, il faut une
+  // autorisation validée (et non consommée) pour ce routeur. C'est LE verrou
+  // serveur, indépendant de l'UI. Consommée après un provisioning réussi.
+  // TODO: Remplacer par système de paiement intégré.
+  const gate = await evaluateAutoSetupGate(session, routerId);
+  if (!gate.ok) {
+    return {
+      error:
+        "Auto-Setup payant : votre paiement doit être validé par l'administrateur avant de lancer la configuration.",
+      needsAuthorization: true as const,
+    };
+  }
+
   const [org] = await db
     .select()
     .from(organizations)
@@ -659,8 +676,12 @@ export async function provisionHotspotStack(
   // already configured — matching getAutoSetupBillingStatus above.
   const hasBonusFreeRouter =
     !!org.bonusFreeRouterUntil && org.bonusFreeRouterUntil.getTime() > Date.now();
+  // TEMPORAIRE — quand l'accès vient d'une autorisation manuelle validée, le
+  // paiement a déjà eu lieu hors-app : on ne débite donc PAS aussi le
+  // portefeuille (sinon double facturation). La porte remplace la facturation
+  // wallet pour les non-superadmins. TODO: Remplacer par paiement intégré.
   const billableCents =
-    isSuperAdmin(session.role) || hasBonusFreeRouter
+    isSuperAdmin(session.role) || hasBonusFreeRouter || gate.reason === "authorized"
       ? null
       : router.autoSetupBilled
         ? null
@@ -1834,6 +1855,12 @@ export async function provisionHotspotStack(
           `OK: ${billableCents.toLocaleString("fr-FR")} FCFA débités du portefeuille pour cette configuration.`,
         );
       }
+    }
+
+    // Auto-setup réussi : consomme l'autorisation (une par paiement). Le
+    // superadmin n'en a jamais, donc rien à consommer pour lui.
+    if (gate.reason === "authorized" && gate.authorizationId) {
+      await consumeAuthorization(gate.authorizationId);
     }
 
     return { success: true, log };

@@ -405,3 +405,91 @@ export const supportTickets = pgTable("support_tickets", {
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// TEMPORAIRE — porte de monétisation manuelle de l'Auto-Setup, en attendant
+// le module de paiement intégré. Un utilisateur (hors superadmin) qui veut
+// lancer un auto-setup paie hors-app (Wave/OM/Moov/MTN), soumet une demande
+// avec sa preuve, et le superadmin la valide. Une demande "approved" non
+// encore "consumedAt" débloque UN lancement d'auto-setup sur le routeur ciblé.
+// TODO: Remplacer par système de paiement intégré (webhook agrégateur).
+export const autoSetupAuthorizations = pgTable("auto_setup_authorizations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  // Demandeur (snapshot email/nom pour l'affichage superadmin même si le
+  // compte change ensuite).
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  requesterEmail: text("requester_email").notNull(),
+  requesterName: text("requester_name").notNull(),
+  // Routeur ciblé — l'autorisation ne débloque que celui-ci.
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "cascade" }),
+  routerName: text("router_name"),
+  // Type de MikroTik : détermine le tarif (avec/sans container).
+  supportsContainers: boolean("supports_containers").notNull(),
+  // Montant déclaré par l'utilisateur, en FCFA (XOF n'a pas de sous-unité).
+  amountFcfa: integer("amount_fcfa").notNull(),
+  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn
+  proofUrl: text("proof_url"), // capture de paiement (Vercel Blob)
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  // Posé quand un auto-setup réussi consomme une autorisation approuvée.
+  consumedAt: timestamp("consumed_at"),
+  decidedAt: timestamp("decided_at"),
+  decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// TEMPORAIRE — même porte de monétisation manuelle, mais pour l'activation
+// des accès distants (WinBox/WebFig/SSH/MikHmon) par service et par durée.
+// Une demande "approved" non consommée débloque UNE activation du forward
+// (service + période) sur le routeur ciblé. Le paiement remplace la
+// facturation wallet pour les non-superadmins.
+// TODO: Remplacer par système de paiement intégré.
+export const remoteAccessAuthorizations = pgTable("remote_access_authorizations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  requesterEmail: text("requester_email").notNull(),
+  requesterName: text("requester_name").notNull(),
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "cascade" }),
+  routerName: text("router_name"),
+  // Service demandé : winbox | webfig | ssh | mikhmon.
+  service: text("service").notNull(),
+  // Durée demandée : monthly | quarterly | semiannual | yearly.
+  billingPeriod: text("billing_period").notNull(),
+  amountFcfa: integer("amount_fcfa").notNull(),
+  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn
+  proofUrl: text("proof_url"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  consumedAt: timestamp("consumed_at"),
+  decidedAt: timestamp("decided_at"),
+  decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Boutique e-commerce gérée par le superadmin : vente d'équipement
+// technologique (routeurs, antennes, accessoires…) aux opérateurs. Le
+// superadmin gère le catalogue (CRUD + image) ; les admins parcourent et
+// commandent via WhatsApp (pas de paiement intégré pour l'instant).
+export const products = pgTable("products", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description"),
+  // Prix en FCFA (XOF n'a pas de sous-unité).
+  priceFcfa: integer("price_fcfa").notNull(),
+  // Stock disponible.
+  stockQuantity: integer("stock_quantity").notNull().default(0),
+  imageUrl: text("image_url"),
+  // Couleurs proposées (tableau de libellés), choisies à la commande.
+  colors: jsonb("colors").$type<string[]>().notNull().default([]),
+  category: text("category"), // Routeurs | Antennes | Accessoires | …
+  brand: text("brand"),
+  // active = visible au catalogue ; hidden = masqué.
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

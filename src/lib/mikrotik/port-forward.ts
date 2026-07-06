@@ -8,6 +8,10 @@ import { getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { allocatePortForward, getRelayPublicHost, revokePortForward } from "./relay";
 import { isWebAccessService } from "./remote-access-host";
+import {
+  evaluateRemoteAccessGate,
+  consumeRemoteAccessAuthorization,
+} from "@/lib/billing/remote-access-authorization-service";
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
@@ -240,12 +244,33 @@ export async function enablePortForward(
     return { error: "Router not found." };
   }
 
+  // TEMPORAIRE — porte de monétisation manuelle : hors superadmin, activer un
+  // accès distant exige une autorisation validée (et non consommée) pour ce
+  // (routeur, service). C'est le verrou serveur, indépendant de l'UI. Ne
+  // s'applique qu'à l'activation manuelle — l'auto-déblocage post-install
+  // (autoEnablePostInstallAccess) passe par enablePortForwardForRouter et
+  // reste gratuit. TODO: Remplacer par système de paiement intégré.
+  const gate = await evaluateRemoteAccessGate(session, routerId, service);
+  if (!gate.ok) {
+    return {
+      error:
+        "Accès distant payant : votre paiement doit être validé par l'administrateur avant d'activer ce service.",
+      needsAuthorization: true as const,
+    };
+  }
+
   const result = await enablePortForwardForRouter(
     routerId,
     service,
     billingPeriod,
     isSuperAdmin(session.role),
   );
+
+  // Activation réussie via une autorisation manuelle : on la consomme (une par
+  // paiement) et on NE débite PAS le wallet (paiement déjà fait hors-app).
+  if (result.success && gate.reason === "authorized" && gate.authorizationId) {
+    await consumeRemoteAccessAuthorization(gate.authorizationId);
+  }
 
   if (result.success && result.created) {
     const [org] = await db
@@ -261,6 +286,9 @@ export async function enablePortForward(
     // free_until/unlimited never writes a charge, paid forces charging, and
     // default preserves the original one-year trial behavior.
     if (
+      // Paiement déjà réglé hors-app via l'autorisation manuelle → pas de
+      // débit wallet en plus (la porte remplace la facturation wallet).
+      gate.reason !== "authorized" &&
       shouldChargeVpnActivation({
         isSuperAdmin: isSuperAdmin(session.role),
         orgCreatedAt: org?.createdAt ?? null,

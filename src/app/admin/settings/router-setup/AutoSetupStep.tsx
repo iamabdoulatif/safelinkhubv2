@@ -19,8 +19,10 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { ArrowLeft, Box, Check, Copy, Plus, Trash2 } from "lucide-react";
 import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
+import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
 import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
 import { listActivePackages } from "@/lib/packages/actions";
+import AutoSetupPaywallModal from "./AutoSetupPaywallModal";
 import FancyLoader from "@/components/FancyLoader";
 import {
   classForPrefix,
@@ -323,6 +325,29 @@ export default function AutoSetupStep({
     };
   }, [detected, routerId]);
 
+  // TEMPORAIRE — porte de monétisation manuelle : hors superadmin, le
+  // lancement est bloqué tant qu'une demande n'est pas validée.
+  // TODO: Remplacer par système de paiement intégré.
+  const [gate, setGate] = useState<{
+    superadmin: boolean;
+    authorized: boolean;
+    latestStatus: string | null;
+  } | null>(null);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
+  const refreshGate = () => {
+    getAutoSetupGateStatus(routerId).then(setGate);
+  };
+  useEffect(() => {
+    let cancelled = false;
+    getAutoSetupGateStatus(routerId).then((g) => {
+      if (!cancelled) setGate(g);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [routerId]);
+
   function addCustomProfile() {
     const amount = Number(customAmount);
     if (!Number.isInteger(amount) || amount <= 0) {
@@ -367,6 +392,13 @@ export default function AutoSetupStep({
   const mikhmonIncluded = archSupportsContainers && !skipMikhmon;
 
   function run() {
+    // Porte de monétisation : si non autorisé (et pas superadmin), on ouvre
+    // le modal de paiement au lieu de lancer. Le serveur revérifie de toute
+    // façon (needsAuthorization) — l'UI n'est qu'un raccourci.
+    if (gate && !gate.superadmin && !gate.authorized) {
+      setPaywallOpen(true);
+      return;
+    }
     setResult(null);
     startTransition(async () => {
       const res = await provisionHotspotStack(routerId, {
@@ -388,9 +420,19 @@ export default function AutoSetupStep({
         captiveTemplateId: installCaptivePortal ? (selectedTemplateId ?? undefined) : undefined,
         serverName: savedHotspotNames.serverName ?? undefined,
       });
+      // Verrou serveur : si l'autorisation a expiré/été consommée entre-temps,
+      // on rouvre le paywall plutôt que d'afficher une erreur brute.
+      if (res && "needsAuthorization" in res && res.needsAuthorization) {
+        setPaywallOpen(true);
+        refreshGate();
+        return;
+      }
       setResult(res);
     });
   }
+
+  // Non superadmin → soumis à la porte de monétisation manuelle.
+  const underManualGate = gate ? !gate.superadmin : false;
 
   const launchBlocked =
     pending ||
@@ -399,7 +441,10 @@ export default function AutoSetupStep({
     !hotspotName.trim() ||
     (mikhmonIncluded && requiresUsbForContainer && !hasUsbStorage) ||
     (mikhmonIncluded && containerBlockedReason === "device-mode") ||
-    (billing !== null && !billing.sufficientBalance);
+    // Sous la porte manuelle (non superadmin), le bouton reste cliquable même
+    // sans solde wallet : le clic ouvre le paywall de paiement/demande. La
+    // facturation wallet ne bloque que hors porte (superadmin/essai gratuit).
+    (!underManualGate && billing !== null && !billing.sufficientBalance);
 
   return (
     // L'animation d'entrée (slide/fondu) est portée par le wrapper d'étape
@@ -417,6 +462,9 @@ export default function AutoSetupStep({
           {billing?.unlimited ? (
             <TrialBadge active activeLabel="Compte illimité — Superadmin" />
           ) : (
+            // Les badges de facturation wallet n'ont plus de sens sous la porte
+            // manuelle (le paiement passe par la demande d'autorisation).
+            !underManualGate &&
             billing &&
             (billing.isFree || billing.alreadyBilled) && (
               <TrialBadge
@@ -425,6 +473,16 @@ export default function AutoSetupStep({
               />
             )
           )}
+          {underManualGate &&
+            (gate?.authorized ? (
+              <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                Accès autorisé ✓
+              </span>
+            ) : (
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                {gate?.latestStatus === "pending" ? "Demande en attente" : "Payant"}
+              </span>
+            ))}
         </div>
       </div>
       <p className="mt-2 text-sm leading-relaxed text-ink-soft max-w-3xl">
@@ -773,7 +831,9 @@ export default function AutoSetupStep({
         )}
       </div>
 
-      {billing && !billing.isFree && !billing.alreadyBilled && (
+      {/* Ancien paywall wallet — masqué sous la porte manuelle (le paiement
+          passe désormais par la demande d'autorisation superadmin). */}
+      {!underManualGate && billing && !billing.isFree && !billing.alreadyBilled && (
         <div className="mt-4">
           <PaywallCard
             title="Configuration automatique payante"
@@ -892,6 +952,16 @@ export default function AutoSetupStep({
           {pending ? "Configuration en cours…" : "Lancer l'auto-setup complet"}
         </button>
       </div>
+
+      {/* Porte de monétisation manuelle (temporaire). */}
+      <AutoSetupPaywallModal
+        open={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        routerId={routerId}
+        supportsContainers={mikhmonIncluded}
+        latestStatus={gate?.latestStatus ?? null}
+        onSubmitted={refreshGate}
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forwa
 import { PERIOD_PRICE_CENTS, type BillingPeriod } from "@/lib/mikrotik/billing-plans";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
 import { isWebAccessService } from "@/lib/mikrotik/remote-access-host";
+import RemoteAccessPaywallModal from "./RemoteAccessPaywallModal";
 import TrialBadge from "@/components/billing/TrialBadge";
 
 type RouterRow = {
@@ -226,6 +227,10 @@ function RouterDirectAccess({
 }) {
   const navRouter = useRouter();
   const [pendingService, setPendingService] = useState<string | null>(null);
+  // TEMPORAIRE — porte de monétisation manuelle des accès distants : ouvre un
+  // paywall quand le serveur refuse l'activation (needsAuthorization).
+  // TODO: Remplacer par système de paiement intégré.
+  const [paywall, setPaywall] = useState<{ service: string; period: BillingPeriod } | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [resources, setResources] = useState<RouterResources | null>(null);
@@ -271,6 +276,11 @@ function RouterDirectAccess({
     startTransition(async () => {
       const res = await enablePortForward(router.id, service, plan);
       setPendingService(null);
+      // Accès distant payant : ouvrir le paywall au lieu d'afficher l'erreur.
+      if (res && "needsAuthorization" in res && res.needsAuthorization) {
+        setPaywall({ service, period: plan });
+        return;
+      }
       if (res?.error) setError(res.error);
       else navRouter.refresh();
     });
@@ -296,6 +306,12 @@ function RouterDirectAccess({
       for (const service of inactive) {
         setPendingService(service);
         const res = await enablePortForward(router.id, service, "yearly");
+        if (res && "needsAuthorization" in res && res.needsAuthorization) {
+          // Payant : on ouvre le paywall pour ce service et on s'arrête.
+          setPaywall({ service, period: "yearly" });
+          failed = true;
+          break;
+        }
         if (res?.error) {
           setError(res.error);
           failed = true;
@@ -548,6 +564,19 @@ function RouterDirectAccess({
         </div>
       )}
         </>
+      )}
+
+      {/* Porte de monétisation manuelle des accès distants (temporaire). */}
+      {paywall && router.tunnelIp && (
+        <RemoteAccessPaywallModal
+          open
+          onClose={() => setPaywall(null)}
+          routerId={router.id}
+          service={paywall.service}
+          initialPeriod={paywall.period}
+          latestStatus={null}
+          onSubmitted={() => setPaywall(null)}
+        />
       )}
     </div>
   );

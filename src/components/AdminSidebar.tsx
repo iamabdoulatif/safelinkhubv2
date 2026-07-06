@@ -21,6 +21,8 @@ import {
   LifeBuoy,
   Newspaper,
   Mail,
+  ShieldCheck,
+  ShoppingBag,
   ArrowUpRight,
   Menu,
   X,
@@ -43,6 +45,7 @@ const mainLinks = [
   { href: "/admin/vouchers", label: "Vouchers", icon: Ticket },
   { href: "/admin/remote-access", label: "Accès distant", icon: Wifi },
   { href: "/admin/mikhmon-online", label: "Mikhmon Online", icon: Globe },
+  { href: "/admin/shop", label: "Boutique", icon: ShoppingBag },
 ];
 
 // Une seule entrée "Paramètres" : la navigation interne du hub (Général,
@@ -59,6 +62,7 @@ const accountLinks = [
 const superadminLinks = [
   { href: "/admin/blog", label: "Blog", icon: Newspaper },
   { href: "/admin/contact", label: "Messages de contact", icon: Mail },
+  { href: "/admin/authorizations", label: "Autorisations", icon: ShieldCheck },
 ];
 
 export default function AdminSidebar({
