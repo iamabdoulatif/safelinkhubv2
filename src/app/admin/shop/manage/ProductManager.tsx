@@ -15,7 +15,7 @@ import {
   renameCategory,
   deleteCategory,
 } from "@/lib/shop/actions";
-import { COLOR_PALETTE, colorHex, formatFcfa } from "@/lib/shop/shop-config";
+import { BADGE_CATALOG, COLOR_PALETTE, colorHex, formatFcfa } from "@/lib/shop/shop-config";
 
 const INPUT_CLS = "w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:outline-none";
 
@@ -196,6 +196,14 @@ function ProductFormModal({
               className={INPUT_CLS}
             />
           </Field>
+          <Field label="Identifiant URL (slug)">
+            <input
+              name="slug"
+              defaultValue={product?.slug ?? ""}
+              placeholder="généré depuis le nom si vide — ex. mikrotik-hap-ax"
+              className={`${INPUT_CLS} font-mono`}
+            />
+          </Field>
           <Field label="Description">
             <textarea
               name="description"
@@ -266,12 +274,63 @@ function ProductFormModal({
             </div>
           </Field>
 
-          <Field label={isEdit ? "Nouvelle image (laisser vide pour garder l'actuelle)" : "Image du produit"}>
+          <Field label="Image principale — URL">
+            <input
+              name="imageUrlText"
+              defaultValue={product?.imageUrl ?? ""}
+              placeholder="/shop/produit.jpg ou https://…"
+              className={`${INPUT_CLS} font-mono`}
+            />
+            <p className="mt-1 text-xs text-ink-soft">
+              Recommandé (le stockage de fichiers n&apos;est pas activé). Le champ fichier
+              ci-dessous ne fonctionne que si Vercel Blob est configuré.
+            </p>
+          </Field>
+          <Field label={isEdit ? "…ou téléverser une nouvelle image" : "…ou téléverser un fichier"}>
             <input
               name="image"
               type="file"
               accept="image/*"
               className="w-full text-sm text-ink-soft file:mr-3 file:rounded-md file:border-0 file:bg-clay file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink"
+            />
+          </Field>
+          <Field label="Galerie — URLs supplémentaires (une par ligne)">
+            <textarea
+              name="galleryUrls"
+              defaultValue={(product?.images ?? []).join("\n")}
+              rows={3}
+              placeholder={"/shop/produit-2.jpg\nhttps://…/produit-3.jpg"}
+              className={`${INPUT_CLS} font-mono`}
+            />
+          </Field>
+
+          <Field label="Badges (affichés sur la carte et la fiche)">
+            <div className="flex flex-wrap gap-2">
+              {BADGE_CATALOG.map((b) => (
+                <label
+                  key={b.id}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line-soft px-2.5 py-1 text-xs text-ink has-[:checked]:border-brand-deep has-[:checked]:bg-brand/10"
+                >
+                  <input
+                    type="checkbox"
+                    name="badges"
+                    value={b.id}
+                    defaultChecked={product?.badges?.includes(b.id) ?? false}
+                    className="h-3.5 w-3.5 accent-brand-deep"
+                  />
+                  {b.label}
+                </label>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="Caractéristiques techniques (une par ligne : « Libellé: valeur »)">
+            <textarea
+              name="specs"
+              defaultValue={(product?.specs ?? []).map((s) => `${s.label}: ${s.value}`).join("\n")}
+              rows={4}
+              placeholder={"Débit: 1 Gbps\nPorts: 5x RJ45\nAlimentation: PoE"}
+              className={INPUT_CLS}
             />
           </Field>
 

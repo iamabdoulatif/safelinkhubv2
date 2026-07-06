@@ -513,14 +513,27 @@ export const productCategories = pgTable("product_categories", {
 export const products = pgTable("products", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  // Identifiant lisible pour l'URL de la fiche produit (/boutique/<slug>).
+  // Nullable + unique : Postgres autorise plusieurs NULL, les lignes
+  // héritées sont backfillées par la migration.
+  slug: text("slug").unique(),
   description: text("description"),
   // Prix en FCFA (XOF n'a pas de sous-unité).
   priceFcfa: integer("price_fcfa").notNull(),
   // Stock disponible.
   stockQuantity: integer("stock_quantity").notNull().default(0),
   imageUrl: text("image_url"),
+  // Galerie : images supplémentaires (URLs) affichées sur la fiche produit,
+  // en plus de imageUrl (image principale).
+  images: jsonb("images").$type<string[]>().notNull().default([]),
   // Couleurs proposées (tableau de libellés), choisies à la commande.
   colors: jsonb("colors").$type<string[]>().notNull().default([]),
+  // Badges marketing configurables par le superadmin (ids du BADGE_CATALOG :
+  // promo | bestseller | fast_shipping | warranty). Les badges "Nouveau" et
+  // "Stock faible" restent dérivés automatiquement (product-status.ts).
+  badges: jsonb("badges").$type<string[]>().notNull().default([]),
+  // Caractéristiques techniques : liste de paires libellé/valeur.
+  specs: jsonb("specs").$type<{ label: string; value: string }[]>().notNull().default([]),
   category: text("category"), // Routeurs | Antennes | Accessoires | …
   brand: text("brand"),
   // active = visible au catalogue ; hidden = masqué.

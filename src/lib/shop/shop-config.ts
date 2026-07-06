@@ -23,6 +23,33 @@ export function colorHex(name: string): string {
   return COLOR_PALETTE.find((c) => c.name.toLowerCase() === name.toLowerCase())?.hex ?? "#9CA3AF";
 }
 
+// Badges marketing configurables depuis l'admin (les badges "Nouveau" et
+// "Stock faible" sont dérivés automatiquement, cf. product-status.ts).
+// `tone` mappe une couleur token pour le rendu.
+export const BADGE_CATALOG = [
+  { id: "promo", label: "Promotion", tone: "err" },
+  { id: "bestseller", label: "Best Seller", tone: "brand" },
+  { id: "fast_shipping", label: "Livraison rapide", tone: "ok" },
+  { id: "warranty", label: "Garantie", tone: "ink" },
+] as const;
+
+export type BadgeId = (typeof BADGE_CATALOG)[number]["id"];
+
+export function badgeMeta(id: string) {
+  return BADGE_CATALOG.find((b) => b.id === id) ?? null;
+}
+
+/** Slugify partagé (fiche produit, blog) — ASCII, minuscules, tirets. */
+export function slugify(input: string): string {
+  return input
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
 /** Message WhatsApp pré-rempli pour commander un produit. Les infos client
  * sont incluses seulement si connues (commande possible sans connexion). */
 export function buildProductOrderMessage(opts: {
