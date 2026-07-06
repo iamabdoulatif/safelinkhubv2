@@ -14,6 +14,7 @@ import {
   Trash2,
   X,
   Check,
+  Search,
 } from "lucide-react";
 import type { ProductRow } from "@/lib/shop/service";
 import { CartProvider, useCart } from "@/lib/shop/cart";
@@ -53,6 +54,7 @@ function ShopInner({
 }) {
   const cart = useCart();
   const [category, setCategory] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Sidebar = catégories définies (superadmin), suivies de toute catégorie
@@ -71,7 +73,17 @@ function ShopInner({
   }, [definedCategories, products]);
 
   const countFor = (c: string) => products.filter((p) => p.category === c).length;
-  const filtered = category ? products.filter((p) => p.category === category) : products;
+
+  const q = query.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    return products.filter((p) => {
+      if (category && p.category !== category) return false;
+      if (!q) return true;
+      return [p.name, p.brand, p.description, p.category]
+        .filter(Boolean)
+        .some((f) => f!.toLowerCase().includes(q));
+    });
+  }, [products, category, q]);
 
   return (
     <div className="mt-6 lg:grid lg:grid-cols-[220px_1fr] lg:gap-8">
@@ -104,9 +116,33 @@ function ShopInner({
 
       {/* Catalogue */}
       <div className={categories.length > 0 ? "mt-6 lg:mt-0" : ""}>
+        {/* Barre de recherche */}
+        <div className="relative mb-5">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher un produit, une marque…"
+            aria-label="Rechercher dans la boutique"
+            className="w-full rounded-full border border-line-soft bg-paper py-2.5 pl-10 pr-10 text-sm text-ink placeholder:text-ink-soft/70 focus:border-brand-deep focus:outline-none"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              aria-label="Effacer la recherche"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-ink-soft hover:bg-clay hover:text-ink"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
         {filtered.length === 0 ? (
           <div className="rounded-2xl border border-line-soft bg-paper p-10 text-center text-sm text-ink-soft">
-            Aucun produit dans cette catégorie.
+            {q
+              ? `Aucun produit ne correspond à « ${query.trim()} ».`
+              : "Aucun produit dans cette catégorie."}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
