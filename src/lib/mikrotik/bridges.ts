@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, bridges, organizations } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
@@ -233,9 +234,7 @@ export async function saveBridge(_prevState: unknown, formData: FormData) {
     .where(eq(organizations.id, session.orgId))
     .limit(1);
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const appUrl = getAppUrl();
   const scriptUrl = `${appUrl}/api/router/v1/${org?.slug}/scripts/bootstrap`;
   const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";
   const bootstrapCommand = `/tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${bootstrapToken}" dst-path="bootstrap.rsc" mode=${fetchMode}; :delay 2s; /import file-name="bootstrap.rsc"; :delay 1s; /file remove "bootstrap.rsc"`;

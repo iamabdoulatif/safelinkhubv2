@@ -6,6 +6,7 @@ import { eq, count } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
 import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
@@ -156,9 +157,7 @@ export async function generateInstallScript(
     })
     .returning();
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const appUrl = getAppUrl();
 
   const scriptUrl = `${appUrl}/api/router/v1/${org.slug}/scripts/install-vpn`;
   const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";
@@ -411,9 +410,7 @@ export async function generateOpenvpnInstallScript(
     })
     .returning();
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const appUrl = getAppUrl();
 
   const scriptUrl = `${appUrl}/api/router/v1/${org.slug}/scripts/install-openvpn`;
   const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";

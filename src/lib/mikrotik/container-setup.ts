@@ -8,6 +8,7 @@ import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
+import { getAppUrl } from "@/lib/net/app-url";
 import { VOUCHER_PROFILES, type VoucherProfile } from "./voucher-profiles";
 import {
   REMOTE_ACCESS_PORT,
@@ -1260,9 +1261,7 @@ export async function provisionHotspotStack(
         if (files.length === 0 || !org) {
           log.push("SKIP (captive portal): template ou organisation introuvable.");
         } else {
-          const appUrl =
-            process.env.NEXT_PUBLIC_APP_URL ??
-            (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+          const appUrl = getAppUrl();
           const fileBaseUrl = `${appUrl}/api/router/v1/${org.slug}/captive-template/${packageTemplate.id}`;
           const uploadResult = await uploadCaptiveTemplatePackage(client, {
             files,

@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { bridges, captiveTemplates, routers, organizations } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { getAppUrl } from "@/lib/net/app-url";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
 import { HOTSPOT_BRIDGE_NAME } from "@/lib/mikrotik/constants";
@@ -507,9 +508,7 @@ async function uploadPackageTemplateToBridge(
     return { error: "Ce modèle ne contient aucun fichier." };
   }
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const appUrl = getAppUrl();
   const fileBaseUrl = `${appUrl}/api/router/v1/${org.slug}/captive-template/${template.id}`;
   const htmlDirectory = `${bridge.name}-portal`;
 
