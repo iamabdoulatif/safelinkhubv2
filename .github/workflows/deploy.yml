@@ -47,6 +47,15 @@ jobs:
           # commands are generated pointing at localhost.
           build-args: |
             NEXT_PUBLIC_APP_URL=https://safelinkhub.io
+          # BuildKit secrets the Dockerfile mounts at `npm run build`:
+          # DB-backed pages are prerendered at build (needs DATABASE_URL) and
+          # the Server Actions key is pinned so action IDs stay stable. Without
+          # these the build fails: "No database connection string / neon()".
+          # Add matching repo secrets (Settings → Secrets and variables →
+          # Actions): DATABASE_URL and NEXT_SERVER_ACTIONS_ENCRYPTION_KEY.
+          secrets: |
+            dburl=${{ secrets.DATABASE_URL }}
+            sakey=${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
