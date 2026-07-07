@@ -22,6 +22,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* vars are inlined into the bundle at BUILD time, so the public
+# app origin must be present now — a runtime -e is too late for a standalone
+# build. Router install commands (/tool fetch url=...) are built from this;
+# an empty value makes getAppUrl() emit http://localhost:3000 (which the router
+# can't reach → "resolving error") or throw in production. Defaults to the
+# canonical prod domain; override with --build-arg for other environments.
+ARG NEXT_PUBLIC_APP_URL=https://safelinkhub.io
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 # Public DB-backed pages (e.g. /blog) are statically rendered at build, exactly
 # like on Vercel, so the build needs DATABASE_URL. Passed as BuildKit secrets
 # (mounted only for this step, never persisted in an image layer). The Server

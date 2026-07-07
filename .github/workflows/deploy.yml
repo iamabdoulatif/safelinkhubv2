@@ -42,6 +42,11 @@ jobs:
         with:
           context: .
           push: true
+          # NEXT_PUBLIC_APP_URL is inlined at build time (see Dockerfile) — it
+          # must be passed here, not just set at runtime, or router install
+          # commands are generated pointing at localhost.
+          build-args: |
+            NEXT_PUBLIC_APP_URL=https://safelinkhub.io
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
