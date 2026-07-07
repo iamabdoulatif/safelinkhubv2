@@ -303,6 +303,18 @@ function ProductFormModal({
               className={`${INPUT_CLS} font-mono`}
             />
           </Field>
+          <Field label="Modèle 3D — URL .glb / .gltf (optionnel)">
+            <input
+              name="model3dUrl"
+              defaultValue={product?.model3dUrl ?? ""}
+              placeholder="/shop/produit.glb ou https://…/modele.glb"
+              className={`${INPUT_CLS} font-mono`}
+            />
+            <p className="mt-1 text-xs text-ink-soft">
+              Si renseigné, la fiche produit affiche un visualiseur 3D interactif
+              (rotation, zoom) en plus des photos.
+            </p>
+          </Field>
 
           <Field label="Badges (affichés sur la carte et la fiche)">
             <div className="flex flex-wrap gap-2">

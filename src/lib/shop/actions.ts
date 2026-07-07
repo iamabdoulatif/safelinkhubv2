@@ -68,6 +68,7 @@ type ProductValues = {
   images: string[];
   badges: string[];
   specs: { label: string; value: string }[];
+  model3dUrl: string | null;
   category: string | null;
   brand: string | null;
   status: string;
@@ -88,12 +89,16 @@ async function readProductForm(
   const status = String(formData.get("status") ?? "active") === "hidden" ? "hidden" : "active";
   const rawSlug = String(formData.get("slug") ?? "").trim();
   const imageUrlText = String(formData.get("imageUrlText") ?? "").trim() || null;
+  const model3dUrl = String(formData.get("model3dUrl") ?? "").trim() || null;
 
   if (!name) return { error: "Le nom du produit est requis." };
   if (!Number.isInteger(priceFcfa) || priceFcfa < 0) return { error: "Prix invalide." };
   if (!Number.isInteger(stockQuantity) || stockQuantity < 0) return { error: "Quantité invalide." };
   if (imageUrlText && !IMAGE_REF.test(imageUrlText)) {
     return { error: "L'URL de l'image principale doit être un chemin (/…) ou une URL https." };
+  }
+  if (model3dUrl && !IMAGE_REF.test(model3dUrl)) {
+    return { error: "L'URL du modèle 3D doit être un chemin (/…) ou une URL https." };
   }
 
   const slug = slugify(rawSlug || name);
@@ -120,6 +125,7 @@ async function readProductForm(
       images: parseImageList(formData.get("galleryUrls")),
       badges: parseBadges(formData),
       specs: parseSpecs(formData.get("specs")),
+      model3dUrl,
       category,
       brand,
       status,

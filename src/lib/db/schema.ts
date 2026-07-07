@@ -526,6 +526,9 @@ export const products = pgTable("products", {
   // Galerie : images supplémentaires (URLs) affichées sur la fiche produit,
   // en plus de imageUrl (image principale).
   images: jsonb("images").$type<string[]>().notNull().default([]),
+  // Modèle 3D optionnel (URL .glb/.gltf) — affiché en visualiseur interactif
+  // (rotation auto, orbite, zoom) sur la fiche produit via three.js.
+  model3dUrl: text("model_3d_url"),
   // Couleurs proposées (tableau de libellés), choisies à la commande.
   colors: jsonb("colors").$type<string[]>().notNull().default([]),
   // Badges marketing configurables par le superadmin (ids du BADGE_CATALOG :

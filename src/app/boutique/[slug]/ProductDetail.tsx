@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ShoppingBag, Plus, Check, ExternalLink, ChevronLeft, ZoomIn, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import { ShoppingBag, Plus, Check, ExternalLink, ChevronLeft, ZoomIn, X, Rotate3d, Loader2 } from "lucide-react";
+
+// three.js n'est chargé que sur les fiches produit dotées d'un modèle 3D.
+const Viewer3D = dynamic(() => import("./Product3DViewer"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex aspect-square w-full items-center justify-center rounded-2xl border-2 border-line-soft bg-clay/40 text-ink-soft">
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>
+  ),
+});
 import type { ProductRow, ProductMini } from "@/lib/shop/service";
 import { CartProvider, useCart } from "@/lib/shop/cart";
 import { availabilityOf, isNewProduct, type AvailabilityTone } from "@/lib/shop/product-status";
@@ -121,7 +132,7 @@ function Detail({ product, similar, catalogue, whatsappNumber, buyerName, buyerE
       </Link>
 
       <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <Gallery images={gallery} alt={product.name} />
+        <Gallery images={gallery} alt={product.name} model3dUrl={product.model3dUrl} />
 
         <div>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -307,12 +318,22 @@ function ActionButtons({
 
 /* ── Galerie (swipe + zoom) ─────────────────────────────────────────────── */
 
-function Gallery({ images, alt }: { images: string[]; alt: string }) {
+function Gallery({
+  images,
+  alt,
+  model3dUrl,
+}: {
+  images: string[];
+  alt: string;
+  model3dUrl: string | null;
+}) {
   const [active, setActive] = useState(0);
   const [zoom, setZoom] = useState(false);
+  // Vue par défaut : 3D si un modèle existe (mise en valeur), sinon photos.
+  const [mode, setMode] = useState<"photos" | "3d">(model3dUrl ? "3d" : "photos");
   const scroller = useRef<HTMLDivElement>(null);
 
-  if (images.length === 0) {
+  if (images.length === 0 && !model3dUrl) {
     return (
       <div className="flex aspect-square items-center justify-center rounded-2xl border-2 border-line-soft bg-clay/40">
         <ShoppingBag className="h-16 w-16 text-ink-soft/20" />
@@ -329,6 +350,37 @@ function Gallery({ images, alt }: { images: string[]; alt: string }) {
 
   return (
     <div className="lg:sticky lg:top-6 lg:self-start">
+      {/* Bascule Photos / 3D */}
+      {model3dUrl && (
+        <div className="mb-3 inline-flex rounded-full border-2 border-line-soft p-1">
+          <button
+            onClick={() => setMode("3d")}
+            className={`flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors ${
+              mode === "3d" ? "bg-brand text-[#1C1917]" : "text-ink-soft hover:text-ink"
+            }`}
+          >
+            <Rotate3d className="h-4 w-4" /> 3D
+          </button>
+          <button
+            onClick={() => setMode("photos")}
+            disabled={images.length === 0}
+            className={`h-9 rounded-full px-4 text-sm font-semibold transition-colors disabled:opacity-40 ${
+              mode === "photos" ? "bg-brand text-[#1C1917]" : "text-ink-soft hover:text-ink"
+            }`}
+          >
+            Photos
+          </button>
+        </div>
+      )}
+
+      {mode === "3d" && model3dUrl ? (
+        <Viewer3D url={model3dUrl} alt={alt} />
+      ) : images.length === 0 ? (
+        <div className="flex aspect-square items-center justify-center rounded-2xl border-2 border-line-soft bg-clay/40">
+          <ShoppingBag className="h-16 w-16 text-ink-soft/20" />
+        </div>
+      ) : (
+      <>
       <div
         ref={scroller}
         onScroll={(e) => {
@@ -393,6 +445,8 @@ function Gallery({ images, alt }: { images: string[]; alt: string }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={images[active]} alt={alt} className="max-h-full max-w-full object-contain" />
         </div>
+      )}
+      </>
       )}
     </div>
   );

@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   Clock,
   TrendingUp,
+  Rotate3d,
 } from "lucide-react";
 import type { ProductRow } from "@/lib/shop/service";
 import { CartProvider, useCart } from "@/lib/shop/cart";
@@ -642,6 +643,11 @@ function ProductCard({
             </span>
           )}
           <ConfigurableBadges ids={product.badges ?? []} />
+          {product.model3dUrl && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-paper">
+              <Rotate3d className="h-3 w-3" /> 3D
+            </span>
+          )}
           {outOfStock && (
             <span className="ml-auto rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-paper">
               Rupture
