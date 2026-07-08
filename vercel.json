@@ -8,6 +8,12 @@
   ],
   "redirects": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "safelinkhub.vercel.app" }],
+      "destination": "https://safelinkhub.io/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [{ "type": "host", "value": "safelinkhub.vercel.app" }],
       "destination": "https://safelinkhub.io/:path*",
