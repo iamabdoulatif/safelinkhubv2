@@ -5,5 +5,13 @@
       "path": "/api/cron/router-health-check",
       "schedule": "0 3 * * *"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "safelinkhub.vercel.app" }],
+      "destination": "https://safelinkhub.io/:path*",
+      "permanent": true
+    }
   ]
 }
