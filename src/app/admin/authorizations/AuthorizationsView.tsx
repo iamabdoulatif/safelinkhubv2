@@ -13,8 +13,10 @@ import {
   PAYMENT_METHODS,
 } from "@/lib/billing/auto-setup-gate-config";
 import { serviceLabel, periodLabel } from "@/lib/billing/remote-access-gate-config";
+import { featureAccessLabel } from "@/lib/billing/feature-access-config";
 import { decideAutoSetupAuthorization } from "@/lib/billing/auto-setup-authorization-actions";
 import { decideRemoteAccessAuthorizationAction } from "@/lib/billing/remote-access-authorization-actions";
+import { decideFeatureAccess } from "@/lib/billing/feature-access-actions";
 
 type BaseRow = {
   id: string;
@@ -30,8 +32,20 @@ type BaseRow = {
 };
 type AutoSetupRow = BaseRow & { supportsContainers: boolean };
 type RemoteAccessRow = BaseRow & { service: string; billingPeriod: string };
+// Demandes d'accès génériques (router_link / remote_access) — sans paiement.
+type FeatureAccessRow = {
+  id: string;
+  requesterName: string;
+  requesterEmail: string;
+  feature: string;
+  note: string | null;
+  status: string;
+  createdAt: string | Date;
+  decidedAt: string | Date | null;
+};
 
 type Feature = "auto_setup" | "remote_access";
+type Tab = Feature | "feature_access";
 
 function formatDate(date: string | Date) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -53,7 +67,7 @@ function methodLabel(id: string) {
   return PAYMENT_METHODS.find((m) => m.id === id)?.label ?? id;
 }
 
-function DecisionButtons({ id, feature }: { id: string; feature: Feature }) {
+function DecisionButtons({ id, feature }: { id: string; feature: Tab }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +78,9 @@ function DecisionButtons({ id, feature }: { id: string; feature: Feature }) {
       const res =
         feature === "auto_setup"
           ? await decideAutoSetupAuthorization(id, decision)
-          : await decideRemoteAccessAuthorizationAction(id, decision);
+          : feature === "feature_access"
+            ? await decideFeatureAccess(id, decision)
+            : await decideRemoteAccessAuthorizationAction(id, decision);
       if ("error" in res) {
         setError(res.error);
         return;
@@ -161,27 +177,77 @@ function RequestCard({
   );
 }
 
+/** Carte d'une demande d'accès générique (sans paiement). */
+function FeatureAccessCard({ row }: { row: FeatureAccessRow }) {
+  const badge = STATUS_BADGE[row.status] ?? STATUS_BADGE.pending;
+  return (
+    <div className="rounded-xl border border-line-soft bg-paper p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-ink">{row.requesterName}</p>
+            <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-ink">
+              {featureAccessLabel(row.feature)}
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.className}`}>
+              {badge.label}
+            </span>
+          </div>
+          <p className="truncate text-sm text-ink-soft">{row.requesterEmail}</p>
+          {row.note && (
+            <p className="mt-2 rounded-md bg-clay/50 px-3 py-2 text-sm text-ink">“{row.note}”</p>
+          )}
+          <p className="mt-2 text-sm text-ink-soft">
+            Demande : <span className="text-ink">{formatDate(row.createdAt)}</span>
+          </p>
+          {row.status !== "pending" && row.decidedAt && (
+            <p className="mt-1 text-[11px] text-ink-soft">
+              {badge.label} le {formatDate(row.decidedAt)}
+            </p>
+          )}
+        </div>
+        {row.status === "pending" && <DecisionButtons id={row.id} feature="feature_access" />}
+      </div>
+    </div>
+  );
+}
+
 export default function AuthorizationsView({
   autoSetup,
   remoteAccess,
+  featureAccess,
 }: {
   autoSetup: AutoSetupRow[];
   remoteAccess: RemoteAccessRow[];
+  featureAccess: FeatureAccessRow[];
 }) {
-  const [tab, setTab] = useState<Feature>("auto_setup");
+  const [tab, setTab] = useState<Tab>("feature_access");
   const autoPending = autoSetup.filter((r) => r.status === "pending").length;
   const remotePending = remoteAccess.filter((r) => r.status === "pending").length;
+  const featurePending = featureAccess.filter((r) => r.status === "pending").length;
 
-  const rows = tab === "auto_setup" ? autoSetup : remoteAccess;
+  const isEmpty =
+    tab === "auto_setup"
+      ? autoSetup.length === 0
+      : tab === "remote_access"
+        ? remoteAccess.length === 0
+        : featureAccess.length === 0;
 
   return (
     <div className="animate-fade-in-up">
       <h1 className="text-2xl font-bold text-ink">Demandes d&apos;autorisation</h1>
       <p className="mt-1 text-sm text-ink-soft">
-        Validez ou refusez les demandes de fonctionnalités payantes (Auto-Setup et accès distant).
+        Validez ou refusez les demandes d&apos;accès (lier un MikroTik, tunnel d&apos;accès distant)
+        et les fonctionnalités payantes (Auto-Setup, accès direct).
       </p>
 
-      <div className="mt-5 flex gap-2 border-b border-line-soft">
+      <div className="mt-5 flex flex-wrap gap-2 border-b border-line-soft">
+        <TabButton
+          active={tab === "feature_access"}
+          onClick={() => setTab("feature_access")}
+          label="Accès (Lier / Tunnel)"
+          count={featurePending}
+        />
         <TabButton
           active={tab === "auto_setup"}
           onClick={() => setTab("auto_setup")}
@@ -191,37 +257,40 @@ export default function AuthorizationsView({
         <TabButton
           active={tab === "remote_access"}
           onClick={() => setTab("remote_access")}
-          label="Accès distant (VPN)"
+          label="Accès direct (VPN)"
           count={remotePending}
         />
       </div>
 
-      {rows.length === 0 ? (
+      {isEmpty ? (
         <div className="mt-8 rounded-xl border border-line-soft bg-paper p-8 text-center text-sm text-ink-soft">
           Aucune demande pour le moment.
         </div>
       ) : (
         <div className="mt-6 space-y-3">
-          {tab === "auto_setup"
-            ? autoSetup.map((r) => (
-                <RequestCard
-                  key={r.id}
-                  row={r}
-                  feature="auto_setup"
-                  details={[{ label: "Type", value: mikrotikKindLabel(r.supportsContainers) }]}
-                />
-              ))
-            : remoteAccess.map((r) => (
-                <RequestCard
-                  key={r.id}
-                  row={r}
-                  feature="remote_access"
-                  details={[
-                    { label: "Service", value: serviceLabel(r.service) },
-                    { label: "Durée", value: periodLabel(r.billingPeriod) },
-                  ]}
-                />
-              ))}
+          {tab === "feature_access" &&
+            featureAccess.map((r) => <FeatureAccessCard key={r.id} row={r} />)}
+          {tab === "auto_setup" &&
+            autoSetup.map((r) => (
+              <RequestCard
+                key={r.id}
+                row={r}
+                feature="auto_setup"
+                details={[{ label: "Type", value: mikrotikKindLabel(r.supportsContainers) }]}
+              />
+            ))}
+          {tab === "remote_access" &&
+            remoteAccess.map((r) => (
+              <RequestCard
+                key={r.id}
+                row={r}
+                feature="remote_access"
+                details={[
+                  { label: "Service", value: serviceLabel(r.service) },
+                  { label: "Durée", value: periodLabel(r.billingPeriod) },
+                ]}
+              />
+            ))}
         </div>
       )}
     </div>

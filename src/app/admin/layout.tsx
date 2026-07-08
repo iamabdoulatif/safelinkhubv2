@@ -4,6 +4,9 @@ import AdminSidebar from "@/components/AdminSidebar";
 import { getSession, isAdminRole, isSuperAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { organizations } from "@/lib/db/schema";
+import { countPendingFeatureAccess } from "@/lib/billing/feature-access-service";
+import { listAuthorizations } from "@/lib/billing/auto-setup-authorization-service";
+import { listRemoteAccessAuthorizations } from "@/lib/billing/remote-access-authorization-service";
 
 export default async function AdminLayout({
   children,
@@ -15,6 +18,7 @@ export default async function AdminLayout({
     redirect("/auth/login?callback=/admin");
   }
 
+  const superadmin = isSuperAdmin(session.role);
   const db = getDb();
   const [org] = await db
     .select({ name: organizations.name })
@@ -22,13 +26,29 @@ export default async function AdminLayout({
     .where(eq(organizations.id, session.orgId))
     .limit(1);
 
+  // Badge in-app : nombre total de demandes d'autorisation en attente (toutes
+  // portes confondues). Calculé uniquement pour le superadmin.
+  let pendingAuthorizations = 0;
+  if (superadmin) {
+    const [featurePending, autoSetup, remoteAccess] = await Promise.all([
+      countPendingFeatureAccess(),
+      listAuthorizations(),
+      listRemoteAccessAuthorizations(),
+    ]);
+    pendingAuthorizations =
+      featurePending +
+      autoSetup.filter((r) => r.status === "pending").length +
+      remoteAccess.filter((r) => r.status === "pending").length;
+  }
+
   return (
     <div className="flex min-h-screen flex-1 bg-paper overflow-x-hidden">
       <AdminSidebar
         orgName={org?.name ?? "Organisation"}
         userName={session.name}
         userEmail={session.email}
-        superadmin={isSuperAdmin(session.role)}
+        superadmin={superadmin}
+        pendingAuthorizations={pendingAuthorizations}
       />
       {/* La top bar mobile fixe (h-14, visible < lg) impose un pt de
           dégagement jusqu'au breakpoint lg inclus — md:p-6 seul l'écrasait

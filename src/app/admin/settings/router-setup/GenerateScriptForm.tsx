@@ -2,17 +2,32 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Lock } from "lucide-react";
 import { ButtonLoader } from "@/components/FancyLoader";
 import { generateInstallScript, checkRouterConnection } from "@/lib/mikrotik/actions";
+import FeatureAccessRequestModal from "@/components/billing/FeatureAccessRequestModal";
+import type { FeatureAccessId } from "@/lib/billing/feature-access-config";
 
 type ConnectionState = "idle" | "waiting" | "connected" | "timeout";
 
+type GenState =
+  | {
+      success?: boolean;
+      routerId?: string;
+      command?: string;
+      error?: string;
+      needsAuthorization?: FeatureAccessId;
+    }
+  | undefined;
+
 export default function GenerateScriptForm() {
-  const [state, formAction, pending] = useActionState(generateInstallScript, undefined);
+  const [state0, formAction, pending] = useActionState(generateInstallScript, undefined);
+  const state = state0 as GenState;
   const [copied, setCopied] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>("idle");
+  const [gateDismissed, setGateDismissed] = useState(false);
   const pollCount = useRef(0);
+  const locked = state?.needsAuthorization ?? null;
 
   useEffect(() => {
     if (!state?.success || !state.routerId) return;
@@ -109,30 +124,57 @@ export default function GenerateScriptForm() {
   }
 
   return (
-    <form action={formAction} className="space-y-4">
-      {state?.error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-          {state.error}
-        </p>
-      )}
-      <div>
-        <label className="mb-1 block text-sm font-medium text-ink">
-          Nom du routeur
-        </label>
-        <input
-          name="name"
-          required
-          placeholder="hAP ac lite"
-          className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
+    <>
+      <form action={formAction} className="space-y-4">
+        {locked ? (
+          <div className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">Fonctionnalité verrouillée</p>
+              <p className="mt-0.5">
+                La création d&apos;un tunnel nécessite l&apos;autorisation de l&apos;administrateur.{" "}
+                <button
+                  type="button"
+                  onClick={() => setGateDismissed(false)}
+                  className="font-semibold underline"
+                >
+                  Demander l&apos;accès
+                </button>
+                .
+              </p>
+            </div>
+          </div>
+        ) : (
+          state?.error && (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{state.error}</p>
+          )
+        )}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink">
+            Nom du routeur
+          </label>
+          <input
+            name="name"
+            required
+            placeholder="hAP ac lite"
+            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+        >
+          {pending ? "Génération..." : "Générer le script d'installation"}
+        </button>
+      </form>
+      {locked && (
+        <FeatureAccessRequestModal
+          open={!gateDismissed}
+          onClose={() => setGateDismissed(true)}
+          feature={locked}
         />
-      </div>
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
-      >
-        {pending ? "Génération..." : "Générer le script d'installation"}
-      </button>
-    </form>
+      )}
+    </>
   );
 }

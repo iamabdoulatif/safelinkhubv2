@@ -486,6 +486,36 @@ export const remoteAccessAuthorizations = pgTable("remote_access_authorizations"
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// TEMPORAIRE — porte d'autorisation manuelle générique pour les
+// fonctionnalités encore gratuites (pas de paiement intégré) : lier un
+// MikroTik ("router_link") et créer un tunnel d'accès distant WireGuard/
+// OpenVPN ("remote_access"). L'utilisateur envoie une demande (sans preuve de
+// paiement), le superadmin est notifié (email + in-app + WhatsApp) et
+// approuve. Une demande "approved" non "consumedAt" débloque UNE utilisation
+// de la fonctionnalité ciblée. Distinct des tables autoSetup/remoteAccess
+// (celles-ci portent un montant/preuve de paiement).
+// TODO: Remplacer par système de paiement intégré.
+export const featureAccessAuthorizations = pgTable("feature_access_authorizations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  requesterEmail: text("requester_email").notNull(),
+  requesterName: text("requester_name").notNull(),
+  // "router_link" (lier un MikroTik) | "remote_access" (tunnel WireGuard/OpenVPN)
+  feature: text("feature").notNull(),
+  // Message libre facultatif joint par le demandeur.
+  note: text("note"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  // Posé quand l'utilisateur consomme l'autorisation (1 demande = 1 usage).
+  consumedAt: timestamp("consumed_at"),
+  decidedAt: timestamp("decided_at"),
+  decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Boutique e-commerce gérée par le superadmin : vente d'équipement
 // technologique (routeurs, antennes, accessoires…) aux opérateurs. Le
 // superadmin gère le catalogue (CRUD + image) ; les admins parcourent et

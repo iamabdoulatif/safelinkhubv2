@@ -1,11 +1,21 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
+import { Lock } from "lucide-react";
 import { connectRouter } from "@/lib/mikrotik/actions";
+import FeatureAccessRequestModal from "@/components/billing/FeatureAccessRequestModal";
+import type { FeatureAccessId } from "@/lib/billing/feature-access-config";
+
+type ConnectState =
+  | { success?: boolean; error?: string; needsAuthorization?: FeatureAccessId }
+  | undefined;
 
 export default function ConnectRouterForm() {
-  const [state, formAction, pending] = useActionState(connectRouter, undefined);
+  const [state0, formAction, pending] = useActionState(connectRouter, undefined);
+  const state = state0 as ConnectState;
+  const [gateDismissed, setGateDismissed] = useState(false);
+  const locked = state?.needsAuthorization ?? null;
 
   if (state?.success) {
     return (
@@ -21,11 +31,30 @@ export default function ConnectRouterForm() {
   }
 
   return (
+    <>
     <form action={formAction} className="space-y-4">
-      {state?.error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-          {state.error}
-        </p>
+      {locked ? (
+        <div className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Fonctionnalité verrouillée</p>
+            <p className="mt-0.5">
+              Lier un MikroTik nécessite l&apos;autorisation de l&apos;administrateur.{" "}
+              <button
+                type="button"
+                onClick={() => setGateDismissed(false)}
+                className="font-semibold underline"
+              >
+                Demander l&apos;accès
+              </button>
+              .
+            </p>
+          </div>
+        </div>
+      ) : (
+        state?.error && (
+          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{state.error}</p>
+        )
       )}
 
       <div className="grid grid-cols-2 gap-3">
@@ -97,5 +126,13 @@ export default function ConnectRouterForm() {
         {pending ? "Connexion..." : "Connecter le routeur"}
       </button>
     </form>
+    {locked && (
+      <FeatureAccessRequestModal
+        open={!gateDismissed}
+        onClose={() => setGateDismissed(true)}
+        feature={locked}
+      />
+    )}
+    </>
   );
 }
