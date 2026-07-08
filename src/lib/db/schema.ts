@@ -56,6 +56,18 @@ export const users = pgTable("users", {
   // the country/dial-code list). Nullable only because accounts created
   // before this field existed have no value — the register form requires
   // it for new sign-ups.
+  // Email verification / account activation. Existing accounts predate this
+  // feature and are backfilled to true by the migration so they're never
+  // locked out; new sign-ups start false and must click the activation link
+  // (lib/auth/tokens.ts + email.ts) before login is granted. The token is
+  // stored SHA-256-hashed, same pattern as the router install tokens above.
+  emailVerified: boolean("email_verified").notNull().default(false),
+  activationTokenHash: text("activation_token_hash"),
+  activationTokenExpiresAt: timestamp("activation_token_expires_at"),
+  // "Mot de passe oublié" flow — a short-lived (1 h) single-use token, again
+  // stored only as its SHA-256 hash. Cleared the moment it's redeemed.
+  passwordResetTokenHash: text("password_reset_token_hash"),
+  passwordResetTokenExpiresAt: timestamp("password_reset_token_expires_at"),
   country: text("country"),
   phoneDialCode: text("phone_dial_code"),
   phone: text("phone"),
