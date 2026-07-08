@@ -3,9 +3,15 @@
 // must be a Resend-verified domain: mail.safelinkhub.io has sending enabled,
 // so the default From uses it. Override with RESEND_FROM.
 import { Resend } from "resend";
-import { getAppUrl } from "@/lib/net/app-url";
 
 const DEFAULT_FROM = "SafeLinkHub <noreply@mail.safelinkhub.io>";
+
+// Base publique pour les liens des emails. Volontairement autonome (pas de
+// dépendance à lib/net/app-url) : NEXT_PUBLIC_APP_URL est inliné au build et
+// peut être vide selon l'environnement, d'où le repli sur le domaine prod.
+function appBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
+}
 
 function getResend(): Resend | null {
   const apiKey = process.env.RESEND_API_KEY;
@@ -39,7 +45,7 @@ function layout(title: string, bodyHtml: string, ctaLabel: string, ctaUrl: strin
 export async function sendActivationEmail(to: string, name: string, token: string): Promise<boolean> {
   const resend = getResend();
   if (!resend) return false;
-  const url = `${getAppUrl()}/auth/activation?token=${encodeURIComponent(token)}`;
+  const url = `${appBaseUrl()}/auth/activation?token=${encodeURIComponent(token)}`;
   const html = layout(
     "Activez votre compte SafeLinkHub",
     `<p style="font-size:15px;line-height:1.6">Bonjour ${escapeHtml(name)},</p>
@@ -60,7 +66,7 @@ export async function sendActivationEmail(to: string, name: string, token: strin
 export async function sendPasswordResetEmail(to: string, name: string, token: string): Promise<boolean> {
   const resend = getResend();
   if (!resend) return false;
-  const url = `${getAppUrl()}/auth/reinitialiser?token=${encodeURIComponent(token)}`;
+  const url = `${appBaseUrl()}/auth/reinitialiser?token=${encodeURIComponent(token)}`;
   const html = layout(
     "Réinitialisez votre mot de passe",
     `<p style="font-size:15px;line-height:1.6">Bonjour ${escapeHtml(name)},</p>
