@@ -13,25 +13,32 @@ import type { RouterOSClient } from "./client";
 
 export const WALLED_GARDEN_COMMENT = "safelinkhub-walled-garden";
 
-// Domaines de paiement autorisés (hors app SafeLinkHub). Ne lister QUE les
-// hôtes vers lesquels le checkout redirige RÉELLEMENT le navigateur du client :
+// Domaines de paiement autorisés (hors app SafeLinkHub). On liste les hôtes
+// vers lesquels le checkout redirige le navigateur du client :
 // - GeniusPay héberge le checkout (pay.genius.ci) ;
-// - Wave : redirection confirmée vers wave.com (doc GeniusPay) ;
-// - Orange Money Web Payment : page hébergée sur webpayment.orange-money.com
-//   (variantes sandbox webpayment-sb / webpayment-qualif → *.orange-money.com).
-// NON listés à dessein :
-// - MTN MoMo & Moov Money : validation par OTP/USSD sur le téléphone, pas de
-//   page web du payeur → rien à autoriser.
-// - Cartes (Visa/Mastercard) : 3-D Secure redirige vers l'ACS de la banque
-//   émettrice (domaine arbitraire par banque) → non whitelistable ; le paiement
-//   par carte ne fonctionnera pas de façon fiable derrière un portail captif.
+// - Wave : redirection vers wave.com (doc GeniusPay) ;
+// - Orange Money Web Payment : webpayment.orange-money.com (+ variantes
+//   sandbox / *.orange.ci pour la CI) ;
+// - Moov Money (Moov Africa) : page de validation web hébergée sous
+//   moov-africa.ci / .com selon le pays → whitelistée par sécurité.
+// NON listé : cartes (Visa/Mastercard) — 3-D Secure redirige vers l'ACS de la
+// banque émettrice (domaine arbitraire), non whitelistable derrière un portail
+// captif. MTN MoMo reste purement USSD/OTP (aucune page web à autoriser).
 export const PAYMENT_WALLED_GARDEN_HOSTS = [
+  // GeniusPay (checkout)
   "pay.genius.ci",
   "*.genius.ci",
+  // Wave
   "wave.com",
   "*.wave.com",
+  // Orange Money
   "webpayment.orange-money.com",
   "*.orange-money.com",
+  "*.orange.ci",
+  // Moov Money (Moov Africa)
+  "moov-africa.ci",
+  "*.moov-africa.ci",
+  "*.moov-africa.com",
 ];
 
 /** Ensemble complet du walled-garden pour une install : app + paiement. */

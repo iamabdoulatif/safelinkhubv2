@@ -359,6 +359,9 @@ const PORTAL_PAY_SCRIPT = `(function(){
   function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
   function digits(s){ return String(s==null?"":s).replace(/[^0-9]/g,""); }
   function api(p){ return cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + p; }
+  // Un échec fetch bas-niveau (walled-garden qui bloque safelinkhub.io, coupure
+  // réseau) remonte "Load failed" / "Failed to fetch" : message clair au client.
+  function errMsg(err){ var m = err && err.message ? String(err.message) : ""; if(!m || /load failed|failed to fetch|networkerror|network request failed/i.test(m)) return "Connexion au serveur impossible. Restez sur le portail WiFi et reessayez."; return m; }
 
   document.addEventListener("click", function(e){
     var t = e.target;
@@ -467,7 +470,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
           var to = document.getElementById("slh-otp-to"); if(to) to.textContent = res.j.to || "";
           setStatus(""); show("otp"); startCooldown();
         })
-        .catch(function(err){ primary.disabled = false; setStatus(err.message || "Erreur réseau.", "#ef4444"); });
+        .catch(function(err){ primary.disabled = false; setStatus(errMsg(err), "#ef4444"); });
     }
 
     function verifyOtp(){
@@ -482,7 +485,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
           if(cdTimer) clearInterval(cdTimer);
           setStatus(""); show("pay");
         })
-        .catch(function(err){ primary.disabled = false; setStatus(err.message || "Code incorrect.", "#ef4444"); });
+        .catch(function(err){ primary.disabled = false; setStatus(errMsg(err), "#ef4444"); });
     }
 
     function startPayment(){
@@ -495,7 +498,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
           setStatus("Terminez le paiement dans l'onglet ouvert, puis revenez ici...", "#0ea5e9");
           poll(res.j.orderId);
         })
-        .catch(function(err){ primary.disabled = false; primary.textContent = "Payer"; setStatus(err.message || "Erreur réseau.", "#ef4444"); });
+        .catch(function(err){ primary.disabled = false; primary.textContent = "Payer"; setStatus(errMsg(err), "#ef4444"); });
     }
 
     function poll(orderId){
