@@ -37,6 +37,13 @@ export const PAYMENT_WALLED_GARDEN_HOSTS = [
   "cdn.jsdelivr.net",
   "fonts.googleapis.com",
   "fonts.gstatic.com",
+  // Paystack : GeniusPay délègue l'ENCAISSEMENT à Paystack (checkout + widget
+  // JS). Sans ces domaines, seul Orange Money (géré à part) marche ; Wave, MTN,
+  // Moov et carte — tous servis via Paystack — échouent au portail captif.
+  "paystack.com",
+  "*.paystack.com",
+  "paystack.co",
+  "*.paystack.co",
   // Wave
   "wave.com",
   "*.wave.com",
@@ -77,6 +84,31 @@ export function walledGardenScriptLines(appHost: string): string {
  * à l'assignation d'un modèle captif → l'admin n'a pas à re-bootstrapper le
  * routeur pour activer le paiement. Ne lève pas : best-effort par entrée.
  */
+// Routeurs déjà réconciliés pendant la vie de ce process, → la clé = la liste
+// d'hôtes courante. Un changement de liste (nouveau déploiement) invalide la
+// clé → chaque routeur est re-réconcilié UNE fois à sa prochaine sync. Vidé au
+// cold start. Évite de rejouer 18 commandes à chaque health-check.
+const reconciledRouters = new Map<string, string>();
+
+/**
+ * Réconcilie le walled-garden d'un routeur AU PLUS une fois par (routeur, liste
+ * d'hôtes) et par process — à appeler sur chaque sync réussie (voir
+ * syncRouterStats). C'est le mécanisme d'installation AUTOMATIQUE : dès qu'on
+ * modifie la liste et redéploie, tous les routeurs déjà en service reçoivent la
+ * mise à jour à leur prochain passage de health-check, sans action manuelle.
+ * Réutilise la connexion existante (pas de tunnel supplémentaire).
+ */
+export async function reconcileWalledGardenOnce(
+  client: RouterOSClient,
+  appHost: string,
+  routerId: string,
+): Promise<void> {
+  const key = walledGardenHosts(appHost).join(",");
+  if (reconciledRouters.get(routerId) === key) return;
+  await ensureWalledGarden(client, appHost);
+  reconciledRouters.set(routerId, key); // marqué seulement si ensureWalledGarden n'a pas levé
+}
+
 export async function ensureWalledGarden(
   client: RouterOSClient,
   appHost: string,

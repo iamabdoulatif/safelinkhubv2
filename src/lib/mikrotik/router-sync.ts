@@ -3,6 +3,8 @@ import { getDb } from "@/lib/db";
 import { routers, routerPortForwards } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry, ensureRouterPortForwards } from "./relay";
+import { reconcileWalledGardenOnce } from "./walled-garden";
+import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
@@ -181,6 +183,15 @@ export async function syncRouterStats(
         // Non-fatal — retried on the next reconnect; the router is online
         // regardless, and direct-tunnel access (WireGuard/OpenVPN) still works.
       }
+    }
+
+    // Installe/actualise AUTOMATIQUEMENT le walled-garden de paiement sur ce
+    // routeur (déjà en service comme neuf) : au plus une fois par process tant
+    // que la liste d'hôtes ne change pas. Réutilise la connexion courante.
+    try {
+      await reconcileWalledGardenOnce(client, new URL(getAppUrl()).host, routerId);
+    } catch {
+      // Non-fatal — réessayé au prochain sync (routeur sans hotspot, hiccup API).
     }
   } catch (err) {
     if (markOfflineOnFailure) {
