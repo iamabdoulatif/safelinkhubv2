@@ -2,10 +2,11 @@ import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, routerPortForwards } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
-import { openRouterTunnelWithRetry } from "./relay";
+import { openRouterTunnelWithRetry, ensureRouterPortForwards } from "./relay";
 import { RouterOSClient } from "./client";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
+import { isWebAccessService } from "./remote-access-host";
 
 type RouterRow = typeof routers.$inferSelect;
 
@@ -103,6 +104,11 @@ export async function syncRouterStats(
     const memoryUsage =
       totalMem > 0 ? (((totalMem - freeMem) / totalMem) * 100).toFixed(2) : "0";
 
+    // Captured before we flip the row to "online" below, so the relay-side
+    // reconciliation further down can tell a genuine reconnect (or first-ever
+    // successful sync) apart from a routine refresh of an already-online router.
+    const wasOffline = router.status !== "online";
+
     await db
       .update(routers)
       .set({
@@ -123,7 +129,11 @@ export async function syncRouterStats(
     // offline at that time. Repairs are idempotent, so they are safe to call
     // on every successful sync.
     const activeManagedForwards = await db
-      .select({ service: routerPortForwards.service })
+      .select({
+        service: routerPortForwards.service,
+        targetPort: routerPortForwards.targetPort,
+        publicPort: routerPortForwards.publicPort,
+      })
       .from(routerPortForwards)
       .where(
         and(
@@ -146,6 +156,30 @@ export async function syncRouterStats(
       } catch {
         // Non-fatal — the public forward on the relay side is still valid,
         // and the SSH/SFTP input allow rule will be retried on the next sync.
+      }
+    }
+
+    // Relay-side reconciliation on reconnect: the two repairs above fix the
+    // *router* end (NAT/firewall), but the *relay* end — the public
+    // publicPort→tunnelIp:targetPort DNAT — is lost if the relay rebooted or
+    // its iptables state was flushed while the router was away, leaving every
+    // "active" forward dead despite a healthy tunnel. Re-assert them at their
+    // recorded ports (idempotent, so a no-op when still present). Gated on
+    // wasOffline so an already-online router's routine refreshes don't fire an
+    // SSH round-trip to the relay every time.
+    if (wasOffline && router.tunnelIp && activeManagedForwards.length > 0) {
+      try {
+        await ensureRouterPortForwards(
+          router.tunnelIp,
+          activeManagedForwards.map((forward) => ({
+            targetPort: forward.targetPort,
+            publicPort: forward.publicPort,
+            tlsTerminated: isWebAccessService(forward.service),
+          })),
+        );
+      } catch {
+        // Non-fatal — retried on the next reconnect; the router is online
+        // regardless, and direct-tunnel access (WireGuard/OpenVPN) still works.
       }
     }
   } catch (err) {
