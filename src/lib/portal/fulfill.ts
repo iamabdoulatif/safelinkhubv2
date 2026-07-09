@@ -9,6 +9,7 @@ import { getDb } from "@/lib/db";
 import { portalOrders, packages, routers, vouchers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { sendOrgSms } from "@/lib/sms/send";
+import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -188,4 +189,49 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   const sms = await sendOrgSms({ orgId: order.orgId, to: order.phone, content: message });
 
   return { ok: true, code, smsSent: sms.ok };
+}
+
+/**
+ * Point d'entrée WEBHOOK : GeniusPay a notifié un événement pour `reference`.
+ * On ne fait PAS confiance à la charge utile du webhook (les paiements portail
+ * sont par-org, sans secret de signature partagé) : on retrouve la commande par
+ * sa référence puis on RE-VÉRIFIE le statut auprès de GeniusPay avec les clés de
+ * l'org (autorité) avant d'honorer. Un faux webhook ne peut donc rien débloquer.
+ * Renvoie `found:false` si la référence n'appartient à aucune commande portail
+ * (l'appelant enchaîne alors sur le traitement plateforme).
+ */
+export async function confirmAndFulfillPortalByReference(
+  reference: string,
+): Promise<{ found: boolean; fulfilled: boolean }> {
+  const db = getDb();
+  const [order] = await db
+    .select()
+    .from(portalOrders)
+    .where(eq(portalOrders.paymentReference, reference))
+    .limit(1);
+  if (!order) return { found: false, fulfilled: false };
+  if (order.status === "fulfilled") return { found: true, fulfilled: true };
+
+  const creds = await getOrgGeniusCreds(order.orgId);
+  if (!creds) return { found: true, fulfilled: false };
+
+  const gp = await getOrgPaymentStatus(creds, reference);
+  if (!gp.ok) return { found: true, fulfilled: false };
+
+  if (gp.status === "failed") {
+    await db
+      .update(portalOrders)
+      .set({ status: "failed", failureReason: "Paiement échoué ou annulé (webhook)." })
+      .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "pending")));
+    return { found: true, fulfilled: false };
+  }
+  if (gp.status !== "completed") return { found: true, fulfilled: false };
+
+  // Payé (confirmé par l'API de l'org) : bascule pending→paid puis honore.
+  await db
+    .update(portalOrders)
+    .set({ status: "paid" })
+    .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "pending")));
+  const result = await fulfillPortalOrder(order.id);
+  return { found: true, fulfilled: result.ok };
 }

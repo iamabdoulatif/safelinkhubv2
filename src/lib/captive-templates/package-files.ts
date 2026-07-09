@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import path from "path";
+import { countryFlag } from "../intl/countries";
 
 export type PackageFile = {
   path: string;
@@ -38,6 +39,11 @@ export type PackageBrandingVars = {
   appUrl?: string | null;
   slug?: string | null;
   routerId?: string | null;
+  // Pays où opère le routeur (déduit de l'org) : préfixe d'appel injecté dans
+  // le champ téléphone du portail (ex. CI → 🇨🇮 +225). Le client saisit son
+  // numéro local, le serveur reconstitue l'international.
+  dialCode?: string | null; // ex. "+225"
+  countryIso2?: string | null; // ex. "CI"
 };
 
 function escapeHtml(value: string): string {
@@ -351,6 +357,8 @@ const PORTAL_PAY_SCRIPT = `(function(){
   var cfg = window.SLH_PORTAL || {};
   function configured(){ return !!(cfg && cfg.appUrl && cfg.slug && cfg.mac && String(cfg.mac).indexOf("$(") !== 0); }
   function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function digits(s){ return String(s==null?"":s).replace(/[^0-9]/g,""); }
+  function api(p){ return cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + p; }
 
   document.addEventListener("click", function(e){
     var t = e.target;
@@ -366,84 +374,180 @@ const PORTAL_PAY_SCRIPT = `(function(){
 
   function openModal(sel){
     var old = document.getElementById("slh-pay-modal"); if(old) old.remove();
+    var dial = cfg.dialCode || "";
+    var flag = cfg.flag || "";
+    var prefix = (flag ? flag + " " : "") + dial;
     var o = document.createElement("div");
     o.id = "slh-pay-modal";
     o.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;";
     o.innerHTML = '<div style="background:#fff;color:#0f172a;border-radius:14px;max-width:360px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-family:system-ui,sans-serif;">'
-      + "<h3 style=\\"margin:0 0 4px;font-size:1.1rem;\\">Acheter " + esc(sel.plan) + "</h3>"
-      + "<p style=\\"margin:0 0 16px;font-size:.9rem;color:#64748b;\\">" + esc(sel.price) + " &middot; paiement Mobile Money</p>"
-      + "<label style=\\"display:block;font-size:.8rem;margin-bottom:6px;\\">Votre num&eacute;ro (Mobile Money)</label>"
-      + "<input id=\\"slh-pay-phone\\" type=\\"tel\\" inputmode=\\"tel\\" placeholder=\\"07 00 00 00 00\\" autocomplete=\\"tel\\" style=\\"width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;margin-bottom:6px;\\" />"
-      + "<p style=\\"margin:0 0 12px;font-size:.72rem;color:#94a3b8;\\">Le code d&#39;acc&egrave;s vous sera aussi envoy&eacute; par SMS.</p>"
-      + "<div id=\\"slh-pay-status\\" style=\\"display:none;font-size:.85rem;margin-bottom:12px;\\"></div>"
-      + '<div style="display:flex;gap:8px;">'
-      + "<button id=\\"slh-pay-cancel\\" type=\\"button\\" style=\\"flex:1;padding:11px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;font-size:.9rem;\\">Annuler</button>"
-      + "<button id=\\"slh-pay-go\\" type=\\"button\\" style=\\"flex:2;padding:11px;border:0;background:#10b981;color:#fff;border-radius:8px;font-size:.9rem;font-weight:600;\\">Payer</button>"
-      + "</div></div>";
+      + '<h3 style="margin:0 0 4px;font-size:1.1rem;">Acheter ' + esc(sel.plan) + '</h3>'
+      + '<p style="margin:0 0 16px;font-size:.9rem;color:#64748b;">' + esc(sel.price) + ' &middot; Mobile Money</p>'
+      + '<div data-step="phone">'
+      +   '<label style="display:block;font-size:.8rem;margin-bottom:6px;">Votre num&eacute;ro</label>'
+      +   '<div style="display:flex;gap:6px;margin-bottom:6px;">'
+      +     (prefix ? '<span style="display:flex;align-items:center;padding:0 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;font-size:.95rem;white-space:nowrap;">' + esc(prefix) + '</span>' : '')
+      +     '<input id="slh-phone" type="tel" inputmode="numeric" placeholder="07 00 00 00 00" autocomplete="tel" style="flex:1;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;" />'
+      +   '</div>'
+      +   '<p style="margin:0 0 12px;font-size:.72rem;color:#94a3b8;">Un code de v&eacute;rification vous sera envoy&eacute; par SMS.</p>'
+      + '</div>'
+      + '<div data-step="otp" style="display:none;">'
+      +   '<p style="margin:0 0 8px;font-size:.85rem;">Entrez le code re&ccedil;u par SMS au <b id="slh-otp-to"></b></p>'
+      +   '<input id="slh-otp" type="tel" inputmode="numeric" maxlength="6" placeholder="------" autocomplete="one-time-code" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1.3rem;letter-spacing:.4em;text-align:center;margin-bottom:8px;" />'
+      +   '<button id="slh-otp-resend" type="button" style="background:none;border:0;color:#0ea5e9;font-size:.8rem;padding:0;">Renvoyer le code</button>'
+      + '</div>'
+      + '<div data-step="pay" style="display:none;">'
+      +   '<p style="margin:0 0 12px;font-size:.9rem;">Num&eacute;ro v&eacute;rifi&eacute;. Appuyez sur <b>Payer</b> pour continuer.</p>'
+      + '</div>'
+      + '<div data-step="done" style="display:none;text-align:center;">'
+      +   '<p style="margin:0 0 6px;font-size:.85rem;color:#64748b;">Votre code d&#39;acc&egrave;s WiFi</p>'
+      +   '<div id="slh-code" style="font-size:1.8rem;font-weight:700;letter-spacing:.15em;">------</div>'
+      +   '<p style="margin:8px 0 0;font-size:.72rem;color:#94a3b8;">Envoy&eacute; aussi par SMS. Connexion en cours&hellip;</p>'
+      + '</div>'
+      + '<div id="slh-status" style="display:none;font-size:.85rem;margin:12px 0 0;"></div>'
+      + '<div style="display:flex;gap:8px;margin-top:16px;">'
+      +   '<button id="slh-cancel" type="button" style="flex:1;padding:11px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;font-size:.9rem;">Fermer</button>'
+      +   '<button id="slh-primary" type="button" style="flex:2;padding:11px;border:0;background:#10b981;color:#fff;border-radius:8px;font-size:.9rem;font-weight:600;">Recevoir le code</button>'
+      + '</div>'
+      + '</div>';
     document.body.appendChild(o);
-    var phone = document.getElementById("slh-pay-phone");
-    var go = document.getElementById("slh-pay-go");
-    var cancel = document.getElementById("slh-pay-cancel");
-    var statusEl = document.getElementById("slh-pay-status");
-    setTimeout(function(){ if(phone) phone.focus(); }, 100);
-    function setStatus(m,c){ statusEl.style.display="block"; statusEl.style.color = c || "#64748b"; statusEl.textContent = m; }
-    cancel.addEventListener("click", function(){ o.remove(); });
-    o.addEventListener("click", function(ev){ if(ev.target===o) o.remove(); });
-    go.addEventListener("click", function(){ start(sel, phone, go, setStatus); });
-    phone.addEventListener("keydown", function(ev){ if(ev.key==="Enter"){ go.click(); } });
-  }
 
-  function start(sel, phoneEl, go, setStatus){
-    var phone = (phoneEl.value||"").replace(/[^0-9]/g,"");
-    if(phone.length < 8){ setStatus("Numéro invalide.", "#ef4444"); return; }
-    go.disabled = true; go.textContent = "Traitement..."; setStatus("Création du paiement...");
-    fetch(cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + "/initiate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ packageId: sel.packageId, phone: phone, mac: cfg.mac, routerId: cfg.routerId || "" })
-    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
-    .then(function(res){
-      if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Echec du paiement.");
-      try { window.open(res.j.checkoutUrl, "_blank"); } catch(e){}
-      setStatus("Terminez le paiement dans l'onglet ouvert, puis revenez ici...", "#0ea5e9");
-      poll(res.j.orderId, go, setStatus);
-    }).catch(function(err){
-      go.disabled = false; go.textContent = "Payer"; setStatus(err.message || "Echec de contact du serveur.", "#ef4444");
+    var step = "phone";
+    var phoneEl = document.getElementById("slh-phone");
+    var otpEl = document.getElementById("slh-otp");
+    var primary = document.getElementById("slh-primary");
+    var cancel = document.getElementById("slh-cancel");
+    var statusEl = document.getElementById("slh-status");
+    var resend = document.getElementById("slh-otp-resend");
+    var cdTimer = null;
+    setTimeout(function(){ if(phoneEl) phoneEl.focus(); }, 100);
+
+    function setStatus(m,c){ if(!m){ statusEl.style.display="none"; return; } statusEl.style.display="block"; statusEl.style.color = c || "#64748b"; statusEl.textContent = m; }
+    function localPhone(){ return digits(phoneEl.value); }
+    function show(name){
+      step = name;
+      var steps = o.querySelectorAll("[data-step]");
+      for(var i=0;i<steps.length;i++){ steps[i].style.display = steps[i].getAttribute("data-step")===name ? "" : "none"; }
+      if(name==="phone"){ primary.textContent = "Recevoir le code"; }
+      else if(name==="otp"){ primary.textContent = "Vérifier"; setTimeout(function(){ if(otpEl) otpEl.focus(); }, 80); }
+      else if(name==="pay"){ primary.textContent = "Payer"; }
+      else if(name==="done"){ primary.textContent = "Se connecter"; }
+    }
+
+    cancel.addEventListener("click", function(){ if(cdTimer) clearInterval(cdTimer); o.remove(); });
+    o.addEventListener("click", function(ev){ if(ev.target===o){ if(cdTimer) clearInterval(cdTimer); o.remove(); } });
+    primary.addEventListener("click", function(){
+      if(step==="phone") sendOtp(false);
+      else if(step==="otp") verifyOtp();
+      else if(step==="pay") startPayment();
+      else if(step==="done") connect(document.getElementById("slh-code").textContent);
     });
-  }
+    resend.addEventListener("click", function(){ if(!resend.disabled) sendOtp(true); });
+    phoneEl.addEventListener("keydown", function(ev){ if(ev.key==="Enter") primary.click(); });
+    otpEl.addEventListener("keydown", function(ev){ if(ev.key==="Enter") primary.click(); });
 
-  function poll(orderId, go, setStatus){
-    var tries = 0, max = 90;
-    var timer = setInterval(function(){
-      tries++;
-      if(tries > max){ clearInterval(timer); setStatus("Délai dépassé. Si vous avez payé, réessayez.", "#ef4444"); go.disabled=false; go.textContent="Payer"; return; }
-      fetch(cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + "/status?orderId=" + encodeURIComponent(orderId), { cache: "no-store" })
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        if(d.status==="fulfilled" && d.code){ clearInterval(timer); setStatus("Paiement confirmé ! Connexion...", "#10b981"); connect(d.code); }
-        else if(d.status==="failed"){ clearInterval(timer); setStatus(d.error || "Paiement échoué.", "#ef4444"); go.disabled=false; go.textContent="Payer"; }
-      }).catch(function(){});
-    }, 4000);
-  }
+    function startCooldown(){
+      if(cdTimer) clearInterval(cdTimer);
+      var left = 45; resend.disabled = true;
+      function tick(){ resend.textContent = left>0 ? ("Renvoyer dans " + left + "s") : "Renvoyer le code"; if(left<=0){ resend.disabled=false; if(cdTimer) clearInterval(cdTimer); } left--; }
+      tick(); cdTimer = setInterval(tick, 1000);
+    }
 
-  function connect(code){
-    try { localStorage.setItem("safelinkhub_last_ticket", code); } catch(e){}
-    var u = document.querySelector('[name="username"]');
-    var p = document.querySelector('[name="password"]');
-    var form = document.forms["login"] || (u && u.form) || document.querySelector('form[action*="login"]') || document.querySelector("form");
-    if(u) u.value = code;
-    if(p) p.value = code;
-    if(!form) return;
-    if(form.requestSubmit) form.requestSubmit(); else form.submit();
+    function sendOtp(isResend){
+      var lp = localPhone();
+      if(lp.length < 7){ setStatus("Numéro invalide.", "#ef4444"); return; }
+      primary.disabled = true;
+      setStatus(isResend ? "Renvoi du code..." : "Envoi du code...");
+      fetch(api("/otp/send"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: lp }) })
+        .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+        .then(function(res){
+          primary.disabled = false;
+          if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Envoi impossible.");
+          if(res.j.status === "verified"){ setStatus(""); show("pay"); return; }
+          var to = document.getElementById("slh-otp-to"); if(to) to.textContent = res.j.to || "";
+          setStatus(""); show("otp"); startCooldown();
+        })
+        .catch(function(err){ primary.disabled = false; setStatus(err.message || "Erreur réseau.", "#ef4444"); });
+    }
+
+    function verifyOtp(){
+      var code = digits(otpEl.value);
+      if(code.length < 4){ setStatus("Entrez le code reçu.", "#ef4444"); return; }
+      primary.disabled = true; setStatus("Vérification...");
+      fetch(api("/otp/verify"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: localPhone(), code: code }) })
+        .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+        .then(function(res){
+          primary.disabled = false;
+          if(!res.ok || !res.j.verified) throw new Error(res.j && res.j.error ? res.j.error : "Code incorrect.");
+          if(cdTimer) clearInterval(cdTimer);
+          setStatus(""); show("pay");
+        })
+        .catch(function(err){ primary.disabled = false; setStatus(err.message || "Code incorrect.", "#ef4444"); });
+    }
+
+    function startPayment(){
+      primary.disabled = true; primary.textContent = "Traitement..."; setStatus("Création du paiement...");
+      fetch(api("/initiate"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ packageId: sel.packageId, phone: localPhone(), mac: cfg.mac, routerId: cfg.routerId || "" }) })
+        .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+        .then(function(res){
+          if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Echec du paiement.");
+          try { window.open(res.j.checkoutUrl, "_blank"); } catch(e){}
+          setStatus("Terminez le paiement dans l'onglet ouvert, puis revenez ici...", "#0ea5e9");
+          poll(res.j.orderId);
+        })
+        .catch(function(err){ primary.disabled = false; primary.textContent = "Payer"; setStatus(err.message || "Erreur réseau.", "#ef4444"); });
+    }
+
+    function poll(orderId){
+      var tries = 0, max = 90;
+      var timer = setInterval(function(){
+        tries++;
+        if(tries > max){ clearInterval(timer); setStatus("Délai dépassé. Si vous avez payé, réessayez.", "#ef4444"); primary.disabled=false; primary.textContent="Payer"; return; }
+        fetch(api("/status?orderId=" + encodeURIComponent(orderId)), { cache:"no-store" })
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if(d.status==="fulfilled" && d.code){ clearInterval(timer); onCode(d.code); }
+            else if(d.status==="failed"){ clearInterval(timer); setStatus(d.error || "Paiement échoué.", "#ef4444"); primary.disabled=false; primary.textContent="Payer"; }
+          }).catch(function(){});
+      }, 4000);
+    }
+
+    function onCode(code){
+      var cEl = document.getElementById("slh-code"); if(cEl) cEl.textContent = code;
+      show("done");
+      primary.disabled = false;
+      cancel.style.display = "none";
+      setStatus("Paiement confirmé !", "#10b981");
+      try { localStorage.setItem("safelinkhub_last_ticket", code); } catch(e){}
+      setTimeout(function(){ connect(code); }, 1200);
+    }
+
+    function connect(code){
+      try { localStorage.setItem("safelinkhub_last_ticket", code); } catch(e){}
+      var u = document.querySelector('[name="username"]');
+      var p = document.querySelector('[name="password"]');
+      var form = document.forms["login"] || (u && u.form) || document.querySelector('form[action*="login"]') || document.querySelector("form");
+      if(u) u.value = code;
+      if(p) p.value = code;
+      if(!form) return;
+      if(form.requestSubmit) form.requestSubmit(); else form.submit();
+    }
+
+    show("phone");
   }
 })();`;
 
 /** Bloc <script> injecté en fin de login.html : config + flux de paiement. */
 function portalPayInjection(vars: PackageBrandingVars): string {
+  const iso2 = (vars.countryIso2 ?? "").toUpperCase();
   const config = JSON.stringify({
     appUrl: vars.appUrl ?? "",
     slug: vars.slug ?? "",
     routerId: vars.routerId ?? "",
     mac: "$(mac)", // remplacé par le routeur (variable hotspot) au service de la page
+    dialCode: vars.dialCode ?? "",
+    iso2,
+    flag: iso2 ? countryFlag(iso2) : "",
   });
   return `\n<script>window.SLH_PORTAL=${config};</script>\n<script>${PORTAL_PAY_SCRIPT}</script>\n`;
 }

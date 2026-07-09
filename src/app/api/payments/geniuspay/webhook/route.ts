@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { verifyGeniusWebhookSignature } from "@/lib/payment-gateways/geniuspay";
 import { approveRemoteAccessPaymentByReference } from "@/lib/billing/remote-access-authorization-service";
 import { approveAutoSetupPaymentByReference } from "@/lib/billing/auto-setup-authorization-service";
+import { confirmAndFulfillPortalByReference } from "@/lib/portal/fulfill";
 
 export async function POST(request: Request) {
   // Corps BRUT indispensable au calcul HMAC (un JSON re-sérialisé casserait
@@ -19,11 +20,6 @@ export async function POST(request: Request) {
   const signature = request.headers.get("x-webhook-signature");
   const timestamp = request.headers.get("x-webhook-timestamp");
   const event = request.headers.get("x-webhook-event");
-
-  if (!verifyGeniusWebhookSignature({ rawBody, signature, timestamp })) {
-    console.warn("[geniuspay:webhook] signature invalide", { event, hasSig: Boolean(signature) });
-    return Response.json({ error: "invalid signature" }, { status: 401 });
-  }
 
   let payload: Record<string, unknown> | null = null;
   try {
@@ -38,6 +34,36 @@ export async function POST(request: Request) {
   const data = (payload?.data as Record<string, unknown>) ?? payload ?? {};
   const reference = (data.reference as string) || (payload?.reference as string) || "";
   const status = (data.status as string) || "";
+
+  // 1) PORTAIL CAPTIF (paiements PAR-ORG). Pas de secret de signature partagé :
+  // on retrouve la commande par sa référence et on RE-VÉRIFIE le paiement via les
+  // clés de l'org (autorité) avant d'honorer — un faux webhook ne débloque rien.
+  // Traité AVANT la vérif de signature plateforme. Si la référence n'est pas une
+  // commande portail, on enchaîne sur le flux plateforme (signé) plus bas.
+  if (reference) {
+    try {
+      const portal = await confirmAndFulfillPortalByReference(reference);
+      if (portal.found) {
+        if (portal.fulfilled) revalidatePath("/admin/vouchers");
+        console.info("[geniuspay:webhook] commande portail", {
+          reference,
+          fulfilled: portal.fulfilled,
+        });
+        return Response.json({ received: true, handled: portal.fulfilled, kind: "portal" });
+      }
+    } catch (e) {
+      console.error("[geniuspay:webhook] échec traitement portail", { reference, error: String(e) });
+      // 500 → GeniusPay ré-essaiera (le traitement est idempotent).
+      return Response.json({ error: "processing failed" }, { status: 500 });
+    }
+  }
+
+  // 2) PLATEFORME (accès distant / auto-setup) : exige une signature HMAC valide
+  // (GENIUSPAY_WEBHOOK_SECRET).
+  if (!verifyGeniusWebhookSignature({ rawBody, signature, timestamp })) {
+    console.warn("[geniuspay:webhook] signature invalide", { event, hasSig: Boolean(signature) });
+    return Response.json({ error: "invalid signature" }, { status: 401 });
+  }
 
   const isSuccess =
     eventType === "payment.success" || status === "completed" || status === "success";

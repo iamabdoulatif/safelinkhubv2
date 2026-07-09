@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { paymentGateways } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { encryptSecret } from "@/lib/mikrotik/crypto";
+import { getOrgGeniusCreds, ensureOrgWebhook, forgetOrgWebhook } from "./geniuspay-org";
 import { PROVIDERS, type Provider } from "./providers";
 
 export async function listPaymentGateways() {
@@ -67,6 +68,16 @@ export async function savePaymentGateway(_prevState: unknown, formData: FormData
       apiKeyEncrypted,
       enabled,
     });
+  }
+
+  // GeniusPay actif : enregistre le webhook sur le compte de l'org pour que le
+  // portail captif soit notifié des paiements (best-effort — n'échoue pas la
+  // sauvegarde ; le portail retombe sur le polling si ça rate). `force` car les
+  // clés viennent peut-être de changer (nouveau compte GeniusPay).
+  if (provider === "genius_pay" && enabled) {
+    forgetOrgWebhook(session.orgId);
+    const creds = await getOrgGeniusCreds(session.orgId);
+    if (creds) await ensureOrgWebhook(creds, session.orgId, { force: true });
   }
 
   revalidatePath("/admin/settings/payment-gateways");

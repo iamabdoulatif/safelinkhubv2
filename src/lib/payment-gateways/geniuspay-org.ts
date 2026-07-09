@@ -112,6 +112,96 @@ export async function createOrgPayment(
   return { ok: true, reference: String(reference), paymentUrl: String(paymentUrl) };
 }
 
+// ── Enregistrement automatique du webhook (par-org) ────────────────────────
+// GeniusPay n'accepte PAS d'URL de callback dans la création de paiement : les
+// webhooks sont configurés au niveau du COMPTE (POST /webhooks, doc
+// pay.genius.ci). Comme le portail captif encaisse sur le compte GeniusPay de
+// CHAQUE org, on enregistre nous-mêmes le webhook dans le compte de l'org pour
+// que la notification arrive « sur tous les portails par défaut », sans config
+// manuelle. Le endpoint /api/payments/geniuspay/webhook ré-vérifie chaque
+// notification via les clés de l'org : on n'a donc PAS besoin du secret
+// whsec_… renvoyé à la création (aucun secret partagé pour le flux portail).
+
+const WEBHOOK_NAME = "safelinkhub-webhook";
+
+/** URL publique de notre endpoint webhook (identique pour toutes les orgs). */
+function webhookUrl(): string {
+  const base = (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
+  return `${base}/api/payments/geniuspay/webhook`;
+}
+
+// Orgs dont le webhook a déjà été confirmé pendant la vie de ce process : évite
+// de re-lister/créer à chaque paiement. Vidé au cold start (re-vérifie une fois).
+const ensuredOrgs = new Set<string>();
+
+/** Oublie l'org du cache (à appeler quand ses clés GeniusPay changent). */
+export function forgetOrgWebhook(orgId: string): void {
+  ensuredOrgs.delete(orgId);
+}
+
+/**
+ * Garantit que le compte GeniusPay de l'org possède un webhook pointant vers
+ * notre endpoint (événements payment.success / payment.failed). Idempotent
+ * (vérifie l'existant avant de créer) et best-effort : ne lève jamais et
+ * n'échoue jamais un paiement — le portail retombe de toute façon sur le
+ * polling si le webhook n'est pas enregistré.
+ */
+export async function ensureOrgWebhook(
+  creds: OrgGeniusCreds,
+  orgId: string,
+  opts?: { force?: boolean },
+): Promise<void> {
+  if (!opts?.force && ensuredOrgs.has(orgId)) return;
+  const url = webhookUrl();
+  try {
+    // Déjà présent ? (idempotence — pas de doublon à chaque re-save.)
+    const listRes = await fetch(`${baseUrl()}/webhooks`, {
+      method: "GET",
+      headers: headers(creds),
+      cache: "no-store",
+    });
+    if (listRes.ok) {
+      const listJson = (await listRes.json().catch(() => null)) as unknown;
+      const raw = listJson as Record<string, unknown> | null;
+      const items: unknown[] = Array.isArray(listJson)
+        ? listJson
+        : Array.isArray(raw?.data)
+          ? (raw!.data as unknown[])
+          : Array.isArray(raw?.webhooks)
+            ? (raw!.webhooks as unknown[])
+            : [];
+      if (items.some((w) => (w as Record<string, unknown>)?.url === url)) {
+        ensuredOrgs.add(orgId);
+        return;
+      }
+    }
+
+    const createRes = await fetch(`${baseUrl()}/webhooks`, {
+      method: "POST",
+      headers: headers(creds),
+      body: JSON.stringify({
+        name: WEBHOOK_NAME,
+        url,
+        events: ["payment.success", "payment.failed"],
+      }),
+      cache: "no-store",
+    });
+    if (createRes.ok) {
+      ensuredOrgs.add(orgId);
+      console.info("[geniuspay:webhook] enregistré sur le compte de l'org", { orgId });
+    } else {
+      const msg = await createRes.text().catch(() => "");
+      console.warn("[geniuspay:webhook] enregistrement refusé", {
+        orgId,
+        status: createRes.status,
+        msg: msg.slice(0, 200),
+      });
+    }
+  } catch (e) {
+    console.warn("[geniuspay:webhook] enregistrement impossible", { orgId, error: String(e) });
+  }
+}
+
 export type OrgPaymentStatus = "pending" | "completed" | "failed" | "unknown";
 
 /**

@@ -124,6 +124,38 @@ describe("renderPackageFile", () => {
     assert.ok(body.indexOf("SLH_PORTAL") < body.indexOf("</body>"), "injected inside body");
   });
 
+  it("injects the country dial prefix + OTP flow, and emits valid JS", () => {
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: '<html><body><button class="plan-btn" data-package-id="pkg-x">Acheter</button></body></html>',
+    };
+    const body = renderPackageFile(login, {
+      ssid: "X",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+      routerId: "router-1",
+      countryIso2: "CI",
+      dialCode: "+225",
+    }).toString("utf8");
+
+    // Country config threaded into SLH_PORTAL for the phone-prefix + OTP.
+    assert.ok(body.includes('"dialCode":"+225"'), "dial code in config");
+    assert.ok(body.includes('"iso2":"CI"'), "iso2 in config");
+    assert.ok(body.includes("🇨🇮"), "computed flag in config");
+    // OTP-first flow wired to the new endpoints and steps.
+    assert.ok(body.includes("/otp/send"), "otp send endpoint referenced");
+    assert.ok(body.includes("/otp/verify"), "otp verify endpoint referenced");
+    assert.ok(body.includes('data-step="otp"'), "otp step present");
+
+    // The injected script must parse as valid JS (guards the hand-written
+    // template-literal string against stray backticks / ${ / unescaped quotes).
+    const scripts = [...body.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    const flow = scripts.find((s) => s.includes("/otp/send")) ?? "";
+    assert.ok(flow.length > 0, "flow script extracted");
+    assert.doesNotThrow(() => new Function(flow), "injected script is syntactically valid");
+  });
+
   it("does not inject the payment flow without appUrl, nor into non-login files", () => {
     const login: PackageFile = {
       path: "login.html",

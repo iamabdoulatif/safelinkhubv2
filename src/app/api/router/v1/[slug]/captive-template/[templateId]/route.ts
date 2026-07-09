@@ -8,6 +8,7 @@ import {
   type PackageFile,
   type PackageVendor,
 } from "@/lib/captive-templates/package-files";
+import { getOrgDial } from "@/lib/portal/org-dial";
 
 /**
  * Fetched directly by the router itself (via /tool fetch, see
@@ -39,6 +40,9 @@ export async function GET(
   if (!org) {
     return new Response("Unknown organization", { status: 404 });
   }
+  // Pays où opère le routeur (déduit du compte fondateur de l'org) → préfixe
+  // d'appel injecté au portail + reconstruction du numéro international à l'OTP.
+  const { dialCode, iso2 } = await getOrgDial(org.id);
 
   const [template] = await db
     .select()
@@ -79,6 +83,9 @@ export async function GET(
     appUrl,
     slug,
     routerId,
+    // Pays où opère le routeur (déduit du compte fondateur) → préfixe + OTP.
+    countryIso2: iso2,
+    dialCode,
   });
   return new Response(new Uint8Array(body), {
     status: 200,

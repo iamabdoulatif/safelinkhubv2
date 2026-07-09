@@ -7,6 +7,7 @@ import {
   timestamp,
   numeric,
   jsonb,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const organizations = pgTable("organizations", {
@@ -314,6 +315,28 @@ export const portalOrders = pgTable("portal_orders", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   fulfilledAt: timestamp("fulfilled_at"),
 });
+
+// Vérification OTP (SMS) du numéro du client au portail captif, AVANT paiement.
+// Le code n'est jamais stocké en clair (codeHash = sha256(orgId:phone:code)) ;
+// `verifiedAt` mémorise la vérification ~30 min (voir src/lib/portal/otp.ts) →
+// pas de nouvel OTP à chaque achat. Une seule ligne par (org, numéro).
+export const portalOtps = pgTable(
+  "portal_otps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    phone: text("phone").notNull(), // international, chiffres uniquement
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    verifiedAt: timestamp("verified_at"),
+    expiresAt: timestamp("expires_at").notNull(),
+    lastSentAt: timestamp("last_sent_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("portal_otps_org_phone_idx").on(t.orgId, t.phone)],
+);
 
 export const personalVpnAccess = pgTable("personal_vpn_access", {
   id: uuid("id").primaryKey().defaultRandom(),
