@@ -25,9 +25,12 @@ export const WALLED_GARDEN_COMMENT = "safelinkhub-walled-garden";
 // banque émettrice (domaine arbitraire), non whitelistable derrière un portail
 // captif. MTN MoMo reste purement USSD/OTP (aucune page web à autoriser).
 export const PAYMENT_WALLED_GARDEN_HOSTS = [
-  // GeniusPay (checkout)
+  // GeniusPay : API sur pay.genius.ci, mais le CHECKOUT (où le client est
+  // redirigé) est servi sur geniuspay.ci — domaine distinct, à autoriser aussi.
   "pay.genius.ci",
   "*.genius.ci",
+  "geniuspay.ci",
+  "*.geniuspay.ci",
   // Wave
   "wave.com",
   "*.wave.com",

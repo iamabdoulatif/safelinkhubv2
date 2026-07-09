@@ -104,8 +104,16 @@ export async function createOrgPayment(
       `Erreur GeniusPay (${res.status}).`;
     return { ok: false, error: String(msg) };
   }
-  const reference = json?.reference;
-  const paymentUrl = (json?.payment_url as string) || (json?.checkout_url as string);
+  // GeniusPay enveloppe la charge utile dans `data` : { success, data: {
+  // reference, checkout_url, payment_url, … } }. On lit `data` en priorité,
+  // avec repli au niveau racine par robustesse.
+  const data = (json?.data as Record<string, unknown>) ?? json ?? {};
+  const reference = data.reference ?? json?.reference;
+  const paymentUrl =
+    (data.payment_url as string) ||
+    (data.checkout_url as string) ||
+    (json?.payment_url as string) ||
+    (json?.checkout_url as string);
   if (!reference || !paymentUrl) {
     return { ok: false, error: "Réponse GeniusPay incomplète (pas de lien de paiement)." };
   }
