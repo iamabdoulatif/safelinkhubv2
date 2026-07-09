@@ -29,7 +29,6 @@ export default function PaidStatus({
 }) {
   const canPoll = Boolean(orderId && slug) && !isError;
   const [phase, setPhase] = useState<Phase>(isError ? "failed" : canPoll ? "loading" : "processing");
-  const [code, setCode] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -48,8 +47,7 @@ export default function PaidStatus({
         );
         const data = (await res.json()) as { status?: string; code?: string; error?: string };
         if (!active) return;
-        if (data.status === "fulfilled" && data.code) {
-          setCode(data.code);
+        if (data.status === "fulfilled") {
           setPhase("fulfilled");
           return;
         }
@@ -92,25 +90,13 @@ export default function PaidStatus({
           <>
             <div style={{ fontSize: 44, marginBottom: 8 }}>✅</div>
             <h1 style={{ fontSize: "1.25rem", margin: "0 0 4px" }}>Paiement reçu</h1>
-            <p style={{ color: "#64748b", fontSize: ".85rem", margin: "0 0 14px" }}>
-              Votre code d’accès WiFi
+            <p style={{ color: "#0f172a", fontSize: "1rem", fontWeight: 600, margin: "10px 0 6px" }}>
+              Votre accès WiFi est activé.
             </p>
-            <div
-              style={{
-                fontSize: "2rem",
-                fontWeight: 700,
-                letterSpacing: ".18em",
-                background: "#f1f5f9",
-                borderRadius: 12,
-                padding: "14px 8px",
-                marginBottom: 14,
-              }}
-            >
-              {code}
-            </div>
-            <p style={{ color: "#64748b", fontSize: ".9rem", margin: 0 }}>
-              Retournez à l’onglet WiFi : la connexion s’ouvre automatiquement. Ce code vous est
-              aussi envoyé par SMS.
+            <p style={{ color: "#64748b", fontSize: ".92rem", margin: 0 }}>
+              Votre appareil se connecte <b>automatiquement</b> — aucun code à saisir. Fermez cette
+              page et patientez quelques secondes ; la navigation s’ouvre toute seule. Un SMS de
+              confirmation vous a été envoyé.
             </p>
           </>
         ) : phase === "failed" ? (

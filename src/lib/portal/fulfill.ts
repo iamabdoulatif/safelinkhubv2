@@ -148,21 +148,37 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   } catch (e) {
     return failClaim(`Routeur injoignable : ${e instanceof Error ? e.message : "connexion échouée"}.`);
   }
+  // AUTO-LOGIN PAR MAC : le user hotspot est nommé D'APRÈS le MAC du client.
+  // Le profil hotspot est configuré `login-by=mac` + `mac-auth-mode=
+  // mac-as-username-and-password` (voir container-setup.ts) → RouterOS
+  // authentifie automatiquement ce MAC à sa prochaine sonde de connectivité,
+  // sans portail ni code à saisir. iOS/Android détectent alors l'accès et
+  // ferment le portail captif tout seuls. Le profil impose la durée du forfait.
   let createError: string | null = null;
   try {
-    const exists = await client
-      .talk(["/ip/hotspot/user/print", `?name=${code}`])
-      .catch(() => []);
-    if (exists.length === 0) {
+    const existing = await client
+      .talk(["/ip/hotspot/user/print", `?name=${mac}`])
+      .catch(() => [] as Record<string, string>[]);
+    if (existing.length === 0) {
       await client.talk([
         "/ip/hotspot/user/add",
-        `=name=${code}`,
-        `=password=${code}`,
+        `=name=${mac}`,
+        `=password=${mac}`,
         `=profile=${profileName}`,
-        // Lie le code au MAC du client → anti-partage. Le mac-cookie du profil
-        // hotspot auto-reconnecte ensuite ce MAC sans ressaisir le code.
         `=mac-address=${mac}`,
       ]);
+    } else {
+      // Ré-achat depuis le même appareil : réattribue le forfait, réactive et
+      // remet à zéro les compteurs (nouvelle période).
+      const id = existing[0][".id"];
+      await client.talk([
+        "/ip/hotspot/user/set",
+        `=numbers=${id}`,
+        `=profile=${profileName}`,
+        `=password=${mac}`,
+        "=disabled=no",
+      ]);
+      await client.talk(["/ip/hotspot/user/reset-counters", `=numbers=${id}`]).catch(() => {});
     }
   } catch (e) {
     createError = `Échec de création sur le routeur : ${e instanceof Error ? e.message : "inconnue"}.`;
@@ -214,8 +230,8 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   }
 
   const message = packageName
-    ? `Votre code WiFi : ${code} (forfait ${packageName}). Reconnexion automatique ensuite.`
-    : `Votre code WiFi : ${code}. Reconnexion automatique ensuite.`;
+    ? `Forfait ${packageName} activé. Votre appareil se connecte automatiquement à ce WiFi (aucun code à saisir).`
+    : `Forfait WiFi activé. Votre appareil se connecte automatiquement (aucun code à saisir).`;
 
   const sms = await sendOrgSms({ orgId: order.orgId, to: order.phone, content: message });
 

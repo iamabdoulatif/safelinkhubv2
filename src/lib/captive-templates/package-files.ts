@@ -494,9 +494,11 @@ const PORTAL_PAY_SCRIPT = `(function(){
         .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
         .then(function(res){
           if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Echec du paiement.");
-          try { window.open(res.j.checkoutUrl, "_blank"); } catch(e){}
-          setStatus("Terminez le paiement dans l'onglet ouvert, puis revenez ici...", "#0ea5e9");
-          poll(res.j.orderId);
+          // Le portail captif iOS/Android ne peut PAS ouvrir de nouvel onglet :
+          // on redirige la MÊME fenêtre vers le checkout. Au retour, la page
+          // /portal/paid confirme le paiement et l'accès s'active par MAC.
+          setStatus("Redirection vers le paiement...", "#0ea5e9");
+          window.location.href = res.j.checkoutUrl;
         })
         .catch(function(err){ primary.disabled = false; primary.textContent = "Payer"; setStatus(errMsg(err), "#ef4444"); });
     }
