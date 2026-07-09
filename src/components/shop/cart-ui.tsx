@@ -50,7 +50,7 @@ export function CartDrawer({
 
   return (
     <div
-      className={`fixed inset-0 z-50 transition ${open ? "" : "pointer-events-none"}`}
+      className={`fixed inset-0 z-50 overflow-hidden transition ${open ? "" : "pointer-events-none"}`}
       aria-hidden={!open}
     >
       <div
