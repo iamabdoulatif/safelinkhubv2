@@ -308,6 +308,9 @@ export const portalOrders = pgTable("portal_orders", {
   priceCents: integer("price_cents"),
   // pending → paid (webhook) → fulfilled (user créé + SMS envoyé) | failed.
   status: text("status").notNull().default("pending"),
+  // Horodatage du claim paid→fulfilling : un claim périmé (crash pendant
+  // l'honneur) redevient récupérable (voir fulfill.ts, STALE_CLAIM_MS).
+  claimedAt: timestamp("claimed_at"),
   paymentReference: text("payment_reference"), // référence GeniusPay
   // Voucher créé à l'honneur de la commande (= le user hotspot, source de vérité).
   voucherId: uuid("voucher_id").references(() => vouchers.id, { onDelete: "set null" }),

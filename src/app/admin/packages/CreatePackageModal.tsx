@@ -54,7 +54,7 @@ export default function CreatePackageModal() {
           />
           <form
             action={formAction}
-            className="relative w-full max-w-md rounded-xl bg-paper p-6"
+            className="relative max-h-[90dvh] overflow-y-auto w-full max-w-md rounded-xl bg-paper p-6"
             role="dialog"
             aria-modal="true"
             aria-labelledby="create-package-title"

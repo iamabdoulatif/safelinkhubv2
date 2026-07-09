@@ -180,7 +180,7 @@ export default function ImportPortalButton() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="import-portal-title"
-            className="w-full max-w-lg rounded-2xl bg-paper p-6"
+            className="max-h-[90dvh] overflow-y-auto w-full max-w-lg rounded-2xl bg-paper p-6"
           >
             <div className="flex items-start justify-between">
               <h2 id="import-portal-title" className="text-lg font-semibold text-ink">

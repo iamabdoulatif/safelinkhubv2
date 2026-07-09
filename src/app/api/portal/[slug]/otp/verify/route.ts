@@ -2,7 +2,7 @@
 // `verifiedAt` → /initiate autorisera le paiement pour ce numéro pendant ~30 min.
 // Aucune session. Runtime Node (crypto).
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, portalOtps } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
@@ -66,9 +66,11 @@ export async function POST(
   }
 
   if (hashOtpCode(org.id, phone, code) !== row.codeHash) {
+    // Incrément SQL atomique : des essais concurrents ne peuvent pas écraser
+    // mutuellement le compteur et contourner la limite.
     await db
       .update(portalOtps)
-      .set({ attempts: row.attempts + 1 })
+      .set({ attempts: sql`${portalOtps.attempts} + 1` })
       .where(eq(portalOtps.id, row.id));
     return corsJson({ verified: false, error: "Code incorrect." }, { status: 400 });
   }

@@ -151,7 +151,7 @@ export default async function BillingPage() {
             </div>
 
             {/* Desktop / tablet: table */}
-            <div className="mt-5 hidden overflow-hidden rounded-lg border border-line-soft sm:block">
+            <div className="mt-5 hidden overflow-x-auto rounded-lg border border-line-soft sm:block">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-line-soft bg-clay text-ink-soft">
                   <tr>

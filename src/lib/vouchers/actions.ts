@@ -39,8 +39,8 @@ export async function generateVouchers(_prevState: unknown, formData: FormData) 
 
   if (!packageId) return { error: "Sélectionnez un forfait." };
   if (!routerId) return { error: "Sélectionnez un routeur." };
-  if (!quantity || quantity < 1 || quantity > 200) {
-    return { error: "La quantité doit être entre 1 et 200." };
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 200) {
+    return { error: "La quantité doit être un entier entre 1 et 200." };
   }
 
   const db = getDb();

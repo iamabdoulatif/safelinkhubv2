@@ -207,6 +207,9 @@ function SearchBox({
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
+      // Hydratation client-only : localStorage n'existe pas côté SSR, donc la
+      // lecture DOIT suivre le mount. Le double render au mount est voulu.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setHistory(JSON.parse(raw));
     } catch {
       /* ignore */

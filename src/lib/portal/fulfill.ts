@@ -4,7 +4,7 @@
 // reporting), puis envoie le code par SMS. Idempotent : rejouable sans doublon.
 // Module serveur uniquement.
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { portalOrders, packages, routers, vouchers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
@@ -70,10 +70,30 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   // Verrou mono-flight : seule la requête qui bascule `paid → fulfilling`
   // poursuit. Les polls concurrents obtiennent 0 ligne et repartent (l'accès
   // sera prêt au prochain tick). En cas d'échec, on repasse à `paid` → réessai.
+  // Un claim PÉRIMÉ (plus vieux que STALE_CLAIM_MS : crash / throw pendant
+  // l'honneur) est aussi récupérable — sans quoi la commande resterait
+  // bloquée en `fulfilling` pour toujours. La fenêtre est très au-dessus des
+  // timeouts routeur (~30 s) pour ne pas doubler un honneur encore en cours.
+  const STALE_CLAIM_MS = 3 * 60 * 1000;
   const claim = await db
     .update(portalOrders)
-    .set({ status: "fulfilling" })
-    .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "paid")))
+    .set({ status: "fulfilling", claimedAt: new Date() })
+    .where(
+      and(
+        eq(portalOrders.id, order.id),
+        or(
+          eq(portalOrders.status, "paid"),
+          and(
+            eq(portalOrders.status, "fulfilling"),
+            // isNull couvre les claims d'avant la colonne claimed_at.
+            or(
+              isNull(portalOrders.claimedAt),
+              lt(portalOrders.claimedAt, new Date(Date.now() - STALE_CLAIM_MS)),
+            ),
+          ),
+        ),
+      ),
+    )
     .returning({ id: portalOrders.id });
   if (claim.length === 0) {
     return { ok: false, error: "Commande non payée ou déjà en cours de traitement." };
@@ -151,25 +171,36 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   }
   if (createError) return failClaim(createError);
 
-  // Enregistre le voucher (source de vérité / reporting Ventes).
-  const [voucher] = await db
-    .insert(vouchers)
-    .values({
-      orgId: order.orgId,
-      username: code,
-      packageId: order.packageId,
-      routerId: order.routerId,
-      profileName,
-      status: "PROVISIONED" as const,
-      useCase: "Portal Sale",
-      note: `Portail captif — ${order.phone}`,
-    })
-    .returning({ id: vouchers.id });
+  // Enregistre le voucher (source de vérité / reporting Ventes) puis marque la
+  // commande honorée. Protégé : un throw ici (hiccup DB, collision unique
+  // improbable) doit repasser la commande à `paid` (réessai) au lieu de la
+  // laisser bloquée en `fulfilling`. Au réessai un NOUVEAU code est généré :
+  // le user hotspot de ce run devient orphelin sur le routeur (bénin, non
+  // vendu) — préférable à une commande payée jamais honorée.
+  try {
+    const [voucher] = await db
+      .insert(vouchers)
+      .values({
+        orgId: order.orgId,
+        username: code,
+        packageId: order.packageId,
+        routerId: order.routerId,
+        profileName,
+        status: "PROVISIONED" as const,
+        useCase: "Portal Sale",
+        note: `Portail captif — ${order.phone}`,
+      })
+      .returning({ id: vouchers.id });
 
-  await db
-    .update(portalOrders)
-    .set({ status: "fulfilled", voucherId: voucher?.id ?? null, fulfilledAt: new Date(), failureReason: null })
-    .where(eq(portalOrders.id, order.id));
+    await db
+      .update(portalOrders)
+      .set({ status: "fulfilled", voucherId: voucher?.id ?? null, fulfilledAt: new Date(), failureReason: null })
+      .where(eq(portalOrders.id, order.id));
+  } catch (e) {
+    return failClaim(
+      `Échec d'enregistrement du voucher : ${e instanceof Error ? e.message : "erreur base"}.`,
+    );
+  }
 
   // Récupère le nom du forfait pour un SMS lisible (best-effort).
   let packageName = "";

@@ -211,7 +211,7 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
             if (e.target === e.currentTarget) setPreviewing(null);
           }}
         >
-          <div className="w-full max-w-sm border-2 border-line bg-paper">
+          <div className="max-h-[90dvh] overflow-y-auto w-full max-w-sm border-2 border-line bg-paper">
             <div className="flex items-center justify-between border-b-2 border-line px-4 py-2.5">
               <p className="font-display text-sm font-bold text-ink">Thème {previewing.name}</p>
               <button

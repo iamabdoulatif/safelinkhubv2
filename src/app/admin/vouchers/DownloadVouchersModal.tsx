@@ -69,7 +69,7 @@ export default function DownloadVouchersModal({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-xl bg-paper p-6">
+          <div className="max-h-[90dvh] overflow-y-auto w-full max-w-2xl rounded-xl bg-paper p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">

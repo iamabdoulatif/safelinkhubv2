@@ -29,7 +29,7 @@ export default function WalletTopupModal() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form
             action={formAction}
-            className="w-full max-w-sm rounded-xl bg-paper p-6"
+            className="max-h-[90dvh] overflow-y-auto w-full max-w-sm rounded-xl bg-paper p-6"
           >
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-ink">

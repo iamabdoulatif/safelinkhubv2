@@ -78,6 +78,9 @@ function Detail({ product, similar, catalogue, whatsappNumber, buyerName, buyerE
     } catch {
       /* ignore */
     }
+    // Hydratation client-only : localStorage n'existe pas côté SSR, la lecture
+    // DOIT suivre le mount. Le double render au mount est voulu.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRecentSlugs(prev.filter((s) => s !== product.slug));
     if (product.slug) {
       const next = [product.slug, ...prev.filter((s) => s !== product.slug)].slice(0, 12);

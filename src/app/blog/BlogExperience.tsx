@@ -111,7 +111,7 @@ export default function BlogExperience({
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:grid lg:grid-cols-[220px_1fr] lg:gap-10">
         {/* Sidebar sujets */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <p className="section-index mb-3 hidden text-ink-soft lg:block">// SUJETS</p>
+          <p className="section-index mb-3 hidden text-ink-soft lg:block">{"// SUJETS"}</p>
           <nav className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:gap-1.5 lg:overflow-visible lg:px-0">
             <SidebarItem
               active={category === null}
