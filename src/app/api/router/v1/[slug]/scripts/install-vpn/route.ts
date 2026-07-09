@@ -61,7 +61,14 @@ function buildScript(opts: {
 # re-running this script never wipes a stick that already has data on it.
 :do {
   :if ([:len [/disk find where slot="usb1" and file-system!="ext4"]] > 0) do={
-    /disk format-drive slot=usb1 file-system=ext4
+    # /disk format-drive goes through [:parse] for the same reason as the veth
+    # and container blocks: on a board/ROS build where its CLI signature differs
+    # (e.g. no "slot=" parameter) an inline command fails at PARSE time, which
+    # aborts the whole /import ("expected end of command") and cannot be caught
+    # by on-error. A runtime :parse failure is catchable, so the install
+    # continues and USB formatting is simply skipped on those boards.
+    :local fmtDrive [:parse "/disk format-drive slot=usb1 file-system=ext4"]
+    $fmtDrive
   }
 } on-error={ :log warning "SafeLinkHub could not format USB stick during VPN install; auto-setup will retry" }
 
