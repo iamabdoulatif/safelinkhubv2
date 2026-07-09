@@ -7,7 +7,7 @@
 // TODO: Remplacer par système de paiement intégré.
 
 import { useEffect, useState, useTransition } from "react";
-import { Lock, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
+import { Lock, Loader2, CheckCircle2, ExternalLink, CreditCard } from "lucide-react";
 import {
   PAYMENT_METHODS,
   type PaymentMethodId,
@@ -18,12 +18,14 @@ import {
 import {
   submitAutoSetupAuthorizationRequest,
   getAutoSetupGateConfigPublic,
+  startAutoSetupPayment,
 } from "@/lib/billing/auto-setup-authorization-actions";
 
 type PublicConfig = {
   priceWithContainerFcfa: number;
   priceWithoutContainerFcfa: number;
   whatsappNumber: string;
+  geniusPayEnabled: boolean;
 };
 
 export default function AutoSetupPaywallModal({
@@ -86,6 +88,23 @@ export default function AutoSetupPaywallModal({
       // Ouvre WhatsApp pré-rempli pour envoyer la preuve à l'admin.
       window.open(res.whatsappUrl, "_blank", "noopener,noreferrer");
       onSubmitted();
+    });
+  }
+
+  // Paiement en ligne : ouvre le checkout GeniusPay. Tarif imposé côté serveur ;
+  // l'auto-setup se débloque dès le webhook payment.success.
+  function payOnline() {
+    setError(null);
+    const fd = new FormData();
+    fd.set("routerId", routerId);
+    fd.set("supportsContainers", supportsContainers ? "1" : "0");
+    startTransition(async () => {
+      const res = await startAutoSetupPayment(fd);
+      if ("error" in res) {
+        setError(res.error);
+        return;
+      }
+      window.location.href = res.paymentUrl;
     });
   }
 
@@ -172,6 +191,32 @@ export default function AutoSetupPaywallModal({
               Ce routeur est détecté <strong>{mikrotikKindLabel(supportsContainers).toLowerCase()}</strong>
               {applicable !== null ? ` → ${formatFcfa(applicable)}.` : "."}
             </p>
+
+            {config?.geniusPayEnabled && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={payOnline}
+                  disabled={pending || applicable === null}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-brand-deep px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                >
+                  {pending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CreditCard className="h-4 w-4" />
+                  )}
+                  Payer en ligne {applicable !== null ? formatFcfa(applicable) : ""} (GeniusPay)
+                </button>
+                <p className="mt-1.5 text-[11px] text-ink-soft">
+                  Paiement Wave / Orange / MTN / Moov ou carte. L&apos;auto-setup se débloque
+                  automatiquement dès le paiement confirmé.
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-[11px] uppercase tracking-wide text-ink-soft">
+                  <span className="h-px flex-1 bg-line-soft" /> ou paiement manuel{" "}
+                  <span className="h-px flex-1 bg-line-soft" />
+                </div>
+              </div>
+            )}
 
             <div className="mt-4">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">

@@ -33,12 +33,10 @@ export default async function SmsSettingsPage() {
         })}
       </div>
 
-      <p className="mt-6 rounded-md bg-clay px-4 py-3 text-xs text-warn">
-        Les clés sont chiffrées au repos. L&apos;envoi effectif de SMS (codes voucher,
-        rappels) n&apos;est pas encore branché à ces identifiants — pour l&apos;instant
-        cette page enregistre les identifiants de connexion seulement, aucun SMS
-        n&apos;est envoyé tant que l&apos;appel à l&apos;API Wassoya n&apos;est pas
-        implémenté.
+      <p className="mt-6 rounded-md bg-clay px-4 py-3 text-xs text-ink-soft">
+        Les clés sont chiffrées au repos. Une fois la passerelle activée et la clé
+        enregistrée, utilisez le bouton « Tester » pour envoyer un vrai SMS via
+        l&apos;API Wassoya et vérifier vos identifiants.
       </p>
     </div>
   );

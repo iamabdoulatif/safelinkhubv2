@@ -1,0 +1,153 @@
+// Client GeniusPay au niveau ORG (clés propres à chaque org, table
+// payment_gateways) — utilisé par le PORTAIL CAPTIF : le client final paie son
+// forfait WiFi sur le compte GeniusPay de l'org, l'argent va directement chez
+// elle (voir [[geniuspay-vouchers-integration]]). À ne PAS confondre avec
+// lib/payment-gateways/geniuspay.ts qui lit les clés PLATEFORME dans l'env.
+// Module serveur uniquement.
+//
+// Doc : https://pay.genius.ci/doc — auth par en-têtes X-API-Key / X-API-Secret,
+// POST /payments → checkout_url, GET /payments/{reference} → { status }.
+
+import { and, eq } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { paymentGateways } from "@/lib/db/schema";
+import { decryptSecret } from "@/lib/mikrotik/crypto";
+
+const DEFAULT_BASE_URL = "https://pay.genius.ci/api/v1/merchant";
+
+function baseUrl(): string {
+  return (process.env.GENIUSPAY_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
+}
+
+export type OrgGeniusCreds = {
+  apiKey: string; // X-API-Key  (merchantId, pk_live_…)
+  apiSecret: string; // X-API-Secret (déchiffré, sk_live_…)
+};
+
+/** Charge et déchiffre les clés genius_pay ACTIVÉES d'une org, ou null. */
+export async function getOrgGeniusCreds(orgId: string): Promise<OrgGeniusCreds | null> {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(paymentGateways)
+    .where(
+      and(
+        eq(paymentGateways.orgId, orgId),
+        eq(paymentGateways.provider, "genius_pay"),
+        eq(paymentGateways.enabled, true),
+      ),
+    )
+    .limit(1);
+  if (!row || !row.merchantId || !row.apiKeyEncrypted) return null;
+  try {
+    return { apiKey: row.merchantId, apiSecret: decryptSecret(row.apiKeyEncrypted) };
+  } catch {
+    return null;
+  }
+}
+
+function headers(creds: OrgGeniusCreds): Record<string, string> {
+  return {
+    "X-API-Key": creds.apiKey,
+    "X-API-Secret": creds.apiSecret,
+    "Content-Type": "application/json",
+  };
+}
+
+export type CreateOrgPaymentInput = {
+  amountFcfa: number;
+  description: string;
+  customer?: { name?: string; phone?: string };
+  metadata?: Record<string, unknown>;
+  successUrl?: string;
+  errorUrl?: string;
+};
+
+export type CreateOrgPaymentResult =
+  | { ok: true; reference: string; paymentUrl: string }
+  | { ok: false; error: string };
+
+/** Crée une transaction sur le compte GeniusPay de l'org, renvoie le checkout. */
+export async function createOrgPayment(
+  creds: OrgGeniusCreds,
+  input: CreateOrgPaymentInput,
+): Promise<CreateOrgPaymentResult> {
+  if (!Number.isInteger(input.amountFcfa) || input.amountFcfa < 100) {
+    return { ok: false, error: "Montant invalide (minimum 100 FCFA)." };
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}/payments`, {
+      method: "POST",
+      headers: headers(creds),
+      body: JSON.stringify({
+        amount: input.amountFcfa,
+        currency: "XOF",
+        description: input.description.slice(0, 500),
+        customer: input.customer,
+        metadata: input.metadata,
+        success_url: input.successUrl,
+        error_url: input.errorUrl,
+      }),
+      cache: "no-store",
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Échec de contact GeniusPay." };
+  }
+
+  const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!res.ok) {
+    const msg =
+      (json?.detail as string) ||
+      (json?.error as string) ||
+      (json?.message as string) ||
+      `Erreur GeniusPay (${res.status}).`;
+    return { ok: false, error: String(msg) };
+  }
+  const reference = json?.reference;
+  const paymentUrl = (json?.payment_url as string) || (json?.checkout_url as string);
+  if (!reference || !paymentUrl) {
+    return { ok: false, error: "Réponse GeniusPay incomplète (pas de lien de paiement)." };
+  }
+  return { ok: true, reference: String(reference), paymentUrl: String(paymentUrl) };
+}
+
+export type OrgPaymentStatus = "pending" | "completed" | "failed" | "unknown";
+
+/**
+ * Lit le statut d'une transaction. Mappe les valeurs GeniusPay
+ * (pending/processing/completed/failed/cancelled/refunded/expired) vers un
+ * ensemble réduit exploitable par le portail.
+ */
+export async function getOrgPaymentStatus(
+  creds: OrgGeniusCreds,
+  reference: string,
+): Promise<{ ok: true; status: OrgPaymentStatus } | { ok: false; error: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}/payments/${encodeURIComponent(reference)}`, {
+      method: "GET",
+      headers: headers(creds),
+      cache: "no-store",
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Échec de contact GeniusPay." };
+  }
+  const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!res.ok) {
+    return { ok: false, error: `Erreur GeniusPay (${res.status}).` };
+  }
+  const raw = String(
+    (json?.status as string) ||
+      ((json?.data as Record<string, unknown>)?.status as string) ||
+      "",
+  ).toLowerCase();
+
+  let status: OrgPaymentStatus = "unknown";
+  if (raw === "completed" || raw === "success") status = "completed";
+  else if (raw === "pending" || raw === "processing") status = "pending";
+  else if (raw === "failed" || raw === "cancelled" || raw === "refunded" || raw === "expired")
+    status = "failed";
+
+  return { ok: true, status };
+}

@@ -22,6 +22,7 @@ export async function uploadCaptiveTemplatePackage(
     htmlDirectory: string;
     fileBaseUrl: string; // e.g. https://safelinkhub.vercel.app/api/router/v1/<slug>/captive-template/<templateId>
     ssid: string;
+    routerId?: string; // injecté dans {{ROUTER_ID}} → le portail cible ce routeur au paiement
     timeoutMs?: number;
   },
 ): Promise<CaptiveTemplateUploadResult> {
@@ -29,7 +30,8 @@ export async function uploadCaptiveTemplatePackage(
   const timeoutMs = opts.timeoutMs ?? 15000;
 
   for (const file of opts.files) {
-    const url = `${opts.fileBaseUrl}?path=${encodeURIComponent(file.path)}&ssid=${encodeURIComponent(opts.ssid)}`;
+    const routerParam = opts.routerId ? `&routerId=${encodeURIComponent(opts.routerId)}` : "";
+    const url = `${opts.fileBaseUrl}?path=${encodeURIComponent(file.path)}&ssid=${encodeURIComponent(opts.ssid)}${routerParam}`;
     const dstPath = `${opts.htmlDirectory}/${file.path}`;
     try {
       const replies = await client.talk(

@@ -18,6 +18,7 @@ export type PackageVendor = {
 // routeur télécharge les fichiers — les prix affichés sur le portail
 // suivent donc automatiquement la page Forfaits, sans réédition du HTML.
 export type PortalPlan = {
+  id: string; // package id — envoyé à /api/portal/<slug>/initiate au paiement
   name: string; // technical voucher-profile name, e.g. "3j"
   priceCents: number; // stored as whole FCFA units across the app
   durationValue: number;
@@ -30,6 +31,13 @@ export type PackageBrandingVars = {
   supportPhone?: string | null;
   vendors?: PackageVendor[] | null;
   plans?: PortalPlan[] | null;
+  // Câblage du paiement en ligne (portail captif) : URL absolue de SafeLinkHub
+  // (le portail est servi par le routeur → il lui faut l'origine absolue),
+  // slug de l'org et id du routeur cible. Injectés dans {{APP_URL}} /
+  // {{ORG_SLUG}} / {{ROUTER_ID}}.
+  appUrl?: string | null;
+  slug?: string | null;
+  routerId?: string | null;
 };
 
 function escapeHtml(value: string): string {
@@ -119,7 +127,7 @@ function renderPlansHtml(plans: PortalPlan[] | null | undefined): string {
               <span class="plan-details">Illimité</span>
             </div>
             <span class="plan-price">${priceLabel}</span>
-            <button class="plan-btn" data-plan="${label}" data-price="${priceLabel}" data-price-cents="${plan.priceCents}">Acheter</button>
+            <button class="plan-btn" data-plan="${label}" data-price="${priceLabel}" data-price-cents="${plan.priceCents}" data-package-id="${escapeHtml(plan.id)}">Acheter</button>
           </div>`;
     })
     .join("\n");
@@ -171,6 +179,10 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
       );
       const priceLabel = escapeHtml(`${plan.priceCents.toLocaleString("fr-FR")} F`);
       const onclickArg = escapeForOnclickArg(plan.name);
+      const planLabel = escapeHtml(planDisplayName(plan));
+      // data-* pour le binder de paiement universel (voir PORTAL_PAY_SCRIPT).
+      // L'onclick legacy reste comme repli quand le paiement n'est pas configuré
+      // (le binder universel intercepte en capture et neutralise cet onclick).
       return `    <div class="price-card">
       <div class="price-left">
         <div class="price-duration-badge ${badge}">
@@ -182,7 +194,7 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
           <p><i class="fas fa-check-circle"></i> ${details}</p>
         </div>
       </div>
-      <button onclick="openPhoneModal('${onclickArg}')" class="btn-pay">
+      <button onclick="openPhoneModal('${onclickArg}')" class="btn-pay" data-package-id="${escapeHtml(plan.id)}" data-plan="${planLabel}" data-price="${priceLabel}">
         <i class="fas fa-cart-shopping"></i>
         <span class="price-amount">${priceLabel}</span>
       </button>
@@ -194,6 +206,7 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
 function renderPlansJson(plans: PortalPlan[] | null | undefined): string {
   return JSON.stringify(
     (plans ?? []).map((plan) => ({
+      id: plan.id,
       name: plan.name,
       label: planDisplayName(plan),
       price: plan.priceCents,
@@ -327,6 +340,114 @@ export function contentTypeForPath(relativePath: string) {
  * {{SUPPORT_PHONE}} / {{SUPPORT_PHONE_TEL}} / {{SUPPORT_WHATSAPP}} with
  * the template's support contact.
  */
+// Script de paiement UNIVERSEL injecté dans chaque login.html au rendu, quel
+// que soit le portail (bundled OU importé). Un listener délégué en phase
+// CAPTURE intercepte tout bouton `[data-package-id]` AVANT les handlers propres
+// au portail (plan-btn de SafeLinkHub, btn-pay/onclick de Yahya, boutons auto-
+// paramétrés d'un portail importé) → une seule implémentation du flux d'achat.
+// Contraintes (chaîne dans un template literal TS) : aucun backslash, aucun
+// backtick, aucun "${" ; apostrophes en guillemets doubles ; accents littéraux.
+const PORTAL_PAY_SCRIPT = `(function(){
+  var cfg = window.SLH_PORTAL || {};
+  function configured(){ return !!(cfg && cfg.appUrl && cfg.slug && cfg.mac && String(cfg.mac).indexOf("$(") !== 0); }
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  document.addEventListener("click", function(e){
+    var t = e.target;
+    var btn = t && t.closest ? t.closest("[data-package-id]") : null;
+    if(!btn) return;
+    if(!configured()) return; // repli : laisse le portail gérer son propre bouton
+    var pid = btn.getAttribute("data-package-id");
+    if(!pid) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    openModal({ packageId: pid, plan: btn.getAttribute("data-plan") || "ce forfait", price: btn.getAttribute("data-price") || "" });
+  }, true);
+
+  function openModal(sel){
+    var old = document.getElementById("slh-pay-modal"); if(old) old.remove();
+    var o = document.createElement("div");
+    o.id = "slh-pay-modal";
+    o.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;";
+    o.innerHTML = '<div style="background:#fff;color:#0f172a;border-radius:14px;max-width:360px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-family:system-ui,sans-serif;">'
+      + "<h3 style=\\"margin:0 0 4px;font-size:1.1rem;\\">Acheter " + esc(sel.plan) + "</h3>"
+      + "<p style=\\"margin:0 0 16px;font-size:.9rem;color:#64748b;\\">" + esc(sel.price) + " &middot; paiement Mobile Money</p>"
+      + "<label style=\\"display:block;font-size:.8rem;margin-bottom:6px;\\">Votre num&eacute;ro (Mobile Money)</label>"
+      + "<input id=\\"slh-pay-phone\\" type=\\"tel\\" inputmode=\\"tel\\" placeholder=\\"07 00 00 00 00\\" autocomplete=\\"tel\\" style=\\"width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;margin-bottom:6px;\\" />"
+      + "<p style=\\"margin:0 0 12px;font-size:.72rem;color:#94a3b8;\\">Le code d&#39;acc&egrave;s vous sera aussi envoy&eacute; par SMS.</p>"
+      + "<div id=\\"slh-pay-status\\" style=\\"display:none;font-size:.85rem;margin-bottom:12px;\\"></div>"
+      + '<div style="display:flex;gap:8px;">'
+      + "<button id=\\"slh-pay-cancel\\" type=\\"button\\" style=\\"flex:1;padding:11px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;font-size:.9rem;\\">Annuler</button>"
+      + "<button id=\\"slh-pay-go\\" type=\\"button\\" style=\\"flex:2;padding:11px;border:0;background:#10b981;color:#fff;border-radius:8px;font-size:.9rem;font-weight:600;\\">Payer</button>"
+      + "</div></div>";
+    document.body.appendChild(o);
+    var phone = document.getElementById("slh-pay-phone");
+    var go = document.getElementById("slh-pay-go");
+    var cancel = document.getElementById("slh-pay-cancel");
+    var statusEl = document.getElementById("slh-pay-status");
+    setTimeout(function(){ if(phone) phone.focus(); }, 100);
+    function setStatus(m,c){ statusEl.style.display="block"; statusEl.style.color = c || "#64748b"; statusEl.textContent = m; }
+    cancel.addEventListener("click", function(){ o.remove(); });
+    o.addEventListener("click", function(ev){ if(ev.target===o) o.remove(); });
+    go.addEventListener("click", function(){ start(sel, phone, go, setStatus); });
+    phone.addEventListener("keydown", function(ev){ if(ev.key==="Enter"){ go.click(); } });
+  }
+
+  function start(sel, phoneEl, go, setStatus){
+    var phone = (phoneEl.value||"").replace(/[^0-9]/g,"");
+    if(phone.length < 8){ setStatus("Numéro invalide.", "#ef4444"); return; }
+    go.disabled = true; go.textContent = "Traitement..."; setStatus("Création du paiement...");
+    fetch(cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + "/initiate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ packageId: sel.packageId, phone: phone, mac: cfg.mac, routerId: cfg.routerId || "" })
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(res){
+      if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Echec du paiement.");
+      try { window.open(res.j.checkoutUrl, "_blank"); } catch(e){}
+      setStatus("Terminez le paiement dans l'onglet ouvert, puis revenez ici...", "#0ea5e9");
+      poll(res.j.orderId, go, setStatus);
+    }).catch(function(err){
+      go.disabled = false; go.textContent = "Payer"; setStatus(err.message || "Echec de contact du serveur.", "#ef4444");
+    });
+  }
+
+  function poll(orderId, go, setStatus){
+    var tries = 0, max = 90;
+    var timer = setInterval(function(){
+      tries++;
+      if(tries > max){ clearInterval(timer); setStatus("Délai dépassé. Si vous avez payé, réessayez.", "#ef4444"); go.disabled=false; go.textContent="Payer"; return; }
+      fetch(cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + "/status?orderId=" + encodeURIComponent(orderId), { cache: "no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.status==="fulfilled" && d.code){ clearInterval(timer); setStatus("Paiement confirmé ! Connexion...", "#10b981"); connect(d.code); }
+        else if(d.status==="failed"){ clearInterval(timer); setStatus(d.error || "Paiement échoué.", "#ef4444"); go.disabled=false; go.textContent="Payer"; }
+      }).catch(function(){});
+    }, 4000);
+  }
+
+  function connect(code){
+    try { localStorage.setItem("safelinkhub_last_ticket", code); } catch(e){}
+    var u = document.querySelector('[name="username"]');
+    var p = document.querySelector('[name="password"]');
+    var form = document.forms["login"] || (u && u.form) || document.querySelector('form[action*="login"]') || document.querySelector("form");
+    if(u) u.value = code;
+    if(p) p.value = code;
+    if(!form) return;
+    if(form.requestSubmit) form.requestSubmit(); else form.submit();
+  }
+})();`;
+
+/** Bloc <script> injecté en fin de login.html : config + flux de paiement. */
+function portalPayInjection(vars: PackageBrandingVars): string {
+  const config = JSON.stringify({
+    appUrl: vars.appUrl ?? "",
+    slug: vars.slug ?? "",
+    routerId: vars.routerId ?? "",
+    mac: "$(mac)", // remplacé par le routeur (variable hotspot) au service de la page
+  });
+  return `\n<script>window.SLH_PORTAL=${config};</script>\n<script>${PORTAL_PAY_SCRIPT}</script>\n`;
+}
+
 export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars): Buffer {
   if (file.encoding === "base64") return Buffer.from(file.content, "base64");
   const supportPhoneDigits = (vars.supportPhone ?? "").replace(/[^0-9]/g, "");
@@ -340,7 +461,23 @@ export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars):
     .replaceAll("{{MIN_PLAN_PRICE}}", minPlanPriceLabel(vars.plans))
     .replaceAll("{{SUPPORT_PHONE}}", vars.supportPhone ?? "")
     .replaceAll("{{SUPPORT_PHONE_TEL}}", supportPhoneDigits ? `tel:+${supportPhoneDigits}` : "#")
-    .replaceAll("{{SUPPORT_WHATSAPP}}", vars.supportWhatsapp ?? "");
+    .replaceAll("{{SUPPORT_WHATSAPP}}", vars.supportWhatsapp ?? "")
+    .replaceAll("{{APP_URL}}", vars.appUrl ?? "")
+    .replaceAll("{{ORG_SLUG}}", vars.slug ?? "")
+    .replaceAll("{{ROUTER_ID}}", vars.routerId ?? "");
+
+  // Injecte le flux de paiement universel dans la page de login de N'IMPORTE
+  // quel portail. Conditionné à appUrl (contexte réel de service, pas les
+  // tests) et à la page login pour ne pas alourdir les autres fichiers.
+  const isLoginPage = /(^|\/)login\.html$/i.test(file.path);
+  if (isLoginPage && vars.appUrl) {
+    const injection = portalPayInjection(vars);
+    const out = /<\/body>/i.test(rendered)
+      ? rendered.replace(/<\/body>/i, `${injection}</body>`)
+      : rendered + injection;
+    return Buffer.from(out, "utf8");
+  }
+
   return Buffer.from(rendered, "utf8");
 }
 

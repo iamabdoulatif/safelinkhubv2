@@ -5,9 +5,15 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
-import { routers } from "@/lib/db/schema";
+import { routers, remoteAccessAuthorizations } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import {
+  createPendingRemoteAccessPayment,
+  attachRemoteAccessPaymentReference,
+} from "./remote-access-authorization-service";
 import {
   buildWhatsappLink,
   formatFcfa,
@@ -141,4 +147,90 @@ export async function getRemoteAccessGateStatusAction(
 /** Config publique (WhatsApp) — jamais l'email admin. */
 export async function getRemoteAccessContactPublic(): Promise<{ whatsappNumber: string }> {
   return { whatsappNumber: getManualPaymentContact().whatsappNumber };
+}
+
+/** Le paiement en ligne GeniusPay est-il VISIBLE (clés + drapeau d'activation) ? */
+export async function getRemoteAccessPaymentConfigPublic(): Promise<{ geniusPayEnabled: boolean }> {
+  return { geniusPayEnabled: isGeniusPayCheckoutEnabled() };
+}
+
+/**
+ * Démarre un paiement GeniusPay pour un accès distant (org → plateforme).
+ * Le tarif est imposé côté serveur (remoteAccessPriceFcfa), jamais fourni par
+ * le client. Crée une demande "pending", ouvre un checkout GeniusPay et renvoie
+ * son URL ; c'est le webhook payment.success qui approuvera la demande, après
+ * quoi un nouveau clic sur le service ouvre l'accès (consommation de la porte).
+ */
+export async function startRemoteAccessPayment(formData: FormData): Promise<
+  { paymentUrl: string } | { error: string }
+> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const routerId = String(formData.get("routerId") ?? "");
+  const service = String(formData.get("service") ?? "");
+  const billingPeriod = String(formData.get("billingPeriod") ?? "");
+
+  if (!routerId) return { error: "Routeur manquant." };
+  if (!isRemoteAccessService(service)) return { error: "Service invalide." };
+  if (!isBillingPeriod(billingPeriod)) return { error: "Durée invalide." };
+  if (!isGeniusPayCheckoutEnabled()) {
+    return { error: "Le paiement en ligne n'est pas encore disponible. Utilisez le paiement manuel." };
+  }
+
+  const db = getDb();
+  const [router] = await db
+    .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
+    .from(routers)
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .limit(1);
+  if (!router) return { error: "Routeur introuvable." };
+
+  const amountFcfa = remoteAccessPriceFcfa(billingPeriod);
+
+  const row = await createPendingRemoteAccessPayment({
+    orgId: session.orgId,
+    userId: session.userId,
+    requesterEmail: session.email,
+    requesterName: session.name,
+    routerId: router.id,
+    routerName: router.name,
+    service,
+    billingPeriod,
+    amountFcfa,
+  });
+
+  const hdrs = await headers();
+  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "";
+  const proto = hdrs.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const origin = host ? `${proto}://${host}` : "";
+  const returnUrl = origin ? `${origin}/admin/remote-access` : undefined;
+
+  const payment = await createGeniusPayment({
+    amountFcfa,
+    description: `Accès distant ${serviceLabel(service)} — ${periodLabel(billingPeriod)} — ${router.name ?? "routeur"}`,
+    customer: { name: session.name, email: session.email },
+    metadata: {
+      kind: "remote_access",
+      authorizationId: row.id,
+      orgId: session.orgId,
+      routerId: router.id,
+      service,
+      billingPeriod,
+    },
+    successUrl: returnUrl,
+    errorUrl: returnUrl,
+  });
+
+  if (!payment.ok) {
+    // Ne pas laisser une demande "pending" fantôme : on la marque rejetée.
+    await db
+      .update(remoteAccessAuthorizations)
+      .set({ status: "rejected", adminNote: `Échec ouverture paiement : ${payment.error}` })
+      .where(eq(remoteAccessAuthorizations.id, row.id));
+    return { error: payment.error };
+  }
+
+  await attachRemoteAccessPaymentReference(row.id, payment.reference);
+  return { paymentUrl: payment.paymentUrl };
 }

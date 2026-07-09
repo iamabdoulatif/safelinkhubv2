@@ -122,6 +122,67 @@ export async function createAuthorizationRequest(
   return row;
 }
 
+export type CreatePendingAutoSetupPaymentInput = {
+  orgId: string;
+  userId: string;
+  requesterEmail: string;
+  requesterName: string;
+  routerId: string;
+  routerName: string | null;
+  supportsContainers: boolean;
+  amountFcfa: number;
+};
+
+/**
+ * Crée une demande d'auto-setup en attente de PAIEMENT EN LIGNE GeniusPay
+ * (moyen "geniuspay", sans preuve). C'est le webhook payment.success qui
+ * l'approuvera — aucun admin ne valide.
+ */
+export async function createPendingAutoSetupPayment(
+  input: CreatePendingAutoSetupPaymentInput,
+): Promise<AutoSetupAuthorizationRow> {
+  const db = getDb();
+  const [row] = await db
+    .insert(autoSetupAuthorizations)
+    .values({ ...input, paymentMethod: "geniuspay", proofUrl: null, status: "pending" })
+    .returning();
+  return row;
+}
+
+/** Attache la référence GeniusPay à une demande (après création du checkout). */
+export async function attachAutoSetupPaymentReference(
+  id: string,
+  paymentReference: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(autoSetupAuthorizations)
+    .set({ paymentReference })
+    .where(eq(autoSetupAuthorizations.id, id));
+}
+
+/**
+ * Approuve la demande liée à une référence GeniusPay — appelée par le webhook.
+ * Idempotent : ne touche que les lignes "pending". Renvoie la ligne, ou null si
+ * la référence est inconnue / déjà traitée.
+ */
+export async function approveAutoSetupPaymentByReference(
+  paymentReference: string,
+): Promise<AutoSetupAuthorizationRow | null> {
+  const db = getDb();
+  const [row] = await db
+    .update(autoSetupAuthorizations)
+    .set({ status: "approved", decidedAt: new Date(), adminNote: "Payé en ligne (GeniusPay)" })
+    .where(
+      and(
+        eq(autoSetupAuthorizations.paymentReference, paymentReference),
+        eq(autoSetupAuthorizations.status, "pending"),
+      ),
+    )
+    .returning();
+  return row ?? null;
+}
+
 /** Liste toutes les demandes (dashboard superadmin), plus récentes d'abord. */
 export async function listAuthorizations(): Promise<AutoSetupAuthorizationRow[]> {
   const db = getDb();

@@ -5,11 +5,14 @@ import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { generateVouchers } from "@/lib/vouchers/actions";
 
 type PackageOption = { id: string; name: string };
+type RouterOption = { id: string; name: string; status: string };
 
 export default function GenerateVouchersModal({
   packages,
+  routers,
 }: {
   packages: PackageOption[];
+  routers: RouterOption[];
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
@@ -122,6 +125,28 @@ export default function GenerateVouchersModal({
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-ink">
+                  Routeur
+                </label>
+                <select
+                  name="routerId"
+                  required
+                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                >
+                  {routers.length === 0 && <option value="">Aucun routeur</option>}
+                  {routers.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                      {r.status !== "online" ? " (hors ligne)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-ink-soft">
+                  Les codes sont créés directement sur ce MikroTik. Il doit être en ligne.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-ink">
                   Quantité
                 </label>
                 <input
@@ -157,7 +182,7 @@ export default function GenerateVouchersModal({
               </button>
               <button
                 type="submit"
-                disabled={pending || packages.length === 0}
+                disabled={pending || packages.length === 0 || routers.length === 0}
                 className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
               >
                 {pending ? "Génération..." : "Générer"}

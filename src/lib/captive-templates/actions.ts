@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
+import { ensureWalledGarden } from "@/lib/mikrotik/walled-garden";
 import { HOTSPOT_BRIDGE_NAME } from "@/lib/mikrotik/constants";
 import {
   autoParameterizePortalFiles,
@@ -554,7 +555,17 @@ async function uploadPackageTemplateToBridge(
       htmlDirectory,
       fileBaseUrl,
       ssid,
+      routerId: router.id,
     });
+
+    // Automatise le walled-garden de paiement : l'admin n'a pas à
+    // re-bootstrapper le routeur pour que le checkout soit joignable depuis le
+    // portail. Best-effort (ne bloque pas l'installation du portail).
+    try {
+      await ensureWalledGarden(client, new URL(appUrl).host);
+    } catch {
+      // ignoré : le walled-garden reste ajustable au prochain bootstrap.
+    }
 
     if (result.failed.length > 0) {
       return {

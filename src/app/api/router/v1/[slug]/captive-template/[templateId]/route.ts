@@ -24,6 +24,8 @@ export async function GET(
   const { slug, templateId } = await params;
   const relativePath = request.nextUrl.searchParams.get("path");
   const ssid = request.nextUrl.searchParams.get("ssid") || "WiFi";
+  const routerId = request.nextUrl.searchParams.get("routerId") || "";
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
   if (!relativePath) {
     return new Response("Missing path", { status: 400 });
   }
@@ -58,6 +60,7 @@ export async function GET(
   // page Forfaits au moment où le routeur télécharge ses fichiers.
   const plans = await db
     .select({
+      id: packages.id,
       name: packages.name,
       priceCents: packages.priceCents,
       durationValue: packages.durationValue,
@@ -73,6 +76,9 @@ export async function GET(
     supportPhone: template.packageSupportPhone,
     vendors: template.packageVendors as PackageVendor[] | null,
     plans,
+    appUrl,
+    slug,
+    routerId,
   });
   return new Response(new Uint8Array(body), {
     status: 200,

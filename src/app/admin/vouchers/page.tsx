@@ -1,6 +1,6 @@
 import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { vouchers, packages } from "@/lib/db/schema";
+import { vouchers, packages, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import GenerateVouchersModal from "./GenerateVouchersModal";
 import VoucherTable, { type VoucherRow } from "./VoucherTable";
@@ -30,6 +30,16 @@ export default async function VouchersPage() {
 
   const packageNameById = new Map(orgPackages.map((p) => [p.id, p.name]));
 
+  // Routeurs de l'org sur lesquels provisionner les vouchers (le hotspot vit
+  // sur un MikroTik précis). L'ordre met les routeurs en ligne en premier.
+  const orgRouters = session
+    ? await db
+        .select({ id: routers.id, name: routers.name, status: routers.status })
+        .from(routers)
+        .where(eq(routers.orgId, session.orgId))
+        .orderBy(desc(routers.status))
+    : [];
+
   const orgVouchers = session
     ? await db
         .select()
@@ -53,7 +63,7 @@ export default async function VouchersPage() {
   return (
     <VoucherTable
       vouchers={rows}
-      headerExtra={<GenerateVouchersModal packages={orgPackages} />}
+      headerExtra={<GenerateVouchersModal packages={orgPackages} routers={orgRouters} />}
     />
   );
 }

@@ -1268,6 +1268,7 @@ export async function provisionHotspotStack(
             htmlDirectory,
             fileBaseUrl,
             ssid: opts.ssid?.trim() || opts.hotspotName,
+            routerId: router.id,
           });
           if (uploadResult.failed.length > 0) {
             log.push(

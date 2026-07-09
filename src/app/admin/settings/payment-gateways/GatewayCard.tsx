@@ -33,6 +33,46 @@ const SUBTITLES: Record<Provider, string> = {
   pawapay: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
 };
 
+// Each aggregator issues a different credential pair, so the two form fields
+// are labelled per-provider. Genius Pay authenticates every API call with TWO
+// keys sent as headers — X-API-Key (publishable, pk_live_…) and X-API-Secret
+// (secret, sk_live_…) — and has no "merchant id" (see pay.genius.ci/doc), so
+// its keys live at Paramètres → API on pay.genius.ci, not on the Transactions
+// page. The first field maps to the plaintext `merchantId` column (fine for the
+// publishable X-API-Key) and the second to the encrypted `apiKey` column (the
+// X-API-Secret, which must stay server-side). Paystack/PawaPay keep the generic
+// wording until their real credential models are wired.
+type FieldCopy = {
+  idLabel: string;
+  idPlaceholder: string;
+  idHint?: string;
+  keyLabel: string;
+  keyPlaceholder: string;
+  keyHint: string;
+};
+
+const GENERIC_FIELDS: FieldCopy = {
+  idLabel: "Identifiant marchand",
+  idPlaceholder: "ID marchand",
+  keyLabel: "Clé API",
+  keyPlaceholder: "Clé API",
+  keyHint: "Laissez vide pour conserver la clé actuelle.",
+};
+
+const FIELDS: Record<Provider, FieldCopy> = {
+  paystack: GENERIC_FIELDS,
+  pawapay: GENERIC_FIELDS,
+  genius_pay: {
+    idLabel: "API Key",
+    idPlaceholder: "pk_live_…",
+    idHint: "La clé « API Key » de pay.genius.ci → Paramètres → API (envoyée en en-tête X-API-Key).",
+    keyLabel: "API Secret",
+    keyPlaceholder: "sk_live_…",
+    keyHint:
+      "La clé « API Secret » de pay.genius.ci (en-tête X-API-Secret). Gardée chiffrée côté serveur — laissez vide pour conserver la clé actuelle.",
+  },
+};
+
 export default function GatewayCard({
   provider,
   merchantId,
@@ -47,6 +87,7 @@ export default function GatewayCard({
   const [state, formAction, pending] = useActionState(savePaymentGateway, undefined);
   const [isEnabled, setIsEnabled] = useState(enabled);
   const logo = LOGOS[provider];
+  const fields = FIELDS[provider];
 
   return (
     <form
@@ -109,30 +150,31 @@ export default function GatewayCard({
       <div className="mt-4 space-y-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-ink-soft">
-            Identifiant marchand
+            {fields.idLabel}
           </label>
           <input
             name="merchantId"
             defaultValue={merchantId ?? ""}
-            placeholder="ID marchand"
+            placeholder={fields.idPlaceholder}
             autoComplete="off"
             className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
           />
+          {fields.idHint && (
+            <p className="mt-1 text-[11px] text-ink-soft">{fields.idHint}</p>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-ink-soft">
-            Clé API {hasApiKey && <span className="text-ok">(déjà enregistrée)</span>}
+            {fields.keyLabel} {hasApiKey && <span className="text-ok">(déjà enregistrée)</span>}
           </label>
           <input
             name="apiKey"
             type="password"
-            placeholder={hasApiKey ? "••••••••••••" : "Clé API"}
+            placeholder={hasApiKey ? "••••••••••••" : fields.keyPlaceholder}
             autoComplete="off"
             className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
           />
-          <p className="mt-1 text-[11px] text-ink-soft">
-            Laissez vide pour conserver la clé actuelle.
-          </p>
+          <p className="mt-1 text-[11px] text-ink-soft">{fields.keyHint}</p>
         </div>
       </div>
 

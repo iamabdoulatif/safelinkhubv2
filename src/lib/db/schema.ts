@@ -195,6 +195,10 @@ export const paymentGateways = pgTable("payment_gateways", {
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
   provider: text("provider").notNull(), // "paystack" | "genius_pay" | "pawapay" (see PROVIDERS in lib/payment-gateways/providers.ts)
+  // For genius_pay these two columns hold its credential pair (pay.genius.ci/doc):
+  // merchantId = X-API-Key (publishable pk_live_…, non-secret, stored plaintext),
+  // apiKeyEncrypted = X-API-Secret (sk_live_…, must stay server-side, encrypted).
+  // Genius Pay has no standalone "merchant id". Both go out as request headers.
   merchantId: text("merchant_id"),
   apiKeyEncrypted: text("api_key_encrypted"),
   enabled: boolean("enabled").notNull().default(false),
@@ -207,8 +211,8 @@ export const smsGateways = pgTable("sms_gateways", {
   orgId: uuid("org_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(), // "africastalking" | "twilio" (see PROVIDERS in lib/sms/providers.ts)
-  senderId: text("sender_id"), // AT "username"/short code, or Twilio "from" number
+  provider: text("provider").notNull(), // "wassoya" (see PROVIDERS in lib/sms/providers.ts)
+  senderId: text("sender_id"), // Wassoya "from" (nom d'expéditeur, 11 car. max)
   apiKeyEncrypted: text("api_key_encrypted"),
   enabled: boolean("enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -262,6 +266,12 @@ export const vouchers = pgTable("vouchers", {
   packageId: uuid("package_id").references(() => packages.id, {
     onDelete: "set null",
   }),
+  // Routeur MikroTik sur lequel l'utilisateur hotspot a RÉELLEMENT été créé
+  // (via WireGuard + /ip hotspot user add). null = anciens vouchers "fantômes"
+  // créés avant le provisioning réel, ou voucher dont le routeur a été supprimé.
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "set null" }),
+  // Profil hotspot RouterOS utilisé (01-JOUR, 01-MOIS…) — fige la durée réelle.
+  profileName: text("profile_name"),
   // Set when a sale is made through the Agent / POS flow — lets each
   // agent's cash sales and commission be tracked separately from batch-
   // generated vouchers (which have no agent).
@@ -272,6 +282,37 @@ export const vouchers = pgTable("vouchers", {
   useCase: text("use_case").notNull().default("Batch Create"),
   note: text("note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Commande passée depuis le PORTAIL CAPTIF public (client final) : achat d'un
+// forfait WiFi payé via la passerelle GeniusPay PROPRE à l'org. À la réussite
+// du paiement, la commande est « honorée » : un vrai user hotspot lié au MAC du
+// client est créé sur le routeur (voir lib/portal/fulfill.ts) et le code lui est
+// envoyé par SMS. Le mac-cookie du hotspot auto-reconnecte ensuite ce MAC.
+export const portalOrders = pgTable("portal_orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  routerId: uuid("router_id")
+    .notNull()
+    .references(() => routers.id, { onDelete: "cascade" }),
+  packageId: uuid("package_id").references(() => packages.id, { onDelete: "set null" }),
+  // Numéro du client (format international, sans +) — destinataire du code SMS.
+  phone: text("phone").notNull(),
+  // MAC du client capté par le portail ($(mac)), normalisé AA:BB:CC:DD:EE:FF.
+  mac: text("mac").notNull(),
+  // Instantanés au moment de la commande (le forfait peut changer après).
+  profileName: text("profile_name"), // profil hotspot RouterOS figé (durée)
+  priceCents: integer("price_cents"),
+  // pending → paid (webhook) → fulfilled (user créé + SMS envoyé) | failed.
+  status: text("status").notNull().default("pending"),
+  paymentReference: text("payment_reference"), // référence GeniusPay
+  // Voucher créé à l'honneur de la commande (= le user hotspot, source de vérité).
+  voucherId: uuid("voucher_id").references(() => vouchers.id, { onDelete: "set null" }),
+  failureReason: text("failure_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  fulfilledAt: timestamp("fulfilled_at"),
 });
 
 export const personalVpnAccess = pgTable("personal_vpn_access", {
@@ -444,8 +485,11 @@ export const autoSetupAuthorizations = pgTable("auto_setup_authorizations", {
   supportsContainers: boolean("supports_containers").notNull(),
   // Montant déclaré par l'utilisateur, en FCFA (XOF n'a pas de sous-unité).
   amountFcfa: integer("amount_fcfa").notNull(),
-  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn
+  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn | geniuspay
   proofUrl: text("proof_url"), // capture de paiement (Vercel Blob)
+  // Référence GeniusPay (checkout plateforme) — rapprochement idempotent du
+  // webhook payment.success. null pour les demandes manuelles.
+  paymentReference: text("payment_reference"),
   status: text("status").notNull().default("pending"), // pending | approved | rejected
   // Posé quand un auto-setup réussi consomme une autorisation approuvée.
   consumedAt: timestamp("consumed_at"),
@@ -476,8 +520,12 @@ export const remoteAccessAuthorizations = pgTable("remote_access_authorizations"
   // Durée demandée : monthly | quarterly | semiannual | yearly.
   billingPeriod: text("billing_period").notNull(),
   amountFcfa: integer("amount_fcfa").notNull(),
-  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn
+  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn | geniuspay
   proofUrl: text("proof_url"),
+  // Référence de la transaction GeniusPay (checkout plateforme) — sert au
+  // rapprochement idempotent du webhook payment.success. null pour les
+  // demandes manuelles (WhatsApp + preuve).
+  paymentReference: text("payment_reference"),
   status: text("status").notNull().default("pending"), // pending | approved | rejected
   consumedAt: timestamp("consumed_at"),
   decidedAt: timestamp("decided_at"),

@@ -64,8 +64,8 @@ describe("renderPackageFile", () => {
       ssid: "MIRADOR-WIFI",
       supportPhone: "+225 07 08 09 10 11",
       plans: [
-        { name: "3j", priceCents: 500, durationValue: 3, durationUnit: "Days" },
-        { name: "1s", priceCents: 700, durationValue: 1, durationUnit: "Weeks" },
+        { id: "pkg-3j", name: "3j", priceCents: 500, durationValue: 3, durationUnit: "Days" },
+        { id: "pkg-1s", name: "1s", priceCents: 700, durationValue: 1, durationUnit: "Weeks" },
       ],
     }).toString("utf8");
 
@@ -88,8 +88,8 @@ describe("renderPackageFile", () => {
     const body = renderPackageFile(file, {
       ssid: "X",
       plans: [
-        { name: "Forfait 1 Jour", priceCents: 200, durationValue: 1, durationUnit: "Days" },
-        { name: "L'Hebdo", priceCents: 700, durationValue: 1, durationUnit: "Weeks" },
+        { id: "pkg-1j", name: "Forfait 1 Jour", priceCents: 200, durationValue: 1, durationUnit: "Days" },
+        { id: "pkg-hebdo", name: "L'Hebdo", priceCents: 700, durationValue: 1, durationUnit: "Weeks" },
       ],
     }).toString("utf8");
 
@@ -102,5 +102,47 @@ describe("renderPackageFile", () => {
     // every card gets a coloured badge class (base .price-duration-badge has no default background)
     assert.ok(!/price-duration-badge\s*"/.test(body), "each badge carries a colour class");
     assert.ok(!body.includes("{{"), "no unreplaced placeholder left");
+  });
+
+  it("injects the universal payment flow into login.html when appUrl is set", () => {
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: '<html><body><button class="plan-btn" data-package-id="pkg-x">Acheter</button></body></html>',
+    };
+    const body = renderPackageFile(login, {
+      ssid: "X",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+      routerId: "router-1",
+    }).toString("utf8");
+    assert.ok(body.includes('window.SLH_PORTAL='), "config injected");
+    assert.ok(body.includes('"slug":"demo-org"'), "slug in config");
+    assert.ok(body.includes('"mac":"$(mac)"'), "mac placeholder kept for RouterOS");
+    assert.ok(body.includes("/api/portal/"), "pay flow injected");
+    // injected before </body>
+    assert.ok(body.indexOf("SLH_PORTAL") < body.indexOf("</body>"), "injected inside body");
+  });
+
+  it("does not inject the payment flow without appUrl, nor into non-login files", () => {
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: "<html><body>x</body></html>",
+    };
+    const noAppUrl = renderPackageFile(login, { ssid: "X" }).toString("utf8");
+    assert.ok(!noAppUrl.includes("SLH_PORTAL"), "no injection without appUrl");
+
+    const status: PackageFile = {
+      path: "status.html",
+      encoding: "utf8",
+      content: "<html><body>status</body></html>",
+    };
+    const statusBody = renderPackageFile(status, {
+      ssid: "X",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+    }).toString("utf8");
+    assert.ok(!statusBody.includes("SLH_PORTAL"), "only login.html gets the flow");
   });
 });
