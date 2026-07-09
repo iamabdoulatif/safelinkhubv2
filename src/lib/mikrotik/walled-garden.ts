@@ -31,6 +31,12 @@ export const PAYMENT_WALLED_GARDEN_HOSTS = [
   "*.genius.ci",
   "geniuspay.ci",
   "*.geniuspay.ci",
+  // CDN d'assets de la page de checkout GeniusPay (sinon page cassée : le CSS
+  // Tailwind, les libs JS et les polices sont chargés depuis ces domaines).
+  "cdn.tailwindcss.com",
+  "cdn.jsdelivr.net",
+  "fonts.googleapis.com",
+  "fonts.gstatic.com",
   // Wave
   "wave.com",
   "*.wave.com",
