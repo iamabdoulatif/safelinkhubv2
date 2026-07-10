@@ -38,15 +38,17 @@ export function isGeniusPayConfigured(): boolean {
 
 /**
  * Le checkout GeniusPay est-il VISIBLE (boutons "Payer en ligne") ?
- * Masqué par défaut : il faut À LA FOIS des clés configurées ET le drapeau
- * GENIUSPAY_CHECKOUT_ENABLED=1. Permet de pousser le code sans exposer la
- * fonctionnalité aux orgs tant qu'elle n'est pas testée (activer le drapeau
- * côté serveur pour l'essayer, le laisser off dans le déploiement public).
+ * ACTIVÉ PAR DÉFAUT dès que les clés plateforme sont configurées : le paiement
+ * en ligne (auto-setup 15 000, services VPN) est désormais la voie normale de
+ * facturation. On peut le désactiver explicitement avec GENIUSPAY_CHECKOUT_ENABLED=0
+ * (ou false/off). Auparavant off-par-défaut (feature-flag de rollout) — mais ce
+ * défaut faisait perdre la facturation au moindre déploiement qui ne portait pas
+ * la var d'env ; on inverse donc le défaut pour la rendre robuste.
  */
 export function isGeniusPayCheckoutEnabled(): boolean {
   if (!isGeniusPayConfigured()) return false;
   const flag = (process.env.GENIUSPAY_CHECKOUT_ENABLED || "").toLowerCase();
-  return flag === "1" || flag === "true" || flag === "on";
+  return flag !== "0" && flag !== "false" && flag !== "off";
 }
 
 export type CreatePaymentInput = {
