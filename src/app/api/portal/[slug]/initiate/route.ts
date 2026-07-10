@@ -17,7 +17,7 @@ import { normalizeMac } from "@/lib/portal/fulfill";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { toInternational, OTP_VERIFY_TTL_MS } from "@/lib/portal/otp";
-import { getOrgGeniusCreds, createOrgPayment, ensureOrgWebhook } from "@/lib/payment-gateways/geniuspay-org";
+import { getOrgGeniusCreds, ensureOrgWebhook } from "@/lib/payment-gateways/geniuspay-org";
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -43,12 +43,6 @@ export async function POST(
   const packageId = String(body.packageId ?? "").trim();
   const macRaw = String(body.mac ?? "").trim();
   const routerIdInput = String(body.routerId ?? "").trim();
-  // Rail de paiement : "wave" par défaut (redirection compatible portail
-  // captif). Le client peut surcharger, mais on refuse tout ce qui sort de la
-  // liste GeniusPay connue pour éviter une valeur bidon.
-  const ALLOWED_METHODS = new Set(["wave", "orange_money", "mtn_money", "card", "paystack"]);
-  const methodRaw = String(body.method ?? "").trim();
-  const paymentMethod = ALLOWED_METHODS.has(methodRaw) ? methodRaw : "wave";
 
   const mac = normalizeMac(macRaw);
   if (!packageId) return corsJson({ error: "Forfait manquant." }, { status: 400 });
@@ -138,29 +132,12 @@ export async function POST(
     })
     .returning({ id: portalOrders.id });
 
+  // On NE crée PLUS le paiement ici : le CHOIX du moyen de paiement se fait sur
+  // la page hébergée /portal/pay (safelinkhub.io, fiable derrière le portail
+  // captif), qui appelle ensuite /pay avec le rail choisi. On renvoie donc juste
+  // l'URL de cette page. `checkoutUrl` reste renvoyé (= payUrl) pour rester
+  // compatible avec l'ancien script portail qui redirige dessus.
   const base = appUrl();
-  const payment = await createOrgPayment(creds, {
-    amountFcfa: pkg.priceCents,
-    description: `Forfait ${pkg.name} — WiFi`,
-    customer: { phone },
-    paymentMethod,
-    metadata: { orderId: order.id, slug, kind: "portal" },
-    successUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
-    errorUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}&status=error`,
-  });
-
-  if (!payment.ok) {
-    await db
-      .update(portalOrders)
-      .set({ status: "failed", failureReason: payment.error })
-      .where(eq(portalOrders.id, order.id));
-    return corsJson({ error: payment.error }, { status: 502 });
-  }
-
-  await db
-    .update(portalOrders)
-    .set({ paymentReference: payment.reference })
-    .where(eq(portalOrders.id, order.id));
-
-  return corsJson({ orderId: order.id, checkoutUrl: payment.paymentUrl });
+  const payUrl = `${base}/portal/pay?orderId=${order.id}&slug=${encodeURIComponent(slug)}`;
+  return corsJson({ orderId: order.id, payUrl, checkoutUrl: payUrl });
 }
