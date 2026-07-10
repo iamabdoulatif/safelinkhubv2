@@ -5,9 +5,9 @@ import ActivateForm from "./ActivateForm";
 export default async function ActivationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ token?: string; error?: string }>;
 }) {
-  const { token } = await searchParams;
+  const { token, error } = await searchParams;
 
   return (
     <AuthShell
@@ -38,7 +38,7 @@ export default async function ActivationPage({
           Confirmer mon email
         </h2>
         <div className="mt-6">
-          <ActivateForm token={token ?? ""} />
+          <ActivateForm token={token ?? ""} error={error === "invalid"} />
         </div>
       </div>
     </AuthShell>

@@ -21,21 +21,33 @@ export type SessionPayload = {
   role: string;
 };
 
-export async function createSession(payload: SessionPayload) {
-  const token = await new SignJWT(payload)
+// Nom du cookie + options + constructeur de jeton exposés pour les Route
+// Handlers (ex. activation par formulaire HTML) qui doivent poser le cookie
+// directement sur leur NextResponse plutôt que via cookies() de next/headers.
+export const SESSION_COOKIE_NAME = COOKIE_NAME;
+export const SESSION_COOKIE_MAX_AGE = SESSION_DURATION_SECONDS;
+export function sessionCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: SESSION_DURATION_SECONDS,
+  };
+}
+
+export async function createSessionToken(payload: SessionPayload): Promise<string> {
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION_SECONDS}s`)
     .sign(getSecretKey());
+}
 
+export async function createSession(payload: SessionPayload) {
+  const token = await createSessionToken(payload);
   const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_DURATION_SECONDS,
-  });
+  cookieStore.set(COOKIE_NAME, token, sessionCookieOptions());
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
