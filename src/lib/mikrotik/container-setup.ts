@@ -10,6 +10,7 @@ import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
 import { getAppUrl } from "@/lib/net/app-url";
 import { VOUCHER_PROFILES, type VoucherProfile } from "./voucher-profiles";
+import { reserveRouterSerial } from "./router-serial-lock";
 import {
   REMOTE_ACCESS_PORT,
   DOCKER_WEB_PORT,
@@ -710,6 +711,18 @@ export async function provisionHotspotStack(
       error:
         err instanceof Error ? `Could not connect: ${err.message}` : "Could not connect.",
     };
+  }
+
+  // Verrou anti-abus : un MikroTik (par numéro de série) ne peut être
+  // auto-configuré qu'une fois. Refuse si son SN est déjà verrouillé par un
+  // autre routeur (sauf réinitialisation superadmin). Re-run sur le même routeur
+  // autorisé. Voir router-serial-lock.ts.
+  const serialLock = await reserveRouterSerial(client, routerId, session.orgId).catch(
+    () => ({ ok: true, serial: null }) as const,
+  );
+  if (!serialLock.ok) {
+    client.close();
+    return { error: serialLock.error };
   }
 
   const log: string[] = [];

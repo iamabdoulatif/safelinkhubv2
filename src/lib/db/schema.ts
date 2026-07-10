@@ -151,6 +151,23 @@ export const routers = pgTable("routers", {
   lastAutoSetupConfig: jsonb("last_auto_setup_config"),
 });
 
+// Verrou anti-abus de l'auto-setup : le numéro de série RouterOS d'un MikroTik
+// est enregistré au 1er auto-setup réussi. Un MikroTik (par SN) ne peut être
+// auto-configuré qu'UNE fois — un second essai sur le même SN depuis un autre
+// routeur/org est refusé, sauf réinitialisation par un superadmin (releasedAt).
+// Voir lib/mikrotik/router-serial-lock.ts.
+export const routerSerialLocks = pgTable("router_serial_locks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  serialNumber: text("serial_number").notNull().unique(),
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "set null" }),
+  orgId: uuid("org_id").references(() => organizations.id, { onDelete: "set null" }),
+  lockedAt: timestamp("locked_at").defaultNow().notNull(),
+  // Non-null = déverrouillé par un superadmin (routeur revendu, reset légitime) ;
+  // le SN redevient alors ré-utilisable pour un nouvel auto-setup.
+  releasedAt: timestamp("released_at"),
+  releasedBy: uuid("released_by").references(() => users.id, { onDelete: "set null" }),
+});
+
 export const captiveTemplates = pgTable("captive_templates", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")
