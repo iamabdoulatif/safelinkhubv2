@@ -1,20 +1,41 @@
-import { TrendingUp } from "lucide-react";
 import SectionHeading from "./SectionHeading";
-import { mockStats } from "./content";
+import { vendors } from "./content";
+import { remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
+import { AUTO_SETUP_FEE_CENTS, VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
+
+const fcfa = new Intl.NumberFormat("fr-FR");
 
 /*
- * Section démo : mock du dashboard dans un cadre éditorial +
- * emplacement vidéo pour un futur rendu 3D (déposer le fichier dans
- * public/landing/demo-3d.mp4 — le poster SVG s'affiche en attendant).
+ * Section démo : aperçu produit avec de VRAIS chiffres (prix réels importés de
+ * la config de facturation), pas de données inventées. Emplacement vidéo pour
+ * un futur rendu 3D (public/landing/demo-3d.mp4).
  */
 export default function ProductDemo() {
+  const stats = [
+    {
+      label: "Accès distant",
+      value: `dès ${fcfa.format(remoteAccessPriceFcfa("monthly"))} FCFA`,
+      sub: "par service / mois",
+    },
+    {
+      label: "Auto-setup routeur",
+      value: `${fcfa.format(AUTO_SETUP_FEE_CENTS.containerCapable)} FCFA`,
+      sub: "1er routeur offert",
+    },
+    {
+      label: "Essai offert",
+      value: `${Math.round(VPN_TRIAL_DAYS / 30)} mois`,
+      sub: "accès distant gratuit",
+    },
+  ];
+
   return (
     <section id="demo" aria-label="Démonstration produit" className="border-b-2 border-line bg-clay py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionHeading index="02" title="Le tableau de bord qui pilote tout." marker="tout" />
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-          {/* Mock dashboard encadré */}
+          {/* Aperçu dashboard encadré */}
           <div className="frame-double bg-paper lg:col-span-7">
             {/* Barre de navigateur */}
             <div className="flex items-center gap-2 border-b-2 border-line bg-ink px-4 py-3">
@@ -22,12 +43,12 @@ export default function ProductDemo() {
               <span aria-hidden="true" className="h-2.5 w-2.5 bg-brand" />
               <span aria-hidden="true" className="h-2.5 w-2.5 bg-ok" />
               <span className="ml-3 truncate font-mono text-xs text-clay">
-                app.safelinkhub.net/admin
+                safelinkhub.io/admin
               </span>
             </div>
-            {/* KPI */}
+            {/* Chiffres réels */}
             <div className="grid grid-cols-1 sm:grid-cols-3">
-              {mockStats.map((s, i) => (
+              {stats.map((s, i) => (
                 <div
                   key={s.label}
                   className={`p-5 ${i > 0 ? "border-t-2 border-line sm:border-l-2 sm:border-t-0" : ""}`}
@@ -38,20 +59,17 @@ export default function ProductDemo() {
                   <p className="mt-2 whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink sm:text-xl">
                     {s.value}
                   </p>
-                  <p className="mt-1 flex items-center gap-1 font-mono text-xs font-medium text-ok">
-                    <TrendingUp aria-hidden="true" className="h-3 w-3" />
-                    {s.trend} ce mois
-                  </p>
+                  <p className="mt-1 font-mono text-xs font-medium text-ink-soft">{s.sub}</p>
                 </div>
               ))}
             </div>
-            {/* Barre de statut routeurs */}
+            {/* Barre de statut — faits produit réels */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t-2 border-line bg-ink px-4 py-2.5">
               <span className="flex items-center gap-1.5 font-mono text-xs text-clay">
                 <span aria-hidden="true" className="iso-led h-1.5 w-1.5 bg-brand" />
-                12 routeurs en ligne
+                {vendors.length} constructeurs pris en charge
               </span>
-              <span className="font-mono text-xs text-clay">847 connexions actives</span>
+              <span className="font-mono text-xs text-clay">Noyau RADIUS cloud inclus</span>
             </div>
           </div>
 

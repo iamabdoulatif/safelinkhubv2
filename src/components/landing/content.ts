@@ -192,26 +192,9 @@ export const hardware: {
   },
 ];
 
-export const testimonials = [
-  {
-    quote:
-      "La facturation automatisée et la surveillance réseau de SafeLinkHub ont transformé la gestion de nos opérations FAI.",
-    author: "Kasiita Godfrey",
-    company: "Opérateur FAI",
-  },
-  {
-    quote:
-      "Avant SafeLinkHub, notre facturation était un fouillis de feuilles de calcul et de suivis manuels.",
-    author: "Sanyu Nakato",
-    company: "Nile Fibre",
-  },
-  {
-    quote:
-      "Nous avons commencé avec le plan gratuit juste pour tester, mais en une semaine nous sommes passés au plan Pro.",
-    author: "Esther Acheng",
-    company: "KiliData",
-  },
-] as const;
+// Les témoignages sont désormais de VRAIS avis soumis par les utilisateurs du
+// site (table `testimonials`, modérés) — voir src/lib/testimonials/ et le
+// composant Testimonials.tsx. Plus de faux témoignages en dur ici.
 
 export const faqs = [
   {
@@ -240,8 +223,3 @@ export const faqs = [
   },
 ] as const;
 
-export const mockStats = [
-  { label: "Ventes nettes", value: "428 500 FCFA", trend: "+12 %" },
-  { label: "Ventes de vouchers", value: "186 000 FCFA", trend: "+8 %" },
-  { label: "Clients actifs", value: "847", trend: "+23" },
-] as const;

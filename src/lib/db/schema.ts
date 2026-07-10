@@ -518,6 +518,20 @@ export const contactMessages = pgTable("contact_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Témoignages soumis par les visiteurs du site (landing publique). Modérés :
+// status "pending" à la soumission, seuls les "approved" s'affichent sur la
+// landing. Pas d'orgId — ce sont des avis publics au niveau plateforme.
+export const testimonials = pgTable("testimonials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  company: text("company"),
+  role: text("role"),
+  quote: text("quote").notNull(),
+  rating: integer("rating"), // 1..5, optionnel
+  status: text("status").notNull().default("pending"), // pending | approved | hidden
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const supportTickets = pgTable("support_tickets", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")
