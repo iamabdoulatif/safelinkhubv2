@@ -30,6 +30,7 @@ export default function PaidStatus({
   const canPoll = Boolean(orderId && slug) && !isError;
   const [phase, setPhase] = useState<Phase>(isError ? "failed" : canPoll ? "loading" : "processing");
   const [error, setError] = useState("");
+  const [code, setCode] = useState("");
 
   useEffect(() => {
     if (!canPoll) return;
@@ -48,6 +49,7 @@ export default function PaidStatus({
         const data = (await res.json()) as { status?: string; code?: string; error?: string };
         if (!active) return;
         if (data.status === "fulfilled") {
+          if (data.code) setCode(data.code);
           setPhase("fulfilled");
           return;
         }
@@ -89,14 +91,22 @@ export default function PaidStatus({
         {phase === "fulfilled" ? (
           <>
             <div style={{ fontSize: 44, marginBottom: 8 }}>✅</div>
-            <h1 style={{ fontSize: "1.25rem", margin: "0 0 4px" }}>Paiement reçu</h1>
-            <p style={{ color: "#0f172a", fontSize: "1rem", fontWeight: 600, margin: "10px 0 6px" }}>
-              Votre accès WiFi est activé.
-            </p>
+            <h1 style={{ fontSize: "1.25rem", margin: "0 0 6px" }}>Paiement reçu</h1>
+            <p style={{ color: "#64748b", fontSize: ".85rem", margin: "0 0 6px" }}>Votre code WiFi</p>
+            <div
+              style={{
+                fontSize: "2rem",
+                fontWeight: 700,
+                letterSpacing: ".18em",
+                color: "#0f172a",
+                margin: "0 0 10px",
+              }}
+            >
+              {code || "…"}
+            </div>
             <p style={{ color: "#64748b", fontSize: ".92rem", margin: 0 }}>
-              Votre appareil se connecte <b>automatiquement</b> — aucun code à saisir. Fermez cette
-              page et patientez quelques secondes ; la navigation s’ouvre toute seule. Un SMS de
-              confirmation vous a été envoyé.
+              Retournez sur le portail WiFi (onglet <b>Code</b>) et saisissez ce code pour vous
+              connecter. Il vous a aussi été envoyé par <b>SMS</b>.
             </p>
           </>
         ) : phase === "failed" ? (

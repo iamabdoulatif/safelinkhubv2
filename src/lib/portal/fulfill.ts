@@ -148,38 +148,21 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   } catch (e) {
     return failClaim(`Routeur injoignable : ${e instanceof Error ? e.message : "connexion échouée"}.`);
   }
-  // AUTO-LOGIN PAR MAC : le user hotspot est nommé D'APRÈS le MAC du client.
-  // Le profil hotspot est configuré `login-by=mac` + `mac-auth-mode=
-  // mac-as-username-and-password` (voir container-setup.ts) → RouterOS
-  // authentifie automatiquement ce MAC à sa prochaine sonde de connectivité,
-  // sans portail ni code à saisir. iOS/Android détectent alors l'accès et
-  // ferment le portail captif tout seuls. Le profil impose la durée du forfait.
+  // LOGIN PAR CODE : le user hotspot est nommé D'APRÈS le CODE (pas le MAC), avec
+  // le code aussi en mot de passe → le client se connecte en saisissant le code
+  // affiché/SMS (le profil autorise http-chap/http-pap, voir container-setup.ts).
+  // On lie quand même le user au MAC du client (`mac-address`) pour empêcher le
+  // partage du code sur un autre appareil ; le profil impose la durée du forfait.
+  // Chaque achat = un code unique → un user distinct (pas de ré-utilisation).
   let createError: string | null = null;
   try {
-    const existing = await client
-      .talk(["/ip/hotspot/user/print", `?name=${mac}`])
-      .catch(() => [] as Record<string, string>[]);
-    if (existing.length === 0) {
-      await client.talk([
-        "/ip/hotspot/user/add",
-        `=name=${mac}`,
-        `=password=${mac}`,
-        `=profile=${profileName}`,
-        `=mac-address=${mac}`,
-      ]);
-    } else {
-      // Ré-achat depuis le même appareil : réattribue le forfait, réactive et
-      // remet à zéro les compteurs (nouvelle période).
-      const id = existing[0][".id"];
-      await client.talk([
-        "/ip/hotspot/user/set",
-        `=numbers=${id}`,
-        `=profile=${profileName}`,
-        `=password=${mac}`,
-        "=disabled=no",
-      ]);
-      await client.talk(["/ip/hotspot/user/reset-counters", `=numbers=${id}`]).catch(() => {});
-    }
+    await client.talk([
+      "/ip/hotspot/user/add",
+      `=name=${code}`,
+      `=password=${code}`,
+      `=profile=${profileName}`,
+      `=mac-address=${mac}`,
+    ]);
   } catch (e) {
     createError = `Échec de création sur le routeur : ${e instanceof Error ? e.message : "inconnue"}.`;
   } finally {
@@ -230,8 +213,8 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   }
 
   const message = packageName
-    ? `Forfait ${packageName} activé. Votre appareil se connecte automatiquement à ce WiFi (aucun code à saisir).`
-    : `Forfait WiFi activé. Votre appareil se connecte automatiquement (aucun code à saisir).`;
+    ? `Forfait ${packageName} activé. Votre code WiFi : ${code}. Saisissez-le sur le portail WiFi pour vous connecter.`
+    : `Forfait WiFi activé. Votre code WiFi : ${code}. Saisissez-le sur le portail WiFi pour vous connecter.`;
 
   const sms = await sendOrgSms({ orgId: order.orgId, to: order.phone, content: message });
 

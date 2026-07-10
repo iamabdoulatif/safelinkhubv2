@@ -4,23 +4,30 @@
 // transaction GeniusPay du rail choisi (POST /api/portal/[slug]/pay) puis
 // redirige la MÊME fenêtre vers le checkout du rail.
 //
-// IMPORTANT : sur les comptes GeniusPay "startup" de CI, TOUS les rails
-// mobile-money (orange_money, mtn_money) sont routés vers Wave (pay.wave.com) —
-// afficher des boutons Orange/MTN distincts induit donc le client en erreur.
-// On n'affiche que Wave. Pour un vrai flux Orange/MTN/carte, l'opérateur doit
-// les activer sur son compte pay.genius.ci, puis on rallongera cette liste.
+// Moyens réellement distincts sur ce compte GeniusPay : Wave (mobile money,
+// pay.wave.com) et Paystack (carte bancaire, checkout.paystack.com). Les rails
+// orange_money/mtn_money/moov routent tous vers Wave ou vers le checkout USSD
+// geniuspay.ci (injouable sur captif) → on ne les affiche pas séparément tant
+// que l'opérateur ne les a pas activés en direct sur pay.genius.ci.
 //
 // Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
-// lourdes comme le checkout Wave (« ça pompe sur le logo »). On propose donc un
-// repli « ouvrir dans le navigateur » : la page /portal/pay est sur
-// safelinkhub.io (walled-garden autorisé) donc elle s'ouvre AUSSI dans Chrome/
-// Safari, où Wave fonctionne pleinement. Après paiement, l'appareil se connecte
-// seul par MAC — inutile de revenir dans le portail.
+// lourdes (checkout Wave/Paystack « pompe sur le logo »). D'où le repli « ouvrir
+// dans le navigateur » : /portal/pay est sur safelinkhub.io (walled-garden) donc
+// s'ouvre AUSSI dans Chrome/Safari où le checkout marche. Après paiement, un
+// CODE WiFi s'affiche (+ SMS) : le client le saisit sur le portail pour se
+// connecter.
 
 import { useEffect, useState } from "react";
 
+type Method = { id: string; label: string; sub: string; bg: string; fg: string };
+
+const METHODS: Method[] = [
+  { id: "wave", label: "Payer avec Wave", sub: "Mobile Money", bg: "#1dc4ff", fg: "#00263a" },
+  { id: "paystack", label: "Carte bancaire", sub: "Visa / Mastercard", bg: "#0f172a", fg: "#fff" },
+];
+
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
@@ -31,15 +38,15 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
     setPageUrl(window.location.href);
   }, []);
 
-  async function pay() {
+  async function pay(method: string) {
     if (busy) return;
-    setBusy(true);
+    setBusy(method);
     setError("");
     try {
       const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, method: "wave" }),
+        body: JSON.stringify({ orderId, method }),
       });
       const data = (await res.json()) as { checkoutUrl?: string; error?: string };
       if (!res.ok || !data.checkoutUrl) {
@@ -48,7 +55,7 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
       // Même fenêtre : le portail captif ne peut pas ouvrir d'onglet.
       window.location.assign(data.checkoutUrl);
     } catch (e) {
-      setBusy(false);
+      setBusy(null);
       setError(e instanceof Error ? e.message : "Erreur réseau. Réessayez.");
     }
   }
@@ -71,30 +78,40 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
 
   return (
     <div>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={pay}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 2,
-          width: "100%",
-          padding: 16,
-          border: 0,
-          borderRadius: 12,
-          background: "#1dc4ff",
-          color: "#00263a",
-          fontSize: "1.05rem",
-          fontWeight: 700,
-          cursor: busy ? "default" : "pointer",
-          opacity: busy ? 0.6 : 1,
-        }}
-      >
-        <span>{busy ? "Redirection vers Wave…" : "Payer avec Wave"}</span>
-        {!busy ? <span style={{ fontSize: ".72rem", fontWeight: 500, opacity: 0.85 }}>Mobile Money</span> : null}
-      </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {METHODS.map((m) => {
+          const loading = busy === m.id;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => pay(m.id)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
+                width: "100%",
+                padding: 16,
+                border: 0,
+                borderRadius: 12,
+                background: m.bg,
+                color: m.fg,
+                fontSize: "1.05rem",
+                fontWeight: 700,
+                cursor: busy ? "default" : "pointer",
+                opacity: busy && !loading ? 0.5 : 1,
+              }}
+            >
+              <span>{loading ? "Redirection…" : m.label}</span>
+              {!loading ? (
+                <span style={{ fontSize: ".72rem", fontWeight: 500, opacity: 0.85 }}>{m.sub}</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
 
       {error ? <p style={{ margin: "12px 0 0", color: "#ef4444", fontSize: ".85rem" }}>{error}</p> : null}
 
@@ -109,8 +126,8 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
         }}
       >
         <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#475569", lineHeight: 1.5 }}>
-          La page Wave reste bloquée sur le logo ? Ouvrez cette page dans <b>Chrome</b> ou{" "}
-          <b>Safari</b> pour payer, puis revenez : votre appareil se connectera tout seul.
+          La page de paiement reste bloquée sur le logo ? Ouvrez cette page dans <b>Chrome</b> ou{" "}
+          <b>Safari</b> pour payer, puis revenez saisir votre code.
         </p>
         <button
           type="button"
@@ -166,8 +183,8 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
       </div>
 
       <p style={{ margin: "16px 0 0", fontSize: ".72rem", color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
-        Paiement sécurisé via GeniusPay. Après le paiement, <b>votre appareil se connecte tout seul</b> à
-        ce WiFi — aucun code à saisir. Un SMS de confirmation vous est envoyé.
+        Paiement sécurisé via GeniusPay. Après le paiement, un <b>code WiFi</b> s’affiche (+ SMS) :
+        saisissez-le sur le portail WiFi pour vous connecter.
       </p>
     </div>
   );

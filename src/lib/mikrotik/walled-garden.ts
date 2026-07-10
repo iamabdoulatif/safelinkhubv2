@@ -55,6 +55,13 @@ export const PAYMENT_WALLED_GARDEN_HOSTS = [
   "moov-africa.ci",
   "*.moov-africa.ci",
   "*.moov-africa.com",
+  // Paystack (carte bancaire) : page de saisie checkout.paystack.com + API.
+  // NB : le 3-D Secure peut rediriger vers l'ACS de la banque (domaine
+  // arbitraire, non whitelistable) → les cartes 3DS peuvent échouer sur captif ;
+  // les cartes sans 3DS passent. Le repli « ouvrir dans le navigateur » aide.
+  "checkout.paystack.com",
+  "*.paystack.com",
+  "*.paystack.co",
 ];
 
 /** Ensemble complet du walled-garden pour une install : app + paiement. */
