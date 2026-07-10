@@ -12,8 +12,12 @@
  * other legacy hardware) only get the hotspot/Wi-Fi steps, hence the
  * lower price.
  */
+// Aligné sur le gate-config du paiement en ligne (auto-setup-gate-config.ts :
+// 15 000 container / 10 000 hotspot-only) pour qu'un même prix s'affiche et se
+// facture quel que soit le chemin (paiement en ligne = source de vérité, repli
+// wallet identique). Plus de "deux prix qui coexistent".
 export const AUTO_SETUP_FEE_CENTS = {
-  containerCapable: 20000,
+  containerCapable: 15000,
   hotspotOnly: 10000,
 } as const;
 

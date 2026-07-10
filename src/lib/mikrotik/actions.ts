@@ -13,22 +13,6 @@ import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
 import { syncRouterStats, connectToRouter, refreshStaleRouters } from "./router-sync";
 import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 import { shardForIndex } from "./shards";
-import {
-  evaluateFeatureAccessGate,
-  consumeFeatureAuthorization,
-} from "@/lib/billing/feature-access-service";
-import type { FeatureAccessId } from "@/lib/billing/feature-access-config";
-
-// Message renvoyé par une action verrouillée quand l'utilisateur n'a pas
-// d'autorisation utilisable. `needsAuthorization` déclenche le modal de
-// demande côté client (voir FeatureAccessRequestModal).
-function lockedResponse(feature: FeatureAccessId) {
-  return {
-    error:
-      "Cette fonctionnalité nécessite une autorisation. Envoyez une demande à l'administrateur pour la débloquer.",
-    needsAuthorization: feature,
-  } as const;
-}
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -44,10 +28,9 @@ export async function connectRouter(_prevState: unknown, formData: FormData) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
-  // Porte d'autorisation : lier un MikroTik est verrouillé tant que le
-  // superadmin n'a pas approuvé une demande (1 demande = 1 routeur lié).
-  const gate = await evaluateFeatureAccessGate(session, "router_link");
-  if (!gate.ok) return lockedResponse("router_link");
+  // Lier un MikroTik est GRATUIT (plus d'approbation superadmin). La
+  // facturation est portée par l'auto-setup (15 000 FCFA, payé en ligne) et par
+  // les services d'accès distant (par onglet × durée), pas par le liage.
 
   const name = String(formData.get("name") ?? "").trim();
   const host = String(formData.get("host") ?? "").trim();
@@ -94,10 +77,6 @@ export async function connectRouter(_prevState: unknown, formData: FormData) {
     lastSyncAt: new Date(),
     relayShard: await nextRelayShard(db),
   });
-
-  // Consomme l'autorisation (1 demande = 1 usage). Le superadmin passe sans
-  // autorisation à consommer.
-  if (gate.authorizationId) await consumeFeatureAuthorization(gate.authorizationId);
 
   revalidatePath("/admin/router");
   revalidatePath("/admin/settings/router-setup");
@@ -149,10 +128,8 @@ export async function generateInstallScript(
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
-  // Porte d'autorisation : créer un tunnel d'accès distant est verrouillé
-  // (1 demande = 1 tunnel).
-  const gate = await evaluateFeatureAccessGate(session, "remote_access");
-  if (!gate.ok) return lockedResponse("remote_access");
+  // Créer un tunnel d'accès distant est GRATUIT (plus d'approbation superadmin) :
+  // la facturation VPN est portée par les services activés (par onglet × durée).
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Router name is required." };
@@ -203,9 +180,6 @@ export async function generateInstallScript(
   // one-shot script only ever runs the VPN install, not the full
   // auto-setup.
   const command = `/interface/ethernet/set [find name=ether1] name=E1-WAN-FAI; /interface/wifi/set [find] disabled=no; /tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="vpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="vpn.rsc"; :delay 1s; /ip route remove [find dst-address=10.66.0.0/24 gateway=safelinkhub-wg0]; /ip route add dst-address=10.66.0.0/24 gateway=safelinkhub-wg0; :delay 1s; /file remove "vpn.rsc"`;
-
-  // Consomme l'autorisation (1 demande = 1 tunnel généré).
-  if (gate.authorizationId) await consumeFeatureAuthorization(gate.authorizationId);
 
   revalidatePath("/admin/settings/router-setup");
   return { success: true, routerId: router.id, command };
@@ -410,10 +384,8 @@ export async function generateOpenvpnInstallScript(
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
-  // Porte d'autorisation : créer un tunnel d'accès distant est verrouillé
-  // (1 demande = 1 tunnel).
-  const gate = await evaluateFeatureAccessGate(session, "remote_access");
-  if (!gate.ok) return lockedResponse("remote_access");
+  // Créer un tunnel d'accès distant est GRATUIT (plus d'approbation superadmin) :
+  // la facturation VPN est portée par les services activés (par onglet × durée).
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Router name is required." };
@@ -453,9 +425,6 @@ export async function generateOpenvpnInstallScript(
   const scriptUrl = `${appUrl}/api/router/v1/${org.slug}/scripts/install-openvpn`;
   const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";
   const command = `/tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="ovpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="ovpn.rsc"; :delay 1s; /file remove "ovpn.rsc"`;
-
-  // Consomme l'autorisation (1 demande = 1 tunnel généré).
-  if (gate.authorizationId) await consumeFeatureAuthorization(gate.authorizationId);
 
   revalidatePath("/admin/settings/router-setup");
   revalidatePath("/admin/remote-access");
