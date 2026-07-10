@@ -10,6 +10,8 @@ import { portalOrders, packages, routers, vouchers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { sendOrgSms } from "@/lib/sms/send";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
+import { voucherProfileForPackage } from "@/lib/mikrotik/package-voucher-profile";
+import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -129,6 +131,30 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   const profileName = order.profileName;
   if (!profileName) return permFail("Profil hotspot manquant sur la commande.");
 
+  // Définition du profil, pour le CRÉER sur le routeur s'il n'y est pas encore
+  // (forfait dont le profil n'a pas été provisionné à l'auto-setup, ex. durée
+  // ajoutée après). Reconstruit depuis le forfait vendu ; null si le forfait a
+  // été supprimé → on comptera sur un profil déjà présent.
+  let voucherProfile = null as ReturnType<typeof voucherProfileForPackage>;
+  if (order.packageId) {
+    const [pkgRow] = await db
+      .select({
+        durationValue: packages.durationValue,
+        durationUnit: packages.durationUnit,
+        priceCents: packages.priceCents,
+      })
+      .from(packages)
+      .where(eq(packages.id, order.packageId))
+      .limit(1);
+    if (pkgRow) {
+      voucherProfile = voucherProfileForPackage(
+        pkgRow.durationValue,
+        pkgRow.durationUnit,
+        pkgRow.priceCents,
+      );
+    }
+  }
+
   // Code unique (username hotspot). vouchers.username est unique globalement.
   let code = randomCode();
   for (let i = 0; i < 5; i++) {
@@ -156,6 +182,10 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   // Chaque achat = un code unique → un user distinct (pas de ré-utilisation).
   let createError: string | null = null;
   try {
+    // Crée le profil sur le routeur s'il manque (idempotent, non destructif) —
+    // sinon user/add échouerait avec « profile not found » pour les forfaits non
+    // provisionnés à l'auto-setup.
+    if (voucherProfile) await ensureVoucherProfileOnRouter(client, voucherProfile);
     await client.talk([
       "/ip/hotspot/user/add",
       `=name=${code}`,

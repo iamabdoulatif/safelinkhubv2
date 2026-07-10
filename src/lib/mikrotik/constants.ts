@@ -19,6 +19,12 @@ export const DOCKER_WEB_PORT = 8087;
 // migrates live routers in place (rename, never a second bridge).
 export const HOTSPOT_BRIDGE_NAME = "SAFELINKHUB-BRIDGE";
 
+// Nom du pool d'adresses hotspot que provisionHotspotStack crée — les profils
+// voucher (user/profile/add) y sont rattachés. Exporté ici pour que la création
+// de profil à la demande (voir voucher-profile-provision.ts) l'utilise sans
+// importer tout container-setup.
+export const HOTSPOT_POOL_NAME = "POOL-HOTSPOT";
+
 // Port the "MikHmon via tunnel" dst-nat rule forwards to the MikHmon
 // container, with no dst-address filter so it answers regardless of which
 // address the packet arrives addressed to (WAN public IP or the router's

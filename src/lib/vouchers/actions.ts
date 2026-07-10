@@ -8,8 +8,10 @@ import { requireAdminSession } from "@/lib/auth/session";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import {
   packageProfileName,
+  voucherProfileForPackage,
   SUPPORTED_PROFILE_DURATIONS,
 } from "@/lib/mikrotik/package-voucher-profile";
+import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -51,6 +53,7 @@ export async function generateVouchers(_prevState: unknown, formData: FormData) 
       active: packages.active,
       durationValue: packages.durationValue,
       durationUnit: packages.durationUnit,
+      priceCents: packages.priceCents,
     })
     .from(packages)
     .where(and(eq(packages.id, packageId), eq(packages.orgId, session.orgId)))
@@ -106,6 +109,15 @@ export async function generateVouchers(_prevState: unknown, formData: FormData) 
   const created: string[] = [];
   let failure: string | null = null;
   try {
+    // Crée le profil sur le routeur s'il manque (forfait non provisionné à
+    // l'auto-setup) — sinon chaque user/add échouerait avec « profile not found ».
+    const voucherProfile = voucherProfileForPackage(
+      pkg.durationValue,
+      pkg.durationUnit,
+      pkg.priceCents,
+    );
+    if (voucherProfile) await ensureVoucherProfileOnRouter(client, voucherProfile);
+
     for (const code of codeList) {
       try {
         const exists = await client

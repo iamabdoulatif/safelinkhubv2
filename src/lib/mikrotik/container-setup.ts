@@ -15,6 +15,7 @@ import {
   DOCKER_WEB_PORT,
   TUNNEL_ACCESS_PORT,
   HOTSPOT_BRIDGE_NAME,
+  HOTSPOT_POOL_NAME,
 } from "./constants";
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
@@ -66,7 +67,6 @@ const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
 const DOCKER_NETWORK = "11.11.11.0/28";
-const HOTSPOT_POOL_NAME = "POOL-HOTSPOT";
 const CONTAINER_NAME = "mikhmonv3-safelinkhub:latest";
 const LEGACY_CONTAINER_NAMES = ["mikhmon-sf-v1:latest"];
 const REMOTE_IMAGE = "latif225/mikhmonv3-safelinkhub:latest";
