@@ -385,7 +385,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
     o.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;";
     o.innerHTML = '<div style="background:#fff;color:#0f172a;border-radius:14px;max-width:360px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-family:system-ui,sans-serif;">'
       + '<h3 style="margin:0 0 4px;font-size:1.1rem;">Acheter ' + esc(sel.plan) + '</h3>'
-      + '<p style="margin:0 0 16px;font-size:.9rem;color:#64748b;">' + esc(sel.price) + ' &middot; Mobile Money</p>'
+      + '<p style="margin:0 0 16px;font-size:.9rem;color:#64748b;">' + esc(sel.price) + ' &middot; Paiement Wave</p>'
       + '<div data-step="phone">'
       +   '<label style="display:block;font-size:.8rem;margin-bottom:6px;">Votre num&eacute;ro</label>'
       +   '<div style="display:flex;gap:6px;margin-bottom:6px;">'
@@ -400,7 +400,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       +   '<button id="slh-otp-resend" type="button" style="background:none;border:0;color:#0ea5e9;font-size:.8rem;padding:0;">Renvoyer le code</button>'
       + '</div>'
       + '<div data-step="pay" style="display:none;">'
-      +   '<p style="margin:0 0 12px;font-size:.9rem;">Num&eacute;ro v&eacute;rifi&eacute;. Appuyez sur <b>Payer</b> pour continuer.</p>'
+      +   '<p style="margin:0 0 12px;font-size:.9rem;">Num&eacute;ro v&eacute;rifi&eacute;. Payez par <b>Wave</b> : appuyez sur <b>Payer</b>, vous serez redirig&eacute; vers Wave puis ramen&eacute; ici automatiquement.</p>'
       + '</div>'
       + '<div data-step="done" style="display:none;text-align:center;">'
       +   '<p style="margin:0 0 6px;font-size:.85rem;color:#64748b;">Votre code d&#39;acc&egrave;s WiFi</p>'
@@ -490,7 +490,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
 
     function startPayment(){
       primary.disabled = true; primary.textContent = "Traitement..."; setStatus("Création du paiement...");
-      fetch(api("/initiate"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ packageId: sel.packageId, phone: localPhone(), mac: cfg.mac, routerId: cfg.routerId || "" }) })
+      fetch(api("/initiate"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ packageId: sel.packageId, phone: localPhone(), mac: cfg.mac, routerId: cfg.routerId || "", method: "wave" }) })
         .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
         .then(function(res){
           if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Echec du paiement.");

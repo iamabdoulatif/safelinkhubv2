@@ -43,6 +43,12 @@ export async function POST(
   const packageId = String(body.packageId ?? "").trim();
   const macRaw = String(body.mac ?? "").trim();
   const routerIdInput = String(body.routerId ?? "").trim();
+  // Rail de paiement : "wave" par défaut (redirection compatible portail
+  // captif). Le client peut surcharger, mais on refuse tout ce qui sort de la
+  // liste GeniusPay connue pour éviter une valeur bidon.
+  const ALLOWED_METHODS = new Set(["wave", "orange_money", "mtn_money", "card", "paystack"]);
+  const methodRaw = String(body.method ?? "").trim();
+  const paymentMethod = ALLOWED_METHODS.has(methodRaw) ? methodRaw : "wave";
 
   const mac = normalizeMac(macRaw);
   if (!packageId) return corsJson({ error: "Forfait manquant." }, { status: 400 });
@@ -137,6 +143,7 @@ export async function POST(
     amountFcfa: pkg.priceCents,
     description: `Forfait ${pkg.name} — WiFi`,
     customer: { phone },
+    paymentMethod,
     metadata: { orderId: order.id, slug, kind: "portal" },
     successUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
     errorUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}&status=error`,

@@ -61,6 +61,13 @@ export type CreateOrgPaymentInput = {
   metadata?: Record<string, unknown>;
   successUrl?: string;
   errorUrl?: string;
+  // Rail de paiement forcé (doc GeniusPay : "wave" | "orange_money" |
+  // "mtn_money" | "card" | "paystack"). OMIS ⇒ page checkout hébergée
+  // geniuspay.ci, qui par défaut ne propose qu'Orange Money en USSD *144#
+  // — injouable derrière un portail captif iOS (impossible de quitter l'app
+  // pour composer). On force donc "wave" (redirection pay.wave.com,
+  // walled-garden autorisé) pour le portail captif.
+  paymentMethod?: string;
 };
 
 export type CreateOrgPaymentResult =
@@ -88,6 +95,7 @@ export async function createOrgPayment(
         metadata: input.metadata,
         success_url: input.successUrl,
         error_url: input.errorUrl,
+        ...(input.paymentMethod ? { payment_method: input.paymentMethod } : {}),
       }),
       cache: "no-store",
     });
