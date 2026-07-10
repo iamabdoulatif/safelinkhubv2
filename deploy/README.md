@@ -48,6 +48,20 @@ garde l'EC2 allumé en secours jusqu'à la fin de la Phase 3.
    # /etc/systemd/system/router-health.timer → OnCalendar=*-*-* 03:00:00
    ```
    Vérifie d'abord l'auth attendue dans `src/app/api/cron/router-health-check/route.ts`.
+
+   **Décompte partagé des vouchers multi-routeurs** (toutes les 2 min) — units
+   fournies dans `deploy/` :
+   ```bash
+   sudo cp deploy/voucher-expiry-sync.service deploy/voucher-expiry-sync.timer \
+     /etc/systemd/system/
+   # Ajuste EnvironmentFile= dans le .service si ton .env n'est pas /root/safelinkhub/.env
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now voucher-expiry-sync.timer
+   sudo systemctl start voucher-expiry-sync.service   # test manuel immédiat
+   journalctl -u voucher-expiry-sync.service -n 20 --no-pager
+   ```
+   Cette route EXIGE `Authorization: Bearer $CRON_SECRET`
+   (voir `src/app/api/cron/voucher-expiry-sync/route.ts`).
 7. **Test** avant bascule DNS : `curl -H 'Host: safelinkhub.io' http://31.97.153.83`
    ou un `/etc/hosts` temporaire. Le DNS apex pointe déjà le VPS, donc dès que le
    conteneur répond, `https://safelinkhub.io` sert l'app auto-hébergée.

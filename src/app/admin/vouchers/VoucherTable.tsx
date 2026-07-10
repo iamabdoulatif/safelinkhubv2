@@ -1,15 +1,25 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-import DownloadVouchersModal from "./DownloadVouchersModal";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2, Loader2 } from "lucide-react";
+import DownloadVouchersModal, {
+  type SelectedVoucher,
+} from "./DownloadVouchersModal";
+import { deleteVouchers } from "@/lib/vouchers/actions";
+import type { TicketBrand } from "@/lib/vouchers/ticket-templates";
 
 export type VoucherRow = {
   id: string;
   username: string;
   packageName: string;
+  price: string | null;
+  validity: string | null;
   status: string;
   firstLogin: string;
   expiresOn: string;
+  /** true = pas encore d'horloge démarrée (durée affichée, pas une date). */
+  expiresPending: boolean;
   useCase: string;
   note: string;
   createdOn: string;
@@ -17,12 +27,17 @@ export type VoucherRow = {
 
 export default function VoucherTable({
   vouchers,
+  brand,
   headerExtra,
 }: {
   vouchers: VoucherRow[];
+  brand: TicketBrand;
   headerExtra?: ReactNode;
 }) {
+  const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pending, startTransition] = useTransition();
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const allSelected = vouchers.length > 0 && selected.size === vouchers.length;
 
@@ -39,18 +54,75 @@ export default function VoucherTable({
     });
   }
 
-  const selectedUsernames = useMemo(
-    () => vouchers.filter((v) => selected.has(v.id)).map((v) => v.username),
+  function runDelete(ids: string[], marker: string) {
+    setBusyId(marker);
+    startTransition(async () => {
+      await deleteVouchers(ids);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      setBusyId(null);
+      router.refresh();
+    });
+  }
+
+  function deleteOne(id: string, username: string) {
+    if (!window.confirm(`Supprimer le voucher « ${username} » ? Il sera retiré du/des routeur(s).`))
+      return;
+    runDelete([id], id);
+  }
+
+  function deleteSelected() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    if (
+      !window.confirm(
+        `Supprimer ${ids.length} voucher(s) sélectionné(s) ? Ils seront retirés du/des routeur(s). Action irréversible.`,
+      )
+    )
+      return;
+    runDelete(ids, "bulk");
+  }
+
+  const selectedVouchers = useMemo<SelectedVoucher[]>(
+    () =>
+      vouchers
+        .filter((v) => selected.has(v.id))
+        .map((v) => ({
+          code: v.username,
+          packageName: v.packageName,
+          price: v.price,
+          validity: v.validity,
+        })),
     [vouchers, selected],
   );
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-ink">Vouchers</h1>
         <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <button
+              onClick={deleteSelected}
+              disabled={pending}
+              className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100 disabled:opacity-50"
+            >
+              {pending && busyId === "bulk" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Supprimer la sélection ({selected.size})
+            </button>
+          )}
           {headerExtra}
-          <DownloadVouchersModal selectedUsernames={selectedUsernames} />
+          <DownloadVouchersModal
+            selectedVouchers={selectedVouchers}
+            brand={brand}
+          />
         </div>
       </div>
 
@@ -73,18 +145,19 @@ export default function VoucherTable({
               <th className="px-4 py-3 font-medium">Cas d&apos;usage</th>
               <th className="px-4 py-3 font-medium">Note</th>
               <th className="px-4 py-3 font-medium">Créé le</th>
+              <th className="w-12 px-4 py-3 font-medium text-right">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
             {vouchers.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-ink-soft">
+                <td colSpan={10} className="px-4 py-8 text-center text-ink-soft">
                   Aucun voucher pour le moment. Générez votre premier lot.
                 </td>
               </tr>
             )}
             {vouchers.map((v) => (
-              <tr key={v.id}>
+              <tr key={v.id} className={busyId === v.id ? "opacity-40" : ""}>
                 <td className="px-4 py-3">
                   <input
                     type="checkbox"
@@ -102,10 +175,37 @@ export default function VoucherTable({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-ink-soft">{v.firstLogin}</td>
-                <td className="px-4 py-3 text-ink-soft">{v.expiresOn}</td>
+                <td className="px-4 py-3">
+                  {v.expiresPending ? (
+                    <span
+                      className="text-ink-soft italic"
+                      title="L'expiration démarre à la première connexion du client."
+                    >
+                      {v.expiresOn}
+                    </span>
+                  ) : (
+                    <span className="whitespace-nowrap text-ink">
+                      {v.expiresOn}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-ink-soft">{v.useCase}</td>
                 <td className="px-4 py-3 text-ink-soft">{v.note}</td>
                 <td className="px-4 py-3 text-ink-soft">{v.createdOn}</td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={() => deleteOne(v.id, v.username)}
+                    disabled={pending}
+                    aria-label={`Supprimer ${v.username}`}
+                    className="rounded p-1.5 text-ink-soft hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                  >
+                    {busyId === v.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

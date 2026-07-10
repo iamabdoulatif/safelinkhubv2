@@ -125,23 +125,51 @@ export default function GenerateVouchersModal({
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-ink">
-                  Routeur
+                  Préfixe <span className="font-normal text-ink-soft">(optionnel)</span>
                 </label>
-                <select
-                  name="routerId"
-                  required
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
-                >
-                  {routers.length === 0 && <option value="">Aucun routeur</option>}
-                  {routers.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                      {r.status !== "online" ? " (hors ligne)" : ""}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  name="prefix"
+                  maxLength={10}
+                  placeholder="ex : fatou"
+                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                />
                 <p className="mt-1 text-xs text-ink-soft">
-                  Les codes sont créés directement sur ce MikroTik. Il doit être en ligne.
+                  Ajouté devant chaque code (minuscules/chiffres). Ex : <span className="font-mono">fatou3k9x1</span>.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-ink">
+                  Zones WiFi (routeurs)
+                </label>
+                {routers.length === 0 ? (
+                  <p className="rounded-md border border-line-soft px-3 py-2 text-sm text-ink-soft">
+                    Aucun routeur.
+                  </p>
+                ) : (
+                  <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-line-soft p-2">
+                    {routers.map((r, i) => (
+                      <label
+                        key={r.id}
+                        className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-clay"
+                      >
+                        <input
+                          type="checkbox"
+                          name="routerIds"
+                          value={r.id}
+                          defaultChecked={i === 0}
+                        />
+                        <span className="text-ink">{r.name}</span>
+                        {r.status !== "online" && (
+                          <span className="text-xs text-ink-soft">(hors ligne)</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-ink-soft">
+                  Le même code est créé sur chaque zone cochée — utilisable sur toutes.
+                  Chaque routeur doit être en ligne.
                 </p>
               </div>
 

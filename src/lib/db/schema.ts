@@ -302,6 +302,31 @@ export const vouchers = pgTable("vouchers", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Un voucher peut vivre sur PLUSIEURS MikroTik (zones WiFi) à la fois : le
+// même code est créé comme utilisateur hotspot sur chaque routeur choisi. La
+// colonne vouchers.routerId reste le routeur « principal » (compat), et cette
+// table de liaison porte l'ensemble réel des routeurs — indispensable pour la
+// suppression (retirer le user sur CHAQUE routeur) et l'affichage multi-zone.
+export const voucherRouters = pgTable(
+  "voucher_routers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    voucherId: uuid("voucher_id")
+      .notNull()
+      .references(() => vouchers.id, { onDelete: "cascade" }),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    profileName: text("profile_name"),
+    status: text("status").notNull().default("PROVISIONED"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("voucher_routers_voucher_router_idx").on(t.voucherId, t.routerId)],
+);
+
 // Commande passée depuis le PORTAIL CAPTIF public (client final) : achat d'un
 // forfait WiFi payé via la passerelle GeniusPay PROPRE à l'org. À la réussite
 // du paiement, la commande est « honorée » : un vrai user hotspot lié au MAC du
