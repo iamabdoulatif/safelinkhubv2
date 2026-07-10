@@ -2,23 +2,22 @@
 
 // Choix du moyen de paiement (page hébergée /portal/pay). Un clic crée la
 // transaction GeniusPay du rail choisi (POST /api/portal/[slug]/pay) puis
-// redirige la MÊME fenêtre vers le checkout du rail. Wave est recommandé : il
-// redirige vers pay.wave.com (walled-garden autorisé), le plus fiable derrière
-// un portail captif iOS. Orange/MTN restent proposés ; la carte est marquée
-// comme peu fiable sur portail captif (3-D Secure hors walled-garden).
+// redirige la MÊME fenêtre vers le checkout du rail.
+//
+// IMPORTANT : sur les comptes GeniusPay "startup" de CI, TOUS les rails
+// mobile-money (orange_money, mtn_money) sont routés vers Wave (pay.wave.com) —
+// afficher des boutons Orange/MTN distincts induit donc le client en erreur
+// (ils atterrissent tous sur Wave). On n'affiche que les moyens réellement
+// distincts. Pour proposer un vrai flux Orange/MTN/carte, l'opérateur doit les
+// activer sur son compte pay.genius.ci (Moyens de paiement), puis on pourra
+// rallonger cette liste.
 
 import { useState } from "react";
 
-type Method = { id: string; label: string; hint?: string; bg: string; fg: string };
+type Method = { id: string; label: string; sub: string; bg: string; fg: string };
 
-// Rails mobile-money uniquement : ils redirigent vers des pages web
-// (pay.wave.com…) joignables derrière le portail captif. La carte (paystack /
-// 3-D Secure) est exclue ici — son checkout et l'ACS bancaire sortent du
-// walled-garden et échouent sur WiFi captif.
 const METHODS: Method[] = [
-  { id: "wave", label: "Wave", hint: "Recommandé", bg: "#1dc4ff", fg: "#00263a" },
-  { id: "orange_money", label: "Orange Money", bg: "#ff7900", fg: "#fff" },
-  { id: "mtn_money", label: "MTN Money", bg: "#ffcc00", fg: "#1a1a1a" },
+  { id: "wave", label: "Payer avec Wave", sub: "Mobile Money — recommandé", bg: "#1dc4ff", fg: "#00263a" },
 ];
 
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
@@ -49,9 +48,6 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
 
   return (
     <div>
-      <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>
-        Choisissez votre moyen de paiement :
-      </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {METHODS.map((m) => {
           const loading = busy === m.id;
@@ -63,24 +59,24 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
               onClick={() => pay(m.id)}
               style={{
                 display: "flex",
+                flexDirection: "column",
                 alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
+                gap: 2,
                 width: "100%",
-                padding: "14px 16px",
+                padding: "16px",
                 border: 0,
                 borderRadius: 12,
                 background: m.bg,
                 color: m.fg,
-                fontSize: "1rem",
-                fontWeight: 600,
+                fontSize: "1.05rem",
+                fontWeight: 700,
                 cursor: busy ? "default" : "pointer",
                 opacity: busy && !loading ? 0.5 : 1,
               }}
             >
-              <span>{loading ? "Redirection…" : m.label}</span>
-              {m.hint && !loading ? (
-                <span style={{ fontSize: ".68rem", fontWeight: 500, opacity: 0.85 }}>{m.hint}</span>
+              <span>{loading ? "Redirection vers Wave…" : m.label}</span>
+              {!loading ? (
+                <span style={{ fontSize: ".72rem", fontWeight: 500, opacity: 0.85 }}>{m.sub}</span>
               ) : null}
             </button>
           );
@@ -89,8 +85,9 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
       {error ? (
         <p style={{ margin: "12px 0 0", color: "#ef4444", fontSize: ".85rem" }}>{error}</p>
       ) : null}
-      <p style={{ margin: "16px 0 0", fontSize: ".72rem", color: "#94a3b8", textAlign: "center" }}>
-        Paiement sécurisé via GeniusPay. Après paiement, votre accès WiFi s’active automatiquement.
+      <p style={{ margin: "16px 0 0", fontSize: ".72rem", color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
+        Paiement sécurisé via GeniusPay. Après le paiement, <b>votre appareil se connecte tout seul</b>
+        {" "}à ce WiFi — aucun code à saisir. Un SMS de confirmation vous est envoyé.
       </p>
     </div>
   );
