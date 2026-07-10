@@ -18,17 +18,23 @@ import {
  * redéploiement (fréquents ici) — ou cliqué avant l'hydratation JS — envoyait
  * un identifiant d'action périmé et échouait à la 1ʳᵉ tentative ; un renvoi
  * rechargeait une page fraîche et « réparait » le problème. Ce POST HTML pur
- * fonctionne même sans JS et quel que soit le build de la page. Le cookie de
- * session est posé DIRECTEMENT sur la réponse (fiable en Route Handler).
+ * fonctionne même sans JS et quel que soit le build de la page.
+ *
+ * ⚠️ Redirections RELATIVES obligatoires : dans le conteneur, `request.url`
+ * vaut `http://0.0.0.0:3000` (adresse d'écoute interne, derrière Traefik), donc
+ * une URL absolue dérivée de request.url renvoie le navigateur vers
+ * `https://0.0.0.0:3000/...` → ERR_FAILED. Un `Location` relatif est résolu par
+ * le navigateur contre l'URL PUBLIQUE (safelinkhub.io).
  */
+function seeOther(location: string): NextResponse {
+  return new NextResponse(null, { status: 303, headers: { Location: location } });
+}
+
 export async function POST(request: NextRequest) {
-  const origin = new URL(request.url).origin;
   const form = await request.formData().catch(() => null);
   const token = String(form?.get("token") ?? "").trim();
 
-  if (!token) {
-    return NextResponse.redirect(`${origin}/auth/activation?error=invalid`, 303);
-  }
+  if (!token) return seeOther("/auth/activation?error=invalid");
 
   const db = getDb();
   const [user] = await db
@@ -44,8 +50,8 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     // Token invalide OU déjà consommé (compte peut-être déjà activé, p. ex. un
-    // scanner de lien) → on renvoie vers la page qui propose renvoi + connexion.
-    return NextResponse.redirect(`${origin}/auth/activation?error=invalid`, 303);
+    // scanner de lien) → page qui propose renvoi + connexion.
+    return seeOther("/auth/activation?error=invalid");
   }
 
   await db
@@ -65,7 +71,7 @@ export async function POST(request: NextRequest) {
     role: user.role,
   });
 
-  const res = NextResponse.redirect(`${origin}/admin`, 303);
+  const res = seeOther("/admin");
   res.cookies.set(SESSION_COOKIE_NAME, jwt, sessionCookieOptions());
   return res;
 }
@@ -73,10 +79,8 @@ export async function POST(request: NextRequest) {
 // Un GET direct (scanner, préchargement) ne consomme rien : on renvoie
 // simplement vers la page d'activation qui affichera le bouton de confirmation.
 export function GET(request: NextRequest) {
-  const url = new URL(request.url);
-  const token = url.searchParams.get("token") ?? "";
-  const dest = token
-    ? `${url.origin}/auth/activation?token=${encodeURIComponent(token)}`
-    : `${url.origin}/auth/activation`;
-  return NextResponse.redirect(dest, 303);
+  const token = new URL(request.url).searchParams.get("token") ?? "";
+  return seeOther(
+    token ? `/auth/activation?token=${encodeURIComponent(token)}` : "/auth/activation",
+  );
 }
