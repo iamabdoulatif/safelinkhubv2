@@ -13,11 +13,13 @@ import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
 
-// Rails GeniusPay connus (doc pay.genius.ci). "wave" = redirection directe
-// pay.wave.com (fiable dans le mini-navigateur captif). Le sentinel "hosted"
-// (ci-dessous) N'est PAS un rail : il signale qu'on OMET payment_method pour
-// obtenir la page de checkout hébergée geniuspay.ci, qui laisse le client
-// choisir Wave / Orange Money / MTN MoMo / Moov Money / carte lui-même.
+// Rails GeniusPay (doc pay.genius.ci). Le portail expose deux choix : "wave"
+// (redirection directe pay.wave.com, fiable en mini-navigateur captif) et
+// "paystack" (GeniusPay délègue l'encaissement à checkout.paystack.com, dont la
+// page propose Orange Money / MTN MoMo / Moov Africa / carte — tous whitelistés
+// au walled-garden). Les rails mobile money forcés (orange_money/mtn_money/
+// moov_money) restent acceptés mais retombent sur Wave tant qu'ils ne sont pas
+// activés en direct côté marchand GeniusPay — d'où l'usage de Paystack.
 const ALLOWED_METHODS = new Set(["wave", "orange_money", "mtn_money", "moov_money", "card", "paystack"]);
 
 function appUrl(): string {
@@ -43,14 +45,7 @@ export async function POST(
 
   const orderId = String(body.orderId ?? "").trim();
   const methodRaw = String(body.method ?? "").trim();
-  // "hosted" ⇒ on omet payment_method (undefined) pour ouvrir la page hébergée
-  // multi-opérateurs de GeniusPay. Sinon rail forcé ("wave" par défaut).
-  const paymentMethod =
-    methodRaw === "hosted"
-      ? undefined
-      : ALLOWED_METHODS.has(methodRaw)
-        ? methodRaw
-        : "wave";
+  const paymentMethod = ALLOWED_METHODS.has(methodRaw) ? methodRaw : "wave";
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
 
   const db = getDb();

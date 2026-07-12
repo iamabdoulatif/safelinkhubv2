@@ -5,12 +5,12 @@
 // redirige la MÊME fenêtre vers le checkout du rail.
 //
 // Deux choix : "wave" = redirection DIRECTE pay.wave.com (rapide, fiable dans le
-// mini-navigateur captif) ; "hosted" = page de checkout hébergée GeniusPay
-// (geniuspay.ci/checkout, obtenue en OMETTANT payment_method côté /pay) où le
-// client choisit Orange Money / MTN MoMo / Moov Money / Wave / carte lui-même.
-// Forcer un rail mobile money précis (orange_money/mtn_money/moov_money) retombe
-// sur Wave tant que l'opérateur n'est pas activé côté marchand GeniusPay ; la
-// page hébergée, elle, expose tous les moyens réellement disponibles du compte.
+// mini-navigateur captif) ; "paystack" = GeniusPay délègue l'encaissement à
+// checkout.paystack.com, dont la page propose Orange Money / MTN MoMo / Moov
+// Africa / carte (domaines whitelistés au walled-garden). Forcer un rail mobile
+// money précis (orange_money/mtn_money/moov_money) côté GeniusPay retombe sur
+// Wave tant qu'il n'est pas activé côté marchand — Paystack est la voie fiable
+// pour Orange/MTN/Moov/carte.
 //
 // Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
 // lourdes (checkout Wave/Paystack « pompe sur le logo »). D'où le repli « ouvrir
@@ -25,7 +25,7 @@ type Method = { id: string; label: string; sub: string; bg: string; fg: string }
 
 const METHODS: Method[] = [
   { id: "wave", label: "Payer avec Wave", sub: "Mobile Money — rapide", bg: "#1dc4ff", fg: "#00263a" },
-  { id: "hosted", label: "Orange · MTN · Moov · Carte", sub: "Page de paiement sécurisée", bg: "#0f172a", fg: "#fff" },
+  { id: "paystack", label: "Orange · MTN · Moov · Carte", sub: "Mobile Money & carte bancaire", bg: "#0f172a", fg: "#fff" },
 ];
 
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
