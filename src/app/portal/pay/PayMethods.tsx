@@ -4,11 +4,13 @@
 // transaction GeniusPay du rail choisi (POST /api/portal/[slug]/pay) puis
 // redirige la MÊME fenêtre vers le checkout du rail.
 //
-// Moyens réellement distincts sur ce compte GeniusPay : Wave (mobile money,
-// pay.wave.com) et Paystack (carte bancaire, checkout.paystack.com). Les rails
-// orange_money/mtn_money/moov routent tous vers Wave ou vers le checkout USSD
-// geniuspay.ci (injouable sur captif) → on ne les affiche pas séparément tant
-// que l'opérateur ne les a pas activés en direct sur pay.genius.ci.
+// Deux choix : "wave" = redirection DIRECTE pay.wave.com (rapide, fiable dans le
+// mini-navigateur captif) ; "hosted" = page de checkout hébergée GeniusPay
+// (geniuspay.ci/checkout, obtenue en OMETTANT payment_method côté /pay) où le
+// client choisit Orange Money / MTN MoMo / Moov Money / Wave / carte lui-même.
+// Forcer un rail mobile money précis (orange_money/mtn_money/moov_money) retombe
+// sur Wave tant que l'opérateur n'est pas activé côté marchand GeniusPay ; la
+// page hébergée, elle, expose tous les moyens réellement disponibles du compte.
 //
 // Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
 // lourdes (checkout Wave/Paystack « pompe sur le logo »). D'où le repli « ouvrir
@@ -22,8 +24,8 @@ import { useEffect, useState } from "react";
 type Method = { id: string; label: string; sub: string; bg: string; fg: string };
 
 const METHODS: Method[] = [
-  { id: "wave", label: "Payer avec Wave", sub: "Mobile Money", bg: "#1dc4ff", fg: "#00263a" },
-  { id: "paystack", label: "Carte bancaire", sub: "Visa / Mastercard", bg: "#0f172a", fg: "#fff" },
+  { id: "wave", label: "Payer avec Wave", sub: "Mobile Money — rapide", bg: "#1dc4ff", fg: "#00263a" },
+  { id: "hosted", label: "Orange · MTN · Moov · Carte", sub: "Page de paiement sécurisée", bg: "#0f172a", fg: "#fff" },
 ];
 
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {

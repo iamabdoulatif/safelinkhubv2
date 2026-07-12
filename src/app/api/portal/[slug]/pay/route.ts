@@ -7,16 +7,18 @@
 // Aucune session : c'est le client final. La commande a déjà été créée +
 // vérifiée par OTP côté /initiate ; ici on se contente de la faire payer.
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
 
-// Rails GeniusPay connus (doc pay.genius.ci). "wave" par défaut (redirection
-// compatible captif). "moov"/"card"/"paystack" restent possibles mais moins
-// fiables derrière un portail captif (USSD ou 3-D Secure hors walled-garden).
-const ALLOWED_METHODS = new Set(["wave", "orange_money", "mtn_money", "card", "paystack"]);
+// Rails GeniusPay connus (doc pay.genius.ci). "wave" = redirection directe
+// pay.wave.com (fiable dans le mini-navigateur captif). Le sentinel "hosted"
+// (ci-dessous) N'est PAS un rail : il signale qu'on OMET payment_method pour
+// obtenir la page de checkout hébergée geniuspay.ci, qui laisse le client
+// choisir Wave / Orange Money / MTN MoMo / Moov Money / carte lui-même.
+const ALLOWED_METHODS = new Set(["wave", "orange_money", "mtn_money", "moov_money", "card", "paystack"]);
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -41,7 +43,14 @@ export async function POST(
 
   const orderId = String(body.orderId ?? "").trim();
   const methodRaw = String(body.method ?? "").trim();
-  const paymentMethod = ALLOWED_METHODS.has(methodRaw) ? methodRaw : "wave";
+  // "hosted" ⇒ on omet payment_method (undefined) pour ouvrir la page hébergée
+  // multi-opérateurs de GeniusPay. Sinon rail forcé ("wave" par défaut).
+  const paymentMethod =
+    methodRaw === "hosted"
+      ? undefined
+      : ALLOWED_METHODS.has(methodRaw)
+        ? methodRaw
+        : "wave";
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
 
   const db = getDb();
@@ -58,6 +67,7 @@ export async function POST(
       id: portalOrders.id,
       orgId: portalOrders.orgId,
       status: portalOrders.status,
+      paymentReference: portalOrders.paymentReference,
       priceCents: portalOrders.priceCents,
       phone: portalOrders.phone,
       packageName: packages.name,
@@ -69,7 +79,7 @@ export async function POST(
   if (!order || order.orgId !== org.id) {
     return corsJson({ error: "Commande introuvable." }, { status: 404 });
   }
-  if (order.status !== "pending") {
+  if (order.status !== "pending" || order.paymentReference) {
     // Déjà en paiement / honorée : rien à recréer (évite les doublons de charge).
     return corsJson({ error: "Cette commande n'est plus payable." }, { status: 409 });
   }
@@ -77,6 +87,22 @@ export async function POST(
   const creds = await getOrgGeniusCreds(org.id);
   if (!creds) {
     return corsJson({ error: "Paiement en ligne non configuré." }, { status: 400 });
+  }
+
+  const [claim] = await db
+    .update(portalOrders)
+    .set({ status: "payment_initiating", claimedAt: new Date(), failureReason: null })
+    .where(
+      and(
+        eq(portalOrders.id, order.id),
+        eq(portalOrders.orgId, org.id),
+        eq(portalOrders.status, "pending"),
+        isNull(portalOrders.paymentReference),
+      ),
+    )
+    .returning({ id: portalOrders.id });
+  if (!claim) {
+    return corsJson({ error: "Cette commande est déjà en cours de paiement." }, { status: 409 });
   }
 
   const base = appUrl();
@@ -90,13 +116,35 @@ export async function POST(
     errorUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}&status=error`,
   });
   if (!payment.ok) {
+    await db
+      .update(portalOrders)
+      .set({ status: "pending", claimedAt: null, failureReason: payment.error })
+      .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "payment_initiating")));
     return corsJson({ error: payment.error }, { status: 502 });
   }
 
-  await db
+  const [updated] = await db
     .update(portalOrders)
-    .set({ paymentReference: payment.reference })
-    .where(eq(portalOrders.id, order.id));
+    .set({
+      paymentReference: payment.reference,
+      status: "pending",
+      claimedAt: null,
+      failureReason: null,
+    })
+    .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "payment_initiating")))
+    .returning({ id: portalOrders.id });
+  if (!updated) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        msg: "portal payment reference attach failed",
+        route: "/api/portal/[slug]/pay",
+        orderId: order.id,
+        reference: payment.reference,
+      }),
+    );
+    return corsJson({ error: "Paiement créé mais commande non mise à jour." }, { status: 500 });
+  }
 
   return corsJson({ checkoutUrl: payment.paymentUrl });
 }
