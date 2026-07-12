@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { organizations, packages } from "@/lib/db/schema";
+import { organizations, packages, routers } from "@/lib/db/schema";
 import { portalThemeFromParams, type PortalTheme } from "@/lib/portal/theme";
 import PurchaseFlow from "./PurchaseFlow";
 import styles from "../PortalExperience.module.css";
@@ -73,6 +73,10 @@ export default async function PortalPurchasePage({
     .select({ name: packages.name, priceCents: packages.priceCents })
     .from(packages)
     .innerJoin(organizations, eq(organizations.id, packages.orgId))
+    .innerJoin(
+      routers,
+      and(eq(routers.id, routerId), eq(routers.orgId, organizations.id)),
+    )
     .where(
       and(
         eq(packages.id, packageId),
@@ -85,7 +89,7 @@ export default async function PortalPurchasePage({
   if (!pkg) {
     return (
       <PurchaseError theme={theme}>
-        Ce forfait n&apos;est plus disponible. Revenez au portail Wi-Fi pour consulter les offres actives.
+        Ce lien n&apos;est plus valide. Revenez au portail Wi-Fi pour consulter les offres actives.
       </PurchaseError>
     );
   }
