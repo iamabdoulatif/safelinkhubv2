@@ -13,13 +13,15 @@ import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
 
-// Rails GeniusPay (doc pay.genius.ci). Le portail expose deux choix : "wave"
-// (redirection directe pay.wave.com, fiable en mini-navigateur captif) et
-// "paystack" (GeniusPay délègue l'encaissement à checkout.paystack.com, dont la
-// page propose Orange Money / MTN MoMo / Moov Africa / carte — tous whitelistés
-// au walled-garden). Les rails mobile money forcés (orange_money/mtn_money/
-// moov_money) restent acceptés mais retombent sur Wave tant qu'ils ne sont pas
-// activés en direct côté marchand GeniusPay — d'où l'usage de Paystack.
+// Le portail expose deux choix : "wave" = rail direct pay.wave.com (rapide,
+// fiable en mini-navigateur captif) ; "hosted" = on OMET payment_method →
+// GeniusPay renvoie sa page de checkout hébergée geniuspay.ci/checkout qui
+// contient RÉELLEMENT tous les moyens (Wave, Orange Money, MTN MoMo, Moov Money,
+// carte internationale/Stripe, carte locale/Paystack). NB : forcer un rail
+// mobile money précis (orange_money/mtn_money/moov_money/card) via l'API retombe
+// sur Wave tant qu'il n'est pas activé côté marchand — seule la page hébergée
+// route correctement chaque opérateur choisi par le client. Le rail "paystack"
+// (checkout.paystack.com) ne montre qu'un sous-ensemble (ni Moov, ni carte int.).
 const ALLOWED_METHODS = new Set(["wave", "orange_money", "mtn_money", "moov_money", "card", "paystack"]);
 
 function appUrl(): string {
@@ -45,7 +47,9 @@ export async function POST(
 
   const orderId = String(body.orderId ?? "").trim();
   const methodRaw = String(body.method ?? "").trim();
-  const paymentMethod = ALLOWED_METHODS.has(methodRaw) ? methodRaw : "wave";
+  // "hosted" ⇒ payment_method omis (undefined) → page hébergée multi-opérateurs.
+  const paymentMethod =
+    methodRaw === "hosted" ? undefined : ALLOWED_METHODS.has(methodRaw) ? methodRaw : "wave";
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
 
   const db = getDb();
