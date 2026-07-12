@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { portalThemeFromParams, portalThemeSearch } from "./theme";
+import { appendPortalTheme, portalThemeFromParams, portalThemeSearch } from "./theme";
 
 describe("portal theme", () => {
   it("keeps valid portal palette values", () => {
@@ -18,6 +18,16 @@ describe("portal theme", () => {
     assert.equal(
       portalThemeSearch(portalThemeFromParams({ accent: "#1144aa" })),
       "accent=%231144aa&surface=%23ffffff&text=%230f172a",
+    );
+  });
+
+  it("appends a validated palette to a hosted portal URL", () => {
+    assert.equal(
+      appendPortalTheme(
+        "https://safelinkhub.io/portal/pay?orderId=abc",
+        portalThemeFromParams({ accent: "#1144aa" }),
+      ),
+      "https://safelinkhub.io/portal/pay?orderId=abc&accent=%231144aa&surface=%23ffffff&text=%230f172a",
     );
   });
 });

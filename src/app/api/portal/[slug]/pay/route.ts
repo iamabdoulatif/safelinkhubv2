@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
+import { appendPortalTheme, portalThemeFromUnknown } from "@/lib/portal/theme";
 import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
 
 // Rails GeniusPay connus (doc pay.genius.ci). "wave" par défaut (redirection
@@ -42,6 +43,8 @@ export async function POST(
   const orderId = String(body.orderId ?? "").trim();
   const methodRaw = String(body.method ?? "").trim();
   const paymentMethod = ALLOWED_METHODS.has(methodRaw) ? methodRaw : "wave";
+  // Présentation uniquement : ne participe à aucun contrôle de la commande.
+  const theme = portalThemeFromUnknown(body.theme);
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
 
   const db = getDb();
@@ -86,8 +89,14 @@ export async function POST(
     customer: { phone: order.phone },
     paymentMethod,
     metadata: { orderId: order.id, slug, kind: "portal" },
-    successUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
-    errorUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}&status=error`,
+    successUrl: appendPortalTheme(
+      `${base}/portal/paid?orderId=${encodeURIComponent(order.id)}&slug=${encodeURIComponent(slug)}`,
+      theme,
+    ),
+    errorUrl: appendPortalTheme(
+      `${base}/portal/paid?orderId=${encodeURIComponent(order.id)}&slug=${encodeURIComponent(slug)}&status=error`,
+      theme,
+    ),
   });
   if (!payment.ok) {
     return corsJson({ error: payment.error }, { status: 502 });

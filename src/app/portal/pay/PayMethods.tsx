@@ -1,39 +1,37 @@
 "use client";
 
-// Choix du moyen de paiement (page hébergée /portal/pay). Un clic crée la
-// transaction GeniusPay du rail choisi (POST /api/portal/[slug]/pay) puis
-// redirige la MÊME fenêtre vers le checkout du rail.
-//
-// Moyens réellement distincts sur ce compte GeniusPay : Wave (mobile money,
-// pay.wave.com) et Paystack (carte bancaire, checkout.paystack.com). Les rails
-// orange_money/mtn_money/moov routent tous vers Wave ou vers le checkout USSD
-// geniuspay.ci (injouable sur captif) → on ne les affiche pas séparément tant
-// que l'opérateur ne les a pas activés en direct sur pay.genius.ci.
-//
-// Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
-// lourdes (checkout Wave/Paystack « pompe sur le logo »). D'où le repli « ouvrir
-// dans le navigateur » : /portal/pay est sur safelinkhub.io (walled-garden) donc
-// s'ouvre AUSSI dans Chrome/Safari où le checkout marche. Après paiement, un
-// CODE WiFi s'affiche (+ SMS) : le client le saisit sur le portail pour se
-// connecter.
+// Le choix est fait sur la page SafeLinkHub afin que la redirection vers Wave
+// ou Paystack reste fiable hors du mini-navigateur du portail captif.
 
 import { useEffect, useState } from "react";
+import type { PortalTheme } from "@/lib/portal/theme";
+import styles from "../PortalExperience.module.css";
 
-type Method = { id: string; label: string; sub: string; bg: string; fg: string };
+type Method = { id: string; label: string; detail: string };
 
 const METHODS: Method[] = [
-  { id: "wave", label: "Payer avec Wave", sub: "Mobile Money", bg: "#1dc4ff", fg: "#00263a" },
-  { id: "paystack", label: "Carte bancaire", sub: "Visa / Mastercard", bg: "#0f172a", fg: "#fff" },
+  { id: "wave", label: "Payer avec Wave", detail: "Mobile Money" },
+  { id: "paystack", label: "Carte bancaire", detail: "Visa ou Mastercard" },
 ];
 
-export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
+type PaymentReply = { checkoutUrl?: string; error?: string };
+
+export default function PayMethods({
+  slug,
+  orderId,
+  theme,
+}: {
+  slug: string;
+  orderId: string;
+  theme: PortalTheme;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // client-only : window absent au rendu serveur.
+    // Client-only : aucun accès au navigateur pendant le rendu serveur.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPageUrl(window.location.href);
   }, []);
@@ -43,26 +41,24 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
     setBusy(method);
     setError("");
     try {
-      const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/pay`, {
+      const response = await fetch(`/api/portal/${encodeURIComponent(slug)}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, method }),
+        body: JSON.stringify({ orderId, method, theme }),
       });
-      const data = (await res.json()) as { checkoutUrl?: string; error?: string };
-      if (!res.ok || !data.checkoutUrl) {
+      const data = (await response.json().catch(() => ({}))) as PaymentReply;
+      if (!response.ok || !data.checkoutUrl) {
         throw new Error(data.error || "Paiement impossible. Réessayez.");
       }
-      // Même fenêtre : le portail captif ne peut pas ouvrir d'onglet.
       window.location.assign(data.checkoutUrl);
-    } catch (e) {
+    } catch (cause) {
       setBusy(null);
-      setError(e instanceof Error ? e.message : "Erreur réseau. Réessayez.");
+      setError(cause instanceof Error ? cause.message : "Erreur réseau. Réessayez.");
     }
   }
 
   function openInBrowser() {
-    const url = pageUrl || window.location.href;
-    window.open(url, "_blank");
+    window.open(pageUrl || window.location.href, "_blank", "noopener,noreferrer");
   }
 
   async function copyLink() {
@@ -72,119 +68,55 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* clipboard indisponible : le champ reste sélectionnable à la main */
+      setError("Copie indisponible ici. Maintenez le lien pour le sélectionner.");
     }
   }
 
   return (
     <div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {METHODS.map((m) => {
-          const loading = busy === m.id;
+      <div className={styles.methodList}>
+        {METHODS.map((method) => {
+          const loading = busy === method.id;
           return (
             <button
-              key={m.id}
-              type="button"
+              className={styles.methodButton}
               disabled={Boolean(busy)}
-              onClick={() => pay(m.id)}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-                width: "100%",
-                padding: 16,
-                border: 0,
-                borderRadius: 12,
-                background: m.bg,
-                color: m.fg,
-                fontSize: "1.05rem",
-                fontWeight: 700,
-                cursor: busy ? "default" : "pointer",
-                opacity: busy && !loading ? 0.5 : 1,
-              }}
+              key={method.id}
+              onClick={() => pay(method.id)}
+              type="button"
             >
-              <span>{loading ? "Redirection…" : m.label}</span>
-              {!loading ? (
-                <span style={{ fontSize: ".72rem", fontWeight: 500, opacity: 0.85 }}>{m.sub}</span>
-              ) : null}
+              <span>{loading ? "Redirection…" : method.label}</span>
+              <span>{method.detail}</span>
             </button>
           );
         })}
       </div>
 
-      {error ? <p style={{ margin: "12px 0 0", color: "#ef4444", fontSize: ".85rem" }}>{error}</p> : null}
+      <div aria-live="polite">{error ? <p className={styles.error}>{error}</p> : null}</div>
 
-      {/* Repli portail captif : ouvrir la page dans le vrai navigateur */}
-      <div
-        style={{
-          margin: "18px 0 0",
-          padding: "14px 14px 16px",
-          border: "1px dashed #cbd5e1",
-          borderRadius: 12,
-          background: "#f8fafc",
-        }}
-      >
-        <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#475569", lineHeight: 1.5 }}>
-          La page de paiement reste bloquée sur le logo ? Ouvrez cette page dans <b>Chrome</b> ou{" "}
-          <b>Safari</b> pour payer, puis revenez saisir votre code.
+      <section className={styles.browserFallback}>
+        <p className={styles.copy}>
+          Si le paiement reste bloqué, ouvrez cette page dans Safari, Chrome ou votre navigateur habituel.
         </p>
-        <button
-          type="button"
-          onClick={openInBrowser}
-          style={{
-            width: "100%",
-            padding: 12,
-            border: "1px solid #0f172a",
-            borderRadius: 10,
-            background: "#0f172a",
-            color: "#fff",
-            fontSize: ".92rem",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
+        <button className={styles.secondaryButton} onClick={openInBrowser} type="button">
           Ouvrir dans mon navigateur
         </button>
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <div className={styles.linkRow}>
           <input
+            aria-label="Lien de paiement"
+            className={styles.linkInput}
+            onFocus={(event) => event.currentTarget.select()}
             readOnly
             value={pageUrl}
-            onFocus={(e) => e.currentTarget.select()}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: "9px 10px",
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              fontSize: ".78rem",
-              color: "#475569",
-              background: "#fff",
-            }}
           />
-          <button
-            type="button"
-            onClick={copyLink}
-            style={{
-              padding: "9px 12px",
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              background: "#fff",
-              color: "#0f172a",
-              fontSize: ".8rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {copied ? "Copié ✓" : "Copier"}
+          <button className={styles.copyButton} onClick={copyLink} type="button">
+            {copied ? "Copié" : "Copier le lien"}
           </button>
         </div>
-      </div>
+      </section>
 
-      <p style={{ margin: "16px 0 0", fontSize: ".72rem", color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
-        Paiement sécurisé via GeniusPay. Après le paiement, un <b>code WiFi</b> s’affiche (+ SMS) :
-        saisissez-le sur le portail WiFi pour vous connecter.
+      <p className={styles.secureNote}>
+        Paiement sécurisé via GeniusPay. Après paiement, votre ticket Wi-Fi s&apos;affichera ici et sera envoyé par SMS.
       </p>
     </div>
   );

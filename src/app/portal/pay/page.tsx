@@ -1,57 +1,72 @@
-// Page de paiement hébergée SafeLinkHub (safelinkhub.io). Le portail captif y
-// redirige APRÈS l'OTP (voir /initiate → payUrl). Elle est fiable derrière le
-// portail captif (même origine, walled-garden) et affiche les moyens de
-// paiement au lieu de tomber sur le checkout hébergé GeniusPay qui ne proposait
-// qu'Orange Money en USSD *144# (injouable sur iOS captif). Le client choisit un
-// moyen → POST /api/portal/[slug]/pay → redirection vers le rail (ex. Wave).
+// Page de paiement hébergée SafeLinkHub. Elle ne crée la transaction GeniusPay
+// qu'après le choix explicite du client, ce qui évite les limites des mini-
+// navigateurs de portails captifs sur iPhone, Android et ordinateurs.
 
+import type { CSSProperties, ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
+import { appendPortalTheme, portalThemeFromParams, type PortalTheme } from "@/lib/portal/theme";
 import PayMethods from "./PayMethods";
+import styles from "../PortalExperience.module.css";
 
-function fcfa(n: number): string {
-  return `${n.toLocaleString("fr-FR")} FCFA`;
+type PaySearchParams = {
+  orderId?: string;
+  slug?: string;
+  accent?: string;
+  surface?: string;
+  text?: string;
+};
+
+function fcfa(amount: number): string {
+  return `${amount.toLocaleString("fr-FR")} FCFA`;
+}
+
+function appUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
+}
+
+function themeStyle(theme: PortalTheme): CSSProperties {
+  return {
+    "--portal-accent": theme.accent,
+    "--portal-surface": theme.surface,
+    "--portal-text": theme.text,
+  } as CSSProperties;
+}
+
+function PayError({ children, theme }: { children: ReactNode; theme: PortalTheme }) {
+  return (
+    <main className={styles.shell} style={themeStyle(theme)}>
+      <div className={styles.frame}>
+        <div className={styles.statusRow}>
+          <span className={styles.brand}>
+            <span aria-hidden="true" className={styles.brandMark} /> SafeLinkHub
+          </span>
+          <span className={styles.statusPill}>Paiement Wi-Fi</span>
+        </div>
+        <section className={`${styles.card} ${styles.errorCard}`}>
+          <p className={styles.eyebrow}>Paiement indisponible</p>
+          <h1 className={styles.title}>Ce lien ne peut pas être utilisé</h1>
+          <p className={styles.copy}>{children}</p>
+        </section>
+      </div>
+    </main>
+  );
 }
 
 export default async function PortalPayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string; slug?: string }>;
+  searchParams: Promise<PaySearchParams>;
 }) {
-  const { orderId, slug } = await searchParams;
-
-  const wrap = (children: React.ReactNode) => (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-        fontFamily: "system-ui, sans-serif",
-        background: "#f8fafc",
-        color: "#0f172a",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 400,
-          width: "100%",
-          background: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: 16,
-          padding: 24,
-        }}
-      >
-        {children}
-      </div>
-    </main>
-  );
+  const params = await searchParams;
+  const theme = portalThemeFromParams(params);
+  const orderId = params.orderId?.trim() ?? "";
+  const slug = params.slug?.trim() ?? "";
 
   if (!orderId || !slug) {
-    return wrap(<p style={{ margin: 0, color: "#64748b" }}>Lien de paiement invalide.</p>);
+    return <PayError theme={theme}>Revenez au portail Wi-Fi et recommencez l&apos;achat de votre forfait.</PayError>;
   }
 
   const db = getDb();
@@ -69,24 +84,42 @@ export default async function PortalPayPage({
     .limit(1);
 
   if (!order || order.orgSlug !== slug) {
-    return wrap(<p style={{ margin: 0, color: "#64748b" }}>Commande introuvable.</p>);
+    return <PayError theme={theme}>Cette commande est introuvable ou n&apos;appartient plus à ce portail Wi-Fi.</PayError>;
   }
 
-  // Déjà payée / en cours / honorée → on montre le suivi, pas un nouveau paiement.
+  // Déjà payée / en cours / honorée : on montre le suivi, pas un nouveau paiement.
   if (order.status !== "pending") {
-    redirect(`/portal/paid?orderId=${orderId}&slug=${encodeURIComponent(slug)}`);
+    redirect(
+      appendPortalTheme(
+        `${appUrl()}/portal/paid?orderId=${encodeURIComponent(orderId)}&slug=${encodeURIComponent(slug)}`,
+        theme,
+      ),
+    );
   }
 
-  return wrap(
-    <>
-      <h1 style={{ fontSize: "1.15rem", margin: "0 0 2px" }}>Payer votre forfait</h1>
-      <p style={{ margin: "0 0 4px", color: "#64748b", fontSize: ".9rem" }}>
-        {order.packageName ?? "Forfait WiFi"}
-      </p>
-      <p style={{ margin: "0 0 18px", fontSize: "1.6rem", fontWeight: 700 }}>
-        {fcfa(order.priceCents ?? 0)}
-      </p>
-      <PayMethods slug={slug} orderId={orderId} />
-    </>,
+  return (
+    <main className={styles.shell} style={themeStyle(theme)}>
+      <div className={styles.frame}>
+        <div className={styles.statusRow}>
+          <span className={styles.brand}>
+            <span aria-hidden="true" className={styles.brandMark} /> SafeLinkHub
+          </span>
+          <span className={styles.statusPill}>Étape 2 sur 2</span>
+        </div>
+        <section className={styles.card}>
+          <p className={styles.eyebrow}>Paiement sécurisé</p>
+          <h1 className={styles.title}>Choisissez votre moyen de paiement</h1>
+          <p className={styles.copy}>Vous allez être redirigé vers le prestataire sélectionné pour finaliser votre achat.</p>
+
+          <div className={styles.planSummary}>
+            <p className={styles.planLabel}>Forfait à payer</p>
+            <p className={styles.planName}>{order.packageName ?? "Forfait Wi-Fi"}</p>
+            <p className={styles.planPrice}>{fcfa(order.priceCents ?? 0)}</p>
+          </div>
+
+          <PayMethods orderId={orderId} slug={slug} theme={theme} />
+        </section>
+      </div>
+    </main>
   );
 }

@@ -1,52 +1,56 @@
 "use client";
 
-// Sonde /api/portal/[slug]/status (même origine) après le paiement et affiche
-// le code d'accès WiFi dès qu'il est prêt. Fonctionne dans l'onglet du checkout,
-// indépendamment de l'onglet du portail (qui, lui, auto-soumet le login routeur).
+// Sonde l'état de la commande depuis l'onglet du navigateur et expose le
+// ticket. La connexion RouterOS reste une action du portail Wi-Fi d'origine.
 
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
+import type { PortalTheme } from "@/lib/portal/theme";
+import styles from "../PortalExperience.module.css";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
-const CARD: React.CSSProperties = {
-  maxWidth: 380,
-  width: "100%",
-  textAlign: "center",
-  background: "#fff",
-  border: "1px solid #e2e8f0",
-  borderRadius: 16,
-  padding: 28,
-};
+function themeStyle(theme: PortalTheme): CSSProperties {
+  return {
+    "--portal-accent": theme.accent,
+    "--portal-surface": theme.surface,
+    "--portal-text": theme.text,
+  } as CSSProperties;
+}
 
 export default function PaidStatus({
   isError,
   orderId,
   slug,
+  theme,
 }: {
   isError: boolean;
   orderId: string;
   slug: string;
+  theme: PortalTheme;
 }) {
   const canPoll = Boolean(orderId && slug) && !isError;
   const [phase, setPhase] = useState<Phase>(isError ? "failed" : canPoll ? "loading" : "processing");
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
 
   useEffect(() => {
     if (!canPoll) return;
     let active = true;
     let tries = 0;
+    let timer: number | undefined;
     const max = 90;
 
     async function tick() {
       if (!active) return;
       tries += 1;
       try {
-        const res = await fetch(
+        const response = await fetch(
           `/api/portal/${encodeURIComponent(slug)}/status?orderId=${encodeURIComponent(orderId)}`,
           { cache: "no-store" },
         );
-        const data = (await res.json()) as { status?: string; code?: string; error?: string };
+        const data = (await response.json()) as { status?: string; code?: string; error?: string };
         if (!active) return;
         if (data.status === "fulfilled") {
           if (data.code) setCode(data.code);
@@ -60,75 +64,77 @@ export default function PaidStatus({
         }
         setPhase("processing");
       } catch {
-        // Erreur transitoire : on continue de sonder.
+        // Erreur transitoire : on continue de sonder jusqu'à la limite prévue.
       }
+
       if (active && tries < max) {
-        timer = setTimeout(tick, 4000);
+        timer = window.setTimeout(tick, 4000);
       }
     }
 
-    let timer = setTimeout(tick, 800);
+    timer = window.setTimeout(tick, 800);
     return () => {
       active = false;
-      clearTimeout(timer);
+      if (timer) window.clearTimeout(timer);
     };
   }, [canPoll, orderId, slug]);
 
+  async function copyCode() {
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopyMessage("Ticket copié.");
+      window.setTimeout(() => setCopyMessage(""), 2000);
+    } catch {
+      setCopyMessage("Copie indisponible : sélectionnez le ticket manuellement.");
+    }
+  }
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-        fontFamily: "system-ui, sans-serif",
-        background: "#f8fafc",
-        color: "#0f172a",
-      }}
-    >
-      <div style={CARD}>
-        {phase === "fulfilled" ? (
-          <>
-            <div style={{ fontSize: 44, marginBottom: 8 }}>✅</div>
-            <h1 style={{ fontSize: "1.25rem", margin: "0 0 6px" }}>Paiement reçu</h1>
-            <p style={{ color: "#64748b", fontSize: ".85rem", margin: "0 0 6px" }}>Votre code WiFi</p>
-            <div
-              style={{
-                fontSize: "2rem",
-                fontWeight: 700,
-                letterSpacing: ".18em",
-                color: "#0f172a",
-                margin: "0 0 10px",
-              }}
-            >
-              {code || "…"}
-            </div>
-            <p style={{ color: "#64748b", fontSize: ".92rem", margin: 0 }}>
-              Retournez sur le portail WiFi (onglet <b>Code</b>) et saisissez ce code pour vous
-              connecter. Il vous a aussi été envoyé par <b>SMS</b>.
-            </p>
-          </>
-        ) : phase === "failed" ? (
-          <>
-            <div style={{ fontSize: 44, marginBottom: 8 }}>⚠️</div>
-            <h1 style={{ fontSize: "1.25rem", margin: "0 0 8px" }}>Paiement non abouti</h1>
-            <p style={{ color: "#64748b", fontSize: ".95rem", margin: 0 }}>
-              {error || "Le paiement n’a pas pu être finalisé. Revenez à l’onglet WiFi pour réessayer."}
-            </p>
-          </>
-        ) : (
-          <>
-            <div style={{ fontSize: 44, marginBottom: 8 }}>⏳</div>
-            <h1 style={{ fontSize: "1.25rem", margin: "0 0 8px" }}>
-              {phase === "loading" ? "Paiement reçu" : "Activation en cours"}
-            </h1>
-            <p style={{ color: "#64748b", fontSize: ".95rem", margin: 0 }}>
-              Nous préparons votre accès… Votre code s’affichera ici et vous sera envoyé par SMS.
-              Vous pouvez aussi retourner à l’onglet WiFi.
-            </p>
-          </>
-        )}
+    <main className={styles.shell} style={themeStyle(theme)}>
+      <div className={styles.frame}>
+        <div className={styles.statusRow}>
+          <span className={styles.brand}>
+            <span aria-hidden="true" className={styles.brandMark} /> SafeLinkHub
+          </span>
+          <span className={styles.statusPill}>Accès Wi-Fi</span>
+        </div>
+        <section aria-live="polite" className={`${styles.card} ${styles.centered}`}>
+          {phase === "fulfilled" ? (
+            <>
+              <p className={styles.eyebrow}>Paiement confirmé</p>
+              <h1 className={styles.title}>Votre ticket Wi-Fi est prêt</h1>
+              <p className={styles.copy}>Conservez ce code pour vous connecter au réseau.</p>
+              <div className={styles.ticket}>{code || "…"}</div>
+              <div className={styles.ticketActions}>
+                <button className={styles.primaryButton} disabled={!code} onClick={copyCode} type="button">
+                  Copier le ticket
+                </button>
+                {copyMessage ? <p className={styles.notice}>{copyMessage}</p> : null}
+              </div>
+              <p className={styles.copy}>
+                Retournez sur le portail Wi-Fi et choisissez <strong>« J&apos;ai un code »</strong> avant d&apos;insérer ce ticket.
+                Il vous a aussi été envoyé par SMS.
+              </p>
+            </>
+          ) : phase === "failed" ? (
+            <>
+              <p className={styles.eyebrow}>Paiement non abouti</p>
+              <h1 className={styles.title}>Votre achat n&apos;a pas été finalisé</h1>
+              <p className={styles.copy}>
+                {error || "Revenez au portail Wi-Fi pour reprendre votre achat."}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className={styles.eyebrow}>{phase === "loading" ? "Paiement reçu" : "Activation en cours"}</p>
+              <h1 className={styles.title}>Nous préparons votre accès Wi-Fi</h1>
+              <p className={styles.copy}>
+                Votre ticket s&apos;affichera ici dès qu&apos;il sera prêt et vous sera également envoyé par SMS.
+              </p>
+            </>
+          )}
+        </section>
       </div>
     </main>
   );

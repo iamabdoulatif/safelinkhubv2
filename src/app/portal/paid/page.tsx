@@ -1,22 +1,33 @@
-// Page de retour après le checkout GeniusPay (success_url / error_url de
-// /api/portal/[slug]/initiate). Ouverte dans l'onglet du checkout. Elle sonde
-// le statut de la commande et AFFICHE le code d'accès dès qu'il est prêt (en
-// plus de l'auto-login joué par l'onglet du portail resté ouvert). Le client
-// peut donc lire/recopier son code même si l'onglet WiFi a été fermé.
+// Page de retour après le checkout GeniusPay. Elle garde le thème du portail
+// et affiche le ticket sans jamais tenter de soumettre le login RouterOS depuis
+// le domaine SafeLinkHub.
 
+import { portalThemeFromParams } from "@/lib/portal/theme";
 import PaidStatus from "./PaidStatus";
+
+type PaidSearchParams = {
+  status?: string;
+  orderId?: string;
+  slug?: string;
+  accent?: string;
+  surface?: string;
+  text?: string;
+};
 
 export default async function PortalPaidPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; orderId?: string; slug?: string }>;
+  searchParams: Promise<PaidSearchParams>;
 }) {
-  const { status, orderId, slug } = await searchParams;
+  const params = await searchParams;
+  const theme = portalThemeFromParams(params);
+
   return (
     <PaidStatus
-      isError={status === "error"}
-      orderId={orderId ?? ""}
-      slug={slug ?? ""}
+      isError={params.status === "error"}
+      orderId={params.orderId?.trim() ?? ""}
+      slug={params.slug?.trim() ?? ""}
+      theme={theme}
     />
   );
 }

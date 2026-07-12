@@ -24,6 +24,27 @@ export function portalThemeFromParams(input: Record<string, string | undefined>)
   };
 }
 
+export function portalThemeFromUnknown(input: unknown): PortalTheme {
+  const values = input && typeof input === "object" && !Array.isArray(input)
+    ? (input as Record<string, unknown>)
+    : {};
+
+  return portalThemeFromParams({
+    accent: typeof values.accent === "string" ? values.accent : undefined,
+    surface: typeof values.surface === "string" ? values.surface : undefined,
+    text: typeof values.text === "string" ? values.text : undefined,
+  });
+}
+
 export function portalThemeSearch(theme: PortalTheme) {
   return new URLSearchParams(theme).toString();
+}
+
+export function appendPortalTheme(url: string, theme: PortalTheme) {
+  const themedUrl = new URL(url);
+  const safeTheme = portalThemeFromParams(theme);
+  themedUrl.searchParams.set("accent", safeTheme.accent);
+  themedUrl.searchParams.set("surface", safeTheme.surface);
+  themedUrl.searchParams.set("text", safeTheme.text);
+  return themedUrl.toString();
 }

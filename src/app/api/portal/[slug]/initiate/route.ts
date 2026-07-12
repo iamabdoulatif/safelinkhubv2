@@ -17,6 +17,7 @@ import { normalizeMac } from "@/lib/portal/fulfill";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { toInternational, OTP_VERIFY_TTL_MS } from "@/lib/portal/otp";
+import { appendPortalTheme, portalThemeFromUnknown } from "@/lib/portal/theme";
 import { getOrgGeniusCreds, ensureOrgWebhook } from "@/lib/payment-gateways/geniuspay-org";
 
 function appUrl(): string {
@@ -43,6 +44,9 @@ export async function POST(
   const packageId = String(body.packageId ?? "").trim();
   const macRaw = String(body.mac ?? "").trim();
   const routerIdInput = String(body.routerId ?? "").trim();
+  // Les couleurs ne servent qu'à garder l'identité du portail sur les pages
+  // hébergées. Elles sont validées avant d'être recopiées dans l'URL.
+  const theme = portalThemeFromUnknown(body.theme);
 
   const mac = normalizeMac(macRaw);
   if (!packageId) return corsJson({ error: "Forfait manquant." }, { status: 400 });
@@ -138,6 +142,9 @@ export async function POST(
   // l'URL de cette page. `checkoutUrl` reste renvoyé (= payUrl) pour rester
   // compatible avec l'ancien script portail qui redirige dessus.
   const base = appUrl();
-  const payUrl = `${base}/portal/pay?orderId=${order.id}&slug=${encodeURIComponent(slug)}`;
+  const payUrl = appendPortalTheme(
+    `${base}/portal/pay?orderId=${encodeURIComponent(order.id)}&slug=${encodeURIComponent(slug)}`,
+    theme,
+  );
   return corsJson({ orderId: order.id, payUrl, checkoutUrl: payUrl });
 }
