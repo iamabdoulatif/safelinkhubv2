@@ -25,7 +25,7 @@ type Method = { id: string; label: string; sub: string; bg: string; fg: string }
 
 const METHODS: Method[] = [
   { id: "wave", label: "Payer avec Wave", sub: "Mobile Money — rapide", bg: "#1dc4ff", fg: "#00263a" },
-  { id: "paystack", label: "Orange · MTN · Moov · Carte", sub: "Mobile Money & carte bancaire", bg: "#0f172a", fg: "#fff" },
+  { id: "paystack", label: "Payer avec Paystack", sub: "Orange Money · MTN MoMo · Moov · Carte", bg: "#0f172a", fg: "#fff" },
 ];
 
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
