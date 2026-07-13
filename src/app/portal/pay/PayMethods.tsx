@@ -44,6 +44,14 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
     if (busy) return;
     setBusy(method);
     setError("");
+    // On ouvre une fenêtre VIDE TOUT DE SUITE, dans le geste du tap : sur iPhone,
+    // le mini-navigateur du portail captif (CNA) ne sait pas gérer d'onglet, donc
+    // il DÉLÈGUE à Safari — le paiement (Paystack/3DS) s'y ouvre correctement,
+    // contrairement au CNA bridé. On la navigue vers le checkout une fois celui-ci
+    // créé. Impératif : le window.open doit précéder le fetch (async), sinon iOS
+    // le considère hors-geste et le bloque. Si l'ouverture est bloquée (null) →
+    // repli même-fenêtre : aucune régression vs l'ancien comportement.
+    const win = window.open("", "_blank");
     try {
       const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/pay`, {
         method: "POST",
@@ -54,9 +62,13 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
       if (!res.ok || !data.checkoutUrl) {
         throw new Error(data.error || "Paiement impossible. Réessayez.");
       }
-      // Même fenêtre : le portail captif ne peut pas ouvrir d'onglet.
-      window.location.assign(data.checkoutUrl);
+      if (win && !win.closed) {
+        win.location.href = data.checkoutUrl; // Safari (nouvel onglet) → checkout OK
+      } else {
+        window.location.assign(data.checkoutUrl); // fenêtre bloquée → même fenêtre
+      }
     } catch (e) {
+      if (win && !win.closed) win.close();
       setBusy(null);
       setError(e instanceof Error ? e.message : "Erreur réseau. Réessayez.");
     }
