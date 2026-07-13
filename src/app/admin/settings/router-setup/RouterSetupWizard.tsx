@@ -71,7 +71,18 @@ export default function RouterSetupWizard({
 
   return (
     <div>
-      <StepIndicator steps={[1, 2, 3]} currentStep={step} />
+      <StepIndicator
+        steps={[1, 2, 3]}
+        currentStep={step}
+        // Navigation libre entre les étapes 2 (topologie) et 3 (auto-config) —
+        // les données de chaque étape survivent (bridges en DB, champs de
+        // l'étape 3 en sessionStorage). L'étape 1 (connexion) reste passée.
+        // L'étape 3 n'est atteignable que si au moins un bridge existe.
+        onStepClick={(s) => {
+          if (s === 2 || s === 3) goToStep(s);
+        }}
+        clickableSteps={initialBridges.length > 0 ? [2, 3] : [2]}
+      />
 
       {transitioning ? (
         <div className="animate-fade-in mt-6 sm:mt-8 flex min-h-[200px] sm:min-h-[280px] flex-col items-center justify-center gap-4 border-2 border-line bg-paper p-4 sm:p-6">
