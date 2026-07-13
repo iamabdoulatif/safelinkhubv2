@@ -51,7 +51,19 @@ function headers(creds: OrgGeniusCreds): Record<string, string> {
     "X-API-Key": creds.apiKey,
     "X-API-Secret": creds.apiSecret,
     "Content-Type": "application/json",
+    // Impératif : GeniusPay tourne sous Laravel/LiteSpeed et fait de la
+    // négociation de contenu — sans cet en-tête il peut renvoyer sa page SPA
+    // (HTML) au lieu du JSON de l'API. Cf. le retry dans createOrgPayment.
+    Accept: "application/json",
   };
+}
+
+function safeParse(s: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(s) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 }
 
 export type CreateOrgPaymentInput = {
@@ -82,50 +94,75 @@ export async function createOrgPayment(
   if (!Number.isInteger(input.amountFcfa) || input.amountFcfa < 100) {
     return { ok: false, error: "Montant invalide (minimum 100 FCFA)." };
   }
-  let res: Response;
-  try {
-    res = await fetch(`${baseUrl()}/payments`, {
-      method: "POST",
-      headers: headers(creds),
-      body: JSON.stringify({
-        amount: input.amountFcfa,
-        currency: "XOF",
-        description: input.description.slice(0, 500),
-        customer: input.customer,
-        metadata: input.metadata,
-        success_url: input.successUrl,
-        error_url: input.errorUrl,
-        ...(input.paymentMethod ? { payment_method: input.paymentMethod } : {}),
-      }),
-      cache: "no-store",
-    });
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Échec de contact GeniusPay." };
-  }
+  const body = JSON.stringify({
+    amount: input.amountFcfa,
+    currency: "XOF",
+    description: input.description.slice(0, 500),
+    customer: input.customer,
+    metadata: input.metadata,
+    success_url: input.successUrl,
+    error_url: input.errorUrl,
+    ...(input.paymentMethod ? { payment_method: input.paymentMethod } : {}),
+  });
 
-  const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!res.ok) {
-    const msg =
-      (json?.detail as string) ||
-      (json?.error as string) ||
-      (json?.message as string) ||
-      `Erreur GeniusPay (${res.status}).`;
-    return { ok: false, error: String(msg) };
+  // GeniusPay (Laravel/LiteSpeed) renvoie PAR INTERMITTENCE sa page d'accueil SPA
+  // (HTML 200) au lieu du JSON de l'API → sans retry, ça cassait la création de
+  // paiement (symptôme « Wave ne redirige pas », aucune URL de checkout). Une
+  // réponse HTML = requête NON traitée côté GeniusPay (aucune transaction créée),
+  // donc rejouer ne crée PAS de doublon de charge. On réessaie uniquement les cas
+  // transitoires (réseau, réponse non-JSON, JSON sans lien) ; une VRAIE erreur
+  // JSON (ex. 422 validation) est déterministe → on la renvoie sans réessayer.
+  const MAX_ATTEMPTS = 3;
+  let lastError = "Réponse GeniusPay incomplète (pas de lien de paiement).";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) await new Promise((r) => setTimeout(r, 250 * (attempt - 1)));
+    let res: Response;
+    try {
+      res = await fetch(`${baseUrl()}/payments`, {
+        method: "POST",
+        headers: headers(creds),
+        body,
+        cache: "no-store",
+      });
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : "Échec de contact GeniusPay.";
+      continue; // réseau : transitoire → réessai
+    }
+
+    const ct = res.headers.get("content-type") || "";
+    const raw = await res.text().catch(() => "");
+    const json = ct.includes("json") ? safeParse(raw) : null;
+
+    if (!json) {
+      // Réponse non-JSON (page SPA HTML de GeniusPay) → transitoire → réessai.
+      lastError = `Réponse GeniusPay non-JSON (${res.status}).`;
+      continue;
+    }
+    if (!res.ok) {
+      // Erreur JSON déterministe → inutile de réessayer.
+      const msg =
+        (json.detail as string) ||
+        (json.error as string) ||
+        (json.message as string) ||
+        `Erreur GeniusPay (${res.status}).`;
+      return { ok: false, error: String(msg) };
+    }
+    // GeniusPay enveloppe la charge utile dans `data` : { success, data: {
+    // reference, checkout_url, payment_url, … } }. On lit `data` en priorité,
+    // avec repli au niveau racine par robustesse.
+    const data = (json.data as Record<string, unknown>) ?? json;
+    const reference = data.reference ?? json.reference;
+    const paymentUrl =
+      (data.payment_url as string) ||
+      (data.checkout_url as string) ||
+      (json.payment_url as string) ||
+      (json.checkout_url as string);
+    if (reference && paymentUrl) {
+      return { ok: true, reference: String(reference), paymentUrl: String(paymentUrl) };
+    }
+    lastError = "Réponse GeniusPay incomplète (pas de lien de paiement).";
   }
-  // GeniusPay enveloppe la charge utile dans `data` : { success, data: {
-  // reference, checkout_url, payment_url, … } }. On lit `data` en priorité,
-  // avec repli au niveau racine par robustesse.
-  const data = (json?.data as Record<string, unknown>) ?? json ?? {};
-  const reference = data.reference ?? json?.reference;
-  const paymentUrl =
-    (data.payment_url as string) ||
-    (data.checkout_url as string) ||
-    (json?.payment_url as string) ||
-    (json?.checkout_url as string);
-  if (!reference || !paymentUrl) {
-    return { ok: false, error: "Réponse GeniusPay incomplète (pas de lien de paiement)." };
-  }
-  return { ok: true, reference: String(reference), paymentUrl: String(paymentUrl) };
+  return { ok: false, error: lastError };
 }
 
 // ── Enregistrement automatique du webhook (par-org) ────────────────────────
