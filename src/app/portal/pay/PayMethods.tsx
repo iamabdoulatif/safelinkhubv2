@@ -5,12 +5,12 @@
 // redirige la MÊME fenêtre vers le checkout du rail.
 //
 // Deux choix : "wave" = redirection DIRECTE pay.wave.com (rapide, fiable dans le
-// mini-navigateur captif) ; "hosted" = page de checkout hébergée GeniusPay
-// (geniuspay.ci/checkout, obtenue en OMETTANT payment_method) qui contient TOUS
-// les moyens — Wave, Orange Money, MTN MoMo, Moov Money, carte internationale
-// (Stripe) et carte locale (Paystack). ATTENTION UX GeniusPay : la page affiche
-// Wave par défaut, les autres moyens sont derrière le lien « Changer ». Le rail
-// "paystack" seul montrait un sous-ensemble (ni Moov, ni carte internationale).
+// mini-navigateur captif) ; "paystack" = page checkout.paystack.com (rail
+// Paystack) qui LISTE directement Wave / Orange / MTN (sans « Changer »). NB :
+// cette page Paystack n'inclut PAS Moov ni la carte — pour tout inclure il
+// faudrait la page hébergée geniuspay.ci (method="hosted", payment_method omis),
+// mais elle mène avec Wave + « Changer ». Choix produit (demande utilisateur) :
+// Paystack au checkout pour la liste directe des opérateurs.
 //
 // Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
 // lourdes (checkout Wave/Paystack « pompe sur le logo »). D'où le repli « ouvrir
@@ -25,7 +25,7 @@ type Method = { id: string; label: string; sub: string; bg: string; fg: string }
 
 const METHODS: Method[] = [
   { id: "wave", label: "Payer avec Wave", sub: "Mobile Money — rapide", bg: "#1dc4ff", fg: "#00263a" },
-  { id: "hosted", label: "Orange · MTN · Moov · Carte", sub: "Puis cliquez « Changer » pour choisir", bg: "#0f172a", fg: "#fff" },
+  { id: "paystack", label: "Orange Money · MTN MoMo", sub: "Paiement mobile (Paystack)", bg: "#0f172a", fg: "#fff" },
 ];
 
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
