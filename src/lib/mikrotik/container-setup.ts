@@ -180,6 +180,19 @@ async function provisionDockerStack(
     hasUsbStorage: boolean;
     hasLargeOnboardStorage?: boolean;
     hotspotAddress?: string;
+    // Session MikHmon pré-remplie, injectée en variables d'env du conteneur :
+    // l'image les lit au démarrage pour écrire sa « Paramètres de session »
+    // (fin de la saisie manuelle IP/user/pass/nom hotspot/DNS/devise). Absente
+    // en mode MikHmon-seul lancé depuis la topologie.
+    mikhmonSession?: {
+      name: string;
+      mtIp: string;
+      mtUser: string;
+      mtPass: string;
+      hotspotName?: string;
+      dnsName?: string;
+      currency?: string;
+    };
   },
 ) {
   // The UI's own architecture/device-mode check (DetectedModelBadge) is
@@ -338,6 +351,44 @@ async function provisionDockerStack(
     for (const name of [CONTAINER_NAME, ...LEGACY_CONTAINER_NAMES]) {
       await client.talk(["/container/remove", `=numbers=${name}`]).catch(() => {});
     }
+
+    // Session MikHmon auto-configurée : on pose un envlist "mikhmon" que l'image
+    // lit au démarrage pour écrire sa « Paramètres de session » (nom, IP MikroTik
+    // = passerelle du veth, user/pass API, nom hotspot, DNS, devise) — l'admin
+    // n'a plus rien à taper. Purge de l'ancien envlist d'abord (idempotent).
+    const MIKHMON_ENVLIST = "mikhmon";
+    let mikhmonEnvlist: string | null = null;
+    if (opts.mikhmonSession) {
+      const s = opts.mikhmonSession;
+      const existingEnvs = await client
+        .talk(["/container/envs/print", `?name=${MIKHMON_ENVLIST}`])
+        .catch(() => [] as Sentence[]);
+      for (const e of existingEnvs) {
+        if (e[".id"]) {
+          await client.talk(["/container/envs/remove", `=numbers=${e[".id"]}`]).catch(() => {});
+        }
+      }
+      const pairs: [string, string | undefined][] = [
+        ["MIKHMON_SESSION", s.name],
+        ["MIKHMON_MT_IP", s.mtIp],
+        ["MIKHMON_MT_USER", s.mtUser],
+        ["MIKHMON_MT_PASS", s.mtPass],
+        ["MIKHMON_HOTSPOT_NAME", s.hotspotName],
+        ["MIKHMON_DNS", s.dnsName],
+        ["MIKHMON_CURRENCY", s.currency],
+      ];
+      let added = 0;
+      for (const [key, value] of pairs) {
+        if (!value) continue;
+        await run(
+          ["/container/envs/add", `=name=${MIKHMON_ENVLIST}`, `=key=${key}`, `=value=${value}`],
+          `MikHmon env ${key}`,
+        );
+        added++;
+      }
+      if (added > 0) mikhmonEnvlist = MIKHMON_ENVLIST;
+    }
+
     await run(
       [
         "/container/add",
@@ -347,6 +398,7 @@ async function provisionDockerStack(
         `=layer-dir=${containerLayerDir}`,
         `=root-dir=${containerRootDir}`,
         "=start-on-boot=yes",
+        ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
       ],
       "container image install (auto-start on boot enabled)",
     );
@@ -1564,6 +1616,21 @@ export async function provisionHotspotStack(
       hasUsbStorage: opts.hasUsbStorage,
       hasLargeOnboardStorage: opts.hasLargeOnboardStorage,
       hotspotAddress: opts.hotspotAddress,
+      // Auto-remplissage de la « Paramètres de session » MikHmon : IP = passerelle
+      // du veth (11.11.11.1, ce que le conteneur utilise pour joindre l'API),
+      // identifiants = compte API du routeur, reste dérivé du hotspot.
+      mikhmonSession:
+        router.username && router.passwordEncrypted
+          ? {
+              name: "Safelink",
+              mtIp: VETH_GATEWAY,
+              mtUser: router.username,
+              mtPass: decryptSecret(router.passwordEncrypted),
+              hotspotName: opts.hotspotName,
+              dnsName: opts.dnsName?.trim() || opts.hotspotAddress,
+              currency: "fcfa",
+            }
+          : undefined,
     });
 
 
