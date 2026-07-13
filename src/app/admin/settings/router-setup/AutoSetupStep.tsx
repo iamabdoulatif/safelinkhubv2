@@ -15,7 +15,7 @@
  *   écran après le lancement — plus d'étapes de test séparées.
  */
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { ArrowLeft, Box, Check, Copy, Plus, Trash2 } from "lucide-react";
 import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
@@ -250,6 +250,103 @@ export default function AutoSetupStep({
   const [customPrice, setCustomPrice] = useState("");
   const [customProfileError, setCustomProfileError] = useState<string | null>(null);
 
+  // ── Persistance de l'étape 3 à travers la redirection de paiement ────
+  // Payer l'auto-setup fait une navigation pleine page vers GeniusPay puis
+  // revient (?etape=3) : sans ça, tout ce que l'admin a saisi ici (nom hotspot,
+  // SSID, DNS, réseau, profils-prix, template…) repartait à zéro. On sauvegarde
+  // un instantané dans sessionStorage (par routeur, même onglet) et on le
+  // restaure au montage. Effacé au succès du lancement.
+  const persistKey = `slh:autosetup:${routerId}`;
+  const hadSnapshotRef = useRef(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- hydratation ponctuelle au montage depuis sessionStorage (retour de paiement) ; l'init paresseux de useState provoquerait un mismatch d'hydratation SSR */
+    try {
+      const raw = sessionStorage.getItem(persistKey);
+      if (raw) {
+        const s = JSON.parse(raw) as Record<string, unknown>;
+        hadSnapshotRef.current = true;
+        if (typeof s.hotspotName === "string") setHotspotName(s.hotspotName);
+        if (typeof s.ssid === "string") setSsid(s.ssid);
+        if (typeof s.ssidTouched === "boolean") setSsidTouched(s.ssidTouched);
+        if (typeof s.dnsName === "string") setDnsName(s.dnsName);
+        if (typeof s.dnsTouched === "boolean") setDnsTouched(s.dnsTouched);
+        if (typeof s.hotspotAddress === "string") setHotspotAddress(s.hotspotAddress);
+        if (s.networkClass) setNetworkClass(s.networkClass as NetworkClass);
+        if (typeof s.hotspotPrefixBits === "number") setHotspotPrefixBits(s.hotspotPrefixBits);
+        if (typeof s.hasUsbStorage === "boolean") setHasUsbStorage(s.hasUsbStorage);
+        if (typeof s.usbTouched === "boolean") setUsbTouched(s.usbTouched);
+        if (typeof s.skipMikhmon === "boolean") setSkipMikhmon(s.skipMikhmon);
+        if (typeof s.installCaptivePortal === "boolean")
+          setInstallCaptivePortal(s.installCaptivePortal);
+        if (typeof s.selectedTemplateId === "string") setSelectedTemplateId(s.selectedTemplateId);
+        if (Array.isArray(s.customProfiles)) setCustomProfiles(s.customProfiles as VoucherProfile[]);
+        if (Array.isArray(s.customProfileMeta))
+          setCustomProfileMeta(s.customProfileMeta as typeof customProfileMeta);
+        if (typeof s.customAmount === "string") setCustomAmount(s.customAmount);
+        if (s.customUnit) setCustomUnit(s.customUnit as DurationUnit);
+        if (typeof s.customPrice === "string") setCustomPrice(s.customPrice);
+      }
+    } catch {
+      /* sessionStorage indisponible / JSON corrompu : on repart des défauts */
+    }
+    setHydrated(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [persistKey]);
+
+  useEffect(() => {
+    if (!hydrated) return; // n'écrase pas l'instantané avec les défauts avant restauration
+    try {
+      sessionStorage.setItem(
+        persistKey,
+        JSON.stringify({
+          hotspotName,
+          ssid,
+          ssidTouched,
+          dnsName,
+          dnsTouched,
+          hotspotAddress,
+          networkClass,
+          hotspotPrefixBits,
+          hasUsbStorage,
+          usbTouched,
+          skipMikhmon,
+          installCaptivePortal,
+          selectedTemplateId,
+          customProfiles,
+          customProfileMeta,
+          customAmount,
+          customUnit,
+          customPrice,
+        }),
+      );
+    } catch {
+      /* quota / mode privé : la persistance est best-effort */
+    }
+  }, [
+    hydrated,
+    persistKey,
+    hotspotName,
+    ssid,
+    ssidTouched,
+    dnsName,
+    dnsTouched,
+    hotspotAddress,
+    networkClass,
+    hotspotPrefixBits,
+    hasUsbStorage,
+    usbTouched,
+    skipMikhmon,
+    installCaptivePortal,
+    selectedTemplateId,
+    customProfiles,
+    customProfileMeta,
+    customAmount,
+    customUnit,
+    customPrice,
+  ]);
+
   useEffect(() => {
     listCaptiveTemplates().then((rows) => {
       const templates = rows
@@ -257,9 +354,13 @@ export default function AutoSetupStep({
         .map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault }));
       setPackageTemplates(templates);
       const preselected = templates.find((t) => t.isDefault) ?? templates[0];
-      if (preselected) setSelectedTemplateId(preselected.id);
+      // Ne pas écraser le template restauré depuis l'instantané de paiement.
+      if (preselected && !hadSnapshotRef.current) setSelectedTemplateId(preselected.id);
     });
     listActivePackages().then((pkgs) => {
+      // État restauré (retour de paiement) : les profils de l'instantané font
+      // foi — on ne ré-importe pas (ça re-ajouterait ceux que l'admin a retirés).
+      if (hadSnapshotRef.current) return;
       const imported: VoucherProfile[] = [];
       for (const pkg of pkgs) {
         const unit = DURATION_UNIT_FROM_PACKAGE[pkg.durationUnit];
@@ -295,6 +396,18 @@ export default function AutoSetupStep({
     firmwareUpdating?: boolean;
     message?: string;
   } | null>(null);
+
+  // Auto-setup réussi : l'instantané n'a plus lieu d'être → on l'efface pour ne
+  // pas re-restaurer une config périmée au prochain passage dans l'étape 3.
+  useEffect(() => {
+    if (result?.success) {
+      try {
+        sessionStorage.removeItem(persistKey);
+      } catch {
+        /* best-effort */
+      }
+    }
+  }, [result?.success, persistKey]);
 
   // La détection USB arrive après le montage — on l'adopte tant que
   // l'admin n'a pas touché la case lui-même.

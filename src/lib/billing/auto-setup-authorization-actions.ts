@@ -220,7 +220,13 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
   const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "";
   const proto = hdrs.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const origin = host ? `${proto}://${host}` : "";
-  const returnUrl = origin ? `${origin}/admin/settings/router-setup` : undefined;
+  // Retour APRÈS paiement : on ramène l'admin sur le wizard du BON routeur, à
+  // l'étape 3 (configuration automatique) — sinon la page rouvre l'étape 2
+  // (topologie) et l'admin doit tout re-parcourir. L'étape 3 restaure ses champs
+  // depuis sessionStorage (voir AutoSetupStep).
+  const returnUrl = origin
+    ? `${origin}/admin/settings/router-setup?router=${router.id}&etape=3`
+    : undefined;
 
   const payment = await createGeniusPayment({
     amountFcfa,
