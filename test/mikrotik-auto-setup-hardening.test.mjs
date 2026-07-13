@@ -49,7 +49,7 @@ test("server-side auto-setup rechecks RouterOS device-mode container flag", asyn
 
 test("device-mode unlock instructions request all required flags in one confirmable command", async () => {
   const autoSetup = await readFile(
-    new URL("../src/app/admin/settings/router-setup/AutoSetupSteps.tsx", import.meta.url),
+    new URL("../src/app/admin/settings/router-setup/AutoSetupStep.tsx", import.meta.url),
     "utf8",
   );
   const detectedBadge = await readFile(
@@ -84,18 +84,21 @@ test("hotspot auto-setup keeps one RouterOS server/profile pair with one address
   assert.doesNotMatch(source, /`=profile=\$\{opts\.hotspotName\}`/);
 });
 
-test("default hotspot users are created and reconciled with password equal to username", async () => {
+test("default hotspot users are created/reconciled with an optional distinct password", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /\/ip\/hotspot\/user\/add", `=name=\$\{name\}`, `=password=\$\{name\}`/);
+  assert.match(source, /\/ip\/hotspot\/user\/add", `=name=\$\{name\}`, `=password=\$\{password\}`/);
   assert.match(source, /\/ip\/hotspot\/user\/set/);
   assert.ok(source.includes('`=numbers=${existingUser[0][".id"]}`'));
-  assert.match(source, /`=password=\$\{name\}`/);
+  assert.match(source, /`=password=\$\{password\}`/);
+  // Chaîne → mot de passe = login ; objet {name,password} → mot de passe
+  // distinct si fourni, sinon login (compte admin du portail).
+  assert.match(source, /typeof entry === "string" \? name : entry\.password\?\.trim\(\) \|\| name/);
 });
 
 test("wizard keeps HOTSPOT as the only RouterOS hotspot bridge and hides system identity", async () => {
   const autoSetup = await readFile(
-    new URL("../src/app/admin/settings/router-setup/AutoSetupSteps.tsx", import.meta.url),
+    new URL("../src/app/admin/settings/router-setup/AutoSetupStep.tsx", import.meta.url),
     "utf8",
   );
   const containerSetup = await containerSetupSource();

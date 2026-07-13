@@ -491,7 +491,10 @@ export type HotspotStackOptions = {
   // multi-tenant SaaS and hardcoding the same login across every
   // customer's router would be a collision/security smell, not a generic
   // default.
-  defaultHotspotUsers?: string[];
+  // Chaîne = login dont le mot de passe vaut le login (compat historique) ;
+  // objet { name, password } = login avec mot de passe distinct — ex. le compte
+  // administrateur du portail (accès internet) saisi à l'auto-setup.
+  defaultHotspotUsers?: Array<string | { name: string; password?: string }>;
   // Whether to push the bundled SafeLinkHub captive-portal package onto
   // the hotspot profile's html-directory as part of this same run.
   // Defaults to true (existing behavior for callers that don't pass this
@@ -1156,15 +1159,20 @@ export async function provisionHotspotStack(
     // RouterOS Hotspot login expects a password unless MAC login handles the
     // user; for deterministic client installs, the password is always the
     // same value as the username and existing users are reconciled.
-    for (const username of opts.defaultHotspotUsers ?? []) {
-      const name = username.trim();
+    for (const entry of opts.defaultHotspotUsers ?? []) {
+      const name = (typeof entry === "string" ? entry : entry.name).trim();
       if (!name) continue;
+      // Chaîne → mot de passe = login ; objet → mot de passe distinct si fourni.
+      const password = typeof entry === "string" ? name : entry.password?.trim() || name;
       const existingUser = await client.talk(["/ip/hotspot/user/print", `?name=${name}`]).catch(() => []);
       if (existingUser.length === 0) {
-        await run(["/ip/hotspot/user/add", `=name=${name}`, `=password=${name}`], `hotspot user ${name}`);
+        await run(
+          ["/ip/hotspot/user/add", `=name=${name}`, `=password=${password}`],
+          `hotspot user ${name}`,
+        );
       } else if (existingUser[0][".id"]) {
         await run(
-          ["/ip/hotspot/user/set", `=numbers=${existingUser[0][".id"]}`, `=password=${name}`],
+          ["/ip/hotspot/user/set", `=numbers=${existingUser[0][".id"]}`, `=password=${password}`],
           `hotspot user ${name} password`,
         );
       }

@@ -193,20 +193,10 @@ export default function AutoSetupStep({
       : CLASS_DEFAULT_PREFIX[initialClass],
   );
 
-  function changeNetworkClass(next: NetworkClass) {
-    setNetworkClass(next);
-    if (!CLASS_PREFIX_OPTIONS[next].includes(hotspotPrefixBits)) {
-      setHotspotPrefixBits(CLASS_DEFAULT_PREFIX[next]);
-    }
-  }
-
-  // L'IP courante peut venir d'un bridge saisi à la main — on la garde
-  // dans le sélecteur même si elle n'est pas dans les presets partagés.
-  const gatewayOptions = GATEWAY_IP_PRESETS.includes(
-    hotspotAddress as (typeof GATEWAY_IP_PRESETS)[number],
-  )
-    ? [...GATEWAY_IP_PRESETS]
-    : [hotspotAddress, ...GATEWAY_IP_PRESETS];
+  // Le réseau (passerelle/classe/sous-réseau) est saisi UNE SEULE FOIS à
+  // l'Étape 2 (topologie / assignation des interfaces au bridge) et hérité ici
+  // en lecture seule — plus de double saisie. Les valeurs restent dans l'état
+  // (pré-remplies depuis le bridge) pour le lancement et la persistance.
 
   // ── Essentiels : un seul champ obligatoire, le reste est dérivé ──────
   const [hotspotName, setHotspotName] = useState("");
@@ -233,6 +223,10 @@ export default function AutoSetupStep({
   const [usbTouched, setUsbTouched] = useState(false);
   const [skipMikhmon, setSkipMikhmon] = useState(false);
   const [installCaptivePortal, setInstallCaptivePortal] = useState(true);
+  // Compte hotspot facultatif créé pour l'admin (accès internet via le portail
+  // sans acheter de forfait). Vide = aucun compte créé.
+  const [adminPortalUser, setAdminPortalUser] = useState("");
+  const [adminPortalPassword, setAdminPortalPassword] = useState("");
   const [packageTemplates, setPackageTemplates] = useState<
     { id: string; name: string; isDefault: boolean }[]
   >([]);
@@ -280,6 +274,9 @@ export default function AutoSetupStep({
         if (typeof s.skipMikhmon === "boolean") setSkipMikhmon(s.skipMikhmon);
         if (typeof s.installCaptivePortal === "boolean")
           setInstallCaptivePortal(s.installCaptivePortal);
+        if (typeof s.adminPortalUser === "string") setAdminPortalUser(s.adminPortalUser);
+        if (typeof s.adminPortalPassword === "string")
+          setAdminPortalPassword(s.adminPortalPassword);
         if (typeof s.selectedTemplateId === "string") setSelectedTemplateId(s.selectedTemplateId);
         if (Array.isArray(s.customProfiles)) setCustomProfiles(s.customProfiles as VoucherProfile[]);
         if (Array.isArray(s.customProfileMeta))
@@ -313,6 +310,8 @@ export default function AutoSetupStep({
           usbTouched,
           skipMikhmon,
           installCaptivePortal,
+          adminPortalUser,
+          adminPortalPassword,
           selectedTemplateId,
           customProfiles,
           customProfileMeta,
@@ -339,6 +338,8 @@ export default function AutoSetupStep({
     usbTouched,
     skipMikhmon,
     installCaptivePortal,
+    adminPortalUser,
+    adminPortalPassword,
     selectedTemplateId,
     customProfiles,
     customProfileMeta,
@@ -522,7 +523,10 @@ export default function AutoSetupStep({
         // Jamais de SSID vers un modèle sans Wi-Fi — même si le champ a été
         // auto-rempli avant que la détection ne réponde.
         ssid: hasWifi ? ssid.trim() || undefined : undefined,
-        defaultHotspotUsers: [],
+        // Compte admin optionnel (accès internet via le portail sans forfait).
+        defaultHotspotUsers: adminPortalUser.trim()
+          ? [{ name: adminPortalUser.trim(), password: adminPortalPassword.trim() || undefined }]
+          : [],
         hasUsbStorage,
         hasLargeOnboardStorage: detected?.hasLargeOnboardStorage ?? false,
         supportsContainers: mikhmonIncluded,
@@ -615,72 +619,70 @@ export default function AutoSetupStep({
         </p>
       )}
 
-      {/* ── Réseau du hotspot (passerelle, classe, sous-réseau) ───────── */}
+      {/* ── Réseau du hotspot : hérité de l'Étape 2, non ré-éditable ici ── */}
       <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
-        <p className="text-sm font-semibold text-ink">Réseau du hotspot</p>
-        <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-          Pré-rempli depuis l&apos;Étape 2 — même sélecteur que le configurateur de bridge,
-          appliqué au routeur et resynchronisé sur la topologie au lancement.
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-ink">Réseau du hotspot</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-soft">
+              Défini à l&apos;Étape 2 (topologie / assignation des interfaces au bridge). Pour le
+              changer, revenez à l&apos;étape précédente — plus besoin de le re-saisir ici.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="shrink-0 rounded-md border border-line-soft px-3 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-clay"
+          >
+            Modifier à l&apos;Étape 2
+          </button>
+        </div>
+        <p className="mt-3 rounded-md bg-clay px-3 py-2.5 text-sm text-ink-soft">
+          Passerelle :{" "}
+          <span className="font-semibold text-ink">
+            {hotspotAddress}/{hotspotPrefixBits}
+          </span>
+          {subnet ? ` — ${getImpactNote(hotspotPrefixBits)}` : ""}
         </p>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      </div>
+
+      {/* ── Compte administrateur du portail (accès internet) ────────── */}
+      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+        <p className="text-sm font-semibold text-ink">Compte administrateur du portail</p>
+        <p className="mt-1 text-sm leading-relaxed text-ink-soft">
+          Optionnel — crée un identifiant pour vous connecter au WiFi via le portail sans acheter de
+          forfait (accès internet illimité). Laissez vide si vous n&apos;en voulez pas.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="as-gateway-ip" className="mb-1.5 block text-sm font-medium text-ink-soft">
-              IP de la passerelle
+            <label htmlFor="as-admin-user" className="mb-1.5 block text-sm font-medium text-ink-soft">
+              Identifiant
             </label>
-            <select
-              id="as-gateway-ip"
-              value={hotspotAddress}
-              onChange={(e) => setHotspotAddress(e.target.value)}
+            <input
+              id="as-admin-user"
+              type="text"
+              autoComplete="off"
+              value={adminPortalUser}
+              onChange={(e) => setAdminPortalUser(e.target.value)}
+              placeholder="admin"
               className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
-            >
-              {gatewayOptions.map((ip) => (
-                <option key={ip} value={ip}>
-                  {ip}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div>
-            <label htmlFor="as-network-class" className="mb-1.5 block text-sm font-medium text-ink-soft">
-              Classe réseau
+            <label htmlFor="as-admin-pass" className="mb-1.5 block text-sm font-medium text-ink-soft">
+              Mot de passe
             </label>
-            <select
-              id="as-network-class"
-              value={networkClass}
-              onChange={(e) => changeNetworkClass(e.target.value as NetworkClass)}
+            <input
+              id="as-admin-pass"
+              type="text"
+              autoComplete="off"
+              value={adminPortalPassword}
+              onChange={(e) => setAdminPortalPassword(e.target.value)}
+              placeholder="défaut : identique à l'identifiant"
               className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
-            >
-              {(["any", "A", "B", "C"] as NetworkClass[]).map((c) => (
-                <option key={c} value={c}>
-                  {c === "any" ? "Toutes" : `Classe ${c}`}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="as-subnet-bits" className="mb-1.5 block text-sm font-medium text-ink-soft">
-              Taille du sous-réseau
-            </label>
-            <select
-              id="as-subnet-bits"
-              value={hotspotPrefixBits}
-              onChange={(e) => setHotspotPrefixBits(Number(e.target.value))}
-              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
-            >
-              {CLASS_PREFIX_OPTIONS[networkClass].map((bits) => (
-                <option key={bits} value={bits}>
-                  /{bits}
-                </option>
-              ))}
-            </select>
+            />
           </div>
         </div>
-        {subnet && (
-          <p className="mt-3 rounded-md bg-clay px-3 py-2.5 text-sm text-ink-soft">
-            Réseau hotspot : <span className="font-semibold text-ink">{hotspotAddress}/{hotspotPrefixBits}</span>{" "}
-            — {getImpactNote(hotspotPrefixBits)}
-          </p>
-        )}
       </div>
 
       {/* ── Identité du hotspot ─────────────────────────────────────── */}
