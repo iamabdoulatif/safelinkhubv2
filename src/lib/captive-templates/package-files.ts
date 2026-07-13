@@ -363,16 +363,64 @@ const PORTAL_PAY_SCRIPT = `(function(){
   // réseau) remonte "Load failed" / "Failed to fetch" : message clair au client.
   function errMsg(err){ var m = err && err.message ? String(err.message) : ""; if(!m || /load failed|failed to fetch|networkerror|network request failed/i.test(m)) return "Connexion au serveur impossible. Restez sur le portail WiFi et reessayez."; return m; }
 
+  var lastSel = null; // dernier forfait choisi (carte tapée OU bouton Acheter)
+  function planFromBtn(b){ return { packageId: b.getAttribute("data-package-id"), plan: b.getAttribute("data-plan") || "ce forfait", price: b.getAttribute("data-price") || "" }; }
+  // Carte de forfait = plus grand ancêtre ne contenant QU'UN bouton
+  // [data-package-id] (ex. .plan-card). Permet de retrouver le forfait quand le
+  // client tape ailleurs sur la carte (nom, prix) que sur le bouton lui-même.
+  function cardOf(el){
+    var node = el, card = null;
+    while(node && node !== document.body){
+      if(node.querySelectorAll && node.querySelectorAll("[data-package-id]").length === 1){ card = node; }
+      else if(card){ break; }
+      node = node.parentElement;
+    }
+    return card;
+  }
+  // Bouton "Payer" GLOBAL du portail (hors carte, sans data-package-id) : il doit
+  // acheter le forfait sélectionné. On l'identifie par son libellé, et on exclut
+  // notre propre modal (dont le bouton primaire s'appelle aussi "Payer").
+  function isGlobalPayBtn(el){
+    if(!el || !el.closest) return false;
+    if(el.closest("#slh-pay-modal")) return false;
+    var b = el.closest("button, a, input[type=submit], input[type=button], [role=button]");
+    if(!b || b.getAttribute("data-package-id")) return false;
+    var label = (b.textContent || b.value || "").trim().toLowerCase();
+    if(!label || label.length > 24) return false;
+    return label === "payer" || label === "payer maintenant" || label.indexOf("payer ") === 0 || label === "acheter" || label === "valider";
+  }
+  function hint(msg){
+    var h = document.getElementById("slh-hint");
+    if(!h){ h = document.createElement("div"); h.id = "slh-hint"; h.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483000;background:#0f172a;color:#fff;padding:10px 16px;border-radius:10px;font:600 14px system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3);max-width:90%;text-align:center;transition:opacity .3s;"; document.body.appendChild(h); }
+    h.textContent = msg; h.style.opacity = "1";
+    if(h._t) clearTimeout(h._t);
+    h._t = setTimeout(function(){ h.style.opacity = "0"; }, 3200);
+  }
+
   document.addEventListener("click", function(e){
+    if(!configured()) return; // repli : laisse le portail gérer ses boutons
     var t = e.target;
+    // 1) Bouton d'un forfait (Acheter par carte) → achat direct.
     var btn = t && t.closest ? t.closest("[data-package-id]") : null;
-    if(!btn) return;
-    if(!configured()) return; // repli : laisse le portail gérer son propre bouton
-    var pid = btn.getAttribute("data-package-id");
-    if(!pid) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    openModal({ packageId: pid, plan: btn.getAttribute("data-plan") || "ce forfait", price: btn.getAttribute("data-price") || "" });
+    if(btn){
+      e.preventDefault(); e.stopImmediatePropagation();
+      lastSel = planFromBtn(btn);
+      openModal(lastSel);
+      return;
+    }
+    // 2) Bouton "Payer" global → achète le forfait sélectionné.
+    if(isGlobalPayBtn(t)){
+      e.preventDefault(); e.stopImmediatePropagation();
+      if(lastSel){ openModal(lastSel); return; }
+      var all = document.querySelectorAll("[data-package-id]");
+      if(all.length === 1){ lastSel = planFromBtn(all[0]); openModal(lastSel); return; }
+      hint("Choisissez d'abord un forfait ci-dessus, puis appuyez sur Payer.");
+      return;
+    }
+    // 3) Sélection : le client tape une carte → on la mémorise (sans bloquer la
+    //    mise en surbrillance propre au portail).
+    var card = cardOf(t);
+    if(card){ var pb = card.querySelector("[data-package-id]"); if(pb) lastSel = planFromBtn(pb); }
   }, true);
 
   function openModal(sel){
