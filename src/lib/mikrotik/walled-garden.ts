@@ -64,9 +64,42 @@ export const PAYMENT_WALLED_GARDEN_HOSTS = [
   "*.paystack.co",
 ];
 
-/** Ensemble complet du walled-garden pour une install : app + paiement. */
+// Hôtes de DÉTECTION de portail captif d'Apple (iOS / macOS). En les autorisant,
+// la sonde iOS (http://captive.apple.com/hotspot-detect.html) atteint Apple et
+// reçoit sa vraie page « Success » → iOS considère le réseau comme EN LIGNE et
+// n'ouvre PAS son mini-navigateur (CNA), bridé et incapable d'afficher le
+// checkout Paystack / 3-D Secure. Le client ouvre alors Safari lui-même
+// (n'importe quel site http est redirigé vers le portail, dans le VRAI Safari où
+// le paiement marche). C'est le remplaçant du schéma x-safari-https:// (peu
+// fiable selon la version d'iOS).
+//
+// Compromis ASSUMÉ : plus de pop-up automatique sur iPhone → il faut guider le
+// client (« Connectez-vous au WiFi, puis ouvrez Safari »).
+//
+// ⚠️ iOS UNIQUEMENT. On n'ajoute PAS les hôtes de sonde Android
+// (connectivitycheck.gstatic.com) ni Windows (msftconnecttest.com) : là le
+// portail s'ouvre déjà dans un vrai navigateur et le paiement fonctionne — les
+// neutraliser casserait ce qui marche. On évite aussi le joker *.apple.com pour
+// ne pas offrir App Store / iCloud gratuits ; on liste les hôtes de sonde connus
+// (versions iOS actuelles + héritées).
+export const APPLE_CAPTIVE_DETECTION_HOSTS = [
+  "captive.apple.com",
+  "www.apple.com",
+  "www.appleiphonecell.com",
+  "www.itools.info",
+  "www.ibook.info",
+  "www.airport.us",
+  "www.thinkdifferent.us",
+];
+
+/** Ensemble complet du walled-garden pour une install : app + paiement + sonde captive Apple. */
 export function walledGardenHosts(appHost: string): string[] {
-  const hosts = [appHost, `*.${appHost}`, ...PAYMENT_WALLED_GARDEN_HOSTS];
+  const hosts = [
+    appHost,
+    `*.${appHost}`,
+    ...PAYMENT_WALLED_GARDEN_HOSTS,
+    ...APPLE_CAPTIVE_DETECTION_HOSTS,
+  ];
   // Dédoublonne en préservant l'ordre (appHost pourrait recouper un motif).
   return [...new Set(hosts.filter(Boolean))];
 }
