@@ -15,6 +15,18 @@ const DEVICE_MODE_UNLOCK_SCRIPT = `/system/device-mode/update mode=advanced cont
 # Confirmez ensuite physiquement dans les 10 minutes : bouton reset/mode ou coupure d'alimentation froide.
 /system/device-mode/print`;
 
+// Commandes pour un MikroTik NEUF / scellé (jamais configuré). Après CHAQUE
+// commande, appui long ~15 s sur le bouton "reset" puis relâcher, pour
+// confirmer physiquement le changement de device-mode.
+const DEVICE_MODE_SEALED_STEPS = `# a. Mise à niveau du routerboard
+/system/device-mode/update routerboard=yes
+# b. Passage en mode avancé
+/system/device-mode/update mode=advanced
+# c. Activer le container + les fonctions requises par l'auto-setup
+/system/device-mode/update container=yes hotspot=yes scheduler=yes fetch=yes
+# d. Vérifier les fonctionnalités activées
+/system/device-mode/print`;
+
 export default function MethodTabs() {
   const [method, setMethod] = useState<"vpn" | "direct">("vpn");
 
@@ -83,6 +95,46 @@ export default function MethodTabs() {
             <pre className="mt-1.5 code-block px-3 py-2">
               {DEVICE_MODE_UNLOCK_SCRIPT}
             </pre>
+
+            <details className="mt-3 rounded-md border border-line-soft bg-paper px-3 py-2.5 text-xs text-ink-soft">
+              <summary className="cursor-pointer font-semibold text-ink">
+                MikroTik neuf / scellé (jamais configuré) — préparation complète
+              </summary>
+              <div className="mt-2 space-y-2 leading-5">
+                <p>
+                  <span className="font-semibold text-ink">1.</span> Munissez-vous d&apos;un
+                  ordinateur (Windows ou macOS). Téléchargez la dernière version du firmware
+                  RouterOS correspondant à votre MikroTik et installez-la avant d&apos;exécuter les
+                  commandes ci-dessous.
+                </p>
+                <p>
+                  <span className="font-semibold text-ink">2.</span> Dans la notice fournie dans
+                  l&apos;emballage du MikroTik, relevez les identifiants par défaut : login (Winbox){" "}
+                  <code>admin</code> et le mot de passe (indiqué sur la notice).
+                </p>
+                <p>
+                  <span className="font-semibold text-ink">3.</span> Connectez-vous au MikroTik avec
+                  Winbox, allez dans{" "}
+                  <span className="font-semibold text-ink">System → Reset Configuration</span>,
+                  cochez uniquement{" "}
+                  <span className="font-semibold text-ink">« No Default Configuration »</span>, puis
+                  cliquez sur <span className="font-semibold text-ink">« Reset Configuration »</span>.
+                </p>
+                <p>
+                  <span className="font-semibold text-ink">4.</span> Ouvrez{" "}
+                  <span className="font-semibold text-ink">« New Terminal »</span> et exécutez les
+                  commandes ci-dessous. Après{" "}
+                  <span className="font-semibold text-ink">chaque</span> commande, faites un appui
+                  long d&apos;environ{" "}
+                  <span className="font-semibold text-ink">15 secondes</span> sur le bouton{" "}
+                  <span className="font-semibold text-ink">« reset »</span> puis relâchez, pour
+                  confirmer physiquement le changement :
+                </p>
+                <pre className="code-block px-3 py-2 whitespace-pre-wrap">
+                  {DEVICE_MODE_SEALED_STEPS}
+                </pre>
+              </div>
+            </details>
           </div>
         </div>
       ) : (
