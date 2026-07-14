@@ -4,6 +4,7 @@ import { routers, routerPortForwards } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry, ensureRouterPortForwards } from "./relay";
 import { reconcileWalledGardenOnce } from "./walled-garden";
+import { enforceRouterSerialOnSync } from "./router-serial-lock";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
@@ -110,6 +111,34 @@ export async function syncRouterStats(
     // reconciliation further down can tell a genuine reconnect (or first-ever
     // successful sync) apart from a routine refresh of an already-online router.
     const wasOffline = router.status !== "online";
+
+    // Verrou de série sur TOUS les chemins de mise en service (auto-setup,
+    // install VPN/OpenVPN, liaison) : un MikroTik rattaché à un compte ne peut
+    // pas être remis en service pour un AUTRE. Armé ici au 1er passage online ;
+    // refuse (garde le routeur hors-ligne) si son SN est déjà rattaché ailleurs.
+    // Défensif : SN illisible / aléa → autorise (voir enforceRouterSerialOnSync).
+    const serialGuard = await enforceRouterSerialOnSync(client, routerId, router.orgId).catch(
+      () => ({ ok: true }) as const,
+    );
+    if (!serialGuard.ok) {
+      await db
+        .update(routers)
+        .set({ status: "offline", lastSyncAt: new Date() })
+        .where(eq(routers.id, routerId));
+      client.close();
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "router serial locked to another account — kept offline",
+          routerId,
+          serial: serialGuard.serial,
+        }),
+      );
+      return {
+        success: false,
+        error: `Ce MikroTik (série ${serialGuard.serial}) est déjà rattaché à un autre compte. Contactez le support.`,
+      };
+    }
 
     await db
       .update(routers)

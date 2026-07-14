@@ -1,7 +1,8 @@
-// Verrou anti-abus de l'auto-setup par numéro de série RouterOS. Un MikroTik
-// (par SN) ne peut être auto-configuré qu'UNE fois : au 1er auto-setup réussi on
-// enregistre son SN ; un 2e essai sur le même SN depuis un AUTRE routeur/org est
-// refusé, sauf réinitialisation superadmin. Module serveur uniquement.
+// Verrou anti-abus par numéro de série RouterOS. Un MikroTik (par SN) est
+// rattaché au 1er ORG qui le met en service (auto-setup OU install VPN/OpenVPN
+// OU liaison — armé au sync, voir enforceRouterSerialOnSync) ; toute tentative
+// de le (re)configurer/mettre en service depuis un AUTRE org est refusée, sauf
+// réinitialisation superadmin. Module serveur uniquement.
 
 import type { RouterOSClient } from "./client";
 import { and, eq, isNull } from "drizzle-orm";
@@ -22,10 +23,11 @@ export type SerialLockResult =
   | { ok: false; error: string; serial: string };
 
 /**
- * Vérifie que le routeur peut être auto-configuré, PUIS réserve son SN.
+ * Vérifie que le routeur peut être mis en service, PUIS réserve son SN.
  * - SN illisible (rare, hors RouterBOARD) → on autorise sans verrou (best-effort).
- * - SN déjà verrouillé par CE routeur (ou verrou libéré) → on autorise (re-run légitime).
- * - SN verrouillé par un AUTRE routeur, non libéré → REFUS (sauf `force`).
+ * - SN déjà verrouillé par le MÊME org (ou verrou libéré) → on autorise (re-run
+ *   légitime, même si c'est un autre routeur/slot du même compte).
+ * - SN verrouillé par un AUTRE org, non libéré → REFUS (sauf `force`).
  * - `force` (superadmin) : jamais de refus — le verrou est TRANSFÉRÉ au routeur
  *   courant. Le superadmin peut donc (re)configurer n'importe quel MikroTik
  *   autant de fois qu'il veut.
@@ -49,11 +51,11 @@ export async function reserveRouterSerial(
 
   if (existing) {
     const active = existing.releasedAt === null;
-    if (active && existing.routerId !== routerId && !opts?.force) {
+    if (active && existing.orgId !== orgId && !opts?.force) {
       return {
         ok: false,
         serial,
-        error: `Ce MikroTik (série ${serial}) a déjà été configuré et est verrouillé. Contactez le support pour le réinitialiser.`,
+        error: `Ce MikroTik (série ${serial}) est déjà rattaché à un autre compte. Contactez le support pour le réinitialiser.`,
       };
     }
     // Même routeur (re-run), verrou libéré, OU forçage superadmin → on (ré-)arme
@@ -67,6 +69,37 @@ export async function reserveRouterSerial(
 
   await db.insert(routerSerialLocks).values({ serialNumber: serial, routerId, orgId });
   return { ok: true, serial };
+}
+
+// Routeurs dont le SN a déjà été armé pendant la vie de ce process → évite un
+// /system/routerboard/print + une écriture DB à CHAQUE health-check. Un CONFLIT
+// (SN d'un autre org) n'est jamais mis en cache : on le re-vérifie à chaque
+// passage pour continuer à bloquer l'appareil. Vidé au cold start.
+const serialArmed = new Set<string>();
+
+/**
+ * Applique le verrou de série sur TOUT chemin de mise en service, appelé depuis
+ * syncRouterStats (point de convergence : auto-setup, install VPN/OpenVPN,
+ * liaison — tout routeur passe par le sync pour être « online »). Arme le verrou
+ * pour ce routeur/org au 1er passage, et signale un conflit si le SN est déjà
+ * rattaché à un AUTRE org. DÉFENSIF : SN illisible ou toute erreur → { ok:true }
+ * (ne bloque JAMAIS un routeur légitime sur un aléa). Pas de superadmin ici :
+ * ça protège les appareils des utilisateurs inscrits.
+ */
+export async function enforceRouterSerialOnSync(
+  client: RouterOSClient,
+  routerId: string,
+  orgId: string,
+): Promise<{ ok: true } | { ok: false; serial: string }> {
+  if (serialArmed.has(routerId)) return { ok: true };
+  const res = await reserveRouterSerial(client, routerId, orgId).catch(
+    () => ({ ok: true, serial: null }) as SerialLockResult,
+  );
+  if (res.ok) {
+    serialArmed.add(routerId);
+    return { ok: true };
+  }
+  return { ok: false, serial: res.serial };
 }
 
 /** Réinitialise (superadmin) : libère le verrou d'un SN → ré-utilisable. */
