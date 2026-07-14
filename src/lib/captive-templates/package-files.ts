@@ -113,27 +113,28 @@ function formatFcfa(amount: number): string {
 }
 
 // Card markup matching the plan-card/plan-info/plan-name/plan-details/
-// plan-price/plan-btn CSS-class family of the bundled SafeLinkHub portal
-// and the operator-made ones derived from it — the import-time
-// auto-parameterization (see autoParameterizePortalFiles) swaps a
-// portal's hardcoded `plans-grid` cards for {{PLANS_HTML}}, so the
-// portal's own stylesheet keeps styling these. The `.plan-btn` carries
-// both the human `data-price` ("200 FCFA", used by the portal's own JS
-// toast) and a machine-readable `data-price-cents` for any payment flow
-// that needs the raw amount; `data-plan` holds the display label.
+// plan-price CSS-class family of the bundled SafeLinkHub portal and the
+// operator-made ones derived from it — the import-time auto-parameterization
+// (see autoParameterizePortalFiles) swaps a portal's hardcoded `plans-grid`
+// cards for {{PLANS_HTML}}, so the portal's own stylesheet keeps styling these.
+// Plus de bouton « Acheter » par carte (redondant avec le bouton « Payer »
+// global) : les `data-*` sont portés par la carte elle-même — taper la carte
+// ouvre le modal d'achat (le binder universel matche tout `[data-package-id]`,
+// voir PORTAL_PAY_SCRIPT). La carte porte le `data-price` humain ("200 FCFA",
+// pour le toast JS du portail), un `data-price-cents` machine pour le paiement,
+// et `data-plan` (libellé affiché).
 function renderPlansHtml(plans: PortalPlan[] | null | undefined): string {
   if (!plans || plans.length === 0) return "";
   return plans
     .map((plan) => {
       const label = escapeHtml(planDisplayName(plan));
       const priceLabel = escapeHtml(formatFcfa(plan.priceCents));
-      return `          <div class="plan-card">
+      return `          <div class="plan-card" role="button" tabindex="0" data-plan="${label}" data-price="${priceLabel}" data-price-cents="${plan.priceCents}" data-package-id="${escapeHtml(plan.id)}">
             <div class="plan-info">
               <span class="plan-name">${label}</span>
               <span class="plan-details">Illimité</span>
             </div>
             <span class="plan-price">${priceLabel}</span>
-            <button class="plan-btn" data-plan="${label}" data-price="${priceLabel}" data-price-cents="${plan.priceCents}" data-package-id="${escapeHtml(plan.id)}">Acheter</button>
           </div>`;
     })
     .join("\n");
@@ -421,6 +422,17 @@ const PORTAL_PAY_SCRIPT = `(function(){
     //    mise en surbrillance propre au portail).
     var card = cardOf(t);
     if(card){ var pb = card.querySelector("[data-package-id]"); if(pb) lastSel = planFromBtn(pb); }
+  }, true);
+
+  // Accessibilite clavier : une carte de forfait (role=button, tabindex=0) n'est
+  // plus un <button>, donc Entree/Espace ne declenchent pas de clic natif. On le
+  // synthetise pour que le meme flux d'achat s'ouvre. Purement additif.
+  document.addEventListener("keydown", function(e){
+    if(!configured()) return;
+    if(e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+    var el = e.target;
+    var card = el && el.closest ? el.closest("[data-package-id]") : null;
+    if(card){ e.preventDefault(); card.click(); }
   }, true);
 
   function openModal(sel){

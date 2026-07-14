@@ -190,6 +190,29 @@ export const routerSerialLocks = pgTable("router_serial_locks", {
   releasedBy: uuid("released_by").references(() => users.id, { onDelete: "set null" }),
 });
 
+// Demandes de déblocage (support) d'un verrou de série : quand un MikroTik est
+// rattaché à un autre compte, l'utilisateur bloqué demande sa réinitialisation ;
+// le superadmin valide (→ libère le verrou, releasedAt sur router_serial_locks)
+// ou refuse. Voir lib/mikrotik/serial-unlock-*.ts.
+export const routerSerialUnlockRequests = pgTable("router_serial_unlock_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  requesterEmail: text("requester_email").notNull(),
+  requesterName: text("requester_name").notNull(),
+  serialNumber: text("serial_number").notNull(),
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "set null" }),
+  routerName: text("router_name"),
+  note: text("note"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  decidedAt: timestamp("decided_at"),
+  decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const captiveTemplates = pgTable("captive_templates", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")

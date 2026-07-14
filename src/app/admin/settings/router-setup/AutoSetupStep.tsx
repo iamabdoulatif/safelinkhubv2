@@ -23,6 +23,8 @@ import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-a
 import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
 import { listActivePackages } from "@/lib/packages/actions";
 import AutoSetupPaywallModal from "./AutoSetupPaywallModal";
+import SerialUnlockRequestModal from "@/components/mikrotik/SerialUnlockRequestModal";
+import { getSerialUnlockStatus } from "@/lib/mikrotik/serial-unlock-actions";
 import FancyLoader from "@/components/FancyLoader";
 import {
   classForPrefix,
@@ -397,7 +399,15 @@ export default function AutoSetupStep({
     firmwareUpdating?: boolean;
     message?: string;
     containerPending?: boolean;
+    serialLocked?: boolean;
+    serial?: string | null;
   } | null>(null);
+
+  // Déblocage (support) d'un MikroTik rattaché à un autre compte (verrou de
+  // série). Ouvert depuis le message d'erreur quand result.serialLocked.
+  const [unlockModal, setUnlockModal] = useState<{ serial: string; latestStatus: string | null } | null>(
+    null,
+  );
 
   // Auto-setup réussi : l'instantané n'a plus lieu d'être → on l'efface pour ne
   // pas re-restaurer une config périmée au prochain passage dans l'étape 3.
@@ -1020,6 +1030,21 @@ export default function AutoSetupStep({
       {result?.error && (
         <div className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
           <p>{result.error}</p>
+          {result.serialLocked && result.serial && (
+            <button
+              type="button"
+              onClick={async () => {
+                const serial = result.serial!;
+                const status = await getSerialUnlockStatus(serial).catch(() => ({
+                  latestStatus: null,
+                }));
+                setUnlockModal({ serial, latestStatus: status.latestStatus });
+              }}
+              className="mt-2 inline-flex items-center rounded-md bg-brand-deep px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+            >
+              Demander le déblocage
+            </button>
+          )}
           {result.log && (
             <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-err/80">
               {result.log.map((line, i) => (
@@ -1028,6 +1053,16 @@ export default function AutoSetupStep({
             </ul>
           )}
         </div>
+      )}
+
+      {unlockModal && (
+        <SerialUnlockRequestModal
+          open
+          serial={unlockModal.serial}
+          routerId={routerId}
+          latestStatus={unlockModal.latestStatus}
+          onClose={() => setUnlockModal(null)}
+        />
       )}
       {result?.firmwareUpdating && (
         <p className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-warn">{result.message}</p>

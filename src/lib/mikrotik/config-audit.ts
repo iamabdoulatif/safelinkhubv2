@@ -17,7 +17,7 @@ export type ConfigAuditItem = {
   detail?: string;
 };
 
-const CONTAINER_NAME = "mikhmonv3-safelinkhub:latest";
+const CONTAINER_NAME = "mikhmon-sf-v1:latest";
 const DOCKER_BRIDGE_NAME = ROUTER_SETUP_PROFILE.containerBridge.name;
 const VETH_NAME = ROUTER_SETUP_PROFILE.containerBridge.vethName;
 

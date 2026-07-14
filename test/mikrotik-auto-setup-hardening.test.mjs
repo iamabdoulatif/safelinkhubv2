@@ -7,11 +7,15 @@ const containerSetupSource = () =>
 const mikhmonTunnelAccessSource = () =>
   readFile(new URL("../src/lib/mikrotik/mikhmon-tunnel-access.ts", import.meta.url), "utf8");
 
-test("auto-setup targets the audited MikHmon v3 container image", async () => {
+test("auto-setup installs the mikhmon-sf-v1 image and cleans up the legacy v3 container", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /mikhmonv3-safelinkhub:latest/);
-  assert.doesNotMatch(source, /latif225\/mikhmon-sf-v1:latest/);
+  // Active image (operator's explicit choice): latif225/mikhmon-sf-v1:latest.
+  assert.match(source, /REMOTE_IMAGE = "latif225\/mikhmon-sf-v1:latest"/);
+  assert.match(source, /CONTAINER_NAME = "mikhmon-sf-v1:latest"/);
+  // The previous v3 container must still be referenced so it is removed as a
+  // legacy container during provisioning (in-place migration).
+  assert.match(source, /LEGACY_CONTAINER_NAMES = \["mikhmonv3-safelinkhub:latest"\]/);
 });
 
 test("MikHmon container commands only use RouterOS 7.23 supported properties and fail fast", async () => {
