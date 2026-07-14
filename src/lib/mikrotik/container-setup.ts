@@ -68,9 +68,13 @@ const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
 const DOCKER_NETWORK = "11.11.11.0/28";
-const CONTAINER_NAME = "mikhmonv3-safelinkhub:latest";
-const LEGACY_CONTAINER_NAMES = ["mikhmon-sf-v1:latest"];
-const REMOTE_IMAGE = "latif225/mikhmonv3-safelinkhub:latest";
+// Image MikHmon installée par l'auto-setup. Repassée à mikhmon-sf-v1 (choix
+// explicite de l'opérateur) : image multi-arch (arm/v6+v7, arm64, amd64), ~12 Mo,
+// qui tient dans le tmpfs des petits boards (hAP ax lite/ax²). L'ancienne v3
+// devient legacy → nettoyée au provisioning.
+const CONTAINER_NAME = "mikhmon-sf-v1:latest";
+const LEGACY_CONTAINER_NAMES = ["mikhmonv3-safelinkhub:latest"];
+const REMOTE_IMAGE = "latif225/mikhmon-sf-v1:latest";
 const NTP_SERVERS = ["196.200.131.160", "196.10.52.57"]; // Côte d'Ivoire NTP
 
 function rosBoolean(value: string | undefined) {
@@ -398,16 +402,30 @@ async function provisionDockerStack(
         ["MIKHMON_CURRENCY", s.currency],
       ];
       let added = 0;
+      let envFailed = false;
       for (const [key, value] of pairs) {
         if (!value) continue;
         const envAdded = await run(
           ["/container/envs/add", `=list=${MIKHMON_ENVLIST}`, `=key=${key}`, `=value=${value}`],
           `MikHmon env ${key}`,
         );
-        if (!envAdded.ok) return { status: "failed", message: envAdded.error };
+        if (!envAdded.ok) {
+          // Certains builds du paquet container (RouterOS 7.23.x sur les petits
+          // boards) n'exposent pas /container/envs : impossible de pré-remplir
+          // la « Paramètres de session ». On n'échoue PAS l'install pour autant —
+          // le conteneur s'installe quand même (sans =envlist=) et l'admin saisit
+          // la session MikHmon à la main. Même logique que le fallback envlist.
+          log.push(
+            `WARN: impossible de pré-remplir la session MikHmon (${envAdded.error}) — à configurer manuellement.`,
+          );
+          envFailed = true;
+          break;
+        }
         added++;
       }
-      if (added > 0) mikhmonEnvlist = MIKHMON_ENVLIST;
+      // On ne pose =envlist= que si TOUTES les variables ont été écrites : une
+      // session à moitié remplie serait pire que pas de pré-remplissage du tout.
+      if (added > 0 && !envFailed) mikhmonEnvlist = MIKHMON_ENVLIST;
     }
 
     const containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
@@ -415,31 +433,47 @@ async function provisionDockerStack(
       (container) =>
         container.name === CONTAINER_NAME || container["root-dir"] === containerRootDir,
     );
+    // Le paramètre =envlist= (pré-remplissage de la session MikHmon via l'envlist
+    // "mikhmon") est documenté sur /container/add|set, mais certains builds du
+    // paquet container (vu sur RouterOS 7.23.1, hAP ax lite) le REJETTENT avec
+    // « unknown parameter envlist » et font échouer toute l'install. On l'essaie
+    // donc puis, si RouterOS ne le connaît pas, on réinstalle SANS : le conteneur
+    // s'installe quand même, la session MikHmon se configure alors à la main
+    // (l'envlist reste posé, réutilisé par les routeurs dont le build le gère).
+    const ENVLIST_UNSUPPORTED = /envlist/i;
     if (existingContainer?.[".id"]) {
-      const containerUpdated = await run(
-        [
-          "/container/set",
-          `=numbers=${existingContainer[".id"]}`,
-          "=start-on-boot=yes",
-          ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
-        ],
+      const baseSet = ["/container/set", `=numbers=${existingContainer[".id"]}`, "=start-on-boot=yes"];
+      let containerUpdated = await run(
+        mikhmonEnvlist ? [...baseSet, `=envlist=${mikhmonEnvlist}`] : baseSet,
         "preserve existing MikHmon container download",
       );
+      if (!containerUpdated.ok && mikhmonEnvlist && ENVLIST_UNSUPPORTED.test(containerUpdated.error)) {
+        log.push(
+          "WARN: cette version de RouterOS ignore =envlist= sur /container/set — session MikHmon à configurer manuellement.",
+        );
+        containerUpdated = await run(baseSet, "preserve existing MikHmon container download (sans envlist)");
+      }
       if (!containerUpdated.ok) return { status: "failed", message: containerUpdated.error };
       log.push("OK: existing MikHmon container download preserved");
     } else {
-      const containerAdded = await run(
-        [
-          "/container/add",
-          `=interface=${VETH_NAME}`,
-          `=name=${CONTAINER_NAME}`,
-          `=remote-image=${REMOTE_IMAGE}`,
-          `=root-dir=${containerRootDir}`,
-          "=start-on-boot=yes",
-          ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
-        ],
+      const baseAdd = [
+        "/container/add",
+        `=interface=${VETH_NAME}`,
+        `=name=${CONTAINER_NAME}`,
+        `=remote-image=${REMOTE_IMAGE}`,
+        `=root-dir=${containerRootDir}`,
+        "=start-on-boot=yes",
+      ];
+      let containerAdded = await run(
+        mikhmonEnvlist ? [...baseAdd, `=envlist=${mikhmonEnvlist}`] : baseAdd,
         "container image install (auto-start on boot enabled)",
       );
+      if (!containerAdded.ok && mikhmonEnvlist && ENVLIST_UNSUPPORTED.test(containerAdded.error)) {
+        log.push(
+          "WARN: cette version de RouterOS ignore =envlist= sur /container/add — installation sans pré-remplissage de la session MikHmon (à configurer manuellement).",
+        );
+        containerAdded = await run(baseAdd, "container image install (sans envlist)");
+      }
       if (!containerAdded.ok) {
         return { status: "failed", message: containerAdded.error };
       }

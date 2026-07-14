@@ -13,93 +13,93 @@ import type { RouterOSClient } from "./client";
 
 export const WALLED_GARDEN_COMMENT = "safelinkhub-walled-garden";
 
-// Domaines de paiement autorisés (hors app SafeLinkHub). On liste les hôtes
-// vers lesquels le checkout redirige le navigateur du client :
-// - GeniusPay héberge le checkout (pay.genius.ci) ;
-// - Wave : redirection vers wave.com (doc GeniusPay) ;
-// - Orange Money Web Payment : webpayment.orange-money.com (+ variantes
-//   sandbox / *.orange.ci pour la CI) ;
-// - Moov Money (Moov Africa) : page de validation web hébergée sous
-//   moov-africa.ci / .com selon le pays → whitelistée par sécurité.
+// Catalogue des hôtes de paiement autorisés (hors app SafeLinkHub), groupés par
+// rail. Ce catalogue alimente l'écran « Walled-garden » (Paramètres) où l'admin
+// coche/décoche chaque hôte à installer. L'app SafeLinkHub, elle, est TOUJOURS
+// déployée (jamais listée ici, donc jamais désactivable). On liste les hôtes
+// vers lesquels le checkout redirige le navigateur du client.
 // NON listé : cartes (Visa/Mastercard) — 3-D Secure redirige vers l'ACS de la
 // banque émettrice (domaine arbitraire), non whitelistable derrière un portail
 // captif. MTN MoMo reste purement USSD/OTP (aucune page web à autoriser).
-export const PAYMENT_WALLED_GARDEN_HOSTS = [
-  // GeniusPay : API sur pay.genius.ci, mais le CHECKOUT (où le client est
-  // redirigé) est servi sur geniuspay.ci — domaine distinct, à autoriser aussi.
-  "pay.genius.ci",
-  "*.genius.ci",
-  "geniuspay.ci",
-  "*.geniuspay.ci",
-  // CDN d'assets de la page de checkout GeniusPay (sinon page cassée : le CSS
-  // Tailwind, les libs JS et les polices sont chargés depuis ces domaines).
-  "cdn.tailwindcss.com",
-  "cdn.jsdelivr.net",
-  "fonts.googleapis.com",
-  "fonts.gstatic.com",
-  // Paystack : GeniusPay délègue l'ENCAISSEMENT à Paystack (checkout + widget
-  // JS). Sans ces domaines, seul Orange Money (géré à part) marche ; Wave, MTN,
-  // Moov et carte — tous servis via Paystack — échouent au portail captif.
-  "paystack.com",
-  "*.paystack.com",
-  "paystack.co",
-  "*.paystack.co",
-  // Wave
-  "wave.com",
-  "*.wave.com",
-  // Orange Money
-  "webpayment.orange-money.com",
-  "*.orange-money.com",
-  "*.orange.ci",
-  // Moov Money (Moov Africa)
-  "moov-africa.ci",
-  "*.moov-africa.ci",
-  "*.moov-africa.com",
-  // Paystack (carte bancaire) : page de saisie checkout.paystack.com + API.
-  // NB : le 3-D Secure peut rediriger vers l'ACS de la banque (domaine
-  // arbitraire, non whitelistable) → les cartes 3DS peuvent échouer sur captif ;
-  // les cartes sans 3DS passent. Le repli « ouvrir dans le navigateur » aide.
-  "checkout.paystack.com",
-  "*.paystack.com",
-  "*.paystack.co",
+export type WalledGardenGroup = {
+  /** Libellé du rail affiché dans l'écran de sélection. */
+  group: string;
+  /** Aide contextuelle (une phrase) affichée sous le titre du groupe. */
+  description: string;
+  hosts: string[];
+};
+
+export const WALLED_GARDEN_CATALOG: WalledGardenGroup[] = [
+  {
+    group: "GeniusPay (checkout)",
+    description:
+      "API sur pay.genius.ci, checkout servi sur geniuspay.ci — les deux domaines sont requis pour que la page de paiement s'ouvre.",
+    hosts: ["pay.genius.ci", "*.genius.ci", "geniuspay.ci", "*.geniuspay.ci"],
+  },
+  {
+    group: "Assets du checkout (CDN & polices)",
+    description:
+      "CSS Tailwind, libs JS et polices chargés par la page GeniusPay. Sans eux, le checkout s'affiche cassé.",
+    hosts: ["cdn.tailwindcss.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"],
+  },
+  {
+    group: "Paystack (agrégateur)",
+    description:
+      "GeniusPay délègue l'encaissement à Paystack (Wave, MTN, Moov, carte). Sans ces domaines, seul Orange Money passe. NB : le 3-D Secure carte peut rediriger hors whitelist.",
+    hosts: ["paystack.com", "*.paystack.com", "paystack.co", "*.paystack.co", "checkout.paystack.com"],
+  },
+  {
+    group: "Wave",
+    description: "Redirection directe vers wave.com depuis le checkout.",
+    hosts: ["wave.com", "*.wave.com"],
+  },
+  {
+    group: "Orange Money",
+    description: "Orange Money Web Payment (+ variantes CI *.orange.ci).",
+    hosts: ["webpayment.orange-money.com", "*.orange-money.com", "*.orange.ci"],
+  },
+  {
+    group: "Moov Money (Moov Africa)",
+    description: "Page de validation web Moov Africa (.ci / .com selon le pays).",
+    hosts: ["moov-africa.ci", "*.moov-africa.ci", "*.moov-africa.com"],
+  },
 ];
 
-// Hôtes de DÉTECTION de portail captif d'Apple (iOS / macOS). En les autorisant,
-// la sonde iOS (http://captive.apple.com/hotspot-detect.html) atteint Apple et
-// reçoit sa vraie page « Success » → iOS considère le réseau comme EN LIGNE et
-// n'ouvre PAS son mini-navigateur (CNA), bridé et incapable d'afficher le
-// checkout Paystack / 3-D Secure. Le client ouvre alors Safari lui-même
-// (n'importe quel site http est redirigé vers le portail, dans le VRAI Safari où
-// le paiement marche). C'est le remplaçant du schéma x-safari-https:// (peu
-// fiable selon la version d'iOS).
-//
-// Compromis ASSUMÉ : plus de pop-up automatique sur iPhone → il faut guider le
-// client (« Connectez-vous au WiFi, puis ouvrez Safari »).
-//
-// ⚠️ iOS UNIQUEMENT. On n'ajoute PAS les hôtes de sonde Android
-// (connectivitycheck.gstatic.com) ni Windows (msftconnecttest.com) : là le
-// portail s'ouvre déjà dans un vrai navigateur et le paiement fonctionne — les
-// neutraliser casserait ce qui marche. On évite aussi le joker *.apple.com pour
-// ne pas offrir App Store / iCloud gratuits ; on liste les hôtes de sonde connus
-// (versions iOS actuelles + héritées).
-export const APPLE_CAPTIVE_DETECTION_HOSTS = [
-  "captive.apple.com",
-  "www.apple.com",
-  "www.appleiphonecell.com",
-  "www.itools.info",
-  "www.ibook.info",
-  "www.airport.us",
-  "www.thinkdifferent.us",
+// Liste plate dédoublonnée des hôtes de paiement, dérivée du catalogue —
+// l'ensemble complet potentiellement installable (avant filtrage par org).
+export const PAYMENT_WALLED_GARDEN_HOSTS: string[] = [
+  ...new Set(WALLED_GARDEN_CATALOG.flatMap((g) => g.hosts)),
 ];
 
-/** Ensemble complet du walled-garden pour une install : app + paiement + sonde captive Apple. */
-export function walledGardenHosts(appHost: string): string[] {
-  const hosts = [
-    appHost,
-    `*.${appHost}`,
-    ...PAYMENT_WALLED_GARDEN_HOSTS,
-    ...APPLE_CAPTIVE_DETECTION_HOSTS,
-  ];
+// ⚠️ NE PAS whitelister les hôtes de DÉTECTION de portail captif d'Apple
+// (captive.apple.com, www.apple.com, www.appleiphonecell.com, www.itools.info,
+// www.ibook.info, www.airport.us, www.thinkdifferent.us).
+//
+// Pourquoi : la sonde iOS interroge http://captive.apple.com/hotspot-detect.html
+// dès la connexion Wi-Fi. Si elle est INTERCEPTÉE par le hotspot (redirigée vers
+// la page de login), iOS ouvre AUTOMATIQUEMENT son mini-navigateur (CNA) → le
+// portail « jaillit » tout seul sur l'iPhone. Si au contraire on autorise ces
+// hôtes, la sonde atteint Apple, reçoit sa vraie page « Success », iOS croit le
+// réseau EN LIGNE et n'ouvre RIEN. C'est le comportement voulu : auto-pop.
+//
+// Le mini-navigateur CNA gère mal le checkout Paystack / 3-D Secure, MAIS le
+// portail ouvre désormais le checkout dans un NOUVEL onglet (échappe au CNA vers
+// le vrai Safari) — donc plus besoin du contournement « whitelister Apple » qui
+// supprimait le pop-up. On récupère les deux : portail auto-affiché + paiement.
+//
+// (Android connectivitycheck.gstatic.com / Windows msftconnecttest.com ne sont
+// pas non plus whitelistés — même logique : là le portail s'ouvre déjà seul.)
+
+/**
+ * Ensemble complet du walled-garden pour une install : app + hôtes de paiement
+ * NON désactivés par l'org. `disabledHosts` = hôtes explicitement décochés dans
+ * Paramètres → Walled-garden. L'app SafeLinkHub reste TOUJOURS incluse (elle
+ * n'est jamais dans le catalogue, donc jamais filtrable).
+ */
+export function walledGardenHosts(appHost: string, disabledHosts: string[] = []): string[] {
+  const disabled = new Set(disabledHosts);
+  const payment = PAYMENT_WALLED_GARDEN_HOSTS.filter((host) => !disabled.has(host));
+  const hosts = [appHost, `*.${appHost}`, ...payment];
   // Dédoublonne en préservant l'ordre (appHost pourrait recouper un motif).
   return [...new Set(hosts.filter(Boolean))];
 }
@@ -108,8 +108,8 @@ export function walledGardenHosts(appHost: string): string[] {
  * Bloc de script RouterOS (bootstrap) : purge les entrées gérées par leur
  * commentaire puis les ré-ajoute — idempotent à chaque bootstrap.
  */
-export function walledGardenScriptLines(appHost: string): string {
-  const adds = walledGardenHosts(appHost)
+export function walledGardenScriptLines(appHost: string, disabledHosts: string[] = []): string {
+  const adds = walledGardenHosts(appHost, disabledHosts)
     .map(
       (h) =>
         `/ip hotspot walled-garden add dst-host="${h}" action=allow comment="${WALLED_GARDEN_COMMENT}"`,
@@ -142,16 +142,20 @@ export async function reconcileWalledGardenOnce(
   client: RouterOSClient,
   appHost: string,
   routerId: string,
+  disabledHosts: string[] = [],
 ): Promise<void> {
-  const key = walledGardenHosts(appHost).join(",");
+  // La clé inclut la liste effective : décocher un hôte dans Paramètres change
+  // la clé → le routeur est re-réconcilié UNE fois à sa prochaine sync.
+  const key = walledGardenHosts(appHost, disabledHosts).join(",");
   if (reconciledRouters.get(routerId) === key) return;
-  await ensureWalledGarden(client, appHost);
+  await ensureWalledGarden(client, appHost, disabledHosts);
   reconciledRouters.set(routerId, key); // marqué seulement si ensureWalledGarden n'a pas levé
 }
 
 export async function ensureWalledGarden(
   client: RouterOSClient,
   appHost: string,
+  disabledHosts: string[] = [],
   timeoutMs = 15000,
 ): Promise<{ added: string[] }> {
   const existing = await client
@@ -166,7 +170,7 @@ export async function ensureWalledGarden(
     }
   }
   const added: string[] = [];
-  for (const host of walledGardenHosts(appHost)) {
+  for (const host of walledGardenHosts(appHost, disabledHosts)) {
     try {
       await client.talk(
         [

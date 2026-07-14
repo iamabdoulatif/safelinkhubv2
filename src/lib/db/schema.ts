@@ -34,6 +34,16 @@ export const organizations = pgTable("organizations", {
   // the default trial would still be active.
   vpnQuotaMode: text("vpn_quota_mode").notNull().default("default"),
   vpnQuotaExpiresAt: timestamp("vpn_quota_expires_at"),
+  // Walled-garden : hôtes de paiement que l'admin a EXPLICITEMENT décochés dans
+  // Paramètres → Walled-garden. Tableau JSON de dst-host (motifs du catalogue,
+  // ex. "wave.com", "*.paystack.com"). Vide = tous installés (comportement
+  // historique, rétro-compatible). L'app SafeLinkHub n'y figure jamais : elle
+  // est toujours déployée. Lu par les 3 chemins d'install (script bootstrap,
+  // sync routeur, assignation de portail) via getOrgWalledGardenDisabledHosts.
+  walledGardenDisabledHosts: jsonb("walled_garden_disabled_hosts")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
 });
 
 export const users = pgTable("users", {

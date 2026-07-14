@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { bridges, organizations, routers } from "@/lib/db/schema";
 import { hashToken } from "@/lib/mikrotik/install-token";
 import { walledGardenScriptLines } from "@/lib/mikrotik/walled-garden";
+import { getOrgWalledGardenDisabledHosts } from "@/lib/mikrotik/walled-garden-config";
 
 function buildBootstrapScript(opts: {
   appHost: string;
@@ -12,11 +13,12 @@ function buildBootstrapScript(opts: {
   bootstrapToken: string;
   bridgeName: string;
   gatewayIp: string;
+  disabledWalledGardenHosts: string[];
 }) {
   return `# SafeLinkHub hotspot bootstrap - auto-generated, do not edit
 :log info "*** SafeLinkHub Bootstrap Starting ***"
 
-${walledGardenScriptLines(opts.appHost)}
+${walledGardenScriptLines(opts.appHost, opts.disabledWalledGardenHosts)}
 
 :log info "Walled garden entries deployed"
 
@@ -93,6 +95,7 @@ export async function GET(
     bootstrapToken: token,
     bridgeName: bridge.name,
     gatewayIp: bridge.gatewayIp,
+    disabledWalledGardenHosts: await getOrgWalledGardenDisabledHosts(org.id),
   });
 
   return new Response(script, {

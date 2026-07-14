@@ -4,6 +4,7 @@ import { routers, routerPortForwards } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry, ensureRouterPortForwards } from "./relay";
 import { reconcileWalledGardenOnce } from "./walled-garden";
+import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { enforceRouterSerialOnSync } from "./router-serial-lock";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
@@ -218,7 +219,12 @@ export async function syncRouterStats(
     // routeur (déjà en service comme neuf) : au plus une fois par process tant
     // que la liste d'hôtes ne change pas. Réutilise la connexion courante.
     try {
-      await reconcileWalledGardenOnce(client, new URL(getAppUrl()).host, routerId);
+      await reconcileWalledGardenOnce(
+        client,
+        new URL(getAppUrl()).host,
+        routerId,
+        await getOrgWalledGardenDisabledHosts(router.orgId),
+      );
     } catch {
       // Non-fatal — réessayé au prochain sync (routeur sans hotspot, hiccup API).
     }

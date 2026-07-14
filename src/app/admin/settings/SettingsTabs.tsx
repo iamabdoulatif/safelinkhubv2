@@ -14,6 +14,7 @@ const TABS = [
   { href: "/admin/settings/router-setup", label: "Configuration routeur" },
   { href: "/admin/settings/payment-gateways", label: "Passerelles de paiement" },
   { href: "/admin/settings/captive-templates", label: "Portail captif" },
+  { href: "/admin/settings/walled-garden", label: "Walled-garden" },
   { href: "/admin/settings/sms", label: "SMS" },
   { href: "/admin/billing", label: "Abonnement" },
   { href: "/admin/settings/advanced", label: "Avancé" },
