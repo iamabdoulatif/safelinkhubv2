@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations, captiveTemplates, walletTransactions, packages, bridges } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
@@ -1917,6 +1917,30 @@ export async function provisionHotspotStack(
           durationUnit: pkg.durationUnit,
         });
         log.push(`OK: forfait "${pkg.name}" créé sur la page Forfaits.`);
+      }
+    }
+
+    // Le formulaire de l'auto-setup est la SOURCE DE VÉRITÉ des forfaits : après
+    // avoir upserté la liste saisie, on RETIRE les forfaits de l'org qui n'y
+    // sont plus (anciens presets/profils d'un run précédent). Sans ça ils
+    // s'empilaient et le portail affichait des doublons (ex. « 07 Jours » ET
+    // « 01 Semaine » tous deux à 700 F). Les FK vouchers/portalOrders sont en
+    // onDelete:"set null" → aucune violation, les commandes passées restent.
+    // On ne prune QUE si une liste EXPLICITE et NON VIDE est fournie : liste
+    // absente = ancien appelant (on ne touche à rien) ; liste vide = on ne wipe
+    // pas tout par sécurité (le wizard exige de toute façon ≥1 profil).
+    if (opts.packagesToSync && opts.packagesToSync.length > 0) {
+      const keepNames = opts.packagesToSync.map((p) => p.name);
+      const pruned = await db
+        .delete(packages)
+        .where(and(eq(packages.orgId, org.id), notInArray(packages.name, keepNames)))
+        .returning({ name: packages.name });
+      if (pruned.length > 0) {
+        log.push(
+          `OK: ${pruned.length} ancien(s) forfait(s) retiré(s) (absents de l'auto-setup) : ${pruned
+            .map((p) => p.name)
+            .join(", ")}.`,
+        );
       }
     }
 
