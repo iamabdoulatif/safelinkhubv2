@@ -37,6 +37,22 @@ test("MikHmon install retries without envlist only on RouterOS envlist incompati
   assert.match(source, /container image install \(without session auto-configuration\)/);
 });
 
+test("auto-setup reconciles existing WAN/LAN interface lists before adding members", async () => {
+  const source = await containerSetupSource();
+  const interfaceListSection = source.slice(
+    source.indexOf("existingInterfaceLists"),
+    source.indexOf("// =numbers= only resolves"),
+  );
+
+  assert.match(source, /getMissingInterfaceListNames/);
+  assert.match(source, /getMissingInterfaceListMembers/);
+  assert.match(source, /\/interface\/list\/print/);
+  assert.match(source, /\/interface\/list\/member\/print/);
+  assert.match(interfaceListSection, /FAIL \(read interface lists\)/);
+  assert.match(interfaceListSection, /FAIL \(read interface list members\)/);
+  assert.doesNotMatch(interfaceListSection, /\.catch\(\(\) => \[\] as Sentence\[\]\)/);
+});
+
 test("auto-setup migrates legacy Docker bridge names before assigning the Docker gateway", async () => {
   const source = await containerSetupSource();
 

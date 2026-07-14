@@ -30,6 +30,10 @@ import { getWalletBalanceCents } from "@/lib/wallet/actions";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { isUnsupportedEnvlistError, withoutEnvlist } from "./container-envlist";
+import {
+  getMissingInterfaceListMembers,
+  getMissingInterfaceListNames,
+} from "./interface-list-reconciliation";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -1092,17 +1096,68 @@ export async function provisionHotspotStack(
       await client.talk(["/interface/bridge/remove", `=numbers=${staleBridgeName}`]).catch(() => {});
     }
 
-    // Interface lists (WAN / LAN) used for NAT/firewall scoping.
-    await run(["/interface/list/add", "=name=WAN"], "WAN interface list");
-    await run(["/interface/list/add", "=name=LAN"], "LAN interface list");
-    await run(
-      ["/interface/list/member/add", `=interface=${WAN_INTERFACE_NAME}`, "=list=WAN"],
-      "WAN list member",
+    // Interface lists (WAN / LAN) used for NAT/firewall scoping. RouterOS
+    // keeps these entries between runs and refuses duplicate adds, so read
+    // the full state first and create only what is missing. A single
+    // interface can legitimately belong to several lists, hence membership
+    // is matched on the (list, interface) pair rather than interface alone.
+    let existingInterfaceLists: Sentence[];
+    try {
+      existingInterfaceLists = await client.talk(["/interface/list/print"]);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : "error";
+      log.push(`FAIL (read interface lists): ${error}`);
+      return {
+        error: `Impossible de lire les listes d'interfaces RouterOS : ${error}`,
+        log,
+      };
+    }
+
+    let existingInterfaceListMembers: Sentence[];
+    try {
+      existingInterfaceListMembers = await client.talk(["/interface/list/member/print"]);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : "error";
+      log.push(`FAIL (read interface list members): ${error}`);
+      return {
+        error: `Impossible de lire les membres des listes d'interfaces RouterOS : ${error}`,
+        log,
+      };
+    }
+    const requiredListNames = ["WAN", "LAN"];
+    const missingListNames = new Set(
+      getMissingInterfaceListNames(existingInterfaceLists, requiredListNames),
     );
-    await run(
-      ["/interface/list/member/add", `=interface=${bridgeName}`, "=list=LAN"],
-      "LAN list member",
+    for (const listName of requiredListNames) {
+      if (missingListNames.has(listName)) {
+        await run(["/interface/list/add", `=name=${listName}`], `${listName} interface list`);
+      } else {
+        log.push(`OK: ${listName} interface list already exists`);
+      }
+    }
+
+    const requiredListMembers = [
+      { list: "WAN", interface: WAN_INTERFACE_NAME },
+      { list: "LAN", interface: bridgeName },
+    ];
+    const missingListMembers = getMissingInterfaceListMembers(
+      existingInterfaceListMembers,
+      requiredListMembers,
     );
+    for (const member of requiredListMembers) {
+      const isMissing = missingListMembers.some(
+        (candidate) =>
+          candidate.list === member.list && candidate.interface === member.interface,
+      );
+      if (isMissing) {
+        await run(
+          ["/interface/list/member/add", `=interface=${member.interface}`, `=list=${member.list}`],
+          `${member.list} list member`,
+        );
+      } else {
+        log.push(`OK: ${member.list} list member already exists`);
+      }
+    }
 
     // =numbers= only resolves to a real .id for menus where RouterOS
     // exposes a unique "name"-like property (bridges, schedulers, ...) —
