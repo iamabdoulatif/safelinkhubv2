@@ -46,3 +46,15 @@ test("topology bridge save does not create a provisional RouterOS hotspot server
   assert.doesNotMatch(source, /\$\{name\}-hotspot/);
   assert.match(source, /values\.bootstrapStatus = "pending"/);
 });
+
+test("saving the canonical bridge updates its existing row instead of creating a duplicate", async () => {
+  const source = await readFile(new URL("../src/lib/mikrotik/bridges.ts", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../src/lib/db/schema.ts", import.meta.url), "utf8");
+
+  assert.match(
+    source,
+    /and\(eq\(bridges\.routerId, routerId\), eq\(bridges\.name, name\)\)/,
+  );
+  assert.match(source, /db\.update\(bridges\)\.set\(values\)/);
+  assert.match(schema, /uniqueIndex\("bridges_router_name_idx"\)\.on\(t\.routerId, t\.name\)/);
+});

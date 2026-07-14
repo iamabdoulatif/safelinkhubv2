@@ -14,6 +14,20 @@ test("auto-setup targets the audited MikHmon v3 container image", async () => {
   assert.doesNotMatch(source, /latif225\/mikhmon-sf-v1:latest/);
 });
 
+test("MikHmon container commands only use RouterOS 7.23 supported properties and fail fast", async () => {
+  const source = await containerSetupSource();
+
+  // RouterOS documents tmpdir on /container/config and root-dir on
+  // /container/add. layer-dir is not a supported property on either command.
+  assert.doesNotMatch(source, /=layer-dir=/);
+  // /container/envs identifies a variable list with `list`, not `name`.
+  assert.match(source, /\/container\/envs\/add", `=list=\$\{MIKHMON_ENVLIST\}`/);
+  // Never wait three minutes for an image if /container/add was rejected.
+  assert.match(source, /if \(!containerAdded\.ok\)/);
+  // Do not continue to the pull when the temporary storage cannot exist.
+  assert.match(source, /if \(!tmpfsCreated\.ok\)/);
+});
+
 test("auto-setup migrates legacy Docker bridge names before assigning the Docker gateway", async () => {
   const source = await containerSetupSource();
 
@@ -31,11 +45,11 @@ test("auto-setup repairs MikHmon tunnel access and removes duplicate legacy Dock
   assert.match(helper, /MIKHMON_TUNNEL_INTERFACES/);
 });
 
-test("USB container installs use USB paths instead of internal flash layer paths", async () => {
+test("USB container installs use USB root and temporary pull paths", async () => {
   const source = await containerSetupSource();
 
   assert.match(source, /const usbRootDir = "usb1\/mikhmon-app"/);
-  assert.match(source, /const usbLayerDir = "usb1\/mikhmon-layers"/);
+  assert.match(source, /=tmpdir=usb1\/pull/);
   assert.doesNotMatch(source, /\/flash\/mikhmon/);
 });
 

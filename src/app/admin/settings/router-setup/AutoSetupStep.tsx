@@ -396,6 +396,7 @@ export default function AutoSetupStep({
     log?: string[];
     firmwareUpdating?: boolean;
     message?: string;
+    containerPending?: boolean;
   } | null>(null);
 
   // Auto-setup réussi : l'instantané n'a plus lieu d'être → on l'efface pour ne
@@ -1017,7 +1018,16 @@ export default function AutoSetupStep({
       )}
 
       {result?.error && (
-        <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{result.error}</p>
+        <div className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+          <p>{result.error}</p>
+          {result.log && (
+            <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-err/80">
+              {result.log.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       {result?.firmwareUpdating && (
         <p className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-warn">{result.message}</p>
@@ -1025,8 +1035,9 @@ export default function AutoSetupStep({
       {result?.success && (
         <div className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-ok">
           <p className="font-medium">
-            Configuration appliquée. Le routeur redémarre — patientez ~1 minute avant de joindre
-            le portail.
+            {result.containerPending
+              ? "Configuration appliquée. MikHmon continue de se télécharger sur le routeur ; vérifiez son état dans une minute."
+              : "Configuration appliquée. Le routeur redémarre — patientez ~1 minute avant de joindre le portail."}
           </p>
           {result.log && (
             <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-ok/80">

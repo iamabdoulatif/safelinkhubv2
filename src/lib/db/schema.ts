@@ -237,26 +237,30 @@ export const smsGateways = pgTable("sms_gateways", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const bridges = pgTable("bridges", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  routerId: uuid("router_id")
-    .notNull()
-    .references(() => routers.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  gatewayIp: text("gateway_ip").notNull(),
-  subnetBits: integer("subnet_bits").notNull().default(24),
-  ports: text("ports").array().notNull().default([]),
-  hotspotEnabled: boolean("hotspot_enabled").notNull().default(true),
-  preventSharing: boolean("prevent_sharing").notNull().default(true),
-  pppoeEnabled: boolean("pppoe_enabled").notNull().default(false),
-  bootstrapStatus: text("bootstrap_status").notNull().default("none"),
-  bootstrapTokenHash: text("bootstrap_token_hash"),
-  bootstrapTokenExpiresAt: timestamp("bootstrap_token_expires_at"),
-  captiveTemplateId: uuid("captive_template_id").references(() => captiveTemplates.id, {
-    onDelete: "set null",
-  }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const bridges = pgTable(
+  "bridges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    gatewayIp: text("gateway_ip").notNull(),
+    subnetBits: integer("subnet_bits").notNull().default(24),
+    ports: text("ports").array().notNull().default([]),
+    hotspotEnabled: boolean("hotspot_enabled").notNull().default(true),
+    preventSharing: boolean("prevent_sharing").notNull().default(true),
+    pppoeEnabled: boolean("pppoe_enabled").notNull().default(false),
+    bootstrapStatus: text("bootstrap_status").notNull().default("none"),
+    bootstrapTokenHash: text("bootstrap_token_hash"),
+    bootstrapTokenExpiresAt: timestamp("bootstrap_token_expires_at"),
+    captiveTemplateId: uuid("captive_template_id").references(() => captiveTemplates.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("bridges_router_name_idx").on(t.routerId, t.name)],
+);
 
 export const packages = pgTable("packages", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -111,17 +111,20 @@ async function migrateLegacyDockerBridge(client: RouterOSClient, log: string[]) 
 /**
  * /container/add returns immediately while RouterOS pulls the image in the
  * background. Poll /container/print until status leaves "downloading"/
- * "extracting", then start it. Gives up after ~3 minutes (large images on
- * slow WAN links) but start-on-boot=yes still guarantees it comes up on the
- * next reboot even if this attempt times out.
+ * "extracting", then start it. This deliberately stops after one minute:
+ * completing the pull can outlive an HTTP Server Action, while the container
+ * keeps downloading on the router and start-on-boot will start it later.
  */
-async function waitForImageAndStart(client: RouterOSClient, log: string[]) {
-  const maxAttempts = 36; // 36 * 5s = 3 minutes
+async function waitForImageAndStart(
+  client: RouterOSClient,
+  log: string[],
+): Promise<DockerProvisionResult> {
+  const maxAttempts = 12; // 12 * 5s = 1 minute
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await sleep(5000);
     let rows: Sentence[];
     try {
-      rows = await client.talk(["/container/print", `?name=${CONTAINER_NAME}`]);
+      rows = await client.talk(["/container/print"]);
     } catch {
       continue;
     }
@@ -135,28 +138,41 @@ async function waitForImageAndStart(client: RouterOSClient, log: string[]) {
       (container ? (container.running === "true" ? "running" : "stopped") : "");
 
     if (status === "stopped") {
+      if (!container?.[".id"]) {
+        log.push("FAIL (start container): RouterOS did not return a container ID");
+        return { status: "failed", message: "RouterOS did not return the MikHmon container ID." };
+      }
       try {
-        await client.talk(["/container/start", `=numbers=${CONTAINER_NAME}`]);
+        await client.talk(["/container/start", `=numbers=${container[".id"]}`]);
         log.push(`OK: started container after image pull (status was "${status}")`);
       } catch (err) {
-        log.push(
-          `SKIP (start container): ${err instanceof Error ? err.message : "error"}`,
-        );
+        const message = err instanceof Error ? err.message : "error";
+        log.push(`FAIL (start container): ${message}`);
+        return { status: "failed", message };
       }
-      return;
+      return { status: "pending", message: "MikHmon is starting on the router." };
     }
     if (status === "running") {
       log.push("OK: container already running");
-      return;
+      return { status: "ready" };
     }
     // "downloading" / "extracting" / "" (not yet reported) -> keep waiting.
   }
   log.push(
-    "SKIP (start container): image still pulling after 3 minutes — it will start automatically on the next reboot (start-on-boot=yes)",
+    "PENDING (start container): image is still downloading after one minute — RouterOS continues the pull in the background.",
   );
+  return {
+    status: "pending",
+    message: "L'image MikHmon est encore en cours de téléchargement sur le routeur.",
+  };
 }
 
-type RunFn = (words: string[], label: string, timeoutMs?: number) => Promise<void>;
+type RunResult = { ok: true } | { ok: false; error: string };
+type RunFn = (words: string[], label: string, timeoutMs?: number) => Promise<RunResult>;
+type DockerProvisionResult = {
+  status: "ready" | "pending" | "skipped" | "failed";
+  message?: string;
+};
 
 /**
  * The DOCKERS bridge + MIKHMON veth + container engine + MikHmon
@@ -194,7 +210,7 @@ async function provisionDockerStack(
       currency?: string;
     };
   },
-) {
+): Promise<DockerProvisionResult> {
   // The UI's own architecture/device-mode check (DetectedModelBadge) is
   // what sets opts.supportsContainers — but that detection runs once on
   // page load and can be stale or wrong (e.g. the admin enabled container
@@ -276,7 +292,6 @@ async function provisionDockerStack(
     // nor flash to spare and fall back to the RAM-backed tmpfs scratch
     // space.
     let containerRootDir = "tmp/mikhmon-app";
-    let containerLayerDir = "tmp/mikhmon-layers";
     if (opts.hasUsbStorage) {
       // RouterOS exposes a plugged-in USB stick as an unformatted /disk
       // entry (slot usb1) — /container/config's tmpdir=usb1/pull silently
@@ -301,13 +316,12 @@ async function provisionDockerStack(
       }
 
       const usbRootDir = "usb1/mikhmon-app";
-      const usbLayerDir = "usb1/mikhmon-layers";
       containerRootDir = usbRootDir;
-      containerLayerDir = usbLayerDir;
-      await run(
-        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${usbLayerDir}`],
+      const configured = await run(
+        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull"],
         "container engine config (USB storage)",
       );
+      if (!configured.ok) return { status: "failed", message: configured.error };
     } else {
       const disks = await client.talk(["/disk/print"]).catch(() => []);
       const internalDisk = disks.find(
@@ -324,31 +338,37 @@ async function provisionDockerStack(
         // formatting.
         const root = internalDisk?.slot ? `${internalDisk.slot}/` : "";
         containerRootDir = `${root}mikhmon-app`;
-        containerLayerDir = `${root}mikhmon-layers`;
-        await run(
+        const configured = await run(
           [
             "/container/config/set",
             "=registry-url=https://registry-1.docker.io",
             `=tmpdir=${root}pull`,
-            `=layer-dir=${containerLayerDir}`,
           ],
           `container engine config (stockage interne${internalDisk?.slot ? ` ${internalDisk.slot}` : ""})`,
         );
+        if (!configured.ok) return { status: "failed", message: configured.error };
       } else {
         if (!disks.some((d) => d.slot === "tmp")) {
-          await run(
+          const tmpfsCreated = await run(
             ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
             "tmpfs disk slot",
           );
+          if (!tmpfsCreated.ok) {
+            return {
+              status: "failed",
+              message: `MikHmon requires 150 MB of free RAM or external storage: ${tmpfsCreated.error}`,
+            };
+          }
         }
-        await run(
-          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull", `=layer-dir=${containerLayerDir}`],
+        const configured = await run(
+          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull"],
           "container engine config (tmpfs)",
         );
+        if (!configured.ok) return { status: "failed", message: configured.error };
       }
     }
 
-    for (const name of [CONTAINER_NAME, ...LEGACY_CONTAINER_NAMES]) {
+    for (const name of LEGACY_CONTAINER_NAMES) {
       await client.talk(["/container/remove", `=numbers=${name}`]).catch(() => {});
     }
 
@@ -361,7 +381,7 @@ async function provisionDockerStack(
     if (opts.mikhmonSession) {
       const s = opts.mikhmonSession;
       const existingEnvs = await client
-        .talk(["/container/envs/print", `?name=${MIKHMON_ENVLIST}`])
+        .talk(["/container/envs/print", `?list=${MIKHMON_ENVLIST}`])
         .catch(() => [] as Sentence[]);
       for (const e of existingEnvs) {
         if (e[".id"]) {
@@ -380,29 +400,52 @@ async function provisionDockerStack(
       let added = 0;
       for (const [key, value] of pairs) {
         if (!value) continue;
-        await run(
-          ["/container/envs/add", `=name=${MIKHMON_ENVLIST}`, `=key=${key}`, `=value=${value}`],
+        const envAdded = await run(
+          ["/container/envs/add", `=list=${MIKHMON_ENVLIST}`, `=key=${key}`, `=value=${value}`],
           `MikHmon env ${key}`,
         );
+        if (!envAdded.ok) return { status: "failed", message: envAdded.error };
         added++;
       }
       if (added > 0) mikhmonEnvlist = MIKHMON_ENVLIST;
     }
 
-    await run(
-      [
-        "/container/add",
-        `=interface=${VETH_NAME}`,
-        `=name=${CONTAINER_NAME}`,
-        `=remote-image=${REMOTE_IMAGE}`,
-        `=layer-dir=${containerLayerDir}`,
-        `=root-dir=${containerRootDir}`,
-        "=start-on-boot=yes",
-        ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
-      ],
-      "container image install (auto-start on boot enabled)",
+    const containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+    const existingContainer = containers.find(
+      (container) =>
+        container.name === CONTAINER_NAME || container["root-dir"] === containerRootDir,
     );
-    await waitForImageAndStart(client, log);
+    if (existingContainer?.[".id"]) {
+      const containerUpdated = await run(
+        [
+          "/container/set",
+          `=numbers=${existingContainer[".id"]}`,
+          "=start-on-boot=yes",
+          ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
+        ],
+        "preserve existing MikHmon container download",
+      );
+      if (!containerUpdated.ok) return { status: "failed", message: containerUpdated.error };
+      log.push("OK: existing MikHmon container download preserved");
+    } else {
+      const containerAdded = await run(
+        [
+          "/container/add",
+          `=interface=${VETH_NAME}`,
+          `=name=${CONTAINER_NAME}`,
+          `=remote-image=${REMOTE_IMAGE}`,
+          `=root-dir=${containerRootDir}`,
+          "=start-on-boot=yes",
+          ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
+        ],
+        "container image install (auto-start on boot enabled)",
+      );
+      if (!containerAdded.ok) {
+        return { status: "failed", message: containerAdded.error };
+      }
+    }
+    const containerResult = await waitForImageAndStart(client, log);
+    if (containerResult.status === "failed") return containerResult;
 
     // NAT: Docker subnet masquerade, remote-access dst-nat, and a second
     // dst-nat reachable via the hotspot gateway IP itself. Each checked
@@ -494,11 +537,17 @@ async function provisionDockerStack(
       );
     }
     await ensureMikhmonTunnelAccess(client, log);
+    return containerResult;
   } else if (!opts.supportsContainers) {
     log.push(
       "SKIP (MikHmon container): architecture does not support RouterOS Container — hotspot/WiFi configured, no container step run",
     );
   }
+
+  return {
+    status: "skipped",
+    message: "Le mode conteneur RouterOS n'est pas disponible ou n'est pas activé.",
+  };
 }
 
 export type HotspotStackOptions = {
@@ -785,8 +834,11 @@ export async function provisionHotspotStack(
     try {
       await client.talk(words, timeoutMs);
       log.push(`OK: ${label}`);
+      return { ok: true } as const;
     } catch (err) {
-      log.push(`SKIP (${label}): ${err instanceof Error ? err.message : "error"}`);
+      const error = err instanceof Error ? err.message : "error";
+      log.push(`FAIL (${label}): ${error}`);
+      return { ok: false, error } as const;
     }
   };
 
@@ -1611,7 +1663,7 @@ export async function provisionHotspotStack(
       );
     }
 
-    await provisionDockerStack(client, log, run, {
+    const containerSetup = await provisionDockerStack(client, log, run, {
       supportsContainers: opts.supportsContainers,
       hasUsbStorage: opts.hasUsbStorage,
       hasLargeOnboardStorage: opts.hasLargeOnboardStorage,
@@ -1632,6 +1684,16 @@ export async function provisionHotspotStack(
             }
           : undefined,
     });
+
+    if (
+      opts.supportsContainers &&
+      (containerSetup.status === "failed" || containerSetup.status === "skipped")
+    ) {
+      return {
+        error: `MikHmon n'a pas pu être installé : ${containerSetup.message ?? "le routeur a refusé une commande de conteneur."}`,
+        log,
+      };
+    }
 
 
     // Lock down unused management services. Winbox (8291), WebFig (www —
@@ -1951,7 +2013,11 @@ export async function provisionHotspotStack(
       await consumeAuthorization(gate.authorizationId);
     }
 
-    return { success: true, log };
+    return {
+      success: true,
+      containerPending: containerSetup.status === "pending",
+      log,
+    };
   } finally {
     client.close();
   }
