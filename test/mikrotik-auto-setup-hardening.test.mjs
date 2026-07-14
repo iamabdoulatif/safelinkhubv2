@@ -28,6 +28,15 @@ test("MikHmon container commands only use RouterOS 7.23 supported properties and
   assert.match(source, /if \(!tmpfsCreated\.ok\)/);
 });
 
+test("MikHmon install retries without envlist only on RouterOS envlist incompatibility", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /isUnsupportedEnvlistError/);
+  assert.match(source, /withoutEnvlist\(containerAddCommand\)/);
+  assert.match(source, /withoutEnvlist\(containerSetCommand\)/);
+  assert.match(source, /container image install \(without session auto-configuration\)/);
+});
+
 test("auto-setup migrates legacy Docker bridge names before assigning the Docker gateway", async () => {
   const source = await containerSetupSource();
 

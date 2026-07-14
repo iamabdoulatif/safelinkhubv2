@@ -29,6 +29,7 @@ import {
 import { getWalletBalanceCents } from "@/lib/wallet/actions";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
+import { isUnsupportedEnvlistError, withoutEnvlist } from "./container-envlist";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -416,32 +417,58 @@ async function provisionDockerStack(
         container.name === CONTAINER_NAME || container["root-dir"] === containerRootDir,
     );
     if (existingContainer?.[".id"]) {
+      const containerSetCommand = [
+        "/container/set",
+        `=numbers=${existingContainer[".id"]}`,
+        "=start-on-boot=yes",
+        ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
+      ];
       const containerUpdated = await run(
-        [
-          "/container/set",
-          `=numbers=${existingContainer[".id"]}`,
-          "=start-on-boot=yes",
-          ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
-        ],
+        containerSetCommand,
         "preserve existing MikHmon container download",
       );
-      if (!containerUpdated.ok) return { status: "failed", message: containerUpdated.error };
+      if (!containerUpdated.ok) {
+        if (mikhmonEnvlist && isUnsupportedEnvlistError(containerUpdated.error)) {
+          log.push(
+            "WARN: RouterOS rejects container envlist; preserving MikHmon without automatic session configuration.",
+          );
+          const fallbackUpdated = await run(
+            withoutEnvlist(containerSetCommand),
+            "preserve existing MikHmon container download (without session auto-configuration)",
+          );
+          if (!fallbackUpdated.ok) return { status: "failed", message: fallbackUpdated.error };
+        } else {
+          return { status: "failed", message: containerUpdated.error };
+        }
+      }
       log.push("OK: existing MikHmon container download preserved");
     } else {
+      const containerAddCommand = [
+        "/container/add",
+        `=interface=${VETH_NAME}`,
+        `=name=${CONTAINER_NAME}`,
+        `=remote-image=${REMOTE_IMAGE}`,
+        `=root-dir=${containerRootDir}`,
+        "=start-on-boot=yes",
+        ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
+      ];
       const containerAdded = await run(
-        [
-          "/container/add",
-          `=interface=${VETH_NAME}`,
-          `=name=${CONTAINER_NAME}`,
-          `=remote-image=${REMOTE_IMAGE}`,
-          `=root-dir=${containerRootDir}`,
-          "=start-on-boot=yes",
-          ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
-        ],
+        containerAddCommand,
         "container image install (auto-start on boot enabled)",
       );
       if (!containerAdded.ok) {
-        return { status: "failed", message: containerAdded.error };
+        if (mikhmonEnvlist && isUnsupportedEnvlistError(containerAdded.error)) {
+          log.push(
+            "WARN: RouterOS rejects container envlist; retrying MikHmon without automatic session configuration.",
+          );
+          const fallbackAdded = await run(
+            withoutEnvlist(containerAddCommand),
+            "container image install (without session auto-configuration)",
+          );
+          if (!fallbackAdded.ok) return { status: "failed", message: fallbackAdded.error };
+        } else {
+          return { status: "failed", message: containerAdded.error };
+        }
       }
     }
     const containerResult = await waitForImageAndStart(client, log);
