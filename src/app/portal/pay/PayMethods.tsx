@@ -5,12 +5,17 @@
 // redirige la MÊME fenêtre vers le checkout du rail.
 //
 // Deux choix : "wave" = redirection DIRECTE pay.wave.com (rapide, fiable dans le
-// mini-navigateur captif) ; "paystack" = page checkout.paystack.com (rail
-// Paystack) qui LISTE directement Wave / Orange / MTN (sans « Changer »). NB :
-// cette page Paystack n'inclut PAS Moov ni la carte — pour tout inclure il
-// faudrait la page hébergée geniuspay.ci (method="hosted", payment_method omis),
-// mais elle mène avec Wave + « Changer ». Choix produit (demande utilisateur) :
-// Paystack au checkout pour la liste directe des opérateurs.
+// mini-navigateur captif) ; "hosted" = page hébergée geniuspay.ci/checkout
+// (payment_method OMIS côté API) qui contient RÉELLEMENT tous les moyens et route
+// correctement chaque opérateur : Orange Money, MTN MoMo, Moov Money, Wave, carte
+// internationale (Stripe) et carte locale (Paystack). C'est le SEUL chemin qui
+// affiche les pages de redirection Orange / Moov / MTN : forcer un rail mobile-
+// money précis via l'API (orange_money/mtn_money/moov_money) retombe sur Wave
+// tant qu'il n'est pas activé côté marchand, et le rail "paystack" n'expose ni
+// Moov ni carte. La page hébergée ouvre sur Wave avec un lien « Changer » pour
+// choisir l'opérateur — un tap de plus, mais tous les rails sont réellement là.
+// Les domaines de redirection de chaque opérateur doivent être autorisés dans le
+// walled-garden (Paramètres → Walled-garden) pour s'ouvrir derrière le portail.
 //
 // Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
 // lourdes (checkout Wave/Paystack « pompe sur le logo »). D'où le repli « ouvrir
@@ -24,8 +29,14 @@ import { useEffect, useState } from "react";
 type Method = { id: string; label: string; sub: string; bg: string; fg: string };
 
 const METHODS: Method[] = [
-  { id: "wave", label: "Payer avec Wave", sub: "Mobile Money — rapide", bg: "#1dc4ff", fg: "#00263a" },
-  { id: "paystack", label: "Orange Money · MTN MoMo", sub: "Paiement mobile (Paystack)", bg: "#0f172a", fg: "#fff" },
+  { id: "wave", label: "Payer avec Wave", sub: "Redirection directe — rapide", bg: "#1dc4ff", fg: "#00263a" },
+  {
+    id: "hosted",
+    label: "Orange · MTN · Moov · Carte",
+    sub: "Tous les moyens (GeniusPay)",
+    bg: "#0f172a",
+    fg: "#fff",
+  },
 ];
 
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {

@@ -20,7 +20,9 @@ export const WALLED_GARDEN_COMMENT = "safelinkhub-walled-garden";
 // vers lesquels le checkout redirige le navigateur du client.
 // NON listé : cartes (Visa/Mastercard) — 3-D Secure redirige vers l'ACS de la
 // banque émettrice (domaine arbitraire), non whitelistable derrière un portail
-// captif. MTN MoMo reste purement USSD/OTP (aucune page web à autoriser).
+// captif. MTN MoMo direct reste surtout USSD/OTP (validation sur le téléphone,
+// sans page web) ; le groupe MTN ci-dessous ne sert que si une page MoMoPay web
+// est présentée, ou quand MTN est encaissé via un agrégateur (déjà couvert).
 export type WalledGardenGroup = {
   /** Libellé du rail affiché dans l'écran de sélection. */
   group: string;
@@ -49,6 +51,18 @@ export const WALLED_GARDEN_CATALOG: WalledGardenGroup[] = [
     hosts: ["paystack.com", "*.paystack.com", "paystack.co", "*.paystack.co", "checkout.paystack.com"],
   },
   {
+    group: "CinetPay (agrégateur)",
+    description:
+      "Agrégateur CI (Orange, MTN, Moov, Wave, carte). Le client est redirigé vers checkout.cinetpay.com ; l'init passe par api-checkout.cinetpay.com.",
+    hosts: ["cinetpay.com", "*.cinetpay.com"],
+  },
+  {
+    group: "PawaPay (agrégateur)",
+    description:
+      "Agrégateur mobile money. Page hébergée où le client paie : paywith.pawapay.io (API sur api.pawapay.io).",
+    hosts: ["pawapay.io", "*.pawapay.io"],
+  },
+  {
     group: "Wave",
     description: "Redirection directe vers wave.com depuis le checkout.",
     hosts: ["wave.com", "*.wave.com"],
@@ -62,6 +76,12 @@ export const WALLED_GARDEN_CATALOG: WalledGardenGroup[] = [
     group: "Moov Money (Moov Africa)",
     description: "Page de validation web Moov Africa (.ci / .com selon le pays).",
     hosts: ["moov-africa.ci", "*.moov-africa.ci", "*.moov-africa.com"],
+  },
+  {
+    group: "MTN MoMo",
+    description:
+      "MoMo se valide surtout par USSD (approbation sur le téléphone, sans redirection navigateur) — souvent déjà couvert par un agrégateur ci-dessus. Ces hôtes ne sont utiles que si une page web MoMoPay est présentée au client.",
+    hosts: ["momo.mtn.com", "*.mtn.com", "*.mtn.ci"],
   },
 ];
 
