@@ -83,12 +83,9 @@ export const WALLED_GARDEN_CATALOG: WalledGardenGroup[] = [
       "MoMo se valide surtout par USSD (approbation sur le téléphone, sans redirection navigateur) — souvent déjà couvert par un agrégateur ci-dessus. Ces hôtes ne sont utiles que si une page web MoMoPay est présentée au client.",
     hosts: ["momo.mtn.com", "*.mtn.com", "*.mtn.ci"],
   },
-  {
-    group: "Wassoya (SMS / marque)",
-    description:
-      "Passerelle SMS (envoi des codes WiFi) et site de la marque. Autorise le client à joindre wassoya.com depuis le portail (lien « propulsé par », support).",
-    hosts: ["wassoya.com", "*.wassoya.com"],
-  },
+  // NB : PAS de Wassoya ici. Wassoya est la passerelle SMS appelée CÔTÉ SERVEUR
+  // (safelinkhub.io → api.wassoya.com) pour envoyer les codes ; le navigateur du
+  // client ne joint jamais Wassoya → aucun hôte à whitelister au portail.
 ];
 
 // Liste plate dédoublonnée des hôtes de paiement, dérivée du catalogue —
