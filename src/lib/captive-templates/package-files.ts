@@ -600,6 +600,54 @@ const PORTAL_PAY_SCRIPT = `(function(){
 
     show("phone");
   }
+
+  // ===== Overlay paiement pour portail SANS bouton de forfait =====
+  // Portail ETRANGER importe (login.html d un tiers) : ses boutons n ont pas de
+  // data-package-id, il n y a donc rien a intercepter. On monte alors un bouton
+  // flottant "Payer mon forfait" + un selecteur des forfaits de l org
+  // (window.SLH_PLANS). N apparait PAS si le portail a deja des boutons
+  // [data-package-id] (SafeLinkHub ou portail deja equipe) : il gere seul.
+  function slhPlans(){ return (window.SLH_PLANS && window.SLH_PLANS.length) ? window.SLH_PLANS : []; }
+  function hasNativeButtons(){ return document.querySelectorAll("[data-package-id]").length > 0; }
+  function openPicker(){
+    var old = document.getElementById("slh-pick-modal"); if(old) old.remove();
+    var list = slhPlans();
+    if(!list.length){ hint("Aucun forfait disponible pour le moment."); return; }
+    var items = "";
+    for(var i=0;i<list.length;i++){
+      var p = list[i];
+      items += '<button type="button" data-slh-pick="' + i + '" style="display:flex;justify-content:space-between;align-items:center;width:100%;gap:10px;padding:13px 14px;margin:0 0 8px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f172a;font:600 15px system-ui,sans-serif;cursor:pointer;text-align:left;"><span>' + esc(p.label) + '</span><span style="color:#dc2626;font-weight:700;white-space:nowrap;">' + esc(p.priceLabel) + '</span></button>';
+    }
+    var o = document.createElement("div");
+    o.id = "slh-pick-modal";
+    o.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;";
+    o.innerHTML = '<div style="background:#fff;color:#0f172a;border-radius:14px;max-width:360px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-family:system-ui,sans-serif;max-height:85vh;overflow:auto;"><h3 style="margin:0 0 12px;font-size:1.1rem;">Choisir un forfait</h3>' + items + '<button type="button" data-slh-pick-close="1" style="width:100%;margin-top:4px;padding:11px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#0f172a;font:600 14px system-ui,sans-serif;cursor:pointer;">Fermer</button></div>';
+    o.addEventListener("click", function(e){
+      var t = e.target;
+      if(t && t.closest && t.closest("[data-slh-pick-close]")){ o.remove(); return; }
+      var pick = t && t.closest ? t.closest("[data-slh-pick]") : null;
+      if(pick){
+        var idx = parseInt(pick.getAttribute("data-slh-pick"), 10);
+        var pp = list[idx];
+        if(pp){ o.remove(); lastSel = { packageId: pp.id, plan: pp.label, price: pp.priceLabel }; openModal(lastSel); }
+        return;
+      }
+      if(t === o){ o.remove(); }
+    });
+    document.body.appendChild(o);
+  }
+  function mountFab(){
+    if(hasNativeButtons()) return;   // le portail a ses propres boutons de forfait
+    if(!slhPlans().length) return;   // aucun forfait configure cote org
+    if(document.getElementById("slh-fab")) return;
+    var b = document.createElement("button");
+    b.id = "slh-fab"; b.type = "button"; b.textContent = "Payer mon forfait";
+    b.style.cssText = "position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147482900;padding:15px 26px;border:0;border-radius:999px;background:#dc2626;color:#fff;font:700 16px system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.32);cursor:pointer;";
+    b.addEventListener("click", function(){ openPicker(); });
+    document.body.appendChild(b);
+  }
+  function slhReady(fn){ if(document.readyState !== "loading"){ fn(); } else { document.addEventListener("DOMContentLoaded", fn); } }
+  slhReady(function(){ if(configured()) mountFab(); });
 })();`;
 
 /** Bloc <script> injecté en fin de login.html : config + flux de paiement. */
@@ -614,7 +662,10 @@ function portalPayInjection(vars: PackageBrandingVars): string {
     iso2,
     flag: iso2 ? countryFlag(iso2) : "",
   });
-  return `\n<script>window.SLH_PORTAL=${config};</script>\n<script>${PORTAL_PAY_SCRIPT}</script>\n`;
+  // SLH_PLANS : forfaits de l'org injectés en JSON pour l'overlay de paiement
+  // (bouton flottant + sélecteur) des portails ÉTRANGERS sans bouton de forfait.
+  const plansJson = renderPlansJson(vars.plans);
+  return `\n<script>window.SLH_PORTAL=${config};window.SLH_PLANS=${plansJson};</script>\n<script>${PORTAL_PAY_SCRIPT}</script>\n`;
 }
 
 export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars): Buffer {
