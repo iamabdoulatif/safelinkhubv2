@@ -31,9 +31,8 @@ test("topology builder uses an original-style canvas layout", async () => {
   assert.match(source, /TopologyCanvas/);
   assert.match(source, /Ajouter un bridge/);
   assert.match(source, /RouterDeviceCard/);
-  assert.match(source, /TopologyZoomControls/);
-  assert.match(source, /TopologyMiniMap/);
-  assert.match(source, /radial-gradient/);
+  assert.match(source, /Mode clavier/);
+  assert.match(source, /DockerBridgePlaceholder/);
   assert.match(source, /SAFELINKHUB-BRIDGE/);
   assert.match(source, /Pas de PPPoE/);
 });

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { testimonials } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 
 const MAX_QUOTE = 600;
 
@@ -33,6 +34,8 @@ export async function submitTestimonial(_prevState: unknown, formData: FormData)
   }
   const rating =
     Number.isInteger(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : null;
+  const rateLimit = await enforcePublicSubmissionRateLimit("testimonial");
+  if (!rateLimit.allowed) return { error: rateLimit.error };
 
   const db = getDb();
   await db.insert(testimonials).values({

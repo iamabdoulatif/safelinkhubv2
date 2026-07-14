@@ -8,6 +8,7 @@ import {
   numeric,
   jsonb,
   uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 
 export const organizations = pgTable("organizations", {
@@ -89,6 +90,17 @@ export const loginAttempts = pgTable("login_attempts", {
   success: boolean("success").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const publicSubmissionAttempts = pgTable(
+  "public_submission_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    bucket: text("bucket").notNull(),
+    ipAddress: text("ip_address").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("public_submission_attempts_bucket_ip_created_at_idx").on(t.bucket, t.ipAddress, t.createdAt)],
+);
 
 export const routers = pgTable("routers", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -352,7 +364,8 @@ export const portalOrders = pgTable("portal_orders", {
   // Instantanés au moment de la commande (le forfait peut changer après).
   profileName: text("profile_name"), // profil hotspot RouterOS figé (durée)
   priceCents: integer("price_cents"),
-  // pending → paid (webhook) → fulfilled (user créé + SMS envoyé) | failed.
+  // pending → payment_initiating (claim checkout) → pending + reference →
+  // paid (webhook/poll) → fulfilled (user créé + SMS envoyé) | failed.
   status: text("status").notNull().default("pending"),
   // Horodatage du claim paid→fulfilling : un claim périmé (crash pendant
   // l'honneur) redevient récupérable (voir fulfill.ts, STALE_CLAIM_MS).
@@ -674,49 +687,7 @@ export const marketingSettings = pgTable("marketing_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Catégories de la boutique — gérées par le superadmin (ajout / renommage /
-// suppression). Référencées par leur libellé texte depuis products.category
-// (pas de clé étrangère : supprimer une catégorie ne casse pas les produits,
-// on remet simplement leur category à null — voir deleteCategory dans
-// lib/shop/actions.ts). `position` ordonne la sidebar du catalogue.
-export const productCategories = pgTable("product_categories", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull().unique(),
-  position: integer("position").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const products = pgTable("products", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  // Identifiant lisible pour l'URL de la fiche produit (/boutique/<slug>).
-  // Nullable + unique : Postgres autorise plusieurs NULL, les lignes
-  // héritées sont backfillées par la migration.
-  slug: text("slug").unique(),
-  description: text("description"),
-  // Prix en FCFA (XOF n'a pas de sous-unité).
-  priceFcfa: integer("price_fcfa").notNull(),
-  // Stock disponible.
-  stockQuantity: integer("stock_quantity").notNull().default(0),
-  imageUrl: text("image_url"),
-  // Galerie : images supplémentaires (URLs) affichées sur la fiche produit,
-  // en plus de imageUrl (image principale).
-  images: jsonb("images").$type<string[]>().notNull().default([]),
-  // Modèle 3D optionnel (URL .glb/.gltf) — affiché en visualiseur interactif
-  // (rotation auto, orbite, zoom) sur la fiche produit via three.js.
-  model3dUrl: text("model_3d_url"),
-  // Couleurs proposées (tableau de libellés), choisies à la commande.
-  colors: jsonb("colors").$type<string[]>().notNull().default([]),
-  // Badges marketing configurables par le superadmin (ids du BADGE_CATALOG :
-  // promo | bestseller | fast_shipping | warranty). Les badges "Nouveau" et
-  // "Stock faible" restent dérivés automatiquement (product-status.ts).
-  badges: jsonb("badges").$type<string[]>().notNull().default([]),
-  // Caractéristiques techniques : liste de paires libellé/valeur.
-  specs: jsonb("specs").$type<{ label: string; value: string }[]>().notNull().default([]),
-  category: text("category"), // Routeurs | Antennes | Accessoires | …
-  brand: text("brand"),
-  // active = visible au catalogue ; hidden = masqué.
-  status: text("status").notNull().default("active"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+// Boutique (products / product_categories) : la fonctionnalité e-commerce a été
+// extraite dans un PROJET SÉPARÉ (2026-07). Les tables restent en base (données
+// préservées, non droppées) mais ne font plus partie du schéma de l'app SaaS.
+// L'onglet "Boutique" du site public affiche une page "en cours de conception".

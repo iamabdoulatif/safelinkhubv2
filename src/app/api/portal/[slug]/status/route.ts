@@ -49,6 +49,9 @@ export async function GET(
   if (order.status === "failed") {
     return corsJson({ status: "failed", error: order.failureReason ?? "Paiement échoué." });
   }
+  if (order.status === "payment_initiating") {
+    return corsJson({ status: "pending" });
+  }
 
   // pending : confirmer le paiement auprès de GeniusPay avant d'honorer.
   if (order.status === "pending") {

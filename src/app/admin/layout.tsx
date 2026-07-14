@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { eq } from "drizzle-orm";
 import AdminSidebar from "@/components/AdminSidebar";
 import { getSession, isAdminRole, isSuperAdmin } from "@/lib/auth/session";
@@ -13,6 +14,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  await connection();
   const session = await getSession();
   if (!session || !isAdminRole(session.role)) {
     redirect("/auth/login?callback=/admin");

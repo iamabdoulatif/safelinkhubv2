@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/mikrotik/crypto";
@@ -179,7 +179,7 @@ export async function GET(
       and(
         eq(routers.orgId, org.id),
         eq(routers.installTokenHash, tokenHash),
-        inArray(routers.status, ["pending", "installing"]),
+        eq(routers.status, "pending"),
       ),
     )
     .limit(1);

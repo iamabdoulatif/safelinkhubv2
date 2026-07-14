@@ -51,10 +51,20 @@ test("install completion endpoint marks router online and clears install token",
   assert.match(source, /syncRouterStats\(router\.id/);
 });
 
-test("post-install access auto-enables WinBox, WebFig, SSH and MikHmon together", async () => {
-  const source = await readFile(new URL("../src/lib/mikrotik/port-forward.ts", import.meta.url), "utf8");
+test("install completion does not auto-open public remote access ports", async () => {
+  const wireguard = await readFile(
+    new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/installed/route.ts", import.meta.url),
+    "utf8",
+  );
+  const openvpn = await readFile(
+    new URL("../src/app/api/router/v1/[slug]/scripts/install-openvpn/installed/route.ts", import.meta.url),
+    "utf8",
+  );
 
-  assert.match(source, /AUTO_ENABLED_SERVICES_AFTER_INSTALL = \["winbox", "webfig", "ssh", "mikhmon"\]/);
+  for (const source of [wireguard, openvpn]) {
+    assert.doesNotMatch(source, /autoEnablePostInstallAccess/);
+    assert.doesNotMatch(source, /AUTO_ENABLED_SERVICES_AFTER_INSTALL/);
+  }
 });
 
 test("install completion endpoint matches by install token alone, not also live status", async () => {
@@ -109,13 +119,21 @@ test("RouterOS install scripts grant the managed API user SSH/SFTP policy for Fi
   }
 });
 
-test("VPN script can be fetched again while a router is still installing", async () => {
-  const source = await readFile(
+test("VPN script fetch is single-use while the callback token remains valid", async () => {
+  const wireguard = await readFile(
     new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/route.ts", import.meta.url),
     "utf8",
   );
+  const openvpn = await readFile(
+    new URL("../src/app/api/router/v1/[slug]/scripts/install-openvpn/route.ts", import.meta.url),
+    "utf8",
+  );
 
-  assert.match(source, /inArray\(routers\.status, \["pending", "installing"\]\)/);
+  for (const source of [wireguard, openvpn]) {
+    assert.match(source, /eq\(routers\.status, "pending"\)/);
+    assert.doesNotMatch(source, /inArray\(routers\.status, \["pending", "installing"\]\)/);
+    assert.doesNotMatch(source, /installTokenHash: null,\n\s+installTokenExpiresAt: null,/);
+  }
 });
 
 test("RouterOS WireGuard install script prepares DOCKERS bridge and MIKHMON veth gateway", async () => {

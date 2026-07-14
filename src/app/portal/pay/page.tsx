@@ -58,6 +58,7 @@ export default async function PortalPayPage({
   const [order] = await db
     .select({
       status: portalOrders.status,
+      paymentReference: portalOrders.paymentReference,
       priceCents: portalOrders.priceCents,
       packageName: packages.name,
       orgSlug: organizations.slug,
@@ -73,7 +74,7 @@ export default async function PortalPayPage({
   }
 
   // Déjà payée / en cours / honorée → on montre le suivi, pas un nouveau paiement.
-  if (order.status !== "pending") {
+  if (order.status !== "pending" || order.paymentReference) {
     redirect(`/portal/paid?orderId=${orderId}&slug=${encodeURIComponent(slug)}`);
   }
 

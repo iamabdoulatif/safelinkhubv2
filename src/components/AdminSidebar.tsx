@@ -23,7 +23,6 @@ import {
   Mail,
   Quote,
   ShieldCheck,
-  ShoppingBag,
   Megaphone,
   ArrowUpRight,
   Menu,
@@ -47,7 +46,6 @@ const mainLinks = [
   { href: "/admin/vouchers", label: "Vouchers", icon: Ticket },
   { href: "/admin/remote-access", label: "Accès distant", icon: Wifi },
   { href: "/admin/mikhmon-online", label: "Mikhmon Online", icon: Globe },
-  { href: "/admin/shop", label: "Boutique", icon: ShoppingBag },
 ];
 
 // Une seule entrée "Paramètres" : la navigation interne du hub (Général,

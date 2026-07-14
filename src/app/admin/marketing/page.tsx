@@ -21,7 +21,7 @@ export default async function MarketingPage() {
         <h1 className="text-2xl font-bold text-ink">Pixels &amp; Analytics</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
-        Identifiants de suivi injectés dans le site public (landing, blog, boutique)
+        Identifiants de suivi injectés dans le site public (landing, blog)
         et régie AdSense pour le blog. Laissez un champ vide pour désactiver le tag
         correspondant.
       </p>

@@ -16,6 +16,8 @@ export type Testimonial = {
 /** Témoignages approuvés pour la landing publique. Tolère l'absence de table
  * (migration non encore appliquée) → renvoie [] au lieu de planter la home. */
 export async function getApprovedTestimonials(limit = 12): Promise<Testimonial[]> {
+  if (!process.env.DATABASE_URL) return [];
+
   const db = getDb();
   return db
     .select()
@@ -28,6 +30,8 @@ export async function getApprovedTestimonials(limit = 12): Promise<Testimonial[]
 
 /** Tous les témoignages, pour la modération admin. */
 export async function getAllTestimonials(): Promise<Testimonial[]> {
+  if (!process.env.DATABASE_URL) return [];
+
   const db = getDb();
   return db
     .select()

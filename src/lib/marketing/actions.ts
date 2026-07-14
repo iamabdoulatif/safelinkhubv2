@@ -18,17 +18,56 @@ function clean(v: FormDataEntryValue | null): string | null {
   return s === "" ? null : s;
 }
 
+function validateMarketingId(
+  value: string | null,
+  label: string,
+  pattern: RegExp,
+): { value: string | null } | { error: string } {
+  if (!value) return { value: null };
+  if (!pattern.test(value)) return { error: `${label} invalide.` };
+  return { value };
+}
+
 export async function updateMarketingSettings(formData: FormData): Promise<Result> {
   const session = await getSession();
   if (!isSuperAdmin(session?.role)) return { error: "Réservé au superadmin." };
 
+  const metaPixelId = validateMarketingId(clean(formData.get("metaPixelId")), "Meta Pixel ID", /^\d{5,30}$/);
+  if ("error" in metaPixelId) return metaPixelId;
+  const ga4MeasurementId = validateMarketingId(
+    clean(formData.get("ga4MeasurementId")),
+    "GA4 Measurement ID",
+    /^G-[A-Z0-9]{4,20}$/i,
+  );
+  if ("error" in ga4MeasurementId) return ga4MeasurementId;
+  const gtmId = validateMarketingId(clean(formData.get("gtmId")), "Google Tag Manager ID", /^GTM-[A-Z0-9]{4,20}$/i);
+  if ("error" in gtmId) return gtmId;
+  const tiktokPixelId = validateMarketingId(
+    clean(formData.get("tiktokPixelId")),
+    "TikTok Pixel ID",
+    /^[A-Z0-9]{8,64}$/i,
+  );
+  if ("error" in tiktokPixelId) return tiktokPixelId;
+  const adsenseClientId = validateMarketingId(
+    clean(formData.get("adsenseClientId")),
+    "AdSense client ID",
+    /^ca-pub-\d{12,24}$/i,
+  );
+  if ("error" in adsenseClientId) return adsenseClientId;
+  const adsenseSlotId = validateMarketingId(
+    clean(formData.get("adsenseSlotId")),
+    "AdSense slot ID",
+    /^\d{4,24}$/,
+  );
+  if ("error" in adsenseSlotId) return adsenseSlotId;
+
   const values = {
-    metaPixelId: clean(formData.get("metaPixelId")),
-    ga4MeasurementId: clean(formData.get("ga4MeasurementId")),
-    gtmId: clean(formData.get("gtmId")),
-    tiktokPixelId: clean(formData.get("tiktokPixelId")),
-    adsenseClientId: clean(formData.get("adsenseClientId")),
-    adsenseSlotId: clean(formData.get("adsenseSlotId")),
+    metaPixelId: metaPixelId.value,
+    ga4MeasurementId: ga4MeasurementId.value,
+    gtmId: gtmId.value,
+    tiktokPixelId: tiktokPixelId.value,
+    adsenseClientId: adsenseClientId.value,
+    adsenseSlotId: adsenseSlotId.value,
     adsenseEnabled: formData.get("adsenseEnabled") === "on",
     updatedAt: new Date(),
   };

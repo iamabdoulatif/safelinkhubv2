@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   // which uses its own build pipeline — safe to keep enabled everywhere.
   output: "standalone",
   serverExternalPackages: ["ssh2"],
+  turbopack: {
+    root: process.cwd(),
+  },
   experimental: {
     serverActions: {
       // L'import d'un portail captif personnalisé (dossier HTML/CSS/JS +

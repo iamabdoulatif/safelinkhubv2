@@ -10,9 +10,7 @@ export type BillingPeriod = "monthly" | "quarterly" | "semiannual" | "yearly";
 // Flat price per period regardless of service (WinBox/WebFig/SSH/MikHmon
 // all cost the same) — FCFA, admin-set. Charged to the org's wallet (see
 // lib/wallet/actions.ts) when an admin explicitly activates a plan through
-// the authenticated enablePortForward action; NOT charged for the services
-// auto-enabled right after install (autoEnablePostInstallAccess) since the
-// customer never chose a plan for those.
+// the authenticated enablePortForward action.
 export const PERIOD_PRICE_CENTS: Record<BillingPeriod, number> = {
   monthly: 500,
   quarterly: 1300,
