@@ -4,18 +4,16 @@
 // transaction GeniusPay du rail choisi (POST /api/portal/[slug]/pay) puis
 // redirige la MÊME fenêtre vers le checkout du rail.
 //
-// Deux choix : "wave" = redirection DIRECTE pay.wave.com (rapide, fiable dans le
-// mini-navigateur captif) ; "hosted" = page hébergée geniuspay.ci/checkout
-// (payment_method OMIS côté API) qui contient RÉELLEMENT tous les moyens et route
-// correctement chaque opérateur : Orange Money, MTN MoMo, Moov Money, Wave, carte
-// internationale (Stripe) et carte locale (Paystack). C'est le SEUL chemin qui
-// affiche les pages de redirection Orange / Moov / MTN : forcer un rail mobile-
-// money précis via l'API (orange_money/mtn_money/moov_money) retombe sur Wave
-// tant qu'il n'est pas activé côté marchand, et le rail "paystack" n'expose ni
-// Moov ni carte. La page hébergée ouvre sur Wave avec un lien « Changer » pour
-// choisir l'opérateur — un tap de plus, mais tous les rails sont réellement là.
-// Les domaines de redirection de chaque opérateur doivent être autorisés dans le
-// walled-garden (Paramètres → Walled-garden) pour s'ouvrir derrière le portail.
+// Trois choix (voir la liste METHODS plus bas) : "wave" (pay.wave.com direct),
+// "paystack" (checkout.paystack.com qui LISTE Orange/MTN/Wave — canaux activés
+// côté marchand GeniusPay) et "hosted" (page hébergée geniuspay.ci, payment_method
+// OMIS, qui couvre EN PLUS Moov Money + carte). Le checkout Paystack n'expose ni
+// Moov ni carte, et la page hébergée ouvre sur Wave avec un lien « Changer » — d'où
+// le bouton Paystack dédié pour afficher directement les opérateurs. ⚠️ Forcer un
+// rail précis (orange_money/mtn_money/moov) via l'API retombe sur Wave tant que ce
+// canal n'est pas activé côté marchand GeniusPay/Paystack. Les domaines de
+// redirection de chaque opérateur doivent être autorisés dans le walled-garden
+// (Paramètres → Walled-garden) pour s'ouvrir derrière le portail.
 //
 // Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
 // lourdes (checkout Wave/Paystack « pompe sur le logo »). D'où le repli « ouvrir
@@ -28,13 +26,26 @@ import { useEffect, useState } from "react";
 
 type Method = { id: string; label: string; sub: string; bg: string; fg: string };
 
+// Trois voies explicites (demande opérateur) :
+// - "wave"     → pay.wave.com direct (rapide, fiable en mini-navigateur captif) ;
+// - "paystack" → checkout.paystack.com qui LISTE directement Orange / MTN / Wave
+//   (canaux activés côté marchand GeniusPay) — le « GeniusPay embarquant Paystack » ;
+// - "hosted"   → page hébergée GeniusPay (payment_method omis) = tous les moyens,
+//   dont Moov Money et la carte, non couverts par le checkout Paystack.
 const METHODS: Method[] = [
-  { id: "wave", label: "Payer avec Wave", sub: "Redirection directe — rapide", bg: "#1dc4ff", fg: "#00263a" },
+  { id: "wave", label: "Payer avec Wave", sub: "Rapide — redirection directe", bg: "#1dc4ff", fg: "#00263a" },
+  {
+    id: "paystack",
+    label: "Orange · MTN · Wave",
+    sub: "Via Paystack (choix de l'opérateur)",
+    bg: "#0f172a",
+    fg: "#fff",
+  },
   {
     id: "hosted",
-    label: "Orange · MTN · Moov · Carte",
-    sub: "Tous les moyens (GeniusPay)",
-    bg: "#0f172a",
+    label: "Moov · Carte · tous les moyens",
+    sub: "Via GeniusPay (page hébergée)",
+    bg: "#b45309",
     fg: "#fff",
   },
 ];
