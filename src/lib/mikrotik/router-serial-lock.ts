@@ -25,13 +25,17 @@ export type SerialLockResult =
  * Vérifie que le routeur peut être auto-configuré, PUIS réserve son SN.
  * - SN illisible (rare, hors RouterBOARD) → on autorise sans verrou (best-effort).
  * - SN déjà verrouillé par CE routeur (ou verrou libéré) → on autorise (re-run légitime).
- * - SN verrouillé par un AUTRE routeur, non libéré → REFUS.
+ * - SN verrouillé par un AUTRE routeur, non libéré → REFUS (sauf `force`).
+ * - `force` (superadmin) : jamais de refus — le verrou est TRANSFÉRÉ au routeur
+ *   courant. Le superadmin peut donc (re)configurer n'importe quel MikroTik
+ *   autant de fois qu'il veut.
  * Idempotent : réserve le SN pour ce routeur si libre.
  */
 export async function reserveRouterSerial(
   client: RouterOSClient,
   routerId: string,
   orgId: string,
+  opts?: { force?: boolean },
 ): Promise<SerialLockResult> {
   const serial = await readRouterSerial(client);
   if (!serial) return { ok: true, serial: null }; // pas de SN → pas de verrou possible
@@ -45,14 +49,15 @@ export async function reserveRouterSerial(
 
   if (existing) {
     const active = existing.releasedAt === null;
-    if (active && existing.routerId !== routerId) {
+    if (active && existing.routerId !== routerId && !opts?.force) {
       return {
         ok: false,
         serial,
         error: `Ce MikroTik (série ${serial}) a déjà été configuré et est verrouillé. Contactez le support pour le réinitialiser.`,
       };
     }
-    // Même routeur (re-run) ou verrou précédemment libéré → on ré-arme le verrou.
+    // Même routeur (re-run), verrou libéré, OU forçage superadmin → on (ré-)arme
+    // le verrou pour ce routeur (transfert au routeur courant si forçage).
     await db
       .update(routerSerialLocks)
       .set({ routerId, orgId, releasedAt: null, releasedBy: null, lockedAt: new Date() })

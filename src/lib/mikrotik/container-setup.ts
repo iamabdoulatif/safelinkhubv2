@@ -821,9 +821,11 @@ export async function provisionHotspotStack(
   // auto-configuré qu'une fois. Refuse si son SN est déjà verrouillé par un
   // autre routeur (sauf réinitialisation superadmin). Re-run sur le même routeur
   // autorisé. Voir router-serial-lock.ts.
-  const serialLock = await reserveRouterSerial(client, routerId, session.orgId).catch(
-    () => ({ ok: true, serial: null }) as const,
-  );
+  const serialLock = await reserveRouterSerial(client, routerId, session.orgId, {
+    // Superadmin : aucune restriction — peut (re)configurer n'importe quel
+    // MikroTik autant de fois qu'il veut ; le verrou SN est transféré, pas refusé.
+    force: isSuperAdmin(session.role),
+  }).catch(() => ({ ok: true, serial: null }) as const);
   if (!serialLock.ok) {
     client.close();
     return { error: serialLock.error };
