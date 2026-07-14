@@ -481,6 +481,32 @@ async function provisionDockerStack(
     const containerResult = await waitForImageAndStart(client, log);
     if (containerResult.status === "failed") return containerResult;
 
+    // Filet anti-« conteneur stopped après reboot ». Sur RouterOS, le
+    // start-on-boot=yes du conteneur se déclenche TÔT au boot — souvent AVANT
+    // que le disque (USB/flash) et l'interface veth soient prêts → RouterOS
+    // tente une fois, échoue, puis abandonne → MikHmon reste "stopped" jusqu'à
+    // un redémarrage manuel. On pose un scheduler "startup" qui, 45 s après le
+    // boot puis toutes les 30 s pendant ~3 min, (re)démarre le conteneur tant
+    // qu'il n'est pas lancé — idempotent : démarrer un conteneur déjà lancé est
+    // avalé par le on-error. Remove par nom d'abord (pas de doublon aux
+    // re-runs / à la « Réparation »). NB boards tmpfs/RAM (ax lite/ax² sans
+    // stockage persistant) : le conteneur est perdu au reboot et doit être
+    // re-provisionné — le scheduler est alors inoffensif (le find ne renvoie
+    // rien). Ce correctif s'applique aussi aux routeurs DÉJÀ installés dès leur
+    // prochaine passe d'auto-setup / réparation.
+    await client.talk(["/system/scheduler/remove", "=numbers=MIKHMON_BOOT"]).catch(() => {});
+    await run(
+      [
+        "/system/scheduler/add",
+        "=name=MIKHMON_BOOT",
+        "=start-time=startup",
+        `=on-event=:delay 45s; :local n 0; :while ($n < 6) do={ :do { /container/start [/container/find where name="${CONTAINER_NAME}"] } on-error={}; :delay 30s; :set n ($n + 1); }`,
+        "=policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon",
+        "=comment=Redemarre MikHmon au boot (anti start-on-boot race)",
+      ],
+      "MikHmon boot auto-start scheduler",
+    );
+
     // NAT: Docker subnet masquerade, remote-access dst-nat, and a second
     // dst-nat reachable via the hotspot gateway IP itself. Each checked
     // by its (chain, action, comment) signature first — none of these
