@@ -140,6 +140,62 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
         })}
       </div>
 
+      {/* Moyens de paiement acceptés (logos servis depuis safelinkhub.io =
+          walled-garden, donc chargés derrière le portail captif). */}
+      <div style={{ marginTop: 16 }}>
+        <p
+          style={{
+            margin: "0 0 8px",
+            fontSize: ".7rem",
+            color: "#94a3b8",
+            textAlign: "center",
+            textTransform: "uppercase",
+            letterSpacing: ".08em",
+          }}
+        >
+          Moyens de paiement acceptés
+        </p>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          {[
+            { src: "/payment/orange.png", alt: "Orange Money" },
+            { src: "/payment/mtn-momo.png", alt: "MTN MoMo" },
+            { src: "/payment/moov.png", alt: "Moov Money" },
+            { src: "/payment/wave.png", alt: "Wave" },
+            { src: "/payment/visa.svg", alt: "Visa" },
+          ].map((logo) => (
+            <span
+              key={logo.src}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: 34,
+                minWidth: 46,
+                padding: "0 8px",
+                background: "#fff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 8,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logo.src}
+                alt={logo.alt}
+                style={{ maxHeight: 22, maxWidth: 40, objectFit: "contain", display: "block" }}
+              />
+            </span>
+          ))}
+        </div>
+      </div>
+
       {error ? <p style={{ margin: "12px 0 0", color: "#ef4444", fontSize: ".85rem" }}>{error}</p> : null}
 
       {/* Repli portail captif : ouvrir la page dans le vrai navigateur */}
