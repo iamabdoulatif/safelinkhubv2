@@ -19,6 +19,7 @@ import {
   HOTSPOT_POOL_NAME,
 } from "./constants";
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
+import { scenarioLabel, type DeploymentScenario } from "./device-catalog";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { loadSafelinkhubDefaultPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
@@ -199,6 +200,8 @@ async function provisionDockerStack(
     supportsContainers: boolean;
     hasUsbStorage: boolean;
     hasLargeOnboardStorage?: boolean;
+    // eMMC enterprise (CCR/CRS) : disque interne, jamais tmpfs (scénario 3).
+    hasEmmcStorage?: boolean;
     hotspotAddress?: string;
     // Session MikHmon pré-remplie, injectée en variables d'env du conteneur :
     // l'image les lit au démarrage pour écrire sa « Paramètres de session »
@@ -287,16 +290,29 @@ async function provisionDockerStack(
       `${DOCKER_BRIDGE_NAME} bridge gateway address`,
     );
 
-    // Container engine: USB-equipped boards pull/extract on the stick
-    // (usb1/pull) to spare onboard flash; boards with enough internal
-    // storage (RB4011 series, RB3011, RB5009 — see hasLargeOnboardStorage)
-    // host everything on their own disk slot ("disk1"/"disk…", live-
-    // detected by name) or directly on the Files storage when no slot is
-    // listed — never tmpfs for those; ax2 / hAP ax lite have neither USB
-    // nor flash to spare and fall back to the RAM-backed tmpfs scratch
-    // space.
+    // === SECTION C: Détection du stockage et choix du SCÉNARIO ===
+    // Container engine — 3 scénarios de stockage (le 4e « pas de container » est
+    // traité en amont par le skip supportsContainers). Voir device-catalog.ts /
+    // deploymentScenario() pour le vocabulaire partagé avec l'UI :
+    //   • SCÉNARIO 1 (USB/microSD, recommandé) : pull/extract sur la clé
+    //     (usb1/pull) pour épargner la flash — formatée ext4 au besoin ;
+    //   • SCÉNARIO 3 (eMMC/flash interne généreux : CCR/CRS, RB4011, RB3011,
+    //     RB5009) : disque interne propre ("disk1"/Files) — JAMAIS tmpfs,
+    //     survit au reboot ;
+    //   • SCÉNARIO 2 (flash interne limité : hAP ax lite/ax²) : repli tmpfs
+    //     RAM (usure NAND — usage intensif déconseillé).
+    // Règle d'or : jamais tmpfs si hasEmmcStorage OU hasLargeOnboardStorage.
+    // Un seul /disk/print, réutilisé par les 3 branches.
+    const disks = await client.talk(["/disk/print"]).catch(() => []);
+    const internalDisk = disks.find(
+      (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot) && d.type !== "tmpfs",
+    );
     let containerRootDir = "tmp/mikhmon-app";
+    let scenario: DeploymentScenario;
+
     if (opts.hasUsbStorage) {
+      // --- SCÉNARIO 1: USB / microSD ---
+      scenario = 1;
       // RouterOS exposes a plugged-in USB stick as an unformatted /disk
       // entry (slot usb1) — /container/config's tmpdir=usb1/pull silently
       // fails to pull/extract images until that slot is formatted ext4
@@ -305,8 +321,7 @@ async function provisionDockerStack(
       // auto-setup on an already-formatted stick must not reformat it —
       // that would wipe whatever's already pulled/cached — so this only
       // formats when the slot isn't already ext4.
-      const usbDisks = await client.talk(["/disk/print"]).catch(() => []);
-      const usb1Disk = usbDisks.find((d) => d.slot === "usb1");
+      const usb1Disk = disks.find((d) => d.slot === "usb1");
       if (usb1Disk && usb1Disk["file-system"] !== "ext4") {
         await run(
           ["/disk/format-drive", "=slot=usb1", "=file-system=ext4"],
@@ -319,58 +334,54 @@ async function provisionDockerStack(
         );
       }
 
-      const usbRootDir = "usb1/mikhmon-app";
-      containerRootDir = usbRootDir;
+      containerRootDir = "usb1/mikhmon-app";
       const configured = await run(
         ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull"],
         "container engine config (USB storage)",
       );
       if (!configured.ok) return { status: "failed", message: configured.error };
-    } else {
-      const disks = await client.talk(["/disk/print"]).catch(() => []);
-      const internalDisk = disks.find(
-        (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot),
+    } else if (internalDisk?.slot || opts.hasLargeOnboardStorage || opts.hasEmmcStorage) {
+      // --- SCÉNARIO 3: eMMC / flash interne généreux (JAMAIS tmpfs) ---
+      // Le board rapporte son propre slot interne ("disk1"/… live-détecté, donc
+      // pas limité aux modèles du catalogue), OU il est flaggé large-storage /
+      // eMMC (RB3011/RB5009 NAND, CCR/CRS eMMC : assez de mémoire interne pour
+      // héberger MikHmon sans clé USB, image persistante au reboot). Sans slot
+      // listé, les chemins sont de simples dossiers sur la storage Files/flash
+      // du routeur — pas de /disk/add, pas de formatage.
+      scenario = 3;
+      const root = internalDisk?.slot ? `${internalDisk.slot}/` : "";
+      containerRootDir = `${root}mikhmon-app`;
+      const configured = await run(
+        [
+          "/container/config/set",
+          "=registry-url=https://registry-1.docker.io",
+          `=tmpdir=${root}pull`,
+        ],
+        `container engine config (stockage interne${internalDisk?.slot ? ` ${internalDisk.slot}` : ""})`,
       );
-      if (internalDisk?.slot || opts.hasLargeOnboardStorage) {
-        // No USB stick, but the board either reports its own internal disk
-        // slot ("disk1", "disk2", … — RB4011 and friends, live-detected so
-        // this isn't limited to boards hardcoded in device-catalog.ts) or
-        // is flagged large-storage in the catalog (RB3011 : assez de
-        // mémoire interne pour héberger MikHmon, pas de clé USB, jamais
-        // tmpfs). When no slot is listed, the paths are plain directories
-        // on the router's own Files/flash storage — no /disk/add, no
-        // formatting.
-        const root = internalDisk?.slot ? `${internalDisk.slot}/` : "";
-        containerRootDir = `${root}mikhmon-app`;
-        const configured = await run(
-          [
-            "/container/config/set",
-            "=registry-url=https://registry-1.docker.io",
-            `=tmpdir=${root}pull`,
-          ],
-          `container engine config (stockage interne${internalDisk?.slot ? ` ${internalDisk.slot}` : ""})`,
+      if (!configured.ok) return { status: "failed", message: configured.error };
+    } else {
+      // --- SCÉNARIO 2: flash interne limité → tmpfs RAM ---
+      scenario = 2;
+      if (!disks.some((d) => d.slot === "tmp")) {
+        const tmpfsCreated = await run(
+          ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
+          "tmpfs disk slot",
         );
-        if (!configured.ok) return { status: "failed", message: configured.error };
-      } else {
-        if (!disks.some((d) => d.slot === "tmp")) {
-          const tmpfsCreated = await run(
-            ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
-            "tmpfs disk slot",
-          );
-          if (!tmpfsCreated.ok) {
-            return {
-              status: "failed",
-              message: `MikHmon requires 150 MB of free RAM or external storage: ${tmpfsCreated.error}`,
-            };
-          }
+        if (!tmpfsCreated.ok) {
+          return {
+            status: "failed",
+            message: `MikHmon requires 150 MB of free RAM or external storage: ${tmpfsCreated.error}`,
+          };
         }
-        const configured = await run(
-          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull"],
-          "container engine config (tmpfs)",
-        );
-        if (!configured.ok) return { status: "failed", message: configured.error };
       }
+      const configured = await run(
+        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull"],
+        "container engine config (tmpfs)",
+      );
+      if (!configured.ok) return { status: "failed", message: configured.error };
     }
+    log.push(`OK: Scénario ${scenario} sélectionné (${scenarioLabel(scenario)})`);
 
     for (const name of LEGACY_CONTAINER_NAMES) {
       await client.talk(["/container/remove", `=numbers=${name}`]).catch(() => {});
@@ -624,6 +635,9 @@ export type HotspotStackOptions = {
   // USB and tmpfs and use a plain "disk1" Files directory instead. Ignored
   // when hasUsbStorage is true.
   hasLargeOnboardStorage?: boolean;
+  // True sur les CCR/CRS à eMMC interne : force le disque interne (disk1),
+  // jamais tmpfs (scénario 3), même si le slot n'est pas encore live-détecté.
+  hasEmmcStorage?: boolean;
   // RouterOS Container only runs on arm/arm64/tile — mipsbe/mmips/smips
   // boards (RB951, hEX, hEX S, plain wAP, ...) skip the DOCKERS/MikHmon
   // step entirely rather than failing partway through.
@@ -1729,6 +1743,7 @@ export async function provisionHotspotStack(
       supportsContainers: opts.supportsContainers,
       hasUsbStorage: opts.hasUsbStorage,
       hasLargeOnboardStorage: opts.hasLargeOnboardStorage,
+      hasEmmcStorage: opts.hasEmmcStorage,
       hotspotAddress: opts.hotspotAddress,
       // Auto-remplissage de la « Paramètres de session » MikHmon : IP = passerelle
       // du veth (11.11.11.1, ce que le conteneur utilise pour joindre l'API),

@@ -8,7 +8,12 @@ import {
   requestDeviceModeUnlock,
   type DetectedRouter,
 } from "@/lib/mikrotik/device-detect";
-import { architectureLabel } from "@/lib/mikrotik/device-catalog";
+import {
+  architectureLabel,
+  deploymentScenario,
+  scenarioEmoji,
+  scenarioLabel,
+} from "@/lib/mikrotik/device-catalog";
 
 export default function DetectedModelBadge({
   routerId,
@@ -83,6 +88,15 @@ export default function DetectedModelBadge({
     detected.deviceMode !== "rose" &&
     detected.containerFeatureEnabled === false;
 
+  // Scénario de déploiement MikHmon dérivé du couple architecture + stockage
+  // (même logique que le backend container-setup.ts, via deploymentScenario).
+  const scenario = deploymentScenario({
+    supportsContainers: detected.supportsContainers,
+    hasUsbStorage: detected.hasUsbStorage,
+    hasEmmcStorage: detected.hasEmmcStorage,
+    hasLargeOnboardStorage: detected.hasLargeOnboardStorage,
+  });
+
   return (
     <div className="mt-4 rounded-md border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
       <div className="flex items-center justify-between gap-2">
@@ -115,6 +129,30 @@ export default function DetectedModelBadge({
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
         </button>
       </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 rounded-full border border-line-soft bg-paper px-2.5 py-1 text-xs font-medium text-ink">
+          {scenarioEmoji(scenario)} Scénario {scenario} · {scenarioLabel(scenario)}
+        </span>
+      </div>
+      {scenario === 2 && (
+        <p className="mt-1.5 text-xs text-warn">
+          ⚠️ Ni clé USB ni disque interne : MikHmon tournera en RAM (tmpfs). Usure
+          possible de la flash — usage intensif déconseillé, ou branchez une clé USB.
+        </p>
+      )}
+      {scenario === 3 && (
+        <p className="mt-1.5 text-xs text-ok">
+          Stockage interne détecté : MikHmon y sera installé et survivra au reboot,
+          sans clé USB.
+        </p>
+      )}
+      {scenario === 4 && (
+        <p className="mt-1.5 text-xs text-ink-soft">
+          Ce modèle ne supporte pas les conteneurs : MikHmon doit être hébergé sur un
+          VPS externe. L&apos;auto-setup configurera uniquement le hotspot.
+        </p>
+      )}
 
       <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-ink-soft">
         <span>

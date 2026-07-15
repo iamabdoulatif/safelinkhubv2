@@ -34,7 +34,63 @@ export type MikrotikModel = {
    * requiresUsbForContainer; both default to false/unset.
    */
   hasLargeOnboardStorage?: boolean;
+  /**
+   * True sur les modèles enterprise avec eMMC interne ≥ 4 GB
+   * (CCR2004, CCR2116, CCR2216, CRS354…). Ces modèles n'utilisent JAMAIS
+   * tmpfs et n'ont pas besoin de USB : MikHmon vit sur le disque interne
+   * (slot "disk1") et survit au reboot. Traité comme hasLargeOnboardStorage
+   * côté stockage, mais distingué pour l'UI (badge « eMMC ») et pour garantir
+   * le never-tmpfs même si le slot disk1 n'est pas encore live-détecté.
+   */
+  hasEmmcStorage?: boolean;
 };
+
+/**
+ * Les 4 scénarios de déploiement MikHmon, dérivés du couple architecture +
+ * stockage. Partagé backend (container-setup) ↔ UI (badges) pour un vocabulaire
+ * unique. 1 = USB/microSD, 2 = flash interne limité (tmpfs), 3 = eMMC/flash
+ * interne généreux, 4 = pas de container (Legacy/VPS).
+ */
+export type DeploymentScenario = 1 | 2 | 3 | 4;
+
+export function deploymentScenario(input: {
+  supportsContainers: boolean;
+  hasUsbStorage: boolean;
+  hasEmmcStorage: boolean;
+  hasLargeOnboardStorage: boolean;
+}): DeploymentScenario {
+  if (!input.supportsContainers) return 4; // architecture MIPS ou RouterOS < v7
+  if (input.hasUsbStorage) return 1; // clé USB / microSD branchée (recommandé)
+  if (input.hasEmmcStorage || input.hasLargeOnboardStorage) return 3; // disque interne — jamais tmpfs
+  return 2; // flash interne limité → pull en tmpfs (usure NAND possible)
+}
+
+export function scenarioLabel(scenario: DeploymentScenario): string {
+  switch (scenario) {
+    case 1:
+      return "USB + Container";
+    case 2:
+      return "Flash + Container";
+    case 3:
+      return "eMMC + Container";
+    case 4:
+      return "Legacy (Hotspot seul)";
+  }
+}
+
+/** Emoji d'état par scénario (repris tel quel dans les badges UI). */
+export function scenarioEmoji(scenario: DeploymentScenario): string {
+  switch (scenario) {
+    case 1:
+      return "🟢";
+    case 2:
+      return "🟡";
+    case 3:
+      return "🔵";
+    case 4:
+      return "⚪";
+  }
+}
 
 /**
  * RouterOS Container support (used to run MikHmon) is only available on
@@ -155,6 +211,34 @@ export const MIKROTIK_MODELS: MikrotikModel[] = [
     architecture: "arm64",
     wifiBands: "none",
     hasLargeOnboardStorage: true,
+  },
+
+  // Enterprise CCR/CRS — eMMC interne (≥ 4 GB), architecture arm/arm64/tile
+  // avec Container. MikHmon vit sur "disk1" (jamais tmpfs) et survit au reboot ;
+  // aucune clé USB requise. Scénario 3.
+  {
+    boardName: "CCR2004-1G-12S+2XS",
+    architecture: "arm64",
+    wifiBands: "none",
+    hasEmmcStorage: true,
+  },
+  {
+    boardName: "CCR2116-12G-4S+",
+    architecture: "arm64",
+    wifiBands: "none",
+    hasEmmcStorage: true,
+  },
+  {
+    boardName: "CCR2216-1G-12XS-2XQ",
+    architecture: "arm64",
+    wifiBands: "none",
+    hasEmmcStorage: true,
+  },
+  {
+    boardName: "CRS354-48G-4S+2Q+RM",
+    architecture: "arm",
+    wifiBands: "none",
+    hasEmmcStorage: true,
   },
 
   // Legacy MIPS boards — still common in the field, but no Container

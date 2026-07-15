@@ -52,7 +52,7 @@ test("auto-setup repairs MikHmon tunnel access and removes duplicate legacy Dock
 test("USB container installs use USB root and temporary pull paths", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /const usbRootDir = "usb1\/mikhmon-app"/);
+  assert.match(source, /"usb1\/mikhmon-app"/);
   assert.match(source, /=tmpdir=usb1\/pull/);
   assert.doesNotMatch(source, /\/flash\/mikhmon/);
 });

@@ -540,6 +540,7 @@ export default function AutoSetupStep({
           : [],
         hasUsbStorage,
         hasLargeOnboardStorage: detected?.hasLargeOnboardStorage ?? false,
+        hasEmmcStorage: detected?.hasEmmcStorage ?? false,
         supportsContainers: mikhmonIncluded,
         reboot: true,
         voucherProfiles: customProfiles,
