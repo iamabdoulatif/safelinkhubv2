@@ -5,6 +5,7 @@
 // indépendamment de l'onglet du portail (qui, lui, auto-soumet le login routeur).
 
 import { useEffect, useState } from "react";
+import { AlertTriangle, CheckCircle2, Hourglass } from "lucide-react";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
@@ -90,7 +91,9 @@ export default function PaidStatus({
       <div style={CARD}>
         {phase === "fulfilled" ? (
           <>
-            <div style={{ fontSize: 44, marginBottom: 8 }}>✅</div>
+            <div style={{ marginBottom: 8 }}>
+              <CheckCircle2 size={44} color="#16a34a" style={{ display: "inline-block" }} />
+            </div>
             <h1 style={{ fontSize: "1.25rem", margin: "0 0 6px" }}>Paiement reçu</h1>
             <p style={{ color: "#64748b", fontSize: ".85rem", margin: "0 0 6px" }}>Votre code WiFi</p>
             <div
@@ -111,7 +114,9 @@ export default function PaidStatus({
           </>
         ) : phase === "failed" ? (
           <>
-            <div style={{ fontSize: 44, marginBottom: 8 }}>⚠️</div>
+            <div style={{ marginBottom: 8 }}>
+              <AlertTriangle size={44} color="#dc2626" style={{ display: "inline-block" }} />
+            </div>
             <h1 style={{ fontSize: "1.25rem", margin: "0 0 8px" }}>Paiement non abouti</h1>
             <p style={{ color: "#64748b", fontSize: ".95rem", margin: 0 }}>
               {error || "Le paiement n’a pas pu être finalisé. Revenez à l’onglet WiFi pour réessayer."}
@@ -119,7 +124,9 @@ export default function PaidStatus({
           </>
         ) : (
           <>
-            <div style={{ fontSize: 44, marginBottom: 8 }}>⏳</div>
+            <div style={{ marginBottom: 8 }}>
+              <Hourglass size={44} color="#64748b" style={{ display: "inline-block" }} />
+            </div>
             <h1 style={{ fontSize: "1.25rem", margin: "0 0 8px" }}>
               {phase === "loading" ? "Paiement reçu" : "Activation en cours"}
             </h1>

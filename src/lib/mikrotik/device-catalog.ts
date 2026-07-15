@@ -78,20 +78,6 @@ export function scenarioLabel(scenario: DeploymentScenario): string {
   }
 }
 
-/** Emoji d'état par scénario (repris tel quel dans les badges UI). */
-export function scenarioEmoji(scenario: DeploymentScenario): string {
-  switch (scenario) {
-    case 1:
-      return "🟢";
-    case 2:
-      return "🟡";
-    case 3:
-      return "🔵";
-    case 4:
-      return "⚪";
-  }
-}
-
 /**
  * RouterOS Container support (used to run MikHmon) is only available on
  * arm, arm64 and tile builds — never on mipsbe/mmips/smips. This is a hard

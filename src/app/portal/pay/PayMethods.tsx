@@ -213,7 +213,7 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
               whiteSpace: "nowrap",
             }}
           >
-            {copied ? "Copié ✓" : "Copier"}
+            {copied ? "Copié" : "Copier"}
           </button>
         </div>
       </div>

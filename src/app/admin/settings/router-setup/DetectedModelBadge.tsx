@@ -11,7 +11,6 @@ import {
 import {
   architectureLabel,
   deploymentScenario,
-  scenarioEmoji,
   scenarioLabel,
 } from "@/lib/mikrotik/device-catalog";
 
@@ -132,12 +131,12 @@ export default function DetectedModelBadge({
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <span className="inline-flex items-center gap-1 rounded-full border border-line-soft bg-paper px-2.5 py-1 text-xs font-medium text-ink">
-          {scenarioEmoji(scenario)} Scénario {scenario} · {scenarioLabel(scenario)}
+          Scénario {scenario} · {scenarioLabel(scenario)}
         </span>
       </div>
       {scenario === 2 && (
         <p className="mt-1.5 text-xs text-warn">
-          ⚠️ Ni clé USB ni disque interne : MikHmon tournera en RAM (tmpfs). Usure
+          Ni clé USB ni disque interne : MikHmon tournera en RAM (tmpfs). Usure
           possible de la flash — usage intensif déconseillé, ou branchez une clé USB.
         </p>
       )}

@@ -605,7 +605,7 @@ export default function AutoSetupStep({
           {underManualGate &&
             (gate?.authorized ? (
               <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
-                Accès autorisé ✓
+                Accès autorisé
               </span>
             ) : (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
