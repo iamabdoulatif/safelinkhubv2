@@ -1271,8 +1271,13 @@ export async function provisionHotspotStack(
       `=html-directory-override=${htmlDirectory}`,
       "=http-cookie-lifetime=52w1d",
       "=install-hotspot-queue=yes",
-      "=login-by=mac,cookie,http-chap,http-pap,mac-cookie",
-      "=mac-auth-mode=mac-as-username-and-password",
+      // Login PAR CODE uniquement (http-chap/http-pap, username=code) + cookie
+      // navigateur (même onglet ne re-saisit pas). PAS de login MAC : on retire
+      // "mac" et "mac-cookie" + mac-auth-mode → aucun appareil ne se reconnecte
+      // silencieusement par son adresse MAC (demande utilisateur). Le user reste
+      // lié au MAC (mac-address dans fulfill.ts) mais ça RESTREINT le partage du
+      // code, ça n'auto-connecte pas.
+      "=login-by=cookie,http-chap,http-pap",
     ];
     if (matchingProfile?.[".id"]) {
       await run(
