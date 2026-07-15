@@ -4,19 +4,19 @@
 // transaction GeniusPay du rail choisi (POST /api/portal/[slug]/pay) puis
 // redirige la MÊME fenêtre vers le checkout du rail.
 //
-// Trois choix (voir la liste METHODS plus bas) : "wave" (pay.wave.com direct),
-// "paystack" (checkout.paystack.com qui LISTE Orange/MTN/Wave — canaux activés
-// côté marchand GeniusPay) et "hosted" (page hébergée geniuspay.ci, payment_method
-// OMIS, qui couvre EN PLUS Moov Money + carte). Le checkout Paystack n'expose ni
-// Moov ni carte, et la page hébergée ouvre sur Wave avec un lien « Changer » — d'où
-// le bouton Paystack dédié pour afficher directement les opérateurs. ⚠️ Forcer un
-// rail précis (orange_money/mtn_money/moov) via l'API retombe sur Wave tant que ce
-// canal n'est pas activé côté marchand GeniusPay/Paystack. Les domaines de
-// redirection de chaque opérateur doivent être autorisés dans le walled-garden
-// (Paramètres → Walled-garden) pour s'ouvrir derrière le portail.
+// Deux choix (voir la liste METHODS plus bas) : "wave" (pay.wave.com direct) et
+// "hosted" (page hébergée GeniusPay, payment_method OMIS) qui englobe TOUS les
+// moyens — Orange, MTN, Moov, Wave, carte — mais ouvre sur Wave par défaut (lien
+// « Changer » pour l'opérateur). Paystack a été retiré : la page hébergée route
+// déjà correctement chaque opérateur, le bouton Paystack faisait doublon. Forcer
+// un rail précis (orange_money/mtn_money/moov) via l'API retombe sur Wave tant que
+// ce canal n'est pas activé côté marchand GeniusPay — d'où le choix de la page
+// hébergée. Les domaines de redirection de chaque opérateur doivent être autorisés
+// dans le walled-garden (Paramètres → Walled-garden) pour s'ouvrir derrière le
+// portail.
 //
 // Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
-// lourdes (checkout Wave/Paystack « pompe sur le logo »). D'où le repli « ouvrir
+// lourdes (checkout Wave/GeniusPay « pompe sur le logo »). D'où le repli « ouvrir
 // dans le navigateur » : /portal/pay est sur safelinkhub.io (walled-garden) donc
 // s'ouvre AUSSI dans Chrome/Safari où le checkout marche. Après paiement, un
 // CODE WiFi s'affiche (+ SMS) : le client le saisit sur le portail pour se
@@ -26,26 +26,17 @@ import { useEffect, useState } from "react";
 
 type Method = { id: string; label: string; sub: string; bg: string; fg: string };
 
-// Trois voies explicites (demande opérateur) :
-// - "wave"     → pay.wave.com direct (rapide, fiable en mini-navigateur captif) ;
-// - "paystack" → checkout.paystack.com qui LISTE directement Orange / MTN / Wave
-//   (canaux activés côté marchand GeniusPay) — le « GeniusPay embarquant Paystack » ;
-// - "hosted"   → page hébergée GeniusPay (payment_method omis) = tous les moyens,
-//   dont Moov Money et la carte, non couverts par le checkout Paystack.
+// Deux voies : "wave" → pay.wave.com direct (rapide, fiable en mini-navigateur
+// captif) ; "hosted" → checkout hébergé GeniusPay (payment_method omis) qui
+// englobe TOUS les moyens (Orange Money, MTN MoMo, Moov Money, Wave, carte). Il
+// ouvre sur Wave par défaut avec un lien « Changer » pour choisir l'opérateur.
 const METHODS: Method[] = [
   { id: "wave", label: "Payer avec Wave", sub: "Rapide — redirection directe", bg: "#1dc4ff", fg: "#00263a" },
   {
-    id: "paystack",
-    label: "Orange · MTN · Wave",
-    sub: "Via Paystack (choix de l'opérateur)",
-    bg: "#0f172a",
-    fg: "#fff",
-  },
-  {
     id: "hosted",
-    label: "Moov · Carte · tous les moyens",
-    sub: "Via GeniusPay (page hébergée)",
-    bg: "#b45309",
+    label: "Orange · MTN · Moov · Carte",
+    sub: "Tous les moyens (GeniusPay)",
+    bg: "#0f172a",
     fg: "#fff",
   },
 ];
