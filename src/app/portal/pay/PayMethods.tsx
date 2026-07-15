@@ -4,16 +4,13 @@
 // transaction GeniusPay du rail choisi (POST /api/portal/[slug]/pay) puis
 // redirige la MÊME fenêtre vers le checkout du rail.
 //
-// Deux choix (voir la liste METHODS plus bas) : "wave" (pay.wave.com direct) et
-// "hosted" (page hébergée GeniusPay, payment_method OMIS) qui englobe TOUS les
-// moyens — Orange, MTN, Moov, Wave, carte — mais ouvre sur Wave par défaut (lien
-// « Changer » pour l'opérateur). Paystack a été retiré : la page hébergée route
-// déjà correctement chaque opérateur, le bouton Paystack faisait doublon. Forcer
-// un rail précis (orange_money/mtn_money/moov) via l'API retombe sur Wave tant que
-// ce canal n'est pas activé côté marchand GeniusPay — d'où le choix de la page
-// hébergée. Les domaines de redirection de chaque opérateur doivent être autorisés
-// dans le walled-garden (Paramètres → Walled-garden) pour s'ouvrir derrière le
-// portail.
+// La page LISTE chaque moyen (Wave, Orange, MTN, Moov, carte) comme le checkout
+// GeniusPay : un clic initie le paiement sur CE rail précis (payment_method
+// envoyé à /api/portal/[slug]/pay → GeniusPay renvoie l'URL du rail). Un lien
+// « tous les moyens » ouvre en repli le checkout hébergé (payment_method omis)
+// si un rail précis n'est pas activé côté marchand GeniusPay. Les domaines de
+// redirection de chaque opérateur doivent être autorisés dans le walled-garden
+// (Paramètres → Walled-garden) pour s'ouvrir derrière le portail.
 //
 // Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
 // lourdes (checkout Wave/GeniusPay « pompe sur le logo »). D'où le repli « ouvrir
@@ -24,21 +21,20 @@
 
 import { useEffect, useState } from "react";
 
-type Method = { id: string; label: string; sub: string; bg: string; fg: string };
+type Method = { id: string; label: string; logo: string };
 
-// Deux voies : "wave" → pay.wave.com direct (rapide, fiable en mini-navigateur
-// captif) ; "hosted" → checkout hébergé GeniusPay (payment_method omis) qui
-// englobe TOUS les moyens (Orange Money, MTN MoMo, Moov Money, Wave, carte). Il
-// ouvre sur Wave par défaut avec un lien « Changer » pour choisir l'opérateur.
+// Reproduit la LISTE du checkout GeniusPay (un moyen par ligne, logo + nom) :
+// chaque clic initie le paiement sur CE rail précis (payment_method envoyé à
+// l'API GeniusPay). Valeurs acceptées : wave | orange_money | mtn_money |
+// moov_money | card (validées à l'intégration, cf. geniuspay-org.ts). Un lien
+// « tous les moyens » ouvre en repli le checkout hébergé (payment_method omis)
+// si un rail précis n'est pas activé côté marchand.
 const METHODS: Method[] = [
-  { id: "wave", label: "Payer avec Wave", sub: "Rapide — redirection directe", bg: "#1dc4ff", fg: "#00263a" },
-  {
-    id: "hosted",
-    label: "Orange · MTN · Moov · Carte",
-    sub: "Tous les moyens (GeniusPay)",
-    bg: "#0f172a",
-    fg: "#fff",
-  },
+  { id: "wave", label: "Wave", logo: "/payment/wave.png" },
+  { id: "orange_money", label: "Orange Money", logo: "/payment/orange.png" },
+  { id: "mtn_money", label: "MTN MoMo", logo: "/payment/mtn-momo.png" },
+  { id: "moov_money", label: "Moov Money", logo: "/payment/moov.png" },
+  { id: "card", label: "Carte bancaire", logo: "/payment/visa.svg" },
 ];
 
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
@@ -105,7 +101,17 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
 
   return (
     <div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p
+        style={{
+          margin: "0 0 10px",
+          fontSize: ".8rem",
+          color: "#64748b",
+          textAlign: "center",
+        }}
+      >
+        Choisissez votre moyen de paiement
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {METHODS.map((m) => {
           const loading = busy === m.id;
           return (
@@ -116,85 +122,68 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
               onClick={() => pay(m.id)}
               style={{
                 display: "flex",
-                flexDirection: "column",
                 alignItems: "center",
-                gap: 2,
+                gap: 12,
                 width: "100%",
-                padding: 16,
-                border: 0,
+                padding: "11px 14px",
+                border: "1px solid #e2e8f0",
                 borderRadius: 12,
-                background: m.bg,
-                color: m.fg,
-                fontSize: "1.05rem",
-                fontWeight: 700,
+                background: "#fff",
+                color: "#0f172a",
+                fontSize: "1rem",
+                fontWeight: 600,
                 cursor: busy ? "default" : "pointer",
+                textAlign: "left",
                 opacity: busy && !loading ? 0.5 : 1,
               }}
             >
-              <span>{loading ? "Redirection…" : m.label}</span>
-              {!loading ? (
-                <span style={{ fontSize: ".72rem", fontWeight: 500, opacity: 0.85 }}>{m.sub}</span>
-              ) : null}
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  background: "#f1f5f9",
+                  flexShrink: 0,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={m.logo}
+                  alt=""
+                  style={{ maxWidth: 28, maxHeight: 28, objectFit: "contain", display: "block" }}
+                />
+              </span>
+              <span style={{ flex: 1 }}>{loading ? "Redirection…" : m.label}</span>
+              <span style={{ color: "#94a3b8", fontSize: "1.3rem", lineHeight: 1 }} aria-hidden="true">
+                ›
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* Moyens de paiement acceptés (logos servis depuis safelinkhub.io =
-          walled-garden, donc chargés derrière le portail captif). */}
-      <div style={{ marginTop: 16 }}>
-        <p
-          style={{
-            margin: "0 0 8px",
-            fontSize: ".7rem",
-            color: "#94a3b8",
-            textAlign: "center",
-            textTransform: "uppercase",
-            letterSpacing: ".08em",
-          }}
-        >
-          Moyens de paiement acceptés
-        </p>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          {[
-            { src: "/payment/orange.png", alt: "Orange Money" },
-            { src: "/payment/mtn-momo.png", alt: "MTN MoMo" },
-            { src: "/payment/moov.png", alt: "Moov Money" },
-            { src: "/payment/wave.png", alt: "Wave" },
-            { src: "/payment/visa.svg", alt: "Visa" },
-          ].map((logo) => (
-            <span
-              key={logo.src}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: 34,
-                minWidth: 46,
-                padding: "0 8px",
-                background: "#fff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={logo.src}
-                alt={logo.alt}
-                style={{ maxHeight: 22, maxWidth: 40, objectFit: "contain", display: "block" }}
-              />
-            </span>
-          ))}
-        </div>
-      </div>
+      {/* Repli : le checkout hébergé GeniusPay (payment_method omis) liste tous
+          les moyens — utile si un rail précis n'est pas activé côté marchand. */}
+      <button
+        type="button"
+        onClick={() => pay("hosted")}
+        disabled={Boolean(busy)}
+        style={{
+          marginTop: 10,
+          width: "100%",
+          background: "none",
+          border: 0,
+          color: "#64748b",
+          fontSize: ".8rem",
+          textDecoration: "underline",
+          cursor: busy ? "default" : "pointer",
+        }}
+      >
+        {busy === "hosted" ? "Redirection…" : "Un autre moyen ? Tous les moyens de paiement"}
+      </button>
 
       {error ? <p style={{ margin: "12px 0 0", color: "#ef4444", fontSize: ".85rem" }}>{error}</p> : null}
 
