@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { organizations, captiveTemplates, packages } from "@/lib/db/schema";
+import { organizations, captiveTemplates, packages, routers } from "@/lib/db/schema";
 import {
   contentTypeForPath,
   renderPackageFile,
@@ -59,26 +59,81 @@ export async function GET(
     return new Response("File not found", { status: 404 });
   }
 
-  // Forfaits actifs de l'org, injectés dans {{PLANS_HTML}} / {{PLANS_JSON}}
-  // / {{MIN_PLAN_PRICE}} — le portail affiche donc toujours les prix de la
-  // page Forfaits au moment où le routeur télécharge ses fichiers.
-  const plans = await db
-    .select({
-      id: packages.id,
-      name: packages.name,
-      priceCents: packages.priceCents,
-      durationValue: packages.durationValue,
-      durationUnit: packages.durationUnit,
-    })
-    .from(packages)
-    .where(and(eq(packages.orgId, org.id), eq(packages.active, true)))
-    .orderBy(asc(packages.priceCents));
+  // Forfaits actifs du ROUTEUR courant, injectés dans {{PLANS_HTML}} /
+  // {{PLANS_JSON}} / {{MIN_PLAN_PRICE}} — chaque MikroTik n'affiche que SES
+  // forfaits, jamais ceux d'une autre zone WiFi de l'org. Stratégie stricte :
+  // si ce routeur a ≥1 forfait rattaché (routerId=routerId), on n'affiche que
+  // ceux-là ; sinon (org legacy jamais re-configurée) on retombe sur les
+  // forfaits « globaux » (routerId=null). Un forfait null est adopté (routerId
+  // renseigné) au prochain auto-setup du routeur — voir container-setup.ts.
+  const planColumns = {
+    id: packages.id,
+    name: packages.name,
+    priceCents: packages.priceCents,
+    durationValue: packages.durationValue,
+    durationUnit: packages.durationUnit,
+  } as const;
+  let plans = routerId
+    ? await db
+        .select(planColumns)
+        .from(packages)
+        .where(
+          and(
+            eq(packages.orgId, org.id),
+            eq(packages.active, true),
+            eq(packages.routerId, routerId),
+          ),
+        )
+        .orderBy(asc(packages.priceCents))
+    : [];
+  if (plans.length === 0) {
+    // Aucun forfait rattaché à ce routeur (ou routerId absent) → forfaits
+    // legacy globaux de l'org.
+    plans = await db
+      .select(planColumns)
+      .from(packages)
+      .where(
+        and(
+          eq(packages.orgId, org.id),
+          eq(packages.active, true),
+          isNull(packages.routerId),
+        ),
+      )
+      .orderBy(asc(packages.priceCents));
+  }
+
+  // Branding scopé au ROUTEUR (saisi dans l'auto-setup) prioritaire sur celui
+  // du modèle, qui sert de repli champ par champ. Un routeur qui a défini ses
+  // propres vendeurs / contact affiche les siens ; sinon on retombe sur le
+  // modèle (compat : anciens routeurs sans branding propre).
+  let routerBranding:
+    | { portalSupportWhatsapp: string | null; portalSupportPhone: string | null; portalVendors: unknown }
+    | undefined;
+  if (routerId) {
+    const [routerRow] = await db
+      .select({
+        portalSupportWhatsapp: routers.portalSupportWhatsapp,
+        portalSupportPhone: routers.portalSupportPhone,
+        portalVendors: routers.portalVendors,
+        orgId: routers.orgId,
+      })
+      .from(routers)
+      .where(eq(routers.id, routerId))
+      .limit(1);
+    if (routerRow && routerRow.orgId === org.id) routerBranding = routerRow;
+  }
+  const routerVendors = Array.isArray(routerBranding?.portalVendors)
+    ? (routerBranding.portalVendors as PackageVendor[])
+    : null;
 
   const body = renderPackageFile(file, {
     ssid,
-    supportWhatsapp: template.packageSupportWhatsapp,
-    supportPhone: template.packageSupportPhone,
-    vendors: template.packageVendors as PackageVendor[] | null,
+    supportWhatsapp: routerBranding?.portalSupportWhatsapp || template.packageSupportWhatsapp,
+    supportPhone: routerBranding?.portalSupportPhone || template.packageSupportPhone,
+    vendors:
+      routerVendors && routerVendors.length > 0
+        ? routerVendors
+        : (template.packageVendors as PackageVendor[] | null),
     plans,
     appUrl,
     slug,

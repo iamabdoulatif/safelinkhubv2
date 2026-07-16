@@ -138,6 +138,20 @@ describe("vpn quota grants", () => {
       true,
     );
 
+    // Essai de 10 jours (VPN_TRIAL_DAYS) depuis l'inscription : org créée il y
+    // a 3 jours → encore en essai, aucun débit.
+    assert.equal(
+      shouldChargeVpnActivation({
+        isSuperAdmin: false,
+        orgCreatedAt: new Date("2026-06-25T00:00:00.000Z"),
+        vpnQuotaMode: "default",
+        vpnQuotaExpiresAt: null,
+        now: NOW,
+      }),
+      false,
+    );
+
+    // Org créée il y a ~6 mois : les 10 jours sont écoulés → débit.
     assert.equal(
       shouldChargeVpnActivation({
         isSuperAdmin: false,
@@ -146,7 +160,7 @@ describe("vpn quota grants", () => {
         vpnQuotaExpiresAt: null,
         now: NOW,
       }),
-      false,
+      true,
     );
 
     assert.equal(

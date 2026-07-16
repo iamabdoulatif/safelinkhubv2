@@ -229,6 +229,33 @@ function minPlanPriceLabel(plans: PortalPlan[] | null | undefined): string {
   return formatFcfa(Math.min(...plans.map((p) => p.priceCents)));
 }
 
+// Logos des moyens de paiement acceptés — servis depuis SafeLinkHub
+// (public/payment/*), autorisé dans le walled-garden du hotspot, donc
+// chargeables sur le portail avant authentification. Injectés dans TOUT
+// portail (y compris importés) via {{PAYMENT_LOGOS_HTML}} et l'injection
+// automatique de login.html — pour que la page affiche « Moyens de paiement
+// acceptés » même quand le portail d'origine n'en avait pas.
+const PAYMENT_METHOD_LOGOS = [
+  { file: "wave.png", label: "Wave" },
+  { file: "orange.png", label: "Orange Money" },
+  { file: "mtn-momo.png", label: "MTN MoMo" },
+  { file: "moov.png", label: "Moov Money" },
+  { file: "visa.svg", label: "Carte bancaire" },
+];
+
+function renderPaymentLogosHtml(appUrl: string | null | undefined): string {
+  const base = (appUrl ?? "").replace(/\/+$/, "");
+  if (!base) return "";
+  const imgs = PAYMENT_METHOD_LOGOS.map(
+    (m) =>
+      `<img src="${base}/payment/${m.file}" alt="${escapeHtml(m.label)}" title="${escapeHtml(m.label)}" style="height:24px;width:auto;object-fit:contain;" loading="lazy">`,
+  ).join("");
+  return `<div class="slh-pay-methods" style="margin:14px auto 0;max-width:420px;text-align:center;">
+  <p style="margin:0 0 8px;font:600 12px system-ui,sans-serif;letter-spacing:.02em;color:#94a3b8;text-transform:uppercase;">Moyens de paiement acceptés</p>
+  <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">${imgs}</div>
+</div>`;
+}
+
 const TEXT_EXTENSIONS = new Set([".html", ".css", ".js", ".svg", ".txt"]);
 
 // Listed explicitly (rather than walked at runtime) so Next.js's file
@@ -684,14 +711,25 @@ export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars):
     .replaceAll("{{SUPPORT_WHATSAPP}}", vars.supportWhatsapp ?? "")
     .replaceAll("{{APP_URL}}", vars.appUrl ?? "")
     .replaceAll("{{ORG_SLUG}}", vars.slug ?? "")
-    .replaceAll("{{ROUTER_ID}}", vars.routerId ?? "");
+    .replaceAll("{{ROUTER_ID}}", vars.routerId ?? "")
+    // Placeholder explicite pour les portails qui veulent placer eux-mêmes la
+    // bande des logos de paiement. Les portails qui n'en ont pas la reçoivent
+    // via l'injection auto de login.html ci-dessous.
+    .replaceAll("{{PAYMENT_LOGOS_HTML}}", renderPaymentLogosHtml(vars.appUrl));
 
   // Injecte le flux de paiement universel dans la page de login de N'IMPORTE
   // quel portail. Conditionné à appUrl (contexte réel de service, pas les
   // tests) et à la page login pour ne pas alourdir les autres fichiers.
   const isLoginPage = /(^|\/)login\.html$/i.test(file.path);
   if (isLoginPage && vars.appUrl) {
-    const injection = portalPayInjection(vars);
+    // Bande « Moyens de paiement acceptés » injectée seulement si le portail
+    // n'en affiche pas déjà une (le portail groupé SafeLinkHub a sa propre
+    // section .payment-logos ; les portails importés n'en ont pas) et si
+    // l'auteur n'a pas déjà posé le placeholder {{PAYMENT_LOGOS_HTML}}.
+    const alreadyHasPaymentLogos =
+      /payment-logos|slh-pay-methods|moyens de paiement/i.test(rendered);
+    const paymentLogosBlock = alreadyHasPaymentLogos ? "" : renderPaymentLogosHtml(vars.appUrl);
+    const injection = paymentLogosBlock + portalPayInjection(vars);
     const out = /<\/body>/i.test(rendered)
       ? rendered.replace(/<\/body>/i, `${injection}</body>`)
       : rendered + injection;

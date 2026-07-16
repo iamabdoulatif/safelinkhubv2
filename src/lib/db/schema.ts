@@ -162,6 +162,14 @@ export const routers = pgTable("routers", {
   // assuming the fixed default name.
   hotspotBridgeName: text("hotspot_bridge_name"),
   hotspotServerName: text("hotspot_server_name"),
+  // Branding du portail captif SCOPÉ AU ROUTEUR, saisi dans l'auto-setup :
+  // contact support/paiement + « espaces vendeurs » (vendeurs agréés). Rendu
+  // par le portail de CE routeur avec priorité sur le branding du modèle
+  // (captiveTemplates.packageSupport*/packageVendors), qui sert de repli.
+  // Voir captive-template route + package-files.ts (VENDORS_HTML/SUPPORT).
+  portalSupportWhatsapp: text("portal_support_whatsapp"),
+  portalSupportPhone: text("portal_support_phone"),
+  portalVendors: jsonb("portal_vendors"), // Array of { name, location, phone }
   // Snapshot of the HotspotStackOptions a successful provisionHotspotStack
   // run was last called with (container-setup.ts) — every field the
   // wizard's steps collect (hotspotAddress, hotspotName, dnsName, ssid,
@@ -312,6 +320,14 @@ export const packages = pgTable("packages", {
   orgId: uuid("org_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
+  // MikroTik sur lequel ce forfait (= profil hotspot RouterOS) est installé.
+  // Chaque routeur possède ses propres lignes de forfait : l'auto-setup gère
+  // (upsert + purge) uniquement celles de SON routeur, et le portail captif
+  // n'affiche que les forfaits de ce routeur. null = forfait « legacy » créé
+  // avant ce rattachement (org mono-routeur) — le portail retombe dessus tant
+  // que le routeur n'a aucun forfait rattaché, et un auto-setup l'« adopte »
+  // (set routerId). Voir container-setup.ts (sync) + captive-template route.
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   priceCents: integer("price_cents").notNull(),
   durationValue: integer("duration_value").notNull(),

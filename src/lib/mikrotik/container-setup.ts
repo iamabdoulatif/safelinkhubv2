@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, asc, eq, isNull, notInArray, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations, captiveTemplates, walletTransactions, packages, bridges } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
@@ -21,6 +21,8 @@ import {
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 import { scenarioLabel, type DeploymentScenario } from "./device-catalog";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
+import { ensureWalledGarden } from "./walled-garden";
+import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { loadSafelinkhubDefaultPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import {
@@ -682,11 +684,22 @@ export type HotspotStackOptions = {
   // have to re-enter the same plan by hand on the Packages page too.
   // Upserted by name per org: re-running with the same name updates price/
   // duration instead of duplicating the row.
+  // Branding du portail captif scopé à CE routeur, saisi dans l'auto-setup :
+  // contact support/paiement + « espaces vendeurs ». Persisté sur la ligne
+  // routers (portalSupportWhatsapp/Phone/Vendors) et rendu en priorité sur le
+  // branding du modèle. undefined = ne pas toucher ; "" / [] = effacer.
+  portalSupportWhatsapp?: string;
+  portalSupportPhone?: string;
+  portalVendors?: { name: string; location: string; phone: string }[];
   packagesToSync?: {
     name: string;
     priceCents: number;
     durationValue: number;
     durationUnit: string;
+    // Débit personnalisé du forfait (Mbps) — miroir du rate-limit du profil.
+    // Optionnels : absents → on garde le débit par défaut du forfait (5/5).
+    uploadMbps?: number;
+    downloadMbps?: number;
   }[];
   // Deprecated compatibility field: older saved auto-setup configs may
   // still contain a custom bridge name, but the managed hotspot bridge is
@@ -1491,6 +1504,25 @@ export async function provisionHotspotStack(
       }
     }
 
+    // Walled-garden du hotspot (app SafeLinkHub + rails de paiement, tables
+    // L7 ET walled-garden ip pour l'HTTPS pré-auth) — installé DÈS
+    // l'auto-setup pour que le paiement du portail marche immédiatement,
+    // sans attendre le premier health-check (reconcileWalledGardenOnce le
+    // maintient ensuite à jour à chaque sync). Best-effort : un échec ici ne
+    // bloque pas la provision, le sync suivant rattrape.
+    try {
+      const { added } = await ensureWalledGarden(
+        client,
+        new URL(getAppUrl()).host,
+        await getOrgWalledGardenDisabledHosts(router.orgId),
+      );
+      log.push(`OK: walled-garden installé (${added.length} hôtes joignables avant connexion).`);
+    } catch (err) {
+      log.push(
+        `SKIP (walled-garden): ${err instanceof Error ? err.message : "erreur inconnue"} — sera réconcilié au prochain health-check.`,
+      );
+    }
+
     // ddns-enabled gives the router a reachable hostname even behind CGNAT;
     // dns-name on the hotspot profile is the captive-portal domain.
     await run(["/ip/cloud/set", "=ddns-enabled=yes"], "IP cloud DDNS");
@@ -1561,26 +1593,13 @@ export async function provisionHotspotStack(
       );
     }
 
-    // Placeholder rules reserved for the hotspot service's own auto-managed
-    // rules (RouterOS inserts its dynamic hotspot filter/NAT rules right
-    // after these passthrough markers) — present in every reference export,
-    // disabled by default since they do nothing on their own.
+    // Placeholder NAT rule reserved for the hotspot service's own auto-managed
+    // rules (RouterOS inserts its dynamic hotspot NAT rules right after this
+    // passthrough marker) — disabled by default since it does nothing on its
+    // own. Le placeholder de FILTER n'est plus créé : à la demande de
+    // l'opérateur, l'auto-setup n'ajoute AUCUNE règle firewall filter (voir le
+    // bloc de durcissement retiré plus bas).
     const placeholderComment = "place hotspot rules here";
-    const existingFilterPlaceholder = await client
-      .talk(["/ip/firewall/filter/print", `?chain=unused-hs-chain`, `?comment=${placeholderComment}`])
-      .catch(() => []);
-    if (existingFilterPlaceholder.length === 0) {
-      await run(
-        [
-          "/ip/firewall/filter/add",
-          "=chain=unused-hs-chain",
-          "=action=passthrough",
-          `=comment=${placeholderComment}`,
-          "=disabled=yes",
-        ],
-        "firewall filter placeholder (hotspot rules anchor)",
-      );
-    }
     const existingNatPlaceholder = await client
       .talk(["/ip/firewall/nat/print", `?chain=unused-hs-chain`, `?comment=${placeholderComment}`])
       .catch(() => []);
@@ -1597,130 +1616,46 @@ export async function provisionHotspotStack(
       );
     }
 
-    // Security hardening (filter + raw): drop invalid connections, basic
-    // DDoS rate-limiting, and WAN DNS blocking — mirrors the reference
-    // hardened export, minus the port-scanner-detection and SSH/Telnet
-    // brute-force rules that used to live here (see below — both removed
-    // for risking self-lockout of legitimate SafeLinkHub/admin traffic).
-    // Removed by comment first so reruns don't pile up duplicate rules,
-    // and so any router that already has the old rules gets them cleaned
-    // up automatically too.
-    for (const comment of [
-      "Drop Invalid Connections",
-      "Drop SSH&TELNET Brute Forcers",
-      "BLOCK DNS REQUEST ON WAN INTERFACE",
-      "Port scanners to list",
-      "SYN/FIN scan",
-      "SYN/RST scan",
-      "drop port scanners",
-    ]) {
-      const matches = await client
-        .talk(["/ip/firewall/filter/print", `?comment=${comment}`])
-        .catch(() => [] as Sentence[]);
-      for (const row of matches) {
+    // Durcissement firewall FILTER : l'auto-setup n'en AJOUTE aucun ET RETIRE
+    // celui hérité (posé par d'anciennes versions, souvent empilé en double au
+    // fil des reruns) — « Drop Invalid Connections », la chaîne « block-ddos »
+    // (return + add-src/dst + le saut depuis forward + le drop des paires
+    // ddoser→ddosed) et « BLOCK DNS ON WAN ». Supprimé à CHAQUE run. On liste
+    // puis filtre en JS plutôt que d'utiliser des requêtes API multi-conditions
+    // (sémantique AND/OR ambiguë) : on ne retire QUE ces règles, jamais
+    // d'autres règles forward. Le durcissement RAW côté WAN ci-dessous
+    // (Winbox-only) est conservé — c'est du /ip firewall raw, pas du filter.
+    const removeFilterRules = async (rows: Sentence[]) => {
+      for (const row of rows) {
         if (row[".id"]) {
-          await client.talk(["/ip/firewall/filter/remove", `=numbers=${row[".id"]}`]).catch(() => {});
+          await client
+            .talk(["/ip/firewall/filter/remove", `=numbers=${row[".id"]}`])
+            .catch(() => {});
         }
       }
+    };
+    for (const comment of ["Drop Invalid Connections", "BLOCK DNS REQUEST ON WAN INTERFACE"]) {
+      const rows = await client
+        .talk(["/ip/firewall/filter/print", `?comment=${comment}`])
+        .catch(() => [] as Sentence[]);
+      await removeFilterRules(rows);
     }
-    // One-time cleanup for the rest of the now-removed SSH/Telnet
-    // progressive-ban chain (stages 2-5 above never carried a comment,
-    // so the by-comment loop just above only ever caught stage 1) —
-    // dst-port=22-23 is a signature unique to that removed feature, not
-    // used by anything else this script adds.
-    const staleBruteForceRules = await client
-      .talk(["/ip/firewall/filter/print", "?chain=input", "?dst-port=22-23"])
+    // Toute la chaîne personnalisée block-ddos (return + add-dst + add-src).
+    const ddosChainRows = await client
+      .talk(["/ip/firewall/filter/print", "?chain=block-ddos"])
       .catch(() => [] as Sentence[]);
-    for (const row of staleBruteForceRules) {
-      if (row[".id"]) {
-        await client.talk(["/ip/firewall/filter/remove", `=numbers=${row[".id"]}`]).catch(() => {});
-      }
-    }
-    await run(
-      ["/ip/firewall/filter/add", "=chain=input", "=connection-state=invalid", "=action=drop", "=comment=Drop Invalid Connections"],
-      "firewall: drop invalid input",
+    await removeFilterRules(ddosChainRows);
+    // Dans forward : le saut vers block-ddos + le drop des paires ddoser→ddosed.
+    const forwardRows = await client
+      .talk(["/ip/firewall/filter/print", "?chain=forward"])
+      .catch(() => [] as Sentence[]);
+    await removeFilterRules(
+      forwardRows.filter(
+        (r) =>
+          r["jump-target"] === "block-ddos" ||
+          (r["src-address-list"] === "ddoser" && r["dst-address-list"] === "ddosed"),
+      ),
     );
-    await run(
-      ["/ip/firewall/filter/add", "=chain=forward", "=connection-state=invalid", "=action=drop", "=comment=Drop Invalid Connections"],
-      "firewall: drop invalid forward",
-    );
-    await run(
-      ["/ip/firewall/filter/add", "=chain=forward", "=connection-state=new", "=action=jump", "=jump-target=block-ddos"],
-      "firewall: jump to DDoS chain",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=forward",
-        "=connection-state=new",
-        "=src-address-list=ddoser",
-        "=dst-address-list=ddosed",
-        "=action=drop",
-      ],
-      "firewall: drop known DDoS pairs",
-    );
-    await run(
-      ["/ip/firewall/filter/add", "=chain=block-ddos", "=dst-limit=50,50,src-and-dst-addresses/10s", "=action=return"],
-      "firewall: DDoS rate-limit return",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=block-ddos",
-        "=action=add-dst-to-address-list",
-        "=address-list=ddosed",
-        "=address-list-timeout=1d",
-      ],
-      "firewall: mark DDoS dst",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=block-ddos",
-        "=action=add-src-to-address-list",
-        "=address-list=ddoser",
-        "=address-list-timeout=1d",
-      ],
-      "firewall: mark DDoS src",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        `=in-interface=${WAN_INTERFACE_NAME}`,
-        "=protocol=tcp",
-        "=dst-port=53",
-        "=action=drop",
-        "=comment=BLOCK DNS REQUEST ON WAN INTERFACE",
-      ],
-      "firewall: block WAN DNS (tcp)",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        `=in-interface=${WAN_INTERFACE_NAME}`,
-        "=protocol=udp",
-        "=dst-port=53",
-        "=action=drop",
-        "=comment=BLOCK DNS REQUEST ON WAN INTERFACE",
-      ],
-      "firewall: block WAN DNS (udp)",
-    );
-    // Port-scan-detection filter rules (psd / SYN-FIN / SYN-RST heuristics
-    // -> "port scanners" address-list -> drop) used to live here too, same
-    // family of bug as the SSH/Telnet ban below: they keyed off generic
-    // TCP behavior on the input chain with no source restriction, so they
-    // risked catching SafeLinkHub's own relay/tunnel traffic and locking
-    // legitimate admin access out, not just real attackers.
-    // The SSH/Telnet progressive-ban filter rules that used to live here
-    // (SSH_BlackList_1/2/3 -> IP_BlackList, 3 strikes -> 1-day ban) were
-    // removed — they keyed off dst-port 22-23 with no source restriction,
-    // so legitimate repeated SSH/SFTP connections (FileZilla retries, the
-    // admin's own personal VPN access) on port 22 got caught by the exact
-    // same escalation meant for brute-forcers, eventually self-banning the
-    // admin from their own router for a day. Telnet is disabled outright
-    // elsewhere anyway, so there's nothing on port 23 left to brute-force.
 
     // Raw firewall on the WAN side: only Winbox stays reachable from the
     // internet; every other management/remote-access port is dropped before
@@ -1885,6 +1820,9 @@ export async function provisionHotspotStack(
           `=address-pool=${HOTSPOT_POOL_NAME}`,
           `=on-login=${profile.onLogin}`,
           "=parent-queue=none",
+          // Débit personnalisé (rx/tx côté client) si l'admin l'a saisi ;
+          // sinon RouterOS n'applique aucune limite (débit du lien).
+          ...(profile.rateLimit ? [`=rate-limit=${profile.rateLimit}`] : []),
         ],
         `voucher profile ${profile.name}`,
       );
@@ -1908,52 +1846,85 @@ export async function provisionHotspotStack(
     }
 
     // Mirror each custom voucher profile as a sellable "Forfait" on
-    // /admin/packages — upserted by (orgId, name) so re-running with the
-    // same profile name updates price/duration instead of duplicating the
-    // row, and an admin-edited price on the Packages page isn't silently
-    // clobbered unless they actually change the wizard's value too.
+    // /admin/packages — SCOPÉ AU ROUTEUR courant. Upserté par (orgId,
+    // routerId, name) : re-lancer l'auto-setup du MÊME routeur avec le même
+    // nom de profil met à jour prix/durée au lieu de dupliquer, et n'affecte
+    // PAS les forfaits d'un autre routeur de l'org. Un forfait legacy (routerId
+    // null) portant ce nom est ADOPTÉ (routerId renseigné) plutôt que dupliqué
+    // → migration douce des orgs mono-routeur au 1er auto-setup. Un prix édité
+    // à la main sur la page Forfaits n'est écrasé que si la valeur du wizard
+    // change réellement.
     for (const pkg of opts.packagesToSync ?? []) {
+      // Ligne déjà rattachée à CE routeur en priorité, sinon une legacy null à
+      // adopter (jamais une ligne d'un AUTRE routeur).
       const [existingPackage] = await db
-        .select({ id: packages.id })
+        .select({ id: packages.id, routerId: packages.routerId })
         .from(packages)
-        .where(and(eq(packages.orgId, org.id), eq(packages.name, pkg.name)))
+        .where(
+          and(
+            eq(packages.orgId, org.id),
+            eq(packages.name, pkg.name),
+            or(eq(packages.routerId, routerId), isNull(packages.routerId)),
+          ),
+        )
+        // asc = NULLS LAST en Postgres → la ligne déjà rattachée à CE routeur
+        // (routerId non-null) passe avant une legacy null à adopter.
+        .orderBy(asc(packages.routerId))
         .limit(1);
+      // Débit personnalisé (Mbps) → miroir sur le forfait, seulement si fourni
+      // et valide (les deux > 0) ; sinon on ne touche pas au débit existant.
+      const bandwidth =
+        pkg.uploadMbps && pkg.downloadMbps && pkg.uploadMbps > 0 && pkg.downloadMbps > 0
+          ? { uploadMbps: pkg.uploadMbps, downloadMbps: pkg.downloadMbps }
+          : {};
       if (existingPackage) {
         await db
           .update(packages)
           .set({
+            routerId, // adopte une ligne legacy null au passage
             priceCents: pkg.priceCents,
             durationValue: pkg.durationValue,
             durationUnit: pkg.durationUnit,
+            ...bandwidth,
           })
           .where(eq(packages.id, existingPackage.id));
         log.push(`OK: forfait "${pkg.name}" mis à jour sur la page Forfaits.`);
       } else {
         await db.insert(packages).values({
           orgId: org.id,
+          routerId,
           name: pkg.name,
           priceCents: pkg.priceCents,
           durationValue: pkg.durationValue,
           durationUnit: pkg.durationUnit,
+          ...bandwidth,
         });
         log.push(`OK: forfait "${pkg.name}" créé sur la page Forfaits.`);
       }
     }
 
-    // Le formulaire de l'auto-setup est la SOURCE DE VÉRITÉ des forfaits : après
-    // avoir upserté la liste saisie, on RETIRE les forfaits de l'org qui n'y
-    // sont plus (anciens presets/profils d'un run précédent). Sans ça ils
-    // s'empilaient et le portail affichait des doublons (ex. « 07 Jours » ET
-    // « 01 Semaine » tous deux à 700 F). Les FK vouchers/portalOrders sont en
-    // onDelete:"set null" → aucune violation, les commandes passées restent.
-    // On ne prune QUE si une liste EXPLICITE et NON VIDE est fournie : liste
-    // absente = ancien appelant (on ne touche à rien) ; liste vide = on ne wipe
-    // pas tout par sécurité (le wizard exige de toute façon ≥1 profil).
+    // Le formulaire de l'auto-setup est la SOURCE DE VÉRITÉ des forfaits DE CE
+    // ROUTEUR : après avoir upserté la liste saisie, on RETIRE les forfaits
+    // rattachés à CE routeur qui n'y sont plus (anciens presets/profils d'un
+    // run précédent). Scopé à routerId → ne touche JAMAIS aux forfaits d'un
+    // autre MikroTik ni aux legacy null (adoptés ci-dessus s'ils y figurent).
+    // Sans ça ils s'empilaient et le portail affichait des doublons (ex.
+    // « 07 Jours » ET « 01 Semaine » tous deux à 700 F). Les FK vouchers/
+    // portalOrders sont en onDelete:"set null" → aucune violation, les
+    // commandes passées restent. On ne prune QUE si une liste EXPLICITE et NON
+    // VIDE est fournie : liste absente = ancien appelant (on ne touche à rien) ;
+    // liste vide = on ne wipe pas tout par sécurité (le wizard exige ≥1 profil).
     if (opts.packagesToSync && opts.packagesToSync.length > 0) {
       const keepNames = opts.packagesToSync.map((p) => p.name);
       const pruned = await db
         .delete(packages)
-        .where(and(eq(packages.orgId, org.id), notInArray(packages.name, keepNames)))
+        .where(
+          and(
+            eq(packages.orgId, org.id),
+            eq(packages.routerId, routerId),
+            notInArray(packages.name, keepNames),
+          ),
+        )
         .returning({ name: packages.name });
       if (pruned.length > 0) {
         log.push(
@@ -2057,6 +2028,23 @@ export async function provisionHotspotStack(
     const persistableOpts = { ...opts, reboot: undefined };
     delete persistableOpts.bridgeName;
 
+    // Branding portail scopé au routeur (saisi dans l'auto-setup) : on ne
+    // persiste que les champs FOURNIS (undefined = ne pas toucher, pour les
+    // appelants historiques). "" / [] sont des valeurs explicites (effacer).
+    const portalBranding: {
+      portalSupportWhatsapp?: string;
+      portalSupportPhone?: string;
+      portalVendors?: { name: string; location: string; phone: string }[];
+    } = {};
+    if (opts.portalSupportWhatsapp !== undefined)
+      portalBranding.portalSupportWhatsapp = opts.portalSupportWhatsapp.trim();
+    if (opts.portalSupportPhone !== undefined)
+      portalBranding.portalSupportPhone = opts.portalSupportPhone.trim();
+    if (opts.portalVendors !== undefined)
+      portalBranding.portalVendors = opts.portalVendors
+        .map((v) => ({ name: v.name.trim(), location: v.location.trim(), phone: v.phone.trim() }))
+        .filter((v) => v.name || v.location || v.phone);
+
     // Persisted on every successful run (not just billed ones) so other
     // code paths that look up this router's live hotspot config (the
     // connection test, captive-template assignment) resolve the canonical
@@ -2066,6 +2054,7 @@ export async function provisionHotspotStack(
       .set({
         hotspotBridgeName: bridgeName,
         hotspotServerName: serverName,
+        ...portalBranding,
         // Snapshot of this run's options (minus reboot, re-decided fresh
         // each time) — see lastAutoSetupConfig's schema comment. Lets a
         // later "Continuer l'auto-setup" repair replay this exact

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
 import TemplatesManager from "./TemplatesManager";
 import BridgeAssignments from "./BridgeAssignments";
+import InstallOnRouter from "./InstallOnRouter";
 import ThemeGallery from "./ThemeGallery";
 
 export default async function CaptiveTemplatesPage({
@@ -38,6 +39,16 @@ export default async function CaptiveTemplatesPage({
         .where(eq(routers.orgId, session.orgId))
     : [];
 
+  // Tous les routeurs de l'org — cible de l'installation DIRECTE du portail
+  // (indépendante de l'auto-setup et des bridges suivis).
+  const orgRouters = session
+    ? await db
+        .select({ id: routers.id, name: routers.name, status: routers.status })
+        .from(routers)
+        .where(eq(routers.orgId, session.orgId))
+        .orderBy(asc(routers.name))
+    : [];
+
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       {retour && (
@@ -65,6 +76,13 @@ export default async function CaptiveTemplatesPage({
       <BridgeAssignments
         bridges={orgBridges.filter((b) => b.hotspotEnabled)}
         templates={templates.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
+      />
+
+      <InstallOnRouter
+        routers={orgRouters}
+        templates={templates
+          .filter((t) => t.templateType === "package")
+          .map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, portalOrders } from "@/lib/db/schema";
 import { fulfillPortalOrder } from "@/lib/portal/fulfill";
+import { buildRouterLoginUrl } from "@/lib/portal/router-login-url";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
 
@@ -44,6 +45,8 @@ export async function GET(
     return corsJson({
       status: "fulfilled",
       code: fulfilled.ok ? fulfilled.code : "",
+      // URL de login du hotspot → auto-connexion du téléphone avec le code.
+      loginUrl: fulfilled.ok ? await buildRouterLoginUrl(order.routerId) : null,
     });
   }
   if (order.status === "failed") {
@@ -87,7 +90,11 @@ export async function GET(
   // paid | fulfilling (ou tout juste basculé) : tenter l'honneur (mono-flight).
   const result = await fulfillPortalOrder(order.id);
   if (result.ok) {
-    return corsJson({ status: "fulfilled", code: result.code });
+    return corsJson({
+      status: "fulfilled",
+      code: result.code,
+      loginUrl: await buildRouterLoginUrl(order.routerId),
+    });
   }
   // Échec transitoire (routeur hors-ligne) ou traitement concurrent : le portail
   // continue de sonder. On ne révèle pas le détail au client final.

@@ -13,7 +13,6 @@ import {
 
 const fcfa = new Intl.NumberFormat("fr-FR");
 const price = (n: number) => `${fcfa.format(n)} FCFA`;
-const trialMonths = Math.round(VPN_TRIAL_DAYS / 30);
 
 /*
  * Section Tarifs — 100 % données réelles (importées de la config de
@@ -114,8 +113,11 @@ export default function Pricing() {
               <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-brand">
                 Offert au démarrage
               </p>
+              {/* Template literal en un seul nœud texte : ce Next avale
+                  l'espace entre {expr} et le texte adjacent au SSR
+                  (« 10<!-- -->jours »), d'où « 10jours » à l'écran sinon. */}
               <p className="mt-2 font-display text-2xl font-bold">
-                {trialMonths} mois d&apos;accès distant gratuits
+                {`${VPN_TRIAL_DAYS} jours d'accès distant gratuits`}
               </p>
               <ul className="mt-4 space-y-2 text-sm text-clay">
                 {["WinBox, WebFig, SSH/SFTP & MikHmon inclus", "Vouchers WiFi illimités", "Aucune carte requise"].map(

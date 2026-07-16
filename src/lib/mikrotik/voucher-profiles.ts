@@ -10,6 +10,12 @@ export type VoucherProfile = {
   onLogin: string;
   monitorInterval: string;
   monitorOnEvent: string;
+  // Limite de débit RouterOS du profil hotspot, format "rx/tx" côté client
+  // (rx = upload client, tx = download client), ex. "5M/10M". Optionnel :
+  // absent = pas de limite (débit du lien). Rempli par buildVoucherProfile
+  // quand l'admin saisit un débit dans l'auto-setup — cf. container-setup.ts
+  // (=rate-limit=).
+  rateLimit?: string;
 };
 
 const LABELS: Record<string, { label: string; durationCode: string }> = {
@@ -156,8 +162,16 @@ export function buildVoucherProfile(opts: {
   label: string;
   durationCode: string; // RouterOS time spec, e.g. "2d", "12h", "30m"
   price?: number;
+  // Débit personnalisé (Mbps). Les deux > 0 → rate-limit "uploadM/downloadM"
+  // (rx/tx côté client). Sinon pas de limite (débit du lien).
+  uploadMbps?: number;
+  downloadMbps?: number;
 }): VoucherProfile {
   const price = opts.price ?? 0;
+  const up = opts.uploadMbps;
+  const down = opts.downloadMbps;
+  const rateLimit =
+    up && down && up > 0 && down > 0 ? `${up}M/${down}M` : undefined;
 
   let onLogin = replaceOnce(
     CUSTOM_PROFILE_TEMPLATE.onLogin,
@@ -189,5 +203,6 @@ export function buildVoucherProfile(opts: {
     onLogin,
     monitorInterval: monitorIntervalFor(opts.name),
     monitorOnEvent,
+    rateLimit,
   };
 }

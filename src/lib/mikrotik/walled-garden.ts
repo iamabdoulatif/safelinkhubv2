@@ -119,17 +119,71 @@ export const PAYMENT_WALLED_GARDEN_HOSTS: string[] = [
  * Paramètres → Walled-garden. L'app SafeLinkHub reste TOUJOURS incluse (elle
  * n'est jamais dans le catalogue, donc jamais filtrable).
  */
+// Domaine public canonique du SaaS — dernier recours quand l'environnement qui
+// réconcilie fournit un hôte NON JOIGNABLE depuis un routeur. Cas réel : un dev
+// server (NEXT_PUBLIC_APP_URL=http://0.0.0.0:3000) branché sur la vraie base a
+// installé dst-host="0.0.0.0:3000" + "*.0.0.0.0:3000" sur un routeur de prod →
+// safelinkhub.io jamais autorisé → paiement du portail bloqué (« Connexion au
+// serveur impossible »). On préfère installer le domaine canonique plutôt
+// qu'une entrée poubelle.
+const CANONICAL_APP_HOST = "safelinkhub.io";
+
+/** Hôte app nettoyé : port retiré (dst-host = nom seul), et repli sur le
+ * domaine canonique si l'hôte est local/dev (0.0.0.0, localhost, 127.x, ::1). */
+function sanitizeAppHost(appHost: string): string {
+  const host = appHost
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "") // IPv6 entre crochets
+    .replace(/:\d+$/, ""); // dst-host ne porte jamais de port
+  if (
+    !host ||
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    host.startsWith("127.")
+  ) {
+    return CANONICAL_APP_HOST;
+  }
+  return host;
+}
+
 export function walledGardenHosts(appHost: string, disabledHosts: string[] = []): string[] {
   const disabled = new Set(disabledHosts);
   const payment = PAYMENT_WALLED_GARDEN_HOSTS.filter((host) => !disabled.has(host));
-  const hosts = [appHost, `*.${appHost}`, ...payment];
+  const cleanAppHost = sanitizeAppHost(appHost);
+  const hosts = [cleanAppHost, `*.${cleanAppHost}`, ...payment];
   // Dédoublonne en préservant l'ordre (appHost pourrait recouper un motif).
   return [...new Set(hosts.filter(Boolean))];
 }
 
+// Hôte joker (*.domaine / a?b.tld) : accepté par le walled-garden L7
+// (dst-host supporte * et ?), mais PAS résolvable en DNS → pas d'entrée
+// « walled-garden ip » possible pour lui.
+function isWildcardHost(host: string): boolean {
+  return /[*?]/.test(host);
+}
+
+/**
+ * Le walled-garden L7 (`/ip hotspot walled-garden`, dst-host) couvre bien le
+ * HTTP, mais le HTTPS pré-auth est capricieux (matching SNI selon les
+ * versions/situations RouterOS — cas réel : le fetch du portail vers
+ * https://safelinkhub.io échouait en « Failed to fetch »). Le correctif
+ * standard : doubler chaque hôte CONCRET d'une entrée
+ * `/ip hotspot walled-garden ip` (action=accept, dst-host résolu en DNS →
+ * entrée dynamique par IP) limitée au port 443 (tcp + udp pour HTTP/3),
+ * pour ne pas ouvrir tout le trafic vers des IP partagées (Cloudflare…).
+ * Les hôtes jokers restent L7-seulement (non résolvables).
+ */
+function walledGardenIpEntries(appHost: string, disabledHosts: string[] = []): string[] {
+  return walledGardenHosts(appHost, disabledHosts).filter((h) => !isWildcardHost(h));
+}
+
 /**
  * Bloc de script RouterOS (bootstrap) : purge les entrées gérées par leur
- * commentaire puis les ré-ajoute — idempotent à chaque bootstrap.
+ * commentaire puis les ré-ajoute — idempotent à chaque bootstrap. Déploie les
+ * DEUX tables : walled-garden (L7, HTTP/HTTPS-SNI) + walled-garden ip
+ * (L3 dynamique via DNS, indispensable au fetch HTTPS du portail).
  */
 export function walledGardenScriptLines(appHost: string, disabledHosts: string[] = []): string {
   const adds = walledGardenHosts(appHost, disabledHosts)
@@ -138,7 +192,18 @@ export function walledGardenScriptLines(appHost: string, disabledHosts: string[]
         `/ip hotspot walled-garden add dst-host="${h}" action=allow comment="${WALLED_GARDEN_COMMENT}"`,
     )
     .join("\n");
-  return `/ip hotspot walled-garden remove [find comment="${WALLED_GARDEN_COMMENT}"]\n${adds}`;
+  const ipAdds = walledGardenIpEntries(appHost, disabledHosts)
+    .flatMap((h) => [
+      `/ip hotspot walled-garden ip add dst-host="${h}" action=accept protocol=tcp dst-port=443 comment="${WALLED_GARDEN_COMMENT}"`,
+      `/ip hotspot walled-garden ip add dst-host="${h}" action=accept protocol=udp dst-port=443 comment="${WALLED_GARDEN_COMMENT}"`,
+    ])
+    .join("\n");
+  return [
+    `/ip hotspot walled-garden remove [find comment="${WALLED_GARDEN_COMMENT}"]`,
+    adds,
+    `/ip hotspot walled-garden ip remove [find comment="${WALLED_GARDEN_COMMENT}"]`,
+    ipAdds,
+  ].join("\n");
 }
 
 /**
@@ -168,8 +233,10 @@ export async function reconcileWalledGardenOnce(
   disabledHosts: string[] = [],
 ): Promise<void> {
   // La clé inclut la liste effective : décocher un hôte dans Paramètres change
-  // la clé → le routeur est re-réconcilié UNE fois à sa prochaine sync.
-  const key = walledGardenHosts(appHost, disabledHosts).join(",");
+  // la clé → le routeur est re-réconcilié UNE fois à sa prochaine sync. Le
+  // préfixe de version invalide aussi la clé quand la FORME des entrées change
+  // (ex. ajout des entrées walled-garden ip pour l'HTTPS), pas juste la liste.
+  const key = `wg-v2|${walledGardenHosts(appHost, disabledHosts).join(",")}`;
   if (reconciledRouters.get(routerId) === key) return;
   await ensureWalledGarden(client, appHost, disabledHosts);
   reconciledRouters.set(routerId, key); // marqué seulement si ensureWalledGarden n'a pas levé
@@ -181,17 +248,19 @@ export async function ensureWalledGarden(
   disabledHosts: string[] = [],
   timeoutMs = 15000,
 ): Promise<{ added: string[] }> {
-  const existing = await client
-    .talk(["/ip/hotspot/walled-garden/print", `?comment=${WALLED_GARDEN_COMMENT}`], timeoutMs)
-    .catch(() => [] as Record<string, string>[]);
-  for (const entry of existing) {
-    const id = entry[".id"];
-    if (id) {
-      await client
-        .talk(["/ip/hotspot/walled-garden/remove", `=numbers=${id}`], timeoutMs)
-        .catch(() => {});
+  // Purge des DEUX tables gérées (par commentaire) avant ré-ajout — idempotent.
+  for (const path of ["/ip/hotspot/walled-garden", "/ip/hotspot/walled-garden/ip"]) {
+    const existing = await client
+      .talk([`${path}/print`, `?comment=${WALLED_GARDEN_COMMENT}`], timeoutMs)
+      .catch(() => [] as Record<string, string>[]);
+    for (const entry of existing) {
+      const id = entry[".id"];
+      if (id) {
+        await client.talk([`${path}/remove`, `=numbers=${id}`], timeoutMs).catch(() => {});
+      }
     }
   }
+
   const added: string[] = [];
   for (const host of walledGardenHosts(appHost, disabledHosts)) {
     try {
@@ -207,6 +276,27 @@ export async function ensureWalledGarden(
       added.push(host);
     } catch {
       // best-effort : une entrée qui échoue ne doit pas bloquer les autres.
+    }
+  }
+  // Entrées L3 (walled-garden ip, résolues en DNS) pour le HTTPS pré-auth des
+  // hôtes concrets — voir walledGardenIpEntries. tcp+udp 443 (TLS + HTTP/3).
+  for (const host of walledGardenIpEntries(appHost, disabledHosts)) {
+    for (const protocol of ["tcp", "udp"] as const) {
+      await client
+        .talk(
+          [
+            "/ip/hotspot/walled-garden/ip/add",
+            `=dst-host=${host}`,
+            "=action=accept",
+            `=protocol=${protocol}`,
+            "=dst-port=443",
+            `=comment=${WALLED_GARDEN_COMMENT}`,
+          ],
+          timeoutMs,
+        )
+        .catch(() => {
+          // best-effort, même logique que ci-dessus.
+        });
     }
   }
   return { added };

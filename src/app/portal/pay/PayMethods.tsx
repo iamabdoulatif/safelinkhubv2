@@ -101,6 +101,44 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
 
   return (
     <div>
+      {/* CTA principal : le checkout hébergé GeniusPay (payment_method omis)
+          — la page qui liste tous les moyens ET permet d'en CHANGER en cours
+          de route (même expérience que le checkout des paiements VPN/accès
+          distant — demande opérateur). Les rails directs restent en
+          raccourcis ci-dessous : le forçage par rail fonctionne (confirmé en
+          v66), le hosted ajoute simplement la liberté de changer d'avis sur
+          la page sécurisée. */}
+      <button
+        type="button"
+        onClick={() => pay("hosted")}
+        disabled={Boolean(busy)}
+        style={{
+          width: "100%",
+          padding: "14px 16px",
+          border: 0,
+          borderRadius: 12,
+          background: "#0f172a",
+          color: "#fff",
+          fontSize: "1rem",
+          fontWeight: 700,
+          cursor: busy ? "default" : "pointer",
+          opacity: busy && busy !== "hosted" ? 0.5 : 1,
+        }}
+      >
+        {busy === "hosted" ? "Redirection…" : "Choisir mon moyen de paiement"}
+      </button>
+      <p
+        style={{
+          margin: "6px 0 14px",
+          fontSize: ".72rem",
+          color: "#94a3b8",
+          textAlign: "center",
+        }}
+      >
+        Wave, Orange Money, MTN MoMo, Moov Money, carte — changez de moyen à tout
+        moment sur la page sécurisée.
+      </p>
+
       <p
         style={{
           margin: "0 0 10px",
@@ -109,7 +147,7 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
           textAlign: "center",
         }}
       >
-        Choisissez votre moyen de paiement
+        Ou payer directement avec :
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {METHODS.map((m) => {
@@ -164,26 +202,6 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
           );
         })}
       </div>
-
-      {/* Repli : le checkout hébergé GeniusPay (payment_method omis) liste tous
-          les moyens — utile si un rail précis n'est pas activé côté marchand. */}
-      <button
-        type="button"
-        onClick={() => pay("hosted")}
-        disabled={Boolean(busy)}
-        style={{
-          marginTop: 10,
-          width: "100%",
-          background: "none",
-          border: 0,
-          color: "#64748b",
-          fontSize: ".8rem",
-          textDecoration: "underline",
-          cursor: busy ? "default" : "pointer",
-        }}
-      >
-        {busy === "hosted" ? "Redirection…" : "Un autre moyen ? Tous les moyens de paiement"}
-      </button>
 
       {error ? <p style={{ margin: "12px 0 0", color: "#ef4444", fontSize: ".85rem" }}>{error}</p> : null}
 

@@ -335,6 +335,35 @@ export async function updatePackageTemplateBranding(
   return { success: true };
 }
 
+/** Branding portail scopé au routeur (contact support/paiement + vendeurs),
+ * pour préremplir l'auto-setup. Renvoie des valeurs vides si non défini. */
+export async function getRouterPortalBranding(routerId: string): Promise<{
+  supportWhatsapp: string;
+  supportPhone: string;
+  vendors: PackageVendor[];
+}> {
+  const empty = { supportWhatsapp: "", supportPhone: "", vendors: [] as PackageVendor[] };
+  const session = await getSession();
+  if (!session) return empty;
+  const db = getDb();
+  const [router] = await db
+    .select({
+      orgId: routers.orgId,
+      supportWhatsapp: routers.portalSupportWhatsapp,
+      supportPhone: routers.portalSupportPhone,
+      vendors: routers.portalVendors,
+    })
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || router.orgId !== session.orgId) return empty;
+  return {
+    supportWhatsapp: router.supportWhatsapp ?? "",
+    supportPhone: router.supportPhone ?? "",
+    vendors: Array.isArray(router.vendors) ? (router.vendors as PackageVendor[]) : [],
+  };
+}
+
 export async function duplicateCaptiveTemplate(templateId: string) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
@@ -446,6 +475,147 @@ export async function deleteCaptiveTemplate(templateId: string) {
 
   revalidatePath("/admin/settings/captive-templates");
   return { success: true };
+}
+
+/**
+ * Installe un modèle « package » sur N'IMPORTE QUEL routeur de l'org,
+ * indépendamment de l'auto-setup et SANS facturation : contrairement à
+ * l'assignation par bridge (qui présume le bridge géré SAFELINKHUB-BRIDGE),
+ * on détecte ici le serveur hotspot réellement actif sur le routeur — qu'il
+ * vienne de l'auto-setup ou d'un `/ip hotspot setup` fait à la main — et on
+ * pointe son profil vers les fichiers téléversés. Seul prérequis
+ * incompressible : un hotspot RouterOS existant (c'est LUI qui sert la page
+ * de login ; sans hotspot, il n'y a rien à habiller) + le routeur joignable
+ * (direct ou tunnel).
+ */
+export async function installTemplateOnRouter(routerId: string, templateId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [template] = await db
+    .select()
+    .from(captiveTemplates)
+    .where(eq(captiveTemplates.id, templateId))
+    .limit(1);
+  if (!template || template.orgId !== session.orgId) return { error: "Modèle introuvable." };
+  if (template.templateType !== "package") {
+    return { error: "Ce modèle n'est pas un portail multi-fichiers (package)." };
+  }
+  const files = (template.packageFiles as PackageFile[] | null) ?? [];
+  if (files.length === 0) return { error: "Ce modèle ne contient aucun fichier." };
+
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || router.orgId !== session.orgId) return { error: "Routeur introuvable." };
+
+  const [org] = await db
+    .select({ slug: organizations.slug })
+    .from(organizations)
+    .where(eq(organizations.id, router.orgId))
+    .limit(1);
+  if (!org) return { error: "Organisation introuvable." };
+
+  const appUrl = getAppUrl();
+  const fileBaseUrl = `${appUrl}/api/router/v1/${org.slug}/captive-template/${template.id}`;
+
+  let client;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Connexion au routeur impossible : ${err.message}`
+          : "Connexion au routeur impossible.",
+    };
+  }
+
+  try {
+    // Serveur hotspot réellement actif — AUCUNE hypothèse sur le nom du
+    // bridge/serveur (routeur configuré à la main inclus). On préfère un
+    // serveur non désactivé ; à défaut le premier trouvé.
+    const servers = await client.talk(["/ip/hotspot/print"]).catch(() => [] as Record<string, string>[]);
+    const server = servers.find((s) => s.disabled !== "true") ?? servers[0];
+    if (!server?.profile) {
+      return {
+        error:
+          "Aucun serveur hotspot trouvé sur ce routeur. Le portail captif est la page de connexion du hotspot RouterOS : créez d'abord un hotspot (auto-setup, ou « /ip hotspot setup » à la main), puis réinstallez le portail.",
+      };
+    }
+
+    const htmlDirectory = `${String(server.name ?? "hotspot").replace(/[^a-zA-Z0-9_-]/g, "-")}-portal`;
+    // html-directory ET html-directory-override : l'override PRIME quand il a
+    // été posé (c'est le cas après un auto-setup) — ne régler que
+    // html-directory laisserait le hotspot servir l'ancien dossier.
+    await client
+      .talk([
+        "/ip/hotspot/profile/set",
+        `=numbers=${server.profile}`,
+        `=html-directory=${htmlDirectory}`,
+        `=html-directory-override=${htmlDirectory}`,
+      ])
+      .catch(() => {});
+
+    const ssid = (await getRouterPrimarySsid(client)) || router.name;
+    const result = await uploadCaptiveTemplatePackage(client, {
+      files,
+      htmlDirectory,
+      fileBaseUrl,
+      ssid,
+      routerId: router.id,
+    });
+
+    // Walled-garden de paiement (app + rails, HTTP + HTTPS) : le checkout doit
+    // être joignable depuis le portail. Best-effort, ne bloque pas l'install.
+    try {
+      await ensureWalledGarden(
+        client,
+        new URL(appUrl).host,
+        await getOrgWalledGardenDisabledHosts(router.orgId),
+      );
+    } catch {
+      // ignoré : réconcilié de toute façon au prochain health-check.
+    }
+
+    // Cohérence UI : si ce routeur a des bridges hotspot suivis, mémorise le
+    // modèle installé pour que « Assignation par bridge » reflète la réalité.
+    try {
+      await db
+        .update(bridges)
+        .set({ captiveTemplateId: template.id })
+        .where(and(eq(bridges.routerId, router.id), eq(bridges.hotspotEnabled, true)));
+    } catch {
+      // purement cosmétique — l'installation sur le routeur a déjà réussi.
+    }
+
+    revalidatePath("/admin/settings/captive-templates");
+
+    if (result.failed.length > 0) {
+      return {
+        success: true,
+        partial: true,
+        ssid,
+        server: String(server.name ?? ""),
+        uploaded: result.uploaded.length,
+        failed: result.failed,
+      };
+    }
+    return {
+      success: true,
+      ssid,
+      server: String(server.name ?? ""),
+      uploaded: result.uploaded.length,
+    };
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Échec de l'installation du portail : ${err.message}`
+          : "Échec de l'installation du portail.",
+    };
+  } finally {
+    client.close();
+  }
 }
 
 export async function assignTemplateToBridge(bridgeId: string, templateId: string | null) {

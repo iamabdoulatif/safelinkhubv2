@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, Copy, CreditCard, ExternalLink, Globe2, Loader2, ShieldOff } from "lucide-react";
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
 import { PERIOD_PRICE_CENTS, type BillingPeriod } from "@/lib/mikrotik/billing-plans";
+import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
 import { isWebAccessService } from "@/lib/mikrotik/remote-access-host";
 import RemoteAccessPaywallModal from "./RemoteAccessPaywallModal";
@@ -654,8 +655,8 @@ export default function DirectAccessSection({
           : vpnTrial?.active
             ? vpnTrial.quotaMode === "free_until"
               ? "Quota superadmin actif : aucun débit pendant cette période."
-              : "Première année offerte (essai en cours) : aucun débit pendant cette période."
-            : "Le débit du portefeuille est déjà actif (essai d'un an écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant."}{" "}
+              : `${VPN_TRIAL_DAYS} premiers jours offerts dès l'inscription (essai en cours) : aucun débit pendant cette période.`
+            : `Le débit du portefeuille est actif (essai de ${VPN_TRIAL_DAYS} jours écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant.`}{" "}
         La date de renouvellement est affichée à titre indicatif.
       </p>
 

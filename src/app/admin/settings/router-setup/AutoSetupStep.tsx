@@ -20,7 +20,7 @@ import Link from "next/link";
 import { ArrowLeft, Box, Check, Copy, Plus, Trash2 } from "lucide-react";
 import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
 import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
-import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
+import { listCaptiveTemplates, getRouterPortalBranding } from "@/lib/captive-templates/actions";
 import { listActivePackages } from "@/lib/packages/actions";
 import AutoSetupPaywallModal from "./AutoSetupPaywallModal";
 import SerialUnlockRequestModal from "@/components/mikrotik/SerialUnlockRequestModal";
@@ -239,12 +239,31 @@ export default function AutoSetupStep({
   // Seuls les profils créés ici (pas les importés) sont resynchronisés
   // comme forfaits, pour ne pas dupliquer ceux qui existent déjà.
   const [customProfileMeta, setCustomProfileMeta] = useState<
-    { name: string; priceCents: number; durationValue: number; durationUnit: string }[]
+    {
+      name: string;
+      priceCents: number;
+      durationValue: number;
+      durationUnit: string;
+      uploadMbps?: number;
+      downloadMbps?: number;
+    }[]
   >([]);
   const [customAmount, setCustomAmount] = useState("2");
   const [customUnit, setCustomUnit] = useState<DurationUnit>("d");
   const [customPrice, setCustomPrice] = useState("");
+  // Débit personnalisé (Mbps) du profil en cours de saisie — vide = pas de
+  // limite (débit du lien).
+  const [customUpload, setCustomUpload] = useState("");
+  const [customDownload, setCustomDownload] = useState("");
   const [customProfileError, setCustomProfileError] = useState<string | null>(null);
+
+  // ── Branding portail scopé au routeur (saisi ici) : contact support/
+  //    paiement + « espaces vendeurs ». Prérempli depuis le routeur au montage.
+  const [portalSupportWhatsapp, setPortalSupportWhatsapp] = useState("");
+  const [portalSupportPhone, setPortalSupportPhone] = useState("");
+  const [portalVendors, setPortalVendors] = useState<
+    { name: string; location: string; phone: string }[]
+  >([]);
 
   // ── Persistance de l'étape 3 à travers la redirection de paiement ────
   // Payer l'auto-setup fait une navigation pleine page vers GeniusPay puis
@@ -286,6 +305,14 @@ export default function AutoSetupStep({
         if (typeof s.customAmount === "string") setCustomAmount(s.customAmount);
         if (s.customUnit) setCustomUnit(s.customUnit as DurationUnit);
         if (typeof s.customPrice === "string") setCustomPrice(s.customPrice);
+        if (typeof s.customUpload === "string") setCustomUpload(s.customUpload);
+        if (typeof s.customDownload === "string") setCustomDownload(s.customDownload);
+        if (typeof s.portalSupportWhatsapp === "string")
+          setPortalSupportWhatsapp(s.portalSupportWhatsapp);
+        if (typeof s.portalSupportPhone === "string")
+          setPortalSupportPhone(s.portalSupportPhone);
+        if (Array.isArray(s.portalVendors))
+          setPortalVendors(s.portalVendors as typeof portalVendors);
       }
     } catch {
       /* sessionStorage indisponible / JSON corrompu : on repart des défauts */
@@ -320,6 +347,11 @@ export default function AutoSetupStep({
           customAmount,
           customUnit,
           customPrice,
+          customUpload,
+          customDownload,
+          portalSupportWhatsapp,
+          portalSupportPhone,
+          portalVendors,
         }),
       );
     } catch {
@@ -348,6 +380,11 @@ export default function AutoSetupStep({
     customAmount,
     customUnit,
     customPrice,
+    customUpload,
+    customDownload,
+    portalSupportWhatsapp,
+    portalSupportPhone,
+    portalVendors,
   ]);
 
   useEffect(() => {
@@ -360,7 +397,7 @@ export default function AutoSetupStep({
       // Ne pas écraser le template restauré depuis l'instantané de paiement.
       if (preselected && !hadSnapshotRef.current) setSelectedTemplateId(preselected.id);
     });
-    listActivePackages().then((pkgs) => {
+    listActivePackages(routerId).then((pkgs) => {
       // État restauré (retour de paiement) : les profils de l'instantané font
       // foi — on ne ré-importe pas (ça re-ajouterait ceux que l'admin a retirés).
       if (hadSnapshotRef.current) return;
@@ -389,7 +426,26 @@ export default function AutoSetupStep({
         });
       }
     });
-  }, []);
+    // routerId est stable pour la durée de vie du composant : la dépendance
+    // satisfait le linter sans re-déclencher le préremplissage.
+  }, [routerId]);
+
+  // Préremplit le branding portail (contact + vendeurs) depuis le routeur, pour
+  // que re-lancer l'auto-setup ne réécrase pas ce qui a déjà été saisi. Ignoré
+  // si l'état a été restauré depuis l'instantané de paiement (fait déjà foi).
+  // brandingLoadedRef garde contre un lancement AVANT résolution : tant qu'on
+  // n'a pas chargé l'existant, on n'envoie pas le branding (undefined = ne pas
+  // toucher) pour ne jamais effacer par erreur.
+  const brandingLoadedRef = useRef(false);
+  useEffect(() => {
+    getRouterPortalBranding(routerId).then((b) => {
+      brandingLoadedRef.current = true;
+      if (hadSnapshotRef.current) return;
+      setPortalSupportWhatsapp(b.supportWhatsapp);
+      setPortalSupportPhone(b.supportPhone);
+      setPortalVendors(b.vendors);
+    });
+  }, [routerId]);
 
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{
@@ -489,6 +545,18 @@ export default function AutoSetupStep({
       setCustomProfileError(`Un profil "${name}" existe déjà.`);
       return;
     }
+    // Débit optionnel (Mbps) : les deux doivent être renseignés et > 0 pour
+    // poser une limite ; sinon aucune limite (débit du lien).
+    const up = customUpload.trim() === "" ? undefined : Number(customUpload);
+    const down = customDownload.trim() === "" ? undefined : Number(customDownload);
+    if (
+      (up !== undefined && (!Number.isFinite(up) || up <= 0)) ||
+      (down !== undefined && (!Number.isFinite(down) || down <= 0))
+    ) {
+      setCustomProfileError("Débit invalide : indiquez des valeurs (Mbps) supérieures à 0, ou laissez vide.");
+      return;
+    }
+    const hasBandwidth = up !== undefined && down !== undefined;
     setCustomProfileError(null);
     const baseLabel = buildCustomProfileLabel(amount, customUnit);
     setCustomProfiles((prev) => [
@@ -498,13 +566,23 @@ export default function AutoSetupStep({
         label: price > 0 ? `${baseLabel} — ${price.toLocaleString("fr-FR")} FCFA` : baseLabel,
         durationCode: buildCustomDurationCode(amount, customUnit),
         price,
+        uploadMbps: up,
+        downloadMbps: down,
       }),
     ]);
     setCustomProfileMeta((prev) => [
       ...prev,
-      { name, priceCents: price, durationValue: amount, durationUnit: PACKAGE_DURATION_UNIT[customUnit] },
+      {
+        name,
+        priceCents: price,
+        durationValue: amount,
+        durationUnit: PACKAGE_DURATION_UNIT[customUnit],
+        ...(hasBandwidth ? { uploadMbps: up, downloadMbps: down } : {}),
+      },
     ]);
     setCustomPrice("");
+    setCustomUpload("");
+    setCustomDownload("");
   }
 
   function removeCustomProfile(name: string) {
@@ -545,6 +623,17 @@ export default function AutoSetupStep({
         reboot: true,
         voucherProfiles: customProfiles,
         packagesToSync: customProfileMeta,
+        // Branding portail scopé à ce routeur (contact support/paiement +
+        // espaces vendeurs) — persisté sur le routeur et rendu en priorité.
+        // Envoyé seulement une fois l'existant chargé (sinon undefined = ne pas
+        // toucher), pour ne jamais effacer le branding par un lancement hâtif.
+        ...(brandingLoadedRef.current
+          ? {
+              portalSupportWhatsapp: portalSupportWhatsapp.trim(),
+              portalSupportPhone: portalSupportPhone.trim(),
+              portalVendors,
+            }
+          : {}),
         installCaptivePortal,
         captiveTemplateId: installCaptivePortal ? (selectedTemplateId ?? undefined) : undefined,
         serverName: savedHotspotNames.serverName ?? undefined,
@@ -894,6 +983,32 @@ export default function AutoSetupStep({
               className="w-24 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
             />
           </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-soft">
+              Débit ↑/↓ (Mbps)
+            </label>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min={1}
+                value={customUpload}
+                onChange={(e) => setCustomUpload(e.target.value)}
+                placeholder="↑"
+                aria-label="Débit montant (Mbps)"
+                className="w-16 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
+              />
+              <span className="text-ink-soft">/</span>
+              <input
+                type="number"
+                min={1}
+                value={customDownload}
+                onChange={(e) => setCustomDownload(e.target.value)}
+                placeholder="↓"
+                aria-label="Débit descendant (Mbps)"
+                className="w-16 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
+              />
+            </div>
+          </div>
           <button
             type="button"
             onClick={addCustomProfile}
@@ -903,6 +1018,10 @@ export default function AutoSetupStep({
             Ajouter
           </button>
         </div>
+        <p className="mt-2 text-xs text-ink-soft">
+          Débit facultatif : laissez vide pour un accès au débit du lien (illimité). Renseignez
+          les deux pour limiter (ex. 5 / 10).
+        </p>
         {customProfileError && <p className="mt-2 text-sm text-err">{customProfileError}</p>}
       </div>
 
@@ -953,6 +1072,103 @@ export default function AutoSetupStep({
                   )}
                 </label>
               ))}
+            </div>
+          </div>
+        )}
+
+        {installCaptivePortal && (
+          <div className="mt-4 space-y-4 border-t border-line-soft pt-4">
+            {/* Contact support / paiement (injecté dans le pied du portail). */}
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Contact affiché sur le portail</h3>
+              <p className="mt-0.5 text-xs text-ink-soft">
+                WhatsApp / téléphone d&apos;assistance montrés au client. Laissez vide pour ne pas
+                les afficher. Les logos des moyens de paiement (Wave, Orange, MTN, Moov, carte)
+                sont ajoutés automatiquement.
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input
+                  value={portalSupportWhatsapp}
+                  onChange={(e) => setPortalSupportWhatsapp(e.target.value)}
+                  placeholder="WhatsApp — +225 00 00 00 00 00"
+                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                />
+                <input
+                  value={portalSupportPhone}
+                  onChange={(e) => setPortalSupportPhone(e.target.value)}
+                  placeholder="Téléphone — +225 00 00 00 00 00"
+                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Espaces vendeurs (« Retrouver mon code » — vendeurs agréés). */}
+            <div>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-ink">Espaces vendeurs</h3>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPortalVendors((prev) => [...prev, { name: "", location: "", phone: "" }])
+                  }
+                  className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Ajouter
+                </button>
+              </div>
+              {portalVendors.length === 0 ? (
+                <p className="mt-1 text-xs text-ink-soft">
+                  Aucun vendeur — la section « Retrouver mon code » restera vide.
+                </p>
+              ) : (
+                <div className="mt-2 space-y-3">
+                  {portalVendors.map((v, i) => (
+                    <div key={i} className="flex items-start gap-2 rounded-md border border-line-soft p-3">
+                      <div className="flex-1 space-y-2">
+                        <input
+                          value={v.name}
+                          onChange={(e) =>
+                            setPortalVendors((prev) =>
+                              prev.map((x, idx) => (idx === i ? { ...x, name: e.target.value } : x)),
+                            )
+                          }
+                          placeholder="Nom du vendeur"
+                          className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                        />
+                        <input
+                          value={v.location}
+                          onChange={(e) =>
+                            setPortalVendors((prev) =>
+                              prev.map((x, idx) => (idx === i ? { ...x, location: e.target.value } : x)),
+                            )
+                          }
+                          placeholder="Quartier / ville"
+                          className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                        />
+                        <input
+                          value={v.phone}
+                          onChange={(e) =>
+                            setPortalVendors((prev) =>
+                              prev.map((x, idx) => (idx === i ? { ...x, phone: e.target.value } : x)),
+                            )
+                          }
+                          placeholder="+225 07 00 00 00 00"
+                          className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPortalVendors((prev) => prev.filter((_, idx) => idx !== i))}
+                        aria-label="Retirer ce vendeur"
+                        className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

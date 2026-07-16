@@ -19,13 +19,15 @@ export default function ProductDemo() {
     },
     {
       label: "Auto-setup routeur",
-      value: `${fcfa.format(AUTO_SETUP_FEE_CENTS.containerCapable)} FCFA`,
-      sub: "1er routeur offert",
+      // Fourchette réelle : hotspot seul (matériel léger) → stack complète
+      // Hotspot + MikHmon (cartes compatibles conteneur).
+      value: `${fcfa.format(AUTO_SETUP_FEE_CENTS.hotspotOnly)} – ${fcfa.format(AUTO_SETUP_FEE_CENTS.containerCapable)} FCFA`,
+      sub: "selon le matériel du routeur",
     },
     {
       label: "Essai offert",
-      value: `${Math.round(VPN_TRIAL_DAYS / 30)} mois`,
-      sub: "accès distant gratuit",
+      value: `${VPN_TRIAL_DAYS} jours`,
+      sub: "accès distant gratuit dès la création du compte",
     },
   ];
 
@@ -56,7 +58,10 @@ export default function ProductDemo() {
                   <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
                     {s.label}
                   </p>
-                  <p className="mt-2 whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink sm:text-xl">
+                  {/* Pas de nowrap : une valeur longue (fourchette de prix)
+                      se replie dans SA carte au lieu de déborder sur la
+                      voisine ; les nombres fr-FR restent insécables. */}
+                  <p className="mt-2 font-mono text-lg font-bold tabular-nums text-ink sm:text-xl">
                     {s.value}
                   </p>
                   <p className="mt-1 font-mono text-xs font-medium text-ink-soft">{s.sub}</p>

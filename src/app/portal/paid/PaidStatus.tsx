@@ -32,6 +32,10 @@ export default function PaidStatus({
   const [phase, setPhase] = useState<Phase>(isError ? "failed" : canPoll ? "loading" : "processing");
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
+  // URL de login du hotspot du routeur (renvoyée par /status à l'honneur) →
+  // bouton d'auto-connexion. null quand le routeur n'a pas d'instantané
+  // exploitable : on n'affiche alors que la saisie manuelle du code.
+  const [loginUrl, setLoginUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!canPoll) return;
@@ -47,10 +51,16 @@ export default function PaidStatus({
           `/api/portal/${encodeURIComponent(slug)}/status?orderId=${encodeURIComponent(orderId)}`,
           { cache: "no-store" },
         );
-        const data = (await res.json()) as { status?: string; code?: string; error?: string };
+        const data = (await res.json()) as {
+          status?: string;
+          code?: string;
+          error?: string;
+          loginUrl?: string | null;
+        };
         if (!active) return;
         if (data.status === "fulfilled") {
           if (data.code) setCode(data.code);
+          if (data.loginUrl) setLoginUrl(data.loginUrl);
           setPhase("fulfilled");
           return;
         }
@@ -74,6 +84,19 @@ export default function PaidStatus({
       clearTimeout(timer);
     };
   }, [canPoll, orderId, slug]);
+
+  // Auto-connexion : le téléphone (encore sur le WiFi captif) navigue vers le
+  // login du hotspot avec le code en identifiant + mot de passe. Le profil
+  // active http-pap → authentification directe, sans md5/chap. `dst` renvoie
+  // vers la page d'état du hotspot après connexion.
+  function autoConnect() {
+    if (!loginUrl || !code) return;
+    const url = new URL(loginUrl);
+    url.searchParams.set("username", code);
+    url.searchParams.set("password", code);
+    url.searchParams.set("dst", loginUrl.replace(/\/login$/, "/status"));
+    window.location.href = url.toString();
+  }
 
   return (
     <main
@@ -107,10 +130,37 @@ export default function PaidStatus({
             >
               {code || "…"}
             </div>
-            <p style={{ color: "#64748b", fontSize: ".92rem", margin: 0 }}>
-              Retournez sur le portail WiFi (onglet <b>Code</b>) et saisissez ce code pour vous
-              connecter. Il vous a aussi été envoyé par <b>SMS</b>.
-            </p>
+            {loginUrl && code ? (
+              <>
+                <button
+                  type="button"
+                  onClick={autoConnect}
+                  style={{
+                    width: "100%",
+                    padding: "13px 16px",
+                    margin: "4px 0 12px",
+                    border: 0,
+                    borderRadius: 10,
+                    background: "#16a34a",
+                    color: "#fff",
+                    fontSize: "1rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Connecter automatiquement mon téléphone
+                </button>
+                <p style={{ color: "#64748b", fontSize: ".82rem", margin: 0 }}>
+                  Ça ne marche pas ? Retournez sur le portail WiFi (onglet <b>Code</b>) et
+                  saisissez ce code. Il vous a aussi été envoyé par <b>SMS</b>.
+                </p>
+              </>
+            ) : (
+              <p style={{ color: "#64748b", fontSize: ".92rem", margin: 0 }}>
+                Retournez sur le portail WiFi (onglet <b>Code</b>) et saisissez ce code pour vous
+                connecter. Il vous a aussi été envoyé par <b>SMS</b>.
+              </p>
+            )}
           </>
         ) : phase === "failed" ? (
           <>
