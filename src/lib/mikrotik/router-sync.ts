@@ -73,12 +73,18 @@ export async function syncRouterStats(
     return { success: false, error: "Router is missing connection details." };
   }
 
-  // Routers already known to be offline: use a short timeout and single
-  // attempt — no point waiting 60+ seconds for something we already know
-  // is unreachable. Online/installing routers keep the generous defaults.
+  // Routers already known to be offline get a cheaper probe than online ones —
+  // no point waiting 60+ seconds on something that is genuinely unreachable.
+  // But the budget still has to fit a SUCCESS: opening the relay tunnel takes
+  // ~0.3–6s when everything is healthy and intermittently stalls out, so a
+  // single 5s attempt could not even outlast a normal handshake. An offline
+  // router that had come back therefore kept failing its only probe and stayed
+  // marked offline for good, while an install (3 attempts) connected fine —
+  // exactly the "joignable mais affiché offline" case. Two attempts at 10s
+  // clear a healthy tunnel with room to spare and still bail out fast.
   const isKnownOffline = router.status === "offline";
-  const timeoutMs = opts.timeoutMs ?? (isKnownOffline ? 5000 : 20000);
-  const maxAttempts = opts.maxAttempts ?? (isKnownOffline ? 1 : 3);
+  const timeoutMs = opts.timeoutMs ?? (isKnownOffline ? 10000 : 20000);
+  const maxAttempts = opts.maxAttempts ?? (isKnownOffline ? 2 : 3);
 
   let client: RouterOSClient;
   try {

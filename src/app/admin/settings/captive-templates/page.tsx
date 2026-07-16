@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { ArrowLeft } from "lucide-react";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
 import TemplatesManager from "./TemplatesManager";
 import BridgeAssignments from "./BridgeAssignments";
@@ -22,6 +24,15 @@ export default async function CaptiveTemplatesPage({
   // vers ce même wizard, sinon il n'a aucun lien pour y retourner après
   // avoir importé/choisi son portail.
   const { retour } = await searchParams;
+
+  // Le sélecteur « Installer sur un routeur » affiche le statut brut de la base,
+  // que seules /admin/router et /admin/remote-access rafraîchissaient : un
+  // routeur parfaitement joignable pouvait donc rester marqué « offline » ici
+  // indéfiniment (le sync périodique ne tourne pas hors Vercel Cron), et
+  // décourager une installation qui aurait très bien fonctionné.
+  if (session) {
+    after(() => refreshStaleRouters(session.orgId));
+  }
 
   const templates = await listCaptiveTemplates();
 

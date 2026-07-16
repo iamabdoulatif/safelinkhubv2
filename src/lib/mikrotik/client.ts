@@ -180,8 +180,20 @@ class RosConnection {
   }
 }
 
+/** Reconnaissable par les appelants qui décident de réessayer ou non — une
+ *  connexion hors-sync ne guérit pas, chaque commande suivante échouera. */
+export const ROUTEROS_DESYNC_MESSAGE =
+  "RouterOS connection is out of sync after a timed-out command — reconnect required.";
+
 export class RouterOSClient {
   private conn: RosConnection | null = null;
+  // A read timeout abandons a command that RouterOS is still answering: its
+  // remaining sentences stay in flight and the next talk() reads them as its
+  // own reply, shifting every result one command back. There is no way to tell
+  // a late sentence from a fresh one on an untagged stream, so the connection
+  // is poisoned for good once that happens — refuse it instead of returning
+  // answers that belong to another command.
+  private desynced = false;
 
   async connect(
     host: string,
@@ -233,6 +245,7 @@ export class RouterOSClient {
 
   async talk(words: string[], timeoutMs = 8000): Promise<Sentence[]> {
     if (!this.conn) throw new Error("Not connected");
+    if (this.desynced) throw new Error(ROUTEROS_DESYNC_MESSAGE);
     this.conn.write(words);
 
     const results: Sentence[] = [];
@@ -244,7 +257,13 @@ export class RouterOSClient {
     // interface row. Read until !done first, then throw.
     let trapMessage: string | null = null;
     while (true) {
-      const reply = await this.conn.readSentence(timeoutMs);
+      let reply: string[];
+      try {
+        reply = await this.conn.readSentence(timeoutMs);
+      } catch (err) {
+        this.desynced = true;
+        throw err;
+      }
       const type = reply[0];
       if (type === "!done") break;
       if (type === "!fatal") {

@@ -38,12 +38,25 @@ export default function InstallOnRouter({
         return;
       }
       if (res && "success" in res && res.success) {
-        const base = `Portail installé sur le hotspot « ${res.server} » (${res.uploaded} fichiers, SSID ${res.ssid}).`;
+        // Les forfaits repris du routeur ne sont annoncés que la première fois
+        // (ensuite ils sont gérés depuis /admin/forfaits) — le silence ferait
+        // croire que le portail affiche encore les tarifs d'un autre site.
+        const adopted =
+          "plansAdopted" in res && res.plansAdopted
+            ? ` ${res.plansAdopted} forfait(s) repris depuis les profils du routeur.`
+            : "";
+        const base = `Portail installé sur le hotspot « ${res.server} » (${res.uploaded} fichiers, SSID ${res.ssid}).${adopted}`;
+        // Sans le motif, « réessayez » n'aide pas : une poignée de fichiers
+        // manquants et un portail entièrement vide se ressemblaient à l'écran
+        // alors que seul le second casse la page de connexion.
+        const reason = res.failed?.[0]?.error;
         setFeedback(
           "partial" in res && res.partial
             ? {
                 kind: "err",
-                text: `${base} Mais ${res.failed?.length ?? 0} fichier(s) ont échoué — réessayez.`,
+                text:
+                  `${base} Mais ${res.failed?.length ?? 0} fichier(s) ont échoué` +
+                  `${reason ? ` (${reason})` : ""} — réessayez.`,
               }
             : { kind: "ok", text: base },
         );

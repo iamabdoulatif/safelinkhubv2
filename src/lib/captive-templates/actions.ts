@@ -8,6 +8,10 @@ import { getSession } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
+import {
+  importRouterHotspotPlans,
+  type ImportedHotspotPlan,
+} from "@/lib/mikrotik/hotspot-profile-import";
 import { ensureWalledGarden } from "@/lib/mikrotik/walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "@/lib/mikrotik/walled-garden-config";
 import { HOTSPOT_BRIDGE_NAME } from "@/lib/mikrotik/constants";
@@ -534,7 +538,14 @@ export async function installTemplateOnRouter(routerId: string, templateId: stri
     // Serveur hotspot réellement actif — AUCUNE hypothèse sur le nom du
     // bridge/serveur (routeur configuré à la main inclus). On préfère un
     // serveur non désactivé ; à défaut le premier trouvé.
-    const servers = await client.talk(["/ip/hotspot/print"]).catch(() => [] as Record<string, string>[]);
+    // Timeout explicite partout sur ce chemin : le défaut de talk() (8s) est
+    // trop court pour un MikroTik chargé (hotspot en heure de pointe), et un
+    // dépassement laisse la connexion désynchronisée — les réponses en retard
+    // seraient lues comme celles de la commande suivante, donc de l'upload.
+    const ROUTER_CMD_TIMEOUT_MS = 30000;
+    const servers = await client
+      .talk(["/ip/hotspot/print"], ROUTER_CMD_TIMEOUT_MS)
+      .catch(() => [] as Record<string, string>[]);
     const server = servers.find((s) => s.disabled !== "true") ?? servers[0];
     if (!server?.profile) {
       return {
@@ -547,16 +558,42 @@ export async function installTemplateOnRouter(routerId: string, templateId: stri
     // html-directory ET html-directory-override : l'override PRIME quand il a
     // été posé (c'est le cas après un auto-setup) — ne régler que
     // html-directory laisserait le hotspot servir l'ancien dossier.
-    await client
-      .talk([
+    // Pointer le profil vers un dossier AVANT de savoir si on saura le remplir :
+    // un échec d'upload laisse alors le hotspot servir un dossier vide, donc un
+    // portail cassé pour les clients qui payaient jusque-là (constaté en prod).
+    // On garde l'ordre (RouterOS crée les dossiers à la volée) mais l'échec
+    // n'est plus avalé : sans le dire, l'install repartait sur une connexion
+    // désynchronisée et TOUS les fichiers échouaient sans raison affichée.
+    await client.talk(
+      [
         "/ip/hotspot/profile/set",
         `=numbers=${server.profile}`,
         `=html-directory=${htmlDirectory}`,
         `=html-directory-override=${htmlDirectory}`,
-      ])
-      .catch(() => {});
+      ],
+      ROUTER_CMD_TIMEOUT_MS,
+    );
 
-    const ssid = (await getRouterPrimarySsid(client)) || router.name;
+    const ssid = (await getRouterPrimarySsid(client, ROUTER_CMD_TIMEOUT_MS)) || router.name;
+
+    // AVANT l'upload : les tarifs sont figés dans les fichiers au moment où le
+    // routeur les télécharge (l'API rend {{PLANS_HTML}} à la volée). Rattacher
+    // les forfaits après coup afficherait encore les anciens prix jusqu'à la
+    // prochaine réinstallation.
+    let importedPlans: ImportedHotspotPlan[] = [];
+    try {
+      const imported = await importRouterHotspotPlans(
+        client,
+        router.id,
+        router.orgId,
+        ROUTER_CMD_TIMEOUT_MS,
+      );
+      importedPlans = imported.imported;
+    } catch {
+      // Non bloquant : le portail s'installe quand même, il affichera les
+      // forfaits legacy de l'org comme avant.
+    }
+
     const result = await uploadCaptiveTemplatePackage(client, {
       files,
       htmlDirectory,
@@ -590,6 +627,7 @@ export async function installTemplateOnRouter(routerId: string, templateId: stri
 
     revalidatePath("/admin/settings/captive-templates");
 
+    const plansAdopted = importedPlans.length;
     if (result.failed.length > 0) {
       return {
         success: true,
@@ -598,6 +636,7 @@ export async function installTemplateOnRouter(routerId: string, templateId: stri
         server: String(server.name ?? ""),
         uploaded: result.uploaded.length,
         failed: result.failed,
+        plansAdopted,
       };
     }
     return {
@@ -605,6 +644,7 @@ export async function installTemplateOnRouter(routerId: string, templateId: stri
       ssid,
       server: String(server.name ?? ""),
       uploaded: result.uploaded.length,
+      plansAdopted,
     };
   } catch (err) {
     return {
