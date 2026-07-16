@@ -105,7 +105,7 @@ export default function Pricing() {
                 </div>
               </div>
               <p className="border-t-2 border-line bg-clay px-5 py-3 font-mono text-xs text-ink-soft">
-                Frais unique · <span className="font-semibold text-ink">1er routeur offert</span> · liage et tunnel gratuits.
+                Frais unique · liage et tunnel gratuits.
               </p>
             </div>
 
