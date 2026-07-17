@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { vouchers, voucherRouters, routers, packages } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
-import { durationToMs, type PackageDuration } from "./expiry";
+import { durationFromProfileName, durationToMs, type PackageDuration } from "./expiry";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Décompte PARTAGÉ entre routeurs (étape 2).
@@ -29,7 +29,7 @@ const MONTHS = [
   "jul", "aug", "sep", "oct", "nov", "dec",
 ];
 
-type Wall = { y: number; mon: number; d: number; h: number; mi: number; s: number };
+export type Wall = { y: number; mon: number; d: number; h: number; mi: number; s: number };
 
 /** Parse « mmm/JJ/AAAA HH:MM:SS » (ex. "jul/10/2026 14:30:00"). null si autre chose. */
 export function parseExpiryComment(comment: string): Wall | null {
@@ -58,12 +58,63 @@ export function formatExpiryComment(w: Wall): string {
   return `${MONTHS[w.mon]}/${p2(w.d)}/${w.y} ${p2(w.h)}:${p2(w.mi)}:${p2(w.s)}`;
 }
 
+/**
+ * Le commentaire d'un ticket MikHmon a DEUX champs, pas un.
+ *
+ * Vérifié dans la source de l'image (`hotspot/userbyname.php`) : quand les
+ * caractères 3 et 6 sont des « / », MikHmon lit `substr($comment, 0, 20)` comme
+ * l'expiration (champ « Expired », désactivé dans son UI) et
+ * `substr($comment, 21)` comme un commentaire libre (champ « Comment »,
+ * éditable). Le caractère 20 est le séparateur. Le sweep RouterOS, lui, ne lit
+ * que les positions 0→20. Écrire notre date de DÉBUT à partir de 21 tombe donc
+ * exactement dans l'emplacement prévu, sans rien casser côté routeur ni côté
+ * MikHmon.
+ */
+const COMMENT_BODY_AT = 21;
+
+/** Préfixe de NOTRE suffixe — sert aussi à le reconnaître pour le réécrire. */
+const START_MARKER = "debut ";
+
+/** Le champ libre d'un commentaire MikHmon (chaîne vide s'il n'y en a pas). */
+export function commentBody(comment: string): string {
+  return comment.length > COMMENT_BODY_AT ? comment.slice(COMMENT_BODY_AT) : "";
+}
+
+/**
+ * Assemble le commentaire à poser : expiration + date de début.
+ *
+ * Ne PIÉTINE PAS une note d'admin : si le champ libre contient déjà autre chose
+ * que notre date de début, on la préserve telle quelle et on renonce à écrire le
+ * début. (Avant, ce module réécrivait les 20 caractères d'expiration SEULS, ce
+ * qui effaçait silencieusement toute note saisie dans MikHmon.)
+ */
+export function buildUserComment(expiry: Wall, start: Wall | null, current: string): string {
+  const head = formatExpiryComment(expiry);
+  const body = commentBody(current);
+  if (start && (body === "" || body.startsWith(START_MARKER))) {
+    return `${head} ${START_MARKER}${formatExpiryComment(start)}`;
+  }
+  return body ? `${head} ${body}` : head;
+}
+
 // On traite les composantes comme de l'« heure murale » : parse et format via
 // UTC pour un aller-retour exact. L'affichage admin (Intl sans timezone sur le
 // runtime UTC) montre donc les mêmes composantes que le routeur. Hypothèse :
 // les routeurs d'une org partagent le même fuseau (zones WiFi d'un même pays).
 export function wallToDate(w: Wall): Date {
   return new Date(Date.UTC(w.y, w.mon, w.d, w.h, w.mi, w.s));
+}
+
+/** Inverse de wallToDate — même convention « heure murale via UTC ». */
+export function dateToWall(d: Date): Wall {
+  return {
+    y: d.getUTCFullYear(),
+    mon: d.getUTCMonth(),
+    d: d.getUTCDate(),
+    h: d.getUTCHours(),
+    mi: d.getUTCMinutes(),
+    s: d.getUTCSeconds(),
+  };
 }
 
 async function pool<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
@@ -78,12 +129,36 @@ async function pool<T>(items: T[], concurrency: number, fn: (item: T) => Promise
   );
 }
 
-type UserRow = { id: string; wall: Wall | null };
+// `comment` en plus de `wall` : la comparaison « faut-il réécrire ? » porte sur
+// la chaîne ENTIÈRE (expiration + champ libre), pas seulement sur la date —
+// sinon un ticket dont la date est déjà bonne ne recevrait jamais sa date de
+// début.
+type UserRow = { id: string; wall: Wall | null; comment: string };
+
+/**
+ * Plafond d'écritures par passage, tous routeurs confondus.
+ *
+ * Ce module tourne toutes les 2 min. Tant qu'il ne réécrivait que les
+ * commentaires dont la DATE divergeait, une passe touchait une poignée de
+ * tickets. Depuis qu'il pose aussi la date de début, tout ticket actif qui ne
+ * l'a pas encore diverge — le premier passage après un déploiement voudrait donc
+ * réécrire le parc entier d'un coup, soit des milliers de
+ * `/ip/hotspot/user/set`. Un RB951 (mono-cœur, 128 Mo) monte à 100 % de CPU sur
+ * bien moins que ça, et c'est le portail de ses clients connectés qui en pâtit.
+ *
+ * Avec ce plafond, le rattrapage s'étale sur quelques heures (200 × 30/h) sans
+ * que personne ne le remarque, et le régime permanent — quelques écritures par
+ * passage — n'est jamais freiné. `writesDeferred` dit ce qui a été remis à plus
+ * tard : un plafond silencieux se lirait comme « tout est à jour ».
+ */
+const MAX_WRITES_PER_RUN = 200;
 
 export type ReconcileResult = {
   vouchersConsidered: number;
   frozen: number; // vouchers dont l'expiration a été figée en base ce run
   propagated: number; // commentaires (re)posés sur des routeurs
+  /** Écritures reportées au prochain passage par MAX_WRITES_PER_RUN. */
+  writesDeferred: number;
   routersRead: number;
   routerErrors: string[];
 };
@@ -98,6 +173,11 @@ export async function reconcileVoucherExpiries(orgId?: string): Promise<Reconcil
       routerId: voucherRouters.routerId,
       username: vouchers.username,
       expiresAt: vouchers.expiresAt,
+      // Repli quand le forfait a été élagué (packageId → NULL par FK) : le
+      // voucher garde son profil, donc sa durée réelle. Sans ça, `pkg` est null
+      // et la date de début reste introuvable — le même trou que le fix v80,
+      // mais côté décompte au lieu de l'affichage.
+      profileName: vouchers.profileName,
       durationValue: packages.durationValue,
       durationUnit: packages.durationUnit,
       billingStartsOn: packages.billingStartsOn,
@@ -129,7 +209,7 @@ export async function reconcileVoucherExpiries(orgId?: string): Promise<Reconcil
           durationUnit: r.durationUnit!,
           billingStartsOn: r.billingStartsOn!,
         }
-      : null;
+      : durationFromProfileName(r.profileName);
     if (existing) existing.routerIds.push(r.routerId);
     else
       byVoucher.set(r.voucherId, {
@@ -145,6 +225,7 @@ export async function reconcileVoucherExpiries(orgId?: string): Promise<Reconcil
     vouchersConsidered: byVoucher.size,
     frozen: 0,
     propagated: 0,
+    writesDeferred: 0,
     routersRead: 0,
     routerErrors: [],
   };
@@ -176,7 +257,8 @@ export async function reconcileVoucherExpiries(orgId?: string): Promise<Reconcil
         const name = u["name"];
         const id = u[".id"];
         if (!name || !id) continue;
-        map.set(name, { id, wall: u["comment"] ? parseExpiryComment(u["comment"]) : null });
+        const comment = u["comment"] ?? "";
+        map.set(name, { id, wall: comment ? parseExpiryComment(comment) : null, comment });
       }
       routerUsers.set(routerId, map);
       result.routersRead += 1;
@@ -200,25 +282,46 @@ export async function reconcileVoucherExpiries(orgId?: string): Promise<Reconcil
     if (!frozen) continue; // aucune connexion détectée nulle part
 
     const expiresDate = wallToDate(frozen);
-    const desired = formatExpiryComment(frozen);
+    // L'expiration EST « début + durée » : le début s'en déduit exactement, il
+    // n'est pas estimé. Sans durée exploitable (forfait élagué ET nom de profil
+    // non parsable), on ne l'invente pas — le commentaire reste l'expiration seule.
+    const startDate = v.pkg ? new Date(expiresDate.getTime() - durationToMs(v.pkg)) : null;
+    const startWall = startDate ? dateToWall(startDate) : null;
 
     // Gel en base (une seule fois — quand pas encore figé, ou valeur différente).
     if (!v.expiresAt || v.expiresAt.getTime() !== expiresDate.getTime()) {
-      const firstLoginAt = v.pkg ? new Date(expiresDate.getTime() - durationToMs(v.pkg)) : null;
-      dbUpdates.push({ voucherId: v.voucherId, expiresAt: expiresDate, firstLoginAt });
+      dbUpdates.push({ voucherId: v.voucherId, expiresAt: expiresDate, firstLoginAt: startDate });
       result.frozen += 1;
     }
 
-    // Propagation : chaque routeur du voucher dont le commentaire diffère.
-    const frozenKey = wallKey(frozen);
+    // Propagation : chaque routeur du voucher dont le commentaire diffère de la
+    // chaîne voulue (expiration + date de début). Comparaison sur la chaîne
+    // entière : un ticket à la bonne date mais sans son début doit être complété.
     for (const routerId of v.routerIds) {
       const user = routerUsers.get(routerId)?.get(v.username);
       if (!user) continue; // user absent / routeur non lu
-      if (user.wall && wallKey(user.wall) === frozenKey) continue; // déjà bon
+      const desired = buildUserComment(frozen, startWall, user.comment);
+      if (user.comment === desired) continue; // déjà bon
       const list = writesByRouter.get(routerId) ?? [];
       list.push({ userId: user.id, comment: desired });
       writesByRouter.set(routerId, list);
     }
+  }
+
+  // ── Plafond : on garde les MAX_WRITES_PER_RUN premières, le reste attend le
+  //    prochain passage (dans 2 min). Réparti routeur par routeur plutôt qu'en
+  //    vidant le premier de la liste — sinon un routeur à 5 000 tickets
+  //    monopoliserait le budget et les autres n'avanceraient jamais.
+  let budget = MAX_WRITES_PER_RUN;
+  const totalWrites = [...writesByRouter.values()].reduce((n, w) => n + w.length, 0);
+  if (totalWrites > budget) {
+    const share = Math.max(1, Math.floor(budget / writesByRouter.size));
+    for (const [routerId, list] of writesByRouter) {
+      const take = Math.min(share, list.length, budget);
+      writesByRouter.set(routerId, list.slice(0, take));
+      budget -= take;
+    }
+    result.writesDeferred = totalWrites - (MAX_WRITES_PER_RUN - budget);
   }
 
   // ── Persistance base.
