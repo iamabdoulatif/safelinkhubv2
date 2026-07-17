@@ -83,7 +83,14 @@ export type BackupSnapshot = {
  * référencent des interfaces propres au modèle, les rejouer à l'aveugle sur un
  * rechange d'un autre modèle produirait une config incohérente).
  */
-const SECTIONS: { key: string; cmd: string; restorable?: boolean; proplist?: string[] }[] = [
+const SECTIONS: {
+  key: string;
+  cmd: string;
+  restorable?: boolean;
+  proplist?: string[];
+  /** Mots `?...` de filtrage RouterOS, appliqués côté routeur (voir mikhmonSales). */
+  query?: string[];
+}[] = [
   // Le trésor : codes vendus, mots de passe, profil, et surtout le commentaire
   // (MikHmon y écrit la date d'expiration absolue — voir restoreHotspotUsers).
   //
@@ -121,6 +128,27 @@ const SECTIONS: { key: string; cmd: string; restorable?: boolean; proplist?: str
   { key: "hotspotUserProfiles", cmd: "/ip/hotspot/user/profile/print", restorable: true },
   { key: "walledGarden", cmd: "/ip/hotspot/walled-garden/print", restorable: true },
   { key: "walledGardenIp", cmd: "/ip/hotspot/walled-garden/ip/print", restorable: true },
+  /**
+   * Le journal de ventes de MikHmon. Il n'a rien d'un « script » malgré la
+   * table où il vit : à chaque première connexion d'un voucher, l'on-login du
+   * profil écrit une ligne `/system script` dont le NOM porte toute la vente —
+   * `date-|-heure-|-code-|-prix-|-ip-|-mac-|-durée-|-profil-|-expiration` — et
+   * dont `owner` porte le mois ("jul2026"). Les rapports de MikHmon (recettes du
+   * jour, du mois) ne lisent QUE ça. Sans cette section, le rechange démarre à
+   * 0 F de recettes alors que les tickets, eux, ont bien été repris.
+   *
+   * `?comment=mikhmon` filtre CÔTÉ ROUTEUR : la table contient aussi les scripts
+   * de l'auto-setup (export-all…), qu'il ne faut ni sauvegarder ni rejouer.
+   */
+  {
+    key: "mikhmonSales",
+    cmd: "/system/script/print",
+    restorable: true,
+    query: ["?comment=mikhmon"],
+    // `source` porte juste la date, `policy` les droits : le reste (run-count,
+    // last-started) est un compteur en lecture seule, impossible à réinjecter.
+    proplist: [".id", "name", "owner", "source", "comment", "policy"],
+  },
   // Capturées pour référence uniquement.
   { key: "hotspotServers", cmd: "/ip/hotspot/print" },
   { key: "hotspotServerProfiles", cmd: "/ip/hotspot/profile/print" },
@@ -136,7 +164,12 @@ const SECTIONS: { key: string; cmd: string; restorable?: boolean; proplist?: str
   { key: "dhcpServers", cmd: "/ip/dhcp-server/print" },
   { key: "dhcpNetworks", cmd: "/ip/dhcp-server/network/print" },
   { key: "queues", cmd: "/queue/simple/print" },
-  { key: "schedulers", cmd: "/system/scheduler/print" },
+  /**
+   * Restaurée SÉLECTIVEMENT (voir restoreMikhmonSchedulers) : seuls les
+   * balayages d'expiration MikHmon en sortent. Les autres jobs (MIKHMON_BOOT,
+   * CLEAN_JOB) appartiennent à l'auto-setup, qui les repose lui-même.
+   */
+  { key: "schedulers", cmd: "/system/scheduler/print", restorable: true },
 ];
 
 /**
@@ -158,9 +191,12 @@ async function readSection(
   client: RouterOSClient,
   cmd: string,
   proplist?: string[],
+  query?: string[],
 ): Promise<{ rows: BackupSection; error?: string }> {
   try {
-    const words = proplist ? [cmd, `=.proplist=${proplist.join(",")}`] : [cmd];
+    const words = [cmd];
+    if (proplist) words.push(`=.proplist=${proplist.join(",")}`);
+    if (query) words.push(...query);
     const rows = await client.talk(words, 45000);
     return { rows: rows.filter((r) => !isDynamic(r)) };
   } catch (err) {
@@ -216,7 +252,7 @@ export async function captureRouterBackup(
     const sections: Record<string, BackupSection> = {};
     const warnings: string[] = [];
     for (const section of SECTIONS) {
-      const { rows, error } = await readSection(client, section.cmd, section.proplist);
+      const { rows, error } = await readSection(client, section.cmd, section.proplist, section.query);
       sections[section.key] = rows;
       if (error) warnings.push(`${section.key} : ${error}`);
       await pause(SECTION_PAUSE_MS);
@@ -416,6 +452,55 @@ const PROFILE_FIELDS = [
   "on-logout",
 ] as const;
 
+/**
+ * Champs RÉÉCRITS sur un profil qui existe déjà sur le rechange.
+ *
+ * Ailleurs, « le nom existe déjà » veut dire « ne touche à rien » — pour un
+ * ticket c'est vital. Pour un profil, c'est précisément ce qui cassait la
+ * reprise : le rechange sort de l'auto-setup avec ses propres 01-JOUR/01-MOIS
+ * aux tarifs par défaut, donc TOUS les profils de l'ancien étaient ignorés au
+ * nom d'un doublon, et le rechange continuait de vendre aux prix d'usine. Or
+ * `on-login` n'est pas décoratif : MikHmon y encode le tarif et la validité
+ * (",remc,<prix>,<durée>,…" — voir voucher-profiles.ts), et c'est cette
+ * chaîne-là que relisent et le journal de ventes et l'adoption des forfaits
+ * (hotspot-profile-import.ts). La recopier est ce que « synchroniser les
+ * profils » veut dire, et ça ne détruit aucun ticket : un profil n'est qu'un
+ * gabarit.
+ *
+ * `name` est volontairement absent (c'est la clé), et les champs de RÉSEAU
+ * (address-pool, parent-queue) aussi : ils nomment des objets propres au
+ * matériel de l'ancien, que le rechange n'a aucune raison d'avoir.
+ */
+const PROFILE_SYNC_FIELDS = [
+  "on-login",
+  "on-logout",
+  "rate-limit",
+  "shared-users",
+  "session-timeout",
+  "idle-timeout",
+  "keepalive-timeout",
+] as const;
+
+/**
+ * Le balayage d'expiration. `on-event` porte le filtre `where profile="<nom>"`
+ * et `policy` les droits sans lesquels il ne peut pas supprimer un ticket —
+ * les deux sont indispensables, un scheduler restauré sans policy tourne mais
+ * n'expire personne.
+ */
+const SCHEDULER_FIELDS = [
+  "name",
+  "interval",
+  "on-event",
+  "policy",
+  "start-date",
+  "start-time",
+  "comment",
+  "disabled",
+] as const;
+
+/** Le nom EST la vente (voir la section mikhmonSales) ; `owner` est le mois lu par les rapports. */
+const SALES_FIELDS = ["name", "owner", "source", "comment", "policy"] as const;
+
 function pick(row: Record<string, string>, fields: readonly string[]): string[] {
   const words: string[] = [];
   for (const f of fields) {
@@ -430,6 +515,8 @@ export type RestoreReport = {
   section: string;
   created: number;
   skipped: number;
+  /** Existait déjà et a été RÉALIGNÉ sur la sauvegarde — voir PROFILE_SYNC_FIELDS. */
+  updated: number;
   failed: { name: string; error: string }[];
 };
 
@@ -443,7 +530,9 @@ export type RestoreProgress = {
   phase:
     | "remodel"
     | "hotspotUserProfiles"
+    | "mikhmonSchedulers"
     | "hotspotUsers"
+    | "mikhmonSales"
     | "walledGarden"
     | "walledGardenIp"
     | "done";
@@ -451,6 +540,9 @@ export type RestoreProgress = {
   plan: RestorePlan;
   ticketsDone?: number;
   ticketsTotal?: number;
+  /** Journal de ventes MikHmon : seconde phase longue, après les tickets. */
+  salesDone?: number;
+  salesTotal?: number;
 };
 
 /** Un tick de progression tous les N tickets : assez pour une barre fluide sans
@@ -567,10 +659,24 @@ export async function restoreBackupToRouter(
         listCmd: "/ip/hotspot/user/profile/print",
         addCmd: "/ip/hotspot/user/profile/add",
         fields: PROFILE_FIELDS,
+        updateFields: PROFILE_SYNC_FIELDS,
+        updateCmd: "/ip/hotspot/user/profile/set",
         dryRun: opts.dryRun,
       }),
     );
     await emit({ phase: "hotspotUserProfiles", reports: [...reports] });
+
+    // Aussitôt après les profils, et avant les tickets : c'est ce balayage qui
+    // fera expirer les tickets qu'on s'apprête à recréer.
+    reports.push(
+      await restoreMikhmonSchedulers(
+        client,
+        snapshot.sections.schedulers ?? [],
+        snapshot.sections.hotspotUserProfiles ?? [],
+        opts.dryRun,
+      ),
+    );
+    await emit({ phase: "mikhmonSchedulers", reports: [...reports] });
 
     const ticketRows = (snapshot.sections.hotspotUsers ?? []).filter(
       (r) => r.name && r.default !== "true",
@@ -579,13 +685,35 @@ export async function restoreBackupToRouter(
       await restoreHotspotUsers(client, snapshot.sections.hotspotUsers ?? [], opts.dryRun, (done) =>
         emit({
           phase: "hotspotUsers",
-          reports: [...reports, { section: "hotspotUsers", created: done, skipped: 0, failed: [] }],
+          reports: [
+            ...reports,
+            { section: "hotspotUsers", created: done, skipped: 0, updated: 0, failed: [] },
+          ],
           ticketsDone: done,
           ticketsTotal: ticketRows.length,
         }),
       ),
     );
     await emit({ phase: "hotspotUsers", reports: [...reports], ticketsTotal: ticketRows.length });
+
+    // Après les tickets : une vente n'a de sens qu'une fois son ticket là. Comme
+    // les tickets, ces lignes s'écrivent une par une et se comptent par milliers
+    // — d'où le suivi d'avancement.
+    const salesRows = (snapshot.sections.mikhmonSales ?? []).filter((r) => r.name);
+    reports.push(
+      await restoreMikhmonSales(client, salesRows, opts.dryRun, (done) =>
+        emit({
+          phase: "mikhmonSales",
+          reports: [
+            ...reports,
+            { section: "mikhmonSales", created: done, skipped: 0, updated: 0, failed: [] },
+          ],
+          salesDone: done,
+          salesTotal: salesRows.length,
+        }),
+      ),
+    );
+    await emit({ phase: "mikhmonSales", reports: [...reports], salesTotal: salesRows.length });
 
     reports.push(
       await restoreWalledGarden(client, snapshot.sections.walledGarden ?? [], opts.dryRun),
@@ -682,15 +810,36 @@ async function restoreNamed(
     addCmd: string;
     fields: readonly string[];
     dryRun?: boolean;
+    /**
+     * Fourni ⇒ un élément qui existe DÉJÀ sur la cible est réaligné sur la
+     * sauvegarde au lieu d'être ignoré (voir PROFILE_SYNC_FIELDS). Omis ⇒
+     * comportement historique : on n'écrase rien. Les tickets ne doivent JAMAIS
+     * le recevoir — une restauration relancée écraserait alors le commentaire
+     * d'expiration d'un ticket déjà repris et en cours de validité.
+     */
+    updateFields?: readonly string[];
+    updateCmd?: string;
     /** Appelé tous les PROGRESS_EVERY éléments traités (créés + ignorés). */
     onProgress?: (processed: number) => void | Promise<void>;
   },
 ): Promise<RestoreReport> {
-  const report: RestoreReport = { section: args.section, created: 0, skipped: 0, failed: [] };
+  const report: RestoreReport = {
+    section: args.section,
+    created: 0,
+    skipped: 0,
+    updated: 0,
+    failed: [],
+  };
   const existing = await client
     .talk([args.listCmd], 45000)
     .catch(() => [] as Record<string, string>[]);
-  const known = new Set(existing.map((r) => r.name).filter(Boolean));
+  // On garde le .id de la cible, pas seulement son nom : c'est lui qui adresse
+  // la ligne à réaligner, sans dépendre du fait que RouterOS accepte (ou pas)
+  // un nom comme =numbers= sur cette table.
+  const known = new Map<string, string | undefined>();
+  for (const r of existing) {
+    if (r.name) known.set(r.name, r[".id"]);
+  }
 
   let processed = 0;
   for (const row of args.rows) {
@@ -698,16 +847,36 @@ async function restoreNamed(
     if (!name) continue;
     // Le profil "default" est livré avec RouterOS : il existe toujours, et
     // tenter de le recréer échoue systématiquement.
-    if (known.has(name) || name === "default") {
+    if (name === "default") {
       report.skipped++;
+    } else if (known.has(name)) {
+      const words = args.updateFields ? pick(row, args.updateFields) : [];
+      const id = known.get(name);
+      // Rien à réaligner (section sans updateFields, ou sauvegarde qui ne porte
+      // aucun de ces champs) ⇒ on laisse la cible strictement intacte.
+      if (words.length === 0 || !args.updateCmd || !id) {
+        report.skipped++;
+      } else if (args.dryRun) {
+        report.updated++;
+      } else {
+        try {
+          await client.talk([args.updateCmd, `=numbers=${id}`, ...words], 30000);
+          report.updated++;
+        } catch (err) {
+          report.failed.push({
+            name,
+            error: err instanceof Error ? err.message : "Erreur inconnue",
+          });
+        }
+      }
     } else if (args.dryRun) {
       report.created++;
-      known.add(name);
+      known.set(name, undefined);
     } else {
       try {
         await client.talk([args.addCmd, ...pick(row, args.fields)], 30000);
         report.created++;
-        known.add(name);
+        known.set(name, undefined);
       } catch (err) {
         report.failed.push({ name, error: err instanceof Error ? err.message : "Erreur inconnue" });
       }
@@ -742,13 +911,95 @@ async function restoreHotspotUsers(
   });
 }
 
+/**
+ * Les balayages d'expiration MikHmon — LA raison pour laquelle un ticket
+ * restauré finit par expirer.
+ *
+ * Deux mécanismes font expirer un voucher, et un seul survit à la restauration
+ * sans aide : l'`on-login` du profil pose un job à usage unique, mais seulement
+ * à la PREMIÈRE connexion — un ticket déjà en cours, lui, a son expiration figée
+ * dans son commentaire et ne repassera jamais par on-login. Ce qui le supprime
+ * le jour venu, c'est le scheduler permanent, nommé exactement comme son profil,
+ * qui balaye toutes les ~2 min les commentaires échus. La section `schedulers`
+ * était capturée mais jamais rejouée : le rechange reprenait donc les tickets et
+ * les gardait ÉTERNELLEMENT valides. Les clients gardaient un accès qu'ils
+ * n'avaient plus payé.
+ *
+ * Le filtre est le nom : chez MikHmon, un balayage porte le nom de son profil.
+ * Ça exclut d'office les jobs à usage unique (nommés d'après un utilisateur) et
+ * ceux de l'auto-setup (MIKHMON_BOOT, CLEAN_JOB), qu'il repose lui-même et qui
+ * n'ont rien à faire ici.
+ */
+export function selectMikhmonSchedulers(
+  schedulerRows: BackupSection,
+  profileRows: BackupSection,
+): BackupSection {
+  const profileNames = new Set(
+    profileRows.map((p) => p.name).filter((n): n is string => !!n && n !== "default"),
+  );
+  return schedulerRows.filter((r) => !!r.name && profileNames.has(r.name));
+}
+
+async function restoreMikhmonSchedulers(
+  client: RouterOSClient,
+  rows: BackupSection,
+  profileRows: BackupSection,
+  dryRun?: boolean,
+): Promise<RestoreReport> {
+  return restoreNamed(client, {
+    section: "mikhmonSchedulers",
+    rows: selectMikhmonSchedulers(rows, profileRows),
+    listCmd: "/system/scheduler/print",
+    addCmd: "/system/scheduler/add",
+    fields: SCHEDULER_FIELDS,
+    // Réaligné comme les profils, et pour la même raison : l'auto-setup a posé
+    // ses propres balayages sur le rechange, or c'est celui de l'ancien qui sait
+    // quelle durée il balaye.
+    updateFields: SCHEDULER_FIELDS.filter((f) => f !== "name"),
+    updateCmd: "/system/scheduler/set",
+    dryRun,
+  });
+}
+
+/**
+ * Le journal de ventes MikHmon (voir la section mikhmonSales) : ce sont ces
+ * lignes, et elles seules, que les rapports additionnent. Sans elles le
+ * rechange affiche 0 F alors qu'il porte des milliers de tickets vendus.
+ *
+ * Jamais réaligné : une vente est un fait daté, pas un réglage. Si le nom existe
+ * déjà, la vente est déjà là — la réécrire ne changerait rien et risquerait de
+ * corrompre une ligne saine.
+ */
+async function restoreMikhmonSales(
+  client: RouterOSClient,
+  rows: BackupSection,
+  dryRun?: boolean,
+  onProgress?: (processed: number) => void | Promise<void>,
+): Promise<RestoreReport> {
+  return restoreNamed(client, {
+    section: "mikhmonSales",
+    rows: rows.filter((r) => r.name),
+    listCmd: "/system/script/print",
+    addCmd: "/system/script/add",
+    fields: SALES_FIELDS,
+    dryRun,
+    onProgress,
+  });
+}
+
 /** Walled-garden HTTP : identifié par dst-host (pas de champ "name"). */
 async function restoreWalledGarden(
   client: RouterOSClient,
   rows: BackupSection,
   dryRun?: boolean,
 ): Promise<RestoreReport> {
-  const report: RestoreReport = { section: "walledGarden", created: 0, skipped: 0, failed: [] };
+  const report: RestoreReport = {
+    section: "walledGarden",
+    created: 0,
+    skipped: 0,
+    updated: 0,
+    failed: [],
+  };
   const existing = await client
     .talk(["/ip/hotspot/walled-garden/print"], 45000)
     .catch(() => [] as Record<string, string>[]);
@@ -787,7 +1038,13 @@ async function restoreWalledGardenIp(
   rows: BackupSection,
   dryRun?: boolean,
 ): Promise<RestoreReport> {
-  const report: RestoreReport = { section: "walledGardenIp", created: 0, skipped: 0, failed: [] };
+  const report: RestoreReport = {
+    section: "walledGardenIp",
+    created: 0,
+    skipped: 0,
+    updated: 0,
+    failed: [],
+  };
   const existing = await client
     .talk(["/ip/hotspot/walled-garden/ip/print"], 45000)
     .catch(() => [] as Record<string, string>[]);

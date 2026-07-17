@@ -33,7 +33,13 @@ type Backup = {
 };
 type RouterOption = { id: string; name: string; status: string; model: string | null };
 
-type Report = { section: string; created: number; skipped: number; failed: { name: string; error: string }[] };
+type Report = {
+  section: string;
+  created: number;
+  skipped: number;
+  updated: number;
+  failed: { name: string; error: string }[];
+};
 type Plan = {
   identity: { from: string | null; to: string | null; willApply: boolean };
   wifi: { ssid: string | null; sourceApi: string | null; targetApi: string; radios: string[]; translated: boolean };
@@ -47,6 +53,8 @@ type Plan = {
 const SECTION_LABELS: Record<string, string> = {
   hotspotUsers: "tickets",
   hotspotUserProfiles: "profils",
+  mikhmonSchedulers: "expiration des tickets",
+  mikhmonSales: "recettes MikHmon",
   walledGarden: "walled-garden",
   walledGardenIp: "walled-garden IP",
 };
@@ -505,6 +513,7 @@ export default function BackupsManager({
                     <p key={r.section} className="mt-1 text-xs text-ink-soft">
                       {SECTION_LABELS[r.section] ?? r.section} : {r.created} créé(s), {r.skipped} déjà
                       présent(s)
+                      {r.updated > 0 && <>, {r.updated} réaligné(s) sur la sauvegarde</>}
                       {r.failed.length > 0 && (
                         <span className="text-red-600">, {r.failed.length} en échec</span>
                       )}

@@ -24,15 +24,15 @@ const STEPS: { title: string; body: string }[] = [
   },
   {
     title: "4. Simulez la restauration",
-    body: "« Simuler » compte exactement ce qui serait créé — tickets, profils, walled-garden — sans rien écrire. Vérifiez que le nombre de tickets correspond à ce que vous attendez.",
+    body: "« Simuler » compte exactement ce qui serait créé — tickets, profils, expiration, recettes MikHmon, walled-garden — sans rien écrire. Vérifiez que le nombre de tickets correspond à ce que vous attendez.",
   },
   {
     title: "5. Restaurez",
-    body: "« Restaurer » écrit pour de bon : le rechange prend le nom RouterOS de l'ancien, son SSID (traduit si les générations diffèrent), le nom DNS du portail, puis les tickets et profils. Le portail captif est réinstallé en dernier et les forfaits du routeur sont réadoptés. Comptez plusieurs minutes pour ~5 000 tickets — RouterOS les crée un par un.",
+    body: "« Restaurer » écrit pour de bon : le rechange prend le nom RouterOS de l'ancien, son SSID (traduit si les générations diffèrent), le nom DNS du portail, puis les profils, les tickets et les recettes MikHmon. Les profils que l'auto-setup avait déjà posés sont réalignés sur ceux de l'ancien — ce sont eux qui portent vos vrais tarifs — et leur balayage d'expiration est reposé, sans quoi les tickets restaurés resteraient valides indéfiniment. Le portail captif est réinstallé en dernier et les forfaits du routeur sont réadoptés. Comptez plusieurs minutes pour ~5 000 tickets — RouterOS les crée un par un.",
   },
   {
     title: "6. Vérifiez sur place",
-    body: "Le SSID de l'ancien doit réapparaître, le portail s'ouvrir avec les bons prix, et un ticket déjà vendu doit passer avec sa date d'expiration d'origine. Si le portail affiche la page RouterOS par défaut, réinstallez-le depuis Réglages → Portails captifs.",
+    body: "Le SSID de l'ancien doit réapparaître, le portail s'ouvrir avec les bons prix, et un ticket déjà vendu doit passer avec sa date d'expiration d'origine. Ouvrez aussi MikHmon : ses recettes du mois doivent être celles de l'ancien, pas 0 F. Si le portail affiche la page RouterOS par défaut, réinstallez-le depuis Réglages → Portails captifs.",
   },
 ];
 
