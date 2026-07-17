@@ -1,0 +1,244 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Save, RotateCcw, Trash2, AlertTriangle } from "lucide-react";
+import { backupRouterNow, restoreBackup, deleteBackup } from "@/lib/mikrotik/backup-actions";
+
+type Backup = {
+  id: string;
+  routerId: string | null;
+  routerName: string;
+  model: string | null;
+  rosVersion: string | null;
+  trigger: string;
+  sizeBytes: number;
+  counts: Record<string, number>;
+  createdAt: string;
+  orphan: boolean;
+};
+type RouterOption = { id: string; name: string; status: string; model: string | null };
+
+type Report = { section: string; created: number; skipped: number; failed: { name: string; error: string }[] };
+
+const SECTION_LABELS: Record<string, string> = {
+  hotspotUsers: "tickets",
+  hotspotUserProfiles: "profils",
+  walledGarden: "walled-garden",
+  walledGardenIp: "walled-garden IP",
+};
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1048576) return `${Math.round(bytes / 1024)} Ko`;
+  return `${(bytes / 1048576).toFixed(1)} Mo`;
+}
+
+export default function BackupsManager({
+  backups,
+  routers,
+}: {
+  backups: Backup[];
+  routers: RouterOption[];
+}) {
+  const navRouter = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [sourceRouter, setSourceRouter] = useState(routers[0]?.id ?? "");
+  const [target, setTarget] = useState<Record<string, string>>({});
+  const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [reports, setReports] = useState<{ backupId: string; dryRun: boolean; rows: Report[] } | null>(null);
+
+  function runBackup() {
+    if (!sourceRouter || pending) return;
+    setFeedback(null);
+    setReports(null);
+    startTransition(async () => {
+      const res = await backupRouterNow(sourceRouter);
+      if (res && "error" in res && res.error) {
+        setFeedback({ kind: "err", text: res.error });
+        return;
+      }
+      if (res && "success" in res && res.success) {
+        const t = res.counts?.hotspotUsers ?? 0;
+        setFeedback({
+          kind: "ok",
+          text: `Sauvegarde créée : ${t} ticket(s), ${res.counts?.hotspotUserProfiles ?? 0} profil(s) — ${formatSize(res.compressedBytes ?? 0)} compressés.`,
+        });
+        navRouter.refresh();
+      }
+    });
+  }
+
+  function runRestore(backup: Backup, dryRun: boolean) {
+    const targetId = target[backup.id];
+    if (!targetId || pending) return;
+    setFeedback(null);
+    setReports(null);
+    startTransition(async () => {
+      const res = await restoreBackup(backup.id, targetId, dryRun);
+      if (res && "error" in res && res.error) {
+        setFeedback({ kind: "err", text: res.error });
+        return;
+      }
+      if (res && "success" in res && res.success) {
+        setReports({ backupId: backup.id, dryRun, rows: res.reports as Report[] });
+        setFeedback({
+          kind: "ok",
+          text: dryRun
+            ? "Simulation terminée — rien n'a été écrit sur le routeur."
+            : "Restauration terminée.",
+        });
+        if (!dryRun) navRouter.refresh();
+      }
+    });
+  }
+
+  function remove(id: string) {
+    if (pending) return;
+    startTransition(async () => {
+      await deleteBackup(id);
+      navRouter.refresh();
+    });
+  }
+
+  return (
+    <div className="mt-6">
+      <div className="border-2 border-line bg-paper p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <label className="mb-1 block text-sm font-medium text-ink">Routeur à sauvegarder</label>
+            <select
+              value={sourceRouter}
+              onChange={(e) => setSourceRouter(e.target.value)}
+              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none"
+            >
+              {routers.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                  {r.status === "online" ? "" : ` — ${r.status}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={runBackup}
+            disabled={pending || !sourceRouter}
+            className="flex items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+          >
+            <Save className="h-4 w-4" />
+            {pending ? "En cours…" : "Sauvegarder maintenant"}
+          </button>
+        </div>
+
+        {feedback && (
+          <p
+            className={`mt-3 rounded-md px-3 py-2 text-sm ${
+              feedback.kind === "ok" ? "bg-clay text-ok" : "bg-red-50 text-red-600"
+            }`}
+          >
+            {feedback.text}
+          </p>
+        )}
+      </div>
+
+      {backups.length === 0 ? (
+        <p className="mt-6 rounded-md border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
+          Aucune sauvegarde pour l&apos;instant — lancez-en une, ou attendez la capture automatique
+          de cette nuit.
+        </p>
+      ) : (
+        <div className="mt-6 space-y-3">
+          {backups.map((b) => (
+            <div key={b.id} className="border-2 border-line bg-paper p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div>
+                  <span className="text-sm font-semibold text-ink">{b.routerName}</span>
+                  {b.model && <span className="ml-2 text-xs text-ink-soft">{b.model}</span>}
+                  {b.rosVersion && <span className="ml-2 text-xs text-ink-soft">RouterOS {b.rosVersion}</span>}
+                  {b.orphan && (
+                    <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+                      <AlertTriangle className="h-3 w-3" />
+                      routeur supprimé — sauvegarde conservée
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-ink-soft">
+                  {new Date(b.createdAt).toLocaleString("fr-FR")} · {b.trigger === "auto" ? "auto" : "manuelle"} ·{" "}
+                  {formatSize(b.sizeBytes)}
+                </span>
+              </div>
+
+              <p className="mt-1 text-xs text-ink-soft">
+                {Object.entries(SECTION_LABELS)
+                  .filter(([k]) => (b.counts[k] ?? 0) > 0)
+                  .map(([k, label]) => `${b.counts[k]} ${label}`)
+                  .join(" · ") || "aucune donnée restaurable"}
+              </p>
+
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <select
+                  value={target[b.id] ?? ""}
+                  onChange={(e) => setTarget((t) => ({ ...t, [b.id]: e.target.value }))}
+                  className="flex-1 rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none"
+                >
+                  <option value="">Restaurer vers…</option>
+                  {routers.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                      {r.id === b.routerId ? " (routeur d'origine)" : ""}
+                      {r.status === "online" ? "" : ` — ${r.status}`}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => runRestore(b, true)}
+                  disabled={pending || !target[b.id]}
+                  className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
+                >
+                  Simuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runRestore(b, false)}
+                  disabled={pending || !target[b.id]}
+                  className="flex items-center justify-center gap-2 rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Restaurer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(b.id)}
+                  disabled={pending}
+                  aria-label="Supprimer la sauvegarde"
+                  className="rounded-md border border-line px-3 py-2 text-ink-soft hover:border-red-300 hover:text-red-600 disabled:opacity-60"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+
+              {reports?.backupId === b.id && (
+                <div className="mt-3 rounded-md border border-line-soft bg-clay p-3">
+                  <p className="text-xs font-medium text-ink">
+                    {reports.dryRun ? "Simulation — aucune écriture" : "Résultat de la restauration"}
+                  </p>
+                  {reports.rows.map((r) => (
+                    <p key={r.section} className="mt-1 text-xs text-ink-soft">
+                      {SECTION_LABELS[r.section] ?? r.section} : {r.created} créé(s), {r.skipped} déjà
+                      présent(s)
+                      {r.failed.length > 0 && (
+                        <span className="text-red-600">, {r.failed.length} en échec</span>
+                      )}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -740,3 +740,45 @@ export const marketingSettings = pgTable("marketing_settings", {
 // extraite dans un PROJET SÉPARÉ (2026-07). Les tables restent en base (données
 // préservées, non droppées) mais ne font plus partie du schéma de l'app SaaS.
 // L'onglet "Boutique" du site public affiche une page "en cours de conception".
+
+// Sauvegardes d'un MikroTik : snapshot lu via l'API RouterOS et conservé ici
+// pour reconstruire un routeur de rechange sans perdre ce qui a de la valeur —
+// au premier chef les tickets déjà vendus.
+//
+// routerId est ON DELETE SET NULL (et NON cascade) : c'est tout l'intérêt de la
+// sauvegarde — un routeur qui meurt est retiré du parc, et ses backups doivent
+// SURVIVRE pour être restaurés sur son remplaçant. Le nom/modèle/série sont
+// donc dupliqués ici, seule trace du routeur une fois sa ligne supprimée.
+export const routerBackups = pgTable(
+  "router_backups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    routerId: uuid("router_id").references(() => routers.id, {
+      onDelete: "set null",
+    }),
+    // Dénormalisé : survit à la suppression du routeur (voir ci-dessus).
+    routerName: text("router_name").notNull(),
+    model: text("model"),
+    rosVersion: text("ros_version"),
+    serialNumber: text("serial_number"),
+    identity: text("identity"),
+    // "auto" (cron quotidien) | "manual" (bouton de l'UI).
+    trigger: text("trigger").notNull().default("manual"),
+    // Snapshot complet gzippé puis base64 — 4 800 tickets font ~700 Ko en JSON
+    // brut mais ~100 Ko compressés, ce qui tient sans souci dans une colonne.
+    payload: text("payload").notNull(),
+    sizeBytes: integer("size_bytes").notNull().default(0),
+    // { hotspotUsers: 4868, hotspotUserProfiles: 11, … } — permet d'afficher la
+    // liste des sauvegardes sans décompresser le payload.
+    counts: jsonb("counts"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("router_backups_router_id_idx").on(table.routerId),
+    index("router_backups_org_id_idx").on(table.orgId),
+    index("router_backups_created_at_idx").on(table.createdAt),
+  ],
+);

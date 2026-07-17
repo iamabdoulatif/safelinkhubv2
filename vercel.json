@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/voucher-expiry-sync",
       "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/router-backup",
+      "schedule": "30 2 * * *"
     }
   ]
 }
