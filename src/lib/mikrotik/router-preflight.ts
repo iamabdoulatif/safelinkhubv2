@@ -54,6 +54,9 @@ export async function scanRouterHardware(client: RouterOSClient): Promise<Hardwa
   const usbRows = await client
     .talk(["/system/resource/usb/print"], 20000)
     .catch(() => [] as Record<string, string>[]);
+  const diskRows = await client
+    .talk(["/disk/print"], 20000)
+    .catch(() => [] as Record<string, string>[]);
   const hotspots = await client
     .talk(["/ip/hotspot/print"], 20000)
     .catch(() => [] as Record<string, string>[]);
@@ -69,7 +72,20 @@ export async function scanRouterHardware(client: RouterOSClient): Promise<Hardwa
     null) as Architecture | null;
 
   const supportsContainers = architecture ? architectureSupportsContainers(architecture) : false;
-  const hasUsbStorage = usbRows.length > 0;
+
+  // Double signal, comme device-detect : certains builds ne peuplent PAS
+  // /system/resource/usb/print alors que la clé est bien là et visible en slot
+  // "usb1" dans /disk/print. Relevé sur le parc, la commande /system/resource/
+  // usb/print échoue même carrément sur les boards ax (arm/arm64). S'y fier
+  // seul annoncerait « pas d'USB » — donc MikHmon en tmpfs — sur un routeur
+  // parfaitement équipé.
+  const usb1DiskLive = diskRows.some((d) => d.slot === "usb1");
+  const hasUsbStorage = usbRows.length > 0 || usb1DiskLive;
+  // Disque interne persistant : slot "disk…" non-tmpfs (le slot RAM est "tmp").
+  // Signal LIVE, qui complète les drapeaux statiques du catalogue.
+  const internalNonTmpfsDisk = diskRows.some(
+    (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot) && d.type !== "tmpfs",
+  );
 
   return {
     model,
@@ -87,7 +103,7 @@ export async function scanRouterHardware(client: RouterOSClient): Promise<Hardwa
       supportsContainers,
       hasUsbStorage,
       hasEmmcStorage: !!catalog?.hasEmmcStorage,
-      hasLargeOnboardStorage: !!catalog?.hasLargeOnboardStorage,
+      hasLargeOnboardStorage: !!catalog?.hasLargeOnboardStorage || internalNonTmpfsDisk,
     }),
     hasActiveHotspot: hotspots.some((h) => h.disabled !== "true") || hotspots.length > 0,
   };
