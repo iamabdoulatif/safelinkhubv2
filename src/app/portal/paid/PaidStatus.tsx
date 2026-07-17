@@ -4,18 +4,39 @@
 // le code d'accès WiFi dès qu'il est prêt. Fonctionne dans l'onglet du checkout,
 // indépendamment de l'onglet du portail (qui, lui, auto-soumet le login routeur).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Hourglass } from "lucide-react";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
+
+// Thème « Bitume » (tokens de la landing, globals.css) : moutarde + anthracite,
+// bordures épaisses, aplats opaques — pas de dégradé, pas d'ombre, angles droits.
+const INK = "#1C1917";
+const INK_SOFT = "#57534E";
+const PAPER = "#FBFAF8";
+const CLAY = "#F0EDE6";
+const BRAND = "#EAB308";
+const OK = "#15803D";
+const ERR = "#C2410C";
+const MONO = "'SFMono-Regular', Consolas, 'Liberation Mono', monospace";
+
+/** URL de login du hotspot avec le code en identifiant + mot de passe. Le
+ * profil active http-pap → authentification directe, sans md5/chap. `dst`
+ * renvoie vers la page d'état du hotspot après connexion. */
+function buildConnectUrl(loginUrl: string, code: string): string {
+  const url = new URL(loginUrl);
+  url.searchParams.set("username", code);
+  url.searchParams.set("password", code);
+  url.searchParams.set("dst", loginUrl.replace(/\/login$/, "/status"));
+  return url.toString();
+}
 
 const CARD: React.CSSProperties = {
   maxWidth: 380,
   width: "100%",
   textAlign: "center",
-  background: "#fff",
-  border: "1px solid #e2e8f0",
-  borderRadius: 16,
+  background: PAPER,
+  border: `2px solid ${INK}`,
   padding: 28,
 };
 
@@ -86,17 +107,43 @@ export default function PaidStatus({
   }, [canPoll, orderId, slug]);
 
   // Auto-connexion : le téléphone (encore sur le WiFi captif) navigue vers le
-  // login du hotspot avec le code en identifiant + mot de passe. Le profil
-  // active http-pap → authentification directe, sans md5/chap. `dst` renvoie
-  // vers la page d'état du hotspot après connexion.
-  function autoConnect() {
+  // login du hotspot avec le code en identifiant + mot de passe (bouton
+  // manuel ; le déclenchement automatique vit dans l'effet ci-dessous).
+  function connectNow() {
     if (!loginUrl || !code) return;
-    const url = new URL(loginUrl);
-    url.searchParams.set("username", code);
-    url.searchParams.set("password", code);
-    url.searchParams.set("dst", loginUrl.replace(/\/login$/, "/status"));
-    window.location.href = url.toString();
+    autoTriedRef.current = true; // plus de déclenchement auto après un clic
+    setCountdown(null);
+    window.location.assign(buildConnectUrl(loginUrl, code));
   }
+
+  // Déclenchement AUTOMATIQUE dès l'affichage du code : compte à rebours de
+  // 3 s (le client voit son code — il part aussi par SMS) puis navigation vers
+  // le login du hotspot. Une seule fois (autoTriedRef) : si la connexion
+  // échoue et que le client revient ici (retour navigateur / bfcache), on ne
+  // le repiège pas en boucle — le bouton manuel reste.
+  const autoTriedRef = useRef(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  useEffect(() => {
+    if (phase !== "fulfilled" || !code || !loginUrl || autoTriedRef.current) return;
+     
+    setCountdown(3);
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(timer);
+          // fin du décompte → tentative unique d'auto-connexion
+          if (!autoTriedRef.current) {
+            autoTriedRef.current = true;
+            window.location.assign(buildConnectUrl(loginUrl, code));
+          }
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phase, code, loginUrl]);
 
   return (
     <main
@@ -107,56 +154,84 @@ export default function PaidStatus({
         justifyContent: "center",
         padding: 24,
         fontFamily: "system-ui, sans-serif",
-        background: "#f8fafc",
-        color: "#0f172a",
+        background: PAPER,
+        color: INK,
       }}
     >
       <div style={CARD}>
         {phase === "fulfilled" ? (
           <>
             <div style={{ marginBottom: 8 }}>
-              <CheckCircle2 size={44} color="#16a34a" style={{ display: "inline-block" }} />
+              <CheckCircle2 size={44} color={OK} style={{ display: "inline-block" }} />
             </div>
-            <h1 style={{ fontSize: "1.25rem", margin: "0 0 6px" }}>Paiement reçu</h1>
-            <p style={{ color: "#64748b", fontSize: ".85rem", margin: "0 0 6px" }}>Votre code WiFi</p>
+            <h1 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 6px" }}>
+              Paiement reçu
+            </h1>
+            <p
+              style={{
+                color: INK_SOFT,
+                fontSize: ".72rem",
+                fontFamily: MONO,
+                textTransform: "uppercase",
+                letterSpacing: ".12em",
+                margin: "0 0 6px",
+              }}
+            >
+              Votre code WiFi
+            </p>
             <div
               style={{
                 fontSize: "2rem",
                 fontWeight: 700,
+                fontFamily: MONO,
                 letterSpacing: ".18em",
-                color: "#0f172a",
-                margin: "0 0 10px",
+                color: INK,
+                background: CLAY,
+                border: `2px solid ${INK}`,
+                padding: "10px 8px",
+                margin: "0 0 12px",
               }}
             >
               {code || "…"}
             </div>
             {loginUrl && code ? (
               <>
+                {countdown !== null && (
+                  <p
+                    style={{
+                      color: INK_SOFT,
+                      fontSize: ".82rem",
+                      fontFamily: MONO,
+                      margin: "0 0 8px",
+                    }}
+                  >
+                    Connexion automatique dans {countdown} s…
+                  </p>
+                )}
                 <button
                   type="button"
-                  onClick={autoConnect}
+                  onClick={connectNow}
                   style={{
                     width: "100%",
                     padding: "13px 16px",
-                    margin: "4px 0 12px",
-                    border: 0,
-                    borderRadius: 10,
-                    background: "#16a34a",
-                    color: "#fff",
+                    margin: "0 0 12px",
+                    border: `2px solid ${INK}`,
+                    background: BRAND,
+                    color: INK,
                     fontSize: "1rem",
-                    fontWeight: 700,
+                    fontWeight: 800,
                     cursor: "pointer",
                   }}
                 >
-                  Connecter automatiquement mon téléphone
+                  {countdown !== null ? "Me connecter maintenant" : "Connecter mon téléphone"}
                 </button>
-                <p style={{ color: "#64748b", fontSize: ".82rem", margin: 0 }}>
+                <p style={{ color: INK_SOFT, fontSize: ".82rem", margin: 0 }}>
                   Ça ne marche pas ? Retournez sur le portail WiFi (onglet <b>Code</b>) et
                   saisissez ce code. Il vous a aussi été envoyé par <b>SMS</b>.
                 </p>
               </>
             ) : (
-              <p style={{ color: "#64748b", fontSize: ".92rem", margin: 0 }}>
+              <p style={{ color: INK_SOFT, fontSize: ".92rem", margin: 0 }}>
                 Retournez sur le portail WiFi (onglet <b>Code</b>) et saisissez ce code pour vous
                 connecter. Il vous a aussi été envoyé par <b>SMS</b>.
               </p>
@@ -165,22 +240,24 @@ export default function PaidStatus({
         ) : phase === "failed" ? (
           <>
             <div style={{ marginBottom: 8 }}>
-              <AlertTriangle size={44} color="#dc2626" style={{ display: "inline-block" }} />
+              <AlertTriangle size={44} color={ERR} style={{ display: "inline-block" }} />
             </div>
-            <h1 style={{ fontSize: "1.25rem", margin: "0 0 8px" }}>Paiement non abouti</h1>
-            <p style={{ color: "#64748b", fontSize: ".95rem", margin: 0 }}>
+            <h1 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 8px" }}>
+              Paiement non abouti
+            </h1>
+            <p style={{ color: INK_SOFT, fontSize: ".95rem", margin: 0 }}>
               {error || "Le paiement n’a pas pu être finalisé. Revenez à l’onglet WiFi pour réessayer."}
             </p>
           </>
         ) : (
           <>
             <div style={{ marginBottom: 8 }}>
-              <Hourglass size={44} color="#64748b" style={{ display: "inline-block" }} />
+              <Hourglass size={44} color={INK_SOFT} style={{ display: "inline-block" }} />
             </div>
-            <h1 style={{ fontSize: "1.25rem", margin: "0 0 8px" }}>
+            <h1 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 8px" }}>
               {phase === "loading" ? "Paiement reçu" : "Activation en cours"}
             </h1>
-            <p style={{ color: "#64748b", fontSize: ".95rem", margin: 0 }}>
+            <p style={{ color: INK_SOFT, fontSize: ".95rem", margin: 0 }}>
               Nous préparons votre accès… Votre code s’affichera ici et vous sera envoyé par SMS.
               Vous pouvez aussi retourner à l’onglet WiFi.
             </p>

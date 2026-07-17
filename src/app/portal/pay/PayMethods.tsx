@@ -34,7 +34,12 @@ const METHODS: Method[] = [
   { id: "orange_money", label: "Orange Money", logo: "/payment/orange.png" },
   { id: "mtn_money", label: "MTN MoMo", logo: "/payment/mtn-momo.png" },
   { id: "moov_money", label: "Moov Money", logo: "/payment/moov.png" },
-  { id: "card", label: "Carte bancaire", logo: "/payment/visa.svg" },
+  // Rail « Carte » RETIRÉ : il route vers checkout.paystack.com via GeniusPay,
+  // mais Paystack rejette la référence (« transaction pas valide / déjà
+  // effectuée » — diagnostiqué : GeniusPay crée bien la transaction en 201/pending,
+  // c'est le canal Paystack du compte marchand qui n'est pas activé). On n'envoie
+  // plus les clients sur un checkout mort. À réactiver quand GeniusPay aura corrigé
+  // son canal Paystack (la carte reste accessible via « tous les moyens »/hosted).
 ];
 
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
@@ -115,12 +120,11 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
         style={{
           width: "100%",
           padding: "14px 16px",
-          border: 0,
-          borderRadius: 12,
-          background: "#0f172a",
-          color: "#fff",
+          border: "2px solid #1C1917",
+          background: "#EAB308",
+          color: "#1C1917",
           fontSize: "1rem",
-          fontWeight: 700,
+          fontWeight: 800,
           cursor: busy ? "default" : "pointer",
           opacity: busy && busy !== "hosted" ? 0.5 : 1,
         }}
@@ -131,7 +135,7 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
         style={{
           margin: "6px 0 14px",
           fontSize: ".72rem",
-          color: "#94a3b8",
+          color: "#57534E",
           textAlign: "center",
         }}
       >
@@ -143,7 +147,7 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
         style={{
           margin: "0 0 10px",
           fontSize: ".8rem",
-          color: "#64748b",
+          color: "#57534E",
           textAlign: "center",
         }}
       >
@@ -164,10 +168,9 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
                 gap: 12,
                 width: "100%",
                 padding: "11px 14px",
-                border: "1px solid #e2e8f0",
-                borderRadius: 12,
-                background: "#fff",
-                color: "#0f172a",
+                border: "1px solid #D8D2C6",
+                background: "#FBFAF8",
+                color: "#1C1917",
                 fontSize: "1rem",
                 fontWeight: 600,
                 cursor: busy ? "default" : "pointer",
@@ -182,8 +185,7 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
                   justifyContent: "center",
                   width: 40,
                   height: 40,
-                  borderRadius: 10,
-                  background: "#f1f5f9",
+                  background: "#F0EDE6",
                   flexShrink: 0,
                 }}
               >
@@ -195,7 +197,7 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
                 />
               </span>
               <span style={{ flex: 1 }}>{loading ? "Redirection…" : m.label}</span>
-              <span style={{ color: "#94a3b8", fontSize: "1.3rem", lineHeight: 1 }} aria-hidden="true">
+              <span style={{ color: "#57534E", fontSize: "1.3rem", lineHeight: 1 }} aria-hidden="true">
                 ›
               </span>
             </button>
@@ -203,19 +205,18 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
         })}
       </div>
 
-      {error ? <p style={{ margin: "12px 0 0", color: "#ef4444", fontSize: ".85rem" }}>{error}</p> : null}
+      {error ? <p style={{ margin: "12px 0 0", color: "#C2410C", fontSize: ".85rem" }}>{error}</p> : null}
 
       {/* Repli portail captif : ouvrir la page dans le vrai navigateur */}
       <div
         style={{
           margin: "18px 0 0",
           padding: "14px 14px 16px",
-          border: "1px dashed #cbd5e1",
-          borderRadius: 12,
-          background: "#f8fafc",
+          border: "2px dashed #D8D2C6",
+          background: "#F0EDE6",
         }}
       >
-        <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#475569", lineHeight: 1.5 }}>
+        <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#57534E", lineHeight: 1.5 }}>
           La page de paiement reste bloquée sur le logo ? Ouvrez cette page dans <b>Chrome</b> ou{" "}
           <b>Safari</b> pour payer, puis revenez saisir votre code.
         </p>
@@ -225,10 +226,9 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
           style={{
             width: "100%",
             padding: 12,
-            border: "1px solid #0f172a",
-            borderRadius: 10,
-            background: "#0f172a",
-            color: "#fff",
+            border: "2px solid #1C1917",
+            background: "#1C1917",
+            color: "#FBFAF8",
             fontSize: ".92rem",
             fontWeight: 600,
             cursor: "pointer",
@@ -245,11 +245,10 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
               flex: 1,
               minWidth: 0,
               padding: "9px 10px",
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
+              border: "1px solid #D8D2C6",
               fontSize: ".78rem",
-              color: "#475569",
-              background: "#fff",
+              color: "#57534E",
+              background: "#FBFAF8",
             }}
           />
           <button
@@ -257,10 +256,9 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
             onClick={copyLink}
             style={{
               padding: "9px 12px",
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              background: "#fff",
-              color: "#0f172a",
+              border: "1px solid #D8D2C6",
+              background: "#FBFAF8",
+              color: "#1C1917",
               fontSize: ".8rem",
               fontWeight: 600,
               cursor: "pointer",
@@ -272,7 +270,7 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
         </div>
       </div>
 
-      <p style={{ margin: "16px 0 0", fontSize: ".72rem", color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
+      <p style={{ margin: "16px 0 0", fontSize: ".72rem", color: "#57534E", textAlign: "center", lineHeight: 1.5 }}>
         Paiement sécurisé via GeniusPay. Après le paiement, un <b>code WiFi</b> s’affiche (+ SMS) :
         saisissez-le sur le portail WiFi pour vous connecter.
       </p>

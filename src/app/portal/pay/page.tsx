@@ -22,6 +22,8 @@ export default async function PortalPayPage({
 }) {
   const { orderId, slug } = await searchParams;
 
+  // Thème « Bitume » (tokens de la landing) : paper/anthracite, bordure 2px,
+  // aplats opaques — pas de dégradé, pas d'ombre, angles droits.
   const wrap = (children: React.ReactNode) => (
     <main
       style={{
@@ -31,17 +33,16 @@ export default async function PortalPayPage({
         justifyContent: "center",
         padding: 20,
         fontFamily: "system-ui, sans-serif",
-        background: "#f8fafc",
-        color: "#0f172a",
+        background: "#FBFAF8",
+        color: "#1C1917",
       }}
     >
       <div
         style={{
           maxWidth: 400,
           width: "100%",
-          background: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: 16,
+          background: "#FBFAF8",
+          border: "2px solid #1C1917",
           padding: 24,
         }}
       >
@@ -51,7 +52,7 @@ export default async function PortalPayPage({
   );
 
   if (!orderId || !slug) {
-    return wrap(<p style={{ margin: 0, color: "#64748b" }}>Lien de paiement invalide.</p>);
+    return wrap(<p style={{ margin: 0, color: "#57534E" }}>Lien de paiement invalide.</p>);
   }
 
   const db = getDb();
@@ -70,7 +71,7 @@ export default async function PortalPayPage({
     .limit(1);
 
   if (!order || order.orgSlug !== slug) {
-    return wrap(<p style={{ margin: 0, color: "#64748b" }}>Commande introuvable.</p>);
+    return wrap(<p style={{ margin: 0, color: "#57534E" }}>Commande introuvable.</p>);
   }
 
   // Déjà payée / en cours / honorée → on montre le suivi, pas un nouveau paiement.
@@ -80,11 +81,20 @@ export default async function PortalPayPage({
 
   return wrap(
     <>
-      <h1 style={{ fontSize: "1.15rem", margin: "0 0 2px" }}>Payer votre forfait</h1>
-      <p style={{ margin: "0 0 4px", color: "#64748b", fontSize: ".9rem" }}>
+      <h1 style={{ fontSize: "1.15rem", fontWeight: 800, margin: "0 0 2px" }}>
+        Payer votre forfait
+      </h1>
+      <p style={{ margin: "0 0 4px", color: "#57534E", fontSize: ".9rem" }}>
         {order.packageName ?? "Forfait WiFi"}
       </p>
-      <p style={{ margin: "0 0 18px", fontSize: "1.6rem", fontWeight: 700 }}>
+      <p
+        style={{
+          margin: "0 0 18px",
+          fontSize: "1.6rem",
+          fontWeight: 700,
+          fontFamily: "'SFMono-Regular', Consolas, monospace",
+        }}
+      >
         {fcfa(order.priceCents ?? 0)}
       </p>
       <PayMethods slug={slug} orderId={orderId} />
