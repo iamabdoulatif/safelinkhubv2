@@ -9,6 +9,13 @@ import {
   deleteBackup,
   scanTargetForRestore,
 } from "@/lib/mikrotik/backup-actions";
+import RestoreTopology from "./RestoreTopology";
+import {
+  buildTopologyChannels,
+  sourceNode,
+  targetNode,
+  type PlanLike,
+} from "./restore-topology-model";
 
 type Backup = {
   id: string;
@@ -66,6 +73,9 @@ export default function BackupsManager({
     rows: Report[];
     plan: Plan | null;
   } | null>(null);
+  // Vrai UNIQUEMENT pendant une restauration réelle : les paquets ne circulent
+  // pas pour une simulation, qui n'écrit rien.
+  const [flowing, setFlowing] = useState<string | null>(null);
 
   function runBackup() {
     if (!sourceRouter || pending) return;
@@ -99,7 +109,9 @@ export default function BackupsManager({
     setFeedback(null);
     setReports(null);
     startTransition(async () => {
+      if (!dryRun) setFlowing(backup.id);
       const res = await restoreBackup(backup.id, targetId, dryRun);
+      setFlowing(null);
       if (res && "error" in res && res.error) {
         // Un refus pour blocage rapporte quand même le plan : c'est lui qui dit
         // ce qu'il faut corriger sur le rechange avant de réessayer.
@@ -285,6 +297,32 @@ export default function BackupsManager({
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
+
+              {target[b.id] && (
+                <RestoreTopology
+                  source={sourceNode(b)}
+                  target={targetNode(
+                    routers.find((r) => r.id === target[b.id]) ?? {
+                      name: "?",
+                      model: null,
+                      status: "?",
+                    },
+                  )}
+                  channels={buildTopologyChannels(
+                    b,
+                    reports?.backupId === b.id ? (reports.plan as PlanLike | null) : null,
+                    reports?.backupId === b.id && !reports.dryRun && reports.rows.length > 0
+                      ? "done"
+                      : reports?.backupId === b.id && reports.plan
+                        ? "planned"
+                        : "idle",
+                  )}
+                  flowing={flowing === b.id}
+                  blocked={
+                    reports?.backupId === b.id && (reports.plan?.blockers.length ?? 0) > 0
+                  }
+                />
+              )}
 
               {reports?.backupId === b.id && (
                 <div className="mt-3 rounded-md border border-line-soft bg-clay p-3">
