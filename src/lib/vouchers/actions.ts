@@ -13,6 +13,8 @@ import {
   SUPPORTED_PROFILE_DURATIONS,
 } from "@/lib/mikrotik/package-voucher-profile";
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
+import { parseExpiryComment, wallToDate, wallKey, type Wall } from "./reconcile";
+import { durationFromProfileName, durationToMs } from "./expiry";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -304,4 +306,226 @@ export async function deleteVouchers(ids: string[]) {
     .where(and(inArray(vouchers.id, validIds), eq(vouchers.orgId, session.orgId)));
   revalidatePath("/admin/vouchers");
   return { success: true, deleted: validIds.length };
+}
+
+// Plafond d'import par passage : un routeur peut porter des milliers
+// d'utilisateurs hotspot (historique MikHmon). On borne l'insert pour ne pas
+// enfler une transaction unique ; le surplus est signalé et récupéré au
+// prochain import (les tickets déjà importés sont sautés, donc l'opération est
+// idempotente et progresse à chaque passage).
+const MAX_IMPORT_PER_RUN = 2000;
+
+/**
+ * Importe dans le SaaS les tickets générés directement dans MikHmon.
+ *
+ * MikHmon n'a pas de base propre : un « ticket » MikHmon EST un utilisateur
+ * hotspot posé sur le routeur (`/ip/hotspot/user`), avec le profil de durée et,
+ * après la 1ʳᵉ connexion, un commentaire « mmm/JJ/AAAA HH:MM:SS » = expiration.
+ * On lit donc ces utilisateurs via le tunnel déjà utilisé pour la gestion (le
+ * même chemin que reconcile.ts), et on enregistre en base ceux que le SaaS ne
+ * suit pas encore. Aucune API MikHmon à ouvrir sur le conteneur.
+ *
+ * L'opération est idempotente :
+ *   • username inconnu du SaaS  → nouveau voucher + lien(s) voucher_routers ;
+ *   • username déjà en base mais pas rattaché à cette zone → on ajoute juste le
+ *     lien voucher_routers (le ticket est « adopté » sur cette zone WiFi) ;
+ *   • username déjà rattaché → ignoré.
+ *
+ * On saute les utilisateurs dynamiques (sessions mac-cookie, pas des tickets)
+ * et ceux sans nom. Le forfait est rattaché quand le profil correspond à un
+ * forfait de l'org ; l'expiration/le début sont déduits du commentaire MikHmon
+ * exactement comme le fait le décompte partagé.
+ */
+export async function importMikhmonTickets(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const routerIds = formData
+    .getAll("routerIds")
+    .map((r) => String(r))
+    .filter(Boolean);
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  if (routerIds.length === 0) return { error: "Sélectionnez au moins un routeur." };
+
+  const db = getDb();
+  const orgRouters = await db
+    .select()
+    .from(routers)
+    .where(and(inArray(routers.id, routerIds), eq(routers.orgId, session.orgId)));
+  if (orgRouters.length === 0) return { error: "Routeur introuvable." };
+
+  // Profil hotspot → forfait de l'org, pour rattacher les tickets importés au
+  // bon forfait quand la durée correspond (premier forfait gagnant).
+  const orgPackages = await db
+    .select({
+      id: packages.id,
+      durationValue: packages.durationValue,
+      durationUnit: packages.durationUnit,
+    })
+    .from(packages)
+    .where(eq(packages.orgId, session.orgId));
+  const packageIdByProfile = new Map<string, string>();
+  for (const p of orgPackages) {
+    const profile = packageProfileName(p.durationValue, p.durationUnit);
+    if (profile && !packageIdByProfile.has(profile)) packageIdByProfile.set(profile, p.id);
+  }
+
+  // Vouchers déjà connus (par nom) + liens (voucher, routeur) déjà posés, pour
+  // ne rien recréer et savoir quels liens de zone manquent encore.
+  const existing = await db
+    .select({ id: vouchers.id, username: vouchers.username })
+    .from(vouchers)
+    .where(eq(vouchers.orgId, session.orgId));
+  const voucherIdByName = new Map(existing.map((v) => [v.username, v.id]));
+  const existingLinks = existing.length
+    ? await db
+        .select({ voucherId: voucherRouters.voucherId, routerId: voucherRouters.routerId })
+        .from(voucherRouters)
+        .where(eq(voucherRouters.orgId, session.orgId))
+        .catch(() => [] as { voucherId: string; routerId: string }[])
+    : [];
+  const linkKey = (voucherId: string, routerId: string) => `${voucherId}:${routerId}`;
+  const linkedPairs = new Set(existingLinks.map((l) => linkKey(l.voucherId, l.routerId)));
+
+  // Utilisateurs lus, agrégés par nom : un même code peut vivre sur plusieurs
+  // zones. On garde le profil et l'expiration la plus précoce (1ʳᵉ connexion).
+  type Scanned = { profile: string | null; expiry: Wall | null; routerIds: string[] };
+  const byName = new Map<string, Scanned>();
+  const routerErrors: string[] = [];
+
+  for (const router of orgRouters) {
+    let client: RouterOSClient;
+    try {
+      client = await connectToRouter(router);
+    } catch (e) {
+      routerErrors.push(
+        `${router.name} injoignable : ${e instanceof Error ? e.message : "connexion échouée"}`,
+      );
+      continue;
+    }
+    try {
+      const users = await client
+        .talk(["/ip/hotspot/user/print"])
+        .catch(() => [] as Record<string, string>[]);
+      for (const u of users) {
+        const name = u["name"];
+        // Pas de nom, ou session dynamique (mac-cookie / trial) : pas un ticket.
+        if (!name || u["dynamic"] === "true") continue;
+        const comment = u["comment"] ?? "";
+        const expiry = comment ? parseExpiryComment(comment) : null;
+        const profile = u["profile"] || null;
+        const entry = byName.get(name);
+        if (entry) {
+          entry.routerIds.push(router.id);
+          if (expiry && (!entry.expiry || wallKey(expiry) < wallKey(entry.expiry))) {
+            entry.expiry = expiry;
+          }
+          if (!entry.profile && profile) entry.profile = profile;
+        } else {
+          byName.set(name, { profile, expiry, routerIds: [router.id] });
+        }
+      }
+    } finally {
+      client.close();
+    }
+  }
+
+  // Répartition : nouveaux tickets à créer vs liens de zone à ajouter à un
+  // voucher déjà connu vs déjà entièrement suivis (ignorés).
+  const toCreate: { name: string; scanned: Scanned }[] = [];
+  const linksToAdd: { voucherId: string; routerId: string }[] = [];
+  let alreadyTracked = 0;
+  for (const [name, scanned] of byName) {
+    const knownId = voucherIdByName.get(name);
+    if (knownId) {
+      let added = false;
+      for (const routerId of scanned.routerIds) {
+        if (!linkedPairs.has(linkKey(knownId, routerId))) {
+          linksToAdd.push({ voucherId: knownId, routerId });
+          linkedPairs.add(linkKey(knownId, routerId));
+          added = true;
+        }
+      }
+      if (!added) alreadyTracked += 1;
+    } else {
+      toCreate.push({ name, scanned });
+    }
+  }
+
+  const deferred = Math.max(0, toCreate.length - MAX_IMPORT_PER_RUN);
+  const createBatch = toCreate.slice(0, MAX_IMPORT_PER_RUN);
+
+  let imported = 0;
+  let adopted = 0;
+  if (createBatch.length > 0 || linksToAdd.length > 0) {
+    await db.transaction(async (tx) => {
+      if (createBatch.length > 0) {
+        const inserted = await tx
+          .insert(vouchers)
+          .values(
+            createBatch.map(({ name, scanned }) => {
+              const profileName = scanned.profile;
+              const expiresAt = scanned.expiry ? wallToDate(scanned.expiry) : null;
+              // début = expiration − durée (déduite du profil), comme reconcile.
+              const pkg = durationFromProfileName(profileName);
+              const firstLoginAt =
+                expiresAt && pkg ? new Date(expiresAt.getTime() - durationToMs(pkg)) : null;
+              return {
+                orgId: session.orgId,
+                username: name,
+                packageId: (profileName && packageIdByProfile.get(profileName)) || null,
+                routerId: scanned.routerIds[0],
+                profileName,
+                status: "PROVISIONED" as const,
+                firstLoginAt,
+                expiresAt,
+                useCase: "Imported" as const,
+                note,
+              };
+            }),
+          )
+          .returning({ id: vouchers.id, username: vouchers.username });
+        imported = inserted.length;
+
+        const scannedByName = new Map(createBatch.map((c) => [c.name, c.scanned]));
+        const newLinks = inserted.flatMap((v) =>
+          (scannedByName.get(v.username)?.routerIds ?? []).map((routerId) => ({
+            orgId: session.orgId,
+            voucherId: v.id,
+            routerId,
+            profileName: scannedByName.get(v.username)?.profile ?? null,
+            status: "PROVISIONED" as const,
+          })),
+        );
+        if (newLinks.length > 0) await tx.insert(voucherRouters).values(newLinks);
+      }
+
+      if (linksToAdd.length > 0) {
+        await tx.insert(voucherRouters).values(
+          linksToAdd.map((l) => ({
+            orgId: session.orgId,
+            voucherId: l.voucherId,
+            routerId: l.routerId,
+            status: "PROVISIONED" as const,
+          })),
+        );
+        adopted = linksToAdd.length;
+      }
+    });
+    revalidatePath("/admin/vouchers");
+  }
+
+  if (imported === 0 && adopted === 0 && routerErrors.length > 0) {
+    return { error: `Aucun ticket importé. ${routerErrors.slice(0, 3).join(" ; ")}` };
+  }
+  return {
+    success: true,
+    imported,
+    adopted,
+    alreadyTracked,
+    deferred,
+    scanned: byName.size,
+    routerErrors: routerErrors.slice(0, 3),
+  };
 }

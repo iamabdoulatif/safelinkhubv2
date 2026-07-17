@@ -16,6 +16,7 @@ import {
 } from "@/lib/vouchers/expiry";
 import type { TicketBrand } from "@/lib/vouchers/ticket-templates";
 import GenerateVouchersModal from "./GenerateVouchersModal";
+import ImportTicketsModal from "./ImportTicketsModal";
 import VoucherTable, { type VoucherRow } from "./VoucherTable";
 
 function formatDate(date: Date | null) {
@@ -157,7 +158,10 @@ export default async function VouchersPage() {
       vouchers={rows}
       brand={brand}
       headerExtra={
-        <GenerateVouchersModal packages={orgPackages} routers={orgRouters} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ImportTicketsModal routers={orgRouters} />
+          <GenerateVouchersModal packages={orgPackages} routers={orgRouters} />
+        </div>
       }
     />
   );
