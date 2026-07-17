@@ -614,8 +614,24 @@ export async function installTemplateOnRouter(routerId: string, templateId: stri
       // ignoré : réconcilié de toute façon au prochain health-check.
     }
 
-    // Cohérence UI : si ce routeur a des bridges hotspot suivis, mémorise le
-    // modèle installé pour que « Assignation par bridge » reflète la réalité.
+    // Mémorise le portail installé SUR LE ROUTEUR. Indispensable, pas cosmétique :
+    // les fichiers du portail vivent sur la flash et ne sont donc pas dans les
+    // sauvegardes — cette colonne est le seul moyen de savoir quoi reposer sur un
+    // rechange (voir router-backup.ts). L'écrire uniquement sur les bridges ne
+    // suffisait pas : la plupart des routeurs n'ont aucun bridge suivi, si bien
+    // que le portail installé n'était mémorisé nulle part.
+    try {
+      await db
+        .update(routers)
+        .set({ captiveTemplateId: template.id })
+        .where(eq(routers.id, router.id));
+    } catch {
+      // L'installation sur le routeur a déjà réussi ; une sauvegarde ultérieure
+      // signalera simplement le portail comme inconnu.
+    }
+
+    // Cohérence UI : si ce routeur a des bridges hotspot suivis, mémorise aussi
+    // le modèle pour que « Assignation par bridge » reflète la réalité.
     try {
       await db
         .update(bridges)

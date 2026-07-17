@@ -322,13 +322,26 @@ async function readPortalInfo(routerId: string, sections: Record<string, BackupS
     profile?.["html-directory-override"]?.trim() || profile?.["html-directory"]?.trim() || null;
 
   const db = getDb();
-  const [row] = await db
+  // routers.captiveTemplateId d'abord : c'est la source fiable, posée à chaque
+  // installation. Les bridges ne servent que de repli pour les routeurs
+  // installés AVANT l'ajout de cette colonne et qui ont un bridge suivi.
+  const [direct] = await db
     .select({ id: captiveTemplates.id, name: captiveTemplates.name })
-    .from(bridges)
-    .innerJoin(captiveTemplates, eq(bridges.captiveTemplateId, captiveTemplates.id))
-    .where(eq(bridges.routerId, routerId))
+    .from(routers)
+    .innerJoin(captiveTemplates, eq(routers.captiveTemplateId, captiveTemplates.id))
+    .where(eq(routers.id, routerId))
     .limit(1);
 
+  const [fallback] = direct
+    ? [undefined]
+    : await db
+        .select({ id: captiveTemplates.id, name: captiveTemplates.name })
+        .from(bridges)
+        .innerJoin(captiveTemplates, eq(bridges.captiveTemplateId, captiveTemplates.id))
+        .where(eq(bridges.routerId, routerId))
+        .limit(1);
+
+  const row = direct ?? fallback;
   return {
     htmlDirectory,
     templateId: row?.id ?? null,

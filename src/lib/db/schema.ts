@@ -154,6 +154,16 @@ export const routers = pgTable("routers", {
   // on an already-billed router never charges again. See
   // lib/billing/auto-setup-pricing.ts.
   autoSetupBilled: boolean("auto_setup_billed").notNull().default(false),
+  // Dernier portail captif installé sur CE routeur (posé par
+  // installTemplateOnRouter). Le lien n'existait que sur les bridges suivis —
+  // or la plupart des routeurs n'en ont aucun, si bien que le portail installé
+  // n'était mémorisé nulle part. Sans lui, une sauvegarde ne sait pas quel
+  // portail réinstaller sur un rechange, et celui-ci sert la page RouterOS par
+  // défaut. Les fichiers du portail vivant sur la flash (donc hors sauvegarde),
+  // cette colonne est le SEUL moyen de le reposer automatiquement.
+  captiveTemplateId: uuid("captive_template_id").references(() => captiveTemplates.id, {
+    onDelete: "set null",
+  }),
   // Operator-chosen names for the RouterOS bridge/hotspot server the
   // auto-setup creates — default to HOTSPOT_BRIDGE_NAME/"hotspot1" (see
   // constants.ts) when null, but letting them be renamed means other code
