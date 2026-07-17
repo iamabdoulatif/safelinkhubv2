@@ -6,7 +6,7 @@
 
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { portalOrders, packages, routers, vouchers } from "@/lib/db/schema";
+import { portalOrders, packages, routers, voucherRouters, vouchers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { sendOrgSms } from "@/lib/sms/send";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
@@ -220,6 +220,28 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
         note: `Portail captif — ${order.phone}`,
       })
       .returning({ id: vouchers.id });
+
+    // Rattachement au routeur dans la table de liaison — PAS un doublon de
+    // `vouchers.routerId`. C'est `voucher_routers` que lit le décompte partagé
+    // (lib/vouchers/reconcile.ts) pour aller relire sur le routeur le
+    // commentaire d'expiration, figer la 1ʳᵉ connexion en base et y inscrire la
+    // date de début. `generateVouchers` (lots) posait bien ce lien ; cette
+    // voie-ci — la vente au portail, le gros du volume — l'avait toujours omis,
+    // si bien que la table était VIDE en prod et que le décompte ne traitait
+    // jamais rien : aucun ticket vendu au portail n'obtenait son expiration en
+    // base. Constaté au déploiement v82 (0 ligne pour 15 vouchers).
+    if (voucher && order.routerId) {
+      await db
+        .insert(voucherRouters)
+        .values({
+          orgId: order.orgId,
+          voucherId: voucher.id,
+          routerId: order.routerId,
+          profileName,
+          status: "PROVISIONED" as const,
+        })
+        .onConflictDoNothing();
+    }
 
     await db
       .update(portalOrders)
