@@ -48,6 +48,42 @@ export function formatDurationHuman(pkg: PackageDuration): string {
   return `${pkg.durationValue} ${pkg.durationValue === 1 ? word.one : word.many}`;
 }
 
+// Mots de durée des noms de profil hotspot (presets + profils personnalisés,
+// cf. voucher-profiles.ts buildCustomProfileName : "05-MINS", "01-JOUR",
+// "05-JOURS", "01-SEMAINE", "02-SEMAINES", "01-MOIS", "12-HEURES"…).
+const PROFILE_WORD_TO_UNIT: Record<string, string> = {
+  MIN: "Minutes",
+  MINS: "Minutes",
+  MINUTE: "Minutes",
+  MINUTES: "Minutes",
+  H: "Hours",
+  HEURE: "Hours",
+  HEURES: "Hours",
+  JOUR: "Days",
+  JOURS: "Days",
+  SEMAINE: "Weeks",
+  SEMAINES: "Weeks",
+  MOIS: "Months",
+};
+
+/**
+ * Déduit la durée de validité du NOM DE PROFIL hotspot figé sur le voucher
+ * (`vouchers.profileName`, ex. "05-JOURS"). Sert de repli quand le forfait
+ * d'origine a disparu (packageId passé à NULL après un élagage de l'auto-setup) :
+ * le voucher garde son profil, donc sa durée réelle — l'afficher « — » alors que
+ * l'info existe était le bug. billingStartsOn = « Upon First Use » car les profils
+ * MikHmon démarrent le décompte à la première connexion (on-login).
+ */
+export function durationFromProfileName(name: string | null): PackageDuration | null {
+  if (!name) return null;
+  const m = /^(\d+)-([A-Za-zÉÈéè]+)$/.exec(name.trim());
+  if (!m) return null;
+  const value = Number(m[1]);
+  const unit = PROFILE_WORD_TO_UNIT[m[2].toUpperCase()];
+  if (!value || !unit) return null;
+  return { durationValue: value, durationUnit: unit, billingStartsOn: "Upon First Use" };
+}
+
 export type VoucherTiming = {
   expiresAt: Date | null;
   firstLoginAt: Date | null;

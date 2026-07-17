@@ -10,6 +10,7 @@ import {
 import { getSession } from "@/lib/auth/session";
 import {
   computeVoucherExpiry,
+  durationFromProfileName,
   formatDurationHuman,
   type PackageDuration,
 } from "@/lib/vouchers/expiry";
@@ -104,13 +105,15 @@ export default async function VouchersPage() {
 
   const rows: VoucherRow[] = orgVouchers.map((v) => {
     const pkg = v.packageId ? packageById.get(v.packageId) : undefined;
+    // Repli sur le profil hotspot figé (v.profileName) quand le forfait a été
+    // élagué : le voucher garde sa durée réelle, plus de « — » trompeur.
     const pkgDuration: PackageDuration | null = pkg
       ? {
           durationValue: pkg.durationValue,
           durationUnit: pkg.durationUnit,
           billingStartsOn: pkg.billingStartsOn,
         }
-      : null;
+      : durationFromProfileName(v.profileName);
 
     const expiry = computeVoucherExpiry(
       {
@@ -136,7 +139,7 @@ export default async function VouchersPage() {
     return {
       id: v.id,
       username: v.username,
-      packageName: pkg?.name ?? "—",
+      packageName: pkg?.name ?? v.profileName ?? "—",
       price: formatPrice(pkg?.priceCents),
       validity: pkgDuration ? formatDurationHuman(pkgDuration) : null,
       status: v.status,
