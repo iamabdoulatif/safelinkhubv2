@@ -60,10 +60,15 @@ export default function BackupsManager({
       }
       if (res && "success" in res && res.success) {
         const t = res.counts?.hotspotUsers ?? 0;
-        setFeedback({
-          kind: "ok",
-          text: `Sauvegarde créée : ${t} ticket(s), ${res.counts?.hotspotUserProfiles ?? 0} profil(s) — ${formatSize(res.compressedBytes ?? 0)} compressés.`,
-        });
+        const base = `Sauvegarde créée : ${t} ticket(s), ${res.counts?.hotspotUserProfiles ?? 0} profil(s) — ${formatSize(res.compressedBytes ?? 0)} compressés.`;
+        // Une section illisible ne fait pas échouer la capture, mais la taire
+        // ferait passer une sauvegarde amputée pour complète.
+        const warnings = res.warnings ?? [];
+        setFeedback(
+          warnings.length > 0
+            ? { kind: "err", text: `${base} Sections incomplètes : ${warnings.join(" ; ")}` }
+            : { kind: "ok", text: base },
+        );
         navRouter.refresh();
       }
     });

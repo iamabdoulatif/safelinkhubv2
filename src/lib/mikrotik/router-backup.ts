@@ -39,6 +39,8 @@ export type BackupSnapshot = {
     identity: string | null;
   };
   sections: Record<string, BackupSection>;
+  /** Sections illisibles au moment de la capture — voir readSection. */
+  warnings: string[];
 };
 
 /**
@@ -78,9 +80,22 @@ function isDynamic(row: Record<string, string>): boolean {
   return row.dynamic === "true";
 }
 
-async function readSection(client: RouterOSClient, cmd: string): Promise<BackupSection> {
-  const rows = await client.talk([cmd], 45000).catch(() => [] as Record<string, string>[]);
-  return rows.filter((r) => !isDynamic(r));
+/**
+ * Une section illisible ne fait pas échouer la sauvegarde — le jour où le
+ * routeur meurt, un snapshot partiel vaut infiniment mieux que rien. Mais elle
+ * doit le DIRE : un `catch(() => [])` muet rendait "0 scheduler" indiscernable
+ * de "aucun scheduler", et une section vide par erreur ne se voit jamais.
+ */
+async function readSection(
+  client: RouterOSClient,
+  cmd: string,
+): Promise<{ rows: BackupSection; error?: string }> {
+  try {
+    const rows = await client.talk([cmd], 45000);
+    return { rows: rows.filter((r) => !isDynamic(r)) };
+  } catch (err) {
+    return { rows: [], error: err instanceof Error ? err.message : "lecture impossible" };
+  }
 }
 
 /**
@@ -120,8 +135,11 @@ export async function captureRouterBackup(
       .catch(() => [] as Record<string, string>[]);
 
     const sections: Record<string, BackupSection> = {};
+    const warnings: string[] = [];
     for (const section of SECTIONS) {
-      sections[section.key] = await readSection(client, section.cmd);
+      const { rows, error } = await readSection(client, section.cmd);
+      sections[section.key] = rows;
+      if (error) warnings.push(`${section.key} : ${error}`);
     }
 
     const snapshot: BackupSnapshot = {
@@ -135,6 +153,7 @@ export async function captureRouterBackup(
         identity: identityRow?.name ?? null,
       },
       sections,
+      warnings,
     };
 
     const raw = Buffer.from(JSON.stringify(snapshot), "utf8");
@@ -166,6 +185,7 @@ export async function captureRouterBackup(
       success: true as const,
       id: row.id,
       counts,
+      warnings,
       sizeBytes: raw.length,
       compressedBytes: Buffer.byteLength(payload, "utf8"),
     };
