@@ -5,6 +5,13 @@ import { routerBackups, routers } from "@/lib/db/schema";
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
 import { applySsid, primarySsid, readWifiState, type WifiApi } from "./wifi-compat";
+import {
+  applyIdentity,
+  buildRestorePlan,
+  scanRouterHardware,
+  type HardwareScan,
+  type RestorePlan,
+} from "./router-preflight";
 
 /**
  * Sauvegarde d'un MikroTik lue via l'API RouterOS.
@@ -74,6 +81,9 @@ const SECTIONS: { key: string; cmd: string; restorable?: boolean }[] = [
   // Capturées pour référence uniquement.
   { key: "hotspotServers", cmd: "/ip/hotspot/print" },
   { key: "hotspotServerProfiles", cmd: "/ip/hotspot/profile/print" },
+  // Sert au scan de pré-vol à comparer le nombre de prises de l'ancien et du
+  // rechange (voir buildRestorePlan) — pas rejoué, les noms sont propres au modèle.
+  { key: "ethernet", cmd: "/interface/ethernet/print" },
   { key: "natRules", cmd: "/ip/firewall/nat/print" },
   { key: "filterRules", cmd: "/ip/firewall/filter/print" },
   { key: "ipAddresses", cmd: "/ip/address/print" },
@@ -324,24 +334,12 @@ export type RestoreReport = {
 };
 
 /**
- * Ce que la restauration a dû ADAPTER entre la source et la cible. Affiché
- * avant écriture (mode simulation) : remplacer un RB951 par un hAP ax n'est
- * jamais une copie à l'identique, et l'admin doit voir ce qui change.
- */
-export type CompatibilityReport = {
-  sourceModel: string | null;
-  targetModel: string | null;
-  sameModel: boolean;
-  sourceWifiApi: WifiApi | null;
-  targetWifiApi: WifiApi;
-  /** Radios de la cible sur lesquelles le SSID est (ou serait) posé. */
-  ssidRadios: string[];
-  ssid: string | null;
-  notes: string[];
-};
-
-/**
  * Rejoue une sauvegarde sur un routeur (typiquement le rechange).
+ *
+ * Le matériel de la cible est SCANNÉ d'abord (router-preflight) : le plan qui
+ * en sort dit ce qui sera repris, adapté, ou est impossible. Les blocages
+ * arrêtent la restauration — restaurer 4 800 tickets sur un routeur sans
+ * hotspot ne produirait que 4 800 échecs.
  *
  * Idempotent par nom : ce qui existe déjà est laissé intact plutôt qu'écrasé —
  * une restauration relancée après une coupure réseau reprend là où elle en
@@ -351,7 +349,7 @@ export type CompatibilityReport = {
 export async function restoreBackupToRouter(
   backupId: string,
   targetRouterId: string,
-  opts: { dryRun?: boolean } = {},
+  opts: { dryRun?: boolean; force?: boolean } = {},
 ) {
   const db = getDb();
   const [backup] = await db
@@ -391,20 +389,35 @@ export async function restoreBackupToRouter(
   }
 
   const reports: RestoreReport[] = [];
-  let compatibility: CompatibilityReport;
+  let scan: HardwareScan;
+  let plan: RestorePlan;
   try {
-    compatibility = await remodelForTarget(client, snapshot, target, opts.dryRun);
+    scan = await scanRouterHardware(client);
+    plan = buildRestorePlan(snapshot, scan);
   } catch (err) {
     client.close();
     return {
       error:
         err instanceof Error
-          ? `Analyse de compatibilité impossible : ${err.message}`
-          : "Analyse de compatibilité impossible.",
+          ? `Scan du routeur cible impossible : ${err.message}`
+          : "Scan du routeur cible impossible.",
+    };
+  }
+
+  // Un blocage arrête l'écriture : sans hotspot sur la cible, les ~5 000 ajouts
+  // de tickets échoueraient un par un. La simulation, elle, va au bout — c'est
+  // justement là qu'on veut VOIR le blocage.
+  if (plan.blockers.length > 0 && !opts.dryRun && !opts.force) {
+    client.close();
+    return {
+      error: `Restauration refusée : ${plan.blockers.join(" ")}`,
+      plan,
+      blocked: true as const,
     };
   }
 
   try {
+    await applyRemodel(client, snapshot, plan, opts.dryRun);
     // Ordre imposé par les dépendances : un ticket référence son profil, donc
     // les profils doivent exister d'abord, sinon RouterOS refuse le ticket.
     reports.push(
@@ -430,17 +443,17 @@ export async function restoreBackupToRouter(
     return {
       error: err instanceof Error ? `Restauration interrompue : ${err.message}` : "Restauration interrompue.",
       reports,
-      compatibility,
+      plan,
     };
   } finally {
     client.close();
   }
 
-  return { success: true as const, dryRun: !!opts.dryRun, reports, compatibility };
+  return { success: true as const, dryRun: !!opts.dryRun, reports, plan, scan };
 }
 
 /**
- * Adapte la sauvegarde au matériel de la cible — le « remodelage ».
+ * Applique au rechange ce que le plan a décidé — le « remodelage ».
  *
  * Ce qui NE traverse volontairement PAS la frontière entre modèles :
  *   - bridge, ports, adresses IP, NAT, filter : ils nomment des interfaces
@@ -451,99 +464,55 @@ export async function restoreBackupToRouter(
  *     modèle, et l'auto-setup sait déjà choisir le bon (voir device-catalog).
  *     Le refaire ici le referait mal.
  *
- * Ce qui traverse : le SSID et le dns-name du portail — l'identité que les
- * clients connaissent — plus les tickets et profils, qui ne nomment aucun
- * matériel. Le reste est reconstruit par l'auto-setup sur le rechange.
+ * Ce qui traverse : le nom RouterOS, le SSID et le dns-name du portail —
+ * l'identité que le parc et les clients connaissent — plus les tickets et
+ * profils, qui ne nomment aucun matériel.
  */
-async function remodelForTarget(
+async function applyRemodel(
   client: RouterOSClient,
   snapshot: BackupSnapshot,
-  target: typeof routers.$inferSelect,
+  plan: RestorePlan,
   dryRun?: boolean,
-): Promise<CompatibilityReport> {
-  const [resource] = await client
-    .talk(["/system/resource/print"], 20000)
-    .catch(() => [] as Record<string, string>[]);
-  const targetModel = resource?.["board-name"] ?? target.model ?? null;
-  const sourceModel = snapshot.router.model;
-  const targetWifi = await readWifiState(client);
-
-  const report: CompatibilityReport = {
-    sourceModel,
-    targetModel,
-    sameModel: !!sourceModel && !!targetModel && sourceModel === targetModel,
-    sourceWifiApi: snapshot.identity?.wifiApi ?? null,
-    targetWifiApi: targetWifi.api,
-    ssidRadios: [],
-    ssid: snapshot.identity?.ssid ?? null,
-    notes: [],
-  };
-
-  if (!report.sameModel && sourceModel && targetModel) {
-    report.notes.push(
-      `Modèle différent (${sourceModel} → ${targetModel}) : bridge, IP, NAT et filter ne sont PAS rejoués — l'auto-setup les reconstruit pour ce matériel.`,
-    );
+) {
+  // Le rechange prend le nom de l'ancien : pour le parc, il EST l'ancien. Le
+  // prochain sync relira cette identité et renommera la ligne en base.
+  if (plan.identity.willApply && plan.identity.to) {
+    const res = await applyIdentity(client, plan.identity.to, dryRun);
+    if (!res.applied && res.error) {
+      plan.adjustments.push(`Nom RouterOS refusé : ${res.error}`);
+    }
   }
 
-  const ssid = snapshot.identity?.ssid?.trim();
-  if (!ssid) {
-    report.notes.push("Aucun SSID dans la sauvegarde — le WiFi de la cible est laissé tel quel.");
-    return report;
-  }
-
-  if (
-    report.sourceWifiApi &&
-    report.targetWifiApi !== "none" &&
-    report.sourceWifiApi !== report.targetWifiApi
-  ) {
-    report.notes.push(
-      `WiFi traduit : la source parlait « ${report.sourceWifiApi} », la cible parle « ${report.targetWifiApi} » — le SSID est réécrit dans l'API de la cible.`,
-    );
-  }
-
-  const applied = await applySsid(client, ssid, { dryRun });
-  report.ssidRadios = applied.applied;
-  if (applied.note) report.notes.push(applied.note);
-  for (const f of applied.failed) {
-    report.notes.push(`SSID refusé sur ${f.radio} : ${f.error}`);
-  }
-  if (applied.applied.length > 0) {
-    report.notes.push(
-      `SSID « ${ssid} » ${dryRun ? "serait posé" : "posé"} sur ${applied.applied.join(", ")} — les clients se reconnectent sans rien changer.`,
-    );
+  const ssid = plan.wifi.ssid?.trim();
+  if (ssid && plan.wifi.targetApi !== "none") {
+    const applied = await applySsid(client, ssid, { dryRun });
+    for (const f of applied.failed) {
+      plan.adjustments.push(`SSID refusé sur ${f.radio} : ${f.error}`);
+    }
   }
 
   // dns-name du portail : neutre vis-à-vis du matériel, mais il faut le poser
   // sur le profil du hotspot ACTIF de la cible, dont le nom n'a aucune raison
   // de coïncider avec celui de la source.
   const dnsName = snapshot.identity?.hotspotDnsName?.trim();
-  if (dnsName) {
-    const servers = await client
-      .talk(["/ip/hotspot/print"], 20000)
-      .catch(() => [] as Record<string, string>[]);
-    const server = servers.find((s) => s.disabled !== "true") ?? servers[0];
-    if (!server?.profile) {
-      report.notes.push(
-        `Aucun hotspot actif sur la cible : le nom DNS « ${dnsName} » n'a pas pu être repris. Lancez l'auto-setup sur ce routeur d'abord.`,
-      );
-    } else if (dryRun) {
-      report.notes.push(`Nom DNS du portail « ${dnsName} » serait repris sur « ${server.name} ».`);
-    } else {
-      try {
-        await client.talk(
-          ["/ip/hotspot/profile/set", `=numbers=${server.profile}`, `=dns-name=${dnsName}`],
-          20000,
-        );
-        report.notes.push(`Nom DNS du portail « ${dnsName} » repris sur « ${server.name} ».`);
-      } catch (err) {
-        report.notes.push(
-          `Nom DNS « ${dnsName} » refusé : ${err instanceof Error ? err.message : "erreur"}`,
-        );
-      }
-    }
-  }
+  if (!dnsName || dryRun) return;
 
-  return report;
+  const servers = await client
+    .talk(["/ip/hotspot/print"], 20000)
+    .catch(() => [] as Record<string, string>[]);
+  const server = servers.find((s) => s.disabled !== "true") ?? servers[0];
+  if (!server?.profile) return;
+  try {
+    await client.talk(
+      ["/ip/hotspot/profile/set", `=numbers=${server.profile}`, `=dns-name=${dnsName}`],
+      20000,
+    );
+    plan.adjustments.push(`Nom DNS du portail « ${dnsName} » repris sur « ${server.name} ».`);
+  } catch (err) {
+    plan.adjustments.push(
+      `Nom DNS « ${dnsName} » refusé : ${err instanceof Error ? err.message : "erreur"}`,
+    );
+  }
 }
 
 /** Restaure une section identifiée par un champ "name" unique. */
@@ -693,6 +662,62 @@ async function restoreWalledGardenIp(
     }
   }
   return report;
+}
+
+/**
+ * Scanne le rechange et rend le plan, SANS rien écrire ni tenter la moindre
+ * restauration. Séparé de la simulation à dessein : simuler lit les ~5 000
+ * tickets de la cible pour compter les doublons, alors que la question « ce
+ * matériel peut-il reprendre l'ancien ? » se tranche en quelques commandes.
+ */
+export async function scanRestoreTarget(backupId: string, targetRouterId: string) {
+  const db = getDb();
+  const [backup] = await db
+    .select()
+    .from(routerBackups)
+    .where(eq(routerBackups.id, backupId))
+    .limit(1);
+  if (!backup) return { error: "Sauvegarde introuvable." };
+
+  const [target] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, targetRouterId))
+    .limit(1);
+  if (!target) return { error: "Routeur cible introuvable." };
+  if (target.orgId !== backup.orgId) {
+    return { error: "Ce routeur n'appartient pas à la même organisation que la sauvegarde." };
+  }
+
+  let snapshot: BackupSnapshot;
+  try {
+    snapshot = decodeSnapshot(backup.payload);
+  } catch {
+    return { error: "Sauvegarde illisible (payload corrompu)." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(target);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Connexion au routeur cible impossible : ${err.message}`
+          : "Connexion au routeur cible impossible.",
+    };
+  }
+
+  try {
+    const scan = await scanRouterHardware(client);
+    return { success: true as const, scan, plan: buildRestorePlan(snapshot, scan) };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Scan impossible : ${err.message}` : "Scan impossible.",
+    };
+  } finally {
+    client.close();
+  }
 }
 
 /** Sauvegardes d'une org, sans le payload (lourd) — pour l'affichage. */

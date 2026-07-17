@@ -9,6 +9,7 @@ import {
   captureRouterBackup,
   listOrgBackups,
   restoreBackupToRouter,
+  scanRestoreTarget,
 } from "./router-backup";
 
 const PAGE = "/admin/router/backups";
@@ -67,6 +68,32 @@ export async function restoreBackup(
   const result = await restoreBackupToRouter(backupId, targetRouterId, { dryRun });
   if (!dryRun) revalidatePath(PAGE);
   return result;
+}
+
+/**
+ * Scan matériel du rechange + plan d'adaptation. Lecture seule — c'est l'étape
+ * à faire AVANT de restaurer, pour savoir si ce boîtier peut reprendre l'ancien.
+ */
+export async function scanTargetForRestore(backupId: string, targetRouterId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [backup] = await db
+    .select({ id: routerBackups.id })
+    .from(routerBackups)
+    .where(and(eq(routerBackups.id, backupId), eq(routerBackups.orgId, session.orgId)))
+    .limit(1);
+  if (!backup) return { error: "Sauvegarde introuvable." };
+
+  const [target] = await db
+    .select({ id: routers.id })
+    .from(routers)
+    .where(and(eq(routers.id, targetRouterId), eq(routers.orgId, session.orgId)))
+    .limit(1);
+  if (!target) return { error: "Routeur cible introuvable." };
+
+  return scanRestoreTarget(backupId, targetRouterId);
 }
 
 export async function deleteBackup(backupId: string) {

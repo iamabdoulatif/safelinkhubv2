@@ -2,8 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Save, RotateCcw, Trash2, AlertTriangle } from "lucide-react";
-import { backupRouterNow, restoreBackup, deleteBackup } from "@/lib/mikrotik/backup-actions";
+import { Save, RotateCcw, Trash2, AlertTriangle, ScanLine } from "lucide-react";
+import {
+  backupRouterNow,
+  restoreBackup,
+  deleteBackup,
+  scanTargetForRestore,
+} from "@/lib/mikrotik/backup-actions";
 
 type Backup = {
   id: string;
@@ -20,15 +25,14 @@ type Backup = {
 type RouterOption = { id: string; name: string; status: string; model: string | null };
 
 type Report = { section: string; created: number; skipped: number; failed: { name: string; error: string }[] };
-type Compatibility = {
-  sourceModel: string | null;
-  targetModel: string | null;
-  sameModel: boolean;
-  sourceWifiApi: string | null;
-  targetWifiApi: string;
-  ssidRadios: string[];
-  ssid: string | null;
-  notes: string[];
+type Plan = {
+  identity: { from: string | null; to: string | null; willApply: boolean };
+  wifi: { ssid: string | null; sourceApi: string | null; targetApi: string; radios: string[]; translated: boolean };
+  ports: { source: number; target: number; delta: number };
+  mikhmon: { sourceLabel: string | null; targetLabel: string };
+  data: { tickets: number; profiles: number; walledGarden: number };
+  blockers: string[];
+  adjustments: string[];
 };
 
 const SECTION_LABELS: Record<string, string> = {
@@ -60,7 +64,7 @@ export default function BackupsManager({
     backupId: string;
     dryRun: boolean;
     rows: Report[];
-    compat: Compatibility | null;
+    plan: Plan | null;
   } | null>(null);
 
   function runBackup() {
@@ -97,6 +101,11 @@ export default function BackupsManager({
     startTransition(async () => {
       const res = await restoreBackup(backup.id, targetId, dryRun);
       if (res && "error" in res && res.error) {
+        // Un refus pour blocage rapporte quand même le plan : c'est lui qui dit
+        // ce qu'il faut corriger sur le rechange avant de réessayer.
+        if ("plan" in res && res.plan) {
+          setReports({ backupId: backup.id, dryRun, rows: [], plan: res.plan as Plan });
+        }
         setFeedback({ kind: "err", text: res.error });
         return;
       }
@@ -105,7 +114,7 @@ export default function BackupsManager({
           backupId: backup.id,
           dryRun,
           rows: res.reports as Report[],
-          compat: (res.compatibility as Compatibility) ?? null,
+          plan: (res.plan as Plan) ?? null,
         });
         setFeedback({
           kind: "ok",
@@ -114,6 +123,29 @@ export default function BackupsManager({
             : "Restauration terminée.",
         });
         if (!dryRun) navRouter.refresh();
+      }
+    });
+  }
+
+  function runScan(backup: Backup) {
+    const targetId = target[backup.id];
+    if (!targetId || pending) return;
+    setFeedback(null);
+    setReports(null);
+    startTransition(async () => {
+      const res = await scanTargetForRestore(backup.id, targetId);
+      if (res && "error" in res && res.error) {
+        setFeedback({ kind: "err", text: res.error });
+        return;
+      }
+      if (res && "success" in res && res.success) {
+        const plan = res.plan as Plan;
+        setReports({ backupId: backup.id, dryRun: true, rows: [], plan });
+        setFeedback(
+          plan.blockers.length > 0
+            ? { kind: "err", text: "Ce rechange ne peut pas reprendre l'ancien en l'état — voir ci-dessous." }
+            : { kind: "ok", text: "Rechange compatible : la sauvegarde peut y être restaurée." },
+        );
       }
     });
   }
@@ -218,6 +250,16 @@ export default function BackupsManager({
                 </select>
                 <button
                   type="button"
+                  onClick={() => runScan(b)}
+                  disabled={pending || !target[b.id]}
+                  title="Lit le matériel du rechange (interfaces, WiFi, stockage) sans rien écrire"
+                  className="flex items-center justify-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
+                >
+                  <ScanLine className="h-4 w-4" />
+                  Scanner
+                </button>
+                <button
+                  type="button"
                   onClick={() => runRestore(b, true)}
                   disabled={pending || !target[b.id]}
                   className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
@@ -250,25 +292,31 @@ export default function BackupsManager({
                     {reports.dryRun ? "Simulation — aucune écriture" : "Résultat de la restauration"}
                   </p>
 
-                  {reports.compat && (
+                  {reports.plan && (
                     <div className="mb-2 mt-1 border-b border-line-soft pb-2">
                       <p className="text-xs text-ink-soft">
-                        {reports.compat.sourceModel ?? "?"} → {reports.compat.targetModel ?? "?"}
-                        {reports.compat.sameModel ? (
-                          <span className="ml-1 text-ok">modèle identique</span>
-                        ) : (
-                          <span className="ml-1 text-amber-700">modèles différents — adapté</span>
-                        )}
-                        {reports.compat.targetWifiApi !== "none" && (
+                        {reports.plan.identity.from ?? "?"} → {reports.plan.identity.to ?? "?"}
+                        {reports.plan.wifi.targetApi !== "none" && (
                           <span className="ml-1">
-                            · WiFi {reports.compat.sourceWifiApi ?? "?"} →{" "}
-                            {reports.compat.targetWifiApi}
+                            · WiFi {reports.plan.wifi.sourceApi ?? "?"} → {reports.plan.wifi.targetApi}
+                            {reports.plan.wifi.radios.length > 0 &&
+                              ` (${reports.plan.wifi.radios.join(", ")})`}
+                          </span>
+                        )}
+                        {reports.plan.mikhmon.sourceLabel && (
+                          <span className="ml-1">
+                            · MikHmon {reports.plan.mikhmon.sourceLabel} → {reports.plan.mikhmon.targetLabel}
                           </span>
                         )}
                       </p>
-                      {reports.compat.notes.map((n) => (
-                        <p key={n} className="mt-0.5 text-xs text-ink-soft">
-                          • {n}
+                      {reports.plan.blockers.map((b) => (
+                        <p key={b} className="mt-1 text-xs font-medium text-red-600">
+                          ⛔ {b}
+                        </p>
+                      ))}
+                      {reports.plan.adjustments.map((a) => (
+                        <p key={a} className="mt-0.5 text-xs text-ink-soft">
+                          • {a}
                         </p>
                       ))}
                     </div>
