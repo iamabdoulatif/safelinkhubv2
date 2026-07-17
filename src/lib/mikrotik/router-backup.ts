@@ -1,7 +1,7 @@
 import { gzipSync, gunzipSync } from "zlib";
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routerBackups, routers } from "@/lib/db/schema";
+import { bridges, captiveTemplates, routerBackups, routers } from "@/lib/db/schema";
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
 import { applySsid, primarySsid, readWifiState, type WifiApi } from "./wifi-compat";
@@ -61,6 +61,18 @@ export type BackupSnapshot = {
     hotspotDnsName: string | null;
     hotspotServerName: string | null;
   };
+  /**
+   * Le portail captif LUI-MÊME n'est pas sauvegardable : ses fichiers vivent sur
+   * la flash du routeur, et un rechange les recevrait vides. On mémorise donc
+   * QUEL modèle était installé — la restauration le réinstalle depuis le SaaS,
+   * ce qui repose les fichiers, le html-directory et le walled-garden. Sans ça,
+   * le rechange servirait la page de connexion RouterOS par défaut.
+   */
+  portal?: {
+    htmlDirectory: string | null;
+    templateId: string | null;
+    templateName: string | null;
+  };
   /** Sections illisibles au moment de la capture — voir readSection. */
   warnings: string[];
 };
@@ -71,10 +83,41 @@ export type BackupSnapshot = {
  * référencent des interfaces propres au modèle, les rejouer à l'aveugle sur un
  * rechange d'un autre modèle produirait une config incohérente).
  */
-const SECTIONS: { key: string; cmd: string; restorable?: boolean }[] = [
+const SECTIONS: { key: string; cmd: string; restorable?: boolean; proplist?: string[] }[] = [
   // Le trésor : codes vendus, mots de passe, profil, et surtout le commentaire
   // (MikHmon y écrit la date d'expiration absolue — voir restoreHotspotUsers).
-  { key: "hotspotUsers", cmd: "/ip/hotspot/user/print", restorable: true },
+  //
+  // proplist : sur un RB951 (mono-cœur 128 Mo), lire les ~5 000 tickets en
+  // renvoyant TOUS les champs fait grimper le CPU à 100 % — mesuré — et le
+  // portail des clients connectés en pâtit. Les champs coûteux (bytes-in/out,
+  // packets-*, uptime) sont des compteurs en LECTURE SEULE : impossibles à
+  // réinjecter, donc inutiles ici. Les demander en moins réduit la lecture de
+  // 41 % en octets et 37 % en durée. `dynamic` et `default` restent
+  // indispensables : ils pilotent le filtrage (voir isDynamic /
+  // restoreHotspotUsers), et les omettre ferait silencieusement sauvegarder
+  // des entrées éphémères.
+  {
+    key: "hotspotUsers",
+    cmd: "/ip/hotspot/user/print",
+    restorable: true,
+    proplist: [
+      ".id",
+      "name",
+      "password",
+      "profile",
+      "server",
+      "comment",
+      "disabled",
+      "dynamic",
+      "default",
+      "limit-uptime",
+      "limit-bytes-total",
+      "email",
+      "address",
+      "mac-address",
+      "routes",
+    ],
+  },
   { key: "hotspotUserProfiles", cmd: "/ip/hotspot/user/profile/print", restorable: true },
   { key: "walledGarden", cmd: "/ip/hotspot/walled-garden/print", restorable: true },
   { key: "walledGardenIp", cmd: "/ip/hotspot/walled-garden/ip/print", restorable: true },
@@ -114,14 +157,25 @@ function isDynamic(row: Record<string, string>): boolean {
 async function readSection(
   client: RouterOSClient,
   cmd: string,
+  proplist?: string[],
 ): Promise<{ rows: BackupSection; error?: string }> {
   try {
-    const rows = await client.talk([cmd], 45000);
+    const words = proplist ? [cmd, `=.proplist=${proplist.join(",")}`] : [cmd];
+    const rows = await client.talk(words, 45000);
     return { rows: rows.filter((r) => !isDynamic(r)) };
   } catch (err) {
     return { rows: [], error: err instanceof Error ? err.message : "lecture impossible" };
   }
 }
+
+/**
+ * Respiration entre deux sections. La capture d'un gros hotspot fait grimper le
+ * CPU d'un RB951 à ~100 % ; sans pause, les lectures s'enchaînent et le hotspot
+ * n'a aucun créneau pour servir le portail des clients déjà connectés. C'est
+ * peu cher payé : ~4 s ajoutées sur une capture nocturne.
+ */
+const SECTION_PAUSE_MS = 250;
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Lit tout le routeur et enregistre la sauvegarde. Ne jette pas sur une section
@@ -162,12 +216,14 @@ export async function captureRouterBackup(
     const sections: Record<string, BackupSection> = {};
     const warnings: string[] = [];
     for (const section of SECTIONS) {
-      const { rows, error } = await readSection(client, section.cmd);
+      const { rows, error } = await readSection(client, section.cmd, section.proplist);
       sections[section.key] = rows;
       if (error) warnings.push(`${section.key} : ${error}`);
+      await pause(SECTION_PAUSE_MS);
     }
 
     const identity = await readIdentity(client, sections).catch(() => undefined);
+    const portal = await readPortalInfo(router.id, sections).catch(() => undefined);
 
     const snapshot: BackupSnapshot = {
       version: BACKUP_VERSION,
@@ -181,6 +237,7 @@ export async function captureRouterBackup(
       },
       sections,
       identity,
+      portal,
       warnings,
     };
 
@@ -246,6 +303,36 @@ async function readIdentity(client: RouterOSClient, sections: Record<string, Bac
     ssid: primarySsid(wifi),
     hotspotDnsName: profile?.["dns-name"] ?? null,
     hotspotServerName: server?.name ?? null,
+  };
+}
+
+/**
+ * Quel portail captif ce routeur servait. Le modèle vient de la base (le SaaS
+ * le mémorise à l'installation), pas du routeur : sur la flash il n'y a que des
+ * fichiers, sans indication de leur origine.
+ */
+async function readPortalInfo(routerId: string, sections: Record<string, BackupSection>) {
+  const servers = sections.hotspotServers ?? [];
+  const server = servers.find((s) => s.disabled !== "true") ?? servers[0];
+  const profiles = sections.hotspotServerProfiles ?? [];
+  const profile = server?.profile ? profiles.find((p) => p.name === server.profile) : undefined;
+  // L'override prime quand il est posé (cas de l'auto-setup) — c'est lui que le
+  // hotspot sert réellement.
+  const htmlDirectory =
+    profile?.["html-directory-override"]?.trim() || profile?.["html-directory"]?.trim() || null;
+
+  const db = getDb();
+  const [row] = await db
+    .select({ id: captiveTemplates.id, name: captiveTemplates.name })
+    .from(bridges)
+    .innerJoin(captiveTemplates, eq(bridges.captiveTemplateId, captiveTemplates.id))
+    .where(eq(bridges.routerId, routerId))
+    .limit(1);
+
+  return {
+    htmlDirectory,
+    templateId: row?.id ?? null,
+    templateName: row?.name ?? null,
   };
 }
 

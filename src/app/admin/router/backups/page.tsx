@@ -6,6 +6,7 @@ import { routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { listOrgBackups } from "@/lib/mikrotik/router-backup";
 import BackupsManager from "./BackupsManager";
+import RestoreGuide from "./RestoreGuide";
 
 export default async function RouterBackupsPage() {
   const session = await getSession();
@@ -37,8 +38,16 @@ export default async function RouterBackupsPage() {
         Chaque sauvegarde capture les tickets vendus (code, mot de passe, profil et date
         d&apos;expiration), les profils tarifaires et le walled-garden. Si un MikroTik meurt, sa
         sauvegarde survit et se restaure sur le routeur de rechange — même d&apos;un autre modèle.
-        Une capture automatique a lieu chaque nuit ; les 7 dernières sont conservées par routeur.
+        Une capture automatique a lieu chaque nuit à 02:30 ; les 7 dernières sont conservées par
+        routeur.
       </p>
+      <p className="mt-2 text-xs text-ink-soft">
+        Lire plusieurs milliers de tickets charge le routeur quelques secondes — mesuré à 100 % de
+        CPU sur un RB951. C&apos;est sans conséquence à 02:30, mais une sauvegarde manuelle en
+        pleine journée peut ralentir brièvement le portail de vos clients connectés.
+      </p>
+
+      <RestoreGuide />
 
       <BackupsManager
         backups={backups.map((b) => ({

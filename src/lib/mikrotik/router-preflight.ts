@@ -127,6 +127,12 @@ export type RestorePlan = {
     targetLabel: string;
   };
   data: { tickets: number; profiles: number; walledGarden: number };
+  /**
+   * Le portail captif est RÉINSTALLÉ depuis le SaaS après la restauration : ses
+   * fichiers ne sont pas dans la sauvegarde (ils vivent sur la flash), donc sans
+   * cette étape le rechange servirait la page RouterOS par défaut.
+   */
+  portal: { templateId: string | null; templateName: string | null; willReinstall: boolean };
   /** Empêche une reprise correcte — à régler avant de restaurer. */
   blockers: string[];
   /** Sera adapté automatiquement — pour information. */
@@ -242,6 +248,25 @@ export function buildRestorePlan(snapshot: BackupSnapshot, scan: HardwareScan): 
     );
   }
 
+  // --- Portail captif -----------------------------------------------------
+  // Les fichiers du portail ne sont PAS dans la sauvegarde (ils vivent sur la
+  // flash du routeur). Sans réinstallation, le rechange servirait la page de
+  // connexion RouterOS par défaut : pas de forfaits, pas de paiement.
+  const portal = {
+    templateId: snapshot.portal?.templateId ?? null,
+    templateName: snapshot.portal?.templateName ?? null,
+    willReinstall: !!snapshot.portal?.templateId,
+  };
+  if (portal.willReinstall) {
+    adjustments.push(
+      `Portail captif « ${portal.templateName} » réinstallé après la restauration — ses fichiers ne sont pas dans la sauvegarde, ils sont repoussés depuis le SaaS.`,
+    );
+  } else {
+    adjustments.push(
+      "Aucun modèle de portail mémorisé pour l'ancien : après la restauration, installez le portail depuis Réglages → Portails captifs, sinon le rechange affichera la page de connexion RouterOS par défaut.",
+    );
+  }
+
   // --- Pré-requis ---------------------------------------------------------
   if (!scan.hasActiveHotspot) {
     blockers.push(
@@ -259,6 +284,7 @@ export function buildRestorePlan(snapshot: BackupSnapshot, scan: HardwareScan): 
       profiles: (snapshot.sections.hotspotUserProfiles ?? []).length,
       walledGarden: (snapshot.sections.walledGarden ?? []).length,
     },
+    portal,
     blockers,
     adjustments,
   };

@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerBackups, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { installTemplateOnRouter } from "@/lib/captive-templates/actions";
 import {
   captureRouterBackup,
   listOrgBackups,
@@ -66,8 +67,30 @@ export async function restoreBackup(
   if (!target) return { error: "Routeur cible introuvable." };
 
   const result = await restoreBackupToRouter(backupId, targetRouterId, { dryRun });
+
+  // Le portail captif est la dernière étape, et elle est indispensable : ses
+  // fichiers ne sont pas dans la sauvegarde (ils vivent sur la flash), donc sans
+  // ça le rechange servirait la page de connexion RouterOS par défaut — ni
+  // forfaits, ni paiement. installTemplateOnRouter repose les fichiers, règle le
+  // html-directory, le walled-garden, et adopte au passage les profils tout
+  // juste restaurés comme forfaits (import v70) : les prix affichés sont donc
+  // ceux du routeur, pas les tarifs legacy de l'org.
+  let portal: { installed: boolean; templateName?: string | null; error?: string } | undefined;
+  const templateId =
+    "plan" in result && result.plan ? result.plan.portal.templateId : null;
+  if (!dryRun && "success" in result && result.success && templateId) {
+    const install = await installTemplateOnRouter(targetRouterId, templateId);
+    portal =
+      install && "error" in install && install.error
+        ? { installed: false, error: install.error }
+        : {
+            installed: true,
+            templateName: "plan" in result ? result.plan.portal.templateName : null,
+          };
+  }
+
   if (!dryRun) revalidatePath(PAGE);
-  return result;
+  return { ...result, portal };
 }
 
 /**

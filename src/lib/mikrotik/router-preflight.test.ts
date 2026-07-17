@@ -10,6 +10,7 @@ function snapshot(over: {
   wifiApi?: "wifi" | "wireless" | "none";
   ethernet?: number;
   tickets?: number;
+  portal?: BackupSnapshot["portal"];
 }): BackupSnapshot {
   return {
     version: 1,
@@ -27,6 +28,10 @@ function snapshot(over: {
       hotspotDnsName: "yahya.ci",
       hotspotServerName: "hotspot1",
     },
+    portal:
+      over.portal === undefined
+        ? { htmlDirectory: "hotspot1-portal", templateId: "tpl-1", templateName: "safelinkhub-gold" }
+        : over.portal,
     sections: {
       hotspotUsers: Array.from({ length: over.tickets ?? 1330 }, (_, i) => ({ name: `t${i}` })),
       hotspotUserProfiles: [{ name: "01-JOUR" }],
@@ -152,6 +157,27 @@ describe("plan de restauration — pré-requis et ports", () => {
     const plan = buildRestorePlan(snap, scan({}));
     assert.equal(plan.ports.source, 0);
     assert.ok(!plan.adjustments.some((a) => a.includes("port(s) Ethernet")));
+  });
+
+  /**
+   * Les fichiers du portail vivent sur la flash, pas dans la sauvegarde : sans
+   * réinstallation, le rechange sert la page de connexion RouterOS par défaut —
+   * ni forfaits, ni paiement. Le plan doit donc l'annoncer.
+   */
+  it("annonce la réinstallation du portail mémorisé", () => {
+    const plan = buildRestorePlan(snapshot({}), scan({}));
+    assert.equal(plan.portal.willReinstall, true);
+    assert.equal(plan.portal.templateId, "tpl-1");
+    assert.ok(plan.adjustments.some((a) => a.includes("safelinkhub-gold")));
+  });
+
+  it("aucun modèle mémorisé : prévient que le portail devra être installé à la main", () => {
+    const plan = buildRestorePlan(
+      snapshot({ portal: { htmlDirectory: null, templateId: null, templateName: null } }),
+      scan({}),
+    );
+    assert.equal(plan.portal.willReinstall, false);
+    assert.ok(plan.adjustments.some((a) => a.includes("RouterOS par défaut")));
   });
 
   it("compte les données à restaurer", () => {
