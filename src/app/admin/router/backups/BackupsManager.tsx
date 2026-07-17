@@ -20,6 +20,16 @@ type Backup = {
 type RouterOption = { id: string; name: string; status: string; model: string | null };
 
 type Report = { section: string; created: number; skipped: number; failed: { name: string; error: string }[] };
+type Compatibility = {
+  sourceModel: string | null;
+  targetModel: string | null;
+  sameModel: boolean;
+  sourceWifiApi: string | null;
+  targetWifiApi: string;
+  ssidRadios: string[];
+  ssid: string | null;
+  notes: string[];
+};
 
 const SECTION_LABELS: Record<string, string> = {
   hotspotUsers: "tickets",
@@ -46,7 +56,12 @@ export default function BackupsManager({
   const [sourceRouter, setSourceRouter] = useState(routers[0]?.id ?? "");
   const [target, setTarget] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  const [reports, setReports] = useState<{ backupId: string; dryRun: boolean; rows: Report[] } | null>(null);
+  const [reports, setReports] = useState<{
+    backupId: string;
+    dryRun: boolean;
+    rows: Report[];
+    compat: Compatibility | null;
+  } | null>(null);
 
   function runBackup() {
     if (!sourceRouter || pending) return;
@@ -86,7 +101,12 @@ export default function BackupsManager({
         return;
       }
       if (res && "success" in res && res.success) {
-        setReports({ backupId: backup.id, dryRun, rows: res.reports as Report[] });
+        setReports({
+          backupId: backup.id,
+          dryRun,
+          rows: res.reports as Report[],
+          compat: (res.compatibility as Compatibility) ?? null,
+        });
         setFeedback({
           kind: "ok",
           text: dryRun
@@ -229,6 +249,31 @@ export default function BackupsManager({
                   <p className="text-xs font-medium text-ink">
                     {reports.dryRun ? "Simulation — aucune écriture" : "Résultat de la restauration"}
                   </p>
+
+                  {reports.compat && (
+                    <div className="mb-2 mt-1 border-b border-line-soft pb-2">
+                      <p className="text-xs text-ink-soft">
+                        {reports.compat.sourceModel ?? "?"} → {reports.compat.targetModel ?? "?"}
+                        {reports.compat.sameModel ? (
+                          <span className="ml-1 text-ok">modèle identique</span>
+                        ) : (
+                          <span className="ml-1 text-amber-700">modèles différents — adapté</span>
+                        )}
+                        {reports.compat.targetWifiApi !== "none" && (
+                          <span className="ml-1">
+                            · WiFi {reports.compat.sourceWifiApi ?? "?"} →{" "}
+                            {reports.compat.targetWifiApi}
+                          </span>
+                        )}
+                      </p>
+                      {reports.compat.notes.map((n) => (
+                        <p key={n} className="mt-0.5 text-xs text-ink-soft">
+                          • {n}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
                   {reports.rows.map((r) => (
                     <p key={r.section} className="mt-1 text-xs text-ink-soft">
                       {SECTION_LABELS[r.section] ?? r.section} : {r.created} créé(s), {r.skipped} déjà

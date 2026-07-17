@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { routerBackups, routers } from "@/lib/db/schema";
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
+import { applySsid, primarySsid, readWifiState, type WifiApi } from "./wifi-compat";
 
 /**
  * Sauvegarde d'un MikroTik lue via l'API RouterOS.
@@ -39,6 +40,20 @@ export type BackupSnapshot = {
     identity: string | null;
   };
   sections: Record<string, BackupSection>;
+  /**
+   * Identité de la zone WiFi, capturée sous une forme NEUTRE (voir
+   * wifi-compat) : le SSID et le nom DNS du portail sont ce que les clients
+   * connaissent. Un rechange d'un autre modèle ne peut pas rejouer la config
+   * radio brute — il peut en revanche reprendre cette identité.
+   */
+  identity?: {
+    /** API WiFi de la SOURCE — indicatif ; la cible est détectée à la restauration. */
+    wifiApi: WifiApi;
+    ssid: string | null;
+    /** dns-name du profil hotspot actif (l'URL du portail, ex. "yahya.ci"). */
+    hotspotDnsName: string | null;
+    hotspotServerName: string | null;
+  };
   /** Sections illisibles au moment de la capture — voir readSection. */
   warnings: string[];
 };
@@ -142,6 +157,8 @@ export async function captureRouterBackup(
       if (error) warnings.push(`${section.key} : ${error}`);
     }
 
+    const identity = await readIdentity(client, sections).catch(() => undefined);
+
     const snapshot: BackupSnapshot = {
       version: BACKUP_VERSION,
       capturedAt: new Date().toISOString(),
@@ -153,6 +170,7 @@ export async function captureRouterBackup(
         identity: identityRow?.name ?? null,
       },
       sections,
+      identity,
       warnings,
     };
 
@@ -196,6 +214,29 @@ export async function captureRouterBackup(
   } finally {
     client.close();
   }
+}
+
+/**
+ * Identité de la zone WiFi : ce que les clients connaissent (le SSID auquel
+ * leur téléphone se reconnecte, l'URL du portail). Volontairement lue via
+ * wifi-compat plutôt que d'une section brute : la source peut être legacy et la
+ * cible en ax, et seul ce couple SSID/dns-name traverse la frontière.
+ */
+async function readIdentity(client: RouterOSClient, sections: Record<string, BackupSection>) {
+  const wifi = await readWifiState(client);
+  // Le hotspot réellement actif, sans rien présumer de son nom : un routeur
+  // configuré à la main n'a aucune raison de suivre nos conventions.
+  const servers = sections.hotspotServers ?? [];
+  const server = servers.find((s) => s.disabled !== "true") ?? servers[0];
+  const profiles = sections.hotspotServerProfiles ?? [];
+  const profile = server?.profile ? profiles.find((p) => p.name === server.profile) : undefined;
+
+  return {
+    wifiApi: wifi.api,
+    ssid: primarySsid(wifi),
+    hotspotDnsName: profile?.["dns-name"] ?? null,
+    hotspotServerName: server?.name ?? null,
+  };
 }
 
 /** Ne garde que les BACKUP_RETENTION dernières sauvegardes du routeur. */
@@ -283,6 +324,23 @@ export type RestoreReport = {
 };
 
 /**
+ * Ce que la restauration a dû ADAPTER entre la source et la cible. Affiché
+ * avant écriture (mode simulation) : remplacer un RB951 par un hAP ax n'est
+ * jamais une copie à l'identique, et l'admin doit voir ce qui change.
+ */
+export type CompatibilityReport = {
+  sourceModel: string | null;
+  targetModel: string | null;
+  sameModel: boolean;
+  sourceWifiApi: WifiApi | null;
+  targetWifiApi: WifiApi;
+  /** Radios de la cible sur lesquelles le SSID est (ou serait) posé. */
+  ssidRadios: string[];
+  ssid: string | null;
+  notes: string[];
+};
+
+/**
  * Rejoue une sauvegarde sur un routeur (typiquement le rechange).
  *
  * Idempotent par nom : ce qui existe déjà est laissé intact plutôt qu'écrasé —
@@ -333,6 +391,19 @@ export async function restoreBackupToRouter(
   }
 
   const reports: RestoreReport[] = [];
+  let compatibility: CompatibilityReport;
+  try {
+    compatibility = await remodelForTarget(client, snapshot, target, opts.dryRun);
+  } catch (err) {
+    client.close();
+    return {
+      error:
+        err instanceof Error
+          ? `Analyse de compatibilité impossible : ${err.message}`
+          : "Analyse de compatibilité impossible.",
+    };
+  }
+
   try {
     // Ordre imposé par les dépendances : un ticket référence son profil, donc
     // les profils doivent exister d'abord, sinon RouterOS refuse le ticket.
@@ -359,12 +430,120 @@ export async function restoreBackupToRouter(
     return {
       error: err instanceof Error ? `Restauration interrompue : ${err.message}` : "Restauration interrompue.",
       reports,
+      compatibility,
     };
   } finally {
     client.close();
   }
 
-  return { success: true as const, dryRun: !!opts.dryRun, reports };
+  return { success: true as const, dryRun: !!opts.dryRun, reports, compatibility };
+}
+
+/**
+ * Adapte la sauvegarde au matériel de la cible — le « remodelage ».
+ *
+ * Ce qui NE traverse volontairement PAS la frontière entre modèles :
+ *   - bridge, ports, adresses IP, NAT, filter : ils nomment des interfaces
+ *     (ether2, wlan2, wifi1) qui n'existent pas à l'identique ailleurs. Un
+ *     RB951 a 5 ports et wlan2, un hAP ax² a wifi1+wifi2 ; rejouer ces règles
+ *     produirait une config qui référence le vide.
+ *   - le conteneur MikHmon : son support (USB / flash / eMMC / tmpfs) dépend du
+ *     modèle, et l'auto-setup sait déjà choisir le bon (voir device-catalog).
+ *     Le refaire ici le referait mal.
+ *
+ * Ce qui traverse : le SSID et le dns-name du portail — l'identité que les
+ * clients connaissent — plus les tickets et profils, qui ne nomment aucun
+ * matériel. Le reste est reconstruit par l'auto-setup sur le rechange.
+ */
+async function remodelForTarget(
+  client: RouterOSClient,
+  snapshot: BackupSnapshot,
+  target: typeof routers.$inferSelect,
+  dryRun?: boolean,
+): Promise<CompatibilityReport> {
+  const [resource] = await client
+    .talk(["/system/resource/print"], 20000)
+    .catch(() => [] as Record<string, string>[]);
+  const targetModel = resource?.["board-name"] ?? target.model ?? null;
+  const sourceModel = snapshot.router.model;
+  const targetWifi = await readWifiState(client);
+
+  const report: CompatibilityReport = {
+    sourceModel,
+    targetModel,
+    sameModel: !!sourceModel && !!targetModel && sourceModel === targetModel,
+    sourceWifiApi: snapshot.identity?.wifiApi ?? null,
+    targetWifiApi: targetWifi.api,
+    ssidRadios: [],
+    ssid: snapshot.identity?.ssid ?? null,
+    notes: [],
+  };
+
+  if (!report.sameModel && sourceModel && targetModel) {
+    report.notes.push(
+      `Modèle différent (${sourceModel} → ${targetModel}) : bridge, IP, NAT et filter ne sont PAS rejoués — l'auto-setup les reconstruit pour ce matériel.`,
+    );
+  }
+
+  const ssid = snapshot.identity?.ssid?.trim();
+  if (!ssid) {
+    report.notes.push("Aucun SSID dans la sauvegarde — le WiFi de la cible est laissé tel quel.");
+    return report;
+  }
+
+  if (
+    report.sourceWifiApi &&
+    report.targetWifiApi !== "none" &&
+    report.sourceWifiApi !== report.targetWifiApi
+  ) {
+    report.notes.push(
+      `WiFi traduit : la source parlait « ${report.sourceWifiApi} », la cible parle « ${report.targetWifiApi} » — le SSID est réécrit dans l'API de la cible.`,
+    );
+  }
+
+  const applied = await applySsid(client, ssid, { dryRun });
+  report.ssidRadios = applied.applied;
+  if (applied.note) report.notes.push(applied.note);
+  for (const f of applied.failed) {
+    report.notes.push(`SSID refusé sur ${f.radio} : ${f.error}`);
+  }
+  if (applied.applied.length > 0) {
+    report.notes.push(
+      `SSID « ${ssid} » ${dryRun ? "serait posé" : "posé"} sur ${applied.applied.join(", ")} — les clients se reconnectent sans rien changer.`,
+    );
+  }
+
+  // dns-name du portail : neutre vis-à-vis du matériel, mais il faut le poser
+  // sur le profil du hotspot ACTIF de la cible, dont le nom n'a aucune raison
+  // de coïncider avec celui de la source.
+  const dnsName = snapshot.identity?.hotspotDnsName?.trim();
+  if (dnsName) {
+    const servers = await client
+      .talk(["/ip/hotspot/print"], 20000)
+      .catch(() => [] as Record<string, string>[]);
+    const server = servers.find((s) => s.disabled !== "true") ?? servers[0];
+    if (!server?.profile) {
+      report.notes.push(
+        `Aucun hotspot actif sur la cible : le nom DNS « ${dnsName} » n'a pas pu être repris. Lancez l'auto-setup sur ce routeur d'abord.`,
+      );
+    } else if (dryRun) {
+      report.notes.push(`Nom DNS du portail « ${dnsName} » serait repris sur « ${server.name} ».`);
+    } else {
+      try {
+        await client.talk(
+          ["/ip/hotspot/profile/set", `=numbers=${server.profile}`, `=dns-name=${dnsName}`],
+          20000,
+        );
+        report.notes.push(`Nom DNS du portail « ${dnsName} » repris sur « ${server.name} ».`);
+      } catch (err) {
+        report.notes.push(
+          `Nom DNS « ${dnsName} » refusé : ${err instanceof Error ? err.message : "erreur"}`,
+        );
+      }
+    }
+  }
+
+  return report;
 }
 
 /** Restaure une section identifiée par un champ "name" unique. */
