@@ -55,10 +55,11 @@ export default async function PaymentGatewaysPage() {
       </div>
 
       <p className="mt-6 border-2 border-line bg-clay px-4 py-3 text-xs leading-5 text-ink">
-        Les clés sont chiffrées au repos. Le bouton de paiement affiché sur le
-        portail captif (voir Portail captif) est pour l&apos;instant une maquette
-        d&apos;interface — aucun débit réel n&apos;est encore déclenché tant que
-        l&apos;appel aux API Paystack / Genius Pay / PawaPay n&apos;est pas branché.
+        Les clés sont chiffrées au repos. <strong>Genius Pay</strong> est branché
+        au portail captif : une fois activé avec vos clés, l&apos;achat d&apos;un
+        forfait déclenche un vrai paiement, puis le code d&apos;accès est créé sur
+        le routeur et envoyé par SMS. Paystack et PawaPay restent des maquettes
+        d&apos;interface (aucun débit) tant que leurs API ne sont pas branchées.
       </p>
     </div>
   );

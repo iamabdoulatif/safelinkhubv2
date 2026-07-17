@@ -7,11 +7,29 @@ const containerSetupSource = () =>
 const mikhmonTunnelAccessSource = () =>
   readFile(new URL("../src/lib/mikrotik/mikhmon-tunnel-access.ts", import.meta.url), "utf8");
 
-test("auto-setup targets the audited MikHmon v3 container image", async () => {
+test("auto-setup installs the mikhmon-sf-v1 image and cleans up the legacy v3 container", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /mikhmonv3-safelinkhub:latest/);
-  assert.doesNotMatch(source, /latif225\/mikhmon-sf-v1:latest/);
+  // Active image (operator's explicit choice): latif225/mikhmon-sf-v1:latest.
+  assert.match(source, /REMOTE_IMAGE = "latif225\/mikhmon-sf-v1:latest"/);
+  assert.match(source, /CONTAINER_NAME = "mikhmon-sf-v1:latest"/);
+  // The previous v3 container must still be referenced so it is removed as a
+  // legacy container during provisioning (in-place migration).
+  assert.match(source, /LEGACY_CONTAINER_NAMES = \["mikhmonv3-safelinkhub:latest"\]/);
+});
+
+test("MikHmon container commands only use RouterOS 7.23 supported properties and fail fast", async () => {
+  const source = await containerSetupSource();
+
+  // RouterOS documents tmpdir on /container/config and root-dir on
+  // /container/add. layer-dir is not a supported property on either command.
+  assert.doesNotMatch(source, /=layer-dir=/);
+  // /container/envs identifies a variable list with `list`, not `name`.
+  assert.match(source, /\/container\/envs\/add", `=list=\$\{MIKHMON_ENVLIST\}`/);
+  // Never wait three minutes for an image if /container/add was rejected.
+  assert.match(source, /if \(!containerAdded\.ok\)/);
+  // Do not continue to the pull when the temporary storage cannot exist.
+  assert.match(source, /if \(!tmpfsCreated\.ok\)/);
 });
 
 test("auto-setup migrates legacy Docker bridge names before assigning the Docker gateway", async () => {
@@ -31,11 +49,11 @@ test("auto-setup repairs MikHmon tunnel access and removes duplicate legacy Dock
   assert.match(helper, /MIKHMON_TUNNEL_INTERFACES/);
 });
 
-test("USB container installs use USB paths instead of internal flash layer paths", async () => {
+test("USB container installs use USB root and temporary pull paths", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /const usbRootDir = "usb1\/mikhmon-app"/);
-  assert.match(source, /const usbLayerDir = "usb1\/mikhmon-layers"/);
+  assert.match(source, /"usb1\/mikhmon-app"/);
+  assert.match(source, /=tmpdir=usb1\/pull/);
   assert.doesNotMatch(source, /\/flash\/mikhmon/);
 });
 
@@ -49,7 +67,7 @@ test("server-side auto-setup rechecks RouterOS device-mode container flag", asyn
 
 test("device-mode unlock instructions request all required flags in one confirmable command", async () => {
   const autoSetup = await readFile(
-    new URL("../src/app/admin/settings/router-setup/AutoSetupSteps.tsx", import.meta.url),
+    new URL("../src/app/admin/settings/router-setup/AutoSetupStep.tsx", import.meta.url),
     "utf8",
   );
   const detectedBadge = await readFile(
@@ -84,18 +102,21 @@ test("hotspot auto-setup keeps one RouterOS server/profile pair with one address
   assert.doesNotMatch(source, /`=profile=\$\{opts\.hotspotName\}`/);
 });
 
-test("default hotspot users are created and reconciled with password equal to username", async () => {
+test("default hotspot users are created/reconciled with an optional distinct password", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /\/ip\/hotspot\/user\/add", `=name=\$\{name\}`, `=password=\$\{name\}`/);
+  assert.match(source, /\/ip\/hotspot\/user\/add", `=name=\$\{name\}`, `=password=\$\{password\}`/);
   assert.match(source, /\/ip\/hotspot\/user\/set/);
   assert.ok(source.includes('`=numbers=${existingUser[0][".id"]}`'));
-  assert.match(source, /`=password=\$\{name\}`/);
+  assert.match(source, /`=password=\$\{password\}`/);
+  // Chaîne → mot de passe = login ; objet {name,password} → mot de passe
+  // distinct si fourni, sinon login (compte admin du portail).
+  assert.match(source, /typeof entry === "string" \? name : entry\.password\?\.trim\(\) \|\| name/);
 });
 
 test("wizard keeps HOTSPOT as the only RouterOS hotspot bridge and hides system identity", async () => {
   const autoSetup = await readFile(
-    new URL("../src/app/admin/settings/router-setup/AutoSetupSteps.tsx", import.meta.url),
+    new URL("../src/app/admin/settings/router-setup/AutoSetupStep.tsx", import.meta.url),
     "utf8",
   );
   const containerSetup = await containerSetupSource();

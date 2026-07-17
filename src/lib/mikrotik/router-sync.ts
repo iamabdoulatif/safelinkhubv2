@@ -2,10 +2,15 @@ import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, routerPortForwards } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
-import { openRouterTunnelWithRetry } from "./relay";
+import { openRouterTunnelWithRetry, ensureRouterPortForwards } from "./relay";
+import { reconcileWalledGardenOnce } from "./walled-garden";
+import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
+import { enforceRouterSerialOnSync } from "./router-serial-lock";
+import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
+import { isWebAccessService } from "./remote-access-host";
 
 type RouterRow = typeof routers.$inferSelect;
 
@@ -68,12 +73,18 @@ export async function syncRouterStats(
     return { success: false, error: "Router is missing connection details." };
   }
 
-  // Routers already known to be offline: use a short timeout and single
-  // attempt — no point waiting 60+ seconds for something we already know
-  // is unreachable. Online/installing routers keep the generous defaults.
+  // Routers already known to be offline get a cheaper probe than online ones —
+  // no point waiting 60+ seconds on something that is genuinely unreachable.
+  // But the budget still has to fit a SUCCESS: opening the relay tunnel takes
+  // ~0.3–6s when everything is healthy and intermittently stalls out, so a
+  // single 5s attempt could not even outlast a normal handshake. An offline
+  // router that had come back therefore kept failing its only probe and stayed
+  // marked offline for good, while an install (3 attempts) connected fine —
+  // exactly the "joignable mais affiché offline" case. Two attempts at 10s
+  // clear a healthy tunnel with room to spare and still bail out fast.
   const isKnownOffline = router.status === "offline";
-  const timeoutMs = opts.timeoutMs ?? (isKnownOffline ? 5000 : 20000);
-  const maxAttempts = opts.maxAttempts ?? (isKnownOffline ? 1 : 3);
+  const timeoutMs = opts.timeoutMs ?? (isKnownOffline ? 10000 : 20000);
+  const maxAttempts = opts.maxAttempts ?? (isKnownOffline ? 2 : 3);
 
   let client: RouterOSClient;
   try {
@@ -103,6 +114,39 @@ export async function syncRouterStats(
     const memoryUsage =
       totalMem > 0 ? (((totalMem - freeMem) / totalMem) * 100).toFixed(2) : "0";
 
+    // Captured before we flip the row to "online" below, so the relay-side
+    // reconciliation further down can tell a genuine reconnect (or first-ever
+    // successful sync) apart from a routine refresh of an already-online router.
+    const wasOffline = router.status !== "online";
+
+    // Verrou de série sur TOUS les chemins de mise en service (auto-setup,
+    // install VPN/OpenVPN, liaison) : un MikroTik rattaché à un compte ne peut
+    // pas être remis en service pour un AUTRE. Armé ici au 1er passage online ;
+    // refuse (garde le routeur hors-ligne) si son SN est déjà rattaché ailleurs.
+    // Défensif : SN illisible / aléa → autorise (voir enforceRouterSerialOnSync).
+    const serialGuard = await enforceRouterSerialOnSync(client, routerId, router.orgId).catch(
+      () => ({ ok: true }) as const,
+    );
+    if (!serialGuard.ok) {
+      await db
+        .update(routers)
+        .set({ status: "offline", lastSyncAt: new Date() })
+        .where(eq(routers.id, routerId));
+      client.close();
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "router serial locked to another account — kept offline",
+          routerId,
+          serial: serialGuard.serial,
+        }),
+      );
+      return {
+        success: false,
+        error: `Ce MikroTik (série ${serialGuard.serial}) est déjà rattaché à un autre compte. Contactez le support.`,
+      };
+    }
+
     await db
       .update(routers)
       .set({
@@ -123,7 +167,11 @@ export async function syncRouterStats(
     // offline at that time. Repairs are idempotent, so they are safe to call
     // on every successful sync.
     const activeManagedForwards = await db
-      .select({ service: routerPortForwards.service })
+      .select({
+        service: routerPortForwards.service,
+        targetPort: routerPortForwards.targetPort,
+        publicPort: routerPortForwards.publicPort,
+      })
       .from(routerPortForwards)
       .where(
         and(
@@ -147,6 +195,44 @@ export async function syncRouterStats(
         // Non-fatal — the public forward on the relay side is still valid,
         // and the SSH/SFTP input allow rule will be retried on the next sync.
       }
+    }
+
+    // Relay-side reconciliation on reconnect: the two repairs above fix the
+    // *router* end (NAT/firewall), but the *relay* end — the public
+    // publicPort→tunnelIp:targetPort DNAT — is lost if the relay rebooted or
+    // its iptables state was flushed while the router was away, leaving every
+    // "active" forward dead despite a healthy tunnel. Re-assert them at their
+    // recorded ports (idempotent, so a no-op when still present). Gated on
+    // wasOffline so an already-online router's routine refreshes don't fire an
+    // SSH round-trip to the relay every time.
+    if (wasOffline && router.tunnelIp && activeManagedForwards.length > 0) {
+      try {
+        await ensureRouterPortForwards(
+          router.tunnelIp,
+          activeManagedForwards.map((forward) => ({
+            targetPort: forward.targetPort,
+            publicPort: forward.publicPort,
+            tlsTerminated: isWebAccessService(forward.service),
+          })),
+        );
+      } catch {
+        // Non-fatal — retried on the next reconnect; the router is online
+        // regardless, and direct-tunnel access (WireGuard/OpenVPN) still works.
+      }
+    }
+
+    // Installe/actualise AUTOMATIQUEMENT le walled-garden de paiement sur ce
+    // routeur (déjà en service comme neuf) : au plus une fois par process tant
+    // que la liste d'hôtes ne change pas. Réutilise la connexion courante.
+    try {
+      await reconcileWalledGardenOnce(
+        client,
+        new URL(getAppUrl()).host,
+        routerId,
+        await getOrgWalledGardenDisabledHosts(router.orgId),
+      );
+    } catch {
+      // Non-fatal — réessayé au prochain sync (routeur sans hotspot, hiccup API).
     }
   } catch (err) {
     if (markOfflineOnFailure) {

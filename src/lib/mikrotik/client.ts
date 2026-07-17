@@ -46,10 +46,19 @@ function encodeSentence(words: string[]): Buffer {
   return Buffer.concat(parts);
 }
 
+type SentenceWaiter = {
+  resolve: (words: string[]) => void;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
 class RosConnection {
   private socket: Duplex;
   private buffer = Buffer.alloc(0);
   private connected = false;
+  private waiters: SentenceWaiter[] = [];
+  /** Erreur transport (socket error/close) : rejette tout ce qui attend encore. */
+  private failure: Error | null = null;
 
   /** Connect directly over TCP to a publicly reachable router. */
   static connectDirect(host: string, port: number, timeoutMs: number): Promise<RosConnection> {
@@ -77,9 +86,85 @@ class RosConnection {
     return new RosConnection(stream);
   }
 
+  /**
+   * UN SEUL listener "data" pour toute la vie de la connexion.
+   *
+   * readSentence() attachait/détachait le sien à chaque phrase. Retirer un
+   * listener "data" ne remet PAS un flux Node en pause (il reste en mode
+   * flowing) : les chunks arrivés entre deux phrases étaient donc émis sans
+   * personne pour les recevoir, et purement perdus. Invisible sur les petites
+   * réponses (tout tient dans un chunk déjà bufferisé), dévastateur sur les
+   * grosses : la lecture des 4 869 tickets d'un hotspot rendait 2 900–3 400
+   * lignes, un nombre DIFFÉRENT à chaque appel, avec des trous en plein milieu
+   * et quelques lignes corrompues — sans lever la moindre erreur.
+   *
+   * Ici le listener ne bouge plus : tout ce qui arrive est bufferisé, et
+   * readSentence() ne fait que consommer ce buffer.
+   */
   private constructor(socket: Duplex) {
     this.socket = socket;
     this.connected = true;
+
+    socket.on("data", (chunk: Buffer) => {
+      this.buffer = Buffer.concat([this.buffer, chunk]);
+      this.pump();
+    });
+    socket.on("error", (err: Error) => this.fail(err));
+    socket.on("close", () =>
+      this.fail(new Error("RouterOS connection closed by peer")),
+    );
+  }
+
+  /** Rejette les lecteurs en attente : plus aucune phrase n'arrivera. */
+  private fail(err: Error) {
+    this.failure = err;
+    this.connected = false;
+    const pending = this.waiters;
+    this.waiters = [];
+    for (const w of pending) {
+      clearTimeout(w.timer);
+      w.reject(err);
+    }
+  }
+
+  /** Sert autant de phrases complètes que le buffer en contient. */
+  private pump() {
+    while (this.waiters.length > 0) {
+      let words: string[] | null;
+      try {
+        words = this.parseSentence();
+      } catch (err) {
+        this.fail(err instanceof Error ? err : new Error(String(err)));
+        return;
+      }
+      if (words === null) return; // phrase incomplète : on attend la suite
+      const waiter = this.waiters.shift()!;
+      clearTimeout(waiter.timer);
+      waiter.resolve(words);
+    }
+  }
+
+  /**
+   * Extrait une phrase du buffer, ou null si elle est encore incomplète — dans
+   * ce cas le buffer est restauré intact pour le prochain chunk.
+   */
+  private parseSentence(): string[] | null {
+    const snapshot = this.buffer;
+    const words: string[] = [];
+    for (;;) {
+      const len = this.readLength();
+      if (len === null) {
+        this.buffer = snapshot;
+        return null;
+      }
+      if (len === 0) return words;
+      if (this.buffer.length < len) {
+        this.buffer = snapshot;
+        return null;
+      }
+      words.push(this.buffer.subarray(0, len).toString("utf8"));
+      this.buffer = this.buffer.subarray(len);
+    }
   }
 
   write(words: string[]) {
@@ -117,61 +202,20 @@ class RosConnection {
 
   /** Reads one full sentence (array of words ending with a zero-length word). */
   readSentence(timeoutMs: number): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-      const words: string[] = [];
-      const savedBuffer = this.buffer;
-
+    if (this.failure) return Promise.reject(this.failure);
+    return new Promise<string[]>((resolve, reject) => {
       const timer = setTimeout(() => {
-        cleanup();
+        // Retire CE lecteur de la file : sans ça, la phrase qui arriverait plus
+        // tard serait servie à un appelant qui a déjà abandonné, décalant
+        // toutes les réponses suivantes d'un cran.
+        this.waiters = this.waiters.filter((w) => w.timer !== timer);
         reject(new Error("Read timed out"));
       }, timeoutMs);
 
-      const tryParse = () => {
-        while (true) {
-          const startBuffer = this.buffer;
-          const len = this.readLength();
-          if (len === null) {
-            this.buffer = startBuffer;
-            return false;
-          }
-          if (len === 0) {
-            cleanup();
-            resolve(words);
-            return true;
-          }
-          if (this.buffer.length < len) {
-            this.buffer = startBuffer;
-            return false;
-          }
-          const word = this.buffer.subarray(0, len).toString("utf8");
-          this.buffer = this.buffer.subarray(len);
-          words.push(word);
-        }
-      };
-
-      const onData = (chunk: Buffer) => {
-        this.buffer = Buffer.concat([this.buffer, chunk]);
-        try {
-          tryParse();
-        } catch (err) {
-          cleanup();
-          reject(err);
-        }
-      };
-
-      const cleanup = () => {
-        clearTimeout(timer);
-        this.socket.removeListener("data", onData);
-      };
-
-      this.socket.on("data", onData);
-      this.buffer = savedBuffer;
-      try {
-        if (tryParse()) return;
-      } catch (err) {
-        cleanup();
-        reject(err);
-      }
+      this.waiters.push({ resolve, reject, timer });
+      // Le buffer contient peut-être déjà la phrase (plusieurs phrases arrivent
+      // souvent dans un même chunk) : inutile d'attendre un nouvel événement.
+      this.pump();
     });
   }
 
@@ -180,8 +224,20 @@ class RosConnection {
   }
 }
 
+/** Reconnaissable par les appelants qui décident de réessayer ou non — une
+ *  connexion hors-sync ne guérit pas, chaque commande suivante échouera. */
+export const ROUTEROS_DESYNC_MESSAGE =
+  "RouterOS connection is out of sync after a timed-out command — reconnect required.";
+
 export class RouterOSClient {
   private conn: RosConnection | null = null;
+  // A read timeout abandons a command that RouterOS is still answering: its
+  // remaining sentences stay in flight and the next talk() reads them as its
+  // own reply, shifting every result one command back. There is no way to tell
+  // a late sentence from a fresh one on an untagged stream, so the connection
+  // is poisoned for good once that happens — refuse it instead of returning
+  // answers that belong to another command.
+  private desynced = false;
 
   async connect(
     host: string,
@@ -233,6 +289,7 @@ export class RouterOSClient {
 
   async talk(words: string[], timeoutMs = 8000): Promise<Sentence[]> {
     if (!this.conn) throw new Error("Not connected");
+    if (this.desynced) throw new Error(ROUTEROS_DESYNC_MESSAGE);
     this.conn.write(words);
 
     const results: Sentence[] = [];
@@ -244,7 +301,13 @@ export class RouterOSClient {
     // interface row. Read until !done first, then throw.
     let trapMessage: string | null = null;
     while (true) {
-      const reply = await this.conn.readSentence(timeoutMs);
+      let reply: string[];
+      try {
+        reply = await this.conn.readSentence(timeoutMs);
+      } catch (err) {
+        this.desynced = true;
+        throw err;
+      }
       const type = reply[0];
       if (type === "!done") break;
       if (type === "!fatal") {

@@ -57,13 +57,7 @@ export async function listPortForwards(routerId: string) {
     .where(eq(routerPortForwards.routerId, routerId));
 }
 
-/**
- * Core logic shared by the authenticated server action below and the
- * unauthenticated post-install bootstrap (installVpn callback runs before
- * any user session exists, triggered by the router itself via bearer
- * token) — no getSession() here, callers are responsible for authorizing
- * the request through whatever channel they came from.
- */
+/** Core allocation logic. Callers are responsible for authorizing first. */
 function expiresAtFor(period: BillingPeriod, from = new Date()): Date {
   const date = new Date(from);
   date.setMonth(date.getMonth() + BILLING_PERIOD_MONTHS[period]);
@@ -185,10 +179,8 @@ async function enablePortForwardForRouter(
 
 /**
  * Charges the org's wallet for a newly-activated plan — split out from
- * enablePortForwardForRouter (which has no session/orgId for the
- * unauthenticated post-install bootstrap caller) so only an admin
- * explicitly choosing a plan through the authenticated action below ever
- * gets billed, never the auto-enabled-after-install services.
+ * enablePortForwardForRouter so only an admin explicitly choosing a plan
+ * through the authenticated action below ever gets billed.
  */
 async function chargeWalletForActivation(opts: {
   orgId: string;
@@ -207,23 +199,6 @@ async function chargeWalletForActivation(opts: {
     relatedForwardId: opts.forwardId,
     createdBy: opts.userId,
   });
-}
-
-/**
- * Services auto-enabled right after a WireGuard/OpenVPN install completes
- * (see installed/route.ts), so a freshly installed router is immediately
- * reachable from WinBox/WebFig/SSH/MikHmon without the admin having to find
- * and click the "Accès distant" page first — the gap that caused a fresh
- * install to look "broken" even though the tunnel itself was healthy.
- */
-const AUTO_ENABLED_SERVICES_AFTER_INSTALL = ["winbox", "webfig", "ssh", "mikhmon"] as const;
-
-export async function autoEnablePostInstallAccess(routerId: string) {
-  const results: Record<string, Awaited<ReturnType<typeof enablePortForwardForRouter>>> = {};
-  for (const service of AUTO_ENABLED_SERVICES_AFTER_INSTALL) {
-    results[service] = await enablePortForwardForRouter(routerId, service);
-  }
-  return results;
 }
 
 export async function enablePortForward(
@@ -247,9 +222,8 @@ export async function enablePortForward(
   // TEMPORAIRE — porte de monétisation manuelle : hors superadmin, activer un
   // accès distant exige une autorisation validée (et non consommée) pour ce
   // (routeur, service). C'est le verrou serveur, indépendant de l'UI. Ne
-  // s'applique qu'à l'activation manuelle — l'auto-déblocage post-install
-  // (autoEnablePostInstallAccess) passe par enablePortForwardForRouter et
-  // reste gratuit. TODO: Remplacer par système de paiement intégré.
+  // s'applique à toute activation exposant un port public. TODO: Remplacer
+  // par système de paiement intégré.
   const gate = await evaluateRemoteAccessGate(session, routerId, service);
   if (!gate.ok) {
     return {

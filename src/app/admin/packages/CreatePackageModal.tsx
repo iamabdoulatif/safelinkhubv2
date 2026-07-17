@@ -4,7 +4,11 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { createPackage } from "@/lib/packages/actions";
 
-export default function CreatePackageModal() {
+export default function CreatePackageModal({
+  routers,
+}: {
+  routers: { id: string; name: string }[];
+}) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createPackage, undefined);
 
@@ -54,7 +58,7 @@ export default function CreatePackageModal() {
           />
           <form
             action={formAction}
-            className="relative w-full max-w-md rounded-xl bg-paper p-6"
+            className="relative max-h-[90dvh] overflow-y-auto w-full max-w-md rounded-xl bg-paper p-6"
             role="dialog"
             aria-modal="true"
             aria-labelledby="create-package-title"
@@ -103,6 +107,29 @@ export default function CreatePackageModal() {
                   placeholder="test123"
                   className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-ink">
+                  Zone / Routeur
+                </label>
+                <select
+                  name="routerId"
+                  defaultValue=""
+                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                >
+                  <option value="">Tous les routeurs (global)</option>
+                  {routers.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-ink-soft">
+                  Le portail captif d&apos;un routeur n&apos;affiche que ses
+                  forfaits. « Global » = visible sur les routeurs sans forfait
+                  propre.
+                </p>
               </div>
 
               <div>

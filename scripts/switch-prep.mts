@@ -3,6 +3,8 @@ import { getDb } from "../src/lib/db";
 import { routers } from "../src/lib/db/schema";
 import { connectToRouter } from "../src/lib/mikrotik/router-sync";
 
+type RouterOsRow = Record<string, string | undefined>;
+
 const RELAY_PUB = "LTCXBicJJZmoWXOFwAJyKKgqc0kSkFoNPTBMB8kAMAw=";
 const VPS_IP = "31.97.153.83";
 const EC2_IP = "3.221.39.207";
@@ -21,18 +23,19 @@ if (!router) { console.error("FAIL: routeur introuvable en DB"); process.exit(1)
 const client = await connectToRouter(router);
 try {
   const peers = await client.talk(["/interface/wireguard/peers/print", `?public-key=${RELAY_PUB}`]);
-  if ((peers as any[]).length !== 1) {
-    console.error(`FAIL: ${(peers as any[]).length} peer(s) relais trouves (attendu 1)`);
+  const peerRows = peers as RouterOsRow[];
+  if (peerRows.length !== 1) {
+    console.error(`FAIL: ${peerRows.length} peer(s) relais trouves (attendu 1)`);
     process.exit(1);
   }
-  const p: any = (peers as any[])[0];
+  const p = peerRows[0];
   if (p["endpoint-address"] !== EC2_IP) {
     console.error(`FAIL: endpoint actuel inattendu: ${p["endpoint-address"]} (attendu ${EC2_IP})`);
     process.exit(1);
   }
   for (const n of [KICK, REVERT]) {
     const ex = await client.talk(["/system/scheduler/print", `?name=${n}`]);
-    for (const s of ex as any[]) await client.talk(["/system/scheduler/remove", `=numbers=${s[".id"]}`]);
+    for (const s of ex as RouterOsRow[]) await client.talk(["/system/scheduler/remove", `=numbers=${s[".id"]}`]);
   }
   await client.talk(["/system/scheduler/add", `=name=${REVERT}`, "=interval=12m", `=on-event=${revertEvent}`,
     "=comment=SafeLinkHub switch: dead-man revert to EC2"]);

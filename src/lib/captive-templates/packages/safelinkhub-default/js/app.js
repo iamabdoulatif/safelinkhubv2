@@ -126,6 +126,11 @@
 
   /* ----------------------------------------------------------
      5. BOUTONS ACHETER FORFAITS
+     Le paiement en ligne est géré par le script UNIVERSEL injecté dans
+     login.html (voir PORTAL_PAY_SCRIPT dans package-files.ts) : un listener
+     délégué en phase capture intercepte tout bouton [data-package-id] AVANT
+     ce handler. Ce dernier ne sert donc que de repli (portail sans config de
+     paiement) : message "contactez le support".
      ---------------------------------------------------------- */
   function initPlanButtons() {
     const buttons = $$('.plan-btn');
@@ -134,9 +139,6 @@
         e.preventDefault();
         const plan = btn.dataset.plan || 'ce forfait';
         const price = btn.dataset.price || '';
-
-        // Redirection vers page de paiement ou ouverture de modal
-        // Par défaut, on affiche une alerte élégante
         showToast(`Pour acheter ${plan} ${price}, contactez le support via WhatsApp.`);
       });
     });

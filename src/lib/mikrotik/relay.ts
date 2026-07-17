@@ -464,6 +464,53 @@ SCRIPT`);
 }
 
 /**
+ * Re-asserts the relay-side rules for a router's ALREADY-ALLOCATED forwards at
+ * their exact recorded public ports — the reconnect-time counterpart to
+ * allocatePortForward. allocatePortForward can't be reused for this: it scans
+ * iptables and picks a *fresh* port every call, so replaying it would leak a
+ * new port (and rule) each time instead of restoring the existing mapping.
+ *
+ * Needed because the relay's iptables state is not durable across a relay
+ * reboot / container recreate / firewall flush: when it's lost, every public
+ * forward silently dies even though the router's tunnel is perfectly healthy
+ * and looks "online". Each rule is guarded by `iptables -C`, so this is a
+ * no-op when the mapping is already present and safe to call on every
+ * reconnect. `forwards` all belong to one router, hence a single tunnelIp.
+ */
+export async function ensureRouterPortForwards(
+  tunnelIp: string,
+  forwards: Array<{ targetPort: number; publicPort: number; tlsTerminated: boolean }>,
+): Promise<void> {
+  if (forwards.length === 0) return;
+  // Rows are passed as a single positional arg (quoted), never interpolated
+  // into the script body, matching the injection-safe pattern of the other
+  // relay helpers. Values are integers we control, so the split on ':' is safe.
+  const rows = forwards
+    .map((f) => `${f.targetPort}:${f.publicPort}:${f.tlsTerminated ? 1 : 0}`)
+    .join("\n");
+  await runOnRelay(`sudo bash -s -- ${shellArg(tunnelIp)} ${shellArg(rows)} <<'SCRIPT'
+set -euo pipefail
+TUNNEL_IP="$1"
+ROWS="$2"
+while IFS=: read -r TARGET_PORT PUBLIC_PORT TLS_TERMINATED; do
+  if [ -z "$PUBLIC_PORT" ]; then continue; fi
+  if [[ "$TLS_TERMINATED" == "1" ]]; then
+    iptables -t nat -C PREROUTING -p tcp --dport "$PUBLIC_PORT" -j ACCEPT 2>/dev/null || \
+      iptables -t nat -A PREROUTING -p tcp --dport "$PUBLIC_PORT" -j ACCEPT
+  else
+    iptables -t nat -C PREROUTING -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "\${TUNNEL_IP}:\${TARGET_PORT}" 2>/dev/null || \
+      iptables -t nat -A PREROUTING -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "\${TUNNEL_IP}:\${TARGET_PORT}"
+    iptables -t nat -C POSTROUTING -d "$TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE 2>/dev/null || \
+      iptables -t nat -A POSTROUTING -d "$TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE
+    iptables -C FORWARD -p tcp -d "$TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT 2>/dev/null || \
+      iptables -A FORWARD -p tcp -d "$TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT
+  fi
+done <<< "$ROWS"
+command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
+SCRIPT`);
+}
+
+/**
  * "Bypass IPv6" exit-node NAT: makes the relay masquerade all traffic coming
  * from a router's tunnel IP out its own WAN interface, so the router's hotspot
  * clients reach the Internet with the relay's public IPv4 (the point of the

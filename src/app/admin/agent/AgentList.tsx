@@ -91,7 +91,7 @@ function SellPackageModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form action={formAction} className="w-full max-w-md rounded-xl bg-paper p-6">
+      <form action={formAction} className="max-h-[90dvh] overflow-y-auto w-full max-w-md rounded-xl bg-paper p-6">
         <input type="hidden" name="agentId" value={agent.id} />
 
         <div className="flex items-center justify-between">

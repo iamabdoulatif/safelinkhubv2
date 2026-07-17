@@ -4,7 +4,6 @@ import { getDb } from "@/lib/db";
 import { organizations, routers } from "@/lib/db/schema";
 import { hashToken } from "@/lib/mikrotik/install-token";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
-import { autoEnablePostInstallAccess } from "@/lib/mikrotik/port-forward";
 
 export async function GET(
   request: NextRequest,
@@ -30,12 +29,8 @@ export async function GET(
   // Matched by installTokenHash alone, not also status="installing" — the
   // setup page's own polling (checkRouterConnection) calls the same
   // syncRouterStats and can flip status to "online" before this callback
-  // fires (the WireGuard tunnel often comes up mid-script, well before the
-  // script reaches this call at the very end). Requiring "installing" here
-  // made that the common case return 403, leaving installTokenHash set
-  // forever and skipping autoEnablePostInstallAccess below. installTokenHash
-  // is only ever cleared by this handler, so it alone is enough to reject a
-  // genuinely reused/already-completed token.
+  // fires. installTokenHash is only ever cleared by this handler, so it alone
+  // is enough to reject a genuinely reused/already-completed token.
   const [router] = await db
     .select()
     .from(routers)
@@ -67,14 +62,6 @@ export async function GET(
       installTokenExpiresAt: null,
     })
     .where(eq(routers.id, router.id));
-
-  // Auto-open WinBox/WebFig/SSH access through the relay right away, so the
-  // router is reachable from the admin's machine the moment install
-  // finishes — without this, the tunnel is healthy but unreachable until
-  // someone manually visits "Accès distant" and enables each service.
-  if (nowOnline) {
-    await autoEnablePostInstallAccess(router.id).catch(() => {});
-  }
 
   return new Response("Router installation completed", {
     status: 200,

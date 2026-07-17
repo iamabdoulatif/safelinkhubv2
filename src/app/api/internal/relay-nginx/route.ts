@@ -44,10 +44,29 @@ export async function GET(request: NextRequest) {
         `  server_name ${getRelayPublicHost(r.shard)};\n` +
         `  ssl_certificate     /etc/nginx/certs/wildcard.crt;\n` +
         `  ssl_certificate_key /etc/nginx/certs/wildcard.key;\n` +
+        // Quand le routeur est hors ligne, son tunnel ne répond pas et le
+        // proxy_pass renvoie 502/504. Sans ceci l'utilisateur voit le « 502 Bad
+        // Gateway » brut de nginx (déroutant : on dirait une panne du site). On
+        // sert à la place une page « routeur hors ligne » PAR PORT
+        // (offline-<port>.html) : le script relais (slh-nginx-sync.sh) la
+        // (re)génère avec l'heure de dernière connexion du routeur (last_sync_at)
+        // pour afficher « hors ligne depuis X ». Le tunnel se rétablit tout seul
+        // au retour du routeur — donc pas de status 200 trompeur : on garde 503.
+        `  error_page 502 503 504 =503 /offline-${r.publicPort}.html;\n` +
+        `  location = /offline-${r.publicPort}.html {\n` +
+        `    root /etc/nginx/slh-errors;\n` +
+        `    internal;\n` +
+        `  }\n` +
         `  location / {\n` +
         `    proxy_pass http://${r.tunnelIp}:${r.targetPort};\n` +
         `    proxy_set_header Host $host;\n` +
         `    proxy_http_version 1.1;\n` +
+        `    proxy_intercept_errors on;\n` +
+        // Un pair WireGuard hors ligne n'envoie pas de RST : le SYN part dans le
+        // vide et sans ceci nginx attend proxy_connect_timeout (60s par défaut)
+        // avant le 504 — l'utilisateur verrait un long blanc. 5s => la page
+        // "routeur hors ligne" s'affiche vite.
+        `    proxy_connect_timeout 5s;\n` +
         `  }\n` +
         `}`,
     );

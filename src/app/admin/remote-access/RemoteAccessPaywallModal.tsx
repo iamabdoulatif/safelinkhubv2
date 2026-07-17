@@ -6,8 +6,8 @@
 // paiement, soumission d'une demande (email admin + WhatsApp).
 // TODO: Remplacer par système de paiement intégré.
 
-import { useState, useTransition } from "react";
-import { Lock, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { Lock, Loader2, CheckCircle2, ExternalLink, CreditCard } from "lucide-react";
 import type { BillingPeriod } from "@/lib/mikrotik/billing-plans";
 import {
   PAYMENT_METHODS,
@@ -19,7 +19,11 @@ import {
   remoteAccessPriceFcfa,
   serviceLabel,
 } from "@/lib/billing/remote-access-gate-config";
-import { submitRemoteAccessAuthorizationRequest } from "@/lib/billing/remote-access-authorization-actions";
+import {
+  submitRemoteAccessAuthorizationRequest,
+  startRemoteAccessPayment,
+  getRemoteAccessPaymentConfigPublic,
+} from "@/lib/billing/remote-access-authorization-actions";
 
 export default function RemoteAccessPaywallModal({
   open,
@@ -48,6 +52,22 @@ export default function RemoteAccessPaywallModal({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ whatsappUrl: string; emailSent: boolean } | null>(null);
   const [pending, startTransition] = useTransition();
+  // Paiement en ligne GeniusPay : disponible seulement si les clés plateforme
+  // sont configurées côté serveur. Récupéré à l'ouverture ; tant qu'inconnu, on
+  // n'affiche pas le bouton en ligne (le flux manuel reste toujours possible).
+  const [onlineEnabled, setOnlineEnabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRemoteAccessPaymentConfigPublic()
+      .then((c) => {
+        if (!cancelled) setOnlineEnabled(c.geniusPayEnabled);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!open) return null;
 
@@ -83,6 +103,25 @@ export default function RemoteAccessPaywallModal({
       setDone({ whatsappUrl: res.whatsappUrl, emailSent: res.emailSent });
       window.open(res.whatsappUrl, "_blank", "noopener,noreferrer");
       onSubmitted();
+    });
+  }
+
+  // Paiement en ligne : ouvre le checkout GeniusPay. Le tarif est imposé côté
+  // serveur (on n'envoie pas de montant), et l'accès s'ouvre automatiquement
+  // dès réception du webhook payment.success.
+  function payOnline() {
+    setError(null);
+    const fd = new FormData();
+    fd.set("routerId", routerId);
+    fd.set("service", service);
+    fd.set("billingPeriod", period);
+    startTransition(async () => {
+      const res = await startRemoteAccessPayment(fd);
+      if ("error" in res) {
+        setError(res.error);
+        return;
+      }
+      window.location.href = res.paymentUrl;
     });
   }
 
@@ -174,6 +213,32 @@ export default function RemoteAccessPaywallModal({
                 );
               })}
             </div>
+
+            {onlineEnabled && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={payOnline}
+                  disabled={pending}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-brand-deep px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                >
+                  {pending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CreditCard className="h-4 w-4" />
+                  )}
+                  Payer en ligne {formatFcfa(price)} (GeniusPay)
+                </button>
+                <p className="mt-1.5 text-[11px] text-ink-soft">
+                  Paiement Wave / Orange / MTN / Moov ou carte. L&apos;accès s&apos;ouvre
+                  automatiquement dès le paiement confirmé.
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-[11px] uppercase tracking-wide text-ink-soft">
+                  <span className="h-px flex-1 bg-line-soft" /> ou paiement manuel{" "}
+                  <span className="h-px flex-1 bg-line-soft" />
+                </div>
+              </div>
+            )}
 
             <div className="mt-4">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">

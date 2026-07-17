@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { smsGateways } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { encryptSecret } from "@/lib/mikrotik/crypto";
+import { sendOrgSms } from "./send";
 import { PROVIDERS, type Provider } from "./providers";
 
 export async function listSmsGateways() {
@@ -66,4 +67,20 @@ export async function saveSmsGateway(_prevState: unknown, formData: FormData) {
 
   revalidatePath("/admin/settings/sms");
   return { success: true };
+}
+
+export async function sendTestSms(_prevState: unknown, formData: FormData) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const to = String(formData.get("to") ?? "").trim();
+  if (!to) return { error: "Numéro destinataire requis." };
+
+  const content =
+    String(formData.get("content") ?? "").trim() ||
+    "Test SafeLinkHub : votre passerelle SMS Wassoya fonctionne.";
+
+  const result = await sendOrgSms({ orgId: session.orgId, to, content });
+  if (!result.ok) return { error: result.error };
+  return { success: true, messageId: result.messageId };
 }

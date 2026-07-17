@@ -91,7 +91,7 @@ export default async function AdminBlogPage() {
           </div>
 
           {/* Desktop : tableau */}
-          <div className="mt-4 hidden overflow-hidden border-2 border-line bg-paper md:block">
+          <div className="mt-4 hidden overflow-x-auto border-2 border-line bg-paper md:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line-soft bg-clay text-ink-soft">
                 <tr>

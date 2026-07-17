@@ -3,6 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { bridges, organizations, routers } from "@/lib/db/schema";
 import { hashToken } from "@/lib/mikrotik/install-token";
+import { walledGardenScriptLines } from "@/lib/mikrotik/walled-garden";
+import { getOrgWalledGardenDisabledHosts } from "@/lib/mikrotik/walled-garden-config";
 
 function buildBootstrapScript(opts: {
   appHost: string;
@@ -11,13 +13,12 @@ function buildBootstrapScript(opts: {
   bootstrapToken: string;
   bridgeName: string;
   gatewayIp: string;
+  disabledWalledGardenHosts: string[];
 }) {
   return `# SafeLinkHub hotspot bootstrap - auto-generated, do not edit
 :log info "*** SafeLinkHub Bootstrap Starting ***"
 
-/ip hotspot walled-garden remove [find comment="safelinkhub-walled-garden"]
-/ip hotspot walled-garden add dst-host="${opts.appHost}" action=allow comment="safelinkhub-walled-garden"
-/ip hotspot walled-garden add dst-host="*.${opts.appHost}" action=allow comment="safelinkhub-walled-garden"
+${walledGardenScriptLines(opts.appHost, opts.disabledWalledGardenHosts)}
 
 :log info "Walled garden entries deployed"
 
@@ -94,6 +95,7 @@ export async function GET(
     bootstrapToken: token,
     bridgeName: bridge.name,
     gatewayIp: bridge.gatewayIp,
+    disabledWalledGardenHosts: await getOrgWalledGardenDisabledHosts(org.id),
   });
 
   return new Response(script, {

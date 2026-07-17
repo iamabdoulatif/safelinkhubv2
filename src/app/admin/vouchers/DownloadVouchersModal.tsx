@@ -1,60 +1,74 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
+import QRCode from "qrcode";
+import {
+  TICKET_TEMPLATES,
+  type TicketBrand,
+  type TicketVoucher,
+} from "@/lib/vouchers/ticket-templates";
 
-const templates = [
-  {
-    name: "Voucher Business Personnalisé",
-    description:
-      "Style professionnel avec image de marque du hotspot et coordonnées",
-    tags: ["Nom du Hotspot", "Contacts Support", "55 Pièces", "Professionnel"],
-  },
-  {
-    name: "Modèle Classique",
-    description: "Design en grille propre et professionnel, 80 pièces par page",
-    tags: ["Liste de mots de passe", "60 Pièces", "Noir & Blanc", "Économique"],
-  },
-  {
-    name: "Modèle QR Moderne",
-    description: "Design contemporain avec couleurs vives et QR code",
-    tags: ["QR Code", "40 Pièces", "Couleur", "Design Moderne"],
-  },
-  {
-    name: "Carte Business Premium",
-    description: "Design premium plus grand avec image de marque mise en avant",
-    tags: [],
-  },
-  {
-    name: "QR + Image de marque",
-    description: "Vouchers QR code avec nom du hotspot et coordonnées",
-    tags: [],
-  },
-];
+export type SelectedVoucher = {
+  code: string;
+  packageName: string;
+  price?: string | null;
+  validity?: string | null;
+};
 
 export default function DownloadVouchersModal({
-  selectedUsernames,
+  selectedVouchers,
+  brand,
 }: {
-  selectedUsernames: string[];
+  selectedVouchers: SelectedVoucher[];
+  brand: TicketBrand;
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(0);
-  const count = selectedUsernames.length;
+  const [busy, setBusy] = useState(false);
+  const count = selectedVouchers.length;
+  const template = TICKET_TEMPLATES[selected];
 
-  function handleDownload() {
-    const lines = [
-      `Modèle : ${templates[selected].name}`,
-      "",
-      ...selectedUsernames,
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `safelinkhub-vouchers-${Date.now()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setOpen(false);
+  async function handleDownload() {
+    if (busy || count === 0) return;
+    setBusy(true);
+    try {
+      // Génère un QR (data-URL PNG) par voucher. Le QR encode le code d'accès
+      // pour que le client puisse le scanner à la borne.
+      const tickets: TicketVoucher[] = await Promise.all(
+        selectedVouchers.map(async (v) => ({
+          code: v.code,
+          packageName: v.packageName,
+          price: v.price,
+          validity: v.validity,
+          qr: await QRCode.toDataURL(v.code, {
+            margin: 0,
+            width: 240,
+            errorCorrectionLevel: "M",
+          }),
+        })),
+      );
+
+      const doc = template.buildDocument(tickets, brand);
+      const win = window.open("", "_blank");
+      if (win) {
+        win.document.open();
+        win.document.write(doc);
+        win.document.close();
+      } else {
+        // Popups bloqués : on retombe sur un téléchargement du fichier HTML.
+        const blob = new Blob([doc], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `vouchers-${template.id}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -69,17 +83,17 @@ export default function DownloadVouchersModal({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-xl bg-paper p-6">
+          <div className="max-h-[90dvh] overflow-y-auto w-full max-w-2xl rounded-xl bg-paper p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">
                   Télécharger {count} voucher(s) sélectionné(s)
                 </h2>
                 <p className="mt-1 text-sm text-ink-soft">
-                  {count} voucher(s) prêt(s) à télécharger
+                  Choisissez un modèle, puis imprimez ou enregistrez en PDF.
                 </p>
               </div>
-              <button onClick={() => setOpen(false)}>
+              <button onClick={() => setOpen(false)} aria-label="Fermer">
                 <X className="h-5 w-5 text-ink-soft" />
               </button>
             </div>
@@ -88,40 +102,41 @@ export default function DownloadVouchersModal({
               Choisir un modèle PDF
             </h3>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {templates.map((t, i) => (
-                <button
-                  key={t.name}
-                  onClick={() => setSelected(i)}
-                  className={`rounded-lg border p-3 text-left ${
-                    selected === i
-                      ? "border-line ring-1 ring-ink"
-                      : "border-line-soft hover:border-line-soft"
-                  }`}
-                >
-                  <div className="mb-2 h-16 rounded-md bg-clay" />
-                  <p className="text-sm font-medium text-ink">
-                    {t.name}
-                  </p>
-                  <p className="mt-1 text-xs text-ink-soft">
-                    {t.description}
-                  </p>
-                  {t.tags.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {t.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded bg-clay px-1.5 py-0.5 text-[10px] text-ink-soft"
-                        >
-                          {tag}
-                        </span>
-                      ))}
+              {TICKET_TEMPLATES.map((t, i) => {
+                const Thumb = t.Thumbnail;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelected(i)}
+                    className={`rounded-lg border p-3 text-left transition ${
+                      selected === i
+                        ? "border-ink ring-1 ring-ink"
+                        : "border-line-soft hover:border-line"
+                    }`}
+                  >
+                    <div className="mb-2 flex h-16 items-stretch overflow-hidden rounded-md bg-clay p-1">
+                      <Thumb />
                     </div>
-                  )}
-                </button>
-              ))}
+                    <p className="text-sm font-medium text-ink">{t.name}</p>
+                    <p className="mt-1 text-xs text-ink-soft">{t.description}</p>
+                    {t.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {t.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded bg-clay px-1.5 py-0.5 text-[10px] text-ink-soft"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-6 flex items-center justify-end gap-2">
               <button
                 onClick={() => setOpen(false)}
                 className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
@@ -130,9 +145,11 @@ export default function DownloadVouchersModal({
               </button>
               <button
                 onClick={handleDownload}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F]"
+                disabled={busy}
+                className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
               >
-                Télécharger
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                {busy ? "Préparation…" : "Télécharger"}
               </button>
             </div>
           </div>

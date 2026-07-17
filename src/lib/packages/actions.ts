@@ -1,27 +1,69 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { packages } from "@/lib/db/schema";
+import { packages, routers } from "@/lib/db/schema";
 import { requireAdminSession } from "@/lib/auth/session";
 
 /** Forfaits actifs de l'organisation — utilisé par l'auto-setup routeur
- * pour pré-remplir les profils voucher sans les ressaisir à la main. */
-export async function listActivePackages() {
+ * pour pré-remplir les profils voucher sans les ressaisir à la main.
+ *
+ * Scopé au routeur (mêmes règles strictes que le portail captif) : si un
+ * routerId est fourni et que ce routeur a ≥1 forfait rattaché, on ne renvoie
+ * que ceux-là ; sinon on retombe sur les forfaits legacy globaux (routerId
+ * null). Sans routerId (appelant historique) : tous les forfaits de l'org. */
+export async function listActivePackages(routerId?: string) {
+  const session = await requireAdminSession();
+  if (!session) return [];
+  const db = getDb();
+  const columns = {
+    id: packages.id,
+    name: packages.name,
+    priceCents: packages.priceCents,
+    durationValue: packages.durationValue,
+    durationUnit: packages.durationUnit,
+  } as const;
+  if (!routerId) {
+    return db
+      .select(columns)
+      .from(packages)
+      .where(and(eq(packages.orgId, session.orgId), eq(packages.active, true)));
+  }
+  const scoped = await db
+    .select(columns)
+    .from(packages)
+    .where(
+      and(
+        eq(packages.orgId, session.orgId),
+        eq(packages.active, true),
+        eq(packages.routerId, routerId),
+      ),
+    );
+  if (scoped.length > 0) return scoped;
+  return db
+    .select(columns)
+    .from(packages)
+    .where(
+      and(
+        eq(packages.orgId, session.orgId),
+        eq(packages.active, true),
+        isNull(packages.routerId),
+      ),
+    );
+}
+
+/** Routeurs de l'org (id + nom) — alimente le sélecteur de zone du modal de
+ * création de forfait pour rattacher un forfait à un MikroTik précis. */
+export async function listOrgRouters() {
   const session = await requireAdminSession();
   if (!session) return [];
   const db = getDb();
   return db
-    .select({
-      id: packages.id,
-      name: packages.name,
-      priceCents: packages.priceCents,
-      durationValue: packages.durationValue,
-      durationUnit: packages.durationUnit,
-    })
-    .from(packages)
-    .where(and(eq(packages.orgId, session.orgId), eq(packages.active, true)));
+    .select({ id: routers.id, name: routers.name })
+    .from(routers)
+    .where(eq(routers.orgId, session.orgId))
+    .orderBy(asc(routers.name));
 }
 
 export async function createPackage(_prevState: unknown, formData: FormData) {
@@ -29,6 +71,9 @@ export async function createPackage(_prevState: unknown, formData: FormData) {
   if (!session) return { error: "Not authenticated." };
 
   const name = String(formData.get("name") ?? "").trim();
+  // Zone WiFi : forfait rattaché à un MikroTik précis, ou "" = global (routerId
+  // null, visible sur tous les routeurs sans forfait propre).
+  const routerIdRaw = String(formData.get("routerId") ?? "").trim();
   const durationValue = Number(formData.get("durationValue") ?? 0);
   const durationUnit = String(formData.get("durationUnit") ?? "Hours");
   const uploadMbps = Number(formData.get("uploadMbps") ?? 5);
@@ -54,8 +99,22 @@ export async function createPackage(_prevState: unknown, formData: FormData) {
   }
 
   const db = getDb();
+
+  // Rattachement à un routeur : n'accepte qu'un MikroTik de l'org (sinon global).
+  let routerId: string | null = null;
+  if (routerIdRaw) {
+    const [router] = await db
+      .select({ id: routers.id })
+      .from(routers)
+      .where(and(eq(routers.id, routerIdRaw), eq(routers.orgId, session.orgId)))
+      .limit(1);
+    if (!router) return { error: "Routeur invalide." };
+    routerId = router.id;
+  }
+
   await db.insert(packages).values({
     orgId: session.orgId,
+    routerId,
     name,
     priceCents: price,
     durationValue,

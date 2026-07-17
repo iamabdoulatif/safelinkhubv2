@@ -117,6 +117,70 @@ export async function createRemoteAccessAuthorizationRequest(
   return row;
 }
 
+export type CreatePendingRemoteAccessPaymentInput = {
+  orgId: string;
+  userId: string;
+  requesterEmail: string;
+  requesterName: string;
+  routerId: string;
+  routerName: string | null;
+  service: RemoteAccessService;
+  billingPeriod: BillingPeriod;
+  amountFcfa: number;
+};
+
+/**
+ * Crée une demande d'accès distant en attente de PAIEMENT EN LIGNE GeniusPay
+ * (moyen "geniuspay", sans preuve). Contrairement au flux manuel, aucun admin
+ * ne valide : c'est le webhook payment.success qui l'approuve. Renvoie la ligne
+ * pour qu'on y attache ensuite la référence de la transaction.
+ */
+export async function createPendingRemoteAccessPayment(
+  input: CreatePendingRemoteAccessPaymentInput,
+): Promise<RemoteAccessAuthorizationRow> {
+  const db = getDb();
+  const [row] = await db
+    .insert(remoteAccessAuthorizations)
+    .values({ ...input, paymentMethod: "geniuspay", proofUrl: null, status: "pending" })
+    .returning();
+  return row;
+}
+
+/** Attache la référence GeniusPay à une demande (après création du checkout). */
+export async function attachRemoteAccessPaymentReference(
+  id: string,
+  paymentReference: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(remoteAccessAuthorizations)
+    .set({ paymentReference })
+    .where(eq(remoteAccessAuthorizations.id, id));
+}
+
+/**
+ * Approuve la demande liée à une référence GeniusPay — appelée par le webhook.
+ * Idempotent : ne touche que les lignes encore "pending", donc rejouer le
+ * webhook (ou le retester) ne change rien. Renvoie la ligne approuvée, ou null
+ * si la référence est inconnue / déjà traitée.
+ */
+export async function approveRemoteAccessPaymentByReference(
+  paymentReference: string,
+): Promise<RemoteAccessAuthorizationRow | null> {
+  const db = getDb();
+  const [row] = await db
+    .update(remoteAccessAuthorizations)
+    .set({ status: "approved", decidedAt: new Date(), adminNote: "Payé en ligne (GeniusPay)" })
+    .where(
+      and(
+        eq(remoteAccessAuthorizations.paymentReference, paymentReference),
+        eq(remoteAccessAuthorizations.status, "pending"),
+      ),
+    )
+    .returning();
+  return row ?? null;
+}
+
 export async function listRemoteAccessAuthorizations(): Promise<RemoteAccessAuthorizationRow[]> {
   const db = getDb();
   return db

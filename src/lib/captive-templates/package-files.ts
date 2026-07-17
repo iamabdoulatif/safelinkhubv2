@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import path from "path";
+import { countryFlag } from "../intl/countries";
 
 export type PackageFile = {
   path: string;
@@ -18,6 +19,7 @@ export type PackageVendor = {
 // routeur télécharge les fichiers — les prix affichés sur le portail
 // suivent donc automatiquement la page Forfaits, sans réédition du HTML.
 export type PortalPlan = {
+  id: string; // package id — envoyé à /api/portal/<slug>/initiate au paiement
   name: string; // technical voucher-profile name, e.g. "3j"
   priceCents: number; // stored as whole FCFA units across the app
   durationValue: number;
@@ -30,6 +32,18 @@ export type PackageBrandingVars = {
   supportPhone?: string | null;
   vendors?: PackageVendor[] | null;
   plans?: PortalPlan[] | null;
+  // Câblage du paiement en ligne (portail captif) : URL absolue de SafeLinkHub
+  // (le portail est servi par le routeur → il lui faut l'origine absolue),
+  // slug de l'org et id du routeur cible. Injectés dans {{APP_URL}} /
+  // {{ORG_SLUG}} / {{ROUTER_ID}}.
+  appUrl?: string | null;
+  slug?: string | null;
+  routerId?: string | null;
+  // Pays où opère le routeur (déduit de l'org) : préfixe d'appel injecté dans
+  // le champ téléphone du portail (ex. CI → 🇨🇮 +225). Le client saisit son
+  // numéro local, le serveur reconstitue l'international.
+  dialCode?: string | null; // ex. "+225"
+  countryIso2?: string | null; // ex. "CI"
 };
 
 function escapeHtml(value: string): string {
@@ -99,27 +113,28 @@ function formatFcfa(amount: number): string {
 }
 
 // Card markup matching the plan-card/plan-info/plan-name/plan-details/
-// plan-price/plan-btn CSS-class family of the bundled SafeLinkHub portal
-// and the operator-made ones derived from it — the import-time
-// auto-parameterization (see autoParameterizePortalFiles) swaps a
-// portal's hardcoded `plans-grid` cards for {{PLANS_HTML}}, so the
-// portal's own stylesheet keeps styling these. The `.plan-btn` carries
-// both the human `data-price` ("200 FCFA", used by the portal's own JS
-// toast) and a machine-readable `data-price-cents` for any payment flow
-// that needs the raw amount; `data-plan` holds the display label.
+// plan-price CSS-class family of the bundled SafeLinkHub portal and the
+// operator-made ones derived from it — the import-time auto-parameterization
+// (see autoParameterizePortalFiles) swaps a portal's hardcoded `plans-grid`
+// cards for {{PLANS_HTML}}, so the portal's own stylesheet keeps styling these.
+// Plus de bouton « Acheter » par carte (redondant avec le bouton « Payer »
+// global) : les `data-*` sont portés par la carte elle-même — taper la carte
+// ouvre le modal d'achat (le binder universel matche tout `[data-package-id]`,
+// voir PORTAL_PAY_SCRIPT). La carte porte le `data-price` humain ("200 FCFA",
+// pour le toast JS du portail), un `data-price-cents` machine pour le paiement,
+// et `data-plan` (libellé affiché).
 function renderPlansHtml(plans: PortalPlan[] | null | undefined): string {
   if (!plans || plans.length === 0) return "";
   return plans
     .map((plan) => {
       const label = escapeHtml(planDisplayName(plan));
       const priceLabel = escapeHtml(formatFcfa(plan.priceCents));
-      return `          <div class="plan-card">
+      return `          <div class="plan-card" role="button" tabindex="0" data-plan="${label}" data-price="${priceLabel}" data-price-cents="${plan.priceCents}" data-package-id="${escapeHtml(plan.id)}">
             <div class="plan-info">
               <span class="plan-name">${label}</span>
               <span class="plan-details">Illimité</span>
             </div>
             <span class="plan-price">${priceLabel}</span>
-            <button class="plan-btn" data-plan="${label}" data-price="${priceLabel}" data-price-cents="${plan.priceCents}">Acheter</button>
           </div>`;
     })
     .join("\n");
@@ -171,6 +186,10 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
       );
       const priceLabel = escapeHtml(`${plan.priceCents.toLocaleString("fr-FR")} F`);
       const onclickArg = escapeForOnclickArg(plan.name);
+      const planLabel = escapeHtml(planDisplayName(plan));
+      // data-* pour le binder de paiement universel (voir PORTAL_PAY_SCRIPT).
+      // L'onclick legacy reste comme repli quand le paiement n'est pas configuré
+      // (le binder universel intercepte en capture et neutralise cet onclick).
       return `    <div class="price-card">
       <div class="price-left">
         <div class="price-duration-badge ${badge}">
@@ -182,7 +201,7 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
           <p><i class="fas fa-check-circle"></i> ${details}</p>
         </div>
       </div>
-      <button onclick="openPhoneModal('${onclickArg}')" class="btn-pay">
+      <button onclick="openPhoneModal('${onclickArg}')" class="btn-pay" data-package-id="${escapeHtml(plan.id)}" data-plan="${planLabel}" data-price="${priceLabel}">
         <i class="fas fa-cart-shopping"></i>
         <span class="price-amount">${priceLabel}</span>
       </button>
@@ -194,6 +213,7 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
 function renderPlansJson(plans: PortalPlan[] | null | undefined): string {
   return JSON.stringify(
     (plans ?? []).map((plan) => ({
+      id: plan.id,
       name: plan.name,
       label: planDisplayName(plan),
       price: plan.priceCents,
@@ -207,6 +227,33 @@ function renderPlansJson(plans: PortalPlan[] | null | undefined): string {
 function minPlanPriceLabel(plans: PortalPlan[] | null | undefined): string {
   if (!plans || plans.length === 0) return "";
   return formatFcfa(Math.min(...plans.map((p) => p.priceCents)));
+}
+
+// Logos des moyens de paiement acceptés — servis depuis SafeLinkHub
+// (public/payment/*), autorisé dans le walled-garden du hotspot, donc
+// chargeables sur le portail avant authentification. Injectés dans TOUT
+// portail (y compris importés) via {{PAYMENT_LOGOS_HTML}} et l'injection
+// automatique de login.html — pour que la page affiche « Moyens de paiement
+// acceptés » même quand le portail d'origine n'en avait pas.
+const PAYMENT_METHOD_LOGOS = [
+  { file: "wave.png", label: "Wave" },
+  { file: "orange.png", label: "Orange Money" },
+  { file: "mtn-momo.png", label: "MTN MoMo" },
+  { file: "moov.png", label: "Moov Money" },
+  { file: "visa.svg", label: "Carte bancaire" },
+];
+
+function renderPaymentLogosHtml(appUrl: string | null | undefined): string {
+  const base = (appUrl ?? "").replace(/\/+$/, "");
+  if (!base) return "";
+  const imgs = PAYMENT_METHOD_LOGOS.map(
+    (m) =>
+      `<img src="${base}/payment/${m.file}" alt="${escapeHtml(m.label)}" title="${escapeHtml(m.label)}" style="height:24px;width:auto;object-fit:contain;" loading="lazy">`,
+  ).join("");
+  return `<div class="slh-pay-methods" style="margin:14px auto 0;max-width:420px;text-align:center;">
+  <p style="margin:0 0 8px;font:600 12px system-ui,sans-serif;letter-spacing:.02em;color:#94a3b8;text-transform:uppercase;">Moyens de paiement acceptés</p>
+  <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">${imgs}</div>
+</div>`;
 }
 
 const TEXT_EXTENSIONS = new Set([".html", ".css", ".js", ".svg", ".txt"]);
@@ -327,6 +374,327 @@ export function contentTypeForPath(relativePath: string) {
  * {{SUPPORT_PHONE}} / {{SUPPORT_PHONE_TEL}} / {{SUPPORT_WHATSAPP}} with
  * the template's support contact.
  */
+// Script de paiement UNIVERSEL injecté dans chaque login.html au rendu, quel
+// que soit le portail (bundled OU importé). Un listener délégué en phase
+// CAPTURE intercepte tout bouton `[data-package-id]` AVANT les handlers propres
+// au portail (plan-btn de SafeLinkHub, btn-pay/onclick de Yahya, boutons auto-
+// paramétrés d'un portail importé) → une seule implémentation du flux d'achat.
+// Contraintes (chaîne dans un template literal TS) : aucun backslash, aucun
+// backtick, aucun "${" ; apostrophes en guillemets doubles ; accents littéraux.
+const PORTAL_PAY_SCRIPT = `(function(){
+  var cfg = window.SLH_PORTAL || {};
+  function configured(){ return !!(cfg && cfg.appUrl && cfg.slug && cfg.mac && String(cfg.mac).indexOf("$(") !== 0); }
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function digits(s){ return String(s==null?"":s).replace(/[^0-9]/g,""); }
+  function api(p){ return cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + p; }
+  // Un échec fetch bas-niveau (walled-garden qui bloque safelinkhub.io, coupure
+  // réseau) remonte "Load failed" / "Failed to fetch" : message clair au client.
+  function errMsg(err){ var m = err && err.message ? String(err.message) : ""; if(!m || /load failed|failed to fetch|networkerror|network request failed/i.test(m)) return "Connexion au serveur impossible. Restez sur le portail WiFi et reessayez."; return m; }
+
+  var lastSel = null; // dernier forfait choisi (carte tapée OU bouton Acheter)
+  function planFromBtn(b){ return { packageId: b.getAttribute("data-package-id"), plan: b.getAttribute("data-plan") || "ce forfait", price: b.getAttribute("data-price") || "" }; }
+  // Carte de forfait = plus grand ancêtre ne contenant QU'UN bouton
+  // [data-package-id] (ex. .plan-card). Permet de retrouver le forfait quand le
+  // client tape ailleurs sur la carte (nom, prix) que sur le bouton lui-même.
+  function cardOf(el){
+    var node = el, card = null;
+    while(node && node !== document.body){
+      if(node.querySelectorAll && node.querySelectorAll("[data-package-id]").length === 1){ card = node; }
+      else if(card){ break; }
+      node = node.parentElement;
+    }
+    return card;
+  }
+  // Bouton "Payer" GLOBAL du portail (hors carte, sans data-package-id) : il doit
+  // acheter le forfait sélectionné. On l'identifie par son libellé, et on exclut
+  // notre propre modal (dont le bouton primaire s'appelle aussi "Payer").
+  function isGlobalPayBtn(el){
+    if(!el || !el.closest) return false;
+    if(el.closest("#slh-pay-modal")) return false;
+    var b = el.closest("button, a, input[type=submit], input[type=button], [role=button]");
+    if(!b || b.getAttribute("data-package-id")) return false;
+    var label = (b.textContent || b.value || "").trim().toLowerCase();
+    if(!label || label.length > 24) return false;
+    return label === "payer" || label === "payer maintenant" || label.indexOf("payer ") === 0 || label === "acheter" || label === "valider";
+  }
+  function hint(msg){
+    var h = document.getElementById("slh-hint");
+    if(!h){ h = document.createElement("div"); h.id = "slh-hint"; h.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483000;background:#0f172a;color:#fff;padding:10px 16px;border-radius:10px;font:600 14px system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3);max-width:90%;text-align:center;transition:opacity .3s;"; document.body.appendChild(h); }
+    h.textContent = msg; h.style.opacity = "1";
+    if(h._t) clearTimeout(h._t);
+    h._t = setTimeout(function(){ h.style.opacity = "0"; }, 3200);
+  }
+
+  document.addEventListener("click", function(e){
+    if(!configured()) return; // repli : laisse le portail gérer ses boutons
+    var t = e.target;
+    // 1) Bouton d'un forfait (Acheter par carte) → achat direct.
+    var btn = t && t.closest ? t.closest("[data-package-id]") : null;
+    if(btn){
+      e.preventDefault(); e.stopImmediatePropagation();
+      lastSel = planFromBtn(btn);
+      openModal(lastSel);
+      return;
+    }
+    // 2) Bouton "Payer" global → achète le forfait sélectionné.
+    if(isGlobalPayBtn(t)){
+      e.preventDefault(); e.stopImmediatePropagation();
+      if(lastSel){ openModal(lastSel); return; }
+      var all = document.querySelectorAll("[data-package-id]");
+      if(all.length === 1){ lastSel = planFromBtn(all[0]); openModal(lastSel); return; }
+      hint("Choisissez d'abord un forfait ci-dessus, puis appuyez sur Payer.");
+      return;
+    }
+    // 3) Sélection : le client tape une carte → on la mémorise (sans bloquer la
+    //    mise en surbrillance propre au portail).
+    var card = cardOf(t);
+    if(card){ var pb = card.querySelector("[data-package-id]"); if(pb) lastSel = planFromBtn(pb); }
+  }, true);
+
+  // Accessibilite clavier : une carte de forfait (role=button, tabindex=0) n'est
+  // plus un <button>, donc Entree/Espace ne declenchent pas de clic natif. On le
+  // synthetise pour que le meme flux d'achat s'ouvre. Purement additif.
+  document.addEventListener("keydown", function(e){
+    if(!configured()) return;
+    if(e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+    var el = e.target;
+    var card = el && el.closest ? el.closest("[data-package-id]") : null;
+    if(card){ e.preventDefault(); card.click(); }
+  }, true);
+
+  function openModal(sel){
+    var old = document.getElementById("slh-pay-modal"); if(old) old.remove();
+    var dial = cfg.dialCode || "";
+    var flag = cfg.flag || "";
+    var prefix = (flag ? flag + " " : "") + dial;
+    var o = document.createElement("div");
+    o.id = "slh-pay-modal";
+    o.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;";
+    o.innerHTML = '<div style="background:#fff;color:#0f172a;border-radius:14px;max-width:360px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-family:system-ui,sans-serif;">'
+      + '<h3 style="margin:0 0 4px;font-size:1.1rem;">Acheter ' + esc(sel.plan) + '</h3>'
+      + '<p style="margin:0 0 16px;font-size:.9rem;color:#64748b;">' + esc(sel.price) + ' &middot; Mobile Money / Carte</p>'
+      + '<div data-step="phone">'
+      +   '<label style="display:block;font-size:.8rem;margin-bottom:6px;">Votre num&eacute;ro</label>'
+      +   '<div style="display:flex;gap:6px;margin-bottom:6px;">'
+      +     (prefix ? '<span style="display:flex;align-items:center;padding:0 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;font-size:.95rem;white-space:nowrap;">' + esc(prefix) + '</span>' : '')
+      +     '<input id="slh-phone" type="tel" inputmode="numeric" placeholder="07 00 00 00 00" autocomplete="tel" style="flex:1;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;" />'
+      +   '</div>'
+      +   '<p style="margin:0 0 12px;font-size:.72rem;color:#94a3b8;">Un code de v&eacute;rification vous sera envoy&eacute; par SMS.</p>'
+      + '</div>'
+      + '<div data-step="otp" style="display:none;">'
+      +   '<p style="margin:0 0 8px;font-size:.85rem;">Entrez le code re&ccedil;u par SMS au <b id="slh-otp-to"></b></p>'
+      +   '<input id="slh-otp" type="tel" inputmode="numeric" maxlength="6" placeholder="------" autocomplete="one-time-code" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1.3rem;letter-spacing:.4em;text-align:center;margin-bottom:8px;" />'
+      +   '<button id="slh-otp-resend" type="button" style="background:none;border:0;color:#0ea5e9;font-size:.8rem;padding:0;">Renvoyer le code</button>'
+      + '</div>'
+      + '<div data-step="pay" style="display:none;">'
+      +   '<p style="margin:0 0 12px;font-size:.9rem;">Num&eacute;ro v&eacute;rifi&eacute;. Appuyez sur <b>Payer</b> pour choisir votre moyen de paiement (Wave, Orange, MTN, carte).</p>'
+      + '</div>'
+      + '<div data-step="done" style="display:none;text-align:center;">'
+      +   '<p style="margin:0 0 6px;font-size:.85rem;color:#64748b;">Votre code d&#39;acc&egrave;s WiFi</p>'
+      +   '<div id="slh-code" style="font-size:1.8rem;font-weight:700;letter-spacing:.15em;">------</div>'
+      +   '<p style="margin:8px 0 0;font-size:.72rem;color:#94a3b8;">Envoy&eacute; aussi par SMS. Connexion en cours&hellip;</p>'
+      + '</div>'
+      + '<div id="slh-status" style="display:none;font-size:.85rem;margin:12px 0 0;"></div>'
+      + '<div style="display:flex;gap:8px;margin-top:16px;">'
+      +   '<button id="slh-cancel" type="button" style="flex:1;padding:11px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;font-size:.9rem;">Fermer</button>'
+      +   '<button id="slh-primary" type="button" style="flex:2;padding:11px;border:0;background:#10b981;color:#fff;border-radius:8px;font-size:.9rem;font-weight:600;">Recevoir le code</button>'
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(o);
+
+    var step = "phone";
+    var phoneEl = document.getElementById("slh-phone");
+    var otpEl = document.getElementById("slh-otp");
+    var primary = document.getElementById("slh-primary");
+    var cancel = document.getElementById("slh-cancel");
+    var statusEl = document.getElementById("slh-status");
+    var resend = document.getElementById("slh-otp-resend");
+    var cdTimer = null;
+    setTimeout(function(){ if(phoneEl) phoneEl.focus(); }, 100);
+
+    function setStatus(m,c){ if(!m){ statusEl.style.display="none"; return; } statusEl.style.display="block"; statusEl.style.color = c || "#64748b"; statusEl.textContent = m; }
+    function localPhone(){ return digits(phoneEl.value); }
+    function show(name){
+      step = name;
+      var steps = o.querySelectorAll("[data-step]");
+      for(var i=0;i<steps.length;i++){ steps[i].style.display = steps[i].getAttribute("data-step")===name ? "" : "none"; }
+      if(name==="phone"){ primary.textContent = "Recevoir le code"; }
+      else if(name==="otp"){ primary.textContent = "Vérifier"; setTimeout(function(){ if(otpEl) otpEl.focus(); }, 80); }
+      else if(name==="pay"){ primary.textContent = "Payer"; }
+      else if(name==="done"){ primary.textContent = "Se connecter"; }
+    }
+
+    cancel.addEventListener("click", function(){ if(cdTimer) clearInterval(cdTimer); o.remove(); });
+    o.addEventListener("click", function(ev){ if(ev.target===o){ if(cdTimer) clearInterval(cdTimer); o.remove(); } });
+    primary.addEventListener("click", function(){
+      if(step==="phone") sendOtp(false);
+      else if(step==="otp") verifyOtp();
+      else if(step==="pay") startPayment();
+      else if(step==="done") connect(document.getElementById("slh-code").textContent);
+    });
+    resend.addEventListener("click", function(){ if(!resend.disabled) sendOtp(true); });
+    phoneEl.addEventListener("keydown", function(ev){ if(ev.key==="Enter") primary.click(); });
+    otpEl.addEventListener("keydown", function(ev){ if(ev.key==="Enter") primary.click(); });
+
+    function startCooldown(){
+      if(cdTimer) clearInterval(cdTimer);
+      var left = 45; resend.disabled = true;
+      function tick(){ resend.textContent = left>0 ? ("Renvoyer dans " + left + "s") : "Renvoyer le code"; if(left<=0){ resend.disabled=false; if(cdTimer) clearInterval(cdTimer); } left--; }
+      tick(); cdTimer = setInterval(tick, 1000);
+    }
+
+    function sendOtp(isResend){
+      var lp = localPhone();
+      if(lp.length < 7){ setStatus("Numéro invalide.", "#ef4444"); return; }
+      primary.disabled = true;
+      setStatus(isResend ? "Renvoi du code..." : "Envoi du code...");
+      fetch(api("/otp/send"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: lp }) })
+        .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+        .then(function(res){
+          primary.disabled = false;
+          if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Envoi impossible.");
+          if(res.j.status === "verified"){ setStatus(""); show("pay"); return; }
+          var to = document.getElementById("slh-otp-to"); if(to) to.textContent = res.j.to || "";
+          setStatus(""); show("otp"); startCooldown();
+        })
+        .catch(function(err){ primary.disabled = false; setStatus(errMsg(err), "#ef4444"); });
+    }
+
+    function verifyOtp(){
+      var code = digits(otpEl.value);
+      if(code.length < 4){ setStatus("Entrez le code reçu.", "#ef4444"); return; }
+      primary.disabled = true; setStatus("Vérification...");
+      fetch(api("/otp/verify"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: localPhone(), code: code }) })
+        .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+        .then(function(res){
+          primary.disabled = false;
+          if(!res.ok || !res.j.verified) throw new Error(res.j && res.j.error ? res.j.error : "Code incorrect.");
+          if(cdTimer) clearInterval(cdTimer);
+          setStatus(""); show("pay");
+        })
+        .catch(function(err){ primary.disabled = false; setStatus(errMsg(err), "#ef4444"); });
+    }
+
+    function startPayment(){
+      primary.disabled = true; primary.textContent = "Traitement..."; setStatus("Création du paiement...");
+      fetch(api("/initiate"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ packageId: sel.packageId, phone: localPhone(), mac: cfg.mac, routerId: cfg.routerId || "" }) })
+        .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+        .then(function(res){
+          if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Echec du paiement.");
+          // Le portail captif iOS/Android ne peut PAS ouvrir de nouvel onglet :
+          // on redirige la MÊME fenêtre vers la page de paiement hébergée
+          // (safelinkhub.io, fiable) où le client choisit son moyen de paiement.
+          setStatus("Redirection vers le paiement...", "#0ea5e9");
+          window.location.href = res.j.payUrl || res.j.checkoutUrl;
+        })
+        .catch(function(err){ primary.disabled = false; primary.textContent = "Payer"; setStatus(errMsg(err), "#ef4444"); });
+    }
+
+    function poll(orderId){
+      var tries = 0, max = 90;
+      var timer = setInterval(function(){
+        tries++;
+        if(tries > max){ clearInterval(timer); setStatus("Délai dépassé. Si vous avez payé, réessayez.", "#ef4444"); primary.disabled=false; primary.textContent="Payer"; return; }
+        fetch(api("/status?orderId=" + encodeURIComponent(orderId)), { cache:"no-store" })
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if(d.status==="fulfilled" && d.code){ clearInterval(timer); onCode(d.code); }
+            else if(d.status==="failed"){ clearInterval(timer); setStatus(d.error || "Paiement échoué.", "#ef4444"); primary.disabled=false; primary.textContent="Payer"; }
+          }).catch(function(){});
+      }, 4000);
+    }
+
+    function onCode(code){
+      var cEl = document.getElementById("slh-code"); if(cEl) cEl.textContent = code;
+      show("done");
+      primary.disabled = false;
+      cancel.style.display = "none";
+      setStatus("Paiement confirmé !", "#10b981");
+      try { localStorage.setItem("safelinkhub_last_ticket", code); } catch(e){}
+      setTimeout(function(){ connect(code); }, 1200);
+    }
+
+    function connect(code){
+      try { localStorage.setItem("safelinkhub_last_ticket", code); } catch(e){}
+      var u = document.querySelector('[name="username"]');
+      var p = document.querySelector('[name="password"]');
+      var form = document.forms["login"] || (u && u.form) || document.querySelector('form[action*="login"]') || document.querySelector("form");
+      if(u) u.value = code;
+      if(p) p.value = code;
+      if(!form) return;
+      if(form.requestSubmit) form.requestSubmit(); else form.submit();
+    }
+
+    show("phone");
+  }
+
+  // ===== Overlay paiement pour portail SANS bouton de forfait =====
+  // Portail ETRANGER importe (login.html d un tiers) : ses boutons n ont pas de
+  // data-package-id, il n y a donc rien a intercepter. On monte alors un bouton
+  // flottant "Payer mon forfait" + un selecteur des forfaits de l org
+  // (window.SLH_PLANS). N apparait PAS si le portail a deja des boutons
+  // [data-package-id] (SafeLinkHub ou portail deja equipe) : il gere seul.
+  function slhPlans(){ return (window.SLH_PLANS && window.SLH_PLANS.length) ? window.SLH_PLANS : []; }
+  function hasNativeButtons(){ return document.querySelectorAll("[data-package-id]").length > 0; }
+  function openPicker(){
+    var old = document.getElementById("slh-pick-modal"); if(old) old.remove();
+    var list = slhPlans();
+    if(!list.length){ hint("Aucun forfait disponible pour le moment."); return; }
+    var items = "";
+    for(var i=0;i<list.length;i++){
+      var p = list[i];
+      items += '<button type="button" data-slh-pick="' + i + '" style="display:flex;justify-content:space-between;align-items:center;width:100%;gap:10px;padding:13px 14px;margin:0 0 8px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f172a;font:600 15px system-ui,sans-serif;cursor:pointer;text-align:left;"><span>' + esc(p.label) + '</span><span style="color:#dc2626;font-weight:700;white-space:nowrap;">' + esc(p.priceLabel) + '</span></button>';
+    }
+    var o = document.createElement("div");
+    o.id = "slh-pick-modal";
+    o.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;";
+    o.innerHTML = '<div style="background:#fff;color:#0f172a;border-radius:14px;max-width:360px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-family:system-ui,sans-serif;max-height:85vh;overflow:auto;"><h3 style="margin:0 0 12px;font-size:1.1rem;">Choisir un forfait</h3>' + items + '<button type="button" data-slh-pick-close="1" style="width:100%;margin-top:4px;padding:11px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#0f172a;font:600 14px system-ui,sans-serif;cursor:pointer;">Fermer</button></div>';
+    o.addEventListener("click", function(e){
+      var t = e.target;
+      if(t && t.closest && t.closest("[data-slh-pick-close]")){ o.remove(); return; }
+      var pick = t && t.closest ? t.closest("[data-slh-pick]") : null;
+      if(pick){
+        var idx = parseInt(pick.getAttribute("data-slh-pick"), 10);
+        var pp = list[idx];
+        if(pp){ o.remove(); lastSel = { packageId: pp.id, plan: pp.label, price: pp.priceLabel }; openModal(lastSel); }
+        return;
+      }
+      if(t === o){ o.remove(); }
+    });
+    document.body.appendChild(o);
+  }
+  function mountFab(){
+    if(hasNativeButtons()) return;   // le portail a ses propres boutons de forfait
+    if(!slhPlans().length) return;   // aucun forfait configure cote org
+    if(document.getElementById("slh-fab")) return;
+    var b = document.createElement("button");
+    b.id = "slh-fab"; b.type = "button"; b.textContent = "Payer mon forfait";
+    b.style.cssText = "position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147482900;padding:15px 26px;border:0;border-radius:999px;background:#dc2626;color:#fff;font:700 16px system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.32);cursor:pointer;";
+    b.addEventListener("click", function(){ openPicker(); });
+    document.body.appendChild(b);
+  }
+  function slhReady(fn){ if(document.readyState !== "loading"){ fn(); } else { document.addEventListener("DOMContentLoaded", fn); } }
+  slhReady(function(){ if(configured()) mountFab(); });
+})();`;
+
+/** Bloc <script> injecté en fin de login.html : config + flux de paiement. */
+function portalPayInjection(vars: PackageBrandingVars): string {
+  const iso2 = (vars.countryIso2 ?? "").toUpperCase();
+  const config = JSON.stringify({
+    appUrl: vars.appUrl ?? "",
+    slug: vars.slug ?? "",
+    routerId: vars.routerId ?? "",
+    mac: "$(mac)", // remplacé par le routeur (variable hotspot) au service de la page
+    dialCode: vars.dialCode ?? "",
+    iso2,
+    flag: iso2 ? countryFlag(iso2) : "",
+  });
+  // SLH_PLANS : forfaits de l'org injectés en JSON pour l'overlay de paiement
+  // (bouton flottant + sélecteur) des portails ÉTRANGERS sans bouton de forfait.
+  const plansJson = renderPlansJson(vars.plans);
+  return `\n<script>window.SLH_PORTAL=${config};window.SLH_PLANS=${plansJson};</script>\n<script>${PORTAL_PAY_SCRIPT}</script>\n`;
+}
+
 export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars): Buffer {
   if (file.encoding === "base64") return Buffer.from(file.content, "base64");
   const supportPhoneDigits = (vars.supportPhone ?? "").replace(/[^0-9]/g, "");
@@ -340,7 +708,34 @@ export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars):
     .replaceAll("{{MIN_PLAN_PRICE}}", minPlanPriceLabel(vars.plans))
     .replaceAll("{{SUPPORT_PHONE}}", vars.supportPhone ?? "")
     .replaceAll("{{SUPPORT_PHONE_TEL}}", supportPhoneDigits ? `tel:+${supportPhoneDigits}` : "#")
-    .replaceAll("{{SUPPORT_WHATSAPP}}", vars.supportWhatsapp ?? "");
+    .replaceAll("{{SUPPORT_WHATSAPP}}", vars.supportWhatsapp ?? "")
+    .replaceAll("{{APP_URL}}", vars.appUrl ?? "")
+    .replaceAll("{{ORG_SLUG}}", vars.slug ?? "")
+    .replaceAll("{{ROUTER_ID}}", vars.routerId ?? "")
+    // Placeholder explicite pour les portails qui veulent placer eux-mêmes la
+    // bande des logos de paiement. Les portails qui n'en ont pas la reçoivent
+    // via l'injection auto de login.html ci-dessous.
+    .replaceAll("{{PAYMENT_LOGOS_HTML}}", renderPaymentLogosHtml(vars.appUrl));
+
+  // Injecte le flux de paiement universel dans la page de login de N'IMPORTE
+  // quel portail. Conditionné à appUrl (contexte réel de service, pas les
+  // tests) et à la page login pour ne pas alourdir les autres fichiers.
+  const isLoginPage = /(^|\/)login\.html$/i.test(file.path);
+  if (isLoginPage && vars.appUrl) {
+    // Bande « Moyens de paiement acceptés » injectée seulement si le portail
+    // n'en affiche pas déjà une (le portail groupé SafeLinkHub a sa propre
+    // section .payment-logos ; les portails importés n'en ont pas) et si
+    // l'auteur n'a pas déjà posé le placeholder {{PAYMENT_LOGOS_HTML}}.
+    const alreadyHasPaymentLogos =
+      /payment-logos|slh-pay-methods|moyens de paiement/i.test(rendered);
+    const paymentLogosBlock = alreadyHasPaymentLogos ? "" : renderPaymentLogosHtml(vars.appUrl);
+    const injection = paymentLogosBlock + portalPayInjection(vars);
+    const out = /<\/body>/i.test(rendered)
+      ? rendered.replace(/<\/body>/i, `${injection}</body>`)
+      : rendered + injection;
+    return Buffer.from(out, "utf8");
+  }
+
   return Buffer.from(rendered, "utf8");
 }
 

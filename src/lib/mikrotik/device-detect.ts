@@ -101,6 +101,13 @@ export type DetectedRouter = {
    * device-catalog.ts. Only takes effect when hasUsbStorage is false (a
    * plugged-in USB stick still wins). */
   hasLargeOnboardStorage: boolean;
+  /** True sur les modèles enterprise à eMMC interne (CCR2004/2116/2216,
+   * CRS354…) — catalogue + confirmation live d'un disque interne non-tmpfs.
+   * Ces boards utilisent "disk1" et JAMAIS tmpfs (scénario 3). */
+  hasEmmcStorage: boolean;
+  /** True si un slot RAM "tmp" (tmpfs) existe déjà sur le routeur — utilisé
+   * pour éviter de recréer le slot et pour informer l'UI (scénario 2). */
+  hasTmpfsSlot: boolean;
 };
 
 /**
@@ -150,12 +157,24 @@ export async function detectRouterModel(routerId: string) {
     const architecture = parseArchitecture(architectureName);
     const model = findMikrotikModel(boardName) ?? findMikrotikModel(board?.model);
 
+    // Signaux stockage live (/disk/print) : une clé USB apparaît en slot "usb1"
+    // (parfois AVANT que /system/resource/usb/print ne la reporte, d'où le
+    // cross-check) ; un disque interne persistant est un slot "disk…" NON tmpfs ;
+    // le slot RAM est "tmp".
+    const usb1DiskLive = diskRows.some((d) => d.slot === "usb1");
+    const internalNonTmpfsDisk = diskRows.some(
+      (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot) && d.type !== "tmpfs",
+    );
+    const hasTmpfsSlot = diskRows.some((d) => d.slot === "tmp");
+
     const detected: DetectedRouter = {
       boardName,
       architectureName,
       architecture,
       model,
-      hasUsbStorage: usbRows.length > 0,
+      // Cross-check : slot usb1 dans /disk/print compte comme USB même si
+      // /system/resource/usb/print est vide (certains builds ne le peuplent pas).
+      hasUsbStorage: usbRows.length > 0 || usb1DiskLive,
       // wifi2 existing live is the primary signal, but if the catalog
       // already confirms a dual-band board, trust that too — a flaky/empty
       // /interface/wifi/print read should never under-report capability.
@@ -175,8 +194,14 @@ export async function detectRouterModel(routerId: string) {
       // so any board reporting its own internal disk slot ("disk1", "disk2",
       // …) is recognized even if it isn't listed in device-catalog.ts yet.
       hasLargeOnboardStorage:
-        diskRows.some((d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot)) ||
-        (model?.hasLargeOnboardStorage ?? false),
+        internalNonTmpfsDisk ||
+        (model?.hasLargeOnboardStorage ?? false) ||
+        (model?.hasEmmcStorage ?? false),
+      // eMMC = distingué du NAND par le catalogue (les deux exposent "disk1" en
+      // live, indiscernables via /disk/print). Renforcé par la présence d'un
+      // disque interne non-tmpfs. Sert au badge « eMMC » + garantit never-tmpfs.
+      hasEmmcStorage: (model?.hasEmmcStorage ?? false) || (internalNonTmpfsDisk && !!model?.hasEmmcStorage),
+      hasTmpfsSlot,
       containerFeatureEnabled: deviceModeRow ? parseRosBoolean(deviceModeRow.container) : null,
     };
 

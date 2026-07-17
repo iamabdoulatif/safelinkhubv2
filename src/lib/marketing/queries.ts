@@ -35,6 +35,8 @@ const EMPTY: MarketingSettings = {
 /** Lecture directe (non cachée) — utilisée par la page d'admin qui doit voir
  * la valeur fraîche juste après sauvegarde. Renvoie des scalaires purs. */
 export async function readMarketingSettings(): Promise<MarketingSettings> {
+  if (!process.env.DATABASE_URL) return EMPTY;
+
   const db = getDb();
   const [row] = await db
     .select({

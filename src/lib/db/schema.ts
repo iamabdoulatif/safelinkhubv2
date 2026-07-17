@@ -7,6 +7,8 @@ import {
   timestamp,
   numeric,
   jsonb,
+  uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 
 export const organizations = pgTable("organizations", {
@@ -32,6 +34,16 @@ export const organizations = pgTable("organizations", {
   // the default trial would still be active.
   vpnQuotaMode: text("vpn_quota_mode").notNull().default("default"),
   vpnQuotaExpiresAt: timestamp("vpn_quota_expires_at"),
+  // Walled-garden : hôtes de paiement que l'admin a EXPLICITEMENT décochés dans
+  // Paramètres → Walled-garden. Tableau JSON de dst-host (motifs du catalogue,
+  // ex. "wave.com", "*.paystack.com"). Vide = tous installés (comportement
+  // historique, rétro-compatible). L'app SafeLinkHub n'y figure jamais : elle
+  // est toujours déployée. Lu par les 3 chemins d'install (script bootstrap,
+  // sync routeur, assignation de portail) via getOrgWalledGardenDisabledHosts.
+  walledGardenDisabledHosts: jsonb("walled_garden_disabled_hosts")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
 });
 
 export const users = pgTable("users", {
@@ -56,6 +68,18 @@ export const users = pgTable("users", {
   // the country/dial-code list). Nullable only because accounts created
   // before this field existed have no value — the register form requires
   // it for new sign-ups.
+  // Email verification / account activation. Existing accounts predate this
+  // feature and are backfilled to true by the migration so they're never
+  // locked out; new sign-ups start false and must click the activation link
+  // (lib/auth/tokens.ts + email.ts) before login is granted. The token is
+  // stored SHA-256-hashed, same pattern as the router install tokens above.
+  emailVerified: boolean("email_verified").notNull().default(false),
+  activationTokenHash: text("activation_token_hash"),
+  activationTokenExpiresAt: timestamp("activation_token_expires_at"),
+  // "Mot de passe oublié" flow — a short-lived (1 h) single-use token, again
+  // stored only as its SHA-256 hash. Cleared the moment it's redeemed.
+  passwordResetTokenHash: text("password_reset_token_hash"),
+  passwordResetTokenExpiresAt: timestamp("password_reset_token_expires_at"),
   country: text("country"),
   phoneDialCode: text("phone_dial_code"),
   phone: text("phone"),
@@ -76,6 +100,17 @@ export const loginAttempts = pgTable("login_attempts", {
   success: boolean("success").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const publicSubmissionAttempts = pgTable(
+  "public_submission_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    bucket: text("bucket").notNull(),
+    ipAddress: text("ip_address").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("public_submission_attempts_bucket_ip_created_at_idx").on(t.bucket, t.ipAddress, t.createdAt)],
+);
 
 export const routers = pgTable("routers", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -119,6 +154,16 @@ export const routers = pgTable("routers", {
   // on an already-billed router never charges again. See
   // lib/billing/auto-setup-pricing.ts.
   autoSetupBilled: boolean("auto_setup_billed").notNull().default(false),
+  // Dernier portail captif installé sur CE routeur (posé par
+  // installTemplateOnRouter). Le lien n'existait que sur les bridges suivis —
+  // or la plupart des routeurs n'en ont aucun, si bien que le portail installé
+  // n'était mémorisé nulle part. Sans lui, une sauvegarde ne sait pas quel
+  // portail réinstaller sur un rechange, et celui-ci sert la page RouterOS par
+  // défaut. Les fichiers du portail vivant sur la flash (donc hors sauvegarde),
+  // cette colonne est le SEUL moyen de le reposer automatiquement.
+  captiveTemplateId: uuid("captive_template_id").references(() => captiveTemplates.id, {
+    onDelete: "set null",
+  }),
   // Operator-chosen names for the RouterOS bridge/hotspot server the
   // auto-setup creates — default to HOTSPOT_BRIDGE_NAME/"hotspot1" (see
   // constants.ts) when null, but letting them be renamed means other code
@@ -127,6 +172,14 @@ export const routers = pgTable("routers", {
   // assuming the fixed default name.
   hotspotBridgeName: text("hotspot_bridge_name"),
   hotspotServerName: text("hotspot_server_name"),
+  // Branding du portail captif SCOPÉ AU ROUTEUR, saisi dans l'auto-setup :
+  // contact support/paiement + « espaces vendeurs » (vendeurs agréés). Rendu
+  // par le portail de CE routeur avec priorité sur le branding du modèle
+  // (captiveTemplates.packageSupport*/packageVendors), qui sert de repli.
+  // Voir captive-template route + package-files.ts (VENDORS_HTML/SUPPORT).
+  portalSupportWhatsapp: text("portal_support_whatsapp"),
+  portalSupportPhone: text("portal_support_phone"),
+  portalVendors: jsonb("portal_vendors"), // Array of { name, location, phone }
   // Snapshot of the HotspotStackOptions a successful provisionHotspotStack
   // run was last called with (container-setup.ts) — every field the
   // wizard's steps collect (hotspotAddress, hotspotName, dnsName, ssid,
@@ -136,6 +189,46 @@ export const routers = pgTable("routers", {
   // whatever's missing on the router, without the admin re-typing every
   // field from the original wizard pass.
   lastAutoSetupConfig: jsonb("last_auto_setup_config"),
+});
+
+// Verrou anti-abus de l'auto-setup : le numéro de série RouterOS d'un MikroTik
+// est enregistré au 1er auto-setup réussi. Un MikroTik (par SN) ne peut être
+// auto-configuré qu'UNE fois — un second essai sur le même SN depuis un autre
+// routeur/org est refusé, sauf réinitialisation par un superadmin (releasedAt).
+// Voir lib/mikrotik/router-serial-lock.ts.
+export const routerSerialLocks = pgTable("router_serial_locks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  serialNumber: text("serial_number").notNull().unique(),
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "set null" }),
+  orgId: uuid("org_id").references(() => organizations.id, { onDelete: "set null" }),
+  lockedAt: timestamp("locked_at").defaultNow().notNull(),
+  // Non-null = déverrouillé par un superadmin (routeur revendu, reset légitime) ;
+  // le SN redevient alors ré-utilisable pour un nouvel auto-setup.
+  releasedAt: timestamp("released_at"),
+  releasedBy: uuid("released_by").references(() => users.id, { onDelete: "set null" }),
+});
+
+// Demandes de déblocage (support) d'un verrou de série : quand un MikroTik est
+// rattaché à un autre compte, l'utilisateur bloqué demande sa réinitialisation ;
+// le superadmin valide (→ libère le verrou, releasedAt sur router_serial_locks)
+// ou refuse. Voir lib/mikrotik/serial-unlock-*.ts.
+export const routerSerialUnlockRequests = pgTable("router_serial_unlock_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  requesterEmail: text("requester_email").notNull(),
+  requesterName: text("requester_name").notNull(),
+  serialNumber: text("serial_number").notNull(),
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "set null" }),
+  routerName: text("router_name"),
+  note: text("note"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  decidedAt: timestamp("decided_at"),
+  decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const captiveTemplates = pgTable("captive_templates", {
@@ -183,6 +276,10 @@ export const paymentGateways = pgTable("payment_gateways", {
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
   provider: text("provider").notNull(), // "paystack" | "genius_pay" | "pawapay" (see PROVIDERS in lib/payment-gateways/providers.ts)
+  // For genius_pay these two columns hold its credential pair (pay.genius.ci/doc):
+  // merchantId = X-API-Key (publishable pk_live_…, non-secret, stored plaintext),
+  // apiKeyEncrypted = X-API-Secret (sk_live_…, must stay server-side, encrypted).
+  // Genius Pay has no standalone "merchant id". Both go out as request headers.
   merchantId: text("merchant_id"),
   apiKeyEncrypted: text("api_key_encrypted"),
   enabled: boolean("enabled").notNull().default(false),
@@ -195,40 +292,52 @@ export const smsGateways = pgTable("sms_gateways", {
   orgId: uuid("org_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(), // "africastalking" | "twilio" (see PROVIDERS in lib/sms/providers.ts)
-  senderId: text("sender_id"), // AT "username"/short code, or Twilio "from" number
+  provider: text("provider").notNull(), // "wassoya" (see PROVIDERS in lib/sms/providers.ts)
+  senderId: text("sender_id"), // Wassoya "from" (nom d'expéditeur, 11 car. max)
   apiKeyEncrypted: text("api_key_encrypted"),
   enabled: boolean("enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const bridges = pgTable("bridges", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  routerId: uuid("router_id")
-    .notNull()
-    .references(() => routers.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  gatewayIp: text("gateway_ip").notNull(),
-  subnetBits: integer("subnet_bits").notNull().default(24),
-  ports: text("ports").array().notNull().default([]),
-  hotspotEnabled: boolean("hotspot_enabled").notNull().default(true),
-  preventSharing: boolean("prevent_sharing").notNull().default(true),
-  pppoeEnabled: boolean("pppoe_enabled").notNull().default(false),
-  bootstrapStatus: text("bootstrap_status").notNull().default("none"),
-  bootstrapTokenHash: text("bootstrap_token_hash"),
-  bootstrapTokenExpiresAt: timestamp("bootstrap_token_expires_at"),
-  captiveTemplateId: uuid("captive_template_id").references(() => captiveTemplates.id, {
-    onDelete: "set null",
-  }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const bridges = pgTable(
+  "bridges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    gatewayIp: text("gateway_ip").notNull(),
+    subnetBits: integer("subnet_bits").notNull().default(24),
+    ports: text("ports").array().notNull().default([]),
+    hotspotEnabled: boolean("hotspot_enabled").notNull().default(true),
+    preventSharing: boolean("prevent_sharing").notNull().default(true),
+    pppoeEnabled: boolean("pppoe_enabled").notNull().default(false),
+    bootstrapStatus: text("bootstrap_status").notNull().default("none"),
+    bootstrapTokenHash: text("bootstrap_token_hash"),
+    bootstrapTokenExpiresAt: timestamp("bootstrap_token_expires_at"),
+    captiveTemplateId: uuid("captive_template_id").references(() => captiveTemplates.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("bridges_router_name_idx").on(t.routerId, t.name)],
+);
 
 export const packages = pgTable("packages", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
+  // MikroTik sur lequel ce forfait (= profil hotspot RouterOS) est installé.
+  // Chaque routeur possède ses propres lignes de forfait : l'auto-setup gère
+  // (upsert + purge) uniquement celles de SON routeur, et le portail captif
+  // n'affiche que les forfaits de ce routeur. null = forfait « legacy » créé
+  // avant ce rattachement (org mono-routeur) — le portail retombe dessus tant
+  // que le routeur n'a aucun forfait rattaché, et un auto-setup l'« adopte »
+  // (set routerId). Voir container-setup.ts (sync) + captive-template route.
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   priceCents: integer("price_cents").notNull(),
   durationValue: integer("duration_value").notNull(),
@@ -250,6 +359,12 @@ export const vouchers = pgTable("vouchers", {
   packageId: uuid("package_id").references(() => packages.id, {
     onDelete: "set null",
   }),
+  // Routeur MikroTik sur lequel l'utilisateur hotspot a RÉELLEMENT été créé
+  // (via WireGuard + /ip hotspot user add). null = anciens vouchers "fantômes"
+  // créés avant le provisioning réel, ou voucher dont le routeur a été supprimé.
+  routerId: uuid("router_id").references(() => routers.id, { onDelete: "set null" }),
+  // Profil hotspot RouterOS utilisé (01-JOUR, 01-MOIS…) — fige la durée réelle.
+  profileName: text("profile_name"),
   // Set when a sale is made through the Agent / POS flow — lets each
   // agent's cash sales and commission be tracked separately from batch-
   // generated vouchers (which have no agent).
@@ -261,6 +376,88 @@ export const vouchers = pgTable("vouchers", {
   note: text("note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Un voucher peut vivre sur PLUSIEURS MikroTik (zones WiFi) à la fois : le
+// même code est créé comme utilisateur hotspot sur chaque routeur choisi. La
+// colonne vouchers.routerId reste le routeur « principal » (compat), et cette
+// table de liaison porte l'ensemble réel des routeurs — indispensable pour la
+// suppression (retirer le user sur CHAQUE routeur) et l'affichage multi-zone.
+export const voucherRouters = pgTable(
+  "voucher_routers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    voucherId: uuid("voucher_id")
+      .notNull()
+      .references(() => vouchers.id, { onDelete: "cascade" }),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    profileName: text("profile_name"),
+    status: text("status").notNull().default("PROVISIONED"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("voucher_routers_voucher_router_idx").on(t.voucherId, t.routerId)],
+);
+
+// Commande passée depuis le PORTAIL CAPTIF public (client final) : achat d'un
+// forfait WiFi payé via la passerelle GeniusPay PROPRE à l'org. À la réussite
+// du paiement, la commande est « honorée » : un vrai user hotspot lié au MAC du
+// client est créé sur le routeur (voir lib/portal/fulfill.ts) et le code lui est
+// envoyé par SMS. Le mac-cookie du hotspot auto-reconnecte ensuite ce MAC.
+export const portalOrders = pgTable("portal_orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  routerId: uuid("router_id")
+    .notNull()
+    .references(() => routers.id, { onDelete: "cascade" }),
+  packageId: uuid("package_id").references(() => packages.id, { onDelete: "set null" }),
+  // Numéro du client (format international, sans +) — destinataire du code SMS.
+  phone: text("phone").notNull(),
+  // MAC du client capté par le portail ($(mac)), normalisé AA:BB:CC:DD:EE:FF.
+  mac: text("mac").notNull(),
+  // Instantanés au moment de la commande (le forfait peut changer après).
+  profileName: text("profile_name"), // profil hotspot RouterOS figé (durée)
+  priceCents: integer("price_cents"),
+  // pending → payment_initiating (claim checkout) → pending + reference →
+  // paid (webhook/poll) → fulfilled (user créé + SMS envoyé) | failed.
+  status: text("status").notNull().default("pending"),
+  // Horodatage du claim paid→fulfilling : un claim périmé (crash pendant
+  // l'honneur) redevient récupérable (voir fulfill.ts, STALE_CLAIM_MS).
+  claimedAt: timestamp("claimed_at"),
+  paymentReference: text("payment_reference"), // référence GeniusPay
+  // Voucher créé à l'honneur de la commande (= le user hotspot, source de vérité).
+  voucherId: uuid("voucher_id").references(() => vouchers.id, { onDelete: "set null" }),
+  failureReason: text("failure_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  fulfilledAt: timestamp("fulfilled_at"),
+});
+
+// Vérification OTP (SMS) du numéro du client au portail captif, AVANT paiement.
+// Le code n'est jamais stocké en clair (codeHash = sha256(orgId:phone:code)) ;
+// `verifiedAt` mémorise la vérification ~30 min (voir src/lib/portal/otp.ts) →
+// pas de nouvel OTP à chaque achat. Une seule ligne par (org, numéro).
+export const portalOtps = pgTable(
+  "portal_otps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    phone: text("phone").notNull(), // international, chiffres uniquement
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    verifiedAt: timestamp("verified_at"),
+    expiresAt: timestamp("expires_at").notNull(),
+    lastSentAt: timestamp("last_sent_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("portal_otps_org_phone_idx").on(t.orgId, t.phone)],
+);
 
 export const personalVpnAccess = pgTable("personal_vpn_access", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -397,6 +594,20 @@ export const contactMessages = pgTable("contact_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Témoignages soumis par les visiteurs du site (landing publique). Modérés :
+// status "pending" à la soumission, seuls les "approved" s'affichent sur la
+// landing. Pas d'orgId — ce sont des avis publics au niveau plateforme.
+export const testimonials = pgTable("testimonials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  company: text("company"),
+  role: text("role"),
+  quote: text("quote").notNull(),
+  rating: integer("rating"), // 1..5, optionnel
+  status: text("status").notNull().default("pending"), // pending | approved | hidden
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const supportTickets = pgTable("support_tickets", {
   id: uuid("id").primaryKey().defaultRandom(),
   orgId: uuid("org_id")
@@ -432,8 +643,11 @@ export const autoSetupAuthorizations = pgTable("auto_setup_authorizations", {
   supportsContainers: boolean("supports_containers").notNull(),
   // Montant déclaré par l'utilisateur, en FCFA (XOF n'a pas de sous-unité).
   amountFcfa: integer("amount_fcfa").notNull(),
-  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn
+  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn | geniuspay
   proofUrl: text("proof_url"), // capture de paiement (Vercel Blob)
+  // Référence GeniusPay (checkout plateforme) — rapprochement idempotent du
+  // webhook payment.success. null pour les demandes manuelles.
+  paymentReference: text("payment_reference"),
   status: text("status").notNull().default("pending"), // pending | approved | rejected
   // Posé quand un auto-setup réussi consomme une autorisation approuvée.
   consumedAt: timestamp("consumed_at"),
@@ -464,9 +678,43 @@ export const remoteAccessAuthorizations = pgTable("remote_access_authorizations"
   // Durée demandée : monthly | quarterly | semiannual | yearly.
   billingPeriod: text("billing_period").notNull(),
   amountFcfa: integer("amount_fcfa").notNull(),
-  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn
+  paymentMethod: text("payment_method").notNull(), // wave | orange | moov | mtn | geniuspay
   proofUrl: text("proof_url"),
+  // Référence de la transaction GeniusPay (checkout plateforme) — sert au
+  // rapprochement idempotent du webhook payment.success. null pour les
+  // demandes manuelles (WhatsApp + preuve).
+  paymentReference: text("payment_reference"),
   status: text("status").notNull().default("pending"), // pending | approved | rejected
+  consumedAt: timestamp("consumed_at"),
+  decidedAt: timestamp("decided_at"),
+  decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// TEMPORAIRE — porte d'autorisation manuelle générique pour les
+// fonctionnalités encore gratuites (pas de paiement intégré) : lier un
+// MikroTik ("router_link") et créer un tunnel d'accès distant WireGuard/
+// OpenVPN ("remote_access"). L'utilisateur envoie une demande (sans preuve de
+// paiement), le superadmin est notifié (email + in-app + WhatsApp) et
+// approuve. Une demande "approved" non "consumedAt" débloque UNE utilisation
+// de la fonctionnalité ciblée. Distinct des tables autoSetup/remoteAccess
+// (celles-ci portent un montant/preuve de paiement).
+// TODO: Remplacer par système de paiement intégré.
+export const featureAccessAuthorizations = pgTable("feature_access_authorizations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  requesterEmail: text("requester_email").notNull(),
+  requesterName: text("requester_name").notNull(),
+  // "router_link" (lier un MikroTik) | "remote_access" (tunnel WireGuard/OpenVPN)
+  feature: text("feature").notNull(),
+  // Message libre facultatif joint par le demandeur.
+  note: text("note"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  // Posé quand l'utilisateur consomme l'autorisation (1 demande = 1 usage).
   consumedAt: timestamp("consumed_at"),
   decidedAt: timestamp("decided_at"),
   decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
@@ -498,49 +746,97 @@ export const marketingSettings = pgTable("marketing_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Catégories de la boutique — gérées par le superadmin (ajout / renommage /
-// suppression). Référencées par leur libellé texte depuis products.category
-// (pas de clé étrangère : supprimer une catégorie ne casse pas les produits,
-// on remet simplement leur category à null — voir deleteCategory dans
-// lib/shop/actions.ts). `position` ordonne la sidebar du catalogue.
-export const productCategories = pgTable("product_categories", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull().unique(),
-  position: integer("position").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+// Boutique (products / product_categories) : la fonctionnalité e-commerce a été
+// extraite dans un PROJET SÉPARÉ (2026-07). Les tables restent en base (données
+// préservées, non droppées) mais ne font plus partie du schéma de l'app SaaS.
+// L'onglet "Boutique" du site public affiche une page "en cours de conception".
 
-export const products = pgTable("products", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  // Identifiant lisible pour l'URL de la fiche produit (/boutique/<slug>).
-  // Nullable + unique : Postgres autorise plusieurs NULL, les lignes
-  // héritées sont backfillées par la migration.
-  slug: text("slug").unique(),
-  description: text("description"),
-  // Prix en FCFA (XOF n'a pas de sous-unité).
-  priceFcfa: integer("price_fcfa").notNull(),
-  // Stock disponible.
-  stockQuantity: integer("stock_quantity").notNull().default(0),
-  imageUrl: text("image_url"),
-  // Galerie : images supplémentaires (URLs) affichées sur la fiche produit,
-  // en plus de imageUrl (image principale).
-  images: jsonb("images").$type<string[]>().notNull().default([]),
-  // Modèle 3D optionnel (URL .glb/.gltf) — affiché en visualiseur interactif
-  // (rotation auto, orbite, zoom) sur la fiche produit via three.js.
-  model3dUrl: text("model_3d_url"),
-  // Couleurs proposées (tableau de libellés), choisies à la commande.
-  colors: jsonb("colors").$type<string[]>().notNull().default([]),
-  // Badges marketing configurables par le superadmin (ids du BADGE_CATALOG :
-  // promo | bestseller | fast_shipping | warranty). Les badges "Nouveau" et
-  // "Stock faible" restent dérivés automatiquement (product-status.ts).
-  badges: jsonb("badges").$type<string[]>().notNull().default([]),
-  // Caractéristiques techniques : liste de paires libellé/valeur.
-  specs: jsonb("specs").$type<{ label: string; value: string }[]>().notNull().default([]),
-  category: text("category"), // Routeurs | Antennes | Accessoires | …
-  brand: text("brand"),
-  // active = visible au catalogue ; hidden = masqué.
-  status: text("status").notNull().default("active"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+// Sauvegardes d'un MikroTik : snapshot lu via l'API RouterOS et conservé ici
+// pour reconstruire un routeur de rechange sans perdre ce qui a de la valeur —
+// au premier chef les tickets déjà vendus.
+//
+// routerId est ON DELETE SET NULL (et NON cascade) : c'est tout l'intérêt de la
+// sauvegarde — un routeur qui meurt est retiré du parc, et ses backups doivent
+// SURVIVRE pour être restaurés sur son remplaçant. Le nom/modèle/série sont
+// donc dupliqués ici, seule trace du routeur une fois sa ligne supprimée.
+export const routerBackups = pgTable(
+  "router_backups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    routerId: uuid("router_id").references(() => routers.id, {
+      onDelete: "set null",
+    }),
+    // Dénormalisé : survit à la suppression du routeur (voir ci-dessus).
+    routerName: text("router_name").notNull(),
+    model: text("model"),
+    rosVersion: text("ros_version"),
+    serialNumber: text("serial_number"),
+    identity: text("identity"),
+    // "auto" (cron quotidien) | "manual" (bouton de l'UI).
+    trigger: text("trigger").notNull().default("manual"),
+    // Snapshot complet gzippé puis base64 — 4 800 tickets font ~700 Ko en JSON
+    // brut mais ~100 Ko compressés, ce qui tient sans souci dans une colonne.
+    payload: text("payload").notNull(),
+    sizeBytes: integer("size_bytes").notNull().default(0),
+    // { hotspotUsers: 4868, hotspotUserProfiles: 11, … } — permet d'afficher la
+    // liste des sauvegardes sans décompresser le payload.
+    counts: jsonb("counts"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("router_backups_router_id_idx").on(table.routerId),
+    index("router_backups_org_id_idx").on(table.orgId),
+    index("router_backups_created_at_idx").on(table.createdAt),
+  ],
+);
+
+/**
+ * Une restauration en cours, suivie hors du cycle requête/réponse.
+ *
+ * Pourquoi une table et pas un simple retour de Server Action : restaurer un gros
+ * site recrée des milliers de tickets UN À UN (RouterOS n'a pas d'ajout en lot),
+ * soit plusieurs minutes. Or safelinkhub.io passe par Cloudflare, qui coupe toute
+ * réponse d'origine au-delà de ~100 s (erreur 524) — la requête synchrone était
+ * donc tuée en plein vol et l'UI affichait « Impossible de charger cette page ».
+ * Désormais le bouton crée cette ligne, lance le travail en fond (after()), et
+ * répond tout de suite ; le navigateur interroge l'avancement (chaque requête est
+ * brève, bien en deçà des 100 s). La ligne est aussi la mémoire du job : si le
+ * conteneur redémarre en pleine restauration, elle reste « running » sans
+ * heartbeat — l'UI le détecte comme périmé et propose de relancer (idempotent).
+ */
+export const routerRestoreJobs = pgTable(
+  "router_restore_jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // La sauvegarde source et le rechange cible ; on garde le job même si l'un
+    // est supprimé ensuite (audit).
+    backupId: uuid("backup_id").references(() => routerBackups.id, {
+      onDelete: "set null",
+    }),
+    targetRouterId: uuid("target_router_id").references(() => routers.id, {
+      onDelete: "set null",
+    }),
+    // running | done | error
+    status: text("status").notNull().default("running"),
+    // Avancement vivant : { phase, reports, plan, portal, ticketsDone, ticketsTotal }.
+    // Décompressé par l'UI à chaque sondage pour la barre de progression.
+    progress: jsonb("progress"),
+    error: text("error"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // Heartbeat : bougé à chaque étape et périodiquement pendant les tickets.
+    // Un « running » figé au-delà de ~2 min = conteneur redémarré → périmé.
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (table) => [
+    index("router_restore_jobs_org_id_idx").on(table.orgId),
+    index("router_restore_jobs_target_idx").on(table.targetRouterId),
+    index("router_restore_jobs_status_idx").on(table.status),
+  ],
+);

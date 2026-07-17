@@ -1,12 +1,15 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { ArrowLeft } from "lucide-react";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
 import TemplatesManager from "./TemplatesManager";
 import BridgeAssignments from "./BridgeAssignments";
+import InstallOnRouter from "./InstallOnRouter";
 import ThemeGallery from "./ThemeGallery";
 
 export default async function CaptiveTemplatesPage({
@@ -22,6 +25,15 @@ export default async function CaptiveTemplatesPage({
   // avoir importé/choisi son portail.
   const { retour } = await searchParams;
 
+  // Le sélecteur « Installer sur un routeur » affiche le statut brut de la base,
+  // que seules /admin/router et /admin/remote-access rafraîchissaient : un
+  // routeur parfaitement joignable pouvait donc rester marqué « offline » ici
+  // indéfiniment (le sync périodique ne tourne pas hors Vercel Cron), et
+  // décourager une installation qui aurait très bien fonctionné.
+  if (session) {
+    after(() => refreshStaleRouters(session.orgId));
+  }
+
   const templates = await listCaptiveTemplates();
 
   const orgBridges = session
@@ -36,6 +48,16 @@ export default async function CaptiveTemplatesPage({
         .from(bridges)
         .innerJoin(routers, eq(bridges.routerId, routers.id))
         .where(eq(routers.orgId, session.orgId))
+    : [];
+
+  // Tous les routeurs de l'org — cible de l'installation DIRECTE du portail
+  // (indépendante de l'auto-setup et des bridges suivis).
+  const orgRouters = session
+    ? await db
+        .select({ id: routers.id, name: routers.name, status: routers.status })
+        .from(routers)
+        .where(eq(routers.orgId, session.orgId))
+        .orderBy(asc(routers.name))
     : [];
 
   return (
@@ -65,6 +87,13 @@ export default async function CaptiveTemplatesPage({
       <BridgeAssignments
         bridges={orgBridges.filter((b) => b.hotspotEnabled)}
         templates={templates.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
+      />
+
+      <InstallOnRouter
+        routers={orgRouters}
+        templates={templates
+          .filter((t) => t.templateType === "package")
+          .map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
       />
     </div>
   );

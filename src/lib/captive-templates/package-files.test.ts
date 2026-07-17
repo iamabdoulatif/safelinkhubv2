@@ -64,8 +64,8 @@ describe("renderPackageFile", () => {
       ssid: "MIRADOR-WIFI",
       supportPhone: "+225 07 08 09 10 11",
       plans: [
-        { name: "3j", priceCents: 500, durationValue: 3, durationUnit: "Days" },
-        { name: "1s", priceCents: 700, durationValue: 1, durationUnit: "Weeks" },
+        { id: "pkg-3j", name: "3j", priceCents: 500, durationValue: 3, durationUnit: "Days" },
+        { id: "pkg-1s", name: "1s", priceCents: 700, durationValue: 1, durationUnit: "Weeks" },
       ],
     }).toString("utf8");
 
@@ -88,8 +88,8 @@ describe("renderPackageFile", () => {
     const body = renderPackageFile(file, {
       ssid: "X",
       plans: [
-        { name: "Forfait 1 Jour", priceCents: 200, durationValue: 1, durationUnit: "Days" },
-        { name: "L'Hebdo", priceCents: 700, durationValue: 1, durationUnit: "Weeks" },
+        { id: "pkg-1j", name: "Forfait 1 Jour", priceCents: 200, durationValue: 1, durationUnit: "Days" },
+        { id: "pkg-hebdo", name: "L'Hebdo", priceCents: 700, durationValue: 1, durationUnit: "Weeks" },
       ],
     }).toString("utf8");
 
@@ -102,5 +102,79 @@ describe("renderPackageFile", () => {
     // every card gets a coloured badge class (base .price-duration-badge has no default background)
     assert.ok(!/price-duration-badge\s*"/.test(body), "each badge carries a colour class");
     assert.ok(!body.includes("{{"), "no unreplaced placeholder left");
+  });
+
+  it("injects the universal payment flow into login.html when appUrl is set", () => {
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: '<html><body><button class="plan-btn" data-package-id="pkg-x">Acheter</button></body></html>',
+    };
+    const body = renderPackageFile(login, {
+      ssid: "X",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+      routerId: "router-1",
+    }).toString("utf8");
+    assert.ok(body.includes('window.SLH_PORTAL='), "config injected");
+    assert.ok(body.includes('"slug":"demo-org"'), "slug in config");
+    assert.ok(body.includes('"mac":"$(mac)"'), "mac placeholder kept for RouterOS");
+    assert.ok(body.includes("/api/portal/"), "pay flow injected");
+    // injected before </body>
+    assert.ok(body.indexOf("SLH_PORTAL") < body.indexOf("</body>"), "injected inside body");
+  });
+
+  it("injects the country dial prefix + OTP flow, and emits valid JS", () => {
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: '<html><body><button class="plan-btn" data-package-id="pkg-x">Acheter</button></body></html>',
+    };
+    const body = renderPackageFile(login, {
+      ssid: "X",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+      routerId: "router-1",
+      countryIso2: "CI",
+      dialCode: "+225",
+    }).toString("utf8");
+
+    // Country config threaded into SLH_PORTAL for the phone-prefix + OTP.
+    assert.ok(body.includes('"dialCode":"+225"'), "dial code in config");
+    assert.ok(body.includes('"iso2":"CI"'), "iso2 in config");
+    assert.ok(body.includes("🇨🇮"), "computed flag in config");
+    // OTP-first flow wired to the new endpoints and steps.
+    assert.ok(body.includes("/otp/send"), "otp send endpoint referenced");
+    assert.ok(body.includes("/otp/verify"), "otp verify endpoint referenced");
+    assert.ok(body.includes('data-step="otp"'), "otp step present");
+
+    // The injected script must parse as valid JS (guards the hand-written
+    // template-literal string against stray backticks / ${ / unescaped quotes).
+    const scripts = [...body.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    const flow = scripts.find((s) => s.includes("/otp/send")) ?? "";
+    assert.ok(flow.length > 0, "flow script extracted");
+    assert.doesNotThrow(() => new Function(flow), "injected script is syntactically valid");
+  });
+
+  it("does not inject the payment flow without appUrl, nor into non-login files", () => {
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: "<html><body>x</body></html>",
+    };
+    const noAppUrl = renderPackageFile(login, { ssid: "X" }).toString("utf8");
+    assert.ok(!noAppUrl.includes("SLH_PORTAL"), "no injection without appUrl");
+
+    const status: PackageFile = {
+      path: "status.html",
+      encoding: "utf8",
+      content: "<html><body>status</body></html>",
+    };
+    const statusBody = renderPackageFile(status, {
+      ssid: "X",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+    }).toString("utf8");
+    assert.ok(!statusBody.includes("SLH_PORTAL"), "only login.html gets the flow");
   });
 });

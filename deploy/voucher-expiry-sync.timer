@@ -1,0 +1,13 @@
+[Unit]
+Description=Declenche voucher-expiry-sync toutes les 2 minutes
+
+[Timer]
+# Premier tir 2 min après le boot, puis toutes les 2 min. Persistent rattrape
+# un tir manqué si le VPS était éteint.
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

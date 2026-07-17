@@ -34,7 +34,7 @@ export default function MockPaymentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-paper p-6">
+      <div className="max-h-[90dvh] overflow-y-auto w-full max-w-sm rounded-xl bg-paper p-6">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-ink">
             Payer avec {LABELS[provider] ?? provider}

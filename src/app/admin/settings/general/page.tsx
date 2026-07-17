@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Router,
   Settings as SettingsIcon,
+  ShieldCheck,
 } from "lucide-react";
 import { getCurrentOrganization } from "@/lib/organizations/actions";
 
@@ -26,6 +27,12 @@ const sections = [
     icon: LayoutTemplate,
     title: "Portail captif",
     description: "Personnalisez la page de connexion hotspot de vos clients.",
+  },
+  {
+    href: "/admin/settings/walled-garden",
+    icon: ShieldCheck,
+    title: "Walled-garden",
+    description: "Hôtes de paiement joignables depuis le portail avant connexion.",
   },
   {
     href: "/admin/settings/sms",

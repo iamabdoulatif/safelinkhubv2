@@ -28,6 +28,10 @@ export async function connectRouter(_prevState: unknown, formData: FormData) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
+  // Lier un MikroTik est GRATUIT (plus d'approbation superadmin). La
+  // facturation est portée par l'auto-setup (15 000 FCFA, payé en ligne) et par
+  // les services d'accès distant (par onglet × durée), pas par le liage.
+
   const name = String(formData.get("name") ?? "").trim();
   const host = String(formData.get("host") ?? "").trim();
   const apiPort = Number(formData.get("apiPort") ?? 8728);
@@ -123,6 +127,9 @@ export async function generateInstallScript(
 ) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
+
+  // Créer un tunnel d'accès distant est GRATUIT (plus d'approbation superadmin) :
+  // la facturation VPN est portée par les services activés (par onglet × durée).
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Router name is required." };
@@ -376,6 +383,9 @@ export async function generateOpenvpnInstallScript(
 ) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
+
+  // Créer un tunnel d'accès distant est GRATUIT (plus d'approbation superadmin) :
+  // la facturation VPN est portée par les services activés (par onglet × durée).
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Router name is required." };

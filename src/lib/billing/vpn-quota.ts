@@ -1,3 +1,5 @@
+import { VPN_TRIAL_DAYS } from "./auto-setup-pricing";
+
 export const VPN_QUOTA_MODES = ["default", "free_until", "unlimited", "paid"] as const;
 export type VpnQuotaMode = (typeof VPN_QUOTA_MODES)[number];
 
@@ -125,7 +127,9 @@ export function shouldChargeVpnActivation(input: VpnChargeDecisionInput): boolea
   if (quota.paidOverride) return true;
   if (!input.orgCreatedAt) return true;
 
+  // Essai gratuit depuis l'inscription (VPN_TRIAL_DAYS = source unique,
+  // partagée avec vpnTrialEndsAt / la landing) — après, tout devient payant.
   const trialEndsAt = new Date(input.orgCreatedAt);
-  trialEndsAt.setDate(trialEndsAt.getDate() + 365);
+  trialEndsAt.setDate(trialEndsAt.getDate() + VPN_TRIAL_DAYS);
   return (input.now ?? new Date()).getTime() >= trialEndsAt.getTime();
 }

@@ -8,6 +8,12 @@ import { getSession } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
+import {
+  importRouterHotspotPlans,
+  type ImportedHotspotPlan,
+} from "@/lib/mikrotik/hotspot-profile-import";
+import { ensureWalledGarden } from "@/lib/mikrotik/walled-garden";
+import { getOrgWalledGardenDisabledHosts } from "@/lib/mikrotik/walled-garden-config";
 import { HOTSPOT_BRIDGE_NAME } from "@/lib/mikrotik/constants";
 import {
   autoParameterizePortalFiles,
@@ -333,6 +339,35 @@ export async function updatePackageTemplateBranding(
   return { success: true };
 }
 
+/** Branding portail scopé au routeur (contact support/paiement + vendeurs),
+ * pour préremplir l'auto-setup. Renvoie des valeurs vides si non défini. */
+export async function getRouterPortalBranding(routerId: string): Promise<{
+  supportWhatsapp: string;
+  supportPhone: string;
+  vendors: PackageVendor[];
+}> {
+  const empty = { supportWhatsapp: "", supportPhone: "", vendors: [] as PackageVendor[] };
+  const session = await getSession();
+  if (!session) return empty;
+  const db = getDb();
+  const [router] = await db
+    .select({
+      orgId: routers.orgId,
+      supportWhatsapp: routers.portalSupportWhatsapp,
+      supportPhone: routers.portalSupportPhone,
+      vendors: routers.portalVendors,
+    })
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || router.orgId !== session.orgId) return empty;
+  return {
+    supportWhatsapp: router.supportWhatsapp ?? "",
+    supportPhone: router.supportPhone ?? "",
+    vendors: Array.isArray(router.vendors) ? (router.vendors as PackageVendor[]) : [],
+  };
+}
+
 export async function duplicateCaptiveTemplate(templateId: string) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
@@ -446,6 +481,211 @@ export async function deleteCaptiveTemplate(templateId: string) {
   return { success: true };
 }
 
+/**
+ * Installe un modèle « package » sur N'IMPORTE QUEL routeur de l'org,
+ * indépendamment de l'auto-setup et SANS facturation : contrairement à
+ * l'assignation par bridge (qui présume le bridge géré SAFELINKHUB-BRIDGE),
+ * on détecte ici le serveur hotspot réellement actif sur le routeur — qu'il
+ * vienne de l'auto-setup ou d'un `/ip hotspot setup` fait à la main — et on
+ * pointe son profil vers les fichiers téléversés. Seul prérequis
+ * incompressible : un hotspot RouterOS existant (c'est LUI qui sert la page
+ * de login ; sans hotspot, il n'y a rien à habiller) + le routeur joignable
+ * (direct ou tunnel).
+ */
+export async function installTemplateOnRouter(
+  routerId: string,
+  templateId: string,
+  // Quand l'appel vient d'un job de fond (restauration asynchrone), la requête
+  // et son cookie de session n'existent plus : l'org est alors passée
+  // explicitement, capturée à l'enrôlement du job. En usage UI normal, on la lit
+  // de la session comme avant.
+  opts: { orgId?: string } = {},
+) {
+  let orgId = opts.orgId;
+  if (!orgId) {
+    const session = await getSession();
+    if (!session) return { error: "Not authenticated." };
+    orgId = session.orgId;
+  }
+
+  const db = getDb();
+  const [template] = await db
+    .select()
+    .from(captiveTemplates)
+    .where(eq(captiveTemplates.id, templateId))
+    .limit(1);
+  if (!template || template.orgId !== orgId) return { error: "Modèle introuvable." };
+  if (template.templateType !== "package") {
+    return { error: "Ce modèle n'est pas un portail multi-fichiers (package)." };
+  }
+  const files = (template.packageFiles as PackageFile[] | null) ?? [];
+  if (files.length === 0) return { error: "Ce modèle ne contient aucun fichier." };
+
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || router.orgId !== orgId) return { error: "Routeur introuvable." };
+
+  const [org] = await db
+    .select({ slug: organizations.slug })
+    .from(organizations)
+    .where(eq(organizations.id, router.orgId))
+    .limit(1);
+  if (!org) return { error: "Organisation introuvable." };
+
+  const appUrl = getAppUrl();
+  const fileBaseUrl = `${appUrl}/api/router/v1/${org.slug}/captive-template/${template.id}`;
+
+  let client;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Connexion au routeur impossible : ${err.message}`
+          : "Connexion au routeur impossible.",
+    };
+  }
+
+  try {
+    // Serveur hotspot réellement actif — AUCUNE hypothèse sur le nom du
+    // bridge/serveur (routeur configuré à la main inclus). On préfère un
+    // serveur non désactivé ; à défaut le premier trouvé.
+    // Timeout explicite partout sur ce chemin : le défaut de talk() (8s) est
+    // trop court pour un MikroTik chargé (hotspot en heure de pointe), et un
+    // dépassement laisse la connexion désynchronisée — les réponses en retard
+    // seraient lues comme celles de la commande suivante, donc de l'upload.
+    const ROUTER_CMD_TIMEOUT_MS = 30000;
+    const servers = await client
+      .talk(["/ip/hotspot/print"], ROUTER_CMD_TIMEOUT_MS)
+      .catch(() => [] as Record<string, string>[]);
+    const server = servers.find((s) => s.disabled !== "true") ?? servers[0];
+    if (!server?.profile) {
+      return {
+        error:
+          "Aucun serveur hotspot trouvé sur ce routeur. Le portail captif est la page de connexion du hotspot RouterOS : créez d'abord un hotspot (auto-setup, ou « /ip hotspot setup » à la main), puis réinstallez le portail.",
+      };
+    }
+
+    const htmlDirectory = `${String(server.name ?? "hotspot").replace(/[^a-zA-Z0-9_-]/g, "-")}-portal`;
+    // html-directory ET html-directory-override : l'override PRIME quand il a
+    // été posé (c'est le cas après un auto-setup) — ne régler que
+    // html-directory laisserait le hotspot servir l'ancien dossier.
+    // Pointer le profil vers un dossier AVANT de savoir si on saura le remplir :
+    // un échec d'upload laisse alors le hotspot servir un dossier vide, donc un
+    // portail cassé pour les clients qui payaient jusque-là (constaté en prod).
+    // On garde l'ordre (RouterOS crée les dossiers à la volée) mais l'échec
+    // n'est plus avalé : sans le dire, l'install repartait sur une connexion
+    // désynchronisée et TOUS les fichiers échouaient sans raison affichée.
+    await client.talk(
+      [
+        "/ip/hotspot/profile/set",
+        `=numbers=${server.profile}`,
+        `=html-directory=${htmlDirectory}`,
+        `=html-directory-override=${htmlDirectory}`,
+      ],
+      ROUTER_CMD_TIMEOUT_MS,
+    );
+
+    const ssid = (await getRouterPrimarySsid(client, ROUTER_CMD_TIMEOUT_MS)) || router.name;
+
+    // AVANT l'upload : les tarifs sont figés dans les fichiers au moment où le
+    // routeur les télécharge (l'API rend {{PLANS_HTML}} à la volée). Rattacher
+    // les forfaits après coup afficherait encore les anciens prix jusqu'à la
+    // prochaine réinstallation.
+    let importedPlans: ImportedHotspotPlan[] = [];
+    try {
+      const imported = await importRouterHotspotPlans(
+        client,
+        router.id,
+        router.orgId,
+        ROUTER_CMD_TIMEOUT_MS,
+      );
+      importedPlans = imported.imported;
+    } catch {
+      // Non bloquant : le portail s'installe quand même, il affichera les
+      // forfaits legacy de l'org comme avant.
+    }
+
+    const result = await uploadCaptiveTemplatePackage(client, {
+      files,
+      htmlDirectory,
+      fileBaseUrl,
+      ssid,
+      routerId: router.id,
+    });
+
+    // Walled-garden de paiement (app + rails, HTTP + HTTPS) : le checkout doit
+    // être joignable depuis le portail. Best-effort, ne bloque pas l'install.
+    try {
+      await ensureWalledGarden(
+        client,
+        new URL(appUrl).host,
+        await getOrgWalledGardenDisabledHosts(router.orgId),
+      );
+    } catch {
+      // ignoré : réconcilié de toute façon au prochain health-check.
+    }
+
+    // Mémorise le portail installé SUR LE ROUTEUR. Indispensable, pas cosmétique :
+    // les fichiers du portail vivent sur la flash et ne sont donc pas dans les
+    // sauvegardes — cette colonne est le seul moyen de savoir quoi reposer sur un
+    // rechange (voir router-backup.ts). L'écrire uniquement sur les bridges ne
+    // suffisait pas : la plupart des routeurs n'ont aucun bridge suivi, si bien
+    // que le portail installé n'était mémorisé nulle part.
+    try {
+      await db
+        .update(routers)
+        .set({ captiveTemplateId: template.id })
+        .where(eq(routers.id, router.id));
+    } catch {
+      // L'installation sur le routeur a déjà réussi ; une sauvegarde ultérieure
+      // signalera simplement le portail comme inconnu.
+    }
+
+    // Cohérence UI : si ce routeur a des bridges hotspot suivis, mémorise aussi
+    // le modèle pour que « Assignation par bridge » reflète la réalité.
+    try {
+      await db
+        .update(bridges)
+        .set({ captiveTemplateId: template.id })
+        .where(and(eq(bridges.routerId, router.id), eq(bridges.hotspotEnabled, true)));
+    } catch {
+      // purement cosmétique — l'installation sur le routeur a déjà réussi.
+    }
+
+    revalidatePath("/admin/settings/captive-templates");
+
+    const plansAdopted = importedPlans.length;
+    if (result.failed.length > 0) {
+      return {
+        success: true,
+        partial: true,
+        ssid,
+        server: String(server.name ?? ""),
+        uploaded: result.uploaded.length,
+        failed: result.failed,
+        plansAdopted,
+      };
+    }
+    return {
+      success: true,
+      ssid,
+      server: String(server.name ?? ""),
+      uploaded: result.uploaded.length,
+      plansAdopted,
+    };
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Échec de l'installation du portail : ${err.message}`
+          : "Échec de l'installation du portail.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
 export async function assignTemplateToBridge(bridgeId: string, templateId: string | null) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
@@ -554,7 +794,21 @@ async function uploadPackageTemplateToBridge(
       htmlDirectory,
       fileBaseUrl,
       ssid,
+      routerId: router.id,
     });
+
+    // Automatise le walled-garden de paiement : l'admin n'a pas à
+    // re-bootstrapper le routeur pour que le checkout soit joignable depuis le
+    // portail. Best-effort (ne bloque pas l'installation du portail).
+    try {
+      await ensureWalledGarden(
+        client,
+        new URL(appUrl).host,
+        await getOrgWalledGardenDisabledHosts(router.orgId),
+      );
+    } catch {
+      // ignoré : le walled-garden reste ajustable au prochain bootstrap.
+    }
 
     if (result.failed.length > 0) {
       return {

@@ -21,8 +21,8 @@ import {
   LifeBuoy,
   Newspaper,
   Mail,
+  Quote,
   ShieldCheck,
-  ShoppingBag,
   Megaphone,
   ArrowUpRight,
   Menu,
@@ -46,7 +46,6 @@ const mainLinks = [
   { href: "/admin/vouchers", label: "Vouchers", icon: Ticket },
   { href: "/admin/remote-access", label: "Accès distant", icon: Wifi },
   { href: "/admin/mikhmon-online", label: "Mikhmon Online", icon: Globe },
-  { href: "/admin/shop", label: "Boutique", icon: ShoppingBag },
 ];
 
 // Une seule entrée "Paramètres" : la navigation interne du hub (Général,
@@ -64,6 +63,7 @@ const superadminLinks = [
   { href: "/admin/blog", label: "Blog", icon: Newspaper },
   { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
   { href: "/admin/contact", label: "Messages de contact", icon: Mail },
+  { href: "/admin/testimonials", label: "Témoignages", icon: Quote },
   { href: "/admin/authorizations", label: "Autorisations", icon: ShieldCheck },
 ];
 
@@ -72,11 +72,14 @@ export default function AdminSidebar({
   userName,
   userEmail,
   superadmin,
+  pendingAuthorizations = 0,
 }: {
   orgName: string;
   userName: string;
   userEmail: string;
   superadmin: boolean;
+  /** Nombre de demandes d'autorisation en attente (badge in-app). */
+  pendingAuthorizations?: number;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -260,22 +263,33 @@ export default function AdminSidebar({
                 Superadmin
               </p>
               <ul className="mt-1 space-y-0.5">
-                {superadminLinks.map(({ href, label, icon: Icon }) => (
-                  <li key={href}>
-                    <Link
-                      href={href}
-                      onClick={closeMobile}
-                      className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
-                        isActive(href)
-                          ? "bg-brand font-bold text-[#1C1917]"
-                          : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{label}</span>
-                    </Link>
-                  </li>
-                ))}
+                {superadminLinks.map(({ href, label, icon: Icon }) => {
+                  const badge =
+                    href === "/admin/authorizations" && pendingAuthorizations > 0
+                      ? pendingAuthorizations
+                      : 0;
+                  return (
+                    <li key={href}>
+                      <Link
+                        href={href}
+                        onClick={closeMobile}
+                        className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
+                          isActive(href)
+                            ? "bg-brand font-bold text-[#1C1917]"
+                            : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">{label}</span>
+                        {badge > 0 && (
+                          <span className="ml-auto rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-[#1C1917]">
+                            {badge}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}

@@ -15,14 +15,16 @@
  *   écran après le lancement — plus d'étapes de test séparées.
  */
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { ArrowLeft, Box, Check, Copy, Plus, Trash2 } from "lucide-react";
 import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
 import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
-import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
+import { listCaptiveTemplates, getRouterPortalBranding } from "@/lib/captive-templates/actions";
 import { listActivePackages } from "@/lib/packages/actions";
 import AutoSetupPaywallModal from "./AutoSetupPaywallModal";
+import SerialUnlockRequestModal from "@/components/mikrotik/SerialUnlockRequestModal";
+import { getSerialUnlockStatus } from "@/lib/mikrotik/serial-unlock-actions";
 import FancyLoader from "@/components/FancyLoader";
 import {
   classForPrefix,
@@ -193,20 +195,10 @@ export default function AutoSetupStep({
       : CLASS_DEFAULT_PREFIX[initialClass],
   );
 
-  function changeNetworkClass(next: NetworkClass) {
-    setNetworkClass(next);
-    if (!CLASS_PREFIX_OPTIONS[next].includes(hotspotPrefixBits)) {
-      setHotspotPrefixBits(CLASS_DEFAULT_PREFIX[next]);
-    }
-  }
-
-  // L'IP courante peut venir d'un bridge saisi à la main — on la garde
-  // dans le sélecteur même si elle n'est pas dans les presets partagés.
-  const gatewayOptions = GATEWAY_IP_PRESETS.includes(
-    hotspotAddress as (typeof GATEWAY_IP_PRESETS)[number],
-  )
-    ? [...GATEWAY_IP_PRESETS]
-    : [hotspotAddress, ...GATEWAY_IP_PRESETS];
+  // Le réseau (passerelle/classe/sous-réseau) est saisi UNE SEULE FOIS à
+  // l'Étape 2 (topologie / assignation des interfaces au bridge) et hérité ici
+  // en lecture seule — plus de double saisie. Les valeurs restent dans l'état
+  // (pré-remplies depuis le bridge) pour le lancement et la persistance.
 
   // ── Essentiels : un seul champ obligatoire, le reste est dérivé ──────
   const [hotspotName, setHotspotName] = useState("");
@@ -233,6 +225,10 @@ export default function AutoSetupStep({
   const [usbTouched, setUsbTouched] = useState(false);
   const [skipMikhmon, setSkipMikhmon] = useState(false);
   const [installCaptivePortal, setInstallCaptivePortal] = useState(true);
+  // Compte hotspot facultatif créé pour l'admin (accès internet via le portail
+  // sans acheter de forfait). Vide = aucun compte créé.
+  const [adminPortalUser, setAdminPortalUser] = useState("");
+  const [adminPortalPassword, setAdminPortalPassword] = useState("");
   const [packageTemplates, setPackageTemplates] = useState<
     { id: string; name: string; isDefault: boolean }[]
   >([]);
@@ -243,12 +239,153 @@ export default function AutoSetupStep({
   // Seuls les profils créés ici (pas les importés) sont resynchronisés
   // comme forfaits, pour ne pas dupliquer ceux qui existent déjà.
   const [customProfileMeta, setCustomProfileMeta] = useState<
-    { name: string; priceCents: number; durationValue: number; durationUnit: string }[]
+    {
+      name: string;
+      priceCents: number;
+      durationValue: number;
+      durationUnit: string;
+      uploadMbps?: number;
+      downloadMbps?: number;
+    }[]
   >([]);
   const [customAmount, setCustomAmount] = useState("2");
   const [customUnit, setCustomUnit] = useState<DurationUnit>("d");
   const [customPrice, setCustomPrice] = useState("");
+  // Débit personnalisé (Mbps) du profil en cours de saisie — vide = pas de
+  // limite (débit du lien).
+  const [customUpload, setCustomUpload] = useState("");
+  const [customDownload, setCustomDownload] = useState("");
   const [customProfileError, setCustomProfileError] = useState<string | null>(null);
+
+  // ── Branding portail scopé au routeur (saisi ici) : contact support/
+  //    paiement + « espaces vendeurs ». Prérempli depuis le routeur au montage.
+  const [portalSupportWhatsapp, setPortalSupportWhatsapp] = useState("");
+  const [portalSupportPhone, setPortalSupportPhone] = useState("");
+  const [portalVendors, setPortalVendors] = useState<
+    { name: string; location: string; phone: string }[]
+  >([]);
+
+  // ── Persistance de l'étape 3 à travers la redirection de paiement ────
+  // Payer l'auto-setup fait une navigation pleine page vers GeniusPay puis
+  // revient (?etape=3) : sans ça, tout ce que l'admin a saisi ici (nom hotspot,
+  // SSID, DNS, réseau, profils-prix, template…) repartait à zéro. On sauvegarde
+  // un instantané dans sessionStorage (par routeur, même onglet) et on le
+  // restaure au montage. Effacé au succès du lancement.
+  const persistKey = `slh:autosetup:${routerId}`;
+  const hadSnapshotRef = useRef(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- hydratation ponctuelle au montage depuis sessionStorage (retour de paiement) ; l'init paresseux de useState provoquerait un mismatch d'hydratation SSR */
+    try {
+      const raw = sessionStorage.getItem(persistKey);
+      if (raw) {
+        const s = JSON.parse(raw) as Record<string, unknown>;
+        hadSnapshotRef.current = true;
+        if (typeof s.hotspotName === "string") setHotspotName(s.hotspotName);
+        if (typeof s.ssid === "string") setSsid(s.ssid);
+        if (typeof s.ssidTouched === "boolean") setSsidTouched(s.ssidTouched);
+        if (typeof s.dnsName === "string") setDnsName(s.dnsName);
+        if (typeof s.dnsTouched === "boolean") setDnsTouched(s.dnsTouched);
+        if (typeof s.hotspotAddress === "string") setHotspotAddress(s.hotspotAddress);
+        if (s.networkClass) setNetworkClass(s.networkClass as NetworkClass);
+        if (typeof s.hotspotPrefixBits === "number") setHotspotPrefixBits(s.hotspotPrefixBits);
+        if (typeof s.hasUsbStorage === "boolean") setHasUsbStorage(s.hasUsbStorage);
+        if (typeof s.usbTouched === "boolean") setUsbTouched(s.usbTouched);
+        if (typeof s.skipMikhmon === "boolean") setSkipMikhmon(s.skipMikhmon);
+        if (typeof s.installCaptivePortal === "boolean")
+          setInstallCaptivePortal(s.installCaptivePortal);
+        if (typeof s.adminPortalUser === "string") setAdminPortalUser(s.adminPortalUser);
+        if (typeof s.adminPortalPassword === "string")
+          setAdminPortalPassword(s.adminPortalPassword);
+        if (typeof s.selectedTemplateId === "string") setSelectedTemplateId(s.selectedTemplateId);
+        if (Array.isArray(s.customProfiles)) setCustomProfiles(s.customProfiles as VoucherProfile[]);
+        if (Array.isArray(s.customProfileMeta))
+          setCustomProfileMeta(s.customProfileMeta as typeof customProfileMeta);
+        if (typeof s.customAmount === "string") setCustomAmount(s.customAmount);
+        if (s.customUnit) setCustomUnit(s.customUnit as DurationUnit);
+        if (typeof s.customPrice === "string") setCustomPrice(s.customPrice);
+        if (typeof s.customUpload === "string") setCustomUpload(s.customUpload);
+        if (typeof s.customDownload === "string") setCustomDownload(s.customDownload);
+        if (typeof s.portalSupportWhatsapp === "string")
+          setPortalSupportWhatsapp(s.portalSupportWhatsapp);
+        if (typeof s.portalSupportPhone === "string")
+          setPortalSupportPhone(s.portalSupportPhone);
+        if (Array.isArray(s.portalVendors))
+          setPortalVendors(s.portalVendors as typeof portalVendors);
+      }
+    } catch {
+      /* sessionStorage indisponible / JSON corrompu : on repart des défauts */
+    }
+    setHydrated(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [persistKey]);
+
+  useEffect(() => {
+    if (!hydrated) return; // n'écrase pas l'instantané avec les défauts avant restauration
+    try {
+      sessionStorage.setItem(
+        persistKey,
+        JSON.stringify({
+          hotspotName,
+          ssid,
+          ssidTouched,
+          dnsName,
+          dnsTouched,
+          hotspotAddress,
+          networkClass,
+          hotspotPrefixBits,
+          hasUsbStorage,
+          usbTouched,
+          skipMikhmon,
+          installCaptivePortal,
+          adminPortalUser,
+          adminPortalPassword,
+          selectedTemplateId,
+          customProfiles,
+          customProfileMeta,
+          customAmount,
+          customUnit,
+          customPrice,
+          customUpload,
+          customDownload,
+          portalSupportWhatsapp,
+          portalSupportPhone,
+          portalVendors,
+        }),
+      );
+    } catch {
+      /* quota / mode privé : la persistance est best-effort */
+    }
+  }, [
+    hydrated,
+    persistKey,
+    hotspotName,
+    ssid,
+    ssidTouched,
+    dnsName,
+    dnsTouched,
+    hotspotAddress,
+    networkClass,
+    hotspotPrefixBits,
+    hasUsbStorage,
+    usbTouched,
+    skipMikhmon,
+    installCaptivePortal,
+    adminPortalUser,
+    adminPortalPassword,
+    selectedTemplateId,
+    customProfiles,
+    customProfileMeta,
+    customAmount,
+    customUnit,
+    customPrice,
+    customUpload,
+    customDownload,
+    portalSupportWhatsapp,
+    portalSupportPhone,
+    portalVendors,
+  ]);
 
   useEffect(() => {
     listCaptiveTemplates().then((rows) => {
@@ -257,9 +394,13 @@ export default function AutoSetupStep({
         .map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault }));
       setPackageTemplates(templates);
       const preselected = templates.find((t) => t.isDefault) ?? templates[0];
-      if (preselected) setSelectedTemplateId(preselected.id);
+      // Ne pas écraser le template restauré depuis l'instantané de paiement.
+      if (preselected && !hadSnapshotRef.current) setSelectedTemplateId(preselected.id);
     });
-    listActivePackages().then((pkgs) => {
+    listActivePackages(routerId).then((pkgs) => {
+      // État restauré (retour de paiement) : les profils de l'instantané font
+      // foi — on ne ré-importe pas (ça re-ajouterait ceux que l'admin a retirés).
+      if (hadSnapshotRef.current) return;
       const imported: VoucherProfile[] = [];
       for (const pkg of pkgs) {
         const unit = DURATION_UNIT_FROM_PACKAGE[pkg.durationUnit];
@@ -285,7 +426,26 @@ export default function AutoSetupStep({
         });
       }
     });
-  }, []);
+    // routerId est stable pour la durée de vie du composant : la dépendance
+    // satisfait le linter sans re-déclencher le préremplissage.
+  }, [routerId]);
+
+  // Préremplit le branding portail (contact + vendeurs) depuis le routeur, pour
+  // que re-lancer l'auto-setup ne réécrase pas ce qui a déjà été saisi. Ignoré
+  // si l'état a été restauré depuis l'instantané de paiement (fait déjà foi).
+  // brandingLoadedRef garde contre un lancement AVANT résolution : tant qu'on
+  // n'a pas chargé l'existant, on n'envoie pas le branding (undefined = ne pas
+  // toucher) pour ne jamais effacer par erreur.
+  const brandingLoadedRef = useRef(false);
+  useEffect(() => {
+    getRouterPortalBranding(routerId).then((b) => {
+      brandingLoadedRef.current = true;
+      if (hadSnapshotRef.current) return;
+      setPortalSupportWhatsapp(b.supportWhatsapp);
+      setPortalSupportPhone(b.supportPhone);
+      setPortalVendors(b.vendors);
+    });
+  }, [routerId]);
 
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{
@@ -294,7 +454,28 @@ export default function AutoSetupStep({
     log?: string[];
     firmwareUpdating?: boolean;
     message?: string;
+    containerPending?: boolean;
+    serialLocked?: boolean;
+    serial?: string | null;
   } | null>(null);
+
+  // Déblocage (support) d'un MikroTik rattaché à un autre compte (verrou de
+  // série). Ouvert depuis le message d'erreur quand result.serialLocked.
+  const [unlockModal, setUnlockModal] = useState<{ serial: string; latestStatus: string | null } | null>(
+    null,
+  );
+
+  // Auto-setup réussi : l'instantané n'a plus lieu d'être → on l'efface pour ne
+  // pas re-restaurer une config périmée au prochain passage dans l'étape 3.
+  useEffect(() => {
+    if (result?.success) {
+      try {
+        sessionStorage.removeItem(persistKey);
+      } catch {
+        /* best-effort */
+      }
+    }
+  }, [result?.success, persistKey]);
 
   // La détection USB arrive après le montage — on l'adopte tant que
   // l'admin n'a pas touché la case lui-même.
@@ -364,6 +545,18 @@ export default function AutoSetupStep({
       setCustomProfileError(`Un profil "${name}" existe déjà.`);
       return;
     }
+    // Débit optionnel (Mbps) : les deux doivent être renseignés et > 0 pour
+    // poser une limite ; sinon aucune limite (débit du lien).
+    const up = customUpload.trim() === "" ? undefined : Number(customUpload);
+    const down = customDownload.trim() === "" ? undefined : Number(customDownload);
+    if (
+      (up !== undefined && (!Number.isFinite(up) || up <= 0)) ||
+      (down !== undefined && (!Number.isFinite(down) || down <= 0))
+    ) {
+      setCustomProfileError("Débit invalide : indiquez des valeurs (Mbps) supérieures à 0, ou laissez vide.");
+      return;
+    }
+    const hasBandwidth = up !== undefined && down !== undefined;
     setCustomProfileError(null);
     const baseLabel = buildCustomProfileLabel(amount, customUnit);
     setCustomProfiles((prev) => [
@@ -373,13 +566,23 @@ export default function AutoSetupStep({
         label: price > 0 ? `${baseLabel} — ${price.toLocaleString("fr-FR")} FCFA` : baseLabel,
         durationCode: buildCustomDurationCode(amount, customUnit),
         price,
+        uploadMbps: up,
+        downloadMbps: down,
       }),
     ]);
     setCustomProfileMeta((prev) => [
       ...prev,
-      { name, priceCents: price, durationValue: amount, durationUnit: PACKAGE_DURATION_UNIT[customUnit] },
+      {
+        name,
+        priceCents: price,
+        durationValue: amount,
+        durationUnit: PACKAGE_DURATION_UNIT[customUnit],
+        ...(hasBandwidth ? { uploadMbps: up, downloadMbps: down } : {}),
+      },
     ]);
     setCustomPrice("");
+    setCustomUpload("");
+    setCustomDownload("");
   }
 
   function removeCustomProfile(name: string) {
@@ -409,13 +612,28 @@ export default function AutoSetupStep({
         // Jamais de SSID vers un modèle sans Wi-Fi — même si le champ a été
         // auto-rempli avant que la détection ne réponde.
         ssid: hasWifi ? ssid.trim() || undefined : undefined,
-        defaultHotspotUsers: [],
+        // Compte admin optionnel (accès internet via le portail sans forfait).
+        defaultHotspotUsers: adminPortalUser.trim()
+          ? [{ name: adminPortalUser.trim(), password: adminPortalPassword.trim() || undefined }]
+          : [],
         hasUsbStorage,
         hasLargeOnboardStorage: detected?.hasLargeOnboardStorage ?? false,
+        hasEmmcStorage: detected?.hasEmmcStorage ?? false,
         supportsContainers: mikhmonIncluded,
         reboot: true,
         voucherProfiles: customProfiles,
         packagesToSync: customProfileMeta,
+        // Branding portail scopé à ce routeur (contact support/paiement +
+        // espaces vendeurs) — persisté sur le routeur et rendu en priorité.
+        // Envoyé seulement une fois l'existant chargé (sinon undefined = ne pas
+        // toucher), pour ne jamais effacer le branding par un lancement hâtif.
+        ...(brandingLoadedRef.current
+          ? {
+              portalSupportWhatsapp: portalSupportWhatsapp.trim(),
+              portalSupportPhone: portalSupportPhone.trim(),
+              portalVendors,
+            }
+          : {}),
         installCaptivePortal,
         captiveTemplateId: installCaptivePortal ? (selectedTemplateId ?? undefined) : undefined,
         serverName: savedHotspotNames.serverName ?? undefined,
@@ -476,7 +694,7 @@ export default function AutoSetupStep({
           {underManualGate &&
             (gate?.authorized ? (
               <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
-                Accès autorisé ✓
+                Accès autorisé
               </span>
             ) : (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
@@ -502,72 +720,70 @@ export default function AutoSetupStep({
         </p>
       )}
 
-      {/* ── Réseau du hotspot (passerelle, classe, sous-réseau) ───────── */}
+      {/* ── Réseau du hotspot : hérité de l'Étape 2, non ré-éditable ici ── */}
       <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
-        <p className="text-sm font-semibold text-ink">Réseau du hotspot</p>
-        <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-          Pré-rempli depuis l&apos;Étape 2 — même sélecteur que le configurateur de bridge,
-          appliqué au routeur et resynchronisé sur la topologie au lancement.
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-ink">Réseau du hotspot</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-soft">
+              Défini à l&apos;Étape 2 (topologie / assignation des interfaces au bridge). Pour le
+              changer, revenez à l&apos;étape précédente — plus besoin de le re-saisir ici.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="shrink-0 rounded-md border border-line-soft px-3 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-clay"
+          >
+            Modifier à l&apos;Étape 2
+          </button>
+        </div>
+        <p className="mt-3 rounded-md bg-clay px-3 py-2.5 text-sm text-ink-soft">
+          Passerelle :{" "}
+          <span className="font-semibold text-ink">
+            {hotspotAddress}/{hotspotPrefixBits}
+          </span>
+          {subnet ? ` — ${getImpactNote(hotspotPrefixBits)}` : ""}
         </p>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      </div>
+
+      {/* ── Compte administrateur du portail (accès internet) ────────── */}
+      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+        <p className="text-sm font-semibold text-ink">Compte administrateur du portail</p>
+        <p className="mt-1 text-sm leading-relaxed text-ink-soft">
+          Optionnel — crée un identifiant pour vous connecter au WiFi via le portail sans acheter de
+          forfait (accès internet illimité). Laissez vide si vous n&apos;en voulez pas.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="as-gateway-ip" className="mb-1.5 block text-sm font-medium text-ink-soft">
-              IP de la passerelle
+            <label htmlFor="as-admin-user" className="mb-1.5 block text-sm font-medium text-ink-soft">
+              Identifiant
             </label>
-            <select
-              id="as-gateway-ip"
-              value={hotspotAddress}
-              onChange={(e) => setHotspotAddress(e.target.value)}
+            <input
+              id="as-admin-user"
+              type="text"
+              autoComplete="off"
+              value={adminPortalUser}
+              onChange={(e) => setAdminPortalUser(e.target.value)}
+              placeholder="admin"
               className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
-            >
-              {gatewayOptions.map((ip) => (
-                <option key={ip} value={ip}>
-                  {ip}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div>
-            <label htmlFor="as-network-class" className="mb-1.5 block text-sm font-medium text-ink-soft">
-              Classe réseau
+            <label htmlFor="as-admin-pass" className="mb-1.5 block text-sm font-medium text-ink-soft">
+              Mot de passe
             </label>
-            <select
-              id="as-network-class"
-              value={networkClass}
-              onChange={(e) => changeNetworkClass(e.target.value as NetworkClass)}
+            <input
+              id="as-admin-pass"
+              type="text"
+              autoComplete="off"
+              value={adminPortalPassword}
+              onChange={(e) => setAdminPortalPassword(e.target.value)}
+              placeholder="défaut : identique à l'identifiant"
               className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
-            >
-              {(["any", "A", "B", "C"] as NetworkClass[]).map((c) => (
-                <option key={c} value={c}>
-                  {c === "any" ? "Toutes" : `Classe ${c}`}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="as-subnet-bits" className="mb-1.5 block text-sm font-medium text-ink-soft">
-              Taille du sous-réseau
-            </label>
-            <select
-              id="as-subnet-bits"
-              value={hotspotPrefixBits}
-              onChange={(e) => setHotspotPrefixBits(Number(e.target.value))}
-              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
-            >
-              {CLASS_PREFIX_OPTIONS[networkClass].map((bits) => (
-                <option key={bits} value={bits}>
-                  /{bits}
-                </option>
-              ))}
-            </select>
+            />
           </div>
         </div>
-        {subnet && (
-          <p className="mt-3 rounded-md bg-clay px-3 py-2.5 text-sm text-ink-soft">
-            Réseau hotspot : <span className="font-semibold text-ink">{hotspotAddress}/{hotspotPrefixBits}</span>{" "}
-            — {getImpactNote(hotspotPrefixBits)}
-          </p>
-        )}
       </div>
 
       {/* ── Identité du hotspot ─────────────────────────────────────── */}
@@ -767,6 +983,32 @@ export default function AutoSetupStep({
               className="w-24 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
             />
           </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-soft">
+              Débit ↑/↓ (Mbps)
+            </label>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min={1}
+                value={customUpload}
+                onChange={(e) => setCustomUpload(e.target.value)}
+                placeholder="↑"
+                aria-label="Débit montant (Mbps)"
+                className="w-16 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
+              />
+              <span className="text-ink-soft">/</span>
+              <input
+                type="number"
+                min={1}
+                value={customDownload}
+                onChange={(e) => setCustomDownload(e.target.value)}
+                placeholder="↓"
+                aria-label="Débit descendant (Mbps)"
+                className="w-16 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
+              />
+            </div>
+          </div>
           <button
             type="button"
             onClick={addCustomProfile}
@@ -776,6 +1018,10 @@ export default function AutoSetupStep({
             Ajouter
           </button>
         </div>
+        <p className="mt-2 text-xs text-ink-soft">
+          Débit facultatif : laissez vide pour un accès au débit du lien (illimité). Renseignez
+          les deux pour limiter (ex. 5 / 10).
+        </p>
         {customProfileError && <p className="mt-2 text-sm text-err">{customProfileError}</p>}
       </div>
 
@@ -826,6 +1072,103 @@ export default function AutoSetupStep({
                   )}
                 </label>
               ))}
+            </div>
+          </div>
+        )}
+
+        {installCaptivePortal && (
+          <div className="mt-4 space-y-4 border-t border-line-soft pt-4">
+            {/* Contact support / paiement (injecté dans le pied du portail). */}
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Contact affiché sur le portail</h3>
+              <p className="mt-0.5 text-xs text-ink-soft">
+                WhatsApp / téléphone d&apos;assistance montrés au client. Laissez vide pour ne pas
+                les afficher. Les logos des moyens de paiement (Wave, Orange, MTN, Moov, carte)
+                sont ajoutés automatiquement.
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input
+                  value={portalSupportWhatsapp}
+                  onChange={(e) => setPortalSupportWhatsapp(e.target.value)}
+                  placeholder="WhatsApp — +225 00 00 00 00 00"
+                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                />
+                <input
+                  value={portalSupportPhone}
+                  onChange={(e) => setPortalSupportPhone(e.target.value)}
+                  placeholder="Téléphone — +225 00 00 00 00 00"
+                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Espaces vendeurs (« Retrouver mon code » — vendeurs agréés). */}
+            <div>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-ink">Espaces vendeurs</h3>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPortalVendors((prev) => [...prev, { name: "", location: "", phone: "" }])
+                  }
+                  className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Ajouter
+                </button>
+              </div>
+              {portalVendors.length === 0 ? (
+                <p className="mt-1 text-xs text-ink-soft">
+                  Aucun vendeur — la section « Retrouver mon code » restera vide.
+                </p>
+              ) : (
+                <div className="mt-2 space-y-3">
+                  {portalVendors.map((v, i) => (
+                    <div key={i} className="flex items-start gap-2 rounded-md border border-line-soft p-3">
+                      <div className="flex-1 space-y-2">
+                        <input
+                          value={v.name}
+                          onChange={(e) =>
+                            setPortalVendors((prev) =>
+                              prev.map((x, idx) => (idx === i ? { ...x, name: e.target.value } : x)),
+                            )
+                          }
+                          placeholder="Nom du vendeur"
+                          className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                        />
+                        <input
+                          value={v.location}
+                          onChange={(e) =>
+                            setPortalVendors((prev) =>
+                              prev.map((x, idx) => (idx === i ? { ...x, location: e.target.value } : x)),
+                            )
+                          }
+                          placeholder="Quartier / ville"
+                          className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                        />
+                        <input
+                          value={v.phone}
+                          onChange={(e) =>
+                            setPortalVendors((prev) =>
+                              prev.map((x, idx) => (idx === i ? { ...x, phone: e.target.value } : x)),
+                            )
+                          }
+                          placeholder="+225 07 00 00 00 00"
+                          className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPortalVendors((prev) => prev.filter((_, idx) => idx !== i))}
+                        aria-label="Retirer ce vendeur"
+                        className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -902,7 +1245,41 @@ export default function AutoSetupStep({
       )}
 
       {result?.error && (
-        <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{result.error}</p>
+        <div className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+          <p>{result.error}</p>
+          {result.serialLocked && result.serial && (
+            <button
+              type="button"
+              onClick={async () => {
+                const serial = result.serial!;
+                const status = await getSerialUnlockStatus(serial).catch(() => ({
+                  latestStatus: null,
+                }));
+                setUnlockModal({ serial, latestStatus: status.latestStatus });
+              }}
+              className="mt-2 inline-flex items-center rounded-md bg-brand-deep px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+            >
+              Demander le déblocage
+            </button>
+          )}
+          {result.log && (
+            <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-err/80">
+              {result.log.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {unlockModal && (
+        <SerialUnlockRequestModal
+          open
+          serial={unlockModal.serial}
+          routerId={routerId}
+          latestStatus={unlockModal.latestStatus}
+          onClose={() => setUnlockModal(null)}
+        />
       )}
       {result?.firmwareUpdating && (
         <p className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-warn">{result.message}</p>
@@ -910,8 +1287,9 @@ export default function AutoSetupStep({
       {result?.success && (
         <div className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-ok">
           <p className="font-medium">
-            Configuration appliquée. Le routeur redémarre — patientez ~1 minute avant de joindre
-            le portail.
+            {result.containerPending
+              ? "Configuration appliquée. MikHmon continue de se télécharger sur le routeur ; vérifiez son état dans une minute."
+              : "Configuration appliquée. Le routeur redémarre — patientez ~1 minute avant de joindre le portail."}
           </p>
           {result.log && (
             <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-ok/80">

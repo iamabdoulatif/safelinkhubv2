@@ -7,9 +7,11 @@ import { put } from "@vercel/blob";
 import { Resend } from "resend";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
-import { routers } from "@/lib/db/schema";
+import { routers, autoSetupAuthorizations } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
 import {
   autoSetupPriceFcfa,
   buildWhatsappLink,
@@ -23,6 +25,8 @@ import {
   createAuthorizationRequest,
   decideAuthorization,
   getAutoSetupGateStatusForRouter,
+  createPendingAutoSetupPayment,
+  attachAutoSetupPaymentReference,
 } from "./auto-setup-authorization-service";
 
 const MAX_PROOF_BYTES = 5 * 1024 * 1024; // 5 Mo
@@ -161,13 +165,93 @@ export async function getAutoSetupGateConfigPublic(): Promise<{
   priceWithContainerFcfa: number;
   priceWithoutContainerFcfa: number;
   whatsappNumber: string;
+  geniusPayEnabled: boolean;
 }> {
   const c = getAutoSetupGateConfig();
   return {
     priceWithContainerFcfa: c.priceWithContainerFcfa,
     priceWithoutContainerFcfa: c.priceWithoutContainerFcfa,
     whatsappNumber: c.whatsappNumber,
+    geniusPayEnabled: isGeniusPayCheckoutEnabled(),
   };
+}
+
+/**
+ * Démarre un paiement GeniusPay pour débloquer l'Auto-Setup (org → plateforme).
+ * Le tarif est imposé côté serveur selon le type de MikroTik ; le webhook
+ * payment.success approuve ensuite la demande, après quoi l'auto-setup passe la
+ * porte (et la consomme).
+ */
+export async function startAutoSetupPayment(formData: FormData): Promise<
+  { paymentUrl: string } | { error: string }
+> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const routerId = String(formData.get("routerId") ?? "");
+  const supportsContainers = String(formData.get("supportsContainers") ?? "") === "1";
+  if (!routerId) return { error: "Routeur manquant." };
+  if (!isGeniusPayCheckoutEnabled()) {
+    return { error: "Le paiement en ligne n'est pas encore disponible. Utilisez le paiement manuel." };
+  }
+
+  const db = getDb();
+  const [router] = await db
+    .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
+    .from(routers)
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .limit(1);
+  if (!router) return { error: "Routeur introuvable." };
+
+  const amountFcfa = autoSetupPriceFcfa(getAutoSetupGateConfig(), supportsContainers);
+
+  const row = await createPendingAutoSetupPayment({
+    orgId: session.orgId,
+    userId: session.userId,
+    requesterEmail: session.email,
+    requesterName: session.name,
+    routerId: router.id,
+    routerName: router.name,
+    supportsContainers,
+    amountFcfa,
+  });
+
+  const hdrs = await headers();
+  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "";
+  const proto = hdrs.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const origin = host ? `${proto}://${host}` : "";
+  // Retour APRÈS paiement : on ramène l'admin sur le wizard du BON routeur, à
+  // l'étape 3 (configuration automatique) — sinon la page rouvre l'étape 2
+  // (topologie) et l'admin doit tout re-parcourir. L'étape 3 restaure ses champs
+  // depuis sessionStorage (voir AutoSetupStep).
+  const returnUrl = origin
+    ? `${origin}/admin/settings/router-setup?router=${router.id}&etape=3`
+    : undefined;
+
+  const payment = await createGeniusPayment({
+    amountFcfa,
+    description: `Auto-Setup ${mikrotikKindLabel(supportsContainers)} — ${router.name ?? "routeur"}`,
+    customer: { name: session.name, email: session.email },
+    metadata: {
+      kind: "auto_setup",
+      authorizationId: row.id,
+      orgId: session.orgId,
+      routerId: router.id,
+    },
+    successUrl: returnUrl,
+    errorUrl: returnUrl,
+  });
+
+  if (!payment.ok) {
+    await db
+      .update(autoSetupAuthorizations)
+      .set({ status: "rejected", adminNote: `Échec ouverture paiement : ${payment.error}` })
+      .where(eq(autoSetupAuthorizations.id, row.id));
+    return { error: payment.error };
+  }
+
+  await attachAutoSetupPaymentReference(row.id, payment.reference);
+  return { paymentUrl: payment.paymentUrl };
 }
 
 /** État de la porte pour un routeur (UI). */

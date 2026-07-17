@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Mail, Lock, AlertCircle, ShieldCheck } from "lucide-react";
 import { login, verifyMfaLogin } from "@/lib/auth/actions";
+import ResendActivationForm from "@/components/auth/ResendActivationForm";
 
 const fieldClass =
   "w-full border-2 border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35";
@@ -59,6 +61,7 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const callback = searchParams.get("callback") ?? "/admin";
   const [state, formAction, pending] = useActionState(login, undefined);
+  const [email, setEmail] = useState("");
 
   if (state?.mfaRequired) {
     return <MfaStep />;
@@ -75,6 +78,15 @@ export default function LoginForm() {
         </div>
       )}
 
+      {state?.needsVerification && (
+        <div className="space-y-3 border-2 border-line-soft bg-clay px-3 py-3">
+          <p className="text-sm text-ink-soft">
+            Renvoyer le lien d&apos;activation à <span className="font-bold text-ink">{email}</span> ?
+          </p>
+          <ResendActivationForm defaultEmail={email} compact />
+        </div>
+      )}
+
       <div>
         <label className="mb-1.5 block text-sm font-bold text-ink">
           Email
@@ -87,6 +99,8 @@ export default function LoginForm() {
             required
             autoComplete="email"
             spellCheck={false}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             placeholder="jean.dupont@exemple.com"
             className={fieldClass}
           />
@@ -110,9 +124,12 @@ export default function LoginForm() {
           />
         </div>
         <div className="mt-1.5 text-right">
-          <span className="cursor-not-allowed text-sm font-medium text-ink-soft/70">
-            Mot de passe oublié (bientôt)
-          </span>
+          <Link
+            href="/auth/mot-de-passe-oublie"
+            className="text-sm font-medium text-brand-deep underline decoration-2 underline-offset-4 hover:bg-brand hover:text-[#1C1917]"
+          >
+            Mot de passe oublié ?
+          </Link>
         </div>
       </div>
 

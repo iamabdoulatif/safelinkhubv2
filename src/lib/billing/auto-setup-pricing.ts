@@ -12,8 +12,12 @@
  * other legacy hardware) only get the hotspot/Wi-Fi steps, hence the
  * lower price.
  */
+// Aligné sur le gate-config du paiement en ligne (auto-setup-gate-config.ts :
+// 15 000 container / 10 000 hotspot-only) pour qu'un même prix s'affiche et se
+// facture quel que soit le chemin (paiement en ligne = source de vérité, repli
+// wallet identique). Plus de "deux prix qui coexistent".
 export const AUTO_SETUP_FEE_CENTS = {
-  containerCapable: 20000,
+  containerCapable: 15000,
   hotspotOnly: 10000,
 } as const;
 
@@ -21,8 +25,10 @@ export function autoSetupFeeCentsFor(supportsContainers: boolean): number {
   return supportsContainers ? AUTO_SETUP_FEE_CENTS.containerCapable : AUTO_SETUP_FEE_CENTS.hotspotOnly;
 }
 
-/** One year of free direct-access VPN (WinBox/WebFig/SSH/MikHmon) plans per org, from signup. */
-export const VPN_TRIAL_DAYS = 365;
+/** Essai gratuit des accès directs (WinBox/WebFig/SSH/MikHmon) par org, dès
+ * l'inscription : 10 jours sur chaque VPN, puis TOUT accès distant devient
+ * payant (débit du portefeuille à l'activation). */
+export const VPN_TRIAL_DAYS = 10;
 
 export function vpnTrialEndsAt(orgCreatedAt: Date): Date {
   const d = new Date(orgCreatedAt);

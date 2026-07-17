@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, bridges, organizations } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
@@ -220,7 +220,14 @@ export async function saveBridge(_prevState: unknown, formData: FormData) {
     values.bootstrapTokenExpiresAt = new Date(Date.now() + INSTALL_TOKEN_TTL_MS);
   }
 
-  const [bridge] = await db.insert(bridges).values(values).returning();
+  const [existingSavedBridge] = await db
+    .select({ id: bridges.id })
+    .from(bridges)
+    .where(and(eq(bridges.routerId, routerId), eq(bridges.name, name)))
+    .limit(1);
+  const [bridge] = existingSavedBridge
+    ? await db.update(bridges).set(values).where(eq(bridges.id, existingSavedBridge.id)).returning()
+    : await db.insert(bridges).values(values).returning();
 
   revalidatePath("/admin/settings/router-setup");
 

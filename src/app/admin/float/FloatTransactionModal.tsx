@@ -43,7 +43,7 @@ export default function FloatTransactionModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form
             action={formAction}
-            className="w-full max-w-sm rounded-xl bg-paper p-6"
+            className="max-h-[90dvh] overflow-y-auto w-full max-w-sm rounded-xl bg-paper p-6"
           >
             <input type="hidden" name="type" value={type} />
             <div className="flex items-center justify-between">

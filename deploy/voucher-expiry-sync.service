@@ -1,0 +1,15 @@
+[Unit]
+# Décompte PARTAGÉ des vouchers multi-routeurs : lit/propage l'expiration entre
+# toutes les zones WiFi d'un même ticket. Voir src/lib/vouchers/reconcile.ts et
+# src/app/api/cron/voucher-expiry-sync/route.ts. Déclenché par le .timer voisin.
+Description=SafeLinkHub — sync du decompte partage des vouchers (multi-routeurs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Fournit CRON_SECRET à ExecStart. Ajuste le chemin si ton .env est ailleurs.
+EnvironmentFile=/root/safelinkhub-app/.env
+ExecStart=/usr/bin/curl -fsS -X GET \
+  -H "Authorization: Bearer ${CRON_SECRET}" \
+  https://safelinkhub.io/api/cron/voucher-expiry-sync

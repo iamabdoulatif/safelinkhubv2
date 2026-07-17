@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { contactMessages } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 
 const MAX_MESSAGE_LENGTH = 5000;
 
@@ -31,6 +32,8 @@ export async function submitContactMessage(_prevState: unknown, formData: FormDa
   if (message.length > MAX_MESSAGE_LENGTH) {
     return { error: `Le message ne peut pas dépasser ${MAX_MESSAGE_LENGTH} caractères.` };
   }
+  const rateLimit = await enforcePublicSubmissionRateLimit("contact");
+  if (!rateLimit.allowed) return { error: rateLimit.error };
 
   const db = getDb();
   await db.insert(contactMessages).values({

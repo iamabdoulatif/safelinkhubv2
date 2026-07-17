@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, notInArray, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations, captiveTemplates, walletTransactions, packages, bridges } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
@@ -10,14 +10,19 @@ import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
 import { getAppUrl } from "@/lib/net/app-url";
 import { VOUCHER_PROFILES, type VoucherProfile } from "./voucher-profiles";
+import { reserveRouterSerial } from "./router-serial-lock";
 import {
   REMOTE_ACCESS_PORT,
   DOCKER_WEB_PORT,
   TUNNEL_ACCESS_PORT,
   HOTSPOT_BRIDGE_NAME,
+  HOTSPOT_POOL_NAME,
 } from "./constants";
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
+import { scenarioLabel, type DeploymentScenario } from "./device-catalog";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
+import { ensureWalledGarden } from "./walled-garden";
+import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { loadSafelinkhubDefaultPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import {
@@ -66,10 +71,13 @@ const VETH_NAME = "MIKHMON";
 const VETH_ADDRESS = "11.11.11.11/28";
 const VETH_GATEWAY = "11.11.11.1";
 const DOCKER_NETWORK = "11.11.11.0/28";
-const HOTSPOT_POOL_NAME = "POOL-HOTSPOT";
-const CONTAINER_NAME = "mikhmonv3-safelinkhub:latest";
-const LEGACY_CONTAINER_NAMES = ["mikhmon-sf-v1:latest"];
-const REMOTE_IMAGE = "latif225/mikhmonv3-safelinkhub:latest";
+// Image MikHmon installée par l'auto-setup. Repassée à mikhmon-sf-v1 (choix
+// explicite de l'opérateur) : image multi-arch (arm/v6+v7, arm64, amd64), ~12 Mo,
+// qui tient dans le tmpfs des petits boards (hAP ax lite/ax²). L'ancienne v3
+// devient legacy → nettoyée au provisioning.
+const CONTAINER_NAME = "mikhmon-sf-v1:latest";
+const LEGACY_CONTAINER_NAMES = ["mikhmonv3-safelinkhub:latest"];
+const REMOTE_IMAGE = "latif225/mikhmon-sf-v1:latest";
 const NTP_SERVERS = ["196.200.131.160", "196.10.52.57"]; // Côte d'Ivoire NTP
 
 function rosBoolean(value: string | undefined) {
@@ -110,17 +118,20 @@ async function migrateLegacyDockerBridge(client: RouterOSClient, log: string[]) 
 /**
  * /container/add returns immediately while RouterOS pulls the image in the
  * background. Poll /container/print until status leaves "downloading"/
- * "extracting", then start it. Gives up after ~3 minutes (large images on
- * slow WAN links) but start-on-boot=yes still guarantees it comes up on the
- * next reboot even if this attempt times out.
+ * "extracting", then start it. This deliberately stops after one minute:
+ * completing the pull can outlive an HTTP Server Action, while the container
+ * keeps downloading on the router and start-on-boot will start it later.
  */
-async function waitForImageAndStart(client: RouterOSClient, log: string[]) {
-  const maxAttempts = 36; // 36 * 5s = 3 minutes
+async function waitForImageAndStart(
+  client: RouterOSClient,
+  log: string[],
+): Promise<DockerProvisionResult> {
+  const maxAttempts = 12; // 12 * 5s = 1 minute
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await sleep(5000);
     let rows: Sentence[];
     try {
-      rows = await client.talk(["/container/print", `?name=${CONTAINER_NAME}`]);
+      rows = await client.talk(["/container/print"]);
     } catch {
       continue;
     }
@@ -134,28 +145,41 @@ async function waitForImageAndStart(client: RouterOSClient, log: string[]) {
       (container ? (container.running === "true" ? "running" : "stopped") : "");
 
     if (status === "stopped") {
+      if (!container?.[".id"]) {
+        log.push("FAIL (start container): RouterOS did not return a container ID");
+        return { status: "failed", message: "RouterOS did not return the MikHmon container ID." };
+      }
       try {
-        await client.talk(["/container/start", `=numbers=${CONTAINER_NAME}`]);
+        await client.talk(["/container/start", `=numbers=${container[".id"]}`]);
         log.push(`OK: started container after image pull (status was "${status}")`);
       } catch (err) {
-        log.push(
-          `SKIP (start container): ${err instanceof Error ? err.message : "error"}`,
-        );
+        const message = err instanceof Error ? err.message : "error";
+        log.push(`FAIL (start container): ${message}`);
+        return { status: "failed", message };
       }
-      return;
+      return { status: "pending", message: "MikHmon is starting on the router." };
     }
     if (status === "running") {
       log.push("OK: container already running");
-      return;
+      return { status: "ready" };
     }
     // "downloading" / "extracting" / "" (not yet reported) -> keep waiting.
   }
   log.push(
-    "SKIP (start container): image still pulling after 3 minutes — it will start automatically on the next reboot (start-on-boot=yes)",
+    "PENDING (start container): image is still downloading after one minute — RouterOS continues the pull in the background.",
   );
+  return {
+    status: "pending",
+    message: "L'image MikHmon est encore en cours de téléchargement sur le routeur.",
+  };
 }
 
-type RunFn = (words: string[], label: string, timeoutMs?: number) => Promise<void>;
+type RunResult = { ok: true } | { ok: false; error: string };
+type RunFn = (words: string[], label: string, timeoutMs?: number) => Promise<RunResult>;
+type DockerProvisionResult = {
+  status: "ready" | "pending" | "skipped" | "failed";
+  message?: string;
+};
 
 /**
  * The DOCKERS bridge + MIKHMON veth + container engine + MikHmon
@@ -178,9 +202,24 @@ async function provisionDockerStack(
     supportsContainers: boolean;
     hasUsbStorage: boolean;
     hasLargeOnboardStorage?: boolean;
+    // eMMC enterprise (CCR/CRS) : disque interne, jamais tmpfs (scénario 3).
+    hasEmmcStorage?: boolean;
     hotspotAddress?: string;
+    // Session MikHmon pré-remplie, injectée en variables d'env du conteneur :
+    // l'image les lit au démarrage pour écrire sa « Paramètres de session »
+    // (fin de la saisie manuelle IP/user/pass/nom hotspot/DNS/devise). Absente
+    // en mode MikHmon-seul lancé depuis la topologie.
+    mikhmonSession?: {
+      name: string;
+      mtIp: string;
+      mtUser: string;
+      mtPass: string;
+      hotspotName?: string;
+      dnsName?: string;
+      currency?: string;
+    };
   },
-) {
+): Promise<DockerProvisionResult> {
   // The UI's own architecture/device-mode check (DetectedModelBadge) is
   // what sets opts.supportsContainers — but that detection runs once on
   // page load and can be stale or wrong (e.g. the admin enabled container
@@ -253,17 +292,29 @@ async function provisionDockerStack(
       `${DOCKER_BRIDGE_NAME} bridge gateway address`,
     );
 
-    // Container engine: USB-equipped boards pull/extract on the stick
-    // (usb1/pull) to spare onboard flash; boards with enough internal
-    // storage (RB4011 series, RB3011, RB5009 — see hasLargeOnboardStorage)
-    // host everything on their own disk slot ("disk1"/"disk…", live-
-    // detected by name) or directly on the Files storage when no slot is
-    // listed — never tmpfs for those; ax2 / hAP ax lite have neither USB
-    // nor flash to spare and fall back to the RAM-backed tmpfs scratch
-    // space.
+    // === SECTION C: Détection du stockage et choix du SCÉNARIO ===
+    // Container engine — 3 scénarios de stockage (le 4e « pas de container » est
+    // traité en amont par le skip supportsContainers). Voir device-catalog.ts /
+    // deploymentScenario() pour le vocabulaire partagé avec l'UI :
+    //   • SCÉNARIO 1 (USB/microSD, recommandé) : pull/extract sur la clé
+    //     (usb1/pull) pour épargner la flash — formatée ext4 au besoin ;
+    //   • SCÉNARIO 3 (eMMC/flash interne généreux : CCR/CRS, RB4011, RB3011,
+    //     RB5009) : disque interne propre ("disk1"/Files) — JAMAIS tmpfs,
+    //     survit au reboot ;
+    //   • SCÉNARIO 2 (flash interne limité : hAP ax lite/ax²) : repli tmpfs
+    //     RAM (usure NAND — usage intensif déconseillé).
+    // Règle d'or : jamais tmpfs si hasEmmcStorage OU hasLargeOnboardStorage.
+    // Un seul /disk/print, réutilisé par les 3 branches.
+    const disks = await client.talk(["/disk/print"]).catch(() => []);
+    const internalDisk = disks.find(
+      (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot) && d.type !== "tmpfs",
+    );
     let containerRootDir = "tmp/mikhmon-app";
-    let containerLayerDir = "tmp/mikhmon-layers";
+    let scenario: DeploymentScenario;
+
     if (opts.hasUsbStorage) {
+      // --- SCÉNARIO 1: USB / microSD ---
+      scenario = 1;
       // RouterOS exposes a plugged-in USB stick as an unformatted /disk
       // entry (slot usb1) — /container/config's tmpdir=usb1/pull silently
       // fails to pull/extract images until that slot is formatted ext4
@@ -272,8 +323,7 @@ async function provisionDockerStack(
       // auto-setup on an already-formatted stick must not reformat it —
       // that would wipe whatever's already pulled/cached — so this only
       // formats when the slot isn't already ext4.
-      const usbDisks = await client.talk(["/disk/print"]).catch(() => []);
-      const usb1Disk = usbDisks.find((d) => d.slot === "usb1");
+      const usb1Disk = disks.find((d) => d.slot === "usb1");
       if (usb1Disk && usb1Disk["file-system"] !== "ext4") {
         await run(
           ["/disk/format-drive", "=slot=usb1", "=file-system=ext4"],
@@ -286,70 +336,189 @@ async function provisionDockerStack(
         );
       }
 
-      const usbRootDir = "usb1/mikhmon-app";
-      const usbLayerDir = "usb1/mikhmon-layers";
-      containerRootDir = usbRootDir;
-      containerLayerDir = usbLayerDir;
-      await run(
-        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull", `=layer-dir=${usbLayerDir}`],
+      containerRootDir = "usb1/mikhmon-app";
+      const configured = await run(
+        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull"],
         "container engine config (USB storage)",
       );
-    } else {
-      const disks = await client.talk(["/disk/print"]).catch(() => []);
-      const internalDisk = disks.find(
-        (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot),
+      if (!configured.ok) return { status: "failed", message: configured.error };
+    } else if (internalDisk?.slot || opts.hasLargeOnboardStorage || opts.hasEmmcStorage) {
+      // --- SCÉNARIO 3: eMMC / flash interne généreux (JAMAIS tmpfs) ---
+      // Le board rapporte son propre slot interne ("disk1"/… live-détecté, donc
+      // pas limité aux modèles du catalogue), OU il est flaggé large-storage /
+      // eMMC (RB3011/RB5009 NAND, CCR/CRS eMMC : assez de mémoire interne pour
+      // héberger MikHmon sans clé USB, image persistante au reboot). Sans slot
+      // listé, les chemins sont de simples dossiers sur la storage Files/flash
+      // du routeur — pas de /disk/add, pas de formatage.
+      scenario = 3;
+      const root = internalDisk?.slot ? `${internalDisk.slot}/` : "";
+      containerRootDir = `${root}mikhmon-app`;
+      const configured = await run(
+        [
+          "/container/config/set",
+          "=registry-url=https://registry-1.docker.io",
+          `=tmpdir=${root}pull`,
+        ],
+        `container engine config (stockage interne${internalDisk?.slot ? ` ${internalDisk.slot}` : ""})`,
       );
-      if (internalDisk?.slot || opts.hasLargeOnboardStorage) {
-        // No USB stick, but the board either reports its own internal disk
-        // slot ("disk1", "disk2", … — RB4011 and friends, live-detected so
-        // this isn't limited to boards hardcoded in device-catalog.ts) or
-        // is flagged large-storage in the catalog (RB3011 : assez de
-        // mémoire interne pour héberger MikHmon, pas de clé USB, jamais
-        // tmpfs). When no slot is listed, the paths are plain directories
-        // on the router's own Files/flash storage — no /disk/add, no
-        // formatting.
-        const root = internalDisk?.slot ? `${internalDisk.slot}/` : "";
-        containerRootDir = `${root}mikhmon-app`;
-        containerLayerDir = `${root}mikhmon-layers`;
-        await run(
-          [
-            "/container/config/set",
-            "=registry-url=https://registry-1.docker.io",
-            `=tmpdir=${root}pull`,
-            `=layer-dir=${containerLayerDir}`,
-          ],
-          `container engine config (stockage interne${internalDisk?.slot ? ` ${internalDisk.slot}` : ""})`,
+      if (!configured.ok) return { status: "failed", message: configured.error };
+    } else {
+      // --- SCÉNARIO 2: flash interne limité → tmpfs RAM ---
+      scenario = 2;
+      if (!disks.some((d) => d.slot === "tmp")) {
+        const tmpfsCreated = await run(
+          ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
+          "tmpfs disk slot",
         );
-      } else {
-        if (!disks.some((d) => d.slot === "tmp")) {
-          await run(
-            ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
-            "tmpfs disk slot",
-          );
+        if (!tmpfsCreated.ok) {
+          return {
+            status: "failed",
+            message: `MikHmon requires 150 MB of free RAM or external storage: ${tmpfsCreated.error}`,
+          };
         }
-        await run(
-          ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull", `=layer-dir=${containerLayerDir}`],
-          "container engine config (tmpfs)",
-        );
       }
+      const configured = await run(
+        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull"],
+        "container engine config (tmpfs)",
+      );
+      if (!configured.ok) return { status: "failed", message: configured.error };
     }
+    log.push(`OK: Scénario ${scenario} sélectionné (${scenarioLabel(scenario)})`);
 
-    for (const name of [CONTAINER_NAME, ...LEGACY_CONTAINER_NAMES]) {
+    for (const name of LEGACY_CONTAINER_NAMES) {
       await client.talk(["/container/remove", `=numbers=${name}`]).catch(() => {});
     }
-    await run(
-      [
+
+    // Session MikHmon auto-configurée : on pose un envlist "mikhmon" que l'image
+    // lit au démarrage pour écrire sa « Paramètres de session » (nom, IP MikroTik
+    // = passerelle du veth, user/pass API, nom hotspot, DNS, devise) — l'admin
+    // n'a plus rien à taper. Purge de l'ancien envlist d'abord (idempotent).
+    const MIKHMON_ENVLIST = "mikhmon";
+    let mikhmonEnvlist: string | null = null;
+    if (opts.mikhmonSession) {
+      const s = opts.mikhmonSession;
+      const existingEnvs = await client
+        .talk(["/container/envs/print", `?list=${MIKHMON_ENVLIST}`])
+        .catch(() => [] as Sentence[]);
+      for (const e of existingEnvs) {
+        if (e[".id"]) {
+          await client.talk(["/container/envs/remove", `=numbers=${e[".id"]}`]).catch(() => {});
+        }
+      }
+      const pairs: [string, string | undefined][] = [
+        ["MIKHMON_SESSION", s.name],
+        ["MIKHMON_MT_IP", s.mtIp],
+        ["MIKHMON_MT_USER", s.mtUser],
+        ["MIKHMON_MT_PASS", s.mtPass],
+        ["MIKHMON_HOTSPOT_NAME", s.hotspotName],
+        ["MIKHMON_DNS", s.dnsName],
+        ["MIKHMON_CURRENCY", s.currency],
+      ];
+      let added = 0;
+      let envFailed = false;
+      for (const [key, value] of pairs) {
+        if (!value) continue;
+        const envAdded = await run(
+          ["/container/envs/add", `=list=${MIKHMON_ENVLIST}`, `=key=${key}`, `=value=${value}`],
+          `MikHmon env ${key}`,
+        );
+        if (!envAdded.ok) {
+          // Certains builds du paquet container (RouterOS 7.23.x sur les petits
+          // boards) n'exposent pas /container/envs : impossible de pré-remplir
+          // la « Paramètres de session ». On n'échoue PAS l'install pour autant —
+          // le conteneur s'installe quand même (sans =envlist=) et l'admin saisit
+          // la session MikHmon à la main. Même logique que le fallback envlist.
+          log.push(
+            `WARN: impossible de pré-remplir la session MikHmon (${envAdded.error}) — à configurer manuellement.`,
+          );
+          envFailed = true;
+          break;
+        }
+        added++;
+      }
+      // On ne pose =envlist= que si TOUTES les variables ont été écrites : une
+      // session à moitié remplie serait pire que pas de pré-remplissage du tout.
+      if (added > 0 && !envFailed) mikhmonEnvlist = MIKHMON_ENVLIST;
+    }
+
+    const containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+    const existingContainer = containers.find(
+      (container) =>
+        container.name === CONTAINER_NAME || container["root-dir"] === containerRootDir,
+    );
+    // Le paramètre =envlist= (pré-remplissage de la session MikHmon via l'envlist
+    // "mikhmon") est documenté sur /container/add|set, mais certains builds du
+    // paquet container (vu sur RouterOS 7.23.1, hAP ax lite) le REJETTENT avec
+    // « unknown parameter envlist » et font échouer toute l'install. On l'essaie
+    // donc puis, si RouterOS ne le connaît pas, on réinstalle SANS : le conteneur
+    // s'installe quand même, la session MikHmon se configure alors à la main
+    // (l'envlist reste posé, réutilisé par les routeurs dont le build le gère).
+    const ENVLIST_UNSUPPORTED = /envlist/i;
+    if (existingContainer?.[".id"]) {
+      const baseSet = ["/container/set", `=numbers=${existingContainer[".id"]}`, "=start-on-boot=yes"];
+      let containerUpdated = await run(
+        mikhmonEnvlist ? [...baseSet, `=envlist=${mikhmonEnvlist}`] : baseSet,
+        "preserve existing MikHmon container download",
+      );
+      if (!containerUpdated.ok && mikhmonEnvlist && ENVLIST_UNSUPPORTED.test(containerUpdated.error)) {
+        log.push(
+          "WARN: cette version de RouterOS ignore =envlist= sur /container/set — session MikHmon à configurer manuellement.",
+        );
+        containerUpdated = await run(baseSet, "preserve existing MikHmon container download (sans envlist)");
+      }
+      if (!containerUpdated.ok) return { status: "failed", message: containerUpdated.error };
+      log.push("OK: existing MikHmon container download preserved");
+    } else {
+      const baseAdd = [
         "/container/add",
         `=interface=${VETH_NAME}`,
         `=name=${CONTAINER_NAME}`,
         `=remote-image=${REMOTE_IMAGE}`,
-        `=layer-dir=${containerLayerDir}`,
         `=root-dir=${containerRootDir}`,
         "=start-on-boot=yes",
+      ];
+      let containerAdded = await run(
+        mikhmonEnvlist ? [...baseAdd, `=envlist=${mikhmonEnvlist}`] : baseAdd,
+        "container image install (auto-start on boot enabled)",
+      );
+      if (!containerAdded.ok && mikhmonEnvlist && ENVLIST_UNSUPPORTED.test(containerAdded.error)) {
+        log.push(
+          "WARN: cette version de RouterOS ignore =envlist= sur /container/add — installation sans pré-remplissage de la session MikHmon (à configurer manuellement).",
+        );
+        containerAdded = await run(baseAdd, "container image install (sans envlist)");
+      }
+      if (!containerAdded.ok) {
+        return { status: "failed", message: containerAdded.error };
+      }
+    }
+    const containerResult = await waitForImageAndStart(client, log);
+    if (containerResult.status === "failed") return containerResult;
+
+    // Filet anti-« conteneur stopped après reboot ». Sur RouterOS, le
+    // start-on-boot=yes du conteneur se déclenche TÔT au boot — souvent AVANT
+    // que le disque (USB/flash) et l'interface veth soient prêts → RouterOS
+    // tente une fois, échoue, puis abandonne → MikHmon reste "stopped" jusqu'à
+    // un redémarrage manuel. On pose un scheduler "startup" qui, 45 s après le
+    // boot puis toutes les 30 s pendant ~3 min, (re)démarre le conteneur tant
+    // qu'il n'est pas lancé — idempotent : démarrer un conteneur déjà lancé est
+    // avalé par le on-error. Remove par nom d'abord (pas de doublon aux
+    // re-runs / à la « Réparation »). NB boards tmpfs/RAM (ax lite/ax² sans
+    // stockage persistant) : le conteneur est perdu au reboot et doit être
+    // re-provisionné — le scheduler est alors inoffensif (le find ne renvoie
+    // rien). Ce correctif s'applique aussi aux routeurs DÉJÀ installés dès leur
+    // prochaine passe d'auto-setup / réparation.
+    await client.talk(["/system/scheduler/remove", "=numbers=MIKHMON_BOOT"]).catch(() => {});
+    await run(
+      [
+        "/system/scheduler/add",
+        "=name=MIKHMON_BOOT",
+        "=start-time=startup",
+        `=on-event=:delay 45s; :local n 0; :while ($n < 6) do={ :do { /container/start [/container/find where name="${CONTAINER_NAME}"] } on-error={}; :delay 30s; :set n ($n + 1); }`,
+        "=policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon",
+        "=comment=Redemarre MikHmon au boot (anti start-on-boot race)",
       ],
-      "container image install (auto-start on boot enabled)",
+      "MikHmon boot auto-start scheduler",
     );
-    await waitForImageAndStart(client, log);
 
     // NAT: Docker subnet masquerade, remote-access dst-nat, and a second
     // dst-nat reachable via the hotspot gateway IP itself. Each checked
@@ -441,11 +610,17 @@ async function provisionDockerStack(
       );
     }
     await ensureMikhmonTunnelAccess(client, log);
+    return containerResult;
   } else if (!opts.supportsContainers) {
     log.push(
       "SKIP (MikHmon container): architecture does not support RouterOS Container — hotspot/WiFi configured, no container step run",
     );
   }
+
+  return {
+    status: "skipped",
+    message: "Le mode conteneur RouterOS n'est pas disponible ou n'est pas activé.",
+  };
 }
 
 export type HotspotStackOptions = {
@@ -462,6 +637,9 @@ export type HotspotStackOptions = {
   // USB and tmpfs and use a plain "disk1" Files directory instead. Ignored
   // when hasUsbStorage is true.
   hasLargeOnboardStorage?: boolean;
+  // True sur les CCR/CRS à eMMC interne : force le disque interne (disk1),
+  // jamais tmpfs (scénario 3), même si le slot n'est pas encore live-détecté.
+  hasEmmcStorage?: boolean;
   // RouterOS Container only runs on arm/arm64/tile — mipsbe/mmips/smips
   // boards (RB951, hEX, hEX S, plain wAP, ...) skip the DOCKERS/MikHmon
   // step entirely rather than failing partway through.
@@ -490,7 +668,10 @@ export type HotspotStackOptions = {
   // multi-tenant SaaS and hardcoding the same login across every
   // customer's router would be a collision/security smell, not a generic
   // default.
-  defaultHotspotUsers?: string[];
+  // Chaîne = login dont le mot de passe vaut le login (compat historique) ;
+  // objet { name, password } = login avec mot de passe distinct — ex. le compte
+  // administrateur du portail (accès internet) saisi à l'auto-setup.
+  defaultHotspotUsers?: Array<string | { name: string; password?: string }>;
   // Whether to push the bundled SafeLinkHub captive-portal package onto
   // the hotspot profile's html-directory as part of this same run.
   // Defaults to true (existing behavior for callers that don't pass this
@@ -503,11 +684,22 @@ export type HotspotStackOptions = {
   // have to re-enter the same plan by hand on the Packages page too.
   // Upserted by name per org: re-running with the same name updates price/
   // duration instead of duplicating the row.
+  // Branding du portail captif scopé à CE routeur, saisi dans l'auto-setup :
+  // contact support/paiement + « espaces vendeurs ». Persisté sur la ligne
+  // routers (portalSupportWhatsapp/Phone/Vendors) et rendu en priorité sur le
+  // branding du modèle. undefined = ne pas toucher ; "" / [] = effacer.
+  portalSupportWhatsapp?: string;
+  portalSupportPhone?: string;
+  portalVendors?: { name: string; location: string; phone: string }[];
   packagesToSync?: {
     name: string;
     priceCents: number;
     durationValue: number;
     durationUnit: string;
+    // Débit personnalisé du forfait (Mbps) — miroir du rate-limit du profil.
+    // Optionnels : absents → on garde le débit par défaut du forfait (5/5).
+    uploadMbps?: number;
+    downloadMbps?: number;
   }[];
   // Deprecated compatibility field: older saved auto-setup configs may
   // still contain a custom bridge name, but the managed hotspot bridge is
@@ -712,13 +904,30 @@ export async function provisionHotspotStack(
     };
   }
 
+  // Verrou anti-abus : un MikroTik (par numéro de série) ne peut être
+  // auto-configuré qu'une fois. Refuse si son SN est déjà verrouillé par un
+  // autre routeur (sauf réinitialisation superadmin). Re-run sur le même routeur
+  // autorisé. Voir router-serial-lock.ts.
+  const serialLock = await reserveRouterSerial(client, routerId, session.orgId, {
+    // Superadmin : aucune restriction — peut (re)configurer n'importe quel
+    // MikroTik autant de fois qu'il veut ; le verrou SN est transféré, pas refusé.
+    force: isSuperAdmin(session.role),
+  }).catch(() => ({ ok: true, serial: null }) as const);
+  if (!serialLock.ok) {
+    client.close();
+    return { error: serialLock.error };
+  }
+
   const log: string[] = [];
   const run = async (words: string[], label: string, timeoutMs?: number) => {
     try {
       await client.talk(words, timeoutMs);
       log.push(`OK: ${label}`);
+      return { ok: true } as const;
     } catch (err) {
-      log.push(`SKIP (${label}): ${err instanceof Error ? err.message : "error"}`);
+      const error = err instanceof Error ? err.message : "error";
+      log.push(`FAIL (${label}): ${error}`);
+      return { ok: false, error } as const;
     }
   };
 
@@ -1075,8 +1284,13 @@ export async function provisionHotspotStack(
       `=html-directory-override=${htmlDirectory}`,
       "=http-cookie-lifetime=52w1d",
       "=install-hotspot-queue=yes",
-      "=login-by=mac,cookie,http-chap,http-pap,mac-cookie",
-      "=mac-auth-mode=mac-as-username-and-password",
+      // Login PAR CODE uniquement (http-chap/http-pap, username=code) + cookie
+      // navigateur (même onglet ne re-saisit pas). PAS de login MAC : on retire
+      // "mac" et "mac-cookie" + mac-auth-mode → aucun appareil ne se reconnecte
+      // silencieusement par son adresse MAC (demande utilisateur). Le user reste
+      // lié au MAC (mac-address dans fulfill.ts) mais ça RESTREINT le partage du
+      // code, ça n'auto-connecte pas.
+      "=login-by=cookie,http-chap,http-pap",
     ];
     if (matchingProfile?.[".id"]) {
       await run(
@@ -1143,15 +1357,20 @@ export async function provisionHotspotStack(
     // RouterOS Hotspot login expects a password unless MAC login handles the
     // user; for deterministic client installs, the password is always the
     // same value as the username and existing users are reconciled.
-    for (const username of opts.defaultHotspotUsers ?? []) {
-      const name = username.trim();
+    for (const entry of opts.defaultHotspotUsers ?? []) {
+      const name = (typeof entry === "string" ? entry : entry.name).trim();
       if (!name) continue;
+      // Chaîne → mot de passe = login ; objet → mot de passe distinct si fourni.
+      const password = typeof entry === "string" ? name : entry.password?.trim() || name;
       const existingUser = await client.talk(["/ip/hotspot/user/print", `?name=${name}`]).catch(() => []);
       if (existingUser.length === 0) {
-        await run(["/ip/hotspot/user/add", `=name=${name}`, `=password=${name}`], `hotspot user ${name}`);
+        await run(
+          ["/ip/hotspot/user/add", `=name=${name}`, `=password=${password}`],
+          `hotspot user ${name}`,
+        );
       } else if (existingUser[0][".id"]) {
         await run(
-          ["/ip/hotspot/user/set", `=numbers=${existingUser[0][".id"]}`, `=password=${name}`],
+          ["/ip/hotspot/user/set", `=numbers=${existingUser[0][".id"]}`, `=password=${password}`],
           `hotspot user ${name} password`,
         );
       }
@@ -1268,6 +1487,7 @@ export async function provisionHotspotStack(
             htmlDirectory,
             fileBaseUrl,
             ssid: opts.ssid?.trim() || opts.hotspotName,
+            routerId: router.id,
           });
           if (uploadResult.failed.length > 0) {
             log.push(
@@ -1282,6 +1502,25 @@ export async function provisionHotspotStack(
           `SKIP (captive portal): ${err instanceof Error ? err.message : "erreur inconnue"}`,
         );
       }
+    }
+
+    // Walled-garden du hotspot (app SafeLinkHub + rails de paiement, tables
+    // L7 ET walled-garden ip pour l'HTTPS pré-auth) — installé DÈS
+    // l'auto-setup pour que le paiement du portail marche immédiatement,
+    // sans attendre le premier health-check (reconcileWalledGardenOnce le
+    // maintient ensuite à jour à chaque sync). Best-effort : un échec ici ne
+    // bloque pas la provision, le sync suivant rattrape.
+    try {
+      const { added } = await ensureWalledGarden(
+        client,
+        new URL(getAppUrl()).host,
+        await getOrgWalledGardenDisabledHosts(router.orgId),
+      );
+      log.push(`OK: walled-garden installé (${added.length} hôtes joignables avant connexion).`);
+    } catch (err) {
+      log.push(
+        `SKIP (walled-garden): ${err instanceof Error ? err.message : "erreur inconnue"} — sera réconcilié au prochain health-check.`,
+      );
     }
 
     // ddns-enabled gives the router a reachable hostname even behind CGNAT;
@@ -1354,26 +1593,13 @@ export async function provisionHotspotStack(
       );
     }
 
-    // Placeholder rules reserved for the hotspot service's own auto-managed
-    // rules (RouterOS inserts its dynamic hotspot filter/NAT rules right
-    // after these passthrough markers) — present in every reference export,
-    // disabled by default since they do nothing on their own.
+    // Placeholder NAT rule reserved for the hotspot service's own auto-managed
+    // rules (RouterOS inserts its dynamic hotspot NAT rules right after this
+    // passthrough marker) — disabled by default since it does nothing on its
+    // own. Le placeholder de FILTER n'est plus créé : à la demande de
+    // l'opérateur, l'auto-setup n'ajoute AUCUNE règle firewall filter (voir le
+    // bloc de durcissement retiré plus bas).
     const placeholderComment = "place hotspot rules here";
-    const existingFilterPlaceholder = await client
-      .talk(["/ip/firewall/filter/print", `?chain=unused-hs-chain`, `?comment=${placeholderComment}`])
-      .catch(() => []);
-    if (existingFilterPlaceholder.length === 0) {
-      await run(
-        [
-          "/ip/firewall/filter/add",
-          "=chain=unused-hs-chain",
-          "=action=passthrough",
-          `=comment=${placeholderComment}`,
-          "=disabled=yes",
-        ],
-        "firewall filter placeholder (hotspot rules anchor)",
-      );
-    }
     const existingNatPlaceholder = await client
       .talk(["/ip/firewall/nat/print", `?chain=unused-hs-chain`, `?comment=${placeholderComment}`])
       .catch(() => []);
@@ -1390,130 +1616,46 @@ export async function provisionHotspotStack(
       );
     }
 
-    // Security hardening (filter + raw): drop invalid connections, basic
-    // DDoS rate-limiting, and WAN DNS blocking — mirrors the reference
-    // hardened export, minus the port-scanner-detection and SSH/Telnet
-    // brute-force rules that used to live here (see below — both removed
-    // for risking self-lockout of legitimate SafeLinkHub/admin traffic).
-    // Removed by comment first so reruns don't pile up duplicate rules,
-    // and so any router that already has the old rules gets them cleaned
-    // up automatically too.
-    for (const comment of [
-      "Drop Invalid Connections",
-      "Drop SSH&TELNET Brute Forcers",
-      "BLOCK DNS REQUEST ON WAN INTERFACE",
-      "Port scanners to list",
-      "SYN/FIN scan",
-      "SYN/RST scan",
-      "drop port scanners",
-    ]) {
-      const matches = await client
-        .talk(["/ip/firewall/filter/print", `?comment=${comment}`])
-        .catch(() => [] as Sentence[]);
-      for (const row of matches) {
+    // Durcissement firewall FILTER : l'auto-setup n'en AJOUTE aucun ET RETIRE
+    // celui hérité (posé par d'anciennes versions, souvent empilé en double au
+    // fil des reruns) — « Drop Invalid Connections », la chaîne « block-ddos »
+    // (return + add-src/dst + le saut depuis forward + le drop des paires
+    // ddoser→ddosed) et « BLOCK DNS ON WAN ». Supprimé à CHAQUE run. On liste
+    // puis filtre en JS plutôt que d'utiliser des requêtes API multi-conditions
+    // (sémantique AND/OR ambiguë) : on ne retire QUE ces règles, jamais
+    // d'autres règles forward. Le durcissement RAW côté WAN ci-dessous
+    // (Winbox-only) est conservé — c'est du /ip firewall raw, pas du filter.
+    const removeFilterRules = async (rows: Sentence[]) => {
+      for (const row of rows) {
         if (row[".id"]) {
-          await client.talk(["/ip/firewall/filter/remove", `=numbers=${row[".id"]}`]).catch(() => {});
+          await client
+            .talk(["/ip/firewall/filter/remove", `=numbers=${row[".id"]}`])
+            .catch(() => {});
         }
       }
+    };
+    for (const comment of ["Drop Invalid Connections", "BLOCK DNS REQUEST ON WAN INTERFACE"]) {
+      const rows = await client
+        .talk(["/ip/firewall/filter/print", `?comment=${comment}`])
+        .catch(() => [] as Sentence[]);
+      await removeFilterRules(rows);
     }
-    // One-time cleanup for the rest of the now-removed SSH/Telnet
-    // progressive-ban chain (stages 2-5 above never carried a comment,
-    // so the by-comment loop just above only ever caught stage 1) —
-    // dst-port=22-23 is a signature unique to that removed feature, not
-    // used by anything else this script adds.
-    const staleBruteForceRules = await client
-      .talk(["/ip/firewall/filter/print", "?chain=input", "?dst-port=22-23"])
+    // Toute la chaîne personnalisée block-ddos (return + add-dst + add-src).
+    const ddosChainRows = await client
+      .talk(["/ip/firewall/filter/print", "?chain=block-ddos"])
       .catch(() => [] as Sentence[]);
-    for (const row of staleBruteForceRules) {
-      if (row[".id"]) {
-        await client.talk(["/ip/firewall/filter/remove", `=numbers=${row[".id"]}`]).catch(() => {});
-      }
-    }
-    await run(
-      ["/ip/firewall/filter/add", "=chain=input", "=connection-state=invalid", "=action=drop", "=comment=Drop Invalid Connections"],
-      "firewall: drop invalid input",
+    await removeFilterRules(ddosChainRows);
+    // Dans forward : le saut vers block-ddos + le drop des paires ddoser→ddosed.
+    const forwardRows = await client
+      .talk(["/ip/firewall/filter/print", "?chain=forward"])
+      .catch(() => [] as Sentence[]);
+    await removeFilterRules(
+      forwardRows.filter(
+        (r) =>
+          r["jump-target"] === "block-ddos" ||
+          (r["src-address-list"] === "ddoser" && r["dst-address-list"] === "ddosed"),
+      ),
     );
-    await run(
-      ["/ip/firewall/filter/add", "=chain=forward", "=connection-state=invalid", "=action=drop", "=comment=Drop Invalid Connections"],
-      "firewall: drop invalid forward",
-    );
-    await run(
-      ["/ip/firewall/filter/add", "=chain=forward", "=connection-state=new", "=action=jump", "=jump-target=block-ddos"],
-      "firewall: jump to DDoS chain",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=forward",
-        "=connection-state=new",
-        "=src-address-list=ddoser",
-        "=dst-address-list=ddosed",
-        "=action=drop",
-      ],
-      "firewall: drop known DDoS pairs",
-    );
-    await run(
-      ["/ip/firewall/filter/add", "=chain=block-ddos", "=dst-limit=50,50,src-and-dst-addresses/10s", "=action=return"],
-      "firewall: DDoS rate-limit return",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=block-ddos",
-        "=action=add-dst-to-address-list",
-        "=address-list=ddosed",
-        "=address-list-timeout=1d",
-      ],
-      "firewall: mark DDoS dst",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=block-ddos",
-        "=action=add-src-to-address-list",
-        "=address-list=ddoser",
-        "=address-list-timeout=1d",
-      ],
-      "firewall: mark DDoS src",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        `=in-interface=${WAN_INTERFACE_NAME}`,
-        "=protocol=tcp",
-        "=dst-port=53",
-        "=action=drop",
-        "=comment=BLOCK DNS REQUEST ON WAN INTERFACE",
-      ],
-      "firewall: block WAN DNS (tcp)",
-    );
-    await run(
-      [
-        "/ip/firewall/filter/add",
-        "=chain=input",
-        `=in-interface=${WAN_INTERFACE_NAME}`,
-        "=protocol=udp",
-        "=dst-port=53",
-        "=action=drop",
-        "=comment=BLOCK DNS REQUEST ON WAN INTERFACE",
-      ],
-      "firewall: block WAN DNS (udp)",
-    );
-    // Port-scan-detection filter rules (psd / SYN-FIN / SYN-RST heuristics
-    // -> "port scanners" address-list -> drop) used to live here too, same
-    // family of bug as the SSH/Telnet ban below: they keyed off generic
-    // TCP behavior on the input chain with no source restriction, so they
-    // risked catching SafeLinkHub's own relay/tunnel traffic and locking
-    // legitimate admin access out, not just real attackers.
-    // The SSH/Telnet progressive-ban filter rules that used to live here
-    // (SSH_BlackList_1/2/3 -> IP_BlackList, 3 strikes -> 1-day ban) were
-    // removed — they keyed off dst-port 22-23 with no source restriction,
-    // so legitimate repeated SSH/SFTP connections (FileZilla retries, the
-    // admin's own personal VPN access) on port 22 got caught by the exact
-    // same escalation meant for brute-forcers, eventually self-banning the
-    // admin from their own router for a day. Telnet is disabled outright
-    // elsewhere anyway, so there's nothing on port 23 left to brute-force.
 
     // Raw firewall on the WAN side: only Winbox stays reachable from the
     // internet; every other management/remote-access port is dropped before
@@ -1537,12 +1679,38 @@ export async function provisionHotspotStack(
       );
     }
 
-    await provisionDockerStack(client, log, run, {
+    const containerSetup = await provisionDockerStack(client, log, run, {
       supportsContainers: opts.supportsContainers,
       hasUsbStorage: opts.hasUsbStorage,
       hasLargeOnboardStorage: opts.hasLargeOnboardStorage,
+      hasEmmcStorage: opts.hasEmmcStorage,
       hotspotAddress: opts.hotspotAddress,
+      // Auto-remplissage de la « Paramètres de session » MikHmon : IP = passerelle
+      // du veth (11.11.11.1, ce que le conteneur utilise pour joindre l'API),
+      // identifiants = compte API du routeur, reste dérivé du hotspot.
+      mikhmonSession:
+        router.username && router.passwordEncrypted
+          ? {
+              name: "Safelink",
+              mtIp: VETH_GATEWAY,
+              mtUser: router.username,
+              mtPass: decryptSecret(router.passwordEncrypted),
+              hotspotName: opts.hotspotName,
+              dnsName: opts.dnsName?.trim() || opts.hotspotAddress,
+              currency: "fcfa",
+            }
+          : undefined,
     });
+
+    if (
+      opts.supportsContainers &&
+      (containerSetup.status === "failed" || containerSetup.status === "skipped")
+    ) {
+      return {
+        error: `MikHmon n'a pas pu être installé : ${containerSetup.message ?? "le routeur a refusé une commande de conteneur."}`,
+        log,
+      };
+    }
 
 
     // Lock down unused management services. Winbox (8291), WebFig (www —
@@ -1652,6 +1820,9 @@ export async function provisionHotspotStack(
           `=address-pool=${HOTSPOT_POOL_NAME}`,
           `=on-login=${profile.onLogin}`,
           "=parent-queue=none",
+          // Débit personnalisé (rx/tx côté client) si l'admin l'a saisi ;
+          // sinon RouterOS n'applique aucune limite (débit du lien).
+          ...(profile.rateLimit ? [`=rate-limit=${profile.rateLimit}`] : []),
         ],
         `voucher profile ${profile.name}`,
       );
@@ -1675,35 +1846,92 @@ export async function provisionHotspotStack(
     }
 
     // Mirror each custom voucher profile as a sellable "Forfait" on
-    // /admin/packages — upserted by (orgId, name) so re-running with the
-    // same profile name updates price/duration instead of duplicating the
-    // row, and an admin-edited price on the Packages page isn't silently
-    // clobbered unless they actually change the wizard's value too.
+    // /admin/packages — SCOPÉ AU ROUTEUR courant. Upserté par (orgId,
+    // routerId, name) : re-lancer l'auto-setup du MÊME routeur avec le même
+    // nom de profil met à jour prix/durée au lieu de dupliquer, et n'affecte
+    // PAS les forfaits d'un autre routeur de l'org. Un forfait legacy (routerId
+    // null) portant ce nom est ADOPTÉ (routerId renseigné) plutôt que dupliqué
+    // → migration douce des orgs mono-routeur au 1er auto-setup. Un prix édité
+    // à la main sur la page Forfaits n'est écrasé que si la valeur du wizard
+    // change réellement.
     for (const pkg of opts.packagesToSync ?? []) {
+      // Ligne déjà rattachée à CE routeur en priorité, sinon une legacy null à
+      // adopter (jamais une ligne d'un AUTRE routeur).
       const [existingPackage] = await db
-        .select({ id: packages.id })
+        .select({ id: packages.id, routerId: packages.routerId })
         .from(packages)
-        .where(and(eq(packages.orgId, org.id), eq(packages.name, pkg.name)))
+        .where(
+          and(
+            eq(packages.orgId, org.id),
+            eq(packages.name, pkg.name),
+            or(eq(packages.routerId, routerId), isNull(packages.routerId)),
+          ),
+        )
+        // asc = NULLS LAST en Postgres → la ligne déjà rattachée à CE routeur
+        // (routerId non-null) passe avant une legacy null à adopter.
+        .orderBy(asc(packages.routerId))
         .limit(1);
+      // Débit personnalisé (Mbps) → miroir sur le forfait, seulement si fourni
+      // et valide (les deux > 0) ; sinon on ne touche pas au débit existant.
+      const bandwidth =
+        pkg.uploadMbps && pkg.downloadMbps && pkg.uploadMbps > 0 && pkg.downloadMbps > 0
+          ? { uploadMbps: pkg.uploadMbps, downloadMbps: pkg.downloadMbps }
+          : {};
       if (existingPackage) {
         await db
           .update(packages)
           .set({
+            routerId, // adopte une ligne legacy null au passage
             priceCents: pkg.priceCents,
             durationValue: pkg.durationValue,
             durationUnit: pkg.durationUnit,
+            ...bandwidth,
           })
           .where(eq(packages.id, existingPackage.id));
         log.push(`OK: forfait "${pkg.name}" mis à jour sur la page Forfaits.`);
       } else {
         await db.insert(packages).values({
           orgId: org.id,
+          routerId,
           name: pkg.name,
           priceCents: pkg.priceCents,
           durationValue: pkg.durationValue,
           durationUnit: pkg.durationUnit,
+          ...bandwidth,
         });
         log.push(`OK: forfait "${pkg.name}" créé sur la page Forfaits.`);
+      }
+    }
+
+    // Le formulaire de l'auto-setup est la SOURCE DE VÉRITÉ des forfaits DE CE
+    // ROUTEUR : après avoir upserté la liste saisie, on RETIRE les forfaits
+    // rattachés à CE routeur qui n'y sont plus (anciens presets/profils d'un
+    // run précédent). Scopé à routerId → ne touche JAMAIS aux forfaits d'un
+    // autre MikroTik ni aux legacy null (adoptés ci-dessus s'ils y figurent).
+    // Sans ça ils s'empilaient et le portail affichait des doublons (ex.
+    // « 07 Jours » ET « 01 Semaine » tous deux à 700 F). Les FK vouchers/
+    // portalOrders sont en onDelete:"set null" → aucune violation, les
+    // commandes passées restent. On ne prune QUE si une liste EXPLICITE et NON
+    // VIDE est fournie : liste absente = ancien appelant (on ne touche à rien) ;
+    // liste vide = on ne wipe pas tout par sécurité (le wizard exige ≥1 profil).
+    if (opts.packagesToSync && opts.packagesToSync.length > 0) {
+      const keepNames = opts.packagesToSync.map((p) => p.name);
+      const pruned = await db
+        .delete(packages)
+        .where(
+          and(
+            eq(packages.orgId, org.id),
+            eq(packages.routerId, routerId),
+            notInArray(packages.name, keepNames),
+          ),
+        )
+        .returning({ name: packages.name });
+      if (pruned.length > 0) {
+        log.push(
+          `OK: ${pruned.length} ancien(s) forfait(s) retiré(s) (absents de l'auto-setup) : ${pruned
+            .map((p) => p.name)
+            .join(", ")}.`,
+        );
       }
     }
 
@@ -1800,6 +2028,23 @@ export async function provisionHotspotStack(
     const persistableOpts = { ...opts, reboot: undefined };
     delete persistableOpts.bridgeName;
 
+    // Branding portail scopé au routeur (saisi dans l'auto-setup) : on ne
+    // persiste que les champs FOURNIS (undefined = ne pas toucher, pour les
+    // appelants historiques). "" / [] sont des valeurs explicites (effacer).
+    const portalBranding: {
+      portalSupportWhatsapp?: string;
+      portalSupportPhone?: string;
+      portalVendors?: { name: string; location: string; phone: string }[];
+    } = {};
+    if (opts.portalSupportWhatsapp !== undefined)
+      portalBranding.portalSupportWhatsapp = opts.portalSupportWhatsapp.trim();
+    if (opts.portalSupportPhone !== undefined)
+      portalBranding.portalSupportPhone = opts.portalSupportPhone.trim();
+    if (opts.portalVendors !== undefined)
+      portalBranding.portalVendors = opts.portalVendors
+        .map((v) => ({ name: v.name.trim(), location: v.location.trim(), phone: v.phone.trim() }))
+        .filter((v) => v.name || v.location || v.phone);
+
     // Persisted on every successful run (not just billed ones) so other
     // code paths that look up this router's live hotspot config (the
     // connection test, captive-template assignment) resolve the canonical
@@ -1809,6 +2054,7 @@ export async function provisionHotspotStack(
       .set({
         hotspotBridgeName: bridgeName,
         hotspotServerName: serverName,
+        ...portalBranding,
         // Snapshot of this run's options (minus reboot, re-decided fresh
         // each time) — see lastAutoSetupConfig's schema comment. Lets a
         // later "Continuer l'auto-setup" repair replay this exact
@@ -1862,7 +2108,11 @@ export async function provisionHotspotStack(
       await consumeAuthorization(gate.authorizationId);
     }
 
-    return { success: true, log };
+    return {
+      success: true,
+      containerPending: containerSetup.status === "pending",
+      log,
+    };
   } finally {
     client.close();
   }

@@ -1,14 +1,27 @@
 import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { vouchers, packages } from "@/lib/db/schema";
+import {
+  vouchers,
+  packages,
+  routers,
+  organizations,
+  captiveTemplates,
+} from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import {
+  computeVoucherExpiry,
+  durationFromProfileName,
+  formatDurationHuman,
+  type PackageDuration,
+} from "@/lib/vouchers/expiry";
+import type { TicketBrand } from "@/lib/vouchers/ticket-templates";
 import GenerateVouchersModal from "./GenerateVouchersModal";
+import ImportTicketsModal from "./ImportTicketsModal";
 import VoucherTable, { type VoucherRow } from "./VoucherTable";
 
 function formatDate(date: Date | null) {
-  if (!date) return "Jamais";
+  if (!date) return "—";
   return new Intl.DateTimeFormat("fr-FR", {
-    weekday: "short",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -17,18 +30,40 @@ function formatDate(date: Date | null) {
   }).format(date);
 }
 
+function formatPrice(cents: number | null | undefined) {
+  if (cents == null) return null;
+  return `FCFA ${cents.toLocaleString("en-US")}`;
+}
+
 export default async function VouchersPage() {
   const session = await getSession();
   const db = getDb();
 
   const orgPackages = session
     ? await db
-        .select({ id: packages.id, name: packages.name })
+        .select({
+          id: packages.id,
+          name: packages.name,
+          priceCents: packages.priceCents,
+          durationValue: packages.durationValue,
+          durationUnit: packages.durationUnit,
+          billingStartsOn: packages.billingStartsOn,
+        })
         .from(packages)
         .where(eq(packages.orgId, session.orgId))
     : [];
 
-  const packageNameById = new Map(orgPackages.map((p) => [p.id, p.name]));
+  const packageById = new Map(orgPackages.map((p) => [p.id, p]));
+
+  // Routeurs de l'org sur lesquels provisionner les vouchers (le hotspot vit
+  // sur un MikroTik précis). L'ordre met les routeurs en ligne en premier.
+  const orgRouters = session
+    ? await db
+        .select({ id: routers.id, name: routers.name, status: routers.status })
+        .from(routers)
+        .where(eq(routers.orgId, session.orgId))
+        .orderBy(desc(routers.status))
+    : [];
 
   const orgVouchers = session
     ? await db
@@ -38,22 +73,96 @@ export default async function VouchersPage() {
         .orderBy(desc(vouchers.createdAt))
     : [];
 
-  const rows: VoucherRow[] = orgVouchers.map((v) => ({
-    id: v.id,
-    username: v.username,
-    packageName: packageNameById.get(v.packageId ?? "") ?? "—",
-    status: v.status,
-    firstLogin: formatDate(v.firstLoginAt),
-    expiresOn: formatDate(v.expiresAt),
-    useCase: v.useCase,
-    note: v.note ?? "—",
-    createdOn: formatDate(v.createdAt),
-  }));
+  // Branding pour les tickets : nom de l'org + modèle de portail par défaut.
+  const [org] = session
+    ? await db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, session.orgId))
+        .limit(1)
+    : [];
+
+  const [defaultTemplate] = session
+    ? await db
+        .select({
+          logoUrl: captiveTemplates.logoUrl,
+          primaryColor: captiveTemplates.primaryColor,
+          supportPhone: captiveTemplates.packageSupportPhone,
+          supportWhatsapp: captiveTemplates.packageSupportWhatsapp,
+        })
+        .from(captiveTemplates)
+        .where(eq(captiveTemplates.orgId, session.orgId))
+        .orderBy(desc(captiveTemplates.isDefault))
+        .limit(1)
+    : [];
+
+  const brand: TicketBrand = {
+    hotspotName: org?.name ?? "Hotspot Wi-Fi",
+    logoUrl: defaultTemplate?.logoUrl ?? null,
+    primaryColor: defaultTemplate?.primaryColor ?? null,
+    supportPhone: defaultTemplate?.supportPhone ?? null,
+    supportWhatsapp: defaultTemplate?.supportWhatsapp ?? null,
+  };
+
+  const rows: VoucherRow[] = orgVouchers.map((v) => {
+    const pkg = v.packageId ? packageById.get(v.packageId) : undefined;
+    // Repli sur le profil hotspot figé (v.profileName) quand le forfait a été
+    // élagué : le voucher garde sa durée réelle, plus de « — » trompeur.
+    const pkgDuration: PackageDuration | null = pkg
+      ? {
+          durationValue: pkg.durationValue,
+          durationUnit: pkg.durationUnit,
+          billingStartsOn: pkg.billingStartsOn,
+        }
+      : durationFromProfileName(v.profileName);
+
+    const expiry = computeVoucherExpiry(
+      {
+        expiresAt: v.expiresAt,
+        firstLoginAt: v.firstLoginAt,
+        createdAt: v.createdAt,
+      },
+      pkgDuration,
+    );
+
+    let expiresOn: string;
+    let expiresPending = false;
+    if (expiry.kind === "date") {
+      expiresOn = formatDate(expiry.date);
+    } else if (expiry.kind === "pending") {
+      expiresOn = `Valide ${expiry.validity} dès la 1ʳᵉ connexion`;
+      expiresPending = true;
+    } else {
+      expiresOn = "—";
+      expiresPending = true;
+    }
+
+    return {
+      id: v.id,
+      username: v.username,
+      packageName: pkg?.name ?? v.profileName ?? "—",
+      price: formatPrice(pkg?.priceCents),
+      validity: pkgDuration ? formatDurationHuman(pkgDuration) : null,
+      status: v.status,
+      firstLogin: formatDate(v.firstLoginAt),
+      expiresOn,
+      expiresPending,
+      useCase: v.useCase,
+      note: v.note ?? "—",
+      createdOn: formatDate(v.createdAt),
+    };
+  });
 
   return (
     <VoucherTable
       vouchers={rows}
-      headerExtra={<GenerateVouchersModal packages={orgPackages} />}
+      brand={brand}
+      headerExtra={
+        <div className="flex flex-wrap items-center gap-2">
+          <ImportTicketsModal routers={orgRouters} />
+          <GenerateVouchersModal packages={orgPackages} routers={orgRouters} />
+        </div>
+      }
     />
   );
 }
