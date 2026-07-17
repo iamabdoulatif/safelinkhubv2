@@ -1,12 +1,23 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers } from "@/lib/db/schema";
+import { routerRestoreJobs, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { listOrgBackups } from "@/lib/mikrotik/router-backup";
 import BackupsManager from "./BackupsManager";
 import RestoreGuide from "./RestoreGuide";
+
+// La restauration réelle recrée les tickets UN À UN (RouterOS n'a pas d'ajout en
+// lot), soit plusieurs minutes pour un gros site comme RUE-NICOLAS. Elle tourne
+// désormais en tâche de fond via after() (voir startRestoreJob) : le clic répond
+// tout de suite et le navigateur sonde l'avancement, ce qui contourne la coupure
+// à ~100 s de Cloudflare qui tuait l'ancienne requête synchrone.
+//
+// Ce plafond borne la durée du callback after() (et des autres Server Actions de
+// la page : sauvegarde manuelle, scan, simulation). 800 s = même budget que la
+// sauvegarde nocturne (cron router-backup), qui lit autant de tickets.
+export const maxDuration = 800;
 
 export default async function RouterBackupsPage() {
   const session = await getSession();
@@ -22,6 +33,43 @@ export default async function RouterBackupsPage() {
           .orderBy(asc(routers.name)),
       ])
     : [[], []];
+
+  // Job de restauration encore VIVANT : permet de reprendre le suivi si l'admin a
+  // rafraîchi ou rouvert la page pendant une restauration longue. Le seuil de
+  // fraîcheur du heartbeat (120 s, aligné sur RESTORE_JOB_STALE_MS) est évalué en
+  // SQL (now()) pour ne pas dépendre de l'horloge du rendu — un job figé est
+  // présumé mort et n'est pas rattaché.
+  //
+  // Requête ISOLÉE et tolérante : si la table n'existe pas encore (déploiement
+  // arrivé avant la migration), on dégrade en « pas de reprise auto » au lieu de
+  // faire planter toute la page — sans ce garde-fou, l'ordre migration/déploiement
+  // deviendrait un piège capable de casser la page qu'on répare.
+  const runningJobs = session
+    ? await db
+        .select({
+          id: routerRestoreJobs.id,
+          backupId: routerRestoreJobs.backupId,
+          targetRouterId: routerRestoreJobs.targetRouterId,
+        })
+        .from(routerRestoreJobs)
+        .where(
+          and(
+            eq(routerRestoreJobs.orgId, session.orgId),
+            eq(routerRestoreJobs.status, "running"),
+            sql`${routerRestoreJobs.updatedAt} > now() - interval '120 seconds'`,
+          ),
+        )
+        .orderBy(desc(routerRestoreJobs.updatedAt))
+        .limit(1)
+        .catch(() => [])
+    : [];
+
+  // Ne rattache l'UI qu'à un job dont la sauvegarde et la cible existent encore.
+  const live = runningJobs[0];
+  const initialJob =
+    live && live.backupId && live.targetRouterId
+      ? { jobId: live.id, backupId: live.backupId, targetRouterId: live.targetRouterId }
+      : null;
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
@@ -63,6 +111,7 @@ export default async function RouterBackupsPage() {
           orphan: b.orphan,
         }))}
         routers={orgRouters}
+        initialJob={initialJob}
       />
     </div>
   );

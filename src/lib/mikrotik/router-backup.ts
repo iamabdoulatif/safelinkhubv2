@@ -434,6 +434,30 @@ export type RestoreReport = {
 };
 
 /**
+ * Avancement émis pendant une restauration, persisté par le job (backup-actions)
+ * pour que le navigateur qui sonde affiche une vraie barre de progression. Les
+ * tickets sont écrits un par un et c'est la phase longue : `ticketsDone` /
+ * `ticketsTotal` la suivent en continu.
+ */
+export type RestoreProgress = {
+  phase:
+    | "remodel"
+    | "hotspotUserProfiles"
+    | "hotspotUsers"
+    | "walledGarden"
+    | "walledGardenIp"
+    | "done";
+  reports: RestoreReport[];
+  plan: RestorePlan;
+  ticketsDone?: number;
+  ticketsTotal?: number;
+};
+
+/** Un tick de progression tous les N tickets : assez pour une barre fluide sans
+ * inonder la base (chaque persistance = une requête HTTP neon). */
+const PROGRESS_EVERY = 200;
+
+/**
  * Rejoue une sauvegarde sur un routeur (typiquement le rechange).
  *
  * Le matériel de la cible est SCANNÉ d'abord (router-preflight) : le plan qui
@@ -449,7 +473,12 @@ export type RestoreReport = {
 export async function restoreBackupToRouter(
   backupId: string,
   targetRouterId: string,
-  opts: { dryRun?: boolean; force?: boolean } = {},
+  opts: {
+    dryRun?: boolean;
+    force?: boolean;
+    /** Notifié après chaque section, et toutes les ~200 écritures de tickets. */
+    onProgress?: (p: RestoreProgress) => void | Promise<void>;
+  } = {},
 ) {
   const db = getDb();
   const [backup] = await db
@@ -516,6 +545,17 @@ export async function restoreBackupToRouter(
     };
   }
 
+  // Notifie l'avancement sans jamais faire échouer la restauration : une erreur
+  // de persistance du progrès ne doit pas interrompre l'écriture des tickets.
+  const emit = async (p: Omit<RestoreProgress, "plan">) => {
+    if (!opts.onProgress) return;
+    try {
+      await opts.onProgress({ ...p, plan });
+    } catch {
+      /* le suivi est best-effort */
+    }
+  };
+
   try {
     await applyRemodel(client, snapshot, plan, opts.dryRun);
     // Ordre imposé par les dépendances : un ticket référence son profil, donc
@@ -530,15 +570,32 @@ export async function restoreBackupToRouter(
         dryRun: opts.dryRun,
       }),
     );
-    reports.push(
-      await restoreHotspotUsers(client, snapshot.sections.hotspotUsers ?? [], opts.dryRun),
+    await emit({ phase: "hotspotUserProfiles", reports: [...reports] });
+
+    const ticketRows = (snapshot.sections.hotspotUsers ?? []).filter(
+      (r) => r.name && r.default !== "true",
     );
+    reports.push(
+      await restoreHotspotUsers(client, snapshot.sections.hotspotUsers ?? [], opts.dryRun, (done) =>
+        emit({
+          phase: "hotspotUsers",
+          reports: [...reports, { section: "hotspotUsers", created: done, skipped: 0, failed: [] }],
+          ticketsDone: done,
+          ticketsTotal: ticketRows.length,
+        }),
+      ),
+    );
+    await emit({ phase: "hotspotUsers", reports: [...reports], ticketsTotal: ticketRows.length });
+
     reports.push(
       await restoreWalledGarden(client, snapshot.sections.walledGarden ?? [], opts.dryRun),
     );
+    await emit({ phase: "walledGarden", reports: [...reports] });
+
     reports.push(
       await restoreWalledGardenIp(client, snapshot.sections.walledGardenIp ?? [], opts.dryRun),
     );
+    await emit({ phase: "walledGardenIp", reports: [...reports] });
   } catch (err) {
     return {
       error: err instanceof Error ? `Restauration interrompue : ${err.message}` : "Restauration interrompue.",
@@ -625,6 +682,8 @@ async function restoreNamed(
     addCmd: string;
     fields: readonly string[];
     dryRun?: boolean;
+    /** Appelé tous les PROGRESS_EVERY éléments traités (créés + ignorés). */
+    onProgress?: (processed: number) => void | Promise<void>;
   },
 ): Promise<RestoreReport> {
   const report: RestoreReport = { section: args.section, created: 0, skipped: 0, failed: [] };
@@ -633,6 +692,7 @@ async function restoreNamed(
     .catch(() => [] as Record<string, string>[]);
   const known = new Set(existing.map((r) => r.name).filter(Boolean));
 
+  let processed = 0;
   for (const row of args.rows) {
     const name = row.name;
     if (!name) continue;
@@ -640,20 +700,20 @@ async function restoreNamed(
     // tenter de le recréer échoue systématiquement.
     if (known.has(name) || name === "default") {
       report.skipped++;
-      continue;
-    }
-    if (args.dryRun) {
+    } else if (args.dryRun) {
       report.created++;
       known.add(name);
-      continue;
+    } else {
+      try {
+        await client.talk([args.addCmd, ...pick(row, args.fields)], 30000);
+        report.created++;
+        known.add(name);
+      } catch (err) {
+        report.failed.push({ name, error: err instanceof Error ? err.message : "Erreur inconnue" });
+      }
     }
-    try {
-      await client.talk([args.addCmd, ...pick(row, args.fields)], 30000);
-      report.created++;
-      known.add(name);
-    } catch (err) {
-      report.failed.push({ name, error: err instanceof Error ? err.message : "Erreur inconnue" });
-    }
+    processed++;
+    if (args.onProgress && processed % PROGRESS_EVERY === 0) await args.onProgress(processed);
   }
   return report;
 }
@@ -667,6 +727,7 @@ async function restoreHotspotUsers(
   client: RouterOSClient,
   rows: BackupSection,
   dryRun?: boolean,
+  onProgress?: (processed: number) => void | Promise<void>,
 ): Promise<RestoreReport> {
   return restoreNamed(client, {
     section: "hotspotUsers",
@@ -677,6 +738,7 @@ async function restoreHotspotUsers(
     addCmd: "/ip/hotspot/user/add",
     fields: USER_FIELDS,
     dryRun,
+    onProgress,
   });
 }
 

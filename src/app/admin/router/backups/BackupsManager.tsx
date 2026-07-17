@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Save, RotateCcw, Trash2, AlertTriangle, ScanLine } from "lucide-react";
+import { Save, RotateCcw, Trash2, AlertTriangle, ScanLine, Loader2 } from "lucide-react";
 import {
   backupRouterNow,
   restoreBackup,
+  startRestoreJob,
+  getRestoreJob,
   deleteBackup,
   scanTargetForRestore,
 } from "@/lib/mikrotik/backup-actions";
@@ -58,14 +60,20 @@ function formatSize(bytes: number) {
 export default function BackupsManager({
   backups,
   routers,
+  initialJob,
 }: {
   backups: Backup[];
   routers: RouterOption[];
+  // Job de restauration déjà en cours au chargement (voir page.tsx) : l'UI
+  // reprend le suivi là où il en est, pour survivre à un rafraîchissement.
+  initialJob?: { jobId: string; backupId: string; targetRouterId: string } | null;
 }) {
   const navRouter = useRouter();
   const [pending, startTransition] = useTransition();
   const [sourceRouter, setSourceRouter] = useState(routers[0]?.id ?? "");
-  const [target, setTarget] = useState<Record<string, string>>({});
+  const [target, setTarget] = useState<Record<string, string>>(
+    initialJob ? { [initialJob.backupId]: initialJob.targetRouterId } : {},
+  );
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [reports, setReports] = useState<{
     backupId: string;
@@ -75,10 +83,111 @@ export default function BackupsManager({
   } | null>(null);
   // Vrai UNIQUEMENT pendant une restauration réelle : les paquets ne circulent
   // pas pour une simulation, qui n'écrit rien.
-  const [flowing, setFlowing] = useState<string | null>(null);
+  const [flowing, setFlowing] = useState<string | null>(initialJob?.backupId ?? null);
+  // Une restauration réelle tourne désormais en tâche de fond (elle dure des
+  // minutes, au-delà de la limite ~100 s de Cloudflare) : on garde l'id du job et
+  // on interroge son avancement, plutôt que d'attendre une réponse synchrone qui
+  // serait coupée en plein vol. Amorcé depuis initialJob si une restauration
+  // était déjà en cours au chargement.
+  const [activeJob, setActiveJob] = useState<{ backupId: string; jobId: string } | null>(
+    initialJob ? { backupId: initialJob.backupId, jobId: initialJob.jobId } : null,
+  );
+  const [jobProgress, setJobProgress] = useState<{ done?: number; total?: number } | null>(null);
+
+  // Sondage du job : chaque requête est brève (bien en deçà des 100 s), donc
+  // jamais coupée. S'arrête au premier état terminal, ou si le heartbeat est figé
+  // (conteneur redémarré → « stale »).
+  useEffect(() => {
+    if (!activeJob) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const stop = () => {
+      setActiveJob(null);
+      setFlowing(null);
+      setJobProgress(null);
+    };
+
+    const poll = async () => {
+      const res = await getRestoreJob(activeJob.jobId);
+      if (cancelled) return;
+
+      if (!res || ("error" in res && res.error)) {
+        setFeedback({
+          kind: "err",
+          text: (res && "error" in res && res.error) || "Suivi de la restauration impossible.",
+        });
+        stop();
+        return;
+      }
+      if ("stale" in res && res.stale) {
+        setFeedback({
+          kind: "err",
+          text: "Restauration interrompue (le serveur a redémarré). Relancez-la : les tickets déjà restaurés seront ignorés.",
+        });
+        stop();
+        navRouter.refresh();
+        return;
+      }
+
+      const progress = (res.progress ?? null) as {
+        reports?: Report[];
+        plan?: Plan | null;
+        ticketsDone?: number;
+        ticketsTotal?: number;
+        portal?: { installed: boolean; templateName?: string | null; error?: string };
+      } | null;
+
+      if (res.status === "running") {
+        setJobProgress({ done: progress?.ticketsDone, total: progress?.ticketsTotal });
+        timer = setTimeout(poll, 2500);
+        return;
+      }
+
+      // État terminal (done | error).
+      if (res.status === "done") {
+        setReports({
+          backupId: activeJob.backupId,
+          dryRun: false,
+          rows: (progress?.reports ?? []) as Report[],
+          plan: (progress?.plan ?? null) as Plan | null,
+        });
+        const portal = progress?.portal;
+        const portalKo = portal && portal.installed === false;
+        setFeedback({
+          kind: portalKo ? "err" : "ok",
+          text: portalKo
+            ? `Tickets restaurés, mais portail NON réinstallé : ${portal?.error ?? "erreur"}.`
+            : "Restauration terminée.",
+        });
+      } else {
+        if (progress?.plan) {
+          setReports({
+            backupId: activeJob.backupId,
+            dryRun: false,
+            rows: (progress?.reports ?? []) as Report[],
+            plan: progress.plan as Plan,
+          });
+        }
+        setFeedback({ kind: "err", text: res.error ?? "Restauration échouée." });
+      }
+      stop();
+      navRouter.refresh();
+    };
+
+    timer = setTimeout(poll, 1500);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [activeJob, navRouter]);
+
+  // Tout est verrouillé pendant qu'un job tourne : lancer une autre opération sur
+  // le parc pendant une restauration en cours n'a pas de sens.
+  const busy = pending || activeJob !== null;
 
   function runBackup() {
-    if (!sourceRouter || pending) return;
+    if (!sourceRouter || busy) return;
     setFeedback(null);
     setReports(null);
     startTransition(async () => {
@@ -105,18 +214,42 @@ export default function BackupsManager({
 
   function runRestore(backup: Backup, dryRun: boolean) {
     const targetId = target[backup.id];
-    if (!targetId || pending) return;
+    if (!targetId || pending || activeJob) return;
     setFeedback(null);
     setReports(null);
+
+    // Restauration RÉELLE → job de fond + sondage. Le clic répond en quelques
+    // millisecondes ; l'écriture des milliers de tickets se poursuit côté serveur
+    // hors de toute requête HTTP (sinon Cloudflare couperait à ~100 s).
+    if (!dryRun) {
+      startTransition(async () => {
+        const res = await startRestoreJob(backup.id, targetId);
+        if (res && "error" in res && res.error) {
+          // Un refus immédiat (déjà un job en cours) ne crée pas de sondage.
+          setFeedback({ kind: "err", text: res.error });
+          return;
+        }
+        if (res && "success" in res && res.jobId) {
+          setJobProgress(null);
+          setFlowing(backup.id);
+          setActiveJob({ backupId: backup.id, jobId: res.jobId });
+          setFeedback({
+            kind: "ok",
+            text: "Restauration lancée — elle se poursuit même si vous quittez cette page.",
+          });
+        }
+      });
+      return;
+    }
+
+    // Simulation (dryRun) : lecture brève, reste synchrone.
     startTransition(async () => {
-      if (!dryRun) setFlowing(backup.id);
-      const res = await restoreBackup(backup.id, targetId, dryRun);
-      setFlowing(null);
+      const res = await restoreBackup(backup.id, targetId, true);
       if (res && "error" in res && res.error) {
         // Un refus pour blocage rapporte quand même le plan : c'est lui qui dit
         // ce qu'il faut corriger sur le rechange avant de réessayer.
         if ("plan" in res && res.plan) {
-          setReports({ backupId: backup.id, dryRun, rows: [], plan: res.plan as Plan });
+          setReports({ backupId: backup.id, dryRun: true, rows: [], plan: res.plan as Plan });
         }
         setFeedback({ kind: "err", text: res.error });
         return;
@@ -124,24 +257,21 @@ export default function BackupsManager({
       if (res && "success" in res && res.success) {
         setReports({
           backupId: backup.id,
-          dryRun,
+          dryRun: true,
           rows: res.reports as Report[],
           plan: (res.plan as Plan) ?? null,
         });
         setFeedback({
           kind: "ok",
-          text: dryRun
-            ? "Simulation terminée — rien n'a été écrit sur le routeur."
-            : "Restauration terminée.",
+          text: "Simulation terminée — rien n'a été écrit sur le routeur.",
         });
-        if (!dryRun) navRouter.refresh();
       }
     });
   }
 
   function runScan(backup: Backup) {
     const targetId = target[backup.id];
-    if (!targetId || pending) return;
+    if (!targetId || busy) return;
     setFeedback(null);
     setReports(null);
     startTransition(async () => {
@@ -163,7 +293,7 @@ export default function BackupsManager({
   }
 
   function remove(id: string) {
-    if (pending) return;
+    if (busy) return;
     startTransition(async () => {
       await deleteBackup(id);
       navRouter.refresh();
@@ -192,7 +322,7 @@ export default function BackupsManager({
           <button
             type="button"
             onClick={runBackup}
-            disabled={pending || !sourceRouter}
+            disabled={busy || !sourceRouter}
             className="flex items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
           >
             <Save className="h-4 w-4" />
@@ -263,7 +393,7 @@ export default function BackupsManager({
                 <button
                   type="button"
                   onClick={() => runScan(b)}
-                  disabled={pending || !target[b.id]}
+                  disabled={busy || !target[b.id]}
                   title="Lit le matériel du rechange (interfaces, WiFi, stockage) sans rien écrire"
                   className="flex items-center justify-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
                 >
@@ -273,7 +403,7 @@ export default function BackupsManager({
                 <button
                   type="button"
                   onClick={() => runRestore(b, true)}
-                  disabled={pending || !target[b.id]}
+                  disabled={busy || !target[b.id]}
                   className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
                 >
                   Simuler
@@ -281,16 +411,27 @@ export default function BackupsManager({
                 <button
                   type="button"
                   onClick={() => runRestore(b, false)}
-                  disabled={pending || !target[b.id]}
+                  disabled={busy || !target[b.id]}
                   className="flex items-center justify-center gap-2 rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
                 >
-                  <RotateCcw className="h-4 w-4" />
-                  Restaurer
+                  {activeJob?.backupId === b.id ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {jobProgress?.total
+                        ? `Restauration ${jobProgress.done ?? 0}/${jobProgress.total}`
+                        : "Restauration…"}
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="h-4 w-4" />
+                      Restaurer
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={() => remove(b.id)}
-                  disabled={pending}
+                  disabled={busy}
                   aria-label="Supprimer la sauvegarde"
                   className="rounded-md border border-line px-3 py-2 text-ink-soft hover:border-red-300 hover:text-red-600 disabled:opacity-60"
                 >

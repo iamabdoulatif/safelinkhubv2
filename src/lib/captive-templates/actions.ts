@@ -492,9 +492,21 @@ export async function deleteCaptiveTemplate(templateId: string) {
  * de login ; sans hotspot, il n'y a rien à habiller) + le routeur joignable
  * (direct ou tunnel).
  */
-export async function installTemplateOnRouter(routerId: string, templateId: string) {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated." };
+export async function installTemplateOnRouter(
+  routerId: string,
+  templateId: string,
+  // Quand l'appel vient d'un job de fond (restauration asynchrone), la requête
+  // et son cookie de session n'existent plus : l'org est alors passée
+  // explicitement, capturée à l'enrôlement du job. En usage UI normal, on la lit
+  // de la session comme avant.
+  opts: { orgId?: string } = {},
+) {
+  let orgId = opts.orgId;
+  if (!orgId) {
+    const session = await getSession();
+    if (!session) return { error: "Not authenticated." };
+    orgId = session.orgId;
+  }
 
   const db = getDb();
   const [template] = await db
@@ -502,7 +514,7 @@ export async function installTemplateOnRouter(routerId: string, templateId: stri
     .from(captiveTemplates)
     .where(eq(captiveTemplates.id, templateId))
     .limit(1);
-  if (!template || template.orgId !== session.orgId) return { error: "Modèle introuvable." };
+  if (!template || template.orgId !== orgId) return { error: "Modèle introuvable." };
   if (template.templateType !== "package") {
     return { error: "Ce modèle n'est pas un portail multi-fichiers (package)." };
   }
@@ -510,7 +522,7 @@ export async function installTemplateOnRouter(routerId: string, templateId: stri
   if (files.length === 0) return { error: "Ce modèle ne contient aucun fichier." };
 
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || router.orgId !== session.orgId) return { error: "Routeur introuvable." };
+  if (!router || router.orgId !== orgId) return { error: "Routeur introuvable." };
 
   const [org] = await db
     .select({ slug: organizations.slug })

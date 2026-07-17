@@ -792,3 +792,51 @@ export const routerBackups = pgTable(
     index("router_backups_created_at_idx").on(table.createdAt),
   ],
 );
+
+/**
+ * Une restauration en cours, suivie hors du cycle requête/réponse.
+ *
+ * Pourquoi une table et pas un simple retour de Server Action : restaurer un gros
+ * site recrée des milliers de tickets UN À UN (RouterOS n'a pas d'ajout en lot),
+ * soit plusieurs minutes. Or safelinkhub.io passe par Cloudflare, qui coupe toute
+ * réponse d'origine au-delà de ~100 s (erreur 524) — la requête synchrone était
+ * donc tuée en plein vol et l'UI affichait « Impossible de charger cette page ».
+ * Désormais le bouton crée cette ligne, lance le travail en fond (after()), et
+ * répond tout de suite ; le navigateur interroge l'avancement (chaque requête est
+ * brève, bien en deçà des 100 s). La ligne est aussi la mémoire du job : si le
+ * conteneur redémarre en pleine restauration, elle reste « running » sans
+ * heartbeat — l'UI le détecte comme périmé et propose de relancer (idempotent).
+ */
+export const routerRestoreJobs = pgTable(
+  "router_restore_jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // La sauvegarde source et le rechange cible ; on garde le job même si l'un
+    // est supprimé ensuite (audit).
+    backupId: uuid("backup_id").references(() => routerBackups.id, {
+      onDelete: "set null",
+    }),
+    targetRouterId: uuid("target_router_id").references(() => routers.id, {
+      onDelete: "set null",
+    }),
+    // running | done | error
+    status: text("status").notNull().default("running"),
+    // Avancement vivant : { phase, reports, plan, portal, ticketsDone, ticketsTotal }.
+    // Décompressé par l'UI à chaque sondage pour la barre de progression.
+    progress: jsonb("progress"),
+    error: text("error"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // Heartbeat : bougé à chaque étape et périodiquement pendant les tickets.
+    // Un « running » figé au-delà de ~2 min = conteneur redémarré → périmé.
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (table) => [
+    index("router_restore_jobs_org_id_idx").on(table.orgId),
+    index("router_restore_jobs_target_idx").on(table.targetRouterId),
+    index("router_restore_jobs_status_idx").on(table.status),
+  ],
+);
