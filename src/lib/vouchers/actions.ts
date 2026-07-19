@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { getDb } from "@/lib/db";
 import { packages, vouchers, voucherRouters, routers } from "@/lib/db/schema";
 import { requireAdminSession } from "@/lib/auth/session";
@@ -185,34 +187,39 @@ export async function generateVouchers(_prevState: unknown, formData: FormData) 
   // N'enregistre que les codes créés sur au moins un routeur.
   const created = codeList.filter((c) => (createdOn.get(c)?.length ?? 0) > 0);
   if (created.length > 0) {
-    await db.transaction(async (tx) => {
-      const inserted = await tx
-        .insert(vouchers)
-        .values(
-          created.map((code) => ({
-            orgId: session.orgId,
-            username: code,
-            packageId: pkg.id,
-            routerId: createdOn.get(code)![0], // routeur principal
-            profileName,
-            status: "PROVISIONED" as const,
-            useCase: "Batch Create",
-            note,
-          })),
-        )
-        .returning({ id: vouchers.id, username: vouchers.username });
+    // neon-http ne gère pas les transactions interactives. On pré-génère les
+    // UUID des vouchers pour construire les liens de zone sans dépendre d'un
+    // RETURNING, puis db.batch() exécute les deux INSERT de façon atomique.
+    const voucherRows = created.map((code) => ({
+      id: randomUUID(),
+      orgId: session.orgId,
+      username: code,
+      packageId: pkg.id,
+      routerId: createdOn.get(code)![0], // routeur principal
+      profileName,
+      status: "PROVISIONED" as const,
+      useCase: "Batch Create",
+      note,
+    }));
 
-      const links = inserted.flatMap((v) =>
-        (createdOn.get(v.username) ?? []).map((routerId) => ({
-          orgId: session.orgId,
-          voucherId: v.id,
-          routerId,
-          profileName,
-          status: "PROVISIONED" as const,
-        })),
-      );
-      if (links.length > 0) await tx.insert(voucherRouters).values(links);
-    });
+    const links = voucherRows.flatMap((v) =>
+      (createdOn.get(v.username) ?? []).map((routerId) => ({
+        orgId: session.orgId,
+        voucherId: v.id,
+        routerId,
+        profileName,
+        status: "PROVISIONED" as const,
+      })),
+    );
+
+    if (links.length > 0) {
+      await db.batch([
+        db.insert(vouchers).values(voucherRows),
+        db.insert(voucherRouters).values(links),
+      ]);
+    } else {
+      await db.insert(vouchers).values(voucherRows);
+    }
     revalidatePath("/admin/vouchers");
   }
 
@@ -459,60 +466,67 @@ export async function importMikhmonTickets(_prevState: unknown, formData: FormDa
   let imported = 0;
   let adopted = 0;
   if (createBatch.length > 0 || linksToAdd.length > 0) {
-    await db.transaction(async (tx) => {
-      if (createBatch.length > 0) {
-        const inserted = await tx
-          .insert(vouchers)
-          .values(
-            createBatch.map(({ name, scanned }) => {
-              const profileName = scanned.profile;
-              const expiresAt = scanned.expiry ? wallToDate(scanned.expiry) : null;
-              // début = expiration − durée (déduite du profil), comme reconcile.
-              const pkg = durationFromProfileName(profileName);
-              const firstLoginAt =
-                expiresAt && pkg ? new Date(expiresAt.getTime() - durationToMs(pkg)) : null;
-              return {
-                orgId: session.orgId,
-                username: name,
-                packageId: (profileName && packageIdByProfile.get(profileName)) || null,
-                routerId: scanned.routerIds[0],
-                profileName,
-                status: "PROVISIONED" as const,
-                firstLoginAt,
-                expiresAt,
-                useCase: "Imported" as const,
-                note,
-              };
-            }),
-          )
-          .returning({ id: vouchers.id, username: vouchers.username });
-        imported = inserted.length;
+    // neon-http : pas de transaction interactive. On pré-génère les UUID et on
+    // regroupe tous les INSERT dans un db.batch() atomique (un seul aller-retour).
+    const ops: BatchItem<"pg">[] = [];
 
-        const scannedByName = new Map(createBatch.map((c) => [c.name, c.scanned]));
-        const newLinks = inserted.flatMap((v) =>
-          (scannedByName.get(v.username)?.routerIds ?? []).map((routerId) => ({
+    if (createBatch.length > 0) {
+      const newVouchers = createBatch.map(({ name, scanned }) => {
+        const profileName = scanned.profile;
+        const expiresAt = scanned.expiry ? wallToDate(scanned.expiry) : null;
+        // début = expiration − durée (déduite du profil), comme reconcile.
+        const pkg = durationFromProfileName(profileName);
+        const firstLoginAt =
+          expiresAt && pkg ? new Date(expiresAt.getTime() - durationToMs(pkg)) : null;
+        return {
+          scanned,
+          row: {
+            id: randomUUID(),
             orgId: session.orgId,
-            voucherId: v.id,
-            routerId,
-            profileName: scannedByName.get(v.username)?.profile ?? null,
+            username: name,
+            packageId: (profileName && packageIdByProfile.get(profileName)) || null,
+            routerId: scanned.routerIds[0],
+            profileName,
             status: "PROVISIONED" as const,
-          })),
-        );
-        if (newLinks.length > 0) await tx.insert(voucherRouters).values(newLinks);
-      }
+            firstLoginAt,
+            expiresAt,
+            useCase: "Imported" as const,
+            note,
+          },
+        };
+      });
+      imported = newVouchers.length;
+      ops.push(db.insert(vouchers).values(newVouchers.map((v) => v.row)));
 
-      if (linksToAdd.length > 0) {
-        await tx.insert(voucherRouters).values(
+      const newLinks = newVouchers.flatMap(({ row, scanned }) =>
+        scanned.routerIds.map((routerId) => ({
+          orgId: session.orgId,
+          voucherId: row.id,
+          routerId,
+          profileName: scanned.profile ?? null,
+          status: "PROVISIONED" as const,
+        })),
+      );
+      if (newLinks.length > 0) ops.push(db.insert(voucherRouters).values(newLinks));
+    }
+
+    if (linksToAdd.length > 0) {
+      ops.push(
+        db.insert(voucherRouters).values(
           linksToAdd.map((l) => ({
             orgId: session.orgId,
             voucherId: l.voucherId,
             routerId: l.routerId,
             status: "PROVISIONED" as const,
           })),
-        );
-        adopted = linksToAdd.length;
-      }
-    });
+        ),
+      );
+      adopted = linksToAdd.length;
+    }
+
+    if (ops.length > 0) {
+      await db.batch(ops as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+    }
     revalidatePath("/admin/vouchers");
   }
 
