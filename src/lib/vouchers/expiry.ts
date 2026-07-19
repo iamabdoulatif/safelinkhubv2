@@ -66,6 +66,16 @@ const PROFILE_WORD_TO_UNIT: Record<string, string> = {
   MOIS: "Months",
 };
 
+/** Normalise les variantes courantes des profils MikHmon sans changer leur sens. */
+export function normalizeVoucherProfileName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_-]+/g, "-");
+}
+
 /**
  * Déduit la durée de validité du NOM DE PROFIL hotspot figé sur le voucher
  * (`vouchers.profileName`, ex. "05-JOURS"). Sert de repli quand le forfait
@@ -76,7 +86,7 @@ const PROFILE_WORD_TO_UNIT: Record<string, string> = {
  */
 export function durationFromProfileName(name: string | null): PackageDuration | null {
   if (!name) return null;
-  const m = /^(\d+)-([A-Za-zÉÈéè]+)$/.exec(name.trim());
+  const m = /^(\d+)-?([A-Z]+)$/.exec(normalizeVoucherProfileName(name));
   if (!m) return null;
   const value = Number(m[1]);
   const unit = PROFILE_WORD_TO_UNIT[m[2].toUpperCase()];

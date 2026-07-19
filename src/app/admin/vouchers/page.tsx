@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   vouchers,
@@ -65,13 +65,20 @@ export default async function VouchersPage() {
         .orderBy(desc(routers.status))
     : [];
 
-  const orgVouchers = session
-    ? await db
-        .select()
-        .from(vouchers)
-        .where(eq(vouchers.orgId, session.orgId))
-        .orderBy(desc(vouchers.createdAt))
-    : [];
+  const [orgVouchers, trashedVouchers] = session
+    ? await Promise.all([
+        db
+          .select()
+          .from(vouchers)
+          .where(and(eq(vouchers.orgId, session.orgId), isNull(vouchers.deletedAt)))
+          .orderBy(desc(vouchers.createdAt)),
+        db
+          .select()
+          .from(vouchers)
+          .where(and(eq(vouchers.orgId, session.orgId), isNotNull(vouchers.deletedAt)))
+          .orderBy(desc(vouchers.deletedAt)),
+      ])
+    : [[], []];
 
   // Branding pour les tickets : nom de l'org + modèle de portail par défaut.
   const [org] = session
@@ -104,7 +111,7 @@ export default async function VouchersPage() {
     supportWhatsapp: defaultTemplate?.supportWhatsapp ?? null,
   };
 
-  const rows: VoucherRow[] = orgVouchers.map((v) => {
+  function toVoucherRow(v: (typeof orgVouchers)[number]): VoucherRow {
     const pkg = v.packageId ? packageById.get(v.packageId) : undefined;
     // Repli sur le profil hotspot figé (v.profileName) quand le forfait a été
     // élagué : le voucher garde sa durée réelle, plus de « — » trompeur.
@@ -149,17 +156,28 @@ export default async function VouchersPage() {
       expiresPending,
       useCase: v.useCase,
       note: v.note ?? "—",
+      deletedOn: formatDate(v.deletedAt),
       createdOn: formatDate(v.createdAt),
     };
-  });
+  }
+
+  const rows = orgVouchers.map(toVoucherRow);
+  const trashRows = trashedVouchers.map(toVoucherRow);
+  const stats = {
+    active: rows.length,
+    imported: rows.filter((voucher) => voucher.useCase.startsWith("Imported")).length,
+    trashed: trashRows.length,
+  };
 
   return (
     <VoucherTable
-      vouchers={rows}
+      activeVouchers={rows}
+      trashedVouchers={trashRows}
+      stats={stats}
       brand={brand}
       headerExtra={
         <div className="flex flex-wrap items-center gap-2">
-          <ImportTicketsModal routers={orgRouters} />
+          <ImportTicketsModal routers={orgRouters} packages={orgPackages} />
           <GenerateVouchersModal packages={orgPackages} routers={orgRouters} />
         </div>
       }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { getDb } from "@/lib/db";
 import { packages, vouchers, voucherRouters, routers } from "@/lib/db/schema";
@@ -17,6 +17,7 @@ import {
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
 import { parseExpiryComment, wallToDate, wallKey, type Wall } from "./reconcile";
 import { durationFromProfileName, durationToMs } from "./expiry";
+import { matchPackageForProfile, parseMikhmonVoucherCsv } from "./csv-import";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -33,30 +34,6 @@ function randomCode(length = 6) {
 // de rejeter, pour ne pas bloquer l'admin sur une majuscule ou un tiret.
 function sanitizePrefix(raw: string): string {
   return raw.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10);
-}
-
-/** Retire un utilisateur hotspot (et sa session active) d'un routeur. Best-effort. */
-async function removeHotspotUser(client: RouterOSClient, name: string) {
-  const users = await client
-    .talk(["/ip/hotspot/user/print", `?name=${name}`])
-    .catch(() => [] as Record<string, string>[]);
-  for (const u of users) {
-    if (u[".id"]) {
-      await client
-        .talk(["/ip/hotspot/user/remove", `=.id=${u[".id"]}`])
-        .catch(() => {});
-    }
-  }
-  const active = await client
-    .talk(["/ip/hotspot/active/print", `?user=${name}`])
-    .catch(() => [] as Record<string, string>[]);
-  for (const a of active) {
-    if (a[".id"]) {
-      await client
-        .talk(["/ip/hotspot/active/remove", `=.id=${a[".id"]}`])
-        .catch(() => {});
-    }
-  }
 }
 
 /**
@@ -235,84 +212,60 @@ export async function generateVouchers(_prevState: unknown, formData: FormData) 
 }
 
 /**
- * Supprime des vouchers : retire l'utilisateur hotspot sur CHAQUE routeur où
- * il existe (best-effort), puis efface les lignes en base. Sert à la fois pour
- * la suppression individuelle (un id) et globale du lot (tous les ids).
+ * Archive des vouchers sans toucher aux utilisateurs RouterOS. Cette absence
+ * d'effet distant rend la restauration exacte, même si un routeur est hors ligne.
  */
-export async function deleteVouchers(ids: string[]) {
+export async function archiveVouchers(ids: string[]) {
   const session = await requireAdminSession();
   if (!session) return { error: "Non authentifié." };
   if (!Array.isArray(ids) || ids.length === 0) return { error: "Aucun voucher." };
 
   const db = getDb();
-
   const rows = await db
-    .select({ id: vouchers.id, username: vouchers.username, routerId: vouchers.routerId })
+    .select({ id: vouchers.id })
     .from(vouchers)
-    .where(and(inArray(vouchers.id, ids), eq(vouchers.orgId, session.orgId)));
-  if (rows.length === 0) return { error: "Voucher(s) introuvable(s)." };
-
-  const usernameById = new Map(rows.map((r) => [r.id, r.username]));
-  const validIds = rows.map((r) => r.id);
-
-  // Table de liaison optionnelle : si elle n'existe pas encore (migration non
-  // appliquée), on retombe sur vouchers.routerId — la suppression marche quand même.
-  const links = await db
-    .select({ voucherId: voucherRouters.voucherId, routerId: voucherRouters.routerId })
-    .from(voucherRouters)
-    .where(inArray(voucherRouters.voucherId, validIds))
-    .catch(() => [] as { voucherId: string; routerId: string }[]);
-
-  // routerId → set de codes à retirer. Priorité à la table de liaison ;
-  // fallback sur vouchers.routerId pour les anciens vouchers mono-routeur.
-  const byRouter = new Map<string, Set<string>>();
-  const covered = new Set<string>();
-  for (const l of links) {
-    const name = usernameById.get(l.voucherId);
-    if (!name) continue;
-    covered.add(l.voucherId);
-    const set = byRouter.get(l.routerId) ?? new Set<string>();
-    set.add(name);
-    byRouter.set(l.routerId, set);
-  }
-  for (const r of rows) {
-    if (covered.has(r.id) || !r.routerId) continue;
-    const set = byRouter.get(r.routerId) ?? new Set<string>();
-    set.add(r.username);
-    byRouter.set(r.routerId, set);
-  }
-
-  // Retrait sur les routeurs (une connexion par routeur). Un routeur
-  // injoignable ne bloque pas la suppression en base : le user disparaîtra de
-  // toute façon à l'expiration côté routeur, et l'admin veut le retirer du portail.
-  const routerIds = [...byRouter.keys()];
-  const routerRows = routerIds.length
-    ? await db
-        .select()
-        .from(routers)
-        .where(and(inArray(routers.id, routerIds), eq(routers.orgId, session.orgId)))
-    : [];
-  for (const router of routerRows) {
-    const names = byRouter.get(router.id);
-    if (!names || names.size === 0) continue;
-    let client: RouterOSClient;
-    try {
-      client = await connectToRouter(router);
-    } catch {
-      continue;
-    }
-    try {
-      for (const name of names) await removeHotspotUser(client, name);
-    } finally {
-      client.close();
-    }
-  }
+    .where(
+      and(
+        inArray(vouchers.id, ids),
+        eq(vouchers.orgId, session.orgId),
+        isNull(vouchers.deletedAt),
+      ),
+    );
+  if (rows.length === 0) return { error: "Aucun ticket actif à archiver." };
 
   await db
-    .delete(vouchers)
-    .where(and(inArray(vouchers.id, validIds), eq(vouchers.orgId, session.orgId)));
+    .update(vouchers)
+    .set({ deletedAt: new Date() })
+    .where(and(inArray(vouchers.id, rows.map((row) => row.id)), eq(vouchers.orgId, session.orgId)));
   revalidatePath("/admin/vouchers");
-  return { success: true, deleted: validIds.length };
+  return { success: true, archived: rows.length };
+}
+
+/** Restaure les tickets de la corbeille avec leurs liaisons de routeur intactes. */
+export async function restoreVouchers(ids: string[]) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+  if (!Array.isArray(ids) || ids.length === 0) return { error: "Aucun voucher." };
+
+  const db = getDb();
+  const rows = await db
+    .select({ id: vouchers.id })
+    .from(vouchers)
+    .where(
+      and(
+        inArray(vouchers.id, ids),
+        eq(vouchers.orgId, session.orgId),
+        isNotNull(vouchers.deletedAt),
+      ),
+    );
+  if (rows.length === 0) return { error: "Aucun ticket archivé à restaurer." };
+
+  await db
+    .update(vouchers)
+    .set({ deletedAt: null })
+    .where(and(inArray(vouchers.id, rows.map((row) => row.id)), eq(vouchers.orgId, session.orgId)));
+  revalidatePath("/admin/vouchers");
+  return { success: true, restored: rows.length };
 }
 
 // Plafond d'import par passage : un routeur peut porter des milliers
@@ -321,6 +274,99 @@ export async function deleteVouchers(ids: string[]) {
 // prochain import (les tickets déjà importés sont sautés, donc l'opération est
 // idempotente et progresse à chaque passage).
 const MAX_IMPORT_PER_RUN = 2000;
+const MAX_CSV_IMPORT_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Adopte un export CSV déjà créé dans MikHmon. Cette action ne se connecte pas
+ * au routeur : le fichier décrit des utilisateurs existants et n'en provisionne
+ * aucun. Le mot de passe CSV est éliminé par le parseur et n'est jamais stocké.
+ */
+export async function importCsvTickets(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const routerId = String(formData.get("routerId") ?? "");
+  const file = formData.get("voucherCsv");
+  if (!routerId) return { error: "Sélectionnez le routeur source." };
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Choisissez un fichier CSV non vide." };
+  }
+  if (file.size > MAX_CSV_IMPORT_BYTES) {
+    return { error: "Le fichier CSV dépasse la limite de 2 Mo." };
+  }
+
+  const db = getDb();
+  const [router] = await db
+    .select({ id: routers.id })
+    .from(routers)
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .limit(1);
+  if (!router) return { error: "Routeur introuvable." };
+
+  const parsed = parseMikhmonVoucherCsv(await file.text());
+  if (parsed.rows.length === 0) {
+    return {
+      error:
+        parsed.issues[0]?.message ?? "Le fichier CSV ne contient aucun ticket importable.",
+    };
+  }
+
+  const orgPackages = await db
+    .select({
+      id: packages.id,
+      durationValue: packages.durationValue,
+      durationUnit: packages.durationUnit,
+    })
+    .from(packages)
+    .where(eq(packages.orgId, session.orgId));
+
+  const existing = await db
+    .select({ id: vouchers.id, username: vouchers.username, deletedAt: vouchers.deletedAt })
+    .from(vouchers)
+    .where(inArray(vouchers.username, parsed.rows.map((row) => row.username)));
+  const existingByUsername = new Map(existing.map((voucher) => [voucher.username, voucher]));
+  const candidates = parsed.rows.filter((row) => !existingByUsername.has(row.username));
+  const inTrash = existing.filter((voucher) => voucher.deletedAt !== null).length;
+  const alreadyTracked = existing.length - inTrash;
+  const unmatchedProfiles = candidates.filter(
+    (row) => row.profileName && !matchPackageForProfile(row.profileName, orgPackages),
+  ).length;
+
+  if (candidates.length > 0) {
+    const voucherRows = candidates.map((row) => ({
+      id: randomUUID(),
+      orgId: session.orgId,
+      username: row.username,
+      packageId: matchPackageForProfile(row.profileName, orgPackages)?.id ?? null,
+      routerId: router.id,
+      profileName: row.profileName,
+      status: "PROVISIONED" as const,
+      useCase: "Imported CSV",
+      note: row.comment,
+    }));
+    const links = voucherRows.map((voucher) => ({
+      orgId: session.orgId,
+      voucherId: voucher.id,
+      routerId: router.id,
+      profileName: voucher.profileName,
+      status: "PROVISIONED" as const,
+    }));
+    await db.batch([
+      db.insert(vouchers).values(voucherRows),
+      db.insert(voucherRouters).values(links),
+    ]);
+    revalidatePath("/admin/vouchers");
+  }
+
+  return {
+    success: true,
+    imported: candidates.length,
+    alreadyTracked,
+    inTrash,
+    invalidRows: parsed.issues.length,
+    unmatchedProfiles,
+  };
+}
 
 /**
  * Importe dans le SaaS les tickets générés directement dans MikHmon.
@@ -362,8 +408,8 @@ export async function importMikhmonTickets(_prevState: unknown, formData: FormDa
     .where(and(inArray(routers.id, routerIds), eq(routers.orgId, session.orgId)));
   if (orgRouters.length === 0) return { error: "Routeur introuvable." };
 
-  // Profil hotspot → forfait de l'org, pour rattacher les tickets importés au
-  // bon forfait quand la durée correspond (premier forfait gagnant).
+  // Les profils MikHmon sont rapprochés des forfaits avec la même normalisation
+  // que l'import CSV (01-JOUR, 1 JOUR, 01-JOURS, etc.).
   const orgPackages = await db
     .select({
       id: packages.id,
@@ -372,11 +418,6 @@ export async function importMikhmonTickets(_prevState: unknown, formData: FormDa
     })
     .from(packages)
     .where(eq(packages.orgId, session.orgId));
-  const packageIdByProfile = new Map<string, string>();
-  for (const p of orgPackages) {
-    const profile = packageProfileName(p.durationValue, p.durationUnit);
-    if (profile && !packageIdByProfile.has(profile)) packageIdByProfile.set(profile, p.id);
-  }
 
   // Vouchers déjà connus (par nom) + liens (voucher, routeur) déjà posés, pour
   // ne rien recréer et savoir quels liens de zone manquent encore.
@@ -484,7 +525,7 @@ export async function importMikhmonTickets(_prevState: unknown, formData: FormDa
             id: randomUUID(),
             orgId: session.orgId,
             username: name,
-            packageId: (profileName && packageIdByProfile.get(profileName)) || null,
+            packageId: matchPackageForProfile(profileName, orgPackages)?.id ?? null,
             routerId: scanned.routerIds[0],
             profileName,
             status: "PROVISIONED" as const,

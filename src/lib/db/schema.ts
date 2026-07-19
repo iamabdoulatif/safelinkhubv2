@@ -350,32 +350,39 @@ export const packages = pgTable("packages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const vouchers = pgTable("vouchers", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  username: text("username").notNull().unique(),
-  packageId: uuid("package_id").references(() => packages.id, {
-    onDelete: "set null",
-  }),
-  // Routeur MikroTik sur lequel l'utilisateur hotspot a RÉELLEMENT été créé
-  // (via WireGuard + /ip hotspot user add). null = anciens vouchers "fantômes"
-  // créés avant le provisioning réel, ou voucher dont le routeur a été supprimé.
-  routerId: uuid("router_id").references(() => routers.id, { onDelete: "set null" }),
-  // Profil hotspot RouterOS utilisé (01-JOUR, 01-MOIS…) — fige la durée réelle.
-  profileName: text("profile_name"),
-  // Set when a sale is made through the Agent / POS flow — lets each
-  // agent's cash sales and commission be tracked separately from batch-
-  // generated vouchers (which have no agent).
-  agentId: uuid("agent_id").references(() => users.id, { onDelete: "set null" }),
-  status: text("status").notNull().default("PROVISIONED"),
-  firstLoginAt: timestamp("first_login_at"),
-  expiresAt: timestamp("expires_at"),
-  useCase: text("use_case").notNull().default("Batch Create"),
-  note: text("note"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const vouchers = pgTable(
+  "vouchers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    username: text("username").notNull().unique(),
+    packageId: uuid("package_id").references(() => packages.id, {
+      onDelete: "set null",
+    }),
+    // Routeur MikroTik sur lequel l'utilisateur hotspot a RÉELLEMENT été créé
+    // (via WireGuard + /ip hotspot user add). null = anciens vouchers "fantômes"
+    // créés avant le provisioning réel, ou voucher dont le routeur a été supprimé.
+    routerId: uuid("router_id").references(() => routers.id, { onDelete: "set null" }),
+    // Profil hotspot RouterOS utilisé (01-JOUR, 01-MOIS…) — fige la durée réelle.
+    profileName: text("profile_name"),
+    // Set when a sale is made through the Agent / POS flow — lets each
+    // agent's cash sales and commission be tracked separately from batch-
+    // generated vouchers (which have no agent).
+    agentId: uuid("agent_id").references(() => users.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("PROVISIONED"),
+    firstLoginAt: timestamp("first_login_at"),
+    expiresAt: timestamp("expires_at"),
+    useCase: text("use_case").notNull().default("Batch Create"),
+    note: text("note"),
+    // Corbeille restaurable : les liens de routeur et l'utilisateur hotspot
+    // restent intacts tant que le ticket est archivé.
+    deletedAt: timestamp("deleted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("vouchers_org_deleted_created_idx").on(t.orgId, t.deletedAt, t.createdAt)],
+);
 
 // Un voucher peut vivre sur PLUSIEURS MikroTik (zones WiFi) à la fois : le
 // même code est créé comme utilisateur hotspot sur chaque routeur choisi. La
