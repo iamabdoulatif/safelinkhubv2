@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { vouchers, voucherRouters, routers, packages } from "@/lib/db/schema";
+import { vouchers, voucherRouters, routers, packages, roamingProfiles } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
 import { durationFromProfileName, durationToMs, type PackageDuration } from "./expiry";
@@ -181,10 +181,13 @@ export async function reconcileVoucherExpiries(orgId?: string): Promise<Reconcil
       durationValue: packages.durationValue,
       durationUnit: packages.durationUnit,
       billingStartsOn: packages.billingStartsOn,
+      roamingDurationValue: roamingProfiles.durationValue,
+      roamingDurationUnit: roamingProfiles.durationUnit,
     })
     .from(voucherRouters)
     .innerJoin(vouchers, eq(voucherRouters.voucherId, vouchers.id))
-    .leftJoin(packages, eq(vouchers.packageId, packages.id));
+    .leftJoin(packages, eq(vouchers.packageId, packages.id))
+    .leftJoin(roamingProfiles, eq(vouchers.roamingProfileId, roamingProfiles.id));
   const rows = orgId
     ? await baseQuery.where(eq(voucherRouters.orgId, orgId))
     : await baseQuery;
@@ -209,7 +212,13 @@ export async function reconcileVoucherExpiries(orgId?: string): Promise<Reconcil
           durationUnit: r.durationUnit!,
           billingStartsOn: r.billingStartsOn!,
         }
-      : durationFromProfileName(r.profileName);
+      : r.roamingDurationValue
+        ? {
+            durationValue: r.roamingDurationValue,
+            durationUnit: r.roamingDurationUnit!,
+            billingStartsOn: "Upon First Use",
+          }
+        : durationFromProfileName(r.profileName);
     if (existing) existing.routerIds.push(r.routerId);
     else
       byVoucher.set(r.voucherId, {

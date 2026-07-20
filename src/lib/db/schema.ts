@@ -350,6 +350,96 @@ export const packages = pgTable("packages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Catalogue commun de profils destinés aux groupes roaming. Les forfaits
+// classiques restent rattachés à un routeur ; ces profils, eux, représentent
+// la même durée sur toutes les zones du groupe. Le tarif catalogue peut être
+// surchargé par groupe dans roamingGroupOffers.
+export const roamingGroups = pgTable(
+  "roaming_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    code: text("code").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("roaming_groups_org_code_idx").on(t.orgId, t.code),
+    index("roaming_groups_org_created_idx").on(t.orgId, t.createdAt),
+  ],
+);
+
+export const roamingGroupRouters = pgTable(
+  "roaming_group_routers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => roamingGroups.id, { onDelete: "cascade" }),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("roaming_group_routers_group_router_idx").on(t.groupId, t.routerId),
+    index("roaming_group_routers_org_router_idx").on(t.orgId, t.routerId),
+  ],
+);
+
+export const roamingProfiles = pgTable(
+  "roaming_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    durationValue: integer("duration_value").notNull(),
+    durationUnit: text("duration_unit").notNull().default("Hours"),
+    uploadMbps: integer("upload_mbps").notNull().default(5),
+    downloadMbps: integer("download_mbps").notNull().default(5),
+    defaultPriceCents: integer("default_price_cents").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("roaming_profiles_org_name_idx").on(t.orgId, t.name),
+    index("roaming_profiles_org_active_idx").on(t.orgId, t.active),
+  ],
+);
+
+export const roamingGroupOffers = pgTable(
+  "roaming_group_offers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => roamingGroups.id, { onDelete: "cascade" }),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => roamingProfiles.id, { onDelete: "restrict" }),
+    // null = prix catalogue ; 0 est un vrai tarif promotionnel et doit être
+    // conservé comme surcharge, jamais traité comme une valeur vide.
+    priceOverrideCents: integer("price_override_cents"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("roaming_group_offers_group_profile_idx").on(t.groupId, t.profileId),
+    index("roaming_group_offers_org_group_idx").on(t.orgId, t.groupId),
+  ],
+);
+
 export const vouchers = pgTable(
   "vouchers",
   {
@@ -361,6 +451,16 @@ export const vouchers = pgTable(
     packageId: uuid("package_id").references(() => packages.id, {
       onDelete: "set null",
     }),
+    // Ticket vendu depuis un groupe roaming. Ces références permettent de
+    // comprendre l'origine du code sans changer le fonctionnement des
+    // vouchers classiques ni les données historiques.
+    roamingGroupId: uuid("roaming_group_id").references(() => roamingGroups.id, {
+      onDelete: "set null",
+    }),
+    roamingProfileId: uuid("roaming_profile_id").references(() => roamingProfiles.id, {
+      onDelete: "set null",
+    }),
+    soldPriceCents: integer("sold_price_cents"),
     // Routeur MikroTik sur lequel l'utilisateur hotspot a RÉELLEMENT été créé
     // (via WireGuard + /ip hotspot user add). null = anciens vouchers "fantômes"
     // créés avant le provisioning réel, ou voucher dont le routeur a été supprimé.

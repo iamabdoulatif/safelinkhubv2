@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   UserCog,
   Ticket,
+  RadioTower,
   Wifi,
   Globe,
   Settings,
@@ -44,6 +45,7 @@ const mainLinks = [
   { href: "/admin/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/admin/agent", label: "Agent", icon: UserCog },
   { href: "/admin/vouchers", label: "Vouchers", icon: Ticket },
+  { href: "/admin/roaming", label: "Roaming", icon: RadioTower },
   { href: "/admin/remote-access", label: "Accès distant", icon: Wifi },
   { href: "/admin/mikhmon-online", label: "Mikhmon Online", icon: Globe },
 ];

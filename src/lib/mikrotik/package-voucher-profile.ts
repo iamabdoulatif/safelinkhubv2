@@ -52,14 +52,22 @@ export function voucherProfileForPackage(
   durationValue: number,
   durationUnit: string,
   priceCents: number,
+  options?: {
+    /** Different roaming groups may share a router while charging different prices. */
+    name?: string;
+    uploadMbps?: number;
+    downloadMbps?: number;
+  },
 ): VoucherProfile | null {
   const unit = unitOf(durationUnit);
   if (!unit || !Number.isFinite(durationValue) || durationValue <= 0) return null;
   return buildVoucherProfile({
-    name: buildCustomProfileName(durationValue, unit),
+    name: options?.name ?? buildCustomProfileName(durationValue, unit),
     label: buildCustomProfileLabel(durationValue, unit),
     durationCode: buildCustomDurationCode(durationValue, unit),
     price: priceCents,
+    uploadMbps: options?.uploadMbps,
+    downloadMbps: options?.downloadMbps,
   });
 }
 

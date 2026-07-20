@@ -3,6 +3,8 @@ import { getDb } from "@/lib/db";
 import {
   vouchers,
   packages,
+  roamingGroups,
+  roamingProfiles,
   routers,
   organizations,
   captiveTemplates,
@@ -65,7 +67,7 @@ export default async function VouchersPage() {
         .orderBy(desc(routers.status))
     : [];
 
-  const [orgVouchers, trashedVouchers] = session
+  const [orgVouchers, trashedVouchers, orgRoamingProfiles, orgRoamingGroups] = session
     ? await Promise.all([
         db
           .select()
@@ -77,8 +79,24 @@ export default async function VouchersPage() {
           .from(vouchers)
           .where(and(eq(vouchers.orgId, session.orgId), isNotNull(vouchers.deletedAt)))
           .orderBy(desc(vouchers.deletedAt)),
+        db
+          .select({
+            id: roamingProfiles.id,
+            name: roamingProfiles.name,
+            durationValue: roamingProfiles.durationValue,
+            durationUnit: roamingProfiles.durationUnit,
+          })
+          .from(roamingProfiles)
+          .where(eq(roamingProfiles.orgId, session.orgId)),
+        db
+          .select({ id: roamingGroups.id, name: roamingGroups.name })
+          .from(roamingGroups)
+          .where(eq(roamingGroups.orgId, session.orgId)),
       ])
-    : [[], []];
+    : [[], [], [], []];
+
+  const roamingProfileById = new Map(orgRoamingProfiles.map((profile) => [profile.id, profile]));
+  const roamingGroupById = new Map(orgRoamingGroups.map((group) => [group.id, group]));
 
   // Branding pour les tickets : nom de l'org + modèle de portail par défaut.
   const [org] = session
@@ -113,6 +131,8 @@ export default async function VouchersPage() {
 
   function toVoucherRow(v: (typeof orgVouchers)[number]): VoucherRow {
     const pkg = v.packageId ? packageById.get(v.packageId) : undefined;
+    const roamingProfile = v.roamingProfileId ? roamingProfileById.get(v.roamingProfileId) : undefined;
+    const roamingGroup = v.roamingGroupId ? roamingGroupById.get(v.roamingGroupId) : undefined;
     // Repli sur le profil hotspot figé (v.profileName) quand le forfait a été
     // élagué : le voucher garde sa durée réelle, plus de « — » trompeur.
     const pkgDuration: PackageDuration | null = pkg
@@ -121,7 +141,13 @@ export default async function VouchersPage() {
           durationUnit: pkg.durationUnit,
           billingStartsOn: pkg.billingStartsOn,
         }
-      : durationFromProfileName(v.profileName);
+      : roamingProfile
+        ? {
+            durationValue: roamingProfile.durationValue,
+            durationUnit: roamingProfile.durationUnit,
+            billingStartsOn: "Upon First Use",
+          }
+        : durationFromProfileName(v.profileName);
 
     const expiry = computeVoucherExpiry(
       {
@@ -147,8 +173,10 @@ export default async function VouchersPage() {
     return {
       id: v.id,
       username: v.username,
-      packageName: pkg?.name ?? v.profileName ?? "—",
-      price: formatPrice(pkg?.priceCents),
+      packageName: roamingGroup && roamingProfile
+        ? `${roamingGroup.name} · ${roamingProfile.name}`
+        : pkg?.name ?? roamingProfile?.name ?? v.profileName ?? "—",
+      price: formatPrice(pkg?.priceCents ?? v.soldPriceCents),
       validity: pkgDuration ? formatDurationHuman(pkgDuration) : null,
       status: v.status,
       firstLogin: formatDate(v.firstLoginAt),

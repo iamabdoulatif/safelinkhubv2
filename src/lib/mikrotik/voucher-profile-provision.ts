@@ -24,16 +24,15 @@ export async function ensureVoucherProfileOnRouter(
     .catch(() => [] as Record<string, string>[]);
   if (existing.length > 0) return;
 
-  await client.talk(
-    [
-      "/ip/hotspot/user/profile/add",
-      `=name=${profile.name}`,
-      `=address-pool=${HOTSPOT_POOL_NAME}`,
-      `=on-login=${profile.onLogin}`,
-      "=parent-queue=none",
-    ],
-    timeoutMs,
-  );
+  const createProfile = [
+    "/ip/hotspot/user/profile/add",
+    `=name=${profile.name}`,
+    `=address-pool=${HOTSPOT_POOL_NAME}`,
+    `=on-login=${profile.onLogin}`,
+    "=parent-queue=none",
+  ];
+  if (profile.rateLimit) createProfile.push(`=rate-limit=${profile.rateLimit}`);
+  await client.talk(createProfile, timeoutMs);
 
   await client
     .talk(["/system/scheduler/remove", `=numbers=${profile.name}`], timeoutMs)
