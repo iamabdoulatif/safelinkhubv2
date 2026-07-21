@@ -28,7 +28,6 @@ import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import {
   evaluateAutoSetupGate,
   consumeAuthorization,
-  isAutoSetupContinuation,
 } from "@/lib/billing/auto-setup-authorization-service";
 import { getWalletBalanceCents } from "@/lib/wallet/actions";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
@@ -825,18 +824,11 @@ export async function provisionHotspotStack(
     return { error: "Router not found." };
   }
 
-  // TEMPORAIRE — porte de monétisation manuelle : hors superadmin, il faut une
-  // autorisation validée (et non consommée) pour ce routeur. C'est LE verrou
-  // serveur, indépendant de l'UI. Consommée après un provisioning réussi.
-  // TODO: Remplacer par système de paiement intégré.
-  // Une autorisation est à usage unique et est consommée après le premier
-  // provisioning réussi. Le bouton « Continuer l'auto-setup » sert pourtant à
-  // réparer exactement ce même routeur (ex. conteneur MikHmon qui démarre
-  // après reboot) : le snapshot prouve qu'il s'agit d'une reprise, pas d'une
-  // nouvelle installation facturable.
-  const gate = isAutoSetupContinuation(router.lastAutoSetupConfig)
-    ? { ok: true as const, reason: "continuation" as const }
-    : await evaluateAutoSetupGate(session, routerId);
+  // Porte de monétisation : le paiement est lié à ce routeur et à son
+  // payeur. Après la première exécution, ce même compte garde le droit de
+  // relancer autant de fois que nécessaire pour réparer une configuration
+  // partielle, sans nouvelle facturation.
+  const gate = await evaluateAutoSetupGate(session, routerId);
   if (!gate.ok) {
     return {
       error:
@@ -882,7 +874,7 @@ export async function provisionHotspotStack(
   // portefeuille (sinon double facturation). La porte remplace la facturation
   // wallet pour les non-superadmins. TODO: Remplacer par paiement intégré.
   const billableCents =
-    isSuperAdmin(session.role) || hasBonusFreeRouter || gate.reason === "authorized" || gate.reason === "continuation"
+    isSuperAdmin(session.role) || hasBonusFreeRouter || gate.reason === "authorized" || gate.reason === "paid_retry"
       ? null
       : router.autoSetupBilled
         ? null

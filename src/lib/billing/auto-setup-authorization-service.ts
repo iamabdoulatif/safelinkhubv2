@@ -14,13 +14,13 @@ export type AuthorizationStatus = "pending" | "approved" | "rejected";
 
 export type AutoSetupAuthorizationRow = typeof autoSetupAuthorizations.$inferSelect;
 
-/**
- * A saved setup snapshot is written only after a successful provisioning run.
- * It makes a later "Continuer l'auto-setup" a repair of the same paid router,
- * not a new billable setup.
- */
-export function isAutoSetupContinuation(savedSetup: unknown): boolean {
-  return savedSetup !== null && typeof savedSetup === "object";
+/** A paid setup belongs to its payer, even after its first successful run. */
+export function isPaidAutoSetupRetry(
+  status: string,
+  paidByUserId: string | null,
+  currentUserId: string,
+): boolean {
+  return status === "approved" && paidByUserId === currentUserId;
 }
 
 /**
@@ -29,6 +29,7 @@ export function isAutoSetupContinuation(savedSetup: unknown): boolean {
  */
 export async function findUsableAuthorization(
   routerId: string,
+  userId: string,
 ): Promise<AutoSetupAuthorizationRow | null> {
   const db = getDb();
   const [row] = await db
@@ -37,6 +38,7 @@ export async function findUsableAuthorization(
     .where(
       and(
         eq(autoSetupAuthorizations.routerId, routerId),
+        eq(autoSetupAuthorizations.userId, userId),
         eq(autoSetupAuthorizations.status, "approved"),
         isNull(autoSetupAuthorizations.consumedAt),
       ),
@@ -46,14 +48,35 @@ export async function findUsableAuthorization(
   return row ?? null;
 }
 
+/** Paid/approved entitlement kept for retrying and repairing the same router. */
+async function findPaidAuthorization(
+  routerId: string,
+  userId: string,
+): Promise<AutoSetupAuthorizationRow | null> {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(autoSetupAuthorizations)
+    .where(
+      and(
+        eq(autoSetupAuthorizations.routerId, routerId),
+        eq(autoSetupAuthorizations.userId, userId),
+        eq(autoSetupAuthorizations.status, "approved"),
+      ),
+    )
+    .orderBy(desc(autoSetupAuthorizations.decidedAt))
+    .limit(1);
+  return row ?? null;
+}
+
 export type GateDecision =
-  | { ok: true; reason: "superadmin" | "authorized"; authorizationId?: string }
+  | { ok: true; reason: "superadmin" | "authorized" | "paid_retry"; authorizationId?: string }
   | { ok: false; reason: "not_authorized" };
 
 /**
- * Décide si `session` peut lancer un auto-setup sur `routerId`.
- * Le superadmin passe toujours ; sinon il faut une autorisation utilisable.
- * NE consomme rien (la consommation se fait après un auto-setup réussi).
+ * Décide si `session` peut lancer ou reprendre un auto-setup sur `routerId`.
+ * Seul le compte qui a payé peut réutiliser son autorisation après consommation.
+ * NE consomme rien (la première consommation se fait après un auto-setup réussi).
  */
 export async function evaluateAutoSetupGate(
   session: SessionPayload | null,
@@ -61,8 +84,12 @@ export async function evaluateAutoSetupGate(
 ): Promise<GateDecision> {
   if (isSuperAdmin(session?.role)) return { ok: true, reason: "superadmin" };
   if (!session) return { ok: false, reason: "not_authorized" };
-  const auth = await findUsableAuthorization(routerId);
+  const auth = await findUsableAuthorization(routerId, session.userId);
   if (auth) return { ok: true, reason: "authorized", authorizationId: auth.id };
+  const paid = await findPaidAuthorization(routerId, session.userId);
+  if (paid && isPaidAutoSetupRetry(paid.status, paid.userId, session.userId)) {
+    return { ok: true, reason: "paid_retry" };
+  }
   return { ok: false, reason: "not_authorized" };
 }
 
@@ -94,17 +121,23 @@ export async function getAutoSetupGateStatusForRouter(
 }> {
   const superadmin = isSuperAdmin(session?.role);
   if (superadmin) return { superadmin: true, authorized: true, latest: null };
+  if (!session) return { superadmin: false, authorized: false, latest: null };
 
   const db = getDb();
   const [latest] = await db
     .select()
     .from(autoSetupAuthorizations)
-    .where(eq(autoSetupAuthorizations.routerId, routerId))
+    .where(
+      and(
+        eq(autoSetupAuthorizations.routerId, routerId),
+        eq(autoSetupAuthorizations.userId, session.userId),
+      ),
+    )
     .orderBy(desc(autoSetupAuthorizations.createdAt))
     .limit(1);
 
-  const usable = await findUsableAuthorization(routerId);
-  return { superadmin: false, authorized: Boolean(usable), latest: latest ?? null };
+  const gate = await evaluateAutoSetupGate(session, routerId);
+  return { superadmin: false, authorized: gate.ok, latest: latest ?? null };
 }
 
 export type CreateAuthorizationInput = {
