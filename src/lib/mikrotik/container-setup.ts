@@ -28,6 +28,7 @@ import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import {
   evaluateAutoSetupGate,
   consumeAuthorization,
+  isAutoSetupContinuation,
 } from "@/lib/billing/auto-setup-authorization-service";
 import { getWalletBalanceCents } from "@/lib/wallet/actions";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
@@ -828,7 +829,14 @@ export async function provisionHotspotStack(
   // autorisation validée (et non consommée) pour ce routeur. C'est LE verrou
   // serveur, indépendant de l'UI. Consommée après un provisioning réussi.
   // TODO: Remplacer par système de paiement intégré.
-  const gate = await evaluateAutoSetupGate(session, routerId);
+  // Une autorisation est à usage unique et est consommée après le premier
+  // provisioning réussi. Le bouton « Continuer l'auto-setup » sert pourtant à
+  // réparer exactement ce même routeur (ex. conteneur MikHmon qui démarre
+  // après reboot) : le snapshot prouve qu'il s'agit d'une reprise, pas d'une
+  // nouvelle installation facturable.
+  const gate = isAutoSetupContinuation(router.lastAutoSetupConfig)
+    ? { ok: true as const, reason: "continuation" as const }
+    : await evaluateAutoSetupGate(session, routerId);
   if (!gate.ok) {
     return {
       error:
@@ -874,7 +882,7 @@ export async function provisionHotspotStack(
   // portefeuille (sinon double facturation). La porte remplace la facturation
   // wallet pour les non-superadmins. TODO: Remplacer par paiement intégré.
   const billableCents =
-    isSuperAdmin(session.role) || hasBonusFreeRouter || gate.reason === "authorized"
+    isSuperAdmin(session.role) || hasBonusFreeRouter || gate.reason === "authorized" || gate.reason === "continuation"
       ? null
       : router.autoSetupBilled
         ? null

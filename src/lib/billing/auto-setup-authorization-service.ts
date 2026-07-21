@@ -15,6 +15,15 @@ export type AuthorizationStatus = "pending" | "approved" | "rejected";
 export type AutoSetupAuthorizationRow = typeof autoSetupAuthorizations.$inferSelect;
 
 /**
+ * A saved setup snapshot is written only after a successful provisioning run.
+ * It makes a later "Continuer l'auto-setup" a repair of the same paid router,
+ * not a new billable setup.
+ */
+export function isAutoSetupContinuation(savedSetup: unknown): boolean {
+  return savedSetup !== null && typeof savedSetup === "object";
+}
+
+/**
  * Autorisation utilisable pour lancer un auto-setup sur ce routeur :
  * approuvée et pas encore consommée. C'est le cœur de la garde.
  */
