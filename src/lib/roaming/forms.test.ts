@@ -4,7 +4,7 @@ import { parseRoamingPriceOverride, roamingGroupCode, roamingRouterProfileName }
 
 describe("formulaires roaming", () => {
   it("génère un code de groupe lisible à partir de son nom", () => {
-    assert.equal(roamingGroupCode("Togo · Roaming"), "TOGO-ROAMING");
+    assert.equal(roamingGroupCode("CIV · Roaming"), "CIV-ROAMING");
     assert.equal(roamingGroupCode("  Abidjan   Nord "), "ABIDJAN-NORD");
   });
 
