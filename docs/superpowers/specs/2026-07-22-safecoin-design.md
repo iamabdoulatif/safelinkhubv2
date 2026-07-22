@@ -40,6 +40,29 @@ en centièmes de SC pour éviter les erreurs de flottants.
 
 ## Expérience utilisateur
 
+### Passes d’accès distant temporaires
+
+Le superadmin dispose d’un catalogue de passes opérationnels indépendants de
+la facturation : **1 heure**, **2 heures**, **7 jours** et **10 jours**. Un pass
+peut être attribué à une organisation et, facultativement, limité à un routeur
+et à une liste de services (WinBox, WebFig, SSH/SFTP, MikHmon). Il sert à une
+promotion, une assistance ou une intervention technique sur le MikroTik d’une
+organisation.
+
+- statuts : `scheduled`, `active`, `expired`, `revoked` ;
+- activation immédiate par défaut, avec date de début conservée ;
+- expiration calculée côté serveur et vérifiée à chaque activation ;
+- un pass ne crée pas de crédit SC et ne déclenche pas de débit ;
+- révocation immédiate par le superadmin, avec motif obligatoire ;
+- journal d’audit : créateur, organisation, routeur, services, dates et motif ;
+- l’organisation voit le pass actif et son compte à rebours dans Accès distant ;
+- le pass est prioritaire sur la demande payante, mais ne contourne jamais les
+  contrôles de propriété du routeur.
+
+Le superadmin peut créer un pass pour sa propre organisation afin de travailler
+sur ses routeurs ; les droits superadmin existants restent inchangés et ne sont
+pas artificiellement facturés.
+
 ### Portefeuille client (`/admin/billing`)
 
 Ajouter une carte Safecoin en tête de l’actuel portefeuille FCFA :
@@ -88,6 +111,8 @@ Créer un ledger séparé plutôt que de modifier silencieusement
    référence métier, montant FCFA de référence, frais, statut, acteur et date.
 4. `safecoin_fee_rules` : règles versionnées par service et période ; aucune
    modification destructive d’une règle déjà utilisée.
+5. `remote_access_grants` : passes temporaires attribués par le superadmin,
+   séparés des demandes de paiement `remote_access_authorizations`.
 
 Le solde est toujours recalculé par somme des écritures confirmées. Une clé
   d’idempotence unique sur chaque référence métier empêche les doubles débits
@@ -135,8 +160,9 @@ Types d’écriture V1 : `topup`, `vpn_charge`, `auto_setup_charge`, `fee`,
 1. Migration et primitives serveur du ledger Safecoin.
 2. Conversion tarifaire et débit atomique VPN/Auto-Setup.
 3. Carte Safecoin et recharge sur `/admin/billing`.
-4. Station superadmin, rapports, filtres et export CSV.
-5. Tuile du dashboard, tests, contrôle visuel et déploiement progressif.
+4. Passes d’accès distant temporaires et contrôle de la porte d’accès.
+5. Station superadmin, rapports, filtres et export CSV.
+6. Tuile du dashboard, tests, contrôle visuel et déploiement progressif.
 
 ## Critères d’acceptation
 
@@ -146,3 +172,6 @@ Types d’écriture V1 : `topup`, `vpn_charge`, `auto_setup_charge`, `fee`,
 - Le superadmin peut auditer, filtrer et exporter les opérations.
 - Les clients ne peuvent ni retirer ni transférer des SC.
 - Les anciennes transactions FCFA restent intactes et lisibles.
+- Un pass 1 h, 2 h, 7 j ou 10 j expire automatiquement et peut être révoqué.
+- Un pass attribué à une organisation débloque uniquement les services et
+  routeurs autorisés, sans paiement ni crédit fictif.

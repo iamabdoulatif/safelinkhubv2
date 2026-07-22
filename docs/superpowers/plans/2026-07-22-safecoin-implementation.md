@@ -19,6 +19,10 @@
 - Create: `src/lib/safecoin/ledger.test.ts` — règles de ledger pures avec faux dépôt minimal.
 - Create: `src/lib/safecoin/actions.ts` — Server Actions recharge, correction et export.
 - Create: `src/lib/safecoin/queries.ts` — agrégats organisation et superadmin.
+- Create: `src/lib/remote-access/grants.ts` — durées, portée et décision d’un pass temporaire.
+- Create: `src/lib/remote-access/grants.test.ts` — expiration, révocation et portée.
+- Create: `src/lib/remote-access/grant-actions.ts` — création, révocation et attribution superadmin.
+- Create: `src/app/admin/remote-access/TemporaryAccessPasses.tsx` — catalogue et attribution dans l’UI superadmin.
 - Create: `src/app/admin/safecoin/page.tsx` — station superadmin.
 - Create: `src/app/admin/safecoin/SafecoinConsole.tsx` — filtres, tableaux et interactions client.
 - Create: `src/app/admin/safecoin/SafecoinActions.tsx` — formulaires recharge/correction/règles.
@@ -32,6 +36,9 @@
 - Modify: `src/components/AdminSidebar.tsx` — lien « Safecoin » dans Superadmin.
 - Modify: `src/app/api/payments/geniuspay/webhook/route.ts` — confirmation d’une recharge SC idempotente.
 - Create: `src/lib/safecoin/ledger.integration.test.ts` — contrôles d’autorisation/idempotence avec DB émulée.
+- Create: `scripts/add-remote-access-grants.sql` — migration idempotente des passes temporaires.
+- Modify: `src/lib/billing/remote-access-authorization-service.ts` — priorité et consommation des passes temporaires.
+- Modify: `src/app/admin/remote-access/page.tsx` — compte à rebours du pass attribué.
 
 ---
 
@@ -510,7 +517,72 @@ git add src/lib/safecoin/queries.ts src/app/admin/safecoin src/components/AdminS
 git commit -m "feat: ajouter la station de contrôle Safecoin"
 ```
 
-### Task 8: Vérifier, migrer et préparer le déploiement
+### Task 8: Ajouter les passes d’accès distant temporaires
+
+**Files:**
+- Modify: `src/lib/db/schema.ts`
+- Create: `scripts/add-remote-access-grants.sql`
+- Create: `src/lib/remote-access/grants.ts`
+- Create: `src/lib/remote-access/grants.test.ts`
+- Create: `src/lib/remote-access/grant-actions.ts`
+- Create: `src/app/admin/remote-access/TemporaryAccessPasses.tsx`
+- Modify: `src/lib/billing/remote-access-authorization-service.ts`
+- Modify: `src/lib/mikrotik/port-forward.ts`
+- Modify: `src/app/admin/remote-access/page.tsx`
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+test("calcule les quatre durées de pass", () => {
+  assert.deepEqual(Object.keys(TEMPORARY_ACCESS_DURATIONS), ["hour_1", "hour_2", "day_7", "day_10"]);
+  assert.equal(expiresAtFor("hour_1", new Date("2026-07-22T10:00:00Z")).toISOString(), "2026-07-22T11:00:00.000Z");
+});
+test("un pass expiré ou révoqué ne débloque pas l’accès", async () => {
+  assert.equal(await isGrantUsable({ status: "expired", expiresAt: new Date("2026-07-21") }), false);
+  assert.equal(await isGrantUsable({ status: "revoked", expiresAt: new Date("2026-07-23") }), false);
+});
+test("la portée limite le pass au routeur et au service", () => {
+  assert.equal(grantCovers({ routerId: "r1", services: ["winbox"] }, "r1", "winbox"), true);
+  assert.equal(grantCovers({ routerId: "r1", services: ["winbox"] }, "r2", "winbox"), false);
+  assert.equal(grantCovers({ routerId: null, services: [] }, "r2", "ssh"), true);
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx --no-install tsx --test src/lib/remote-access/grants.test.ts`
+
+Expected: FAIL because the temporary grant module is absent.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Ajouter `remoteAccessGrants` avec `orgId`, `routerId` nullable, `services`
+JSONB, `durationKey`, `startsAt`, `expiresAt`, `status`, `reason`, `createdBy`,
+`revokedBy`, `revokedAt`, `revokeReason` et timestamps. Le service expose
+`createGrant`, `findUsableGrant`, `revokeGrant`, `expireGrantIfNeeded` et
+`grantCovers`. Les Server Actions exigent `isSuperAdmin`, valident les quatre
+durées, le routeur de l’organisation et un motif non vide.
+
+Modifier `evaluateRemoteAccessGate` pour chercher d’abord un pass actif de
+l’organisation et du routeur ; retourner `reason: "temporary_grant"` et son
+identifiant. Après une activation réussie, ne pas consommer le pass : la V1
+utilise `reusable_until_expiry` pour permettre au technicien de travailler
+plusieurs fois durant la fenêtre.
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npx --no-install tsx --test src/lib/remote-access/grants.test.ts src/lib/safecoin/service-charges.test.ts`
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/db/schema.ts scripts/add-remote-access-grants.sql src/lib/remote-access src/lib/billing/remote-access-authorization-service.ts src/lib/mikrotik/port-forward.ts src/app/admin/remote-access
+git commit -m "feat: ajouter les passes temporaires d acces distant"
+```
+
+### Task 9: Vérifier, migrer et préparer le déploiement
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-07-22-safecoin-design.md` uniquement si une décision validée évolue.
@@ -551,8 +623,9 @@ git commit -m "docs: planifier l implementation Safecoin"
 ## Self-review
 
 - Spec coverage: rate, internal non-withdrawable credit, separate ledger,
-  conversion, fees, recharge/webhook, client wallet, superadmin station,
-  reports/export, migration and security are covered by Tasks 1–8.
+  conversion, fees, recharge/webhook, temporary access passes, client wallet,
+  superadmin station, reports/export, migration and security are covered by
+  Tasks 1–9.
 - Placeholder scan: no `TBD`, `TODO`, or unspecified implementation steps;
   every task names files, commands and expected outcomes.
 - Type consistency: all services use `amountScCents`, `referenceFcfaCents`,
