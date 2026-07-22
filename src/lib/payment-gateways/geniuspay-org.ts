@@ -12,6 +12,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { paymentGateways } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/mikrotik/crypto";
+import { formatGeniusPayCustomer, type GeniusPayCustomer } from "./phone";
 
 const DEFAULT_BASE_URL = "https://pay.genius.ci/api/v1/merchant";
 
@@ -69,7 +70,7 @@ function safeParse(s: string): Record<string, unknown> | null {
 export type CreateOrgPaymentInput = {
   amountFcfa: number;
   description: string;
-  customer?: { name?: string; phone?: string };
+  customer?: GeniusPayCustomer;
   metadata?: Record<string, unknown>;
   successUrl?: string;
   errorUrl?: string;
@@ -98,7 +99,7 @@ export async function createOrgPayment(
     amount: input.amountFcfa,
     currency: "XOF",
     description: input.description.slice(0, 500),
-    customer: input.customer,
+    customer: formatGeniusPayCustomer(input.customer),
     metadata: input.metadata,
     success_url: input.successUrl,
     error_url: input.errorUrl,

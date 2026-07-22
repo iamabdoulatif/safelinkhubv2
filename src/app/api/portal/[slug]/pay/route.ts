@@ -12,6 +12,7 @@ import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
+import { getOrgDial } from "@/lib/portal/org-dial";
 
 // Le portail expose deux choix : "wave" = rail direct pay.wave.com (rapide,
 // fiable en mini-navigateur captif) ; "hosted" = on OMET payment_method →
@@ -87,6 +88,11 @@ export async function POST(
   if (!creds) {
     return corsJson({ error: "Paiement en ligne non configuré." }, { status: 400 });
   }
+  // Le pays est transmis explicitement à GeniusPay : ne pas laisser son
+  // auto-détection deviner un mauvais pays à partir d'un numéro sans « + ».
+  // On le résout AVANT le claim pour qu'une erreur DB ne laisse pas la commande
+  // bloquée en payment_initiating.
+  const { iso2 } = await getOrgDial(org.id);
 
   const [claim] = await db
     .update(portalOrders)
@@ -108,7 +114,10 @@ export async function POST(
   const payment = await createOrgPayment(creds, {
     amountFcfa: order.priceCents ?? 0,
     description: `Forfait ${order.packageName ?? "WiFi"} — WiFi`,
-    customer: { phone: order.phone },
+    customer: {
+      phone: order.phone,
+      ...(iso2 && iso2 !== "XX" ? { country: iso2 } : {}),
+    },
     paymentMethod,
     metadata: { orderId: order.id, slug, kind: "portal" },
     successUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,

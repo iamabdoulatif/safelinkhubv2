@@ -9,6 +9,7 @@
 // Module serveur uniquement (crypto Node) : ne jamais l'importer côté client.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { formatGeniusPayCustomer, type GeniusPayCustomer } from "./phone";
 
 const DEFAULT_BASE_URL = "https://pay.genius.ci/api/v1/merchant";
 
@@ -55,7 +56,7 @@ export type CreatePaymentInput = {
   /** Montant en FCFA (entier). Minimum GeniusPay : 100. */
   amountFcfa: number;
   description: string;
-  customer?: { name?: string; email?: string; phone?: string; country?: string };
+  customer?: GeniusPayCustomer;
   /** Rail optionnel pour un dépôt portefeuille ; absent = checkout hébergé. */
   paymentMethod?: string;
   /** Métadonnées renvoyées telles quelles dans les réponses et webhooks. */
@@ -93,7 +94,7 @@ export async function createGeniusPayment(input: CreatePaymentInput): Promise<Cr
         amount: input.amountFcfa,
         currency: "XOF",
         description: input.description.slice(0, 500),
-        customer: input.customer,
+        customer: formatGeniusPayCustomer(input.customer),
         metadata: input.metadata,
         ...(input.paymentMethod ? { payment_method: input.paymentMethod } : {}),
         success_url: input.successUrl,
