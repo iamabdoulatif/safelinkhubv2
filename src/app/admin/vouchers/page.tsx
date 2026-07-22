@@ -19,7 +19,9 @@ import {
 import type { TicketBrand } from "@/lib/vouchers/ticket-templates";
 import GenerateVouchersModal from "./GenerateVouchersModal";
 import ImportTicketsModal from "./ImportTicketsModal";
+import ArchiveImportedButton from "./ArchiveImportedButton";
 import VoucherTable, { type VoucherRow } from "./VoucherTable";
+import { isImportedVoucherUseCase } from "@/lib/vouchers/source";
 
 function formatDate(date: Date | null) {
   if (!date) return "—";
@@ -193,7 +195,7 @@ export default async function VouchersPage() {
   const trashRows = trashedVouchers.map(toVoucherRow);
   const stats = {
     active: rows.length,
-    imported: rows.filter((voucher) => voucher.useCase.startsWith("Imported")).length,
+    imported: rows.filter((voucher) => isImportedVoucherUseCase(voucher.useCase)).length,
     trashed: trashRows.length,
   };
 
@@ -207,6 +209,7 @@ export default async function VouchersPage() {
         <div className="flex flex-wrap items-center gap-2">
           <ImportTicketsModal routers={orgRouters} packages={orgPackages} />
           <GenerateVouchersModal packages={orgPackages} routers={orgRouters} />
+          <ArchiveImportedButton count={stats.imported} />
         </div>
       }
     />

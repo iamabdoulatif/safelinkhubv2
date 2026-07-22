@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { vouchers, voucherRouters, routers, packages, roamingProfiles } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
@@ -189,8 +189,8 @@ export async function reconcileVoucherExpiries(orgId?: string): Promise<Reconcil
     .leftJoin(packages, eq(vouchers.packageId, packages.id))
     .leftJoin(roamingProfiles, eq(vouchers.roamingProfileId, roamingProfiles.id));
   const rows = orgId
-    ? await baseQuery.where(eq(voucherRouters.orgId, orgId))
-    : await baseQuery;
+    ? await baseQuery.where(and(isNull(vouchers.deletedAt), eq(voucherRouters.orgId, orgId)))
+    : await baseQuery.where(isNull(vouchers.deletedAt));
 
   type Vou = {
     voucherId: string;

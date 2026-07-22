@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { getDb } from "@/lib/db";
 import { packages, vouchers, voucherRouters, routers } from "@/lib/db/schema";
@@ -18,6 +18,7 @@ import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-pro
 import { parseExpiryComment, wallToDate, wallKey, type Wall } from "./reconcile";
 import { durationFromProfileName, durationToMs } from "./expiry";
 import { matchPackageForProfile, parseMikhmonVoucherCsv } from "./csv-import";
+import { isImportedVoucherUseCase } from "./source";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -241,6 +242,44 @@ export async function archiveVouchers(ids: string[]) {
   return { success: true, archived: rows.length };
 }
 
+/**
+ * Retire de l'inventaire actif les tickets importés depuis MikHmon/CSV.
+ *
+ * C'est volontairement un archivage DB-only : aucune connexion MikroTik et
+ * aucune commande `/ip/hotspot/user/remove` ne sont exécutées. Les liens de
+ * zone restent donc intacts et la corbeille permet une restauration exacte.
+ */
+export async function archiveImportedVouchers() {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const rows = await db
+    .select({ id: vouchers.id })
+    .from(vouchers)
+    .where(
+      and(
+        eq(vouchers.orgId, session.orgId),
+        isNull(vouchers.deletedAt),
+        sql`lower(trim(coalesce(${vouchers.useCase}, ''))) like 'imported%'`,
+      ),
+    );
+  if (rows.length === 0) return { success: true, archived: 0 };
+
+  await db
+    .update(vouchers)
+    .set({ deletedAt: new Date() })
+    .where(
+      and(
+        eq(vouchers.orgId, session.orgId),
+        isNull(vouchers.deletedAt),
+        inArray(vouchers.id, rows.map((row) => row.id)),
+      ),
+    );
+  revalidatePath("/admin/vouchers");
+  return { success: true, archived: rows.length };
+}
+
 /** Restaure les tickets de la corbeille avec leurs liaisons de routeur intactes. */
 export async function restoreVouchers(ids: string[]) {
   const session = await requireAdminSession();
@@ -321,16 +360,60 @@ export async function importCsvTickets(_prevState: unknown, formData: FormData) 
     .where(eq(packages.orgId, session.orgId));
 
   const existing = await db
-    .select({ id: vouchers.id, username: vouchers.username, deletedAt: vouchers.deletedAt })
+    .select({
+      id: vouchers.id,
+      username: vouchers.username,
+      deletedAt: vouchers.deletedAt,
+      useCase: vouchers.useCase,
+    })
     .from(vouchers)
     .where(inArray(vouchers.username, parsed.rows.map((row) => row.username)));
   const existingByUsername = new Map(existing.map((voucher) => [voucher.username, voucher]));
   const candidates = parsed.rows.filter((row) => !existingByUsername.has(row.username));
   const inTrash = existing.filter((voucher) => voucher.deletedAt !== null).length;
   const alreadyTracked = existing.length - inTrash;
+  const rowsByUsername = new Map(parsed.rows.map((row) => [row.username, row]));
+  const archivedImported = existing.filter(
+    (voucher) =>
+      voucher.deletedAt !== null && isImportedVoucherUseCase(voucher.useCase) && rowsByUsername.has(voucher.username),
+  );
   const unmatchedProfiles = candidates.filter(
     (row) => row.profileName && !matchPackageForProfile(row.profileName, orgPackages),
   ).length;
+
+  // Un archivé importé qui revient dans un nouveau CSV est réactivé sans
+  // recréer son username unique. On rattache aussi le routeur source si le
+  // fichier vient d'une nouvelle zone. Aucun appel MikroTik n'est effectué.
+  if (archivedImported.length > 0) {
+    const archivedIds = archivedImported.map((voucher) => voucher.id);
+    const existingLinks = await db
+      .select({ voucherId: voucherRouters.voucherId, routerId: voucherRouters.routerId })
+      .from(voucherRouters)
+      .where(and(eq(voucherRouters.orgId, session.orgId), inArray(voucherRouters.voucherId, archivedIds)));
+    const linked = new Set(existingLinks.map((link) => `${link.voucherId}:${link.routerId}`));
+    const linksToAdd = archivedImported
+      .filter((voucher) => !linked.has(`${voucher.id}:${router.id}`))
+      .map((voucher) => {
+        const row = rowsByUsername.get(voucher.username)!;
+        return {
+          orgId: session.orgId,
+          voucherId: voucher.id,
+          routerId: router.id,
+          profileName: row.profileName,
+          status: "PROVISIONED" as const,
+        };
+      });
+
+    const operations: BatchItem<"pg">[] = [
+      db
+        .update(vouchers)
+        .set({ deletedAt: null })
+        .where(and(eq(vouchers.orgId, session.orgId), inArray(vouchers.id, archivedIds))),
+    ];
+    if (linksToAdd.length > 0) operations.push(db.insert(voucherRouters).values(linksToAdd));
+    await db.batch(operations as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+    revalidatePath("/admin/vouchers");
+  }
 
   if (candidates.length > 0) {
     const voucherRows = candidates.map((row) => ({
@@ -361,6 +444,7 @@ export async function importCsvTickets(_prevState: unknown, formData: FormData) 
   return {
     success: true,
     imported: candidates.length,
+    restored: archivedImported.length,
     alreadyTracked,
     inTrash,
     invalidRows: parsed.issues.length,

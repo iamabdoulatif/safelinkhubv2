@@ -103,6 +103,7 @@ export default function ImportTicketsModal({
     csvState?.success && mode === "csv"
       ? [
           csvState.imported > 0 ? `${csvState.imported} importé(s)` : null,
+          csvState.restored > 0 ? `${csvState.restored} restauré(s)` : null,
           csvState.alreadyTracked > 0 ? `${csvState.alreadyTracked} déjà suivi(s)` : null,
           csvState.inTrash > 0 ? `${csvState.inTrash} dans la corbeille` : null,
           csvState.unmatchedProfiles > 0
