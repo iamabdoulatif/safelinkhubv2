@@ -18,11 +18,20 @@ export default function VpnQuotaForm({ userId, userEmail }: { userId: string; us
           className="h-9 rounded-md border-2 border-line bg-paper px-2 text-xs text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-60"
           aria-label={`Quota VPN pour ${userEmail}`}
         >
-          {VPN_QUOTA_GRANT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
+          <optgroup label="Promo · parrainage · récompense">
+            {VPN_QUOTA_GRANT_OPTIONS.filter((option) => option.durationMs !== null).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Quota VPN">
+            {VPN_QUOTA_GRANT_OPTIONS.filter((option) => option.durationMs === null).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </optgroup>
         </select>
         <button
           type="submit"
@@ -33,6 +42,9 @@ export default function VpnQuotaForm({ userId, userEmail }: { userId: string; us
           {pending ? "Application..." : "Appliquer"}
         </button>
       </form>
+      <p className="text-[11px] text-ink-soft">
+        Les passes promotionnels sont gratuits et ne débitent jamais Safecoin.
+      </p>
 
       <div role="status" aria-live="polite" className="min-h-[1.1rem] text-xs">
         {pending && (

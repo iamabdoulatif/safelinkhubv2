@@ -4,12 +4,16 @@ export const VPN_QUOTA_MODES = ["default", "free_until", "unlimited", "paid"] as
 export type VpnQuotaMode = (typeof VPN_QUOTA_MODES)[number];
 
 export const VPN_QUOTA_GRANT_OPTIONS = [
-  { value: "free_1_month", label: "Gratuit 1 mois", months: 1 },
-  { value: "free_3_months", label: "Gratuit 3 mois", months: 3 },
-  { value: "free_6_months", label: "Gratuit 6 mois", months: 6 },
-  { value: "free_12_months", label: "Gratuit 12 mois", months: 12 },
-  { value: "unlimited", label: "Gratuit illimité", months: null },
-  { value: "paid", label: "VPN payant", months: null },
+  { value: "free_1_hour", label: "Gratuit 1 heure", months: null, durationMs: 60 * 60 * 1000 },
+  { value: "free_2_hours", label: "Gratuit 2 heures", months: null, durationMs: 2 * 60 * 60 * 1000 },
+  { value: "free_7_days", label: "Gratuit 7 jours", months: null, durationMs: 7 * 24 * 60 * 60 * 1000 },
+  { value: "free_10_days", label: "Gratuit 10 jours", months: null, durationMs: 10 * 24 * 60 * 60 * 1000 },
+  { value: "free_1_month", label: "Gratuit 1 mois", months: 1, durationMs: null },
+  { value: "free_3_months", label: "Gratuit 3 mois", months: 3, durationMs: null },
+  { value: "free_6_months", label: "Gratuit 6 mois", months: 6, durationMs: null },
+  { value: "free_12_months", label: "Gratuit 12 mois", months: 12, durationMs: null },
+  { value: "unlimited", label: "Gratuit illimité", months: null, durationMs: null },
+  { value: "paid", label: "VPN payant", months: null, durationMs: null },
 ] as const;
 
 export type VpnQuotaGrant = (typeof VPN_QUOTA_GRANT_OPTIONS)[number]["value"];
@@ -45,6 +49,11 @@ function addUtcMonths(date: Date, months: number): Date {
   return next;
 }
 
+function addQuotaDuration(date: Date, option: (typeof VPN_QUOTA_GRANT_OPTIONS)[number]): Date {
+  if (option.durationMs !== null) return new Date(date.getTime() + option.durationMs);
+  return addUtcMonths(date, option.months ?? 0);
+}
+
 export function isVpnQuotaGrant(value: string): value is VpnQuotaGrant {
   return VPN_QUOTA_GRANT_OPTIONS.some((option) => option.value === value);
 }
@@ -64,7 +73,7 @@ export function computeVpnQuotaGrant(grant: VpnQuotaGrant, now = new Date()): Vp
 
   return {
     mode: "free_until",
-    expiresAt: addUtcMonths(now, option.months ?? 0),
+    expiresAt: addQuotaDuration(now, option),
   };
 }
 

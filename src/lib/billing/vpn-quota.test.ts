@@ -14,6 +14,10 @@ describe("vpn quota grants", () => {
     assert.deepEqual(
       VPN_QUOTA_GRANT_OPTIONS.map((option) => [option.value, option.label]),
       [
+        ["free_1_hour", "Gratuit 1 heure"],
+        ["free_2_hours", "Gratuit 2 heures"],
+        ["free_7_days", "Gratuit 7 jours"],
+        ["free_10_days", "Gratuit 10 jours"],
         ["free_1_month", "Gratuit 1 mois"],
         ["free_3_months", "Gratuit 3 mois"],
         ["free_6_months", "Gratuit 6 mois"],
@@ -22,6 +26,23 @@ describe("vpn quota grants", () => {
         ["paid", "VPN payant"],
       ],
     );
+
+    assert.deepEqual(computeVpnQuotaGrant("free_1_hour", NOW), {
+      mode: "free_until",
+      expiresAt: new Date("2026-06-28T13:00:00.000Z"),
+    });
+    assert.deepEqual(computeVpnQuotaGrant("free_2_hours", NOW), {
+      mode: "free_until",
+      expiresAt: new Date("2026-06-28T14:00:00.000Z"),
+    });
+    assert.deepEqual(computeVpnQuotaGrant("free_7_days", NOW), {
+      mode: "free_until",
+      expiresAt: new Date("2026-07-05T12:00:00.000Z"),
+    });
+    assert.deepEqual(computeVpnQuotaGrant("free_10_days", NOW), {
+      mode: "free_until",
+      expiresAt: new Date("2026-07-08T12:00:00.000Z"),
+    });
 
     assert.deepEqual(computeVpnQuotaGrant("free_1_month", NOW), {
       mode: "free_until",
