@@ -1,9 +1,10 @@
 import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { organizations, users } from "@/lib/db/schema";
+import { organizations, routers, users } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getVpnQuotaStatus } from "@/lib/billing/vpn-quota";
 import UsersControlCenter from "./UsersControlCenter";
+import { listAllRemoteAccessGrants } from "@/lib/remote-access/grants";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -88,5 +89,19 @@ export default async function UsersPage() {
     };
   });
 
-  return <UsersControlCenter rows={controlRows} superadmin={superadmin} />;
+  const temporaryAccess = superadmin
+    ? {
+        organizations: await db
+          .select({ id: organizations.id, name: organizations.name, slug: organizations.slug })
+          .from(organizations)
+          .orderBy(organizations.name),
+        routers: await db
+          .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
+          .from(routers)
+          .orderBy(routers.name),
+        grants: await listAllRemoteAccessGrants(),
+      }
+    : null;
+
+  return <UsersControlCenter rows={controlRows} superadmin={superadmin} temporaryAccess={temporaryAccess} />;
 }

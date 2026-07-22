@@ -53,6 +53,7 @@ export async function createTemporaryAccessGrant(_prevState: unknown, formData: 
     createdBy: session!.userId,
   });
   revalidatePath("/admin/remote-access");
+  revalidatePath("/admin/users");
   return { success: true as const };
 }
 
@@ -63,5 +64,6 @@ export async function revokeTemporaryAccessGrant(id: string, revokeReason: strin
   const row = await revokeRemoteAccessGrant(id, session!.userId, revokeReason);
   if (!row) return { error: "Pass introuvable, expiré ou déjà révoqué." };
   revalidatePath("/admin/remote-access");
+  revalidatePath("/admin/users");
   return { success: true as const };
 }

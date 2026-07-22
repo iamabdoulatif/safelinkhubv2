@@ -7,7 +7,7 @@ import { createTemporaryAccessGrant, revokeTemporaryAccessGrant } from "@/lib/re
 import { REMOTE_ACCESS_SERVICES } from "@/lib/billing/remote-access-gate-config";
 import { TEMPORARY_ACCESS_DURATIONS } from "@/lib/remote-access/grants";
 
-type Grant = {
+export type Grant = {
   id: string;
   orgId: string;
   orgName: string;
@@ -26,8 +26,8 @@ type Grant = {
   revokeReason: string | null;
 };
 
-type Organization = { id: string; name: string; slug: string };
-type GrantRouter = { id: string; name: string; orgId: string };
+export type Organization = { id: string; name: string; slug: string };
+export type GrantRouter = { id: string; name: string; orgId: string };
 
 const reasonLabels: Record<string, string> = {
   promo: "Promotion",

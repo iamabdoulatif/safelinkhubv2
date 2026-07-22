@@ -19,6 +19,11 @@ import {
   Wifi,
 } from "lucide-react";
 import VpnQuotaForm from "./VpnQuotaForm";
+import TemporaryAccessPasses, {
+  type Grant,
+  type GrantRouter,
+  type Organization,
+} from "../remote-access/TemporaryAccessPasses";
 import { buildUsersCsv, filterUsers, type UserControlFilter, type UserControlRow } from "./users-control-center";
 
 const FILTERS: Array<{ value: UserControlFilter; label: string }> = [
@@ -51,9 +56,15 @@ function quotaTone(category: UserControlRow["quotaCategory"]) {
 export default function UsersControlCenter({
   rows,
   superadmin,
+  temporaryAccess,
 }: {
   rows: UserControlRow[];
   superadmin: boolean;
+  temporaryAccess: {
+    organizations: Organization[];
+    routers: GrantRouter[];
+    grants: Grant[];
+  } | null;
 }) {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<UserControlFilter>("all");
@@ -150,6 +161,14 @@ export default function UsersControlCenter({
           </Link>
         </div>
       </div>
+
+      {superadmin && temporaryAccess && (
+        <TemporaryAccessPasses
+          organizations={temporaryAccess.organizations}
+          routers={temporaryAccess.routers}
+          grants={temporaryAccess.grants}
+        />
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[

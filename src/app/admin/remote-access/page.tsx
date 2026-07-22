@@ -2,7 +2,7 @@ import { eq, desc, inArray } from "drizzle-orm";
 import { after } from "next/server";
 import { Wifi } from "lucide-react";
 import { getDb } from "@/lib/db";
-import { organizations, routers, routerPortForwards } from "@/lib/db/schema";
+import { routers, routerPortForwards } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import RemoteAccessTabs from "./RemoteAccessTabs";
 import RemoteAccessSidebar from "./RemoteAccessSidebar";
@@ -16,9 +16,7 @@ import { getVpnTrialStatus } from "@/lib/billing/actions";
 import { getActiveRouterReplacement } from "@/lib/mikrotik/router-recovery-service";
 import {
   listActiveGrantsForOrg,
-  listAllRemoteAccessGrants,
 } from "@/lib/remote-access/grants";
-import TemporaryAccessPasses from "./TemporaryAccessPasses";
 
 function methodLabel(method: string) {
   if (method === "vpn") return "WireGuard";
@@ -45,21 +43,8 @@ export default async function RemoteAccessPage() {
 
   const vpnTrial = session ? await getVpnTrialStatus() : null;
 
-  // The grant console is intentionally superadmin-only. Regular admins only
-  // receive a read-only summary of passes currently covering their org.
-  const grantOrganizations = superadmin
-    ? await db
-        .select({ id: organizations.id, name: organizations.name, slug: organizations.slug })
-        .from(organizations)
-        .orderBy(organizations.name)
-    : [];
-  const grantRouters = superadmin
-    ? await db
-        .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
-        .from(routers)
-        .orderBy(routers.name)
-    : [];
-  const allGrants = superadmin ? await listAllRemoteAccessGrants() : [];
+  // The grant console now lives in /admin/users. Regular admins only receive
+  // a read-only summary of passes currently covering their organization.
   const activeGrants = !superadmin && session
     ? await listActiveGrantsForOrg(session.orgId)
     : [];
@@ -120,15 +105,7 @@ export default async function RemoteAccessPage() {
         </p>
       </div>
 
-      {superadmin ? (
-        <div className="mb-8">
-          <TemporaryAccessPasses
-            organizations={grantOrganizations}
-            routers={grantRouters}
-            grants={allGrants}
-          />
-        </div>
-      ) : activeGrants.length > 0 ? (
+      {!superadmin && activeGrants.length > 0 ? (
         <section className="mb-8 border-2 border-line bg-paper p-5 shadow-[4px_4px_0_var(--line)] sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
