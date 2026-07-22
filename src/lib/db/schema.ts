@@ -715,6 +715,77 @@ export const walletTransactions = pgTable("wallet_transactions", {
 }, (t) => [index("wallet_transactions_payment_reference_idx").on(t.paymentReference)]);
 
 /**
+ * Safecoin is an internal, non-withdrawable service credit. It intentionally
+ * lives in its own ledger so the historical FCFA wallet remains auditable and
+ * backwards compatible.
+ */
+export const safecoinSettings = pgTable("safecoin_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  rateFcfaPerSc: integer("rate_fcfa_per_sc").notNull().default(100),
+  rechargeFeeScCents: integer("recharge_fee_sc_cents").notNull().default(0),
+  vpnFeeScCents: integer("vpn_fee_sc_cents").notNull().default(0),
+  autoSetupFeeScCents: integer("auto_setup_fee_sc_cents").notNull().default(0),
+  version: integer("version").notNull().default(1),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const safecoinAccounts = pgTable("safecoin_accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .unique()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  // Denormalized for an atomic debit check; the append-only ledger remains the
+  // audit source and a reconciliation query can rebuild this value.
+  balanceScCents: integer("balance_sc_cents").notNull().default(0),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const safecoinFeeRules = pgTable("safecoin_fee_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  service: text("service").notNull(),
+  amountScCents: integer("amount_sc_cents").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  version: integer("version").notNull().default(1),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const safecoinLedger = pgTable(
+  "safecoin_ledger",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => safecoinAccounts.id, { onDelete: "cascade" }),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    entryType: text("entry_type").notNull(),
+    amountScCents: integer("amount_sc_cents").notNull(),
+    referenceFcfaCents: integer("reference_fcfa_cents"),
+    status: text("status").notNull().default("completed"),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    referenceType: text("reference_type"),
+    referenceId: text("reference_id"),
+    note: text("note"),
+    paymentReference: text("payment_reference"),
+    paymentMethod: text("payment_method"),
+    countryIso2: text("country_iso2"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("safecoin_ledger_org_created_idx").on(t.orgId, t.createdAt),
+    index("safecoin_ledger_reference_idx").on(t.referenceType, t.referenceId),
+  ],
+);
+
+/**
  * Articles du blog public du SaaS — gérés exclusivement par le rôle
  * superadmin (lib/auth/session.ts), d'où l'absence d'orgId contrairement
  * aux autres tables : le blog appartient à la plateforme, pas à une
