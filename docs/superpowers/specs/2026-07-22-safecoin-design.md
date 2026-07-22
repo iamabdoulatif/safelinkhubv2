@@ -43,11 +43,12 @@ en centièmes de SC pour éviter les erreurs de flottants.
 ### Passes d’accès distant temporaires
 
 Le superadmin dispose d’un catalogue de passes opérationnels indépendants de
-la facturation : **1 heure**, **2 heures**, **7 jours** et **10 jours**. Un pass
+la facturation : **1 heure**, **2 heures**, **7 jours** et **10 jours**. Ces
+passes n’ont **aucun prix fixe** et ne débitent **jamais Safecoin**. Un pass
 peut être attribué à une organisation et, facultativement, limité à un routeur
 et à une liste de services (WinBox, WebFig, SSH/SFTP, MikHmon). Il sert à une
-promotion, une assistance ou une intervention technique sur le MikroTik d’une
-organisation.
+promotion, un parrainage, une récompense, une assistance ou une intervention
+technique sur le MikroTik d’une organisation.
 
 - statuts : `scheduled`, `active`, `expired`, `revoked` ;
 - activation immédiate par défaut, avec date de début conservée ;

@@ -134,13 +134,21 @@ export async function decideRemoteAccessAuthorizationAction(
 export async function getRemoteAccessGateStatusAction(
   routerId: string,
   service: string,
-): Promise<{ superadmin: boolean; authorized: boolean; latestStatus: string | null }> {
+): Promise<{
+  superadmin: boolean;
+  authorized: boolean;
+  latestStatus: string | null;
+  temporaryGrant: { expiresAt: string; reason: string } | null;
+}> {
   const session = await getSession();
   const status = await getRemoteAccessGateStatus(session, routerId, service);
   return {
     superadmin: status.superadmin,
     authorized: status.authorized,
     latestStatus: status.latest?.status ?? null,
+    temporaryGrant: status.temporaryGrant
+      ? { expiresAt: status.temporaryGrant.expiresAt.toISOString(), reason: status.temporaryGrant.reason }
+      : null,
   };
 }
 

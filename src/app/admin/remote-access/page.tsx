@@ -2,8 +2,8 @@ import { eq, desc, inArray } from "drizzle-orm";
 import { after } from "next/server";
 import { Wifi } from "lucide-react";
 import { getDb } from "@/lib/db";
-import { routers, routerPortForwards } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { organizations, routers, routerPortForwards } from "@/lib/db/schema";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import RemoteAccessTabs from "./RemoteAccessTabs";
 import RemoteAccessSidebar from "./RemoteAccessSidebar";
 import BackToHomeSection from "./BackToHomeSection";
@@ -14,6 +14,11 @@ import { getRelayPublicHost } from "@/lib/mikrotik/relay";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { getVpnTrialStatus } from "@/lib/billing/actions";
 import { getActiveRouterReplacement } from "@/lib/mikrotik/router-recovery-service";
+import {
+  listActiveGrantsForOrg,
+  listAllRemoteAccessGrants,
+} from "@/lib/remote-access/grants";
+import TemporaryAccessPasses from "./TemporaryAccessPasses";
 
 function methodLabel(method: string) {
   if (method === "vpn") return "WireGuard";
@@ -24,6 +29,7 @@ function methodLabel(method: string) {
 export default async function RemoteAccessPage() {
   const session = await getSession();
   const db = getDb();
+  const superadmin = isSuperAdmin(session?.role);
 
   if (session) {
     after(() => refreshStaleRouters(session.orgId));
@@ -38,6 +44,25 @@ export default async function RemoteAccessPage() {
     : [];
 
   const vpnTrial = session ? await getVpnTrialStatus() : null;
+
+  // The grant console is intentionally superadmin-only. Regular admins only
+  // receive a read-only summary of passes currently covering their org.
+  const grantOrganizations = superadmin
+    ? await db
+        .select({ id: organizations.id, name: organizations.name, slug: organizations.slug })
+        .from(organizations)
+        .orderBy(organizations.name)
+    : [];
+  const grantRouters = superadmin
+    ? await db
+        .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
+        .from(routers)
+        .orderBy(routers.name)
+    : [];
+  const allGrants = superadmin ? await listAllRemoteAccessGrants() : [];
+  const activeGrants = !superadmin && session
+    ? await listActiveGrantsForOrg(session.orgId)
+    : [];
 
   const routerIds = allRouters.map((r) => r.id);
   const forwards = routerIds.length
@@ -94,6 +119,50 @@ export default async function RemoteAccessPage() {
           redirection de port.
         </p>
       </div>
+
+      {superadmin ? (
+        <div className="mb-8">
+          <TemporaryAccessPasses
+            organizations={grantOrganizations}
+            routers={grantRouters}
+            grants={allGrants}
+          />
+        </div>
+      ) : activeGrants.length > 0 ? (
+        <section className="mb-8 border-2 border-line bg-paper p-5 shadow-[4px_4px_0_var(--line)] sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-deep">
+                Accès offert
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-ink">Vos passes temporaires actifs</h2>
+              <p className="mt-1 text-sm text-ink-soft">
+                Ces accès sont gratuits : ils ne débitent pas votre portefeuille Safecoin.
+              </p>
+            </div>
+            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-ok">
+              {activeGrants.length} actif{activeGrants.length > 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {activeGrants.slice(0, 8).map((grant) => (
+              <div key={grant.id} className="border border-line-soft px-3 py-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold text-ink">
+                    {grant.routerId ? "Routeur ciblé" : "Tous vos routeurs"}
+                  </span>
+                  <span className="rounded-full bg-green-50 px-2 py-1 text-[11px] font-semibold text-ok">
+                    Gratuit
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-ink-soft">
+                  {grant.services.length === 0 ? "Tous les services" : grant.services.join(" · ")} · expire le {new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(grant.expiresAt)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* Mobile-only router status strip (sidebar handles desktop) */}
       {allRouters.length > 0 && (

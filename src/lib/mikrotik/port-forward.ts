@@ -265,6 +265,7 @@ export async function enablePortForward(
       // Paiement déjà réglé hors-app via l'autorisation manuelle → pas de
       // débit wallet en plus (la porte remplace la facturation wallet).
       gate.reason !== "authorized" &&
+      gate.reason !== "temporary_grant" &&
       shouldChargeVpnActivation({
         isSuperAdmin: isSuperAdmin(session.role),
         orgCreatedAt: org?.createdAt ?? null,

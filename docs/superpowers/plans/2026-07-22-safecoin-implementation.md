@@ -561,7 +561,9 @@ JSONB, `durationKey`, `startsAt`, `expiresAt`, `status`, `reason`, `createdBy`,
 `revokedBy`, `revokedAt`, `revokeReason` et timestamps. Le service expose
 `createGrant`, `findUsableGrant`, `revokeGrant`, `expireGrantIfNeeded` et
 `grantCovers`. Les Server Actions exigent `isSuperAdmin`, valident les quatre
-durées, le routeur de l’organisation et un motif non vide.
+durées, le routeur de l’organisation et un motif non vide. Les passes sont
+gratuits, sans tarif catalogue et sans débit Safecoin ; leur motif couvre les
+promotions, parrainages, récompenses et interventions.
 
 Modifier `evaluateRemoteAccessGate` pour chercher d’abord un pass actif de
 l’organisation et du routeur ; retourner `reason: "temporary_grant"` et son

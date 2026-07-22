@@ -10,6 +10,7 @@ import { isSuperAdmin, type SessionPayload } from "@/lib/auth/session";
 import type { PaymentMethodId } from "./auto-setup-gate-config";
 import type { RemoteAccessService } from "./remote-access-gate-config";
 import type { BillingPeriod } from "@/lib/mikrotik/billing-plans";
+import { findUsableRemoteAccessGrant } from "@/lib/remote-access/grants";
 
 export type RemoteAccessAuthorizationRow = typeof remoteAccessAuthorizations.$inferSelect;
 
@@ -37,6 +38,7 @@ export async function findUsableRemoteAccessAuthorization(
 
 export type RemoteAccessGateDecision =
   | { ok: true; reason: "superadmin" | "authorized"; authorizationId?: string }
+  | { ok: true; reason: "temporary_grant"; grantId: string }
   | { ok: false; reason: "not_authorized" };
 
 /** Décide si `session` peut activer ce (routeur, service). Ne consomme rien. */
@@ -47,6 +49,8 @@ export async function evaluateRemoteAccessGate(
 ): Promise<RemoteAccessGateDecision> {
   if (isSuperAdmin(session?.role)) return { ok: true, reason: "superadmin" };
   if (!session) return { ok: false, reason: "not_authorized" };
+  const grant = await findUsableRemoteAccessGrant(session.orgId, routerId, service);
+  if (grant) return { ok: true, reason: "temporary_grant", grantId: grant.id };
   const auth = await findUsableRemoteAccessAuthorization(routerId, service);
   if (auth) return { ok: true, reason: "authorized", authorizationId: auth.id };
   return { ok: false, reason: "not_authorized" };
@@ -71,9 +75,17 @@ export async function getRemoteAccessGateStatus(
   session: SessionPayload | null,
   routerId: string,
   service: string,
-): Promise<{ superadmin: boolean; authorized: boolean; latest: RemoteAccessAuthorizationRow | null }> {
+): Promise<{
+  superadmin: boolean;
+  authorized: boolean;
+  latest: RemoteAccessAuthorizationRow | null;
+  temporaryGrant: { id: string; expiresAt: Date; reason: string } | null;
+}> {
   const superadmin = isSuperAdmin(session?.role);
-  if (superadmin) return { superadmin: true, authorized: true, latest: null };
+  if (superadmin) return { superadmin: true, authorized: true, latest: null, temporaryGrant: null };
+  if (!session) return { superadmin: false, authorized: false, latest: null, temporaryGrant: null };
+
+  const temporaryGrant = await findUsableRemoteAccessGrant(session.orgId, routerId, service);
 
   const db = getDb();
   const [latest] = await db
@@ -89,7 +101,14 @@ export async function getRemoteAccessGateStatus(
     .limit(1);
 
   const usable = await findUsableRemoteAccessAuthorization(routerId, service);
-  return { superadmin: false, authorized: Boolean(usable), latest: latest ?? null };
+  return {
+    superadmin: false,
+    authorized: Boolean(usable || temporaryGrant),
+    latest: latest ?? null,
+    temporaryGrant: temporaryGrant
+      ? { id: temporaryGrant.id, expiresAt: temporaryGrant.expiresAt, reason: temporaryGrant.reason }
+      : null,
+  };
 }
 
 export type CreateRemoteAccessAuthorizationInput = {

@@ -926,6 +926,39 @@ export const remoteAccessAuthorizations = pgTable("remote_access_authorizations"
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/**
+ * Gratuitous, time-boxed remote-access passes issued by the superadmin for a
+ * promotion, referral, reward, support session or technical intervention.
+ * They are separate from paid authorizations and never create a charge.
+ */
+export const remoteAccessGrants = pgTable(
+  "remote_access_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    routerId: uuid("router_id").references(() => routers.id, { onDelete: "cascade" }),
+    services: jsonb("services").$type<string[]>().notNull().default([]),
+    durationKey: text("duration_key").notNull(),
+    startsAt: timestamp("starts_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+    status: text("status").notNull().default("active"), // scheduled | active | expired | revoked
+    reason: text("reason").notNull(), // promo | referral | reward | support | operations | other
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    revokedBy: uuid("revoked_by").references(() => users.id, { onDelete: "set null" }),
+    revokedAt: timestamp("revoked_at"),
+    revokeReason: text("revoke_reason"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("remote_access_grants_org_status_expires_idx").on(t.orgId, t.status, t.expiresAt),
+    index("remote_access_grants_router_status_idx").on(t.routerId, t.status),
+  ],
+);
+
 // TEMPORAIRE — porte d'autorisation manuelle générique pour les
 // fonctionnalités encore gratuites (pas de paiement intégré) : lier un
 // MikroTik ("router_link") et créer un tunnel d'accès distant WireGuard/
