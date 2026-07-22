@@ -111,4 +111,31 @@ describe("analyse commerciale plateforme", () => {
     assert.match(csv, /"VPN","Awa Traoré","awa@example.com","Organisation A"/);
     assert.match(csv, /"Auto-Setup".*10000/);
   });
+
+  it("exclut un auto-setup exécuté par un compte superadmin", () => {
+    const report = summarizePlatformSales(
+      [
+        ...rows,
+        {
+          ...rows[1],
+          id: "setup-superadmin",
+          orgId: "org-staff",
+          orgName: "SafeLinkHub",
+          requesterName: "SafeLinkHub",
+          requesterEmail: "staff@safelinkhub.io",
+          requesterRole: "superadmin",
+          amountFcfa: 50000,
+          createdAt: "2026-07-21T15:00:00.000Z",
+        },
+      ],
+      {
+        from: new Date("2026-07-19T00:00:00.000Z"),
+        to: new Date("2026-07-21T23:59:59.999Z"),
+      },
+    );
+
+    assert.equal(report.kpis.totalAmountFcfa, 25000);
+    assert.equal(report.kpis.autoSetupSalesCount, 1);
+    assert.equal(report.kpis.requestCount, 4);
+  });
 });

@@ -8,6 +8,8 @@ export type PlatformSaleRow = {
   orgName: string;
   requesterName: string;
   requesterEmail: string;
+  /** Role snapshot for excluding staff-only Auto-Setups from sales. */
+  requesterRole?: string | null;
   amountFcfa: number;
   paymentMethod: string;
   service: string | null;
@@ -66,7 +68,17 @@ function sortBreakdown<T extends string>(breakdown: Breakdown<T>) {
   );
 }
 
+/**
+ * The superadmin can configure staff MikroTik routers without paying. Those
+ * runs must never appear as Auto-Setup sales, even if an old/manual request
+ * row exists in the authorization table.
+ */
+export function filterPlatformSalesRows(rows: PlatformSaleRow[]) {
+  return rows.filter((row) => row.kind !== "auto_setup" || row.requesterRole !== "superadmin");
+}
+
 export function summarizePlatformSales(rows: PlatformSaleRow[], range: PlatformAnalyticsRange) {
+  const reportableRows = filterPlatformSalesRows(rows);
   const daily = new Map<string, PlatformDailyPoint>(
     enumerateDays(range.from, range.to).map((day) => [
       day,
@@ -75,7 +87,7 @@ export function summarizePlatformSales(rows: PlatformSaleRow[], range: PlatformA
   );
   const methods: Breakdown<string> = {};
   const services: Breakdown<string> = {};
-  const approvedRows = rows.filter((row) => row.status === "approved");
+  const approvedRows = reportableRows.filter((row) => row.status === "approved");
   const vpnRows = approvedRows.filter((row) => row.kind === "vpn");
   const autoSetupRows = approvedRows.filter((row) => row.kind === "auto_setup");
 
@@ -119,10 +131,10 @@ export function summarizePlatformSales(rows: PlatformSaleRow[], range: PlatformA
       vpnSalesCount: vpnRows.length,
       autoSetupSalesCount: autoSetupRows.length,
       approvedCount: approvedRows.length,
-      pendingCount: rows.filter((row) => row.status === "pending").length,
-      rejectedCount: rows.filter((row) => row.status === "rejected").length,
-      requestCount: rows.length,
-      conversionRate: percent(approvedRows.length, rows.length),
+      pendingCount: reportableRows.filter((row) => row.status === "pending").length,
+      rejectedCount: reportableRows.filter((row) => row.status === "rejected").length,
+      requestCount: reportableRows.length,
+      conversionRate: percent(approvedRows.length, reportableRows.length),
       activationRate: percent(consumedCount, approvedRows.length),
       consumedCount,
       unconsumedApprovedCount: approvedRows.length - consumedCount,
@@ -164,7 +176,7 @@ export function buildPlatformSalesCsv(rows: PlatformSaleRow[]) {
     "Créé le",
     "Activé le",
   ].join(",");
-  const lines = rows.map((row) =>
+  const lines = filterPlatformSalesRows(rows).map((row) =>
     [
       kindLabel(row.kind),
       row.requesterName,

@@ -2,8 +2,9 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
-import { autoSetupAuthorizations, organizations, remoteAccessAuthorizations } from "@/lib/db/schema";
+import { autoSetupAuthorizations, organizations, remoteAccessAuthorizations, users } from "@/lib/db/schema";
 import {
+  filterPlatformSalesRows,
   summarizePlatformSales,
   type PlatformSaleRow,
 } from "@/lib/admin/platform-analytics";
@@ -72,6 +73,7 @@ export default async function PlatformAnalyticsPage({
         orgName: organizations.name,
         requesterName: autoSetupAuthorizations.requesterName,
         requesterEmail: autoSetupAuthorizations.requesterEmail,
+        requesterRole: users.role,
         amountFcfa: autoSetupAuthorizations.amountFcfa,
         paymentMethod: autoSetupAuthorizations.paymentMethod,
         status: autoSetupAuthorizations.status,
@@ -80,6 +82,7 @@ export default async function PlatformAnalyticsPage({
       })
       .from(autoSetupAuthorizations)
       .innerJoin(organizations, eq(autoSetupAuthorizations.orgId, organizations.id))
+      .leftJoin(users, eq(autoSetupAuthorizations.userId, users.id))
       .where(and(gte(autoSetupAuthorizations.createdAt, from), lte(autoSetupAuthorizations.createdAt, toEnd)))
       .orderBy(desc(autoSetupAuthorizations.createdAt)),
     db
@@ -126,6 +129,7 @@ export default async function PlatformAnalyticsPage({
       orgName: row.orgName,
       requesterName: row.requesterName,
       requesterEmail: row.requesterEmail,
+      requesterRole: row.requesterRole,
       amountFcfa: row.amountFcfa,
       paymentMethod: row.paymentMethod,
       service: null,
@@ -136,7 +140,9 @@ export default async function PlatformAnalyticsPage({
     })),
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
-  const report = summarizePlatformSales(rows, { from, to: toEnd });
+  const reportableRows = filterPlatformSalesRows(rows);
+
+  const report = summarizePlatformSales(reportableRows, { from, to: toEnd });
   const now = new Date();
   const fromParam = toParam(from);
   const toParamValue = toParam(to);
@@ -147,7 +153,7 @@ export default async function PlatformAnalyticsPage({
       <div className="mb-5 flex justify-end">
         <DateRangePicker from={fromParam} to={toParamValue} activePreset={activePreset(from, to, now)} />
       </div>
-      <PlatformAnalyticsView report={report} rows={rows} rangeLabel={rangeLabel} />
+      <PlatformAnalyticsView report={report} rows={reportableRows} rangeLabel={rangeLabel} />
     </>
   );
 }
