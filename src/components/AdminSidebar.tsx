@@ -24,6 +24,7 @@ import {
   Mail,
   Quote,
   ShieldCheck,
+  KeyRound,
   Megaphone,
   ArrowUpRight,
   Menu,
@@ -67,6 +68,7 @@ const superadminLinks = [
   { href: "/admin/contact", label: "Messages de contact", icon: Mail },
   { href: "/admin/testimonials", label: "Témoignages", icon: Quote },
   { href: "/admin/authorizations", label: "Autorisations", icon: ShieldCheck },
+  { href: "/admin/vpn-access", label: "Accès VPN clients", icon: KeyRound },
 ];
 
 export default function AdminSidebar({

@@ -6,9 +6,10 @@
 
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { autoSetupAuthorizations } from "@/lib/db/schema";
+import { autoSetupAuthorizations, routerReplacements } from "@/lib/db/schema";
 import { isSuperAdmin, type SessionPayload } from "@/lib/auth/session";
 import type { PaymentMethodId } from "./auto-setup-gate-config";
+import { isReplacementAutoSetupRetry } from "@/lib/mikrotik/router-recovery";
 
 export type AuthorizationStatus = "pending" | "approved" | "rejected";
 
@@ -70,7 +71,11 @@ async function findPaidAuthorization(
 }
 
 export type GateDecision =
-  | { ok: true; reason: "superadmin" | "authorized" | "paid_retry"; authorizationId?: string }
+  | {
+      ok: true;
+      reason: "superadmin" | "authorized" | "paid_retry" | "replacement_paid_retry";
+      authorizationId?: string;
+    }
   | { ok: false; reason: "not_authorized" };
 
 /**
@@ -89,6 +94,27 @@ export async function evaluateAutoSetupGate(
   const paid = await findPaidAuthorization(routerId, session.userId);
   if (paid && isPaidAutoSetupRetry(paid.status, paid.userId, session.userId)) {
     return { ok: true, reason: "paid_retry" };
+  }
+
+  const db = getDb();
+  const [replacement] = await db
+    .select({ sourceRouterId: routerReplacements.sourceRouterId, status: routerReplacements.status })
+    .from(routerReplacements)
+    .where(eq(routerReplacements.replacementRouterId, routerId))
+    .limit(1);
+  if (replacement) {
+    const sourcePaid = await findPaidAuthorization(replacement.sourceRouterId, session.userId);
+    if (
+      sourcePaid &&
+      isReplacementAutoSetupRetry(
+        sourcePaid.status,
+        sourcePaid.userId,
+        session.userId,
+        replacement.status,
+      )
+    ) {
+      return { ok: true, reason: "replacement_paid_retry" };
+    }
   }
   return { ok: false, reason: "not_authorized" };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Globe, Globe2, ShieldCheck, Smartphone } from "lucide-react";
+import { Globe, Globe2, RotateCcw, ShieldCheck, Smartphone } from "lucide-react";
 
 type Router = { id: string; name: string; status: string };
 
@@ -10,6 +10,7 @@ const SECTIONS = [
   { id: "section-back-to-home",  label: "Back To Home",          icon: Smartphone },
   { id: "section-direct-access", label: "Accès direct WinBox",   icon: Globe2     },
   { id: "section-ipv6-bypass",   label: "Bypass IPv6",           icon: Globe      },
+  { id: "section-replacement",   label: "Remplacer un routeur",  icon: RotateCcw  },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
@@ -19,11 +20,13 @@ export default function RemoteAccessSidebar({
   tunnelCount,
   activeForwardsCount,
   ipv6BypassCount,
+  replacementCount,
 }: {
   routers: Router[];
   tunnelCount: number;
   activeForwardsCount: number;
   ipv6BypassCount: number;
+  replacementCount: number;
 }) {
   const [activeId, setActiveId] = useState<SectionId>("section-tunnel");
 
@@ -57,6 +60,7 @@ export default function RemoteAccessSidebar({
     "section-back-to-home": routers.length      || null,
     "section-direct-access": activeForwardsCount || null,
     "section-ipv6-bypass":   ipv6BypassCount     || null,
+    "section-replacement":   replacementCount    || null,
   };
 
   return (

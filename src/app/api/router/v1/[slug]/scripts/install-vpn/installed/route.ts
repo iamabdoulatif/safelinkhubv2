@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { organizations, routers } from "@/lib/db/schema";
 import { hashToken } from "@/lib/mikrotik/install-token";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
+import { finalizeRouterReplacement } from "@/lib/mikrotik/router-recovery-service";
 
 export async function GET(
   request: NextRequest,
@@ -62,6 +63,14 @@ export async function GET(
       installTokenExpiresAt: null,
     })
     .where(eq(routers.id, router.id));
+
+  const replacement = await finalizeRouterReplacement(router.id);
+  if (replacement.status === "installing") {
+    return new Response("Router connected; replacement finalization pending", {
+      status: 202,
+      headers: { "Content-Type": "text/plain", "Cache-Control": "no-store" },
+    });
+  }
 
   return new Response("Router installation completed", {
     status: 200,

@@ -463,6 +463,58 @@ command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/d
 SCRIPT`);
 }
 
+export type PortForwardRebindRow = {
+  targetPort: number;
+  publicPort: number;
+  tlsTerminated: boolean;
+};
+
+/** Idempotent relay program for moving paid forwards to a new tunnel. */
+export function buildPortForwardRebindScript(
+  _oldTunnelIp: string,
+  _newTunnelIp: string,
+  _forwards: PortForwardRebindRow[],
+): string {
+  return [
+    `# Rebind ${_oldTunnelIp || "(none)"} -> ${_newTunnelIp}; ports ${_forwards.map((forward) => forward.publicPort).join(",")}`,
+    "set -euo pipefail",
+    'OLD_TUNNEL_IP="$1"',
+    'NEW_TUNNEL_IP="$2"',
+    'ROWS="$3"',
+    "while IFS=: read -r TARGET_PORT PUBLIC_PORT TLS_TERMINATED; do",
+    '  if [ -z "$PUBLIC_PORT" ]; then continue; fi',
+    '  if [[ "$TLS_TERMINATED" == "1" ]]; then',
+    '    iptables -t nat -C PREROUTING -p tcp --dport "$PUBLIC_PORT" -j ACCEPT 2>/dev/null || iptables -t nat -A PREROUTING -p tcp --dport "$PUBLIC_PORT" -j ACCEPT',
+    "    continue",
+    "  fi",
+    '  iptables -t nat -C PREROUTING -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "${NEW_TUNNEL_IP}:${TARGET_PORT}" 2>/dev/null || iptables -t nat -I PREROUTING 1 -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "${NEW_TUNNEL_IP}:${TARGET_PORT}"',
+    '  iptables -t nat -C POSTROUTING -d "$NEW_TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -d "$NEW_TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE',
+    '  iptables -C FORWARD -p tcp -d "$NEW_TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT 2>/dev/null || iptables -A FORWARD -p tcp -d "$NEW_TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT',
+    '  if [ -n "$OLD_TUNNEL_IP" ] && [ "$OLD_TUNNEL_IP" != "$NEW_TUNNEL_IP" ]; then',
+    '    while iptables -t nat -C PREROUTING -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "${OLD_TUNNEL_IP}:${TARGET_PORT}" 2>/dev/null; do iptables -t nat -D PREROUTING -p tcp --dport "$PUBLIC_PORT" -j DNAT --to-destination "${OLD_TUNNEL_IP}:${TARGET_PORT}"; done',
+    '    while iptables -t nat -C POSTROUTING -d "$OLD_TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE 2>/dev/null; do iptables -t nat -D POSTROUTING -d "$OLD_TUNNEL_IP" -p tcp --dport "$TARGET_PORT" -j MASQUERADE; done',
+    '    while iptables -C FORWARD -p tcp -d "$OLD_TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT 2>/dev/null; do iptables -D FORWARD -p tcp -d "$OLD_TUNNEL_IP" --dport "$TARGET_PORT" -j ACCEPT; done',
+    "  fi",
+    "done <<< \"$ROWS\"",
+    'command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true',
+  ].join("\n");
+}
+
+/** Rebind existing public forwards without allocating new public ports. */
+export async function rebindPortForwards(
+  oldTunnelIp: string | null,
+  newTunnelIp: string,
+  forwards: PortForwardRebindRow[],
+): Promise<void> {
+  if (forwards.length === 0) return;
+  const rows = forwards
+    .map((forward) => `${forward.targetPort}:${forward.publicPort}:${forward.tlsTerminated ? 1 : 0}`)
+    .join("\n");
+  await runOnRelay(`sudo bash -s -- ${shellArg(oldTunnelIp ?? "")} ${shellArg(newTunnelIp)} ${shellArg(rows)} <<'SCRIPT'
+${buildPortForwardRebindScript(oldTunnelIp ?? "", newTunnelIp, forwards)}
+SCRIPT`);
+}
+
 /**
  * Re-asserts the relay-side rules for a router's ALREADY-ALLOCATED forwards at
  * their exact recorded public ports — the reconnect-time counterpart to

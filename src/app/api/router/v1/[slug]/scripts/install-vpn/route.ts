@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers, organizations } from "@/lib/db/schema";
+import { routers, organizations, routerReplacements } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/mikrotik/crypto";
 import { allocateVpnPeer } from "@/lib/mikrotik/relay";
 import { hashToken } from "@/lib/mikrotik/install-token";
@@ -194,6 +194,12 @@ export async function GET(
     return new Response("Router is missing API credentials", { status: 500 });
   }
 
+  const [replacement] = await db
+    .select({ id: routerReplacements.id })
+    .from(routerReplacements)
+    .where(eq(routerReplacements.replacementRouterId, router.id))
+    .limit(1);
+
   let peer;
   try {
     peer = await allocateVpnPeer(`${org.slug}-${router.name}`);
@@ -217,6 +223,12 @@ export async function GET(
       status: "installing",
     })
     .where(eq(routers.id, router.id));
+  if (replacement) {
+    await db
+      .update(routerReplacements)
+      .set({ status: "installing", error: null })
+      .where(eq(routerReplacements.id, replacement.id));
+  }
 
   const callbackUrl = new URL(
     `/api/router/v1/${org.slug}/scripts/install-vpn/installed`,

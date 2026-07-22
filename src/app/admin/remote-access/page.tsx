@@ -9,9 +9,11 @@ import RemoteAccessSidebar from "./RemoteAccessSidebar";
 import BackToHomeSection from "./BackToHomeSection";
 import DirectAccessSection from "./DirectAccessSection";
 import Ipv6BypassSection from "./Ipv6BypassSection";
+import RouterReplacementSection from "./RouterReplacementSection";
 import { getRelayPublicHost } from "@/lib/mikrotik/relay";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { getVpnTrialStatus } from "@/lib/billing/actions";
+import { getActiveRouterReplacement } from "@/lib/mikrotik/router-recovery-service";
 
 function methodLabel(method: string) {
   if (method === "vpn") return "WireGuard";
@@ -55,6 +57,28 @@ export default async function RemoteAccessPage() {
   ).length;
   const activeForwardsCount = forwards.filter((f) => f.status === "active").length;
   const ipv6BypassCount = allRouters.filter((r) => r.ipv6BypassEnabled).length;
+  const replacementRows = await Promise.all(
+    allRouters
+      .filter(
+        (router) =>
+          (router.connectionMethod === "vpn" || router.connectionMethod === "openvpn") &&
+          router.status !== "replaced" &&
+          Boolean(router.tunnelIp),
+      )
+      .map(async (router) => ({
+        router: {
+          id: router.id,
+          name: router.name,
+          status: router.status,
+          connectionMethod: router.connectionMethod,
+          tunnelIp: router.tunnelIp,
+        },
+        services: (forwardsByRouter[router.id] ?? [])
+          .filter((forward) => forward.status === "active")
+          .map((forward) => ({ service: forward.service, publicPort: forward.publicPort })),
+        replacement: await getActiveRouterReplacement(router.id),
+      })),
+  );
 
   return (
     <div className="animate-fade-in-up">
@@ -132,6 +156,7 @@ export default async function RemoteAccessPage() {
           tunnelCount={tunnelCount}
           activeForwardsCount={activeForwardsCount}
           ipv6BypassCount={ipv6BypassCount}
+          replacementCount={replacementRows.length}
         />
 
         {/* Main content — each section gets an id for anchor + scroll-mt */}
@@ -179,6 +204,10 @@ export default async function RemoteAccessPage() {
               }))}
               relayHost={getRelayPublicHost()}
             />
+          </section>
+
+          <section id="section-replacement" className="scroll-mt-4">
+            <RouterReplacementSection rows={replacementRows} />
           </section>
 
         </div>

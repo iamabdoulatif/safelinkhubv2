@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { getRelayPublicHost, normalizeRelayPublicHost } from "./relay";
+import {
+  buildPortForwardRebindScript,
+  getRelayPublicHost,
+  normalizeRelayPublicHost,
+} from "./relay";
 
 const originalPublicHost = process.env.WG_RELAY_PUBLIC_HOST;
 const originalRelayHost = process.env.WG_RELAY_HOST;
@@ -53,5 +57,19 @@ describe("relay public host", () => {
     // No/invalid shard → still the legacy single host, even when enabled.
     assert.equal(getRelayPublicHost(), "sn.safelinkhub.io");
     assert.equal(getRelayPublicHost("bogus"), "sn.safelinkhub.io");
+  });
+});
+
+describe("rebind des forwards", () => {
+  it("conserve le port public et remplace seulement l'IP tunnel", () => {
+    const script = buildPortForwardRebindScript("10.66.0.10", "10.66.0.11", [
+      { targetPort: 8291, publicPort: 39001, tlsTerminated: false },
+      { targetPort: 80, publicPort: 39002, tlsTerminated: true },
+    ]);
+    assert.match(script, /10\.66\.0\.10/);
+    assert.match(script, /10\.66\.0\.11/);
+    assert.match(script, /39001/);
+    assert.match(script, /39002/);
+    assert.doesNotMatch(script, /allocatePortForward/);
   });
 });

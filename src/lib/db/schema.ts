@@ -632,6 +632,55 @@ export const routerPortForwards = pgTable("router_port_forwards", {
   expiresAt: timestamp("expires_at"),
 });
 
+// Remplacement contrôlé d'un routeur endommagé : le nouveau tunnel reçoit une
+// clé distincte, puis les accès déjà payés sont déplacés après connexion.
+export const routerReplacements = pgTable(
+  "router_replacements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    sourceRouterId: uuid("source_router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    replacementRouterId: uuid("replacement_router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    requestedBy: uuid("requested_by").references(() => users.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("pending"),
+    error: text("error"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    completedAt: timestamp("completed_at"),
+    cancelledAt: timestamp("cancelled_at"),
+  },
+  (t) => [
+    index("router_replacements_org_created_idx").on(t.orgId, t.createdAt),
+    index("router_replacements_replacement_idx").on(t.replacementRouterId),
+  ],
+);
+
+// Journal sans secret des consultations et opérations de support VPN.
+export const vpnAccessAuditEvents = pgTable(
+  "vpn_access_audit_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    replacementId: uuid("replacement_id").references(() => routerReplacements.id, {
+      onDelete: "set null",
+    }),
+    action: text("action").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("vpn_access_audit_events_router_created_idx").on(t.routerId, t.createdAt)],
+);
+
 /**
  * Org-level prepaid wallet that direct-access (WinBox/WebFig/SSH/MikHmon)
  * plan activations charge against — separate from floatTransactions, which

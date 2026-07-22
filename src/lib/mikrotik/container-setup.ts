@@ -874,7 +874,11 @@ export async function provisionHotspotStack(
   // portefeuille (sinon double facturation). La porte remplace la facturation
   // wallet pour les non-superadmins. TODO: Remplacer par paiement intégré.
   const billableCents =
-    isSuperAdmin(session.role) || hasBonusFreeRouter || gate.reason === "authorized" || gate.reason === "paid_retry"
+    isSuperAdmin(session.role) ||
+    hasBonusFreeRouter ||
+    gate.reason === "authorized" ||
+    gate.reason === "paid_retry" ||
+    gate.reason === "replacement_paid_retry"
       ? null
       : router.autoSetupBilled
         ? null
