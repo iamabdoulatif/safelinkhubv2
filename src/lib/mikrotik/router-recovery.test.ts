@@ -63,6 +63,21 @@ describe("reprise de routeur", () => {
     assert.doesNotMatch(message, /undefined|null/);
   });
 
+  it("inclut les liens opérationnels dans le message support", () => {
+    const message = formatVpnAccessWhatsappMessage({
+      routerName: "Site A",
+      username: "admin",
+      password: "secret",
+      services: ["webfig", "ssh"],
+      serviceLinks: [
+        { service: "webfig", link: "https://relay.example:48003" },
+        { service: "ssh", link: "sftp://admin@relay.example:48004" },
+      ],
+    });
+    assert.match(message, /https:\/\/relay\.example:48003/);
+    assert.match(message, /sftp:\/\/admin@relay\.example:48004/);
+  });
+
   it("affiche un état compréhensible pendant la préparation MikHmon", () => {
     assert.equal(replacementStatusLabel("installing", true), "Connexion du routeur de remplacement…");
     assert.equal(replacementStatusLabel("completed", true), "Préparation MikHmon requise");

@@ -71,6 +71,7 @@ export function formatVpnAccessWhatsappMessage(input: {
   username: string | null;
   password: string | null;
   services: string[];
+  serviceLinks?: Array<{ service: string; link: string | null }>;
 }): string {
   const serviceNames = input.services
     .map((service) => {
@@ -81,10 +82,14 @@ export function formatVpnAccessWhatsappMessage(input: {
       return service;
     })
     .join(", ");
+  const links = (input.serviceLinks ?? [])
+    .filter((entry) => entry.link)
+    .map((entry) => `${entry.service === "mikhmon" ? "MikHmon" : entry.service === "webfig" ? "WebFig" : entry.service === "ssh" ? "SSH / SFTP" : "WinBox"} : ${entry.link}`);
   return [
     "*Accès distant SafeLinkHub*",
     `Routeur : ${input.routerName}`,
     `Services : ${serviceNames || "—"}`,
+    ...(links.length ? ["Liens :", ...links] : []),
     `Identifiant : ${input.username || "—"}`,
     input.password ? `Mot de passe : ${input.password}` : "Mot de passe : à transmettre séparément",
   ].join("\n");

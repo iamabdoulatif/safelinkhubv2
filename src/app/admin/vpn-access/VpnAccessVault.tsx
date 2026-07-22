@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import {
   ChevronDown,
   Clipboard,
+  ExternalLink,
   Eye,
   EyeOff,
   KeyRound,
@@ -58,7 +59,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
     const normalized = query.trim().toLowerCase();
     const filtered = normalized
       ? inventory.filter((row) =>
-          [row.orgName, row.orgSlug, row.routerName, row.payerName, row.payerEmail, SERVICE_LABELS[row.service]]
+          [row.orgName, row.orgSlug, row.routerName, row.payerName, row.payerEmail, row.publicAddress, row.accessUrl, SERVICE_LABELS[row.service]]
             .filter(Boolean)
             .join(" ")
             .toLowerCase()
@@ -99,9 +100,23 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
       username: current.username,
       password: current.password,
       services: group.services.map((row) => row.service),
+      serviceLinks: group.services.map((row) => ({ service: row.service, link: row.accessUrl })),
     });
     await recordVpnAccessAudit(group.router.routerId, "whatsapp_prepared");
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  }
+
+  function copyServiceLink(service: VpnAccessInventoryRow) {
+    const value = service.accessUrl ?? service.publicAddress;
+    if (!value) {
+      setNotice("Aucun lien public n’est disponible pour ce service.");
+      return;
+    }
+    startTransition(async () => {
+      await navigator.clipboard.writeText(value);
+      await recordVpnAccessAudit(service.routerId, "link_copied");
+      setNotice(`${SERVICE_LABELS[service.service] ?? service.service} : lien copié.`);
+    });
   }
 
   function copyMessage(group: { router: VpnAccessInventoryRow; services: VpnAccessInventoryRow[] }) {
@@ -116,6 +131,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
       username: current.username,
       password: current.password,
       services: group.services.map((row) => row.service),
+      serviceLinks: group.services.map((row) => ({ service: row.service, link: row.accessUrl })),
     });
     startTransition(async () => {
       await navigator.clipboard.writeText(message);
@@ -133,7 +149,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
           </div>
           <h1 className="text-2xl font-bold text-ink">Accès VPN clients</h1>
           <p className="mt-1 max-w-2xl text-sm text-ink-soft">
-            Retrouvez les accès achetés, révélez-les au besoin et préparez un message WhatsApp sans exposer les secrets dans la liste.
+            Retrouvez les accès achetés, leurs URL opérationnelles et les identifiants à révéler au besoin, sans exposer les secrets dans la liste.
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-line bg-clay px-4 py-3 text-xs text-ink-soft">
@@ -214,6 +230,28 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
                               <span className="font-mono text-xs text-ink-soft">:{service.publicPort}</span>
                             </div>
                             <p className="mt-1 text-xs text-ink-soft">{PERIOD_LABELS[service.billingPeriod] ?? service.billingPeriod} · expire le {dateLabel(service.expiresAt)}</p>
+                            <div className="mt-3 rounded-md bg-clay/60 px-2.5 py-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Lien opérationnel</p>
+                              {service.accessUrl ? (
+                                <div className="mt-1 flex items-center gap-2">
+                                  <a
+                                    href={service.accessUrl}
+                                    target={service.service === "webfig" || service.service === "mikhmon" ? "_blank" : undefined}
+                                    rel="noreferrer"
+                                    className="min-w-0 flex-1 truncate font-mono text-xs text-ink underline decoration-line hover:text-ok"
+                                  >
+                                    {service.accessUrl}
+                                  </a>
+                                  <button type="button" onClick={() => copyServiceLink(service)} className="shrink-0 rounded p-1 text-ink-soft hover:bg-paper hover:text-ink" title="Copier le lien">
+                                    <Clipboard className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </button>
+                                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-ink-soft" aria-hidden="true" />
+                                </div>
+                              ) : (
+                                <p className="mt-1 text-xs text-ink-soft">Hôte public non configuré</p>
+                              )}
+                              {service.publicAddress && <p className="mt-1 font-mono text-[11px] text-ink-soft">Adresse : {service.publicAddress}</p>}
+                            </div>
                             {(service.payerName || service.payerEmail) && <p className="mt-2 truncate text-xs text-ink-soft">Payé par {service.payerName || service.payerEmail}</p>}
                           </div>
                         ))}

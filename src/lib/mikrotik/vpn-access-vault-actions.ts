@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { decryptSecret } from "./crypto";
+import { getRelayPublicHost } from "./relay";
 
 export type VpnAccessInventoryRow = {
   id: string;
@@ -25,6 +26,9 @@ export type VpnAccessInventoryRow = {
   username: string | null;
   service: string;
   publicPort: number;
+  publicHost: string | null;
+  publicAddress: string | null;
+  accessUrl: string | null;
   billingPeriod: string;
   expiresAt: Date | null;
   purchasedAt: Date | null;
@@ -37,6 +41,19 @@ function requireSuperadmin() {
     if (!isSuperAdmin(session?.role)) return null;
     return session;
   });
+}
+
+function buildAccessLink(service: string, host: string | null, port: number, username: string | null) {
+  if (!host) return { publicAddress: null, accessUrl: null };
+  const publicAddress = `${host}:${port}`;
+  if (service === "webfig" || service === "mikhmon") {
+    return { publicAddress, accessUrl: `https://${publicAddress}` };
+  }
+  if (service === "ssh") {
+    const user = username ? `${encodeURIComponent(username)}@` : "";
+    return { publicAddress, accessUrl: `sftp://${user}${publicAddress}` };
+  }
+  return { publicAddress, accessUrl: `winbox://${publicAddress}` };
 }
 
 /** Inventory safe for the UI: no encrypted credential or secret is selected. */
@@ -68,6 +85,8 @@ export async function listVpnAccessInventory(): Promise<VpnAccessInventoryRow[]>
 
   return forwards.map(({ forward, router, org }) => {
     const payment = latestPayment.get(`${router.id}:${forward.service}`);
+    const publicHost = getRelayPublicHost(router.relayShard) || null;
+    const links = buildAccessLink(forward.service, publicHost, forward.publicPort, router.username);
     return {
       id: forward.id,
       orgId: org.id,
@@ -81,6 +100,8 @@ export async function listVpnAccessInventory(): Promise<VpnAccessInventoryRow[]>
       username: router.username,
       service: forward.service,
       publicPort: forward.publicPort,
+      publicHost,
+      ...links,
       billingPeriod: forward.billingPeriod,
       expiresAt: forward.expiresAt,
       purchasedAt: payment?.decidedAt ?? payment?.createdAt ?? forward.createdAt,
@@ -127,7 +148,7 @@ export async function revealVpnCredentials(routerId: string) {
 
 export async function recordVpnAccessAudit(
   routerId: string,
-  action: "copied" | "whatsapp_prepared",
+  action: "copied" | "whatsapp_prepared" | "link_copied",
 ) {
   const session = await requireSuperadmin();
   if (!session) return { error: "Accès réservé au superadmin." };
