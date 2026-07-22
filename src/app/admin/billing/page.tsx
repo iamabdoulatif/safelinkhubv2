@@ -1,12 +1,20 @@
 import { eq, desc } from "drizzle-orm";
 import { CreditCard, Wallet } from "lucide-react";
 import { getDb } from "@/lib/db";
-import { organizations, users, walletTransactions } from "@/lib/db/schema";
+import {
+  organizations,
+  users,
+  walletTransactions,
+  safecoinAccounts,
+  safecoinLedger,
+  safecoinSettings,
+} from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import { PERIOD_PRICE_CENTS } from "@/lib/mikrotik/billing-plans";
 import WalletTopupModal from "./WalletTopupModal";
+import SafecoinWalletCard from "./SafecoinWalletCard";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(date);
@@ -77,6 +85,32 @@ export default async function BillingPage() {
         .where(eq(walletTransactions.orgId, session.orgId))
         .orderBy(desc(walletTransactions.createdAt))
     : [];
+  const [safecoinAccount, safecoinRate, safecoinEntries] = session
+    ? await Promise.all([
+        db
+          .select({ balanceScCents: safecoinAccounts.balanceScCents })
+          .from(safecoinAccounts)
+          .where(eq(safecoinAccounts.orgId, session.orgId))
+          .limit(1),
+        db
+          .select({ rateFcfaPerSc: safecoinSettings.rateFcfaPerSc })
+          .from(safecoinSettings)
+          .limit(1),
+        db
+          .select({
+            id: safecoinLedger.id,
+            entryType: safecoinLedger.entryType,
+            amountScCents: safecoinLedger.amountScCents,
+            status: safecoinLedger.status,
+            note: safecoinLedger.note,
+            createdAt: safecoinLedger.createdAt,
+          })
+          .from(safecoinLedger)
+          .where(eq(safecoinLedger.orgId, session.orgId))
+          .orderBy(desc(safecoinLedger.createdAt))
+          .limit(20),
+      ])
+    : [[], [], []];
   const walletBalanceCents = transactions.reduce(
     (sum, t) =>
       t.status !== "completed"
@@ -219,6 +253,16 @@ export default async function BillingPage() {
             </div>
           </>
         )}
+      </div>
+
+      <div className="mt-8">
+        <SafecoinWalletCard
+          balanceScCents={safecoinAccount[0]?.balanceScCents ?? 0}
+          rateFcfaPerSc={safecoinRate[0]?.rateFcfaPerSc ?? 100}
+          entries={safecoinEntries}
+          defaultCountry={currentUser?.country ?? "CI"}
+          geniusPayEnabled={isGeniusPayCheckoutEnabled()}
+        />
       </div>
 
       <div className="mt-6 border-2 border-line bg-paper p-6">
