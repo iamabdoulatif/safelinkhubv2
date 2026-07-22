@@ -12,6 +12,7 @@ import { verifyGeniusWebhookSignature } from "@/lib/payment-gateways/geniuspay";
 import { approveRemoteAccessPaymentByReference } from "@/lib/billing/remote-access-authorization-service";
 import { approveAutoSetupPaymentByReference } from "@/lib/billing/auto-setup-authorization-service";
 import { confirmAndFulfillPortalByReference } from "@/lib/portal/fulfill";
+import { completeWalletTopupByReference } from "@/lib/wallet/actions";
 
 export async function POST(request: Request) {
   // Corps BRUT indispensable au calcul HMAC (un JSON re-sérialisé casserait
@@ -91,6 +92,10 @@ export async function POST(request: Request) {
         handled = true;
         console.info("[geniuspay:webhook] auto-setup approuvé", { reference, id: autoSetup.id });
         revalidatePath("/admin/settings/router-setup");
+      } else if (await completeWalletTopupByReference(reference)) {
+        handled = true;
+        console.info("[geniuspay:webhook] dépôt portefeuille confirmé", { reference });
+        revalidatePath("/admin/billing");
       }
     }
   } catch (e) {

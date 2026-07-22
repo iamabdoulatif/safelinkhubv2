@@ -79,7 +79,7 @@ export async function getDashboardData(orgId: string, range: DashboardRange) {
     db
       .select({ type: walletTransactions.type, amountCents: walletTransactions.amountCents })
       .from(walletTransactions)
-      .where(eq(walletTransactions.orgId, orgId)),
+      .where(and(eq(walletTransactions.orgId, orgId), eq(walletTransactions.status, "completed"))),
     db
       .select({ status: routers.status, activeUsers: routers.activeUsers })
       .from(routers)

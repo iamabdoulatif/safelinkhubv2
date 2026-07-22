@@ -56,6 +56,8 @@ export type CreatePaymentInput = {
   amountFcfa: number;
   description: string;
   customer?: { name?: string; email?: string; phone?: string; country?: string };
+  /** Rail optionnel pour un dépôt portefeuille ; absent = checkout hébergé. */
+  paymentMethod?: string;
   /** Métadonnées renvoyées telles quelles dans les réponses et webhooks. */
   metadata?: Record<string, unknown>;
   successUrl?: string;
@@ -93,6 +95,7 @@ export async function createGeniusPayment(input: CreatePaymentInput): Promise<Cr
         description: input.description.slice(0, 500),
         customer: input.customer,
         metadata: input.metadata,
+        ...(input.paymentMethod ? { payment_method: input.paymentMethod } : {}),
         success_url: input.successUrl,
         error_url: input.errorUrl,
       }),

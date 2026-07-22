@@ -3,6 +3,8 @@ import { CreditCard, Wallet } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { organizations, users, walletTransactions } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import { PERIOD_PRICE_CENTS } from "@/lib/mikrotik/billing-plans";
 import WalletTopupModal from "./WalletTopupModal";
 
@@ -16,6 +18,30 @@ function formatDateTime(date: Date) {
 
 function formatFcfa(cents: number) {
   return `FCFA ${cents.toLocaleString("en-US")}`;
+}
+
+type WalletTransaction = typeof walletTransactions.$inferSelect;
+
+function transactionLabel(transaction: WalletTransaction) {
+  if (transaction.status === "pending") return "Paiement en attente";
+  if (transaction.status === "failed") return "Dépôt échoué";
+  if (transaction.type === "topup") {
+    return transaction.paymentMethod ? "Dépôt Genius Pay" : "Dépôt manuel";
+  }
+  return transaction.note?.startsWith("Configuration automatique")
+    ? "Débit Auto-Setup"
+    : "Débit VPN";
+}
+
+function transactionTone(transaction: WalletTransaction) {
+  if (transaction.status === "pending") return "bg-clay text-ink-soft";
+  if (transaction.status === "failed") return "bg-red-50 text-red-600";
+  return transaction.type === "topup" ? "bg-clay text-ok" : "bg-clay text-warn";
+}
+
+function transactionAmountPrefix(transaction: WalletTransaction) {
+  if (transaction.status !== "completed") return "";
+  return transaction.type === "topup" ? "+" : "-";
 }
 
 /**
@@ -36,6 +62,13 @@ export default async function BillingPage() {
   const teamCount = session
     ? (await db.select({ id: users.id }).from(users).where(eq(users.orgId, session.orgId))).length
     : 0;
+  const [currentUser] = session
+    ? await db
+        .select({ country: users.country })
+        .from(users)
+        .where(eq(users.id, session.userId))
+        .limit(1)
+    : [];
 
   const transactions = session
     ? await db
@@ -45,7 +78,10 @@ export default async function BillingPage() {
         .orderBy(desc(walletTransactions.createdAt))
     : [];
   const walletBalanceCents = transactions.reduce(
-    (sum, t) => sum + (t.type === "topup" ? t.amountCents : -t.amountCents),
+    (sum, t) =>
+      t.status !== "completed"
+        ? sum
+        : sum + (t.type === "topup" ? t.amountCents : -t.amountCents),
     0,
   );
 
@@ -88,11 +124,12 @@ export default async function BillingPage() {
           <h2 className="font-semibold text-ink">Portefeuille</h2>
         </div>
         <p className="mt-1 text-sm text-ink-soft">
-          Sert à payer les accès VPN directs (WinBox/WebFig/SSH/MikHmon) activés depuis{" "}
-          <span className="font-medium">Accès distant</span> : 1 mois ={" "}
+          Sert à payer les accès VPN directs (WinBox/WebFig/SSH/MikHmon) et les Auto-Setup
+          supplémentaires. VPN : 1 mois ={" "}
           {formatFcfa(PERIOD_PRICE_CENTS.monthly)}, 3 mois = {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}
           , 6 mois = {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}, 12 mois ={" "}
-          {formatFcfa(PERIOD_PRICE_CENTS.yearly)}.
+          {formatFcfa(PERIOD_PRICE_CENTS.yearly)}. Auto-Setup : {formatFcfa(autoSetupFeeCentsFor(true))} avec container,
+          {" "}{formatFcfa(autoSetupFeeCentsFor(false))} sans container.
         </p>
 
         <p className="mt-4 text-sm font-medium text-ink-soft">Solde actuel</p>
@@ -105,13 +142,15 @@ export default async function BillingPage() {
         </p>
         {walletBalanceCents < 0 && (
           <p className="mt-1 text-xs text-warn">
-            Solde négatif — sans incidence pour l&apos;instant : la facturation des accès VPN
-            n&apos;est pas encore appliquée, chaque plan reste gratuit pour tous les utilisateurs.
+            Les prochains débits VPN ou Auto-Setup nécessitent un solde positif.
           </p>
         )}
 
         <div className="mt-4">
-          <WalletTopupModal />
+          <WalletTopupModal
+            defaultCountry={currentUser?.country ?? "CI"}
+            geniusPayEnabled={isGeniusPayCheckoutEnabled()}
+          />
         </div>
 
         {transactions.length === 0 ? (
@@ -127,20 +166,14 @@ export default async function BillingPage() {
                 <div key={t.id} className="rounded-lg border border-line-soft p-3 text-sm">
                   <div className="flex items-start justify-between gap-2">
                     <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                        t.type === "topup"
-                          ? "bg-clay text-ok"
-                          : "bg-clay text-warn"
-                      }`}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${transactionTone(t)}`}
                     >
-                      {t.type === "topup" ? "Dépôt" : "Débit VPN"}
+                      {transactionLabel(t)}
                     </span>
                     <span
-                      className={`font-medium ${
-                        t.type === "topup" ? "text-ok" : "text-warn"
-                      }`}
+                      className={`font-medium ${transactionTone(t).split(" ").at(-1)}`}
                     >
-                      {t.type === "topup" ? "+" : "-"}
+                      {transactionAmountPrefix(t)}
                       {formatFcfa(t.amountCents)}
                     </span>
                   </div>
@@ -167,21 +200,15 @@ export default async function BillingPage() {
                       <td className="px-3 py-2 text-ink-soft">{formatDateTime(t.createdAt)}</td>
                       <td className="px-3 py-2">
                         <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                            t.type === "topup"
-                              ? "bg-clay text-ok"
-                              : "bg-clay text-warn"
-                          }`}
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${transactionTone(t)}`}
                         >
-                          {t.type === "topup" ? "Dépôt" : "Débit VPN"}
+                          {transactionLabel(t)}
                         </span>
                       </td>
                       <td
-                        className={`px-3 py-2 font-medium ${
-                          t.type === "topup" ? "text-ok" : "text-warn"
-                        }`}
+                        className={`px-3 py-2 font-medium ${transactionTone(t).split(" ").at(-1)}`}
                       >
-                        {t.type === "topup" ? "+" : "-"}
+                        {transactionAmountPrefix(t)}
                         {formatFcfa(t.amountCents)}
                       </td>
                       <td className="px-3 py-2 text-ink-soft">{t.note ?? "—"}</td>
@@ -197,10 +224,9 @@ export default async function BillingPage() {
       <div className="mt-6 border-2 border-line bg-paper p-6">
         <h2 className="font-semibold text-ink">Gérer votre abonnement</h2>
         <p className="mt-2 text-sm text-ink-soft">
-          Le reste de la facturation SafeLinkHub n&apos;est pas encore automatisé — aucune
-          autre formule, facture ou moyen de paiement n&apos;est géré depuis cette page
-          pour le moment. Pour toute question sur votre abonnement, passez par
-          votre canal de contact habituel avec l&apos;équipe SafeLinkHub.
+          Les dépôts en ligne sont confirmés automatiquement par la passerelle. Les
+          demandes manuelles restent visibles dans le journal pour faciliter le suivi
+          avec le support SafeLinkHub.
         </p>
       </div>
     </div>

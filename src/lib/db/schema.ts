@@ -697,6 +697,13 @@ export const walletTransactions = pgTable("wallet_transactions", {
   type: text("type").notNull(), // "topup" | "charge"
   amountCents: integer("amount_cents").notNull(),
   note: text("note"),
+  // "completed" est le défaut historique. Un dépôt GeniusPay reste
+  // "pending" jusqu'au webhook signé ; il ne doit jamais gonfler le solde
+  // avant confirmation côté serveur.
+  status: text("status").notNull().default("completed"), // pending | completed | failed
+  paymentReference: text("payment_reference"),
+  paymentMethod: text("payment_method"),
+  countryIso2: text("country_iso2"),
   // Which direct-access activation this charge was for, if any — null for
   // manual top-ups. set null (not cascade) so the ledger entry survives
   // even after the forward itself is later disabled/deleted.
@@ -705,7 +712,7 @@ export const walletTransactions = pgTable("wallet_transactions", {
   }),
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [index("wallet_transactions_payment_reference_idx").on(t.paymentReference)]);
 
 /**
  * Articles du blog public du SaaS — gérés exclusivement par le rôle
