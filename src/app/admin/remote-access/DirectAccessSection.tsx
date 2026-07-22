@@ -23,6 +23,8 @@ type RouterRow = {
   relayHost?: string;
 };
 
+type AccessPlan = BillingPeriod | "__unlimited__" | "__quota__";
+
 export type ForwardRow = {
   id: string;
   routerId: string;
@@ -219,12 +221,14 @@ function RouterDirectAccess({
   relayHost,
   relayBaseDomain,
   unlimited,
+  quotaExpiresAt,
 }: {
   router: RouterRow;
   forwards: ForwardRow[];
   relayHost: string;
   relayBaseDomain: string | null;
   unlimited: boolean;
+  quotaExpiresAt: Date | null;
 }) {
   const navRouter = useRouter();
   const [pendingService, setPendingService] = useState<string | null>(null);
@@ -243,10 +247,12 @@ function RouterDirectAccess({
   // would look like once payment goes live.
   // "__unlimited__" is a UI-only sentinel for superadmin: the server already
   // ignores billingPeriod and sets expiresAt=null for unlimited accounts.
-  const [selectedPlans, setSelectedPlans] = useState<Record<string, BillingPeriod | "__unlimited__">>({});
+  const [selectedPlans, setSelectedPlans] = useState<Record<string, AccessPlan>>({});
 
-  const defaultPlan = (service: string): BillingPeriod | "__unlimited__" =>
-    selectedPlans[service] ?? (unlimited ? "__unlimited__" : "monthly");
+  const defaultPlan = (service: string): AccessPlan => {
+    if (quotaExpiresAt) return "__quota__";
+    return selectedPlans[service] ?? (unlimited ? "__unlimited__" : "monthly");
+  };
 
   const activeServices = new Set(forwards.map((f) => f.service));
   const hasActiveAccess = activeServices.size > 0;
@@ -273,7 +279,7 @@ function RouterDirectAccess({
     setPendingService(service);
     setError(null);
     const raw = defaultPlan(service);
-    const plan: BillingPeriod = raw === "__unlimited__" ? "yearly" : raw;
+    const plan: BillingPeriod = raw === "__unlimited__" || raw === "__quota__" ? "monthly" : raw;
     startTransition(async () => {
       const res = await enablePortForward(router.id, service, plan);
       setPendingService(null);
@@ -306,7 +312,7 @@ function RouterDirectAccess({
       let failed = false;
       for (const service of inactive) {
         setPendingService(service);
-        const res = await enablePortForward(router.id, service, "yearly");
+        const res = await enablePortForward(router.id, service, quotaExpiresAt ? "monthly" : "yearly");
         if (res && "needsAuthorization" in res && res.needsAuthorization) {
           // Payant : on ouvre le paywall pour ce service et on s'arrête.
           setPaywall({ service, period: "yearly" });
@@ -377,7 +383,9 @@ function RouterDirectAccess({
           const busy = pending && (pendingService === service || (isPublic && pending));
           const expiry = formatExpiry(forward?.expiresAt ?? null);
           const planLabel = forward
-            ? BILLING_PERIOD_LABELS[(forward.billingPeriod as BillingPeriod) ?? "monthly"]
+            ? forward.billingPeriod === "free_until"
+              ? `Gratuit jusqu'au ${formatExpiry(forward.expiresAt) ?? "quota"}`
+              : BILLING_PERIOD_LABELS[(forward.billingPeriod as BillingPeriod) ?? "monthly"]
             : null;
           return (
             <div key={service} className="rounded-md px-0 py-1">
@@ -399,17 +407,23 @@ function RouterDirectAccess({
                       onChange={(e) =>
                         setSelectedPlans((prev) => ({
                           ...prev,
-                          [service]: e.target.value as BillingPeriod | "__unlimited__",
+                          [service]: e.target.value as AccessPlan,
                         }))
                       }
                       disabled={busy}
                       title="Plan de facturation (paiement non encore activé)"
                       className="rounded-md border-2 border-line bg-paper px-1.5 py-1 text-[11px] text-ink-soft focus:border-line-soft focus:outline-none disabled:opacity-50"
                     >
-                      <option value="monthly">1 mois — {formatFcfa(PERIOD_PRICE_CENTS.monthly)}</option>
-                      <option value="quarterly">3 mois — {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}</option>
-                      <option value="semiannual">6 mois — {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}</option>
-                      <option value="yearly">12 mois — {formatFcfa(PERIOD_PRICE_CENTS.yearly)}</option>
+                      {quotaExpiresAt ? (
+                        <option value="__quota__">Accès gratuit jusqu&apos;au {formatExpiry(quotaExpiresAt)}</option>
+                      ) : (
+                        <>
+                          <option value="monthly">1 mois — {formatFcfa(PERIOD_PRICE_CENTS.monthly)}</option>
+                          <option value="quarterly">3 mois — {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}</option>
+                          <option value="semiannual">6 mois — {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}</option>
+                          <option value="yearly">12 mois — {formatFcfa(PERIOD_PRICE_CENTS.yearly)}</option>
+                        </>
+                      )}
                       {unlimited && (
                         <option value="__unlimited__">Forfait illimité</option>
                       )}
@@ -599,6 +613,7 @@ export default function DirectAccessSection({
     daysRemaining: number;
     unlimited?: boolean;
     quotaMode?: string;
+    endsAt?: Date | null;
     paidOverride?: boolean;
   } | null;
 }) {
@@ -644,8 +659,9 @@ export default function DirectAccessSection({
 
       <p className="mt-3 flex items-start gap-1.5 rounded-md bg-clay px-3 py-2 text-xs text-ink">
         <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        Chaque accès est activable pour 1, 3, 6 ou 12 mois — choisissez la durée avant
-        d&apos;activer un service.{" "}
+        {vpnTrial?.quotaMode === "free_until" && vpnTrial.endsAt
+          ? `Ce quota gratuit borne chaque accès jusqu'au ${formatExpiry(vpnTrial.endsAt)}.`
+          : "Chaque accès est activable pour 1, 3, 6 ou 12 mois — choisissez la durée avant d'activer un service."}{" "}
         {vpnTrial?.paidOverride
           ? "Le superadmin a rendu le VPN payant pour cette organisation : les activations débitent le portefeuille."
           : vpnTrial?.unlimited
@@ -669,6 +685,7 @@ export default function DirectAccessSection({
             relayHost={r.relayHost ?? relayHost}
             relayBaseDomain={relayBaseDomain}
             unlimited={Boolean(vpnTrial?.unlimited)}
+            quotaExpiresAt={vpnTrial?.quotaMode === "free_until" ? vpnTrial.endsAt ?? null : null}
           />
         ))}
       </div>

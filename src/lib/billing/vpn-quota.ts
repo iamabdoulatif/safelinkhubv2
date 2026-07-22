@@ -128,6 +128,12 @@ export function getVpnQuotaStatus(fields: VpnQuotaFields, now = new Date()): Vpn
   };
 }
 
+/** A free quota can never be extended by a longer plan selected in the UI. */
+export function capVpnAccessExpiry(planExpiresAt: Date, quotaExpiresAt: Date | null): Date {
+  if (!quotaExpiresAt || quotaExpiresAt.getTime() >= planExpiresAt.getTime()) return planExpiresAt;
+  return quotaExpiresAt;
+}
+
 export function shouldChargeVpnActivation(input: VpnChargeDecisionInput): boolean {
   if (input.isSuperAdmin) return false;
 

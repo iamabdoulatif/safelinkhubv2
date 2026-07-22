@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerPortForwards, routers, organizations, walletTransactions } from "@/lib/db/schema";
-import { getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
+import { capVpnAccessExpiry, getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getSafecoinAccount } from "@/lib/safecoin/ledger";
 import { chargeVpnActivation } from "@/lib/safecoin/service-charges";
@@ -71,6 +71,8 @@ async function enablePortForwardForRouter(
   service: string,
   billingPeriod: BillingPeriod = "monthly",
   isSuperAdminSession = false,
+  expiresAtOverride: Date | null = null,
+  billingPeriodLabel: string | null = null,
 ) {
   const targetPort = getPortForwardTargetPort(service);
   if (!targetPort) return { error: "Unknown service." };
@@ -165,8 +167,8 @@ async function enablePortForwardForRouter(
       publicPort,
       tunnelIp: router.tunnelIp,
       status: "active",
-      billingPeriod,
-      expiresAt: isUnlimited ? null : expiresAtFor(billingPeriod),
+      billingPeriod: billingPeriodLabel ?? billingPeriod,
+      expiresAt: isUnlimited ? null : expiresAtOverride ?? expiresAtFor(billingPeriod),
     })
     .returning();
 
@@ -221,6 +223,16 @@ export async function enablePortForward(
     return { error: "Router not found." };
   }
 
+  const [org] = await db
+    .select({
+      createdAt: organizations.createdAt,
+      vpnQuotaMode: organizations.vpnQuotaMode,
+      vpnQuotaExpiresAt: organizations.vpnQuotaExpiresAt,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, session.orgId))
+    .limit(1);
+
   // TEMPORAIRE — porte de monétisation manuelle : hors superadmin, activer un
   // accès distant exige une autorisation validée (et non consommée) pour ce
   // (routeur, service). C'est le verrou serveur, indépendant de l'UI. Ne
@@ -235,11 +247,30 @@ export async function enablePortForward(
     };
   }
 
+  const superadmin = isSuperAdmin(session.role);
+  const quota = org ? getVpnQuotaStatus(org) : null;
+  // A superadmin session is an operational override: it must not inherit the
+  // organization owner's free-quota expiry when repairing or provisioning a
+  // router from the admin account.
+  const quotaExpiry = !superadmin && quota?.free && quota.expiresAt ? quota.expiresAt : null;
+  const temporaryGrantExpiry = gate.reason === "temporary_grant" ? gate.expiresAt : null;
+  const planExpiry = expiresAtFor(billingPeriod);
+  const freeExpiry = [quotaExpiry, temporaryGrantExpiry]
+    .filter((value): value is Date => Boolean(value))
+    .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+  const effectiveExpiry = capVpnAccessExpiry(planExpiry, freeExpiry);
+  const isFreeCapped = Boolean(freeExpiry && effectiveExpiry.getTime() === freeExpiry.getTime());
+  const freeLabel = temporaryGrantExpiry && (!quotaExpiry || temporaryGrantExpiry <= quotaExpiry)
+    ? "temporary_grant"
+    : "free_until";
+
   const result = await enablePortForwardForRouter(
     routerId,
     service,
     billingPeriod,
-    isSuperAdmin(session.role),
+    superadmin,
+    isFreeCapped ? effectiveExpiry : null,
+    isFreeCapped ? freeLabel : null,
   );
 
   // Activation réussie via une autorisation manuelle : on la consomme (une par
@@ -249,15 +280,6 @@ export async function enablePortForward(
   }
 
   if (result.success && result.created) {
-    const [org] = await db
-      .select({
-        createdAt: organizations.createdAt,
-        vpnQuotaMode: organizations.vpnQuotaMode,
-        vpnQuotaExpiresAt: organizations.vpnQuotaExpiresAt,
-      })
-      .from(organizations)
-      .where(eq(organizations.id, session.orgId))
-      .limit(1);
     // Superadmin-granted VPN quota is separate from wallet transactions:
     // free_until/unlimited never writes a charge, paid forces charging, and
     // default preserves the original one-year trial behavior.
@@ -266,6 +288,7 @@ export async function enablePortForward(
       // débit wallet en plus (la porte remplace la facturation wallet).
       gate.reason !== "authorized" &&
       gate.reason !== "temporary_grant" &&
+      gate.reason !== "quota" &&
       shouldChargeVpnActivation({
         isSuperAdmin: isSuperAdmin(session.role),
         orgCreatedAt: org?.createdAt ?? null,

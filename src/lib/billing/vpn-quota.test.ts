@@ -4,6 +4,7 @@ import {
   computeVpnQuotaGrant,
   getVpnQuotaStatus,
   shouldChargeVpnActivation,
+  capVpnAccessExpiry,
   VPN_QUOTA_GRANT_OPTIONS,
 } from "./vpn-quota";
 
@@ -194,5 +195,12 @@ describe("vpn quota grants", () => {
       }),
       true,
     );
+  });
+
+  it("borne la durée d'un accès au quota gratuit restant", () => {
+    const planExpiry = new Date("2026-07-28T12:00:00.000Z");
+    const quotaExpiry = new Date("2026-07-05T12:00:00.000Z");
+    assert.equal(capVpnAccessExpiry(planExpiry, quotaExpiry), quotaExpiry);
+    assert.equal(capVpnAccessExpiry(planExpiry, null), planExpiry);
   });
 });
