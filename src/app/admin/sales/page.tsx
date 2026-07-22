@@ -1,8 +1,6 @@
-import { eq, desc } from "drizzle-orm";
 import { TrendingUp } from "lucide-react";
-import { getDb } from "@/lib/db";
-import { vouchers, packages } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { getPaidSales } from "@/lib/sales/paid-orders";
 
 function formatFcfa(cents: number) {
   return `FCFA ${cents.toLocaleString("en-US")}`;
@@ -25,38 +23,10 @@ function isSameDay(a: Date, b: Date) {
 
 export default async function SalesPage() {
   const session = await getSession();
-  const db = getDb();
 
-  const orgPackages = session
-    ? await db
-        .select()
-        .from(packages)
-        .where(eq(packages.orgId, session.orgId))
-    : [];
-  const packageById = new Map(orgPackages.map((p) => [p.id, p]));
-
-  const orgVouchers = session
-    ? await db
-        .select()
-        .from(vouchers)
-        .where(eq(vouchers.orgId, session.orgId))
-        .orderBy(desc(vouchers.createdAt))
-    : [];
-
-  const sales = orgVouchers
-    .filter((v) => packageById.has(v.packageId ?? ""))
-    .map((v) => {
-      const pkg = packageById.get(v.packageId!)!;
-      return {
-        id: v.id,
-        username: v.username,
-        packageName: pkg.name,
-        priceCents: pkg.priceCents,
-        commissionCents: pkg.commissionCents,
-        status: v.status,
-        createdAt: v.createdAt,
-      };
-    });
+  // Uniquement l'argent encaissé par la passerelle : les tickets créés en lot,
+  // importés du MikroTik ou vendus par un agent ne sont pas du revenu en ligne.
+  const sales = session ? await getPaidSales(session.orgId) : [];
 
   const now = new Date();
   const totalRevenueCents = sales.reduce((sum, s) => sum + s.priceCents, 0);
@@ -75,7 +45,7 @@ export default async function SalesPage() {
         <h1 className="text-2xl font-bold text-ink">Ventes</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
-        Revenu généré par la vente de vouchers, basé sur les forfaits émis.
+        Revenu réellement encaissé par la passerelle GeniusPay au portail captif.
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">

@@ -158,9 +158,9 @@ export default async function DashboardPage({
           sub: `Brut − commissions − dépenses · ${rangeLabel}`,
         },
         {
-          label: "Ventes de vouchers",
+          label: "Ventes encaissées",
           value: formatFcfa(data.kpis.grossCents),
-          sub: `${data.kpis.salesCount} voucher${data.kpis.salesCount > 1 ? "s" : ""} sur la période`,
+          sub: `${data.kpis.salesCount} paiement${data.kpis.salesCount > 1 ? "s" : ""} GeniusPay sur la période`,
         },
         {
           label: "Crédit du compte",
@@ -250,8 +250,8 @@ export default async function DashboardPage({
             <div className="mt-4 flex h-48 flex-col items-center justify-center border border-line-soft bg-clay text-center">
               <p className="text-sm font-medium text-ink">Aucune donnée pour cette période</p>
               <p className="mt-1 max-w-xs text-xs text-ink-soft">
-                Les ventes de vouchers et les dépenses apparaîtront ici dès la première
-                écriture.
+                Les paiements encaissés au portail captif et les dépenses apparaîtront
+                ici dès la première écriture.
               </p>
             </div>
           )}
@@ -284,7 +284,7 @@ export default async function DashboardPage({
 
         <div className="border-2 border-line bg-paper p-4">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold text-ink">Ventes récentes</h2>
+            <h2 className="font-semibold text-ink">Paiements récents</h2>
             {hasSales && (
               <Link href="/admin/sales" className="text-xs font-bold text-brand-deep hover:underline">
                 Tout voir →

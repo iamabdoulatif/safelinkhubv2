@@ -1,8 +1,9 @@
 // Agrégats du tableau de bord — lectures seules, volontairement hors d'un
 // fichier "use server" (cf. lib/blog/queries.ts pour la même convention).
-import { and, eq, gte, lte, desc } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { vouchers, packages, expenses, walletTransactions, routers } from "@/lib/db/schema";
+import { expenses, walletTransactions, routers } from "@/lib/db/schema";
+import { getPaidSales } from "@/lib/sales/paid-orders";
 
 export type DashboardRange = { from: Date; to: Date };
 
@@ -19,6 +20,7 @@ export type RecentSale = {
   username: string;
   packageName: string;
   priceCents: number;
+  commissionCents: number;
   createdAt: Date;
 };
 
@@ -44,26 +46,9 @@ function enumerateDays(from: Date, to: Date): string[] {
 export async function getDashboardData(orgId: string, range: DashboardRange) {
   const db = getDb();
 
-  const [sales, rangeExpenses, walletRows, orgRouters] = await Promise.all([
-    db
-      .select({
-        id: vouchers.id,
-        username: vouchers.username,
-        createdAt: vouchers.createdAt,
-        packageName: packages.name,
-        priceCents: packages.priceCents,
-        commissionCents: packages.commissionCents,
-      })
-      .from(vouchers)
-      .innerJoin(packages, eq(vouchers.packageId, packages.id))
-      .where(
-        and(
-          eq(vouchers.orgId, orgId),
-          gte(vouchers.createdAt, range.from),
-          lte(vouchers.createdAt, range.to),
-        ),
-      )
-      .orderBy(desc(vouchers.createdAt)),
+  const [paidSales, rangeExpenses, walletRows, orgRouters] = await Promise.all([
+    // Une vente = une commande du portail captif encaissée par GeniusPay.
+    getPaidSales(orgId, range),
     db
       .select({ amountCents: expenses.amountCents, expenseDate: expenses.expenseDate })
       .from(expenses)
@@ -86,8 +71,8 @@ export async function getDashboardData(orgId: string, range: DashboardRange) {
       .where(eq(routers.orgId, orgId)),
   ]);
 
-  const grossCents = sales.reduce((sum, s) => sum + s.priceCents, 0);
-  const commissionCents = sales.reduce((sum, s) => sum + s.commissionCents, 0);
+  const grossCents = paidSales.reduce((sum, s) => sum + s.priceCents, 0);
+  const commissionCents = paidSales.reduce((sum, s) => sum + s.commissionCents, 0);
   const expenseCents = rangeExpenses.reduce((sum, e) => sum + e.amountCents, 0);
   const netCents = grossCents - commissionCents - expenseCents;
 
@@ -102,7 +87,7 @@ export async function getDashboardData(orgId: string, range: DashboardRange) {
       { day, grossCents: 0, commissionCents: 0, expenseCents: 0 },
     ]),
   );
-  for (const s of sales) {
+  for (const s of paidSales) {
     const point = byDay.get(dayKey(s.createdAt));
     if (point) {
       point.grossCents += s.priceCents;
@@ -124,12 +109,12 @@ export async function getDashboardData(orgId: string, range: DashboardRange) {
       expenseCents,
       netCents,
       creditCents,
-      salesCount: sales.length,
+      salesCount: paidSales.length,
       routersTotal: orgRouters.length,
       routersOnline,
       activeUsers,
     },
     daily: [...byDay.values()],
-    recentSales: sales.slice(0, 6) as RecentSale[],
+    recentSales: paidSales.slice(0, 6),
   };
 }
