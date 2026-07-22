@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Router as RouterIcon } from "lucide-react";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDashboardData, type DailyPoint } from "@/lib/dashboard/queries";
+import { getSafecoinReport } from "@/lib/safecoin/queries";
+import { formatSc } from "@/lib/safecoin/pricing";
 import DateRangePicker from "./DateRangePicker";
 
 const fcfa = new Intl.NumberFormat("fr-FR");
@@ -140,6 +142,9 @@ export default async function DashboardPage({
   const data = session
     ? await getDashboardData(session.orgId, { from, to: toEnd })
     : null;
+  const safecoin = session && isSuperAdmin(session.role)
+    ? await getSafecoinReport({ from, to: toEnd })
+    : null;
 
   const rangeLabel = `${new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(from)} – ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(to)}`;
   const hasSales = (data?.kpis.salesCount ?? 0) > 0;
@@ -212,6 +217,23 @@ export default async function DashboardPage({
           </div>
         )}
       </div>
+
+      {safecoin && (
+        <Link href="/admin/safecoin" className="mt-4 block border-2 border-line bg-[#1c1917] p-5 text-white transition-transform hover:-translate-y-0.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">Station de contrôle · Safecoin</p>
+              <p className="mt-1 text-lg font-semibold">Le cockpit monétaire du mois</p>
+            </div>
+            <span className="rounded-full border border-white/20 px-3 py-1 text-xs text-white/75">1 SC = {safecoin.rateFcfaPerSc.toLocaleString("fr-FR")} FCFA →</span>
+          </div>
+          <div className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
+            <div className="border border-white/15 px-3 py-2"><p className="text-white/55">SC émis</p><p className="mt-1 text-xl font-bold text-brand">{formatSc(safecoin.kpis.issued)}</p></div>
+            <div className="border border-white/15 px-3 py-2"><p className="text-white/55">SC consommés</p><p className="mt-1 text-xl font-bold">{formatSc(safecoin.kpis.spent)}</p></div>
+            <div className="border border-white/15 px-3 py-2"><p className="text-white/55">En circulation</p><p className="mt-1 text-xl font-bold">{formatSc(safecoin.kpis.circulating)}</p></div>
+          </div>
+        </Link>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="border-2 border-line bg-paper p-4 lg:col-span-2">

@@ -19,6 +19,7 @@ import {
   Globe,
   Settings,
   CreditCard,
+  Coins,
   LifeBuoy,
   Newspaper,
   Mail,
@@ -69,6 +70,7 @@ const superadminLinks = [
   { href: "/admin/contact", label: "Messages de contact", icon: Mail },
   { href: "/admin/testimonials", label: "Témoignages", icon: Quote },
   { href: "/admin/analytics", label: "Analyse commerciale", icon: BarChart3 },
+  { href: "/admin/safecoin", label: "Safecoin", icon: Coins },
   { href: "/admin/authorizations", label: "Autorisations", icon: ShieldCheck },
   { href: "/admin/vpn-access", label: "Accès VPN clients", icon: KeyRound },
 ];
