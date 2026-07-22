@@ -10,9 +10,12 @@ import {
   AUTO_SETUP_FEE_CENTS,
   VPN_TRIAL_DAYS,
 } from "@/lib/billing/auto-setup-pricing";
+import { DEFAULT_SC_RATE_FCFA } from "@/lib/safecoin/constants";
+import { fcfaToScCents, formatSc } from "@/lib/safecoin/pricing";
 
 const fcfa = new Intl.NumberFormat("fr-FR");
 const price = (n: number) => `${fcfa.format(n)} FCFA`;
+const safecoinPrice = (n: number) => formatSc(fcfaToScCents(n, DEFAULT_SC_RATE_FCFA));
 
 /*
  * Section Tarifs — 100 % données réelles (importées de la config de
@@ -64,12 +67,15 @@ export default function Pricing() {
                   <p className="mt-2 whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink">
                     {price(remoteAccessPriceFcfa(p.id))}
                   </p>
+                  <p className="mt-1 whitespace-nowrap font-mono text-xs font-bold tabular-nums text-brand-deep">
+                    {safecoinPrice(remoteAccessPriceFcfa(p.id))} Safecoin
+                  </p>
                 </div>
               ))}
             </div>
 
             <p className="border-t-2 border-line bg-clay px-5 py-3 font-mono text-xs text-ink-soft">
-              Même tarif pour chaque service. Prix par service et par période.
+              Même tarif pour chaque service. Conversion affichée au taux 1 SC = {fcfa.format(DEFAULT_SC_RATE_FCFA)} FCFA.
             </p>
           </div>
 
@@ -90,8 +96,13 @@ export default function Pricing() {
                     <p className="text-sm font-semibold text-ink">Routeur Hotspot + MikHmon</p>
                     <p className="text-xs text-ink-soft">Cartes compatibles conteneur</p>
                   </div>
-                  <span className="whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink">
-                    {price(AUTO_SETUP_FEE_CENTS.containerCapable)}
+                  <span className="text-right">
+                    <span className="block whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink">
+                      {price(AUTO_SETUP_FEE_CENTS.containerCapable)}
+                    </span>
+                    <span className="mt-1 block whitespace-nowrap font-mono text-xs font-bold tabular-nums text-brand-deep">
+                      {safecoinPrice(AUTO_SETUP_FEE_CENTS.containerCapable)} Safecoin
+                    </span>
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between gap-3 px-5 py-4">
@@ -99,8 +110,13 @@ export default function Pricing() {
                     <p className="text-sm font-semibold text-ink">Hotspot seul</p>
                     <p className="text-xs text-ink-soft">Matériel plus léger (RB951…)</p>
                   </div>
-                  <span className="whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink">
-                    {price(AUTO_SETUP_FEE_CENTS.hotspotOnly)}
+                  <span className="text-right">
+                    <span className="block whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink">
+                      {price(AUTO_SETUP_FEE_CENTS.hotspotOnly)}
+                    </span>
+                    <span className="mt-1 block whitespace-nowrap font-mono text-xs font-bold tabular-nums text-brand-deep">
+                      {safecoinPrice(AUTO_SETUP_FEE_CENTS.hotspotOnly)} Safecoin
+                    </span>
                   </span>
                 </div>
               </div>

@@ -2,8 +2,11 @@ import SectionHeading from "./SectionHeading";
 import { vendors } from "./content";
 import { remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
 import { AUTO_SETUP_FEE_CENTS, VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
+import { DEFAULT_SC_RATE_FCFA } from "@/lib/safecoin/constants";
+import { fcfaToScCents, formatSc } from "@/lib/safecoin/pricing";
 
 const fcfa = new Intl.NumberFormat("fr-FR");
+const safecoin = (n: number) => formatSc(fcfaToScCents(n, DEFAULT_SC_RATE_FCFA));
 
 /*
  * Section démo : aperçu produit avec de VRAIS chiffres (prix réels importés de
@@ -15,14 +18,14 @@ export default function ProductDemo() {
     {
       label: "Accès distant",
       value: `dès ${fcfa.format(remoteAccessPriceFcfa("monthly"))} FCFA`,
-      sub: "par service / mois",
+      sub: `${safecoin(remoteAccessPriceFcfa("monthly"))} · par service / mois`,
     },
     {
       label: "Auto-setup routeur",
       // Fourchette réelle : hotspot seul (matériel léger) → stack complète
       // Hotspot + MikHmon (cartes compatibles conteneur).
       value: `${fcfa.format(AUTO_SETUP_FEE_CENTS.hotspotOnly)} – ${fcfa.format(AUTO_SETUP_FEE_CENTS.containerCapable)} FCFA`,
-      sub: "selon le matériel du routeur",
+      sub: `${safecoin(AUTO_SETUP_FEE_CENTS.hotspotOnly)} – ${safecoin(AUTO_SETUP_FEE_CENTS.containerCapable)} · selon le matériel`,
     },
     {
       label: "Essai offert",
