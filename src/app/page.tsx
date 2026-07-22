@@ -8,6 +8,7 @@ import ProductDemo from "@/components/landing/ProductDemo";
 import PlatformDark from "@/components/landing/PlatformDark";
 import HardwareSection from "@/components/landing/HardwareSection";
 import Pricing from "@/components/landing/Pricing";
+import SafecoinSection from "@/components/landing/SafecoinSection";
 import Testimonials from "@/components/landing/Testimonials";
 import FaqSection from "@/components/landing/FaqSection";
 import FinalCta from "@/components/landing/FinalCta";
@@ -30,6 +31,7 @@ export default function Home() {
         <PlatformDark />
         <HardwareSection />
         <Pricing />
+        <SafecoinSection />
         <Testimonials />
         <FaqSection />
         <FinalCta />

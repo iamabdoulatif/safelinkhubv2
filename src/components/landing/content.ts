@@ -214,6 +214,10 @@ export const faqs = [
     a: "Le plan gratuit inclut la facturation hotspot de base, la génération de vouchers et la surveillance basique des routeurs pour tester SafeLinkHub avant de passer à un plan supérieur.",
   },
   {
+    q: "Qu'est-ce que le Safecoin ?",
+    a: "Safecoin (SC) est le crédit interne de SafeLinkHub : 1 SC vaut actuellement 100 FCFA. Vous rechargez votre solde une fois, puis il sert à activer vos accès VPN et vos Auto-Setup. Les quotas offerts et promotions ne débitent pas de Safecoin.",
+  },
+  {
     q: "Comment fonctionne la surveillance réseau ?",
     a: "SafeLinkHub interroge continuellement vos routeurs pour le temps de fonctionnement, les utilisateurs actifs, la charge CPU et l'utilisation mémoire, et affiche tout en temps réel.",
   },
@@ -222,4 +226,3 @@ export const faqs = [
     a: "Tous les accès distants passent par un tunnel de gestion chiffré, et vos données sont isolées par organisation.",
   },
 ] as const;
-

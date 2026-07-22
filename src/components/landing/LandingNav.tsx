@@ -10,6 +10,7 @@ const links = [
   { href: "#plateforme", label: "Plateforme" },
   { href: "#materiel", label: "Matériel" },
   { href: "#tarifs", label: "Tarifs" },
+  { href: "#safecoin", label: "Safecoin" },
   { href: "/boutique", label: "Boutique" },
   { href: "#faq", label: "FAQ" },
   { href: "/blog", label: "Blog" },

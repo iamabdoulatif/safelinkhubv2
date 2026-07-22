@@ -44,7 +44,7 @@ export default async function Testimonials() {
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionHeading
-          index="06"
+          index="07"
           title="Ce que disent nos utilisateurs."
           marker="utilisateurs"
         />

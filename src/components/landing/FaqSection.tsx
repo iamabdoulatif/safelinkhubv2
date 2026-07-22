@@ -6,7 +6,7 @@ export default function FaqSection() {
   return (
     <section id="faq" aria-label="Questions fréquentes" className="border-b-2 border-line bg-paper py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <SectionHeading index="07" title="Questions fréquentes." />
+        <SectionHeading index="08" title="Questions fréquentes." />
         <div className="border-2 border-line">
           {faqs.map((f, i) => (
             <details key={f.q} className={`group ${i > 0 ? "border-t-2 border-line" : ""}`}>
