@@ -25,6 +25,7 @@ import {
   Quote,
   ShieldCheck,
   KeyRound,
+  BarChart3,
   Megaphone,
   ArrowUpRight,
   Menu,
@@ -67,6 +68,7 @@ const superadminLinks = [
   { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
   { href: "/admin/contact", label: "Messages de contact", icon: Mail },
   { href: "/admin/testimonials", label: "Témoignages", icon: Quote },
+  { href: "/admin/analytics", label: "Analyse commerciale", icon: BarChart3 },
   { href: "/admin/authorizations", label: "Autorisations", icon: ShieldCheck },
   { href: "/admin/vpn-access", label: "Accès VPN clients", icon: KeyRound },
 ];
