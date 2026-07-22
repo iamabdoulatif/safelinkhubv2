@@ -15,11 +15,11 @@
 **Files:**
 - Modify: `src/app/admin/users/UsersControlCenter.tsx`
 
-- [ ] **Step 1: Remplacer le bloc d’en-tête et la grille métrique**
+- [x] **Step 1: Remplacer le bloc d’en-tête et la grille métrique**
 
 Garder les deux actions existantes, mais placer le titre dans une colonne plus large et les indicateurs dans une bande `border-y` avec des séparateurs internes. Utiliser `font-display` pour le titre et réserver `bg-brand` à l’indicateur « à surveiller ».
 
-- [ ] **Step 2: Vérifier le rendu TypeScript**
+- [x] **Step 2: Vérifier le rendu TypeScript**
 
 Run: `npx tsc --noEmit --pretty false`
 Expected: exit code 0.
@@ -29,11 +29,11 @@ Expected: exit code 0.
 **Files:**
 - Modify: `src/app/admin/users/UsersControlCenter.tsx`
 
-- [ ] **Step 1: Encapsuler `TemporaryAccessPasses` dans un `<details>`**
+- [x] **Step 1: Encapsuler `TemporaryAccessPasses` dans un `<details>`**
 
 Afficher par défaut un résumé avec l’icône cadeau, le titre, le texte « promo, parrainage, récompense ou intervention » et le nombre de passes. Déplacer le composant complet dans `details` avec `open={false}` et ne pas modifier ses propriétés ni ses actions.
 
-- [ ] **Step 2: Vérifier l’accessibilité native**
+- [x] **Step 2: Vérifier l’accessibilité native**
 
 Utiliser un `<summary>` réellement cliquable, sans bouton imbriqué, avec un texte explicite et une indication visuelle d’ouverture.
 
@@ -42,11 +42,11 @@ Utiliser un `<summary>` réellement cliquable, sans bouton imbriqué, avec un te
 **Files:**
 - Modify: `src/app/admin/users/UsersControlCenter.tsx`
 
-- [ ] **Step 1: Donner à la recherche une priorité visuelle unique**
+- [x] **Step 1: Donner à la recherche une priorité visuelle unique**
 
 Mettre le champ sur une ligne pleine largeur, puis placer compteur, réinitialisation et segments de filtre dans une seconde ligne responsive. Les filtres existants et leurs compteurs restent inchangés.
 
-- [ ] **Step 2: Alléger le tableau**
+- [x] **Step 2: Alléger le tableau**
 
 Augmenter légèrement le padding vertical, réduire les bordures concurrentes, aligner quota/actions, garder le scroll horizontal et conserver la version mobile existante.
 
@@ -55,17 +55,17 @@ Augmenter légèrement le padding vertical, réduire les bordures concurrentes, 
 **Files:**
 - Test: `src/app/admin/users/users-control-center.test.ts`
 
-- [ ] **Step 1: Exécuter les tests existants**
+- [x] **Step 1: Exécuter les tests existants**
 
 Run: `node --import tsx --test src/app/admin/users/users-control-center.test.ts`
 Expected: all tests pass.
 
-- [ ] **Step 2: Exécuter lint, typecheck et build**
+- [x] **Step 2: Exécuter lint, typecheck et build**
 
 Run: `npm run lint -- --no-cache && npx tsc --noEmit --pretty false && npm run build`
 Expected: exit code 0 with no ESLint errors.
 
-- [ ] **Step 3: Committer la refonte**
+- [x] **Step 3: Committer la refonte**
 
 ```bash
 git add src/app/admin/users/UsersControlCenter.tsx

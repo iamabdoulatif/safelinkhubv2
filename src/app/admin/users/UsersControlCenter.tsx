@@ -9,7 +9,9 @@ import {
   CircleDollarSign,
   Clock3,
   Copy,
+  ChevronDown,
   Download,
+  Gift,
   Mail,
   RotateCcw,
   Search,
@@ -131,66 +133,92 @@ export default function UsersControlCenter({
   }
 
   return (
-    <div className="animate-fade-in-up space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-ok">
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Station de contrôle
+    <div className="animate-fade-in-up space-y-8">
+      <section className="relative overflow-hidden border-2 border-line bg-paper">
+        <div className="absolute inset-y-0 right-0 w-2 bg-brand" aria-hidden="true" />
+        <div className="flex flex-col justify-between gap-6 p-6 md:flex-row md:items-end md:p-8">
+          <div className="max-w-2xl">
+            <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-ok">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Station de contrôle
+            </div>
+            <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink md:text-4xl">Utilisateurs</h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-ink-soft">
+              {superadmin
+                ? "Une vue calme pour comprendre les comptes, les organisations et les accès VPN qui méritent votre attention."
+                : "Les membres de l’équipe qui ont accès à cette organisation SafeLinkHub."}
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-ink">Utilisateurs</h1>
-          <p className="mt-1 max-w-2xl text-sm text-ink-soft">
-            {superadmin
-              ? "Retrouvez les comptes, leurs organisations et le quota VPN en un coup d’œil."
-              : "Membres de l’équipe ayant accès à cette organisation SafeLinkHub."}
-          </p>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={filteredRows.length === 0}
+              className="inline-flex items-center gap-2 border-2 border-line bg-brand px-3.5 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" /> Exporter CSV
+            </button>
+            <Link
+              href={superadmin ? "/admin/vpn-access" : "/admin/remote-access"}
+              className="inline-flex items-center gap-2 border-2 border-line bg-paper px-3.5 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-clay"
+            >
+              <Wifi className="h-4 w-4" aria-hidden="true" /> Accès VPN
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={exportCsv}
-            disabled={filteredRows.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-ink px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Download className="h-4 w-4" aria-hidden="true" /> Exporter CSV
-          </button>
-          <Link
-            href={superadmin ? "/admin/vpn-access" : "/admin/remote-access"}
-            className="inline-flex items-center gap-2 rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-clay"
-          >
-            <Wifi className="h-4 w-4" aria-hidden="true" /> Accès VPN
-          </Link>
-        </div>
-      </div>
+      </section>
 
-      {superadmin && temporaryAccess && (
-        <TemporaryAccessPasses
-          organizations={temporaryAccess.organizations}
-          routers={temporaryAccess.routers}
-          grants={temporaryAccess.grants}
-        />
-      )}
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="overflow-hidden border border-line-soft bg-paper">
+        <div className="grid divide-y divide-line-soft sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
         {[
           { label: "Utilisateurs", value: rows.length, hint: "comptes visibles", icon: Users },
           { label: "Organisations", value: organizationCount, hint: "structures suivies", icon: Building2 },
           { label: "Quota gratuit", value: freeCount, hint: "accès offerts", icon: CircleDollarSign },
           { label: "À surveiller", value: expiringRows.length, hint: `${paidCount} quota(s) payant(s)`, icon: Clock3 },
         ].map(({ label, value, hint, icon: Icon }) => (
-          <div key={label} className="border-2 border-line bg-paper p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-soft">{label}</p>
-              <Icon className="h-4 w-4 text-ok" aria-hidden="true" />
+          <div key={label} className="flex min-h-28 items-center justify-between gap-4 px-5 py-5 md:px-6">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft">{label}</p>
+              <p className="mt-2 font-display text-3xl font-extrabold tabular-nums text-ink">{value}</p>
+              <p className="mt-1 text-xs text-ink-soft">{hint}</p>
             </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums text-ink">{value}</p>
-            <p className="mt-1 text-xs text-ink-soft">{hint}</p>
+            <Icon className={`h-5 w-5 ${label === "À surveiller" && expiringRows.length > 0 ? "text-brand-deep" : "text-ok"}`} aria-hidden="true" />
           </div>
         ))}
-      </div>
+        </div>
+      </section>
 
-      <div className="border-2 border-line bg-paper p-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <label className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-line bg-[#fcfbf8] px-3 py-2.5">
+      {superadmin && temporaryAccess && (
+        <details className="group overflow-hidden border border-line bg-paper">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-clay/55 marker:hidden md:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-brand/20 text-brand-deep">
+                <Gift className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-bold uppercase tracking-[0.16em] text-brand-deep">Superadmin · gratuit</span>
+                <span className="mt-1 block truncate font-semibold text-ink">Passes d’accès temporaire</span>
+                <span className="mt-0.5 block truncate text-xs text-ink-soft">Promo, parrainage, récompense ou intervention MikroTik</span>
+              </span>
+            </div>
+            <span className="flex shrink-0 items-center gap-3 text-xs text-ink-soft">
+              <span className="hidden sm:inline">{temporaryAccess.grants.length} récent{temporaryAccess.grants.length > 1 ? "s" : ""}</span>
+              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+            </span>
+          </summary>
+          <div className="border-t border-line-soft bg-clay/20 p-3 md:p-4">
+            <TemporaryAccessPasses
+              embedded
+              organizations={temporaryAccess.organizations}
+              routers={temporaryAccess.routers}
+              grants={temporaryAccess.grants}
+            />
+          </div>
+        </details>
+      )}
+
+      <section className="border border-line-soft bg-paper">
+        <div className="p-4 md:p-5">
+          <label className="flex min-w-0 items-center gap-3 border-2 border-line bg-[#fcfbf8] px-3.5 py-3">
             <Search className="h-4 w-4 shrink-0 text-ink-soft" aria-hidden="true" />
             <input
               type="search"
@@ -201,20 +229,22 @@ export default function UsersControlCenter({
               aria-label="Rechercher un utilisateur"
             />
           </label>
-          <div className="flex items-center gap-2 text-xs text-ink-soft">
-            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" /> Filtres rapides
-            <span className="rounded-full bg-clay px-2 py-1 font-semibold tabular-nums text-ink">{filteredRows.length}</span>
+          <div className="mt-4 flex flex-col gap-3 border-t border-line-soft pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-xs text-ink-soft">
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              <span className="font-semibold text-ink">Filtres rapides</span>
+              <span className="bg-clay px-2 py-1 font-semibold tabular-nums text-ink">{filteredRows.length} affiché{filteredRows.length > 1 ? "s" : ""}</span>
+            </div>
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={!query && activeFilter === "all"}
+              className="inline-flex items-center gap-1.5 self-start px-2 py-1.5 text-xs font-medium text-ink-soft hover:bg-clay hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 sm:self-auto"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Réinitialiser
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={resetFilters}
-            disabled={!query && activeFilter === "all"}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-medium text-ink-soft hover:bg-clay hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Réinitialiser
-          </button>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filtres utilisateurs">
           {FILTERS.map((filter) => {
             const count = filterUsers(rows, "", filter.value, now).length;
             const active = activeFilter === filter.value;
@@ -223,6 +253,7 @@ export default function UsersControlCenter({
                 key={filter.value}
                 type="button"
                 onClick={() => setActiveFilter(filter.value)}
+                aria-pressed={active}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                   active ? "border-ink bg-ink text-white" : "border-line bg-paper text-ink-soft hover:bg-clay hover:text-ink"
                 }`}
@@ -232,8 +263,9 @@ export default function UsersControlCenter({
               </button>
             );
           })}
+          </div>
         </div>
-      </div>
+      </section>
 
       {filteredRows.length === 0 ? (
         <div className="border-2 border-dashed border-line bg-paper px-6 py-14 text-center">
@@ -246,9 +278,9 @@ export default function UsersControlCenter({
         </div>
       ) : (
         <>
-          <div className="space-y-3 md:hidden">
+          <div className="space-y-4 md:hidden">
             {filteredRows.map((row) => (
-              <div key={row.id} className="border-2 border-line bg-paper p-4">
+              <div key={row.id} className="border border-line-soft bg-paper p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-ink">{row.name}</p>
@@ -267,10 +299,11 @@ export default function UsersControlCenter({
             ))}
           </div>
 
-          <div className="hidden overflow-hidden border-2 border-line bg-paper md:block">
+          <div className="hidden overflow-hidden border border-line-soft bg-paper md:block">
             <div className="table-mobile-wrapper">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-line-soft bg-clay text-ink-soft">
+                <caption className="sr-only">Utilisateurs correspondant aux filtres actifs</caption>
+                <thead className="border-b border-line-soft bg-clay/70 text-ink-soft">
                   <tr>
                     <th className="px-4 py-3 font-medium">Nom</th>
                     <th className="px-4 py-3 font-medium">Email</th>
@@ -283,14 +316,14 @@ export default function UsersControlCenter({
                 </thead>
                 <tbody className="divide-y divide-line-soft">
                   {filteredRows.map((row) => (
-                    <tr key={row.id} className="align-top hover:bg-[#fcfbf8]">
-                      <td className="px-4 py-4 font-medium text-ink">{row.name}</td>
-                      <td className="px-4 py-4 text-ink-soft"><span className="inline-flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" aria-hidden="true" />{row.email}</span></td>
-                      {superadmin && <td className="px-4 py-4 text-ink-soft">{row.orgName}</td>}
-                      <td className="px-4 py-4"><span className="rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-ink-soft">{roleLabel(row.role)}</span></td>
-                      {superadmin && <td className="min-w-64 px-4 py-4"><div className="flex flex-col gap-2"><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${quotaTone(row.quotaCategory)}`}>{row.quotaLabel}</span><VpnQuotaForm userId={row.id} userEmail={row.email} /></div></td>}
-                      <td className="whitespace-nowrap px-4 py-4 text-ink-soft">{formatDate(row.createdAt)}</td>
-                      <td className="px-4 py-4">{rowActions(row)}</td>
+                    <tr key={row.id} className="align-top transition-colors hover:bg-clay/35">
+                      <td className="px-5 py-5 font-semibold text-ink">{row.name}</td>
+                      <td className="px-5 py-5 text-ink-soft"><span className="inline-flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" aria-hidden="true" />{row.email}</span></td>
+                      {superadmin && <td className="px-5 py-5 text-ink-soft">{row.orgName}</td>}
+                      <td className="px-5 py-5"><span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ink-soft">{roleLabel(row.role)}</span></td>
+                      {superadmin && <td className="min-w-64 px-5 py-5"><div className="flex flex-col gap-2"><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${quotaTone(row.quotaCategory)}`}>{row.quotaLabel}</span><VpnQuotaForm userId={row.id} userEmail={row.email} /></div></td>}
+                      <td className="whitespace-nowrap px-5 py-5 text-ink-soft">{formatDate(row.createdAt)}</td>
+                      <td className="px-5 py-5">{rowActions(row)}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -50,10 +50,12 @@ export default function TemporaryAccessPasses({
   organizations,
   routers,
   grants,
+  embedded = false,
 }: {
   organizations: Organization[];
   routers: GrantRouter[];
   grants: Grant[];
+  embedded?: boolean;
 }) {
   const [state, action, pending] = useActionState(createTemporaryAccessGrant, undefined);
   const [selectedOrg, setSelectedOrg] = useState(organizations[0]?.id ?? "");
@@ -64,7 +66,7 @@ export default function TemporaryAccessPasses({
   }
 
   return (
-    <section className="border-2 border-line bg-paper p-5 shadow-[4px_4px_0_var(--line)] sm:p-6">
+    <section className={embedded ? "bg-transparent p-1 sm:p-2" : "border-2 border-line bg-paper p-5 shadow-[4px_4px_0_var(--line)] sm:p-6"}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3"><div className="rounded-full bg-brand/20 p-2.5"><Gift className="h-5 w-5 text-brand-deep" aria-hidden="true" /></div><div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-deep">Superadmin · gratuit</p><h2 className="mt-1 text-lg font-semibold text-ink">Passes d&apos;accès temporaire</h2><p className="mt-1 max-w-2xl text-sm text-ink-soft">Pour une promo, un parrainage, une récompense ou une intervention MikroTik. Aucun prix fixe, aucun débit Safecoin.</p></div></div>
         <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-ok">Réutilisable pendant la fenêtre</span>
