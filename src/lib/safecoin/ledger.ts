@@ -60,12 +60,17 @@ export async function ensureSafecoinAccount(orgId: string) {
 }
 
 export async function getSafecoinBalance(orgId: string) {
+  const account = await getSafecoinAccount(orgId);
+  return account?.balanceScCents ?? 0;
+}
+
+export async function getSafecoinAccount(orgId: string) {
   const [account] = await getDb()
     .select({ balanceScCents: safecoinAccounts.balanceScCents })
     .from(safecoinAccounts)
     .where(eq(safecoinAccounts.orgId, orgId))
     .limit(1);
-  return account?.balanceScCents ?? 0;
+  return account ?? null;
 }
 
 function readFirstRow(result: { rows?: unknown[] }) {

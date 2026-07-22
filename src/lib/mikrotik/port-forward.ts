@@ -6,6 +6,8 @@ import { getDb } from "@/lib/db";
 import { routerPortForwards, routers, organizations, walletTransactions } from "@/lib/db/schema";
 import { getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getSafecoinAccount } from "@/lib/safecoin/ledger";
+import { chargeVpnActivation } from "@/lib/safecoin/service-charges";
 import { allocatePortForward, getRelayPublicHost, revokePortForward } from "./relay";
 import { isWebAccessService } from "./remote-access-host";
 import {
@@ -259,7 +261,7 @@ export async function enablePortForward(
     // Superadmin-granted VPN quota is separate from wallet transactions:
     // free_until/unlimited never writes a charge, paid forces charging, and
     // default preserves the original one-year trial behavior.
-    if (
+    const shouldCharge =
       // Paiement déjà réglé hors-app via l'autorisation manuelle → pas de
       // débit wallet en plus (la porte remplace la facturation wallet).
       gate.reason !== "authorized" &&
@@ -268,16 +270,42 @@ export async function enablePortForward(
         orgCreatedAt: org?.createdAt ?? null,
         vpnQuotaMode: org?.vpnQuotaMode ?? "default",
         vpnQuotaExpiresAt: org?.vpnQuotaExpiresAt ?? null,
-      })
-    ) {
-      await chargeWalletForActivation({
-        orgId: session.orgId,
-        userId: session.userId,
-        forwardId: result.forwardId,
-        service,
-        billingPeriod,
-        routerName: router.name,
       });
+
+    if (shouldCharge) {
+      // Les organisations qui ont déjà commencé à utiliser Safecoin sont
+      // débitées en SC. Les organisations historiques sans compte SC gardent
+      // le portefeuille FCFA jusqu'à leur première recharge Safecoin.
+      const safecoinAccount = await getSafecoinAccount(session.orgId);
+      if (safecoinAccount) {
+        const charge = await chargeVpnActivation({
+          orgId: session.orgId,
+          userId: session.userId,
+          forwardId: result.forwardId,
+          service,
+          billingPeriod,
+          routerName: router.name,
+        });
+        if (!charge.created) {
+          // Ne pas laisser un accès public actif sans paiement confirmé.
+          await disablePortForward(result.forwardId);
+          return {
+            error:
+              charge.error === "INSUFFICIENT_BALANCE"
+                ? "Solde Safecoin insuffisant pour activer cet accès distant."
+                : "Le débit Safecoin n'a pas pu être confirmé.",
+          };
+        }
+      } else {
+        await chargeWalletForActivation({
+          orgId: session.orgId,
+          userId: session.userId,
+          forwardId: result.forwardId,
+          service,
+          billingPeriod,
+          routerName: router.name,
+        });
+      }
     }
   }
 

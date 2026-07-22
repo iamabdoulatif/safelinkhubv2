@@ -30,6 +30,8 @@ import {
   consumeAuthorization,
 } from "@/lib/billing/auto-setup-authorization-service";
 import { getWalletBalanceCents } from "@/lib/wallet/actions";
+import { getSafecoinAccount } from "@/lib/safecoin/ledger";
+import { autoSetupChargeScCents, chargeAutoSetup } from "@/lib/safecoin/service-charges";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 
@@ -886,9 +888,26 @@ export async function provisionHotspotStack(
           ? autoSetupFeeCentsFor(opts.supportsContainers)
           : 0;
 
+  const safecoinAccount = billableCents && billableCents > 0
+    ? await getSafecoinAccount(org.id)
+    : null;
+  const safecoinRequiredScCents = safecoinAccount
+    ? await autoSetupChargeScCents({ supportsContainers: opts.supportsContainers })
+    : 0;
+
   if (billableCents !== null && billableCents > 0) {
+    if (safecoinAccount) {
+      if (safecoinAccount.balanceScCents < safecoinRequiredScCents) {
+        return {
+          error: `Solde Safecoin insuffisant : il faut ${(safecoinRequiredScCents / 100).toLocaleString("fr-FR")} SC pour configurer ce routeur supplémentaire (solde actuel : ${(safecoinAccount.balanceScCents / 100).toLocaleString("fr-FR")} SC).`,
+          paywall: true as const,
+          requiredScCents: safecoinRequiredScCents,
+          walletBalanceCents: 0,
+        };
+      }
+    }
     const walletBalanceCents = await getWalletBalanceCents(org.id);
-    if (walletBalanceCents < billableCents) {
+    if (!safecoinAccount && walletBalanceCents < billableCents) {
       return {
         error: `Solde du portefeuille insuffisant : il faut ${billableCents.toLocaleString("fr-FR")} FCFA pour configurer ce routeur supplémentaire (solde actuel : ${walletBalanceCents.toLocaleString("fr-FR")} FCFA).`,
         paywall: true as const,
@@ -920,6 +939,28 @@ export async function provisionHotspotStack(
   if (!serialLock.ok) {
     client.close();
     return { error: serialLock.error };
+  }
+
+  let safecoinCharge: { created: boolean; entryId?: string } | null = null;
+  if (billableCents !== null && billableCents > 0 && safecoinAccount) {
+    const charge = await chargeAutoSetup({
+      orgId: org.id,
+      userId: session.userId,
+      routerId,
+      supportsContainers: opts.supportsContainers,
+    });
+    if ("error" in charge && charge.error === "INSUFFICIENT_BALANCE") {
+      client.close();
+      return {
+        error: "Le débit Safecoin n'a pas pu être confirmé. Rechargez le compte puis réessayez.",
+        paywall: true as const,
+        requiredScCents: safecoinRequiredScCents,
+        walletBalanceCents: 0,
+      };
+    }
+    safecoinCharge = "entryId" in charge
+      ? { created: charge.created, entryId: charge.entryId }
+      : null;
   }
 
   const log: string[] = [];
@@ -2093,16 +2134,22 @@ export async function provisionHotspotStack(
           .where(eq(organizations.id, org.id));
         log.push("OK: essai gratuit de configuration automatique utilisé pour ce routeur.");
       } else {
-        await db.insert(walletTransactions).values({
-          orgId: org.id,
-          type: "charge",
-          amountCents: billableCents,
-          note: `Configuration automatique — ${router.name} (${opts.supportsContainers ? "Hotspot + MikHmon" : "Hotspot"})`,
-          createdBy: session.userId,
-        });
-        log.push(
-          `OK: ${billableCents.toLocaleString("fr-FR")} FCFA débités du portefeuille pour cette configuration.`,
-        );
+        if (safecoinAccount) {
+          log.push(
+            `OK: ${(safecoinRequiredScCents / 100).toLocaleString("fr-FR")} SC débités pour cette configuration.`,
+          );
+        } else {
+          await db.insert(walletTransactions).values({
+            orgId: org.id,
+            type: "charge",
+            amountCents: billableCents,
+            note: `Configuration automatique — ${router.name} (${opts.supportsContainers ? "Hotspot + MikHmon" : "Hotspot"})`,
+            createdBy: session.userId,
+          });
+          log.push(
+            `OK: ${billableCents.toLocaleString("fr-FR")} FCFA débités du portefeuille pour cette configuration.`,
+          );
+        }
       }
     }
 
