@@ -531,7 +531,8 @@ export const portalOrders = pgTable("portal_orders", {
   profileName: text("profile_name"), // profil hotspot RouterOS figé (durée)
   priceCents: integer("price_cents"),
   // pending → payment_initiating (claim checkout) → pending + reference →
-  // paid (webhook/poll) → fulfilled (user créé + SMS envoyé) | failed.
+  // paid (webhook/poll) → fulfilled (user créé) | failed. L'envoi SMS est
+  // suivi séparément pour permettre une reprise sans recréer le ticket.
   status: text("status").notNull().default("pending"),
   // Horodatage du claim paid→fulfilling : un claim périmé (crash pendant
   // l'honneur) redevient récupérable (voir fulfill.ts, STALE_CLAIM_MS).
@@ -540,6 +541,15 @@ export const portalOrders = pgTable("portal_orders", {
   // Voucher créé à l'honneur de la commande (= le user hotspot, source de vérité).
   voucherId: uuid("voucher_id").references(() => vouchers.id, { onDelete: "set null" }),
   failureReason: text("failure_reason"),
+  // Les anciennes commandes sont considérées comme envoyées pour éviter un
+  // doublon lors de la migration ; les nouvelles commandes passent par
+  // pending puis failed/sent et sont rejouables par le portail ou le cron.
+  smsStatus: text("sms_status").notNull().default("sent"),
+  smsMessageId: text("sms_message_id"),
+  smsError: text("sms_error"),
+  smsAttempts: integer("sms_attempts").notNull().default(0),
+  smsLastAttemptAt: timestamp("sms_last_attempt_at"),
+  smsSentAt: timestamp("sms_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   fulfilledAt: timestamp("fulfilled_at"),
 });

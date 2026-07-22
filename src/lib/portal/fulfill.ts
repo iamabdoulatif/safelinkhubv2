@@ -4,7 +4,7 @@
 // reporting), puis envoie le code par SMS. Idempotent : rejouable sans doublon.
 // Module serveur uniquement.
 
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { portalOrders, packages, routers, voucherRouters, vouchers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
@@ -12,6 +12,7 @@ import { sendOrgSms } from "@/lib/sms/send";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
 import { voucherProfileForPackage } from "@/lib/mikrotik/package-voucher-profile";
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
+import { shouldAttemptPortalSms } from "@/lib/portal/sms-delivery";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -50,7 +51,8 @@ export type FulfillResult =
 
 /**
  * Honore la commande `orderId`. Ne lève jamais : renvoie un résultat.
- * - Si déjà `fulfilled`, renvoie ok sans rien refaire.
+ * - Si déjà `fulfilled`, renvoie le code et rejoue le SMS s'il n'a pas été
+ *   confirmé comme envoyé.
  * - Échec routeur → la commande reste `paid` (rejouable par le webhook).
  * - Échec SMS → la commande est quand même `fulfilled` (l'accès est créé) et
  *   `smsSent:false` : le code reste récupérable sur le portail / au support.
@@ -66,7 +68,12 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
   if (!order) return { ok: false, error: "Commande introuvable." };
 
   if (order.status === "fulfilled") {
-    return { ok: true, code: await codeForOrder(db, order.voucherId), smsSent: false, alreadyFulfilled: true };
+    const code = await codeForOrder(db, order.voucherId);
+    if (!code) {
+      return { ok: true, code: "", smsSent: false, alreadyFulfilled: true };
+    }
+    const smsSent = await trySendPortalSms(db, order, code);
+    return { ok: true, code, smsSent, alreadyFulfilled: true };
   }
 
   // Verrou mono-flight : seule la requête qui bascule `paid → fulfilling`
@@ -253,7 +260,57 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
     );
   }
 
-  // Récupère le nom du forfait pour un SMS lisible (best-effort).
+  // Le ticket est déjà créé : un échec SMS ne doit pas faire échouer le
+  // paiement. Le résultat et la prochaine tentative sont suivis en base.
+  const smsSent = await trySendPortalSms(db, order, code);
+
+  return { ok: true, code, smsSent };
+}
+
+/**
+ * Réserve une tentative SMS, envoie le code, puis persiste le résultat.
+ *
+ * La réservation conditionnelle est importante : le polling du portail et le
+ * cron peuvent arriver au même instant. Une seule des deux requêtes obtient la
+ * fenêtre d'envoi ; un crash laisse `pending` et sera repris après une minute.
+ */
+async function trySendPortalSms(
+  db: ReturnType<typeof getDb>,
+  order: typeof portalOrders.$inferSelect,
+  code: string,
+): Promise<boolean> {
+  if (
+    !shouldAttemptPortalSms({
+      status: order.smsStatus,
+      lastAttemptAt: order.smsLastAttemptAt,
+    })
+  ) {
+    return false;
+  }
+
+  const attemptedAt = new Date();
+  const retryBefore = new Date(attemptedAt.getTime() - 60_000);
+  const claim = await db
+    .update(portalOrders)
+    .set({
+      smsStatus: "pending",
+      smsError: null,
+      smsLastAttemptAt: attemptedAt,
+      smsAttempts: sql`${portalOrders.smsAttempts} + 1`,
+    })
+    .where(
+      and(
+        eq(portalOrders.id, order.id),
+        ne(portalOrders.smsStatus, "sent"),
+        or(
+          isNull(portalOrders.smsLastAttemptAt),
+          lt(portalOrders.smsLastAttemptAt, retryBefore),
+        ),
+      ),
+    )
+    .returning({ id: portalOrders.id });
+  if (claim.length === 0) return false;
+
   let packageName = "";
   if (order.packageId) {
     const [pkg] = await db
@@ -268,9 +325,38 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
     ? `Forfait ${packageName} activé. Votre code WiFi : ${code}. Saisissez-le sur le portail WiFi pour vous connecter.`
     : `Forfait WiFi activé. Votre code WiFi : ${code}. Saisissez-le sur le portail WiFi pour vous connecter.`;
 
-  const sms = await sendOrgSms({ orgId: order.orgId, to: order.phone, content: message });
+  let sms: Awaited<ReturnType<typeof sendOrgSms>>;
+  try {
+    sms = await sendOrgSms({ orgId: order.orgId, to: order.phone, content: message });
+  } catch (e) {
+    sms = { ok: false, error: e instanceof Error ? e.message : "Échec d'envoi SMS." };
+  }
 
-  return { ok: true, code, smsSent: sms.ok };
+  await db
+    .update(portalOrders)
+    .set(
+      sms.ok
+        ? {
+            smsStatus: "sent",
+            smsMessageId: sms.messageId,
+            smsError: null,
+            smsSentAt: new Date(),
+          }
+        : {
+            smsStatus: "failed",
+            smsMessageId: null,
+            smsError: sms.error.slice(0, 500),
+          },
+    )
+    .where(eq(portalOrders.id, order.id));
+
+  if (!sms.ok) {
+    console.warn("[portal:sms] échec d'envoi, reprise planifiée", {
+      orderId: order.id,
+      error: sms.error,
+    });
+  }
+  return sms.ok;
 }
 
 /**

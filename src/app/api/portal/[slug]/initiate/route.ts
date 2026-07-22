@@ -129,6 +129,7 @@ export async function POST(
       profileName,
       priceCents: pkg.priceCents,
       status: "pending",
+      smsStatus: "pending",
     })
     .returning({ id: portalOrders.id });
 

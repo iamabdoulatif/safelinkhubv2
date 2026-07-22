@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { reconcileVoucherExpiries } from "@/lib/vouchers/reconcile";
+import { reconcilePortalOrders } from "@/lib/portal/reconcile";
 
 export const maxDuration = 300;
 
@@ -22,8 +23,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await reconcileVoucherExpiries();
-    return Response.json(result);
+    const [vouchers, portalOrders] = await Promise.all([
+      reconcileVoucherExpiries(),
+      reconcilePortalOrders(),
+    ]);
+    return Response.json({ vouchers, portalOrders });
   } catch (e) {
     return Response.json(
       { error: e instanceof Error ? e.message : "reconcile failed" },
