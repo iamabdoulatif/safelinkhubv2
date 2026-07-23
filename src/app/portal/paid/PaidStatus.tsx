@@ -5,7 +5,7 @@
 // indépendamment de l'onglet du portail (qui, lui, auto-soumet le login routeur).
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Hourglass } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Copy, Hourglass, MessageSquareText, Wifi } from "lucide-react";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
@@ -285,6 +285,10 @@ export default function PaidStatus({
                 disabled={smsState === "sending" || smsState === "sent"}
                 style={{
                   flex: 1,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
                   padding: "11px 8px",
                   border: `2px solid ${INK}`,
                   background: smsState === "sent" ? OK : "#FBFAF8",
@@ -294,10 +298,15 @@ export default function PaidStatus({
                   cursor: smsState === "sending" || smsState === "sent" ? "default" : "pointer",
                 }}
               >
+                {smsState === "sent" ? (
+                  <Check size={17} strokeWidth={2.5} aria-hidden="true" />
+                ) : (
+                  <MessageSquareText size={17} strokeWidth={2.5} aria-hidden="true" />
+                )}
                 {smsState === "sending"
                   ? "Envoi…"
                   : smsState === "sent"
-                    ? "Envoyé par SMS ✓"
+                    ? "Envoyé par SMS"
                     : "Recevoir par SMS"}
               </button>
               <button
@@ -305,6 +314,10 @@ export default function PaidStatus({
                 onClick={copyCode}
                 style={{
                   flex: 1,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
                   padding: "11px 8px",
                   border: `2px solid ${INK}`,
                   background: copied ? OK : "#FBFAF8",
@@ -314,7 +327,12 @@ export default function PaidStatus({
                   cursor: "pointer",
                 }}
               >
-                {copied ? "Copié ✓" : "Copier le code"}
+                {copied ? (
+                  <Check size={17} strokeWidth={2.5} aria-hidden="true" />
+                ) : (
+                  <Copy size={17} strokeWidth={2.5} aria-hidden="true" />
+                )}
+                {copied ? "Copié" : "Copier le code"}
               </button>
             </div>
             {smsState === "error" && (
@@ -342,6 +360,10 @@ export default function PaidStatus({
                   onClick={connectNow}
                   style={{
                     width: "100%",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
                     padding: "13px 16px",
                     margin: "0 0 12px",
                     border: `2px solid ${INK}`,
@@ -352,6 +374,7 @@ export default function PaidStatus({
                     cursor: "pointer",
                   }}
                 >
+                  <Wifi size={19} strokeWidth={2.5} aria-hidden="true" />
                   {countdown !== null ? "Me connecter maintenant" : "Connecter mon téléphone"}
                 </button>
                 <p style={{ color: INK_SOFT, fontSize: ".82rem", margin: 0 }}>
