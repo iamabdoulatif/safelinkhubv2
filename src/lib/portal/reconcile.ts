@@ -5,7 +5,7 @@
 // `payment.success`. Ce module vérifie donc périodiquement GeniusPay, puis
 // rejoue l'honneur et les SMS échoués de façon idempotente.
 
-import { and, asc, desc, eq, gte, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { portalOrders } from "@/lib/db/schema";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
@@ -20,6 +20,10 @@ const ORDER_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
 // abandonnées saturent le plafond, ordre le plus ancien d'abord, et les
 // commandes RÉCEMMENT payées ne sont jamais atteintes — bug vécu le 23/07).
 const PENDING_EXPIRY_MS = 3 * 60 * 60 * 1000;
+// Délai avant l'envoi SMS de secours : laisse au navigateur le temps de
+// revenir afficher le code (paiement Wave direct) avant de conclure qu'il est
+// parti (paiement mobile money hors-navigateur) et d'envoyer le code par SMS.
+const SMS_SAFETY_MS = 2 * 60 * 1000;
 
 export type PortalReconcileResult = {
   paymentsChecked: number;
@@ -119,15 +123,22 @@ export async function reconcilePortalOrders(): Promise<PortalReconcileResult> {
     }
   }
 
-  // Un SMS échoué ne remet pas en cause l'accès : on rejoue seulement les
-  // commandes déjà honorées, avec le verrou d'une minute de fulfill.ts.
+  // FILET SMS. Le code n'est plus envoyé automatiquement à l'honneur : le
+  // client choisit « Recevoir par SMS » / « Copier » sur /portal/paid (économie
+  // de crédits). Mais si le navigateur ne revient JAMAIS afficher le code
+  // (paiement mobile money terminé sur le téléphone), il faut quand même livrer.
+  //   • smsStatus `held`  = navigateur a affiché le code → NE PAS auto-envoyer.
+  //   • smsStatus `pending` (jamais affiché) et honoré depuis > SMS_SAFETY_MS
+  //     → on envoie (le client est parti sans voir son code).
+  //   • smsStatus `failed` = un envoi (à la demande ou filet) a échoué → réessai.
   const smsCandidates = await db
     .select({ id: portalOrders.id })
     .from(portalOrders)
     .where(
       and(
         eq(portalOrders.status, "fulfilled"),
-        ne(portalOrders.smsStatus, "sent"),
+        inArray(portalOrders.smsStatus, ["pending", "failed"]),
+        lt(portalOrders.fulfilledAt, new Date(Date.now() - SMS_SAFETY_MS)),
         gte(portalOrders.createdAt, since),
         isNotNull(portalOrders.voucherId),
       ),
@@ -136,7 +147,7 @@ export async function reconcilePortalOrders(): Promise<PortalReconcileResult> {
     .limit(MAX_SMS_RETRIES_PER_RUN);
 
   for (const order of smsCandidates) {
-    const fulfilled = await fulfillPortalOrder(order.id);
+    const fulfilled = await fulfillPortalOrder(order.id, { sendSms: true });
     if (fulfilled.ok && fulfilled.smsSent) result.smsRetried += 1;
     if (!fulfilled.ok) result.errors.push(`${order.id}: ${fulfilled.error}`);
   }

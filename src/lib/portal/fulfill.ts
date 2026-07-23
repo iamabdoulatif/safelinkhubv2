@@ -51,13 +51,22 @@ export type FulfillResult =
 
 /**
  * Honore la commande `orderId`. Ne lève jamais : renvoie un résultat.
- * - Si déjà `fulfilled`, renvoie le code et rejoue le SMS s'il n'a pas été
- *   confirmé comme envoyé.
+ * - Si déjà `fulfilled`, renvoie le code (et n'envoie le SMS que si demandé).
  * - Échec routeur → la commande reste `paid` (rejouable par le webhook).
  * - Échec SMS → la commande est quand même `fulfilled` (l'accès est créé) et
  *   `smsSent:false` : le code reste récupérable sur le portail / au support.
+ *
+ * `opts.sendSms` (défaut false) : par défaut on CRÉE le code sans envoyer de
+ * SMS — le client choisit sur /portal/paid (« Recevoir par SMS » / « Copier »),
+ * ce qui économise les crédits SMS. L'envoi automatique est assuré comme FILET
+ * par le cron de réconciliation si le navigateur ne revient jamais afficher le
+ * code (paiement mobile money hors-navigateur).
  */
-export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult> {
+export async function fulfillPortalOrder(
+  orderId: string,
+  opts?: { sendSms?: boolean },
+): Promise<FulfillResult> {
+  const sendSms = opts?.sendSms ?? false;
   const db = getDb();
 
   const [order] = await db
@@ -72,7 +81,7 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
     if (!code) {
       return { ok: true, code: "", smsSent: false, alreadyFulfilled: true };
     }
-    const smsSent = await trySendPortalSms(db, order, code);
+    const smsSent = sendSms ? await trySendPortalSms(db, order, code) : order.smsStatus === "sent";
     return { ok: true, code, smsSent, alreadyFulfilled: true };
   }
 
@@ -260,11 +269,46 @@ export async function fulfillPortalOrder(orderId: string): Promise<FulfillResult
     );
   }
 
-  // Le ticket est déjà créé : un échec SMS ne doit pas faire échouer le
-  // paiement. Le résultat et la prochaine tentative sont suivis en base.
-  const smsSent = await trySendPortalSms(db, order, code);
+  // Le ticket est créé. On n'envoie le SMS QUE si demandé (le client décide sur
+  // /portal/paid) — sinon smsStatus reste `pending`, et le filet du cron
+  // enverra le code si le navigateur ne l'affiche jamais. Un échec SMS ne fait
+  // jamais échouer le paiement (l'accès existe déjà).
+  const smsSent = sendSms ? await trySendPortalSms(db, order, code) : false;
 
   return { ok: true, code, smsSent };
+}
+
+/**
+ * Envoie le code par SMS À LA DEMANDE (bouton « Recevoir par SMS » de
+ * /portal/paid). Renvoie l'état d'envoi. Idempotent : si déjà envoyé, ne
+ * redéclenche pas (trySendPortalSms ignore un `smsStatus="sent"`).
+ */
+export async function sendPortalTicketSms(
+  orderId: string,
+): Promise<{ ok: boolean; smsSent: boolean; error?: string }> {
+  const db = getDb();
+  const [order] = await db.select().from(portalOrders).where(eq(portalOrders.id, orderId)).limit(1);
+  if (!order) return { ok: false, smsSent: false, error: "Commande introuvable." };
+  if (order.status !== "fulfilled") return { ok: false, smsSent: false, error: "Commande non honorée." };
+  const code = await codeForOrder(db, order.voucherId);
+  if (!code) return { ok: false, smsSent: false, error: "Code introuvable." };
+  if (order.smsStatus === "sent") return { ok: true, smsSent: true };
+  const smsSent = await trySendPortalSms(db, order, code);
+  return { ok: smsSent, smsSent };
+}
+
+/**
+ * Marque la commande « code vu au navigateur » (smsStatus `held`) : le client
+ * est présent sur /portal/paid, le filet SMS automatique ne doit donc PAS
+ * partir (il choisira via le bouton). Ne touche que les commandes encore
+ * `pending` (jamais un SMS déjà envoyé/échoué/tenu).
+ */
+export async function holdPortalTicketSms(orderId: string): Promise<void> {
+  const db = getDb();
+  await db
+    .update(portalOrders)
+    .set({ smsStatus: "held" })
+    .where(and(eq(portalOrders.id, orderId), eq(portalOrders.smsStatus, "pending")));
 }
 
 /**

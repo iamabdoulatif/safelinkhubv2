@@ -8,7 +8,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, portalOrders } from "@/lib/db/schema";
-import { fulfillPortalOrder } from "@/lib/portal/fulfill";
+import { fulfillPortalOrder, holdPortalTicketSms } from "@/lib/portal/fulfill";
 import { buildRouterLoginUrl } from "@/lib/portal/router-login-url";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
@@ -42,13 +42,16 @@ export async function GET(
 
   if (order.status === "fulfilled") {
     const fulfilled = await fulfillPortalOrder(order.id); // idempotent → renvoie le code
+    // Le navigateur va afficher le code : marque « vu » pour que le filet SMS
+    // automatique ne parte pas (le client choisira « Recevoir par SMS »).
+    if (fulfilled.ok && fulfilled.code) await holdPortalTicketSms(order.id);
     return corsJson({
       status: "fulfilled",
       code: fulfilled.ok ? fulfilled.code : "",
       // URL de login du hotspot → auto-connexion du téléphone avec le code.
       loginUrl: fulfilled.ok ? await buildRouterLoginUrl(order.routerId) : null,
-      // false ⇒ le code n'est PAS parti par SMS (crédit épuisé…) : l'écran est
-      // la seule trace, l'UI insiste sur la copie du code.
+      // true ⇒ le SMS a déjà été envoyé (à la demande / filet) ; sinon l'UI
+      // propose le bouton « Recevoir par SMS ».
       smsSent: fulfilled.ok ? fulfilled.smsSent : false,
     });
   }
@@ -93,6 +96,8 @@ export async function GET(
   // paid | fulfilling (ou tout juste basculé) : tenter l'honneur (mono-flight).
   const result = await fulfillPortalOrder(order.id);
   if (result.ok) {
+    // Navigateur présent → « vu », le filet SMS automatique ne partira pas.
+    if (result.code) await holdPortalTicketSms(order.id);
     return corsJson({
       status: "fulfilled",
       code: result.code,

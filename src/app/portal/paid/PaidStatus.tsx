@@ -53,10 +53,13 @@ export default function PaidStatus({
   const [phase, setPhase] = useState<Phase>(isError ? "failed" : canPoll ? "loading" : "processing");
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
-  // false ⇒ le SMS de secours n'est pas parti (crédit SMS du point de vente
-  // épuisé…) : l'écran est la seule trace du code, on insiste sur la copie.
-  const [smsSent, setSmsSent] = useState(true);
+  // true ⇒ le SMS a déjà été envoyé (à la demande ou filet). Sinon on propose
+  // le bouton « Recevoir par SMS » (le code n'est plus envoyé d'office).
+  const [smsSent, setSmsSent] = useState(false);
   const [copied, setCopied] = useState(false);
+  // État du bouton « Recevoir par SMS » : idle | sending | sent | error.
+  const [smsState, setSmsState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [smsError, setSmsError] = useState("");
   // URL de login du hotspot du routeur (renvoyée par /status à l'honneur) →
   // bouton d'auto-connexion. null quand le routeur n'a pas d'instantané
   // exploitable : on n'affiche alors que la saisie manuelle du code.
@@ -87,7 +90,10 @@ export default function PaidStatus({
         if (data.status === "fulfilled") {
           if (data.code) setCode(data.code);
           if (data.loginUrl) setLoginUrl(data.loginUrl);
-          if (data.smsSent === false) setSmsSent(false);
+          if (data.smsSent === true) {
+            setSmsSent(true);
+            setSmsState("sent");
+          }
           setPhase("fulfilled");
           return;
         }
@@ -111,6 +117,28 @@ export default function PaidStatus({
       clearTimeout(timer);
     };
   }, [canPoll, orderId, slug]);
+
+  // « Recevoir par SMS » : envoie le code au numéro de la commande, à la demande
+  // (le code n'est plus envoyé d'office → on économise les crédits SMS).
+  async function requestSms() {
+    if (!orderId || smsState === "sending" || smsState === "sent") return;
+    setSmsState("sending");
+    setSmsError("");
+    try {
+      const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/ticket-sms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = (await res.json()) as { sent?: boolean; error?: string };
+      if (!res.ok || !data.sent) throw new Error(data.error || "Envoi impossible.");
+      setSmsState("sent");
+      setSmsSent(true);
+    } catch (e) {
+      setSmsState("error");
+      setSmsError(e instanceof Error ? e.message : "Envoi impossible.");
+    }
+  }
 
   // Copie du code au toucher. clipboard API (contexte https) avec repli
   // execCommand pour les mini-navigateurs captifs qui ne l'exposent pas.
@@ -247,6 +275,54 @@ export default function PaidStatus({
             >
               {copied ? "Code copié !" : "Touchez le code pour le copier"}
             </p>
+
+            {/* Choix du client : recevoir le code par SMS OU le copier. Le SMS
+                n'est envoyé qu'à la demande (économie de crédits). */}
+            <div style={{ display: "flex", gap: 8, margin: "0 0 12px" }}>
+              <button
+                type="button"
+                onClick={requestSms}
+                disabled={smsState === "sending" || smsState === "sent"}
+                style={{
+                  flex: 1,
+                  padding: "11px 8px",
+                  border: `2px solid ${INK}`,
+                  background: smsState === "sent" ? OK : "#FBFAF8",
+                  color: smsState === "sent" ? "#FBFAF8" : INK,
+                  fontSize: ".9rem",
+                  fontWeight: 700,
+                  cursor: smsState === "sending" || smsState === "sent" ? "default" : "pointer",
+                }}
+              >
+                {smsState === "sending"
+                  ? "Envoi…"
+                  : smsState === "sent"
+                    ? "Envoyé par SMS ✓"
+                    : "Recevoir par SMS"}
+              </button>
+              <button
+                type="button"
+                onClick={copyCode}
+                style={{
+                  flex: 1,
+                  padding: "11px 8px",
+                  border: `2px solid ${INK}`,
+                  background: copied ? OK : "#FBFAF8",
+                  color: copied ? "#FBFAF8" : INK,
+                  fontSize: ".9rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {copied ? "Copié ✓" : "Copier le code"}
+              </button>
+            </div>
+            {smsState === "error" && (
+              <p style={{ color: ERR, fontSize: ".78rem", margin: "0 0 12px" }}>
+                {smsError || "Envoi SMS impossible. Copiez le code."}
+              </p>
+            )}
+
             {loginUrl && code ? (
               <>
                 {countdown !== null && (
@@ -281,22 +357,14 @@ export default function PaidStatus({
                 <p style={{ color: INK_SOFT, fontSize: ".82rem", margin: 0 }}>
                   Ça ne marche pas ? Retournez sur le portail WiFi (onglet <b>Code</b>) et
                   saisissez ce code.{" "}
-                  {smsSent ? (
-                    <>Il vous a aussi été envoyé par <b>SMS</b>.</>
-                  ) : (
-                    <b>Copiez ou notez bien ce code : l&rsquo;envoi par SMS est indisponible.</b>
-                  )}
+                  {smsSent && <>Il vous a été envoyé par <b>SMS</b>.</>}
                 </p>
               </>
             ) : (
               <p style={{ color: INK_SOFT, fontSize: ".92rem", margin: 0 }}>
                 Retournez sur le portail WiFi (onglet <b>Code</b>) et saisissez ce code pour vous
                 connecter.{" "}
-                {smsSent ? (
-                  <>Il vous a aussi été envoyé par <b>SMS</b>.</>
-                ) : (
-                  <b>Copiez ou notez bien ce code : l&rsquo;envoi par SMS est indisponible.</b>
-                )}
+                {smsSent && <>Il vous a été envoyé par <b>SMS</b>.</>}
               </p>
             )}
           </>
