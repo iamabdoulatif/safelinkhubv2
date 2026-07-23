@@ -11,21 +11,27 @@ import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
-import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
+import {
+  getOrgGeniusCreds,
+  createOrgPayment,
+  listPawapayProviders,
+  pickPawapayProvider,
+} from "@/lib/payment-gateways/geniuspay-org";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
 
-// Seul "wave" reste un rail DIRECT (pay.wave.com, rapide et fiable en
-// mini-navigateur captif). Tous les autres rails forcés (orange_money,
-// mtn_money, moov_money, card, paystack) sont désormais routés par GeniusPay
-// vers checkout.paystack.com — VÉRIFIÉ le 2026-07-23 en créant une transaction
-// test par rail — et le canal Paystack du marchand rejette (« transaction pas
-// valide ou déjà effectuée »). Doc GeniusPay : « Checkout Mode (Recommended):
-// omitting payment_method returns a checkout_url to GeniusPay's hosted page »
-// (geniuspay.ci/checkout) qui liste et route correctement chaque opérateur.
-// ⇒ tout choix non-Wave est traité comme "hosted" (payment_method omis).
-// À réévaluer si GeniusPay répare son canal Paystack (re-tester les rails).
-const DIRECT_METHODS = new Set(["wave"]);
+// Routage des rails sur GeniusPay v3 (geniuspay.ci), vérifié le 2026-07-23 :
+//  • "wave"                → rail direct pay.wave.com (fiable en captif)
+//  • "orange_money"/"mtn_money" → payment_method="pawapay" + mmo_provider
+//    (ORANGE_xxx / MTN_MOMO_xxx, résolu par pays via listPawapayProviders) :
+//    l'agrégateur PawaPay aboutit correctement, contrairement à l'ancien
+//    routage Paystack cassé de pay.genius.ci.
+//  • tout le reste (moov, card, hosted, indisponible) → checkout hébergé
+//    geniuspay.ci (payment_method omis), qui liste et route chaque moyen.
+const OPERATOR_BY_METHOD: Record<string, "orange" | "mtn"> = {
+  orange_money: "orange",
+  mtn_money: "mtn",
+};
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -50,9 +56,6 @@ export async function POST(
 
   const orderId = String(body.orderId ?? "").trim();
   const methodRaw = String(body.method ?? "").trim();
-  // Wave = direct ; tout le reste (hosted, orange_money, mtn_money, moov_money,
-  // card, valeur inconnue) ⇒ payment_method omis → checkout hébergé GeniusPay.
-  const paymentMethod = DIRECT_METHODS.has(methodRaw) ? methodRaw : undefined;
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
 
   const db = getDb();
@@ -99,6 +102,24 @@ export async function POST(
   const phoneCountry = countryForIntlPhone(order.phone.replace(/[^0-9]/g, ""));
   const iso2 = phoneCountry?.iso2 ?? (await getOrgDial(org.id)).iso2;
 
+  // Résolution du rail. wave → direct. orange_money/mtn_money → PawaPay avec le
+  // code opérateur du pays du client (indispo → checkout hébergé). Reste → omis
+  // (checkout hébergé, liste tous les moyens).
+  let paymentMethod: string | undefined;
+  let mmoProvider: string | undefined;
+  if (methodRaw === "wave") {
+    paymentMethod = "wave";
+  } else {
+    const operator = OPERATOR_BY_METHOD[methodRaw];
+    if (operator && iso2 && iso2 !== "XX") {
+      const provider = pickPawapayProvider(await listPawapayProviders(creds, iso2), operator);
+      if (provider) {
+        paymentMethod = "pawapay";
+        mmoProvider = provider;
+      }
+    }
+  }
+
   const [claim] = await db
     .update(portalOrders)
     .set({ status: "payment_initiating", claimedAt: new Date(), failureReason: null })
@@ -124,6 +145,7 @@ export async function POST(
       ...(iso2 && iso2 !== "XX" ? { country: iso2 } : {}),
     },
     paymentMethod,
+    mmoProvider,
     metadata: { orderId: order.id, slug, kind: "portal" },
     successUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
     errorUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}&status=error`,

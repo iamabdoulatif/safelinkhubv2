@@ -5,8 +5,9 @@
 // lib/payment-gateways/geniuspay.ts qui lit les clés PLATEFORME dans l'env.
 // Module serveur uniquement.
 //
-// Doc : https://pay.genius.ci/doc — auth par en-têtes X-API-Key / X-API-Secret,
-// POST /payments → checkout_url, GET /payments/{reference} → { status }.
+// Doc v3 : https://geniuspay.ci/docs/api — auth par en-têtes X-API-Key /
+// X-API-Secret, POST /payments → checkout_url, GET /payments/{reference} →
+// { status }, GET /pawapay/providers?country=XX → opérateurs mobile money.
 
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
@@ -14,7 +15,12 @@ import { paymentGateways } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/mikrotik/crypto";
 import { formatGeniusPayCustomer, type GeniusPayCustomer } from "./phone";
 
-const DEFAULT_BASE_URL = "https://pay.genius.ci/api/v1/merchant";
+// Plateforme GeniusPay v3 (geniuspay.ci). L'ancien host pay.genius.ci routait
+// TOUT rail forcé sauf wave vers un Paystack cassé ; sur geniuspay.ci les rails
+// mobile money passent par PawaPay (payment_method=pawapay + mmo_provider) et
+// aboutissent correctement — vérifié le 2026-07-23 avec les clés réelles.
+// Surchargeable par GENIUSPAY_BASE_URL. Mêmes clés X-API-Key/X-API-Secret.
+const DEFAULT_BASE_URL = "https://geniuspay.ci/api/v1/merchant";
 
 function baseUrl(): string {
   return (process.env.GENIUSPAY_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
@@ -74,14 +80,60 @@ export type CreateOrgPaymentInput = {
   metadata?: Record<string, unknown>;
   successUrl?: string;
   errorUrl?: string;
-  // Rail de paiement forcé (doc GeniusPay : "wave" | "orange_money" |
-  // "mtn_money" | "card" | "paystack"). OMIS ⇒ page checkout hébergée
-  // geniuspay.ci, qui par défaut ne propose qu'Orange Money en USSD *144#
-  // — injouable derrière un portail captif iOS (impossible de quitter l'app
-  // pour composer). On force donc "wave" (redirection pay.wave.com,
-  // walled-garden autorisé) pour le portail captif.
+  // Rail de paiement forcé. Valeurs GeniusPay v3 : "wave" (direct pay.wave.com)
+  // | "pawapay" (Orange/MTN mobile money via l'agrégateur PawaPay, exige
+  // mmoProvider) | "card". OMIS ⇒ page checkout hébergée geniuspay.ci qui liste
+  // tous les moyens. Pour le portail captif on force wave ou pawapay (rails qui
+  // aboutissent) ; les cas indisponibles retombent sur le checkout hébergé.
   paymentMethod?: string;
+  // Code opérateur PawaPay quand paymentMethod="pawapay" (ex. "ORANGE_CIV",
+  // "MTN_MOMO_CIV") — dépend du pays, cf. listPawapayProviders().
+  mmoProvider?: string;
 };
+
+export type PawapayProvider = { code: string; name: string; type: string };
+
+/**
+ * Opérateurs mobile money PawaPay disponibles pour un pays (ISO2, ex. "CI").
+ * Sert à router un choix Orange/MTN vers le bon `mmo_provider`. Renvoie []
+ * en cas d'échec (l'appelant retombe alors sur le checkout hébergé).
+ */
+export async function listPawapayProviders(
+  creds: OrgGeniusCreds,
+  countryIso2: string,
+): Promise<PawapayProvider[]> {
+  const iso2 = countryIso2.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(iso2)) return [];
+  try {
+    const res = await fetch(`${baseUrl()}/pawapay/providers?country=${iso2}`, {
+      method: "GET",
+      headers: headers(creds),
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const json = safeParse(await res.text());
+    const data = (json?.data as Record<string, unknown>) ?? {};
+    const providers = data.providers;
+    if (!Array.isArray(providers)) return [];
+    return providers
+      .filter((p): p is PawapayProvider => Boolean(p && typeof (p as PawapayProvider).code === "string"))
+      .map((p) => ({ code: p.code, name: p.name ?? "", type: p.type ?? "" }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Code PawaPay correspondant à un opérateur ("orange" | "mtn") parmi les
+ * providers d'un pays, ou undefined si indisponible (→ checkout hébergé).
+ */
+export function pickPawapayProvider(
+  providers: PawapayProvider[],
+  operator: "orange" | "mtn" | "moov",
+): string | undefined {
+  const kw = operator === "mtn" ? "MTN" : operator === "moov" ? "MOOV" : "ORANGE";
+  return providers.find((p) => p.code.toUpperCase().includes(kw))?.code;
+}
 
 export type CreateOrgPaymentResult =
   | { ok: true; reference: string; paymentUrl: string }
@@ -106,6 +158,7 @@ export async function createOrgPayment(
     success_url: input.successUrl,
     error_url: input.errorUrl,
     ...(input.paymentMethod ? { payment_method: input.paymentMethod } : {}),
+    ...(input.mmoProvider ? { mmo_provider: input.mmoProvider } : {}),
   });
 
   // GeniusPay (Laravel/LiteSpeed) renvoie PAR INTERMITTENCE sa page d'accueil SPA
