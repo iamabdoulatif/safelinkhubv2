@@ -7,7 +7,7 @@ export const PUBLIC_SUBMISSION_WINDOW_MINUTES = 60;
 const PUBLIC_SUBMISSION_MAX_ATTEMPTS = 5;
 const PUBLIC_SUBMISSION_PRUNE_AFTER_HOURS = 24;
 
-export type PublicSubmissionBucket = "contact" | "testimonial";
+export type PublicSubmissionBucket = "contact" | "testimonial" | "recover";
 
 type PublicSubmissionRateLimitResult =
   | { allowed: true }

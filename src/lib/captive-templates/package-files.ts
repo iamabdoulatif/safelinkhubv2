@@ -510,7 +510,8 @@ const PORTAL_PAY_SCRIPT = `(function(){
       +     dialField
       +     '<input id="slh-phone" type="tel" inputmode="numeric" placeholder="07 00 00 00 00" autocomplete="tel" style="flex:1;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;" />'
       +   '</div>'
-      +   '<p style="margin:0 0 12px;font-size:.72rem;color:#94a3b8;">Premier achat : un code de v&eacute;rification vous sera envoy&eacute; par SMS. Ensuite, plus jamais de code &mdash; paiement direct.</p>'
+      +   '<p style="margin:0 0 6px;font-size:.72rem;color:#94a3b8;">Premier achat : un code de v&eacute;rification vous sera envoy&eacute; par SMS. Ensuite, plus jamais de code &mdash; paiement direct.</p>'
+      +   '<p style="margin:0 0 12px;font-size:.75rem;text-align:center;"><a href="#" id="slh-recover" style="color:#0f172a;text-decoration:underline;">D&eacute;j&agrave; pay&eacute; ? Retrouver mon code</a></p>'
       + '</div>'
       + '<div data-step="otp" style="display:none;">'
       +   '<p style="margin:0 0 8px;font-size:.85rem;">Entrez le code re&ccedil;u par SMS au <b id="slh-otp-to"></b></p>'
@@ -577,6 +578,11 @@ const PORTAL_PAY_SCRIPT = `(function(){
       else if(step==="done") connect(document.getElementById("slh-code").textContent);
     });
     resend.addEventListener("click", function(){ if(!resend.disabled) sendOtp(true); });
+    // « Déjà payé ? » : va à la page de récupération du code (safelinkhub.io,
+    // walled-garden) pour le client dont le paiement mobile money s'est terminé
+    // sur le téléphone sans que le navigateur revienne afficher le code.
+    var recover = document.getElementById("slh-recover");
+    if(recover){ recover.addEventListener("click", function(ev){ ev.preventDefault(); window.location.href = cfg.appUrl + "/portal/recover?slug=" + encodeURIComponent(cfg.slug); }); }
     phoneEl.addEventListener("keydown", function(ev){ if(ev.key==="Enter") primary.click(); });
     otpEl.addEventListener("keydown", function(ev){ if(ev.key==="Enter") primary.click(); });
 

@@ -266,8 +266,19 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
       </div>
 
       <p style={{ margin: "16px 0 0", fontSize: ".72rem", color: "#57534E", textAlign: "center", lineHeight: 1.5 }}>
-        Paiement sécurisé via GeniusPay. Après le paiement, un <b>code WiFi</b> s’affiche (+ SMS) :
+        Paiement sécurisé via GeniusPay. Après le paiement, un <b>code WiFi</b> s’affiche :
         saisissez-le sur le portail WiFi pour vous connecter.
+      </p>
+
+      {/* Repli mobile money : un client dont le paiement s'est terminé sur le
+          téléphone (navigateur non revenu) retrouve son code par son numéro. */}
+      <p style={{ margin: "10px 0 0", fontSize: ".8rem", textAlign: "center" }}>
+        <a
+          href={`/portal/recover?slug=${encodeURIComponent(slug)}`}
+          style={{ color: "#1C1917", fontWeight: 700, textDecoration: "underline" }}
+        >
+          Déjà payé ? Retrouver mon code
+        </a>
       </p>
     </div>
   );

@@ -4,7 +4,7 @@
 // reporting), puis envoie le code par SMS. Idempotent : rejouable sans doublon.
 // Module serveur uniquement.
 
-import { and, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { portalOrders, packages, routers, voucherRouters, vouchers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
@@ -446,4 +446,118 @@ export async function confirmAndFulfillPortalByReference(
     .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "pending")));
   const result = await fulfillPortalOrder(order.id);
   return { found: true, fulfilled: result.ok };
+}
+
+export type RecoverCodeResult =
+  | { found: false }
+  | {
+      found: true;
+      ready: boolean; // true = code prêt ; false = paiement en cours / non abouti
+      code: string;
+      orderId: string;
+      packageName: string | null;
+      smsSent: boolean;
+      pendingPayment: boolean; // true = un paiement est encore en attente de confirmation
+    };
+
+/**
+ * « J'ai déjà payé — retrouver mon code » : retrouve la DERNIÈRE commande d'un
+ * numéro (paiement mobile money terminé sur le téléphone, navigateur jamais
+ * revenu). Confirme le paiement / honore si besoin, puis renvoie le code.
+ * Le code est de toute façon délivré à ce même numéro par SMS : le révéler à
+ * son propriétaire ne divulgue rien de plus.
+ */
+export async function recoverLatestPortalCode(
+  orgId: string,
+  phone: string,
+  lookbackMs = 24 * 60 * 60 * 1000,
+): Promise<RecoverCodeResult> {
+  const db = getDb();
+  const since = new Date(Date.now() - lookbackMs);
+  const [order] = await db
+    .select()
+    .from(portalOrders)
+    .where(
+      and(
+        eq(portalOrders.orgId, orgId),
+        eq(portalOrders.phone, phone),
+        gte(portalOrders.createdAt, since),
+      ),
+    )
+    .orderBy(desc(portalOrders.createdAt))
+    .limit(1);
+  if (!order) return { found: false };
+
+  const packageName = order.packageId
+    ? (
+        await db
+          .select({ name: packages.name })
+          .from(packages)
+          .where(eq(packages.id, order.packageId))
+          .limit(1)
+      )[0]?.name ?? null
+    : null;
+
+  // Déjà honorée : renvoyer le code directement.
+  if (order.status === "fulfilled") {
+    const code = await codeForOrder(db, order.voucherId);
+    return {
+      found: true,
+      ready: Boolean(code),
+      code,
+      orderId: order.id,
+      packageName,
+      smsSent: order.smsStatus === "sent",
+      pendingPayment: false,
+    };
+  }
+
+  // Encore `pending` avec une référence : re-vérifier le paiement et honorer.
+  if (order.status === "pending" && order.paymentReference) {
+    const confirmed = await confirmAndFulfillPortalByReference(order.paymentReference);
+    if (confirmed.fulfilled) {
+      const [fresh] = await db
+        .select({ voucherId: portalOrders.voucherId, smsStatus: portalOrders.smsStatus })
+        .from(portalOrders)
+        .where(eq(portalOrders.id, order.id))
+        .limit(1);
+      const code = await codeForOrder(db, fresh?.voucherId ?? null);
+      return {
+        found: true,
+        ready: Boolean(code),
+        code,
+        orderId: order.id,
+        packageName,
+        smsSent: fresh?.smsStatus === "sent",
+        pendingPayment: false,
+      };
+    }
+  }
+
+  // paid | fulfilling : tenter l'honneur (routeur peut-être temporairement KO).
+  if (order.status === "paid" || order.status === "fulfilling") {
+    const result = await fulfillPortalOrder(order.id);
+    if (result.ok) {
+      return {
+        found: true,
+        ready: Boolean(result.code),
+        code: result.code,
+        orderId: order.id,
+        packageName,
+        smsSent: result.smsSent,
+        pendingPayment: false,
+      };
+    }
+  }
+
+  // Commande trouvée mais paiement pas encore confirmé (ou échec transitoire).
+  return {
+    found: true,
+    ready: false,
+    code: "",
+    orderId: order.id,
+    packageName,
+    smsSent: false,
+    pendingPayment: order.status === "pending",
+  };
 }
