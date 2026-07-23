@@ -92,8 +92,10 @@ export async function createOrgPayment(
   creds: OrgGeniusCreds,
   input: CreateOrgPaymentInput,
 ): Promise<CreateOrgPaymentResult> {
-  if (!Number.isInteger(input.amountFcfa) || input.amountFcfa < 100) {
-    return { ok: false, error: "Montant invalide (minimum 100 FCFA)." };
+  // GeniusPay refuse (422) tout montant XOF < 200 (« Le montant minimum pour
+  // XOF est 200 ») — constaté le 2026-07-23, c'était 100 auparavant.
+  if (!Number.isInteger(input.amountFcfa) || input.amountFcfa < 200) {
+    return { ok: false, error: "Montant invalide (minimum 200 FCFA)." };
   }
   const body = JSON.stringify({
     amount: input.amountFcfa,

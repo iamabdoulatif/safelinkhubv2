@@ -15,16 +15,17 @@ import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geni
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
 
-// Le portail expose deux choix : "wave" = rail direct pay.wave.com (rapide,
-// fiable en mini-navigateur captif) ; "hosted" = on OMET payment_method →
-// GeniusPay renvoie sa page de checkout hébergée geniuspay.ci/checkout qui
-// contient RÉELLEMENT tous les moyens (Wave, Orange Money, MTN MoMo, Moov Money,
-// carte internationale/Stripe, carte locale/Paystack). NB : forcer un rail
-// mobile money précis (orange_money/mtn_money/moov_money/card) via l'API retombe
-// sur Wave tant qu'il n'est pas activé côté marchand — seule la page hébergée
-// route correctement chaque opérateur choisi par le client. Le rail "paystack"
-// (checkout.paystack.com) ne montre qu'un sous-ensemble (ni Moov, ni carte int.).
-const ALLOWED_METHODS = new Set(["wave", "orange_money", "mtn_money", "moov_money", "card", "paystack"]);
+// Seul "wave" reste un rail DIRECT (pay.wave.com, rapide et fiable en
+// mini-navigateur captif). Tous les autres rails forcés (orange_money,
+// mtn_money, moov_money, card, paystack) sont désormais routés par GeniusPay
+// vers checkout.paystack.com — VÉRIFIÉ le 2026-07-23 en créant une transaction
+// test par rail — et le canal Paystack du marchand rejette (« transaction pas
+// valide ou déjà effectuée »). Doc GeniusPay : « Checkout Mode (Recommended):
+// omitting payment_method returns a checkout_url to GeniusPay's hosted page »
+// (geniuspay.ci/checkout) qui liste et route correctement chaque opérateur.
+// ⇒ tout choix non-Wave est traité comme "hosted" (payment_method omis).
+// À réévaluer si GeniusPay répare son canal Paystack (re-tester les rails).
+const DIRECT_METHODS = new Set(["wave"]);
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -49,9 +50,9 @@ export async function POST(
 
   const orderId = String(body.orderId ?? "").trim();
   const methodRaw = String(body.method ?? "").trim();
-  // "hosted" ⇒ payment_method omis (undefined) → page hébergée multi-opérateurs.
-  const paymentMethod =
-    methodRaw === "hosted" ? undefined : ALLOWED_METHODS.has(methodRaw) ? methodRaw : "wave";
+  // Wave = direct ; tout le reste (hosted, orange_money, mtn_money, moov_money,
+  // card, valeur inconnue) ⇒ payment_method omis → checkout hébergé GeniusPay.
+  const paymentMethod = DIRECT_METHODS.has(methodRaw) ? methodRaw : undefined;
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
 
   const db = getDb();

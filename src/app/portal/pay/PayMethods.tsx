@@ -23,23 +23,18 @@ import { useEffect, useState } from "react";
 
 type Method = { id: string; label: string; logo: string };
 
-// Reproduit la LISTE du checkout GeniusPay (un moyen par ligne, logo + nom) :
-// chaque clic initie le paiement sur CE rail précis (payment_method envoyé à
-// l'API GeniusPay). Valeurs acceptées : wave | orange_money | mtn_money |
-// moov_money | card (validées à l'intégration, cf. geniuspay-org.ts). Un lien
-// « tous les moyens » ouvre en repli le checkout hébergé (payment_method omis)
-// si un rail précis n'est pas activé côté marchand.
+// Liste des moyens affichés (logo + nom). Depuis le 2026-07-23, GeniusPay route
+// TOUT rail forcé sauf Wave vers checkout.paystack.com (canal marchand cassé :
+// « transaction pas valide / déjà effectuée ») — vérifié en créant une
+// transaction test par rail. Le serveur (/api/portal/[slug]/pay) ne force donc
+// plus que "wave" ; tout autre choix ouvre le checkout HÉBERGÉ GeniusPay
+// (geniuspay.ci/checkout, payment_method omis — « Checkout Mode (Recommended) »
+// de la doc), où le client retrouve son opérateur et où le routage est correct.
 const METHODS: Method[] = [
   { id: "wave", label: "Wave", logo: "/payment/wave.png" },
   { id: "orange_money", label: "Orange Money", logo: "/payment/orange.png" },
   { id: "mtn_money", label: "MTN MoMo", logo: "/payment/mtn-momo.png" },
   { id: "moov_money", label: "Moov Money", logo: "/payment/moov.png" },
-  // Rail « Carte » RETIRÉ : il route vers checkout.paystack.com via GeniusPay,
-  // mais Paystack rejette la référence (« transaction pas valide / déjà
-  // effectuée » — diagnostiqué : GeniusPay crée bien la transaction en 201/pending,
-  // c'est le canal Paystack du compte marchand qui n'est pas activé). On n'envoie
-  // plus les clients sur un checkout mort. À réactiver quand GeniusPay aura corrigé
-  // son canal Paystack (la carte reste accessible via « tous les moyens »/hosted).
 ];
 
 export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
@@ -151,7 +146,7 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
           textAlign: "center",
         }}
       >
-        Ou payer directement avec :
+        Ou commencer avec :
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {METHODS.map((m) => {
