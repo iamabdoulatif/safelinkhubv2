@@ -93,12 +93,24 @@ export async function POST(
   });
 
   if (!sms.ok) {
-    // SMS obligatoire : sans passerelle configurée, la vente est bloquée.
     console.warn("[portal:otp] envoi SMS impossible", { slug, error: sms.error });
-    return corsJson(
-      { error: "Verification par SMS indisponible. Contactez le point de vente." },
-      { status: 400 },
-    );
+    // Passerelle absente/inutilisable : la vente reste bloquée (décision produit
+    // — une org sans SMS configuré ne vend pas au portail).
+    if (sms.notConfigured) {
+      return corsJson(
+        { error: "Verification par SMS indisponible. Contactez le point de vente." },
+        { status: 400 },
+      );
+    }
+    // Passerelle configurée mais envoi refusé (solde SMS épuisé, API en panne) :
+    // on ne bloque PAS la vente. Le numéro est marqué vérifié (la vérification
+    // par SMS est de toute façon impossible) → /initiate acceptera le paiement,
+    // et le code s'affichera à l'écran après paiement (repli du portail).
+    await db
+      .update(portalOtps)
+      .set({ verifiedAt: new Date(now) })
+      .where(and(eq(portalOtps.orgId, org.id), eq(portalOtps.phone, phone)));
+    return corsJson({ status: "sms_unavailable" });
   }
 
   return corsJson({ status: "sent", to: maskPhone(phone) });

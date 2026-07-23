@@ -47,6 +47,9 @@ export async function GET(
       code: fulfilled.ok ? fulfilled.code : "",
       // URL de login du hotspot → auto-connexion du téléphone avec le code.
       loginUrl: fulfilled.ok ? await buildRouterLoginUrl(order.routerId) : null,
+      // false ⇒ le code n'est PAS parti par SMS (crédit épuisé…) : l'écran est
+      // la seule trace, l'UI insiste sur la copie du code.
+      smsSent: fulfilled.ok ? fulfilled.smsSent : false,
     });
   }
   if (order.status === "failed") {
@@ -94,6 +97,7 @@ export async function GET(
       status: "fulfilled",
       code: result.code,
       loginUrl: await buildRouterLoginUrl(order.routerId),
+      smsSent: result.smsSent,
     });
   }
   // Échec transitoire (routeur hors-ligne) ou traitement concurrent : le portail

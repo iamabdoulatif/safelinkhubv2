@@ -390,6 +390,22 @@ const PORTAL_PAY_SCRIPT = `(function(){
   // Un échec fetch bas-niveau (walled-garden qui bloque safelinkhub.io, coupure
   // réseau) remonte "Load failed" / "Failed to fetch" : message clair au client.
   function errMsg(err){ var m = err && err.message ? String(err.message) : ""; if(!m || /load failed|failed to fetch|networkerror|network request failed/i.test(m)) return "Connexion au serveur impossible. Restez sur le portail WiFi et reessayez."; return m; }
+  // Copie dans le presse-papiers. Le portail est servi en HTTP (contexte non
+  // securise) : navigator.clipboard est indisponible -> execCommand d abord.
+  function copyText(t){
+    var ok = false;
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = t; ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;left:-9999px;top:0;";
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, 99999);
+      ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch(e){}
+    if(!ok && navigator.clipboard && navigator.clipboard.writeText){ try { navigator.clipboard.writeText(t); ok = true; } catch(e2){} }
+    return ok;
+  }
 
   var lastSel = null; // dernier forfait choisi (carte tapée OU bouton Acheter)
   function planFromBtn(b){ return { packageId: b.getAttribute("data-package-id"), plan: b.getAttribute("data-plan") || "ce forfait", price: b.getAttribute("data-price") || "" }; }
@@ -487,12 +503,12 @@ const PORTAL_PAY_SCRIPT = `(function(){
       +   '<button id="slh-otp-resend" type="button" style="background:none;border:0;color:#0ea5e9;font-size:.8rem;padding:0;">Renvoyer le code</button>'
       + '</div>'
       + '<div data-step="pay" style="display:none;">'
-      +   '<p style="margin:0 0 12px;font-size:.9rem;">Num&eacute;ro v&eacute;rifi&eacute;. Appuyez sur <b>Payer</b> pour choisir votre moyen de paiement (Wave, Orange, MTN, carte).</p>'
+      +   '<p id="slh-pay-note" style="margin:0 0 12px;font-size:.9rem;">Num&eacute;ro v&eacute;rifi&eacute;. Appuyez sur <b>Payer</b> pour choisir votre moyen de paiement (Wave, Orange, MTN, carte).</p>'
       + '</div>'
       + '<div data-step="done" style="display:none;text-align:center;">'
       +   '<p style="margin:0 0 6px;font-size:.85rem;color:#64748b;">Votre code d&#39;acc&egrave;s WiFi</p>'
-      +   '<div id="slh-code" style="font-size:1.8rem;font-weight:700;letter-spacing:.15em;">------</div>'
-      +   '<p style="margin:8px 0 0;font-size:.72rem;color:#94a3b8;">Envoy&eacute; aussi par SMS. Connexion en cours&hellip;</p>'
+      +   '<div id="slh-code" style="font-size:1.8rem;font-weight:700;letter-spacing:.15em;cursor:pointer;" title="Toucher pour copier">------</div>'
+      +   '<p style="margin:8px 0 0;font-size:.72rem;color:#94a3b8;">Touchez le code pour le copier. Connexion en cours&hellip;</p>'
       + '</div>'
       + '<div id="slh-status" style="display:none;font-size:.85rem;margin:12px 0 0;"></div>'
       + '<div style="display:flex;gap:8px;margin-top:16px;">'
@@ -511,6 +527,17 @@ const PORTAL_PAY_SCRIPT = `(function(){
     var resend = document.getElementById("slh-otp-resend");
     var cdTimer = null;
     setTimeout(function(){ if(phoneEl) phoneEl.focus(); }, 100);
+
+    // Ticket cliquable : touche le code affiche -> copie dans le presse-papiers.
+    var codeEl = document.getElementById("slh-code");
+    if(codeEl){
+      codeEl.addEventListener("click", function(){
+        var t = (codeEl.textContent || "").replace(/[^0-9a-zA-Z-]/g, "");
+        if(!t || t === "------") return;
+        if(copyText(t)) setStatus("Code copié !", "#10b981");
+        else setStatus("Copie impossible — notez le code.", "#b45309");
+      });
+    }
 
     function setStatus(m,c){ if(!m){ statusEl.style.display="none"; return; } statusEl.style.display="block"; statusEl.style.color = c || "#64748b"; statusEl.textContent = m; }
     function localPhone(){ return digits(phoneEl.value); }
@@ -554,6 +581,14 @@ const PORTAL_PAY_SCRIPT = `(function(){
           primary.disabled = false;
           if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Envoi impossible.");
           if(res.j.status === "verified"){ setStatus(""); show("pay"); return; }
+          // Credit SMS du point de vente epuise (ou passerelle en panne) : le
+          // serveur autorise la vente sans verification -> on saute l etape
+          // code et le ticket s affichera a l ecran apres le paiement.
+          if(res.j.status === "sms_unavailable"){
+            var note = document.getElementById("slh-pay-note");
+            if(note) note.textContent = "Vérification SMS momentanément indisponible. Payez normalement : votre code d'accès s'affichera à l'écran après le paiement.";
+            setStatus(""); show("pay"); return;
+          }
           var to = document.getElementById("slh-otp-to"); if(to) to.textContent = res.j.to || "";
           setStatus(""); show("otp"); startCooldown();
         })

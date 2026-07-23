@@ -53,6 +53,10 @@ export default function PaidStatus({
   const [phase, setPhase] = useState<Phase>(isError ? "failed" : canPoll ? "loading" : "processing");
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
+  // false ⇒ le SMS de secours n'est pas parti (crédit SMS du point de vente
+  // épuisé…) : l'écran est la seule trace du code, on insiste sur la copie.
+  const [smsSent, setSmsSent] = useState(true);
+  const [copied, setCopied] = useState(false);
   // URL de login du hotspot du routeur (renvoyée par /status à l'honneur) →
   // bouton d'auto-connexion. null quand le routeur n'a pas d'instantané
   // exploitable : on n'affiche alors que la saisie manuelle du code.
@@ -77,11 +81,13 @@ export default function PaidStatus({
           code?: string;
           error?: string;
           loginUrl?: string | null;
+          smsSent?: boolean;
         };
         if (!active) return;
         if (data.status === "fulfilled") {
           if (data.code) setCode(data.code);
           if (data.loginUrl) setLoginUrl(data.loginUrl);
+          if (data.smsSent === false) setSmsSent(false);
           setPhase("fulfilled");
           return;
         }
@@ -105,6 +111,37 @@ export default function PaidStatus({
       clearTimeout(timer);
     };
   }, [canPoll, orderId, slug]);
+
+  // Copie du code au toucher. clipboard API (contexte https) avec repli
+  // execCommand pour les mini-navigateurs captifs qui ne l'exposent pas.
+  function copyCode() {
+    if (!code) return;
+    const done = () => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(code).then(done).catch(() => fallbackCopy(code) && done());
+    } else if (fallbackCopy(code)) {
+      done();
+    }
+  }
+  function fallbackCopy(text: string): boolean {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;left:-9999px;top:0;";
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, 99999);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
 
   // Auto-connexion : le téléphone (encore sur le WiFi captif) navigue vers le
   // login du hotspot avec le code en identifiant + mot de passe (bouton
@@ -179,8 +216,13 @@ export default function PaidStatus({
             >
               Votre code WiFi
             </p>
-            <div
+            <button
+              type="button"
+              onClick={copyCode}
+              title="Toucher pour copier"
               style={{
+                display: "block",
+                width: "100%",
                 fontSize: "2rem",
                 fontWeight: 700,
                 fontFamily: MONO,
@@ -189,11 +231,22 @@ export default function PaidStatus({
                 background: CLAY,
                 border: `2px solid ${INK}`,
                 padding: "10px 8px",
-                margin: "0 0 12px",
+                margin: "0 0 4px",
+                cursor: "pointer",
               }}
             >
               {code || "…"}
-            </div>
+            </button>
+            <p
+              style={{
+                color: copied ? OK : INK_SOFT,
+                fontSize: ".78rem",
+                fontFamily: MONO,
+                margin: "0 0 12px",
+              }}
+            >
+              {copied ? "Code copié !" : "Touchez le code pour le copier"}
+            </p>
             {loginUrl && code ? (
               <>
                 {countdown !== null && (
@@ -227,13 +280,23 @@ export default function PaidStatus({
                 </button>
                 <p style={{ color: INK_SOFT, fontSize: ".82rem", margin: 0 }}>
                   Ça ne marche pas ? Retournez sur le portail WiFi (onglet <b>Code</b>) et
-                  saisissez ce code. Il vous a aussi été envoyé par <b>SMS</b>.
+                  saisissez ce code.{" "}
+                  {smsSent ? (
+                    <>Il vous a aussi été envoyé par <b>SMS</b>.</>
+                  ) : (
+                    <b>Copiez ou notez bien ce code : l&rsquo;envoi par SMS est indisponible.</b>
+                  )}
                 </p>
               </>
             ) : (
               <p style={{ color: INK_SOFT, fontSize: ".92rem", margin: 0 }}>
                 Retournez sur le portail WiFi (onglet <b>Code</b>) et saisissez ce code pour vous
-                connecter. Il vous a aussi été envoyé par <b>SMS</b>.
+                connecter.{" "}
+                {smsSent ? (
+                  <>Il vous a aussi été envoyé par <b>SMS</b>.</>
+                ) : (
+                  <b>Copiez ou notez bien ce code : l&rsquo;envoi par SMS est indisponible.</b>
+                )}
               </p>
             )}
           </>

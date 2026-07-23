@@ -9,7 +9,11 @@ import { smsGateways } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/mikrotik/crypto";
 import { sendWassoyaSms, type SendSmsResult } from "./wassoya";
 
-export type OrgSmsResult = SendSmsResult;
+// `notConfigured` distingue « l'org n'a pas de passerelle SMS utilisable »
+// (config absente → vente au portail bloquée, décision produit) d'un échec
+// d'ENVOI sur une passerelle configurée (solde épuisé, API en panne) — cas où
+// le portail bascule en repli « code affiché à l'écran » au lieu de bloquer.
+export type OrgSmsResult = SendSmsResult & { notConfigured?: boolean };
 
 /**
  * Envoie un SMS pour le compte d'une org.
@@ -36,17 +40,17 @@ export async function sendOrgSms(params: {
     .limit(1);
 
   if (!gateway) {
-    return { ok: false, error: "Aucune passerelle SMS activée." };
+    return { ok: false, error: "Aucune passerelle SMS activée.", notConfigured: true };
   }
   if (!gateway.apiKeyEncrypted) {
-    return { ok: false, error: "Clé API SMS manquante." };
+    return { ok: false, error: "Clé API SMS manquante.", notConfigured: true };
   }
 
   let apiKey: string;
   try {
     apiKey = decryptSecret(gateway.apiKeyEncrypted);
   } catch {
-    return { ok: false, error: "Impossible de déchiffrer la clé API SMS." };
+    return { ok: false, error: "Impossible de déchiffrer la clé API SMS.", notConfigured: true };
   }
 
   return sendWassoyaSms({
