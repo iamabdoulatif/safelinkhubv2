@@ -5,7 +5,7 @@
 // `payment.success`. Ce module vérifie donc périodiquement GeniusPay, puis
 // rejoue l'honneur et les SMS échoués de façon idempotente.
 
-import { and, asc, eq, gte, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, ne } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { portalOrders } from "@/lib/db/schema";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
@@ -14,6 +14,12 @@ import { fulfillPortalOrder } from "@/lib/portal/fulfill";
 const MAX_PAYMENT_CHECKS_PER_RUN = 30;
 const MAX_SMS_RETRIES_PER_RUN = 30;
 const ORDER_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
+// Un checkout GeniusPay expire en ~1 h (champ expires_at). Une commande restée
+// `pending` bien au-delà ne sera jamais payée : on la clôt pour qu'elle cesse
+// de consommer le budget de vérification par run (sinon les vieilles tentatives
+// abandonnées saturent le plafond, ordre le plus ancien d'abord, et les
+// commandes RÉCEMMENT payées ne sont jamais atteintes — bug vécu le 23/07).
+const PENDING_EXPIRY_MS = 3 * 60 * 60 * 1000;
 
 export type PortalReconcileResult = {
   paymentsChecked: number;
@@ -38,7 +44,12 @@ export async function reconcilePortalOrders(): Promise<PortalReconcileResult> {
     errors: [],
   };
   const since = new Date(Date.now() - ORDER_LOOKBACK_MS);
+  const expiryCutoff = new Date(Date.now() - PENDING_EXPIRY_MS);
 
+  // Commandes à vérifier : les PLUS RÉCENTES d'abord (desc) — une commande tout
+  // juste payée doit toujours être atteinte, même quand de vieilles tentatives
+  // abandonnées s'accumulent (avant, l'ordre `asc` + le plafond faisaient que
+  // les commandes récemment payées n'étaient jamais atteintes — bug du 23/07).
   const candidates = await db
     .select()
     .from(portalOrders)
@@ -48,7 +59,7 @@ export async function reconcilePortalOrders(): Promise<PortalReconcileResult> {
         gte(portalOrders.createdAt, since),
       ),
     )
-    .orderBy(asc(portalOrders.createdAt))
+    .orderBy(desc(portalOrders.createdAt))
     .limit(MAX_PAYMENT_CHECKS_PER_RUN);
 
   for (const order of candidates) {
@@ -75,7 +86,19 @@ export async function reconcilePortalOrders(): Promise<PortalReconcileResult> {
         continue;
       }
       if (payment.status !== "completed") {
-        result.stillPending += 1;
+        // GeniusPay confirme « non payé » ET la commande est plus vieille que
+        // l'expiration d'un checkout : elle ne se paiera jamais → on la clôt
+        // pour libérer le budget de vérification (sûr : la non-complétion vient
+        // de l'API, on ne clôt jamais un paiement réellement passé).
+        if (order.createdAt < expiryCutoff) {
+          await db
+            .update(portalOrders)
+            .set({ status: "failed", failureReason: "Paiement non finalisé (expiré)." })
+            .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "pending")));
+          result.paymentsFailed += 1;
+        } else {
+          result.stillPending += 1;
+        }
         continue;
       }
 
