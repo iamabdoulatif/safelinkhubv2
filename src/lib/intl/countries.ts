@@ -65,6 +65,31 @@ export function findCountry(iso2: string): Country | undefined {
   return COUNTRIES.find((c) => c.iso2 === iso2);
 }
 
+/** Pays dont l'indicatif est exactement `dialCode` (ex. "+224" → Guinée). */
+export function findCountryByDial(dialCode: string): Country | undefined {
+  const d = dialCode.trim();
+  if (!d || d === "+") return undefined;
+  return COUNTRIES.find((c) => c.dialCode === d);
+}
+
+/**
+ * Pays correspondant au préfixe d'un numéro international en chiffres
+ * (ex. "224622000000" → Guinée). Préfixe le plus long d'abord ("+2250…" ne
+ * doit pas matcher un indicatif plus court par accident).
+ */
+export function countryForIntlPhone(intlDigits: string): Country | undefined {
+  let best: Country | undefined;
+  let bestLen = 0;
+  for (const c of COUNTRIES) {
+    const d = c.dialCode.replace(/[^0-9]/g, "");
+    if (d && intlDigits.startsWith(d) && d.length > bestLen) {
+      best = c;
+      bestLen = d.length;
+    }
+  }
+  return best;
+}
+
 const REGIONAL_INDICATOR_OFFSET = 0x1f1e6 - "A".charCodeAt(0);
 
 /** Computed from the ISO2 code so every entry gets a flag without hardcoding emoji. */

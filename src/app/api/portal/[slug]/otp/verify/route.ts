@@ -7,7 +7,7 @@ import { getDb } from "@/lib/db";
 import { organizations, portalOtps } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgDial } from "@/lib/portal/org-dial";
-import { OTP_MAX_ATTEMPTS, hashOtpCode, toInternational } from "@/lib/portal/otp";
+import { OTP_MAX_ATTEMPTS, hashOtpCode, sanitizeClientDial, toInternational } from "@/lib/portal/otp";
 
 export function OPTIONS() {
   return corsPreflight();
@@ -34,7 +34,8 @@ export async function POST(
     .limit(1);
   if (!org) return corsJson({ verified: false, error: "Organisation inconnue." }, { status: 404 });
 
-  const { dialCode } = await getOrgDial(org.id);
+  const { dialCode: orgDial } = await getOrgDial(org.id);
+  const dialCode = sanitizeClientDial(body.dialCode, orgDial);
   const phone = toInternational(String(body.phone ?? ""), dialCode);
   const code = String(body.code ?? "").replace(/[^0-9]/g, "");
   if (phone.length < 8 || !code) {

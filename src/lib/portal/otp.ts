@@ -4,7 +4,7 @@
 // Module serveur uniquement (crypto Node).
 
 import { createHash, randomInt } from "node:crypto";
-import { findCountry } from "@/lib/intl/countries";
+import { findCountry, findCountryByDial } from "@/lib/intl/countries";
 
 /** Validité du code envoyé par SMS. */
 export const OTP_TTL_MS = 5 * 60 * 1000;
@@ -50,6 +50,20 @@ export function resolveDialCode(
  * déjà l'indicatif, on ne le double pas. Sans indicatif connu, on renvoie le
  * numéro tel quel.
  */
+/**
+ * Indicatif choisi par le CLIENT sur le portail captif (sélecteur de pays :
+ * un client camerounais ou guinéen chez un hotspot ivoirien choisit SON pays,
+ * l'OTP et le SMS du ticket partent alors vers +237/+224…). Validé contre le
+ * catalogue de pays ; toute valeur absente ou inconnue retombe sur l'indicatif
+ * de l'org (comportement historique).
+ */
+export function sanitizeClientDial(raw: unknown, orgDial: string): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return orgDial;
+  const norm = s.startsWith("+") ? "+" + s.slice(1).replace(/[^0-9]/g, "") : "+" + s.replace(/[^0-9]/g, "");
+  return findCountryByDial(norm) ? norm : orgDial;
+}
+
 export function toInternational(localRaw: string, dialCode: string): string {
   const local = localRaw.replace(/[^0-9]/g, "");
   const dial = dialCode.replace(/[^0-9]/g, "");

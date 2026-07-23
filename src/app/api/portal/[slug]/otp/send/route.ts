@@ -20,6 +20,7 @@ import {
   OTP_RESEND_COOLDOWN_MS,
   generateOtpCode,
   hashOtpCode,
+  sanitizeClientDial,
   toInternational,
   maskPhone,
 } from "@/lib/portal/otp";
@@ -49,7 +50,10 @@ export async function POST(
     .limit(1);
   if (!org) return corsJson({ error: "Organisation inconnue." }, { status: 404 });
 
-  const { dialCode } = await getOrgDial(org.id);
+  // Le portail envoie l'indicatif choisi par le client (sélecteur de pays) ;
+  // repli sur celui de l'org pour les portails non ré-uploadés.
+  const { dialCode: orgDial } = await getOrgDial(org.id);
+  const dialCode = sanitizeClientDial(body.dialCode, orgDial);
   const phone = toInternational(String(body.phone ?? ""), dialCode);
   if (phone.length < 8) return corsJson({ error: "Numéro invalide." }, { status: 400 });
 

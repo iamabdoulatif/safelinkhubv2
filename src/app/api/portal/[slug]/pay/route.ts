@@ -13,6 +13,7 @@ import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
 import { getOrgDial } from "@/lib/portal/org-dial";
+import { countryForIntlPhone } from "@/lib/intl/countries";
 
 // Le portail expose deux choix : "wave" = rail direct pay.wave.com (rapide,
 // fiable en mini-navigateur captif) ; "hosted" = on OMET payment_method →
@@ -90,9 +91,12 @@ export async function POST(
   }
   // Le pays est transmis explicitement à GeniusPay : ne pas laisser son
   // auto-détection deviner un mauvais pays à partir d'un numéro sans « + ».
-  // On le résout AVANT le claim pour qu'une erreur DB ne laisse pas la commande
-  // bloquée en payment_initiating.
-  const { iso2 } = await getOrgDial(org.id);
+  // Priorité au pays du NUMÉRO du client (sélecteur de pays du portail : un
+  // client guinéen/camerounais paie avec son propre pays), repli sur celui de
+  // l'org. Résolu AVANT le claim pour qu'une erreur DB ne laisse pas la
+  // commande bloquée en payment_initiating.
+  const phoneCountry = countryForIntlPhone(order.phone.replace(/[^0-9]/g, ""));
+  const iso2 = phoneCountry?.iso2 ?? (await getOrgDial(org.id)).iso2;
 
   const [claim] = await db
     .update(portalOrders)

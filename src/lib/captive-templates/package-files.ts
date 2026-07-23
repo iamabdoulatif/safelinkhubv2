@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import path from "path";
-import { countryFlag } from "../intl/countries";
+import { COUNTRIES, countryFlag } from "../intl/countries";
 
 export type PackageFile = {
   path: string;
@@ -483,6 +483,21 @@ const PORTAL_PAY_SCRIPT = `(function(){
     var dial = cfg.dialCode || "";
     var flag = cfg.flag || "";
     var prefix = (flag ? flag + " " : "") + dial;
+    // Selecteur de pays (client etranger : camerounais, guineen...) — l indicatif
+    // choisi part avec chaque requete. Repli : prefixe statique de l org si la
+    // config injectee ne porte pas la liste (portail pas encore re-uploade).
+    var countries = cfg.countries || [];
+    function dialOptions(){
+      var h = "";
+      for(var i=0;i<countries.length;i++){
+        var c = countries[i];
+        h += '<option value="' + esc(c.d) + '"' + (c.d === dial ? " selected" : "") + '>' + esc((c.f ? c.f + " " : "") + c.d) + '</option>';
+      }
+      return h;
+    }
+    var dialField = countries.length
+      ? '<select id="slh-dial" title="Pays du num&eacute;ro" style="max-width:118px;padding:0 6px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;font-size:.95rem;">' + dialOptions() + '</select>'
+      : (prefix ? '<span style="display:flex;align-items:center;padding:0 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;font-size:.95rem;white-space:nowrap;">' + esc(prefix) + '</span>' : '');
     var o = document.createElement("div");
     o.id = "slh-pay-modal";
     o.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;";
@@ -492,7 +507,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       + '<div data-step="phone">'
       +   '<label style="display:block;font-size:.8rem;margin-bottom:6px;">Votre num&eacute;ro</label>'
       +   '<div style="display:flex;gap:6px;margin-bottom:6px;">'
-      +     (prefix ? '<span style="display:flex;align-items:center;padding:0 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;font-size:.95rem;white-space:nowrap;">' + esc(prefix) + '</span>' : '')
+      +     dialField
       +     '<input id="slh-phone" type="tel" inputmode="numeric" placeholder="07 00 00 00 00" autocomplete="tel" style="flex:1;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;" />'
       +   '</div>'
       +   '<p style="margin:0 0 12px;font-size:.72rem;color:#94a3b8;">Premier achat : un code de v&eacute;rification vous sera envoy&eacute; par SMS. Ensuite, plus jamais de code &mdash; paiement direct.</p>'
@@ -541,6 +556,8 @@ const PORTAL_PAY_SCRIPT = `(function(){
 
     function setStatus(m,c){ if(!m){ statusEl.style.display="none"; return; } statusEl.style.display="block"; statusEl.style.color = c || "#64748b"; statusEl.textContent = m; }
     function localPhone(){ return digits(phoneEl.value); }
+    // Indicatif effectif : le pays choisi dans le selecteur, sinon celui de l org.
+    function selDial(){ var s = document.getElementById("slh-dial"); return (s && s.value) ? s.value : dial; }
     function show(name){
       step = name;
       var steps = o.querySelectorAll("[data-step]");
@@ -575,7 +592,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       if(lp.length < 7){ setStatus("Numéro invalide.", "#ef4444"); return; }
       primary.disabled = true;
       setStatus(isResend ? "Renvoi du code..." : "Envoi du code...");
-      fetch(api("/otp/send"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: lp }) })
+      fetch(api("/otp/send"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: lp, dialCode: selDial() }) })
         .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
         .then(function(res){
           primary.disabled = false;
@@ -599,7 +616,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       var code = digits(otpEl.value);
       if(code.length < 4){ setStatus("Entrez le code reçu.", "#ef4444"); return; }
       primary.disabled = true; setStatus("Vérification...");
-      fetch(api("/otp/verify"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: localPhone(), code: code }) })
+      fetch(api("/otp/verify"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: localPhone(), code: code, dialCode: selDial() }) })
         .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
         .then(function(res){
           primary.disabled = false;
@@ -612,7 +629,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
 
     function startPayment(){
       primary.disabled = true; primary.textContent = "Traitement..."; setStatus("Création du paiement...");
-      fetch(api("/initiate"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ packageId: sel.packageId, phone: localPhone(), mac: cfg.mac, routerId: cfg.routerId || "" }) })
+      fetch(api("/initiate"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ packageId: sel.packageId, phone: localPhone(), mac: cfg.mac, routerId: cfg.routerId || "", dialCode: selDial() }) })
         .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
         .then(function(res){
           if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Echec du paiement.");
@@ -723,6 +740,14 @@ function portalPayInjection(vars: PackageBrandingVars): string {
     dialCode: vars.dialCode ?? "",
     iso2,
     flag: iso2 ? countryFlag(iso2) : "",
+    // Sélecteur de pays du client : un voyageur camerounais/guinéen choisit SON
+    // indicatif, l'OTP et le SMS du ticket partent vers son numéro. d=indicatif,
+    // f=drapeau, n=nom. "XX" (indicatif libre) exclu du sélecteur.
+    countries: COUNTRIES.filter((c) => c.iso2 !== "XX").map((c) => ({
+      d: c.dialCode,
+      f: countryFlag(c.iso2),
+      n: c.name,
+    })),
   });
   // SLH_PLANS : forfaits de l'org injectés en JSON pour l'overlay de paiement
   // (bouton flottant + sélecteur) des portails ÉTRANGERS sans bouton de forfait.

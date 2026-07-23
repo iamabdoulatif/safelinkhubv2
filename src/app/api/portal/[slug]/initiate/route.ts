@@ -16,7 +16,7 @@ import { packageProfileName } from "@/lib/mikrotik/package-voucher-profile";
 import { normalizeMac } from "@/lib/portal/fulfill";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgDial } from "@/lib/portal/org-dial";
-import { toInternational } from "@/lib/portal/otp";
+import { sanitizeClientDial, toInternational } from "@/lib/portal/otp";
 import { getOrgGeniusCreds, ensureOrgWebhook } from "@/lib/payment-gateways/geniuspay-org";
 
 function appUrl(): string {
@@ -56,9 +56,10 @@ export async function POST(
     .limit(1);
   if (!org) return corsJson({ error: "Organisation inconnue." }, { status: 404 });
 
-  // Numéro international reconstitué depuis l'indicatif de l'org (le portail
-  // n'envoie que le numéro local saisi).
-  const { dialCode } = await getOrgDial(org.id);
+  // Numéro international reconstitué depuis l'indicatif choisi par le client
+  // au portail (sélecteur de pays), repli sur celui de l'org.
+  const { dialCode: orgDial } = await getOrgDial(org.id);
+  const dialCode = sanitizeClientDial(body.dialCode, orgDial);
   const phone = toInternational(String(body.phone ?? ""), dialCode);
   if (phone.length < 8) return corsJson({ error: "Numéro invalide." }, { status: 400 });
 
