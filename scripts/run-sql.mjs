@@ -1,7 +1,7 @@
-// Applique un fichier .sql sur la base Neon (DATABASE_URL). Usage :
+// Applique un fichier .sql sur la base (DATABASE_URL — Postgres VPS ou Neon). Usage :
 //   node --env-file=.env.local scripts/run-sql.mjs scripts/xxx.sql
 import { readFileSync } from "node:fs";
-import { neon } from "@neondatabase/serverless";
+import pg from "pg";
 
 const file = process.argv[2];
 if (!file) {
@@ -14,7 +14,8 @@ if (!url) {
   process.exit(1);
 }
 
-const sql = neon(url);
+const client = new pg.Client({ connectionString: url });
+await client.connect();
 const raw = readFileSync(file, "utf8");
 // Découpe naïve sur ';' — suffisant pour ces migrations (aucun ';' littéral).
 const statements = raw
@@ -22,9 +23,13 @@ const statements = raw
   .map((s) => s.replace(/--[^\n]*/g, "").trim())
   .filter(Boolean);
 
-for (const [i, stmt] of statements.entries()) {
-  console.log(`\n[${i + 1}/${statements.length}] ${stmt.slice(0, 80)}...`);
-  await sql.query(stmt);
-  console.log("  OK");
+try {
+  for (const [i, stmt] of statements.entries()) {
+    console.log(`\n[${i + 1}/${statements.length}] ${stmt.slice(0, 80)}...`);
+    await client.query(stmt);
+    console.log("  OK");
+  }
+  console.log("\n✅ Migration appliquée.");
+} finally {
+  await client.end();
 }
-console.log("\n✅ Migration appliquée.");

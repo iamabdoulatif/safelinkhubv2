@@ -1,13 +1,13 @@
 // Trois articles d'exemple pour le blog public — idempotent : un article
 // n'est réinséré que si son slug n'existe pas déjà.
 // Usage : node --env-file=.env.local scripts/seed-blog-posts.ts
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import * as schema from "../src/lib/db/schema.ts";
 
-const sql = neon(process.env.DATABASE_URL!);
-const db = drizzle(sql, { schema });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+const db = drizzle(pool, { schema });
 
 const posts = [
   {

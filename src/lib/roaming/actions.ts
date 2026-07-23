@@ -303,7 +303,10 @@ export async function generateRoamingVouchers(_prevState: unknown, formData: For
         status: "PROVISIONED" as const,
       })),
     );
-    await db.batch([db.insert(vouchers).values(voucherRows), db.insert(voucherRouters).values(links)]);
+    await db.transaction(async (tx) => {
+      await tx.insert(vouchers).values(voucherRows);
+      await tx.insert(voucherRouters).values(links);
+    });
     refreshRoamingPages();
     return { success: true, created: codeList.length };
   } catch (error) {

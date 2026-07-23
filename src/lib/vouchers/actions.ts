@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import type { BatchItem } from "drizzle-orm/batch";
 import { getDb } from "@/lib/db";
 import { packages, vouchers, voucherRouters, routers } from "@/lib/db/schema";
 import { requireAdminSession } from "@/lib/auth/session";
@@ -165,9 +164,9 @@ export async function generateVouchers(_prevState: unknown, formData: FormData) 
   // N'enregistre que les codes créés sur au moins un routeur.
   const created = codeList.filter((c) => (createdOn.get(c)?.length ?? 0) > 0);
   if (created.length > 0) {
-    // neon-http ne gère pas les transactions interactives. On pré-génère les
-    // UUID des vouchers pour construire les liens de zone sans dépendre d'un
-    // RETURNING, puis db.batch() exécute les deux INSERT de façon atomique.
+    // On pré-génère les UUID des vouchers pour construire les liens de zone
+    // sans dépendre d'un RETURNING, puis une transaction exécute les deux
+    // INSERT de façon atomique.
     const voucherRows = created.map((code) => ({
       id: randomUUID(),
       orgId: session.orgId,
@@ -191,10 +190,10 @@ export async function generateVouchers(_prevState: unknown, formData: FormData) 
     );
 
     if (links.length > 0) {
-      await db.batch([
-        db.insert(vouchers).values(voucherRows),
-        db.insert(voucherRouters).values(links),
-      ]);
+      await db.transaction(async (tx) => {
+        await tx.insert(vouchers).values(voucherRows);
+        await tx.insert(voucherRouters).values(links);
+      });
     } else {
       await db.insert(vouchers).values(voucherRows);
     }
@@ -404,14 +403,13 @@ export async function importCsvTickets(_prevState: unknown, formData: FormData) 
         };
       });
 
-    const operations: BatchItem<"pg">[] = [
-      db
+    await db.transaction(async (tx) => {
+      await tx
         .update(vouchers)
         .set({ deletedAt: null })
-        .where(and(eq(vouchers.orgId, session.orgId), inArray(vouchers.id, archivedIds))),
-    ];
-    if (linksToAdd.length > 0) operations.push(db.insert(voucherRouters).values(linksToAdd));
-    await db.batch(operations as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+        .where(and(eq(vouchers.orgId, session.orgId), inArray(vouchers.id, archivedIds)));
+      if (linksToAdd.length > 0) await tx.insert(voucherRouters).values(linksToAdd);
+    });
     revalidatePath("/admin/vouchers");
   }
 
@@ -434,10 +432,10 @@ export async function importCsvTickets(_prevState: unknown, formData: FormData) 
       profileName: voucher.profileName,
       status: "PROVISIONED" as const,
     }));
-    await db.batch([
-      db.insert(vouchers).values(voucherRows),
-      db.insert(voucherRouters).values(links),
-    ]);
+    await db.transaction(async (tx) => {
+      await tx.insert(vouchers).values(voucherRows);
+      await tx.insert(voucherRouters).values(links);
+    });
     revalidatePath("/admin/vouchers");
   }
 
@@ -591,9 +589,10 @@ export async function importMikhmonTickets(_prevState: unknown, formData: FormDa
   let imported = 0;
   let adopted = 0;
   if (createBatch.length > 0 || linksToAdd.length > 0) {
-    // neon-http : pas de transaction interactive. On pré-génère les UUID et on
-    // regroupe tous les INSERT dans un db.batch() atomique (un seul aller-retour).
-    const ops: BatchItem<"pg">[] = [];
+    // On pré-génère les UUID et on regroupe tous les INSERT dans une
+    // transaction atomique.
+    let voucherRowsToInsert: (typeof vouchers.$inferInsert)[] = [];
+    let newLinksToInsert: (typeof voucherRouters.$inferInsert)[] = [];
 
     if (createBatch.length > 0) {
       const newVouchers = createBatch.map(({ name, scanned }) => {
@@ -621,9 +620,9 @@ export async function importMikhmonTickets(_prevState: unknown, formData: FormDa
         };
       });
       imported = newVouchers.length;
-      ops.push(db.insert(vouchers).values(newVouchers.map((v) => v.row)));
+      voucherRowsToInsert = newVouchers.map((v) => v.row);
 
-      const newLinks = newVouchers.flatMap(({ row, scanned }) =>
+      newLinksToInsert = newVouchers.flatMap(({ row, scanned }) =>
         scanned.routerIds.map((routerId) => ({
           orgId: session.orgId,
           voucherId: row.id,
@@ -632,25 +631,25 @@ export async function importMikhmonTickets(_prevState: unknown, formData: FormDa
           status: "PROVISIONED" as const,
         })),
       );
-      if (newLinks.length > 0) ops.push(db.insert(voucherRouters).values(newLinks));
     }
 
-    if (linksToAdd.length > 0) {
-      ops.push(
-        db.insert(voucherRouters).values(
-          linksToAdd.map((l) => ({
+    const adoptedLinks =
+      linksToAdd.length > 0
+        ? linksToAdd.map((l) => ({
             orgId: session.orgId,
             voucherId: l.voucherId,
             routerId: l.routerId,
             status: "PROVISIONED" as const,
-          })),
-        ),
-      );
-      adopted = linksToAdd.length;
-    }
+          }))
+        : [];
+    adopted = adoptedLinks.length;
 
-    if (ops.length > 0) {
-      await db.batch(ops as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
+    if (voucherRowsToInsert.length > 0 || newLinksToInsert.length > 0 || adoptedLinks.length > 0) {
+      await db.transaction(async (tx) => {
+        if (voucherRowsToInsert.length > 0) await tx.insert(vouchers).values(voucherRowsToInsert);
+        if (newLinksToInsert.length > 0) await tx.insert(voucherRouters).values(newLinksToInsert);
+        if (adoptedLinks.length > 0) await tx.insert(voucherRouters).values(adoptedLinks);
+      });
     }
     revalidatePath("/admin/vouchers");
   }
