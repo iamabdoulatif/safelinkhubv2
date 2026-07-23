@@ -8,8 +8,9 @@ import { findCountry } from "@/lib/intl/countries";
 
 /** Validité du code envoyé par SMS. */
 export const OTP_TTL_MS = 5 * 60 * 1000;
-/** Durée pendant laquelle une vérification réussie est mémorisée (par numéro). */
-export const OTP_VERIFY_TTL_MS = 30 * 60 * 1000;
+// NB : une vérification réussie est mémorisée SANS limite de durée (par org +
+// numéro) — le client ne reçoit un code OTP qu'au premier achat ; les achats
+// suivants vont droit au paiement et seul le SMS du ticket est envoyé.
 /** Anti-spam : délai minimal entre deux envois de code pour un même numéro. */
 export const OTP_RESEND_COOLDOWN_MS = 40 * 1000;
 /** Nombre d'essais de code autorisés avant de devoir en redemander un. */

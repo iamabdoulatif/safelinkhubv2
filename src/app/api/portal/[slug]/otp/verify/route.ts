@@ -7,7 +7,7 @@ import { getDb } from "@/lib/db";
 import { organizations, portalOtps } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgDial } from "@/lib/portal/org-dial";
-import { OTP_VERIFY_TTL_MS, OTP_MAX_ATTEMPTS, hashOtpCode, toInternational } from "@/lib/portal/otp";
+import { OTP_MAX_ATTEMPTS, hashOtpCode, toInternational } from "@/lib/portal/otp";
 
 export function OPTIONS() {
   return corsPreflight();
@@ -51,8 +51,8 @@ export async function POST(
   }
 
   const now = Date.now();
-  // Déjà vérifié dans la fenêtre : idempotent.
-  if (row.verifiedAt && now - row.verifiedAt.getTime() < OTP_VERIFY_TTL_MS) {
+  // Déjà vérifié (mémorisation permanente) : idempotent.
+  if (row.verifiedAt) {
     return corsJson({ verified: true });
   }
   if (row.expiresAt.getTime() < now) {

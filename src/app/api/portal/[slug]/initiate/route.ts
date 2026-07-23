@@ -16,7 +16,7 @@ import { packageProfileName } from "@/lib/mikrotik/package-voucher-profile";
 import { normalizeMac } from "@/lib/portal/fulfill";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgDial } from "@/lib/portal/org-dial";
-import { toInternational, OTP_VERIFY_TTL_MS } from "@/lib/portal/otp";
+import { toInternational } from "@/lib/portal/otp";
 import { getOrgGeniusCreds, ensureOrgWebhook } from "@/lib/payment-gateways/geniuspay-org";
 
 function appUrl(): string {
@@ -62,13 +62,15 @@ export async function POST(
   const phone = toInternational(String(body.phone ?? ""), dialCode);
   if (phone.length < 8) return corsJson({ error: "Numéro invalide." }, { status: 400 });
 
-  // Gate OTP : le numéro doit avoir été vérifié récemment (voir otp/verify).
+  // Gate OTP : le numéro doit avoir été vérifié au moins une fois pour cette
+  // org (mémorisation permanente — voir otp/send). Un numéro jamais vérifié
+  // (nouveau téléphone) doit d'abord passer par le code.
   const [otp] = await db
     .select({ verifiedAt: portalOtps.verifiedAt })
     .from(portalOtps)
     .where(and(eq(portalOtps.orgId, org.id), eq(portalOtps.phone, phone)))
     .limit(1);
-  if (!otp?.verifiedAt || Date.now() - otp.verifiedAt.getTime() > OTP_VERIFY_TTL_MS) {
+  if (!otp?.verifiedAt) {
     return corsJson({ error: "Numéro non vérifié." }, { status: 403 });
   }
 

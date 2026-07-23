@@ -3,9 +3,11 @@
 // (pays où opère le routeur) — le client ne saisit que son numéro local.
 // Aucune session (c'est le client final). Runtime Node (crypto).
 //
-// Décisions produit : (1) une vérification réussie est mémorisée ~30 min → un
-// numéro déjà vérifié renvoie {status:"verified"} sans re-SMS ; (2) SMS
-// OBLIGATOIRE : une org sans passerelle Wassoya ne peut pas vendre au portail.
+// Décisions produit : (1) une vérification réussie est mémorisée SANS limite de
+// durée → un numéro déjà vérifié une fois renvoie {status:"verified"} sans
+// re-SMS, quel que soit l'ancienneté (seul un NOUVEAU numéro reçoit un code) ;
+// (2) une org sans passerelle Wassoya CONFIGURÉE ne peut pas vendre au portail,
+// mais un échec d'ENVOI (solde épuisé…) bascule en repli code-à-l'écran.
 
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
@@ -15,7 +17,6 @@ import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import {
   OTP_TTL_MS,
-  OTP_VERIFY_TTL_MS,
   OTP_RESEND_COOLDOWN_MS,
   generateOtpCode,
   hashOtpCode,
@@ -59,8 +60,10 @@ export async function POST(
     .where(and(eq(portalOtps.orgId, org.id), eq(portalOtps.phone, phone)))
     .limit(1);
 
-  // Déjà vérifié récemment : on ne renvoie pas de SMS (mémorisation ~30 min).
-  if (existing?.verifiedAt && now - existing.verifiedAt.getTime() < OTP_VERIFY_TTL_MS) {
+  // Numéro déjà vérifié une fois (mémorisation permanente par org + numéro) :
+  // aucun re-SMS de code — le client va droit au paiement, seul le SMS du
+  // ticket partira. Un NOUVEAU numéro, lui, passe par le code.
+  if (existing?.verifiedAt) {
     return corsJson({ status: "verified" });
   }
 

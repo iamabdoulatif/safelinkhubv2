@@ -495,7 +495,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       +     (prefix ? '<span style="display:flex;align-items:center;padding:0 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;font-size:.95rem;white-space:nowrap;">' + esc(prefix) + '</span>' : '')
       +     '<input id="slh-phone" type="tel" inputmode="numeric" placeholder="07 00 00 00 00" autocomplete="tel" style="flex:1;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;" />'
       +   '</div>'
-      +   '<p style="margin:0 0 12px;font-size:.72rem;color:#94a3b8;">Un code de v&eacute;rification vous sera envoy&eacute; par SMS.</p>'
+      +   '<p style="margin:0 0 12px;font-size:.72rem;color:#94a3b8;">Premier achat : un code de v&eacute;rification vous sera envoy&eacute; par SMS. Ensuite, plus jamais de code &mdash; paiement direct.</p>'
       + '</div>'
       + '<div data-step="otp" style="display:none;">'
       +   '<p style="margin:0 0 8px;font-size:.85rem;">Entrez le code re&ccedil;u par SMS au <b id="slh-otp-to"></b></p>'
