@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Ban, Check, Gift, TimerReset } from "lucide-react";
 import { createTemporaryAccessGrant, revokeTemporaryAccessGrant } from "@/lib/remote-access/grant-actions";
 import { REMOTE_ACCESS_SERVICES } from "@/lib/billing/remote-access-gate-config";
-import { TEMPORARY_ACCESS_DURATIONS } from "@/lib/remote-access/grants";
+import { TEMPORARY_ACCESS_DURATIONS } from "@/lib/remote-access/grant-durations";
 
 export type Grant = {
   id: string;
