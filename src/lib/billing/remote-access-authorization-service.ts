@@ -215,6 +215,56 @@ export async function approveRemoteAccessPaymentByReference(
   return row ?? null;
 }
 
+/**
+ * Crée une autorisation DÉJÀ APPROUVÉE — utilisée par le paiement « depuis le
+ * solde » (portefeuille FCFA ou Safecoins), débité côté serveur. `paymentMethod`
+ * = "wallet" | "safecoin" (colonne texte libre, comme "geniuspay").
+ */
+export async function createApprovedRemoteAccessAuthorization(input: {
+  orgId: string;
+  userId: string;
+  requesterEmail: string;
+  requesterName: string;
+  routerId: string;
+  routerName: string | null;
+  service: RemoteAccessService;
+  billingPeriod: BillingPeriod;
+  amountFcfa: number;
+  paymentMethod: string;
+  adminNote: string;
+}): Promise<RemoteAccessAuthorizationRow> {
+  const db = getDb();
+  const [row] = await db
+    .insert(remoteAccessAuthorizations)
+    .values({
+      orgId: input.orgId,
+      userId: input.userId,
+      requesterEmail: input.requesterEmail,
+      requesterName: input.requesterName,
+      routerId: input.routerId,
+      routerName: input.routerName,
+      service: input.service,
+      billingPeriod: input.billingPeriod,
+      amountFcfa: input.amountFcfa,
+      paymentMethod: input.paymentMethod,
+      proofUrl: null,
+      status: "approved",
+      decidedAt: new Date(),
+      adminNote: input.adminNote,
+    })
+    .returning();
+  return row;
+}
+
+/** Filet : rejette une autorisation (ex. si le débit du solde échoue après coup). */
+export async function markRemoteAccessAuthorizationRejected(id: string, note: string): Promise<void> {
+  const db = getDb();
+  await db
+    .update(remoteAccessAuthorizations)
+    .set({ status: "rejected", adminNote: note })
+    .where(eq(remoteAccessAuthorizations.id, id));
+}
+
 export async function listRemoteAccessAuthorizations(): Promise<RemoteAccessAuthorizationRow[]> {
   const db = getDb();
   return db
