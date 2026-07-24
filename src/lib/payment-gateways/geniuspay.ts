@@ -10,6 +10,14 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { formatGeniusPayCustomer, type GeniusPayCustomer } from "./phone";
+import {
+  createOrgPayment,
+  getOrgPaymentStatus,
+  listPawapayProviders,
+  pickPawapayProvider,
+  type OrgGeniusCreds,
+  type CreateOrgPaymentInput,
+} from "./geniuspay-org";
 
 const DEFAULT_BASE_URL = "https://pay.genius.ci/api/v1/merchant";
 
@@ -155,4 +163,83 @@ export function verifyGeniusWebhookSignature(params: {
   const b = Buffer.from(signature);
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
+}
+
+// ── Compte PLATEFORME en GeniusPay v3 (geniuspay.ci) ────────────────────────
+// Le portefeuille (facturation) encaisse sur le compte UNIQUE de SafeLinkHub.
+// On réutilise le CŒUR v3 de geniuspay-org.ts (host geniuspay.ci, en-tête
+// Accept: application/json, retry anti-page-SPA, routage PawaPay, enveloppe
+// `data`) avec les clés PLATEFORME lues dans l'env — au lieu de l'ancien
+// `createGeniusPayment` (host pay.genius.ci) encore utilisé par les autres flux
+// plateforme. Les fonctions de geniuspay-org prennent les créds EN PARAMÈTRE :
+// elles marchent donc pour n'importe quel compte, org ou plateforme.
+
+/** Clés plateforme sous la forme attendue par le cœur v3 (créds en paramètre). */
+export function getPlatformGeniusCreds(): OrgGeniusCreds | null {
+  const config = getGeniusPayConfig();
+  if (!config) return null;
+  return { apiKey: config.apiKey, apiSecret: config.apiSecret };
+}
+
+export type PlatformV3PaymentInput = {
+  amountFcfa: number;
+  description: string;
+  customer?: GeniusPayCustomer;
+  metadata?: Record<string, unknown>;
+  successUrl?: string;
+  errorUrl?: string;
+  /** Moyen choisi côté UI : wave | orange_money | mtn_money | moov_money | card. */
+  method?: string;
+  /** Pays ISO2 du payeur (résolution du provider PawaPay). */
+  countryIso2?: string;
+};
+
+/**
+ * Traduit un moyen d'UI en rail GeniusPay v3 : wave → direct, orange/mtn →
+ * PawaPay (mmo_provider résolu par pays), reste (moov/carte/indispo) → checkout
+ * hébergé (payment_method omis). Identique au portail captif (portal/[slug]/pay).
+ */
+async function resolvePlatformRail(
+  creds: OrgGeniusCreds,
+  method: string | undefined,
+  iso2: string | undefined,
+): Promise<{ paymentMethod?: string; mmoProvider?: string }> {
+  if (method === "wave") return { paymentMethod: "wave" };
+  const operator =
+    method === "orange_money" ? "orange" : method === "mtn_money" ? "mtn" : undefined;
+  if (operator && iso2 && iso2 !== "XX") {
+    const provider = pickPawapayProvider(await listPawapayProviders(creds, iso2), operator);
+    if (provider) return { paymentMethod: "pawapay", mmoProvider: provider };
+  }
+  return {}; // checkout hébergé v3
+}
+
+/** Crée un paiement sur le compte PLATEFORME en GeniusPay v3. */
+export async function createPlatformV3Payment(
+  input: PlatformV3PaymentInput,
+): Promise<CreatePaymentResult> {
+  const creds = getPlatformGeniusCreds();
+  if (!creds) return { ok: false, error: "GeniusPay non configuré (clés API manquantes)." };
+  const rail = await resolvePlatformRail(creds, input.method, input.countryIso2);
+  const payload: CreateOrgPaymentInput = {
+    amountFcfa: input.amountFcfa,
+    description: input.description,
+    customer: input.customer,
+    metadata: input.metadata,
+    successUrl: input.successUrl,
+    errorUrl: input.errorUrl,
+    ...rail,
+  };
+  return createOrgPayment(creds, payload);
+}
+
+/**
+ * Statut d'un paiement plateforme v3 — sert à CONFIRMER un dépôt au retour du
+ * checkout (le webhook seul n'est pas fiable sur le host v3, comme pour le
+ * portail qui sonde son statut plutôt que d'attendre une notification).
+ */
+export async function getPlatformV3PaymentStatus(reference: string) {
+  const creds = getPlatformGeniusCreds();
+  if (!creds) return { ok: false as const, error: "GeniusPay non configuré." };
+  return getOrgPaymentStatus(creds, reference);
 }

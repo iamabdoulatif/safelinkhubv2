@@ -105,8 +105,8 @@ export default function WalletTopupModal({
               <form action={onlineAction} className="mt-5 space-y-5">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-ink">Montant à ajouter (FCFA)</label>
-                  <input name="amount" type="number" min={100} max={5000000} step={100} required placeholder="15000" className="w-full rounded-md border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink" />
-                  <p className="mt-1 text-xs text-ink-soft">Minimum 100 FCFA · maximum 5 000 000 FCFA</p>
+                  <input name="amount" type="number" min={200} max={5000000} step={100} required placeholder="15000" className="w-full rounded-md border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink" />
+                  <p className="mt-1 text-xs text-ink-soft">Minimum 200 FCFA · maximum 5 000 000 FCFA</p>
                 </div>
 
                 <fieldset>

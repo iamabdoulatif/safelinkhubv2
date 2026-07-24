@@ -14,6 +14,7 @@ import { isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import { PERIOD_PRICE_CENTS } from "@/lib/mikrotik/billing-plans";
 import WalletTopupModal from "./WalletTopupModal";
+import WalletTopupReturn from "./WalletTopupReturn";
 import SafecoinWalletCard from "./SafecoinWalletCard";
 
 function formatDate(date: Date) {
@@ -60,7 +61,12 @@ function transactionAmountPrefix(transaction: WalletTransaction) {
  * against (see lib/mikrotik/port-forward.ts), and how to reach support to
  * manage anything else manually.
  */
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ topup?: string; transaction?: string }>;
+}) {
+  const { topup, transaction } = await searchParams;
   const session = await getSession();
   const db = getDb();
 
@@ -165,6 +171,12 @@ export default async function BillingPage() {
           {formatFcfa(PERIOD_PRICE_CENTS.yearly)}. Auto-Setup : {formatFcfa(autoSetupFeeCentsFor(true))} avec container,
           {" "}{formatFcfa(autoSetupFeeCentsFor(false))} sans container.
         </p>
+
+        {topup === "success" && transaction ? (
+          <div className="mt-4">
+            <WalletTopupReturn transactionId={transaction} />
+          </div>
+        ) : null}
 
         <p className="mt-4 text-sm font-medium text-ink-soft">Solde actuel</p>
         <p

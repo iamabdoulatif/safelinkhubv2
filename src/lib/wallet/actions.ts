@@ -6,7 +6,11 @@ import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
 import { walletTransactions } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
-import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import {
+  createPlatformV3Payment,
+  getPlatformV3PaymentStatus,
+  isGeniusPayCheckoutEnabled,
+} from "@/lib/payment-gateways/geniuspay";
 import {
   getWalletPaymentMethodLabel,
   isWalletEligibleCountry,
@@ -64,8 +68,9 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
   const amountCents = Math.round(Number(formData.get("amount") ?? 0));
   const paymentMethod = String(formData.get("paymentMethod") ?? "");
   const countryIso2 = String(formData.get("countryIso2") ?? "").toUpperCase();
-  if (!Number.isInteger(amountCents) || amountCents < 100) {
-    return { error: "Le montant minimum est de 100 FCFA." };
+  // Minimum GeniusPay v3 = 200 FCFA (l'API rejette 422 en dessous).
+  if (!Number.isInteger(amountCents) || amountCents < 200) {
+    return { error: "Le montant minimum est de 200 FCFA." };
   }
   if (amountCents > 5_000_000) {
     return { error: "Le montant maximum par dépôt est de 5 000 000 FCFA." };
@@ -95,11 +100,12 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
   const returnUrl = origin
     ? `${origin}/admin/billing?topup=success&transaction=${pending.id}`
     : undefined;
-  const payment = await createGeniusPayment({
+  const payment = await createPlatformV3Payment({
     amountFcfa: amountCents,
     description: `Recharge portefeuille SafeLinkHub — ${amountCents.toLocaleString("fr-FR")} FCFA`,
     customer: { name: session.name, email: session.email, country: countryIso2 },
-    paymentMethod,
+    method: paymentMethod,
+    countryIso2,
     metadata: {
       kind: "wallet_topup",
       walletTransactionId: pending.id,
@@ -123,6 +129,55 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
     .set({ paymentReference: payment.reference })
     .where(eq(walletTransactions.id, pending.id));
   return { paymentUrl: payment.paymentUrl };
+}
+
+/**
+ * Confirme un dépôt AU RETOUR du checkout : re-vérifie le paiement auprès de
+ * GeniusPay v3 (comme le portail sonde son statut) et crédite si c'est réglé —
+ * indépendamment du webhook, qui n'est pas garanti sur le host v3. Idempotent.
+ */
+export async function confirmWalletTopupPayment(
+  transactionId: string,
+): Promise<{ status: "completed" | "pending" | "failed" }> {
+  const session = await getSession();
+  if (!session || !transactionId) return { status: "pending" };
+
+  const db = getDb();
+  const [txn] = await db
+    .select({
+      id: walletTransactions.id,
+      status: walletTransactions.status,
+      paymentReference: walletTransactions.paymentReference,
+    })
+    .from(walletTransactions)
+    .where(
+      and(
+        eq(walletTransactions.id, transactionId),
+        eq(walletTransactions.orgId, session.orgId),
+        eq(walletTransactions.type, "topup"),
+      ),
+    )
+    .limit(1);
+  if (!txn) return { status: "pending" };
+  if (txn.status === "completed") return { status: "completed" };
+  if (txn.status === "failed") return { status: "failed" };
+  if (!txn.paymentReference) return { status: "pending" };
+
+  const gp = await getPlatformV3PaymentStatus(txn.paymentReference);
+  if (!gp.ok) return { status: "pending" }; // erreur transitoire → le client re-sonde
+  if (gp.status === "completed") {
+    await completeWalletTopupByReference(txn.paymentReference);
+    return { status: "completed" };
+  }
+  if (gp.status === "failed") {
+    await db
+      .update(walletTransactions)
+      .set({ status: "failed", note: "Dépôt échoué ou annulé." })
+      .where(and(eq(walletTransactions.id, txn.id), eq(walletTransactions.status, "pending")));
+    revalidatePath("/admin/billing");
+    return { status: "failed" };
+  }
+  return { status: "pending" };
 }
 
 /** Crédite un dépôt une seule fois après validation du webhook Genius Pay. */
