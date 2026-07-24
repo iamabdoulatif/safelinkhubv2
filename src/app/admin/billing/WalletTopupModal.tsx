@@ -29,6 +29,9 @@ export default function WalletTopupModal({
       ? defaultCountry
       : countries[0]?.iso2 ?? "CI",
   );
+  const [selectedMethod, setSelectedMethod] = useState("wave");
+  // Orange Money / MTN MoMo passent par PawaPay, qui EXIGE un numéro.
+  const needsPhone = selectedMethod === "orange_money" || selectedMethod === "mtn_money";
 
   useEffect(() => {
     if (onlineState && "paymentUrl" in onlineState) {
@@ -114,7 +117,7 @@ export default function WalletTopupModal({
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {WALLET_PAYMENT_METHODS.map((method) => (
                       <label key={method.id} className="cursor-pointer">
-                        <input type="radio" name="paymentMethod" value={method.id} defaultChecked={method.id === "wave"} className="peer sr-only" />
+                        <input type="radio" name="paymentMethod" value={method.id} checked={selectedMethod === method.id} onChange={() => setSelectedMethod(method.id)} className="peer sr-only" />
                         <span className="flex h-full flex-col rounded-md border-2 border-line-soft bg-paper px-3 py-2.5 text-left transition-colors peer-checked:border-brand-deep peer-checked:bg-brand/20 hover:bg-clay">
                           <span className="text-sm font-semibold text-ink">{method.label}</span>
                           <span className="mt-0.5 text-[11px] text-ink-soft">{method.hint}</span>
@@ -132,6 +135,30 @@ export default function WalletTopupModal({
                     {countries.map((country) => <option key={country.iso2} value={country.iso2}>{countryFlag(country.iso2)} {country.name} ({country.dialCode})</option>)}
                   </select>
                   <p className="mt-1.5 text-xs leading-5 text-ink-soft">Pays actuellement proposés par SafeLinkHub pour le paiement en XOF. La disponibilité finale dépend du réseau mobile sélectionné.</p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-ink" htmlFor="wallet-phone">
+                    Numéro mobile money{" "}
+                    {needsPhone ? (
+                      <span className="text-red-600">*</span>
+                    ) : (
+                      <span className="text-ink-soft">(optionnel)</span>
+                    )}
+                  </label>
+                  <input
+                    id="wallet-phone"
+                    name="phone"
+                    type="tel"
+                    inputMode="tel"
+                    required={needsPhone}
+                    placeholder="07 00 00 00 00"
+                    className="w-full rounded-md border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                  />
+                  <p className="mt-1 text-xs text-ink-soft">
+                    Requis pour Orange Money et MTN MoMo. L’indicatif du pays sélectionné est ajouté
+                    automatiquement.
+                  </p>
                 </div>
 
                 <div className="border border-line-soft bg-clay p-3">

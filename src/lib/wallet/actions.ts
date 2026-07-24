@@ -11,11 +11,25 @@ import {
   getPlatformV3PaymentStatus,
   isGeniusPayCheckoutEnabled,
 } from "@/lib/payment-gateways/geniuspay";
+import { COUNTRIES } from "@/lib/intl/countries";
 import {
   getWalletPaymentMethodLabel,
   isWalletEligibleCountry,
   isWalletPaymentMethod,
 } from "./payment-options";
+
+// Moyens mobile money via PawaPay : GeniusPay v3 EXIGE un numéro (phone_number).
+// Sans lui, l'API renvoie « PawaPay: Missing required field: phone_number ».
+const MOBILE_MONEY_METHODS = new Set(["orange_money", "mtn_money"]);
+
+/** Reconstitue le numéro international (indicatif du pays + numéro local). */
+function toIntlPhone(localRaw: string, countryIso2: string): string {
+  const dial = (COUNTRIES.find((c) => c.iso2 === countryIso2)?.dialCode ?? "").replace(/[^0-9]/g, "");
+  const local = localRaw.replace(/[^0-9]/g, "");
+  if (!local) return "";
+  if (!dial || local.startsWith(dial)) return `+${local}`;
+  return `+${dial}${local}`;
+}
 
 export async function getWalletBalanceCents(orgId: string) {
   const db = getDb();
@@ -78,6 +92,13 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
   if (!isWalletPaymentMethod(paymentMethod)) return { error: "Moyen de paiement invalide." };
   if (!isWalletEligibleCountry(countryIso2)) return { error: "Pays non éligible pour ce paiement." };
 
+  // Numéro mobile money : requis pour Orange/MTN (PawaPay). Optionnel sinon
+  // (Wave n'en a pas besoin ; Moov/carte passent par le checkout hébergé).
+  const phone = toIntlPhone(String(formData.get("phone") ?? ""), countryIso2);
+  if (MOBILE_MONEY_METHODS.has(paymentMethod) && phone.replace(/[^0-9]/g, "").length < 8) {
+    return { error: "Numéro mobile money requis pour Orange Money et MTN MoMo." };
+  }
+
   const db = getDb();
   const [pending] = await db
     .insert(walletTransactions)
@@ -103,7 +124,12 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
   const payment = await createPlatformV3Payment({
     amountFcfa: amountCents,
     description: `Recharge portefeuille SafeLinkHub — ${amountCents.toLocaleString("fr-FR")} FCFA`,
-    customer: { name: session.name, email: session.email, country: countryIso2 },
+    customer: {
+      name: session.name,
+      email: session.email,
+      country: countryIso2,
+      ...(phone ? { phone } : {}),
+    },
     method: paymentMethod,
     countryIso2,
     metadata: {

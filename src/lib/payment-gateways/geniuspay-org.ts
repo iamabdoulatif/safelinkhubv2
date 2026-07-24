@@ -73,6 +73,24 @@ function safeParse(s: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * Message lisible d'une erreur GeniusPay. En v3, `error`/`detail` peuvent être
+ * un OBJET `{code, message}` (ex. « PawaPay: Missing required field: phone_number »)
+ * — `String(objet)` donnait alors « [object Object] » dans l'UI. On déballe donc
+ * le `.message` de l'objet avant de retomber sur un message générique.
+ */
+function geniusErrorMessage(json: Record<string, unknown> | null, status: number): string {
+  const cand = json?.error ?? json?.detail ?? json?.message;
+  if (typeof cand === "string" && cand.trim()) return cand;
+  if (cand && typeof cand === "object") {
+    const obj = cand as Record<string, unknown>;
+    const m = obj.message ?? obj.detail ?? obj.error;
+    if (typeof m === "string" && m.trim()) return m;
+  }
+  if (typeof json?.message === "string" && json.message.trim()) return json.message;
+  return `Erreur GeniusPay (${status}).`;
+}
+
 export type CreateOrgPaymentInput = {
   amountFcfa: number;
   description: string;
@@ -196,12 +214,7 @@ export async function createOrgPayment(
     }
     if (!res.ok) {
       // Erreur JSON déterministe → inutile de réessayer.
-      const msg =
-        (json.detail as string) ||
-        (json.error as string) ||
-        (json.message as string) ||
-        `Erreur GeniusPay (${res.status}).`;
-      return { ok: false, error: String(msg) };
+      return { ok: false, error: geniusErrorMessage(json, res.status) };
     }
     // GeniusPay enveloppe la charge utile dans `data` : { success, data: {
     // reference, checkout_url, payment_url, … } }. On lit `data` en priorité,
@@ -334,7 +347,7 @@ export async function getOrgPaymentStatus(
   }
   const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
   if (!res.ok) {
-    return { ok: false, error: `Erreur GeniusPay (${res.status}).` };
+    return { ok: false, error: geniusErrorMessage(json, res.status) };
   }
   const raw = String(
     (json?.status as string) ||
