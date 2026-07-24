@@ -402,6 +402,7 @@ export default function PaidStatus({
             <p style={{ color: INK_SOFT, fontSize: ".95rem", margin: 0 }}>
               {error || "Le paiement n’a pas pu être finalisé. Revenez à l’onglet WiFi pour réessayer."}
             </p>
+            <RecoverLink slug={slug} />
           </>
         ) : (
           <>
@@ -415,9 +416,27 @@ export default function PaidStatus({
               Nous préparons votre accès… Votre code s’affichera ici et vous sera envoyé par SMS.
               Vous pouvez aussi retourner à l’onglet WiFi.
             </p>
+            <RecoverLink slug={slug} />
           </>
         )}
       </div>
     </main>
+  );
+}
+
+/** Lien de secours vers la récupération du code par numéro (paiement mobile
+ * money terminé sur le téléphone sans retour du navigateur). Affiché sur les
+ * états non aboutis de cette page — c'est là que le client stagne. */
+function RecoverLink({ slug }: { slug: string }) {
+  if (!slug) return null;
+  return (
+    <p style={{ margin: "16px 0 0", fontSize: ".82rem" }}>
+      <a
+        href={`/portal/recover?slug=${encodeURIComponent(slug)}`}
+        style={{ color: INK, fontWeight: 700, textDecoration: "underline" }}
+      >
+        Déjà payé ? Retrouver mon code
+      </a>
+    </p>
   );
 }

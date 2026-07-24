@@ -9,7 +9,7 @@
 // paiement soit confirmé et l'accès créé (voir status/route.ts + fulfill.ts).
 
 import { after } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, routers, portalOrders, portalOtps } from "@/lib/db/schema";
 import { packageProfileName } from "@/lib/mikrotik/package-voucher-profile";
@@ -117,6 +117,51 @@ export async function POST(
       .limit(2);
     if (orgRouters.length === 1) routerId = orgRouters[0].id;
     else return corsJson({ error: "Routeur non identifié." }, { status: 400 });
+  }
+
+  // ANTI-DOUBLE-DÉBIT. Si CE client (même numéro + même forfait + même appareil)
+  // a déjà une commande récente en cours, on n'en crée PAS une seconde : un
+  // paiement mobile money terminé sur le téléphone (navigateur jamais revenu
+  // afficher le code) pousse sinon le client à « racheter » → il paie deux fois.
+  // On réutilise donc la commande existante :
+  //   • payée / en honneur / honorée, OU en attente AVEC une référence GeniusPay
+  //     (un checkout a déjà été ouvert, peut-être déjà réglé) → page d'ÉTAT
+  //     (/portal/paid) : le code s'affiche, on ne relance JAMAIS un 2ᵉ checkout.
+  //   • en attente SANS référence (moyen de paiement jamais choisi) → on réutilise
+  //     la même commande pour le choix du moyen (évite juste les lignes en double).
+  // La clé inclut le NUMÉRO : acheter pour un AUTRE téléphone (numéro différent)
+  // crée bien une commande distincte — cas « un ticket pour X, un pour Y ». Idem
+  // pour un forfait différent (packageId) ou un autre appareil (mac).
+  const REUSE_WINDOW_MS = 60 * 60 * 1000; // ~ durée de validité d'un checkout
+  const [existing] = await db
+    .select({
+      id: portalOrders.id,
+      status: portalOrders.status,
+      paymentReference: portalOrders.paymentReference,
+    })
+    .from(portalOrders)
+    .where(
+      and(
+        eq(portalOrders.orgId, org.id),
+        eq(portalOrders.phone, phone),
+        eq(portalOrders.packageId, pkg.id),
+        eq(portalOrders.mac, mac),
+        inArray(portalOrders.status, ["pending", "paid", "fulfilling", "fulfilled"]),
+        gte(portalOrders.createdAt, new Date(Date.now() - REUSE_WINDOW_MS)),
+      ),
+    )
+    .orderBy(desc(portalOrders.createdAt))
+    .limit(1);
+  if (existing) {
+    const base = appUrl();
+    const paidUrl = `${base}/portal/paid?orderId=${existing.id}&slug=${encodeURIComponent(slug)}`;
+    const payUrl = `${base}/portal/pay?orderId=${existing.id}&slug=${encodeURIComponent(slug)}`;
+    // Un paiement est déjà engagé dès que la commande n'est plus un simple
+    // « pending » sans référence → on renvoie vers la page d'état (surtout pas un
+    // nouveau checkout). Sinon, retour au choix du moyen sur la même commande.
+    const paymentEngaged = existing.status !== "pending" || Boolean(existing.paymentReference);
+    const target = paymentEngaged ? paidUrl : payUrl;
+    return corsJson({ orderId: existing.id, payUrl: target, checkoutUrl: target, reused: true });
   }
 
   // Commande en attente AVANT le paiement (la référence GeniusPay y est ajoutée
