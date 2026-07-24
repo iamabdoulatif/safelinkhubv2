@@ -120,18 +120,20 @@ export async function POST(
   }
 
   // ANTI-DOUBLE-DÉBIT. Si CE client (même numéro + même forfait + même appareil)
-  // a déjà une commande récente en cours, on n'en crée PAS une seconde : un
-  // paiement mobile money terminé sur le téléphone (navigateur jamais revenu
-  // afficher le code) pousse sinon le client à « racheter » → il paie deux fois.
-  // On réutilise donc la commande existante :
-  //   • payée / en honneur / honorée, OU en attente AVEC une référence GeniusPay
-  //     (un checkout a déjà été ouvert, peut-être déjà réglé) → page d'ÉTAT
+  // a déjà une commande récente EN COURS (paiement engagé mais code pas encore
+  // délivré), on n'en crée PAS une seconde : un paiement mobile money terminé sur
+  // le téléphone (navigateur jamais revenu afficher le code) pousse sinon le
+  // client à « racheter » → il paie deux fois. On réutilise donc la commande :
+  //   • payée / en honneur, OU en attente AVEC une référence GeniusPay (un
+  //     checkout a déjà été ouvert, peut-être déjà réglé) → page d'ÉTAT
   //     (/portal/paid) : le code s'affiche, on ne relance JAMAIS un 2ᵉ checkout.
   //   • en attente SANS référence (moyen de paiement jamais choisi) → on réutilise
   //     la même commande pour le choix du moyen (évite juste les lignes en double).
-  // La clé inclut le NUMÉRO : acheter pour un AUTRE téléphone (numéro différent)
-  // crée bien une commande distincte — cas « un ticket pour X, un pour Y ». Idem
-  // pour un forfait différent (packageId) ou un autre appareil (mac).
+  // ⚠️ On EXCLUT « fulfilled » : dès que le 1ᵉʳ code est DÉLIVRÉ, un nouvel achat
+  // depuis le même appareil est INTENTIONNEL (2ᵉ ticket pour un autre téléphone,
+  // même numéro) → on le laisse créer une commande distincte. La clé inclut aussi
+  // le NUMÉRO et le MAC : acheter pour un autre téléphone (autre MAC) ou un autre
+  // forfait crée toujours une commande distincte — « un ticket pour X, un pour Y ».
   const REUSE_WINDOW_MS = 60 * 60 * 1000; // ~ durée de validité d'un checkout
   const [existing] = await db
     .select({
@@ -146,7 +148,7 @@ export async function POST(
         eq(portalOrders.phone, phone),
         eq(portalOrders.packageId, pkg.id),
         eq(portalOrders.mac, mac),
-        inArray(portalOrders.status, ["pending", "paid", "fulfilling", "fulfilled"]),
+        inArray(portalOrders.status, ["pending", "paid", "fulfilling"]),
         gte(portalOrders.createdAt, new Date(Date.now() - REUSE_WINDOW_MS)),
       ),
     )

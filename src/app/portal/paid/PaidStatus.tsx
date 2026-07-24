@@ -5,7 +5,7 @@
 // indépendamment de l'onglet du portail (qui, lui, auto-soumet le login routeur).
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Check, CheckCircle2, Copy, Hourglass, MessageSquareText, Wifi } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Copy, Hourglass, MessageSquareText, Plus, Wifi } from "lucide-react";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
@@ -64,6 +64,10 @@ export default function PaidStatus({
   // bouton d'auto-connexion. null quand le routeur n'a pas d'instantané
   // exploitable : on n'affiche alors que la saisie manuelle du code.
   const [loginUrl, setLoginUrl] = useState<string | null>(null);
+  // « Acheter un autre ticket » : rachat en un tap pour un autre téléphone
+  // (même numéro déjà vérifié). idle | loading | error.
+  const [rebuyState, setRebuyState] = useState<"idle" | "loading" | "error">("idle");
+  const [rebuyError, setRebuyError] = useState("");
 
   useEffect(() => {
     if (!canPoll) return;
@@ -137,6 +141,29 @@ export default function PaidStatus({
     } catch (e) {
       setSmsState("error");
       setSmsError(e instanceof Error ? e.message : "Envoi impossible.");
+    }
+  }
+
+  // « Acheter un autre ticket » : clone la commande courante (même numéro déjà
+  // vérifié, même forfait) en un nouveau ticket et redirige vers le choix du
+  // moyen de paiement. Sert le cas « 2 téléphones, 1 numéro » quand les deux
+  // achats partent du même appareil.
+  async function rebuy() {
+    if (!orderId || rebuyState === "loading") return;
+    setRebuyState("loading");
+    setRebuyError("");
+    try {
+      const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/rebuy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = (await res.json()) as { payUrl?: string; error?: string };
+      if (!res.ok || !data.payUrl) throw new Error(data.error || "Rachat impossible. Réessayez.");
+      window.location.assign(data.payUrl);
+    } catch (e) {
+      setRebuyState("error");
+      setRebuyError(e instanceof Error ? e.message : "Rachat impossible. Réessayez.");
     }
   }
 
@@ -388,6 +415,40 @@ export default function PaidStatus({
                 Retournez sur le portail WiFi (onglet <b>Code</b>) et saisissez ce code pour vous
                 connecter.{" "}
                 {smsSent && <>Il vous a été envoyé par <b>SMS</b>.</>}
+              </p>
+            )}
+
+            {/* « 2 téléphones, 1 numéro » : racheter un ticket pour un autre
+                appareil en un tap (même numéro, sans re-saisie ni OTP). */}
+            <button
+              type="button"
+              onClick={rebuy}
+              disabled={rebuyState === "loading"}
+              style={{
+                width: "100%",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                marginTop: 14,
+                padding: "12px 16px",
+                border: `2px solid ${INK}`,
+                background: PAPER,
+                color: INK,
+                fontSize: ".95rem",
+                fontWeight: 700,
+                cursor: rebuyState === "loading" ? "default" : "pointer",
+              }}
+            >
+              <Plus size={18} strokeWidth={2.5} aria-hidden="true" />
+              {rebuyState === "loading" ? "Redirection…" : "Acheter un autre ticket"}
+            </button>
+            <p style={{ color: INK_SOFT, fontSize: ".72rem", margin: "6px 0 0", lineHeight: 1.4 }}>
+              Pour connecter un second téléphone avec le même numéro.
+            </p>
+            {rebuyState === "error" && (
+              <p style={{ color: ERR, fontSize: ".78rem", margin: "8px 0 0" }}>
+                {rebuyError || "Rachat impossible. Réessayez."}
               </p>
             )}
           </>
