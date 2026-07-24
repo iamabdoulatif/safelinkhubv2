@@ -15,6 +15,7 @@ import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import { PERIOD_PRICE_CENTS } from "@/lib/mikrotik/billing-plans";
 import WalletTopupModal from "./WalletTopupModal";
 import WalletTopupReturn from "./WalletTopupReturn";
+import WalletTransactions from "./WalletTransactions";
 import SafecoinWalletCard from "./SafecoinWalletCard";
 
 function formatDate(date: Date) {
@@ -27,30 +28,6 @@ function formatDateTime(date: Date) {
 
 function formatFcfa(cents: number) {
   return `FCFA ${cents.toLocaleString("en-US")}`;
-}
-
-type WalletTransaction = typeof walletTransactions.$inferSelect;
-
-function transactionLabel(transaction: WalletTransaction) {
-  if (transaction.status === "pending") return "Paiement en attente";
-  if (transaction.status === "failed") return "Dépôt échoué";
-  if (transaction.type === "topup") {
-    return transaction.paymentMethod ? "Dépôt Genius Pay" : "Dépôt manuel";
-  }
-  return transaction.note?.startsWith("Configuration automatique")
-    ? "Débit Auto-Setup"
-    : "Débit VPN";
-}
-
-function transactionTone(transaction: WalletTransaction) {
-  if (transaction.status === "pending") return "bg-clay text-ink-soft";
-  if (transaction.status === "failed") return "bg-red-50 text-red-600";
-  return transaction.type === "topup" ? "bg-clay text-ok" : "bg-clay text-warn";
-}
-
-function transactionAmountPrefix(transaction: WalletTransaction) {
-  if (transaction.status !== "completed") return "";
-  return transaction.type === "topup" ? "+" : "-";
 }
 
 /**
@@ -199,72 +176,17 @@ export default async function BillingPage({
           />
         </div>
 
-        {transactions.length === 0 ? (
-          <p className="mt-5 rounded-lg border border-line-soft px-3 py-6 text-center text-sm text-ink-soft">
-            Aucune transaction pour le moment.
-          </p>
-        ) : (
-          <>
-            {/* Mobile: list of compact rows instead of a 4-column table —
-                date/note text wraps poorly next to the amount otherwise. */}
-            <div className="mt-5 space-y-2 sm:hidden">
-              {transactions.map((t) => (
-                <div key={t.id} className="rounded-lg border border-line-soft p-3 text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${transactionTone(t)}`}
-                    >
-                      {transactionLabel(t)}
-                    </span>
-                    <span
-                      className={`font-medium ${transactionTone(t).split(" ").at(-1)}`}
-                    >
-                      {transactionAmountPrefix(t)}
-                      {formatFcfa(t.amountCents)}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-ink-soft">{formatDateTime(t.createdAt)}</p>
-                  {t.note && <p className="mt-0.5 text-ink-soft">{t.note}</p>}
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop / tablet: table */}
-            <div className="mt-5 hidden overflow-x-auto rounded-lg border border-line-soft sm:block">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-line-soft bg-clay text-ink-soft">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Date</th>
-                    <th className="px-3 py-2 font-medium">Type</th>
-                    <th className="px-3 py-2 font-medium">Montant</th>
-                    <th className="px-3 py-2 font-medium">Note</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line-soft">
-                  {transactions.map((t) => (
-                    <tr key={t.id}>
-                      <td className="px-3 py-2 text-ink-soft">{formatDateTime(t.createdAt)}</td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${transactionTone(t)}`}
-                        >
-                          {transactionLabel(t)}
-                        </span>
-                      </td>
-                      <td
-                        className={`px-3 py-2 font-medium ${transactionTone(t).split(" ").at(-1)}`}
-                      >
-                        {transactionAmountPrefix(t)}
-                        {formatFcfa(t.amountCents)}
-                      </td>
-                      <td className="px-3 py-2 text-ink-soft">{t.note ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+        <WalletTransactions
+          transactions={transactions.map((t) => ({
+            id: t.id,
+            type: t.type,
+            amountCents: t.amountCents,
+            status: t.status,
+            note: t.note,
+            paymentMethod: t.paymentMethod,
+            dateLabel: formatDateTime(t.createdAt),
+          }))}
+        />
       </div>
 
       <div className="mt-8">

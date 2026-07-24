@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
 import { walletTransactions } from "@/lib/db/schema";
@@ -65,6 +65,89 @@ export async function addWalletFunds(_prevState: unknown, formData: FormData) {
     createdBy: session.userId,
   });
 
+  revalidatePath("/admin/billing");
+  return { success: true };
+}
+
+const EDITABLE_STATUSES = ["pending", "completed", "failed"] as const;
+type EditableStatus = (typeof EDITABLE_STATUSES)[number];
+
+/**
+ * Supprime une transaction du journal — UNIQUEMENT si elle est « en attente »
+ * ou « échouée ». Ces statuts ne comptent PAS dans le solde (seules les
+ * `completed` le font), donc la suppression ne fausse jamais le solde. Les
+ * dépôts confirmés et les débits VPN/Auto-Setup sont volontairement protégés.
+ */
+export async function deleteWalletTransaction(_prevState: unknown, formData: FormData) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { error: "Transaction manquante." };
+
+  const db = getDb();
+  const [deleted] = await db
+    .delete(walletTransactions)
+    .where(
+      and(
+        eq(walletTransactions.id, id),
+        eq(walletTransactions.orgId, session.orgId),
+        inArray(walletTransactions.status, ["pending", "failed"]),
+      ),
+    )
+    .returning({ id: walletTransactions.id });
+  if (!deleted) {
+    return { error: "Seules les transactions en attente ou échouées peuvent être supprimées." };
+  }
+  revalidatePath("/admin/billing");
+  return { success: true };
+}
+
+/** Nettoie en lot TOUTES les transactions en attente/échouées de l'org. */
+export async function cleanupWalletTransactions() {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const rows = await db
+    .delete(walletTransactions)
+    .where(
+      and(
+        eq(walletTransactions.orgId, session.orgId),
+        inArray(walletTransactions.status, ["pending", "failed"]),
+      ),
+    )
+    .returning({ id: walletTransactions.id });
+  revalidatePath("/admin/billing");
+  return { success: true, count: rows.length };
+}
+
+/**
+ * Édite une transaction : note + montant + statut. ⚠️ Changer le montant ou
+ * passer une transaction en « completed » MODIFIE le solde (calculé comme la
+ * somme des transactions confirmées) — puissant, réservé à l'admin de l'org.
+ */
+export async function updateWalletTransaction(_prevState: unknown, formData: FormData) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const id = String(formData.get("id") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const amountCents = Math.round(Number(formData.get("amount") ?? 0));
+  const status = String(formData.get("status") ?? "").trim();
+  if (!id) return { error: "Transaction manquante." };
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    return { error: "Le montant doit être supérieur à 0." };
+  }
+  if (!EDITABLE_STATUSES.includes(status as EditableStatus)) {
+    return { error: "Statut invalide." };
+  }
+
+  const db = getDb();
+  const [updated] = await db
+    .update(walletTransactions)
+    .set({ note: note || null, amountCents, status })
+    .where(and(eq(walletTransactions.id, id), eq(walletTransactions.orgId, session.orgId)))
+    .returning({ id: walletTransactions.id });
+  if (!updated) return { error: "Transaction introuvable." };
   revalidatePath("/admin/billing");
   return { success: true };
 }
