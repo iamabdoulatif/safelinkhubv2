@@ -3,10 +3,10 @@
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { safecoinAccounts, safecoinLedger, safecoinSettings } from "@/lib/db/schema";
+import { safecoinLedger, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
 import {
@@ -157,6 +157,106 @@ export async function completeSafecoinTopupByReference(paymentReference: string)
   if (!row.completed) return false;
   revalidatePath("/admin/billing");
   return true;
+}
+
+const SAFECOIN_STATUSES = ["pending", "completed", "failed"] as const;
+type SafecoinStatus = (typeof SAFECOIN_STATUSES)[number];
+
+/**
+ * Recalcule le solde STOCKÉ depuis le grand livre (la source d'audit). Le solde
+ * = somme des montants signés des écritures « completed ». Appelé après toute
+ * édition qui peut le déplacer (le schéma prévoit ce rebuild explicitement).
+ */
+async function recomputeSafecoinBalance(orgId: string) {
+  await getDb().execute(sql`
+    UPDATE safecoin_accounts
+    SET balance_sc_cents = COALESCE(
+          (SELECT SUM(amount_sc_cents) FROM safecoin_ledger
+           WHERE org_id = ${orgId} AND status = 'completed'),
+          0),
+        updated_at = now()
+    WHERE org_id = ${orgId}
+  `);
+}
+
+/**
+ * Supprime une écriture du grand livre — UNIQUEMENT « en attente » ou
+ * « échouée » (ces statuts ne comptent pas dans le solde). Les écritures
+ * confirmées (recharges/débits) sont protégées pour ne pas fausser le solde.
+ */
+export async function deleteSafecoinEntry(_prevState: unknown, formData: FormData) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { error: "Écriture manquante." };
+  const db = getDb();
+  const [deleted] = await db
+    .delete(safecoinLedger)
+    .where(
+      and(
+        eq(safecoinLedger.id, id),
+        eq(safecoinLedger.orgId, session.orgId),
+        inArray(safecoinLedger.status, ["pending", "failed"]),
+      ),
+    )
+    .returning({ id: safecoinLedger.id });
+  if (!deleted) {
+    return { error: "Seules les opérations en attente ou échouées peuvent être supprimées." };
+  }
+  revalidatePath("/admin/billing");
+  return { success: true as const };
+}
+
+/** Nettoie en lot toutes les écritures en attente/échouées de l'org. */
+export async function cleanupSafecoinEntries() {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const db = getDb();
+  const rows = await db
+    .delete(safecoinLedger)
+    .where(
+      and(
+        eq(safecoinLedger.orgId, session.orgId),
+        inArray(safecoinLedger.status, ["pending", "failed"]),
+      ),
+    )
+    .returning({ id: safecoinLedger.id });
+  revalidatePath("/admin/billing");
+  return { success: true as const, count: rows.length };
+}
+
+/**
+ * Édite une écriture : note + montant (en SC) + statut, puis RECALCULE le solde
+ * depuis le grand livre (le solde Safecoin est stocké/dénormalisé, contrairement
+ * au portefeuille). ⚠️ Peut donc changer le solde.
+ */
+export async function updateSafecoinEntry(_prevState: unknown, formData: FormData) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const id = String(formData.get("id") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const amountSc = Number(formData.get("amountSc") ?? NaN); // en SC (peut être négatif)
+  const status = String(formData.get("status") ?? "").trim();
+  if (!id) return { error: "Écriture manquante." };
+  if (!Number.isFinite(amountSc) || amountSc === 0) {
+    return { error: "Le montant SC doit être différent de 0 (négatif = débit)." };
+  }
+  if (!SAFECOIN_STATUSES.includes(status as SafecoinStatus)) {
+    return { error: "Statut invalide." };
+  }
+  const amountScCents = Math.round(amountSc * 100);
+
+  const db = getDb();
+  const [updated] = await db
+    .update(safecoinLedger)
+    .set({ note: note || null, amountScCents, status })
+    .where(and(eq(safecoinLedger.id, id), eq(safecoinLedger.orgId, session.orgId)))
+    .returning({ id: safecoinLedger.id });
+  if (!updated) return { error: "Écriture introuvable." };
+
+  await recomputeSafecoinBalance(session.orgId);
+  revalidatePath("/admin/billing");
+  return { success: true as const };
 }
 
 export async function updateSafecoinSettings(_prevState: unknown, formData: FormData) {
