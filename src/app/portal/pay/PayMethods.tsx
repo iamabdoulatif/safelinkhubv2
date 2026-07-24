@@ -71,8 +71,15 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
       if (!res.ok || !data.checkoutUrl) {
         throw new Error(data.error || "Paiement impossible. Réessayez.");
       }
+      const paidUrl = `/portal/paid?orderId=${encodeURIComponent(orderId)}&slug=${encodeURIComponent(slug)}`;
       if (win && !win.closed) {
         win.location.href = data.checkoutUrl; // Safari (nouvel onglet) → checkout OK
+        // GeniusPay v3 ne redirige PAS vers success_url après paiement (le client
+        // reste bloqué sur geniuspay.ci). On envoie donc l'onglet D'ORIGINE (sur
+        // notre domaine, derrière le walled-garden) sonder le statut : c'est CE
+        // sondage qui déclenche la fulfillment, lance l'auto-login et AFFICHE le
+        // code — indépendamment du retour de geniuspay.ci.
+        window.location.assign(paidUrl);
       } else {
         window.location.assign(data.checkoutUrl); // fenêtre bloquée → même fenêtre
       }
