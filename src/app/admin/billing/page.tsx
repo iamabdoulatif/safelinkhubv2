@@ -17,6 +17,7 @@ import WalletTopupModal from "./WalletTopupModal";
 import WalletTopupReturn from "./WalletTopupReturn";
 import WalletTransactions from "./WalletTransactions";
 import SafecoinWalletCard from "./SafecoinWalletCard";
+import SafecoinTopupReturn from "./SafecoinTopupReturn";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(date);
@@ -41,9 +42,9 @@ function formatFcfa(cents: number) {
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ topup?: string; transaction?: string }>;
+  searchParams: Promise<{ topup?: string; safecoin_topup?: string; transaction?: string }>;
 }) {
-  const { topup, transaction } = await searchParams;
+  const { topup, safecoin_topup: safecoinTopup, transaction } = await searchParams;
   const session = await getSession();
   const db = getDb();
 
@@ -190,6 +191,9 @@ export default async function BillingPage({
       </div>
 
       <div className="mt-8">
+        {safecoinTopup === "success" && transaction ? (
+          <SafecoinTopupReturn transactionId={transaction} />
+        ) : null}
         <SafecoinWalletCard
           balanceScCents={safecoinAccount[0]?.balanceScCents ?? 0}
           rateFcfaPerSc={safecoinRate[0]?.rateFcfaPerSc ?? 100}

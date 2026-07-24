@@ -8,12 +8,29 @@ import { sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { safecoinLedger, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import {
+  createPlatformV3Payment,
+  getPlatformV3PaymentStatus,
+  isGeniusPayCheckoutEnabled,
+} from "@/lib/payment-gateways/geniuspay";
 import {
   getWalletPaymentMethodLabel,
   isWalletEligibleCountry,
   isWalletPaymentMethod,
 } from "@/lib/wallet/payment-options";
+import { COUNTRIES } from "@/lib/intl/countries";
+
+// Orange/MTN via PawaPay exigent un numéro (phone_number) sur GeniusPay v3.
+const MOBILE_MONEY_METHODS = new Set(["orange_money", "mtn_money"]);
+
+/** Numéro international (indicatif du pays + numéro local). */
+function toIntlPhone(localRaw: string, countryIso2: string): string {
+  const dial = (COUNTRIES.find((c) => c.iso2 === countryIso2)?.dialCode ?? "").replace(/[^0-9]/g, "");
+  const local = localRaw.replace(/[^0-9]/g, "");
+  if (!local) return "";
+  if (!dial || local.startsWith(dial)) return `+${local}`;
+  return `+${dial}${local}`;
+}
 import { ensureSafecoinAccount, appendSafecoinCredit } from "./ledger";
 import { parseSafecoinTopupAmount, safecoinTopupScCents } from "./topup";
 
@@ -49,6 +66,13 @@ export async function startSafecoinTopupPayment(_prevState: unknown, formData: F
   }
   if (!isWalletPaymentMethod(paymentMethod)) return { error: "Moyen de paiement invalide." };
   if (!isWalletEligibleCountry(countryIso2)) return { error: "Pays non éligible pour ce paiement." };
+  // Minimum GeniusPay v3 = 200 FCFA (l'API rejette 422 en dessous).
+  if (amountFcfa < 200) return { error: "Le montant minimum est de 200 FCFA." };
+  // Numéro requis pour Orange/MTN (PawaPay).
+  const phone = toIntlPhone(String(formData.get("phone") ?? ""), countryIso2);
+  if (MOBILE_MONEY_METHODS.has(paymentMethod) && phone.replace(/[^0-9]/g, "").length < 8) {
+    return { error: "Numéro mobile money requis pour Orange Money et MTN MoMo." };
+  }
 
   const rateFcfaPerSc = await currentRate();
   const amountScCents = safecoinTopupScCents(amountFcfa, rateFcfaPerSc);
@@ -78,11 +102,17 @@ export async function startSafecoinTopupPayment(_prevState: unknown, formData: F
     ? `${origin}/admin/billing?safecoin_topup=success&transaction=${pending.id}`
     : undefined;
 
-  const payment = await createGeniusPayment({
+  const payment = await createPlatformV3Payment({
     amountFcfa,
     description: `Recharge Safecoin — ${amountFcfa.toLocaleString("fr-FR")} FCFA`,
-    customer: { name: session.name, email: session.email, country: countryIso2 },
-    paymentMethod,
+    customer: {
+      name: session.name,
+      email: session.email,
+      country: countryIso2,
+      ...(phone ? { phone } : {}),
+    },
+    method: paymentMethod,
+    countryIso2,
     metadata: {
       kind: "safecoin_topup",
       safecoinLedgerId: pending.id,
@@ -157,6 +187,49 @@ export async function completeSafecoinTopupByReference(paymentReference: string)
   if (!row.completed) return false;
   revalidatePath("/admin/billing");
   return true;
+}
+
+/**
+ * Confirme une recharge Safecoin AU RETOUR du checkout : re-vérifie le paiement
+ * auprès de GeniusPay v3 (comme le portail sonde son statut) et crédite si c'est
+ * réglé — indépendamment du webhook. Idempotent.
+ */
+export async function confirmSafecoinTopupPayment(
+  transactionId: string,
+): Promise<{ status: "completed" | "pending" | "failed" }> {
+  const session = await getSession();
+  if (!session || !transactionId) return { status: "pending" };
+
+  const db = getDb();
+  const [entry] = await db
+    .select({
+      id: safecoinLedger.id,
+      status: safecoinLedger.status,
+      paymentReference: safecoinLedger.paymentReference,
+    })
+    .from(safecoinLedger)
+    .where(and(eq(safecoinLedger.id, transactionId), eq(safecoinLedger.orgId, session.orgId)))
+    .limit(1);
+  if (!entry) return { status: "pending" };
+  if (entry.status === "completed") return { status: "completed" };
+  if (entry.status === "failed") return { status: "failed" };
+  if (!entry.paymentReference) return { status: "pending" };
+
+  const gp = await getPlatformV3PaymentStatus(entry.paymentReference);
+  if (!gp.ok) return { status: "pending" };
+  if (gp.status === "completed") {
+    await completeSafecoinTopupByReference(entry.paymentReference);
+    return { status: "completed" };
+  }
+  if (gp.status === "failed") {
+    await db
+      .update(safecoinLedger)
+      .set({ status: "failed", note: "Recharge échouée ou annulée." })
+      .where(and(eq(safecoinLedger.id, entry.id), eq(safecoinLedger.status, "pending")));
+    revalidatePath("/admin/billing");
+    return { status: "failed" };
+  }
+  return { status: "pending" };
 }
 
 const SAFECOIN_STATUSES = ["pending", "completed", "failed"] as const;
