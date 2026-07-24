@@ -209,6 +209,33 @@ export async function fulfillPortalOrder(
       `=profile=${profileName}`,
       `=mac-address=${mac}`,
     ]);
+
+    // AUTO-LOGIN CÔTÉ ROUTEUR (best-effort) : ouvre immédiatement une session
+    // hotspot active pour l'appareil, sans dépendre du navigateur. C'est ce qui
+    // « connecte tout seul » le téléphone après l'achat — y compris quand le
+    // paiement mobile money l'a fait basculer en 4G (la page /portal/paid ne
+    // peut alors pas atteindre le routeur). On retrouve l'IP courante du client
+    // dans la table des hôtes hotspot (par MAC) puis on force le login avec le
+    // code. Un échec ici n'empêche JAMAIS l'accès : le code reste saisissable et
+    // l'auto-login navigateur + le SMS restent en repli. Volontairement non-fatal.
+    try {
+      const hosts = await client.talk(["/ip/hotspot/host/print", `?mac-address=${mac}`]);
+      const ip =
+        hosts.find((h) => (h["mac-address"] ?? "").toUpperCase() === mac)?.["address"] ??
+        hosts[0]?.["address"];
+      if (ip) {
+        await client.talk([
+          "/ip/hotspot/active/login",
+          `=user=${code}`,
+          `=password=${code}`,
+          `=ip=${ip}`,
+          `=mac-address=${mac}`,
+        ]);
+      }
+    } catch {
+      // Appareil absent de la table des hôtes (plus sur le WiFi) ou commande
+      // refusée : on ignore — repli sur l'auto-login navigateur + SMS.
+    }
   } catch (e) {
     createError = `Échec de création sur le routeur : ${e instanceof Error ? e.message : "inconnue"}.`;
   } finally {
