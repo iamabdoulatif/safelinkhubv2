@@ -9,7 +9,7 @@
 // paiement soit confirmé et l'accès créé (voir status/route.ts + fulfill.ts).
 
 import { after } from "next/server";
-import { and, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, routers, portalOrders, portalOtps } from "@/lib/db/schema";
 import { packageProfileName } from "@/lib/mikrotik/package-voucher-profile";
@@ -119,52 +119,12 @@ export async function POST(
     else return corsJson({ error: "Routeur non identifié." }, { status: 400 });
   }
 
-  // ANTI-DOUBLE-DÉBIT. Si CE client (même numéro + même forfait + même appareil)
-  // a déjà une commande récente EN COURS (paiement engagé mais code pas encore
-  // délivré), on n'en crée PAS une seconde : un paiement mobile money terminé sur
-  // le téléphone (navigateur jamais revenu afficher le code) pousse sinon le
-  // client à « racheter » → il paie deux fois. On réutilise donc la commande :
-  //   • payée / en honneur, OU en attente AVEC une référence GeniusPay (un
-  //     checkout a déjà été ouvert, peut-être déjà réglé) → page d'ÉTAT
-  //     (/portal/paid) : le code s'affiche, on ne relance JAMAIS un 2ᵉ checkout.
-  //   • en attente SANS référence (moyen de paiement jamais choisi) → on réutilise
-  //     la même commande pour le choix du moyen (évite juste les lignes en double).
-  // ⚠️ On EXCLUT « fulfilled » : dès que le 1ᵉʳ code est DÉLIVRÉ, un nouvel achat
-  // depuis le même appareil est INTENTIONNEL (2ᵉ ticket pour un autre téléphone,
-  // même numéro) → on le laisse créer une commande distincte. La clé inclut aussi
-  // le NUMÉRO et le MAC : acheter pour un autre téléphone (autre MAC) ou un autre
-  // forfait crée toujours une commande distincte — « un ticket pour X, un pour Y ».
-  const REUSE_WINDOW_MS = 60 * 60 * 1000; // ~ durée de validité d'un checkout
-  const [existing] = await db
-    .select({
-      id: portalOrders.id,
-      status: portalOrders.status,
-      paymentReference: portalOrders.paymentReference,
-    })
-    .from(portalOrders)
-    .where(
-      and(
-        eq(portalOrders.orgId, org.id),
-        eq(portalOrders.phone, phone),
-        eq(portalOrders.packageId, pkg.id),
-        eq(portalOrders.mac, mac),
-        inArray(portalOrders.status, ["pending", "paid", "fulfilling"]),
-        gte(portalOrders.createdAt, new Date(Date.now() - REUSE_WINDOW_MS)),
-      ),
-    )
-    .orderBy(desc(portalOrders.createdAt))
-    .limit(1);
-  if (existing) {
-    const base = appUrl();
-    const paidUrl = `${base}/portal/paid?orderId=${existing.id}&slug=${encodeURIComponent(slug)}`;
-    const payUrl = `${base}/portal/pay?orderId=${existing.id}&slug=${encodeURIComponent(slug)}`;
-    // Un paiement est déjà engagé dès que la commande n'est plus un simple
-    // « pending » sans référence → on renvoie vers la page d'état (surtout pas un
-    // nouveau checkout). Sinon, retour au choix du moyen sur la même commande.
-    const paymentEngaged = existing.status !== "pending" || Boolean(existing.paymentReference);
-    const target = paymentEngaged ? paidUrl : payUrl;
-    return corsJson({ orderId: existing.id, payUrl: target, checkoutUrl: target, reused: true });
-  }
+  // DOUBLES ACHATS AUTORISÉS (choix produit, 2026-07-24) : chaque « acheter » crée
+  // une commande PAYABLE indépendante — aucune déduplication. Le client peut donc
+  // racheter autant de tickets qu'il veut (même numéro, même appareil), au prix de
+  // laisser passer un éventuel double débit s'il repaie une commande déjà réglée.
+  // Les filets de récupération restent en place : /portal/recover (retrouver son
+  // code par numéro), SMS automatique et cron de réconciliation.
 
   // Commande en attente AVANT le paiement (la référence GeniusPay y est ajoutée
   // ensuite ; le statut est vérifié server-to-server au polling).
