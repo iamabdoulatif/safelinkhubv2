@@ -185,11 +185,14 @@ export async function fulfillPortalOrder(
 
   // Crée le user hotspot lié au MAC. Réutilise le tunnel WireGuard du routeur.
   let client;
+  const tConnect0 = Date.now();
   try {
     client = await connectToRouter(router);
   } catch (e) {
     return failClaim(`Routeur injoignable : ${e instanceof Error ? e.message : "connexion échouée"}.`);
   }
+  const connectMs = Date.now() - tConnect0;
+  const tRouterWork0 = Date.now();
   // LOGIN PAR CODE : le user hotspot est nommé D'APRÈS le CODE (pas le MAC), avec
   // le code aussi en mot de passe → le client se connecte en saisissant le code
   // affiché/SMS (le profil autorise http-chap/http-pap, voir container-setup.ts).
@@ -214,6 +217,14 @@ export async function fulfillPortalOrder(
   } finally {
     client.close();
   }
+  // Chrono pour localiser la lenteur d'affichage du code (connexion tunnel vs
+  // travail routeur). Lu dans les logs après un vrai achat.
+  console.info("[portal:fulfill:timing]", {
+    router: router.name,
+    connectMs,
+    routerWorkMs: Date.now() - tRouterWork0,
+    ok: !createError,
+  });
   if (createError) return failClaim(createError);
 
   // Enregistre le voucher (source de vérité / reporting Ventes) puis marque la
