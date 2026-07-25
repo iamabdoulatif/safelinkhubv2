@@ -102,21 +102,23 @@ export async function POST(
   const phoneCountry = countryForIntlPhone(order.phone.replace(/[^0-9]/g, ""));
   const iso2 = phoneCountry?.iso2 ?? (await getOrgDial(org.id)).iso2;
 
-  // Résolution du rail. wave → direct. orange_money/mtn_money → PawaPay avec le
-  // code opérateur du pays du client (indispo → checkout hébergé). Reste → omis
-  // (checkout hébergé, liste tous les moyens).
+  // Résolution du rail. orange_money/mtn_money → PawaPay (page checkout hébergée
+  // geniuspay.ci qui REDIRIGE vers success_url après paiement). Wave / carte /
+  // reste → payment_method OMIS → checkout hébergé aussi.
+  //
+  // On ne force PLUS « wave » en DIRECT (pay.wave.com) : dans ce mode GeniusPay
+  // affichait SA page « Paiement réussi / Retour à l'accueil » sans revenir chez
+  // nous. Via le checkout hébergé, le client est renvoyé sur /portal/paid
+  // (success_url) — la page qui montre le code — au prix d'un tap « Wave » de
+  // plus sur la page GeniusPay.
   let paymentMethod: string | undefined;
   let mmoProvider: string | undefined;
-  if (methodRaw === "wave") {
-    paymentMethod = "wave";
-  } else {
-    const operator = OPERATOR_BY_METHOD[methodRaw];
-    if (operator && iso2 && iso2 !== "XX") {
-      const provider = pickPawapayProvider(await listPawapayProviders(creds, iso2), operator);
-      if (provider) {
-        paymentMethod = "pawapay";
-        mmoProvider = provider;
-      }
+  const operator = OPERATOR_BY_METHOD[methodRaw];
+  if (operator && iso2 && iso2 !== "XX") {
+    const provider = pickPawapayProvider(await listPawapayProviders(creds, iso2), operator);
+    if (provider) {
+      paymentMethod = "pawapay";
+      mmoProvider = provider;
     }
   }
 
