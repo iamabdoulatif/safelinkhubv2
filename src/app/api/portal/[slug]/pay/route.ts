@@ -102,23 +102,28 @@ export async function POST(
   const phoneCountry = countryForIntlPhone(order.phone.replace(/[^0-9]/g, ""));
   const iso2 = phoneCountry?.iso2 ?? (await getOrgDial(org.id)).iso2;
 
-  // Résolution du rail. orange_money/mtn_money → PawaPay (page checkout hébergée
-  // geniuspay.ci qui REDIRIGE vers success_url après paiement). Wave / carte /
-  // reste → payment_method OMIS → checkout hébergé aussi.
+  // Résolution du rail. wave → DIRECT (pay.wave.com). orange_money/mtn_money →
+  // PawaPay avec le code opérateur du pays du client (indispo → checkout hébergé).
+  // Reste → omis (checkout hébergé, liste tous les moyens).
   //
-  // On ne force PLUS « wave » en DIRECT (pay.wave.com) : dans ce mode GeniusPay
-  // affichait SA page « Paiement réussi / Retour à l'accueil » sans revenir chez
-  // nous. Via le checkout hébergé, le client est renvoyé sur /portal/paid
-  // (success_url) — la page qui montre le code — au prix d'un tap « Wave » de
-  // plus sur la page GeniusPay.
+  // ⚠️ WAVE DOIT RESTER EN DIRECT. Tenté (v133) de le router par le checkout
+  // hébergé pour bénéficier de la redirection success_url : ÉCHEC — le checkout
+  // hébergé envoie Wave sur PAYSTACK (checkout.paystack.com) qui refuse la
+  // transaction (« Cette transaction n'est pas valide »). Le direct pay.wave.com
+  // marche. Le retour vers la page du code pour Wave passe donc par l'onglet du
+  // portail qui sonde /portal/paid (fix v130), pas par une redirection GeniusPay.
   let paymentMethod: string | undefined;
   let mmoProvider: string | undefined;
-  const operator = OPERATOR_BY_METHOD[methodRaw];
-  if (operator && iso2 && iso2 !== "XX") {
-    const provider = pickPawapayProvider(await listPawapayProviders(creds, iso2), operator);
-    if (provider) {
-      paymentMethod = "pawapay";
-      mmoProvider = provider;
+  if (methodRaw === "wave") {
+    paymentMethod = "wave";
+  } else {
+    const operator = OPERATOR_BY_METHOD[methodRaw];
+    if (operator && iso2 && iso2 !== "XX") {
+      const provider = pickPawapayProvider(await listPawapayProviders(creds, iso2), operator);
+      if (provider) {
+        paymentMethod = "pawapay";
+        mmoProvider = provider;
+      }
     }
   }
 
