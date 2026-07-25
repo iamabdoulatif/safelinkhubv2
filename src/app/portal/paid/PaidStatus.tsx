@@ -73,7 +73,11 @@ export default function PaidStatus({
     if (!canPoll) return;
     let active = true;
     let tries = 0;
-    const max = 90;
+    const max = 150;
+    // Cadence ADAPTATIVE : le client vient de payer, on sonde vite pour afficher
+    // le code au plus tôt (1,2 s au début), puis on ralentit si l'attente se
+    // prolonge (économie serveur). Avant : 4 s fixes → le code « tardait ».
+    const delayFor = (n: number) => (n < 20 ? 1200 : n < 40 ? 2500 : 4000);
 
     async function tick() {
       if (!active) return;
@@ -111,11 +115,11 @@ export default function PaidStatus({
         // Erreur transitoire : on continue de sonder.
       }
       if (active && tries < max) {
-        timer = setTimeout(tick, 4000);
+        timer = setTimeout(tick, delayFor(tries));
       }
     }
 
-    let timer = setTimeout(tick, 800);
+    let timer = setTimeout(tick, 400);
     return () => {
       active = false;
       clearTimeout(timer);
