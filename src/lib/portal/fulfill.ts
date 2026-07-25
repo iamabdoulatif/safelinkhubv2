@@ -219,18 +219,25 @@ export async function fulfillPortalOrder(
     // code. Un échec ici n'empêche JAMAIS l'accès : le code reste saisissable et
     // l'auto-login navigateur + le SMS restent en repli. Volontairement non-fatal.
     try {
-      const hosts = await client.talk(["/ip/hotspot/host/print", `?mac-address=${mac}`]);
+      // Timeout COURT (2,5 s) : cet auto-login réseau est un bonus — il ne doit
+      // JAMAIS retarder l'affichage du code. Sur un routeur lent / une commande
+      // non supportée, on abandonne vite au lieu d'attendre le timeout de 8 s par
+      // défaut (× 2 appels = jusqu'à 16 s ajoutés au « Activation en cours »).
+      const hosts = await client.talk(["/ip/hotspot/host/print", `?mac-address=${mac}`], 2500);
       const ip =
         hosts.find((h) => (h["mac-address"] ?? "").toUpperCase() === mac)?.["address"] ??
         hosts[0]?.["address"];
       if (ip) {
-        await client.talk([
-          "/ip/hotspot/active/login",
-          `=user=${code}`,
-          `=password=${code}`,
-          `=ip=${ip}`,
-          `=mac-address=${mac}`,
-        ]);
+        await client.talk(
+          [
+            "/ip/hotspot/active/login",
+            `=user=${code}`,
+            `=password=${code}`,
+            `=ip=${ip}`,
+            `=mac-address=${mac}`,
+          ],
+          2500,
+        );
       }
     } catch {
       // Appareil absent de la table des hôtes (plus sur le WiFi) ou commande
