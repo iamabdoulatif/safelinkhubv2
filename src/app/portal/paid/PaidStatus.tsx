@@ -5,7 +5,7 @@
 // indépendamment de l'onglet du portail (qui, lui, auto-soumet le login routeur).
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Check, CheckCircle2, Copy, Hourglass, MessageSquareText, Plus, Wifi } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Copy, Loader2, MessageSquareText, Plus, Wifi } from "lucide-react";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
@@ -471,15 +471,20 @@ export default function PaidStatus({
           </>
         ) : (
           <>
-            <div style={{ marginBottom: 8 }}>
-              <Hourglass size={44} color={INK_SOFT} style={{ display: "inline-block" }} />
+            <style>{`@keyframes slh-spin{to{transform:rotate(360deg)}}`}</style>
+            <div style={{ marginBottom: 12 }}>
+              <Loader2
+                size={44}
+                color={BRAND}
+                style={{ display: "inline-block", animation: "slh-spin 1s linear infinite" }}
+              />
             </div>
             <h1 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 8px" }}>
-              {phase === "loading" ? "Paiement reçu" : "Activation en cours"}
+              Confirmation du paiement…
             </h1>
-            <p style={{ color: INK_SOFT, fontSize: ".95rem", margin: 0 }}>
-              Nous préparons votre accès… Votre code s’affichera ici et vous sera envoyé par SMS.
-              Vous pouvez aussi retourner à l’onglet WiFi.
+            <p style={{ color: INK_SOFT, fontSize: ".95rem", margin: 0, lineHeight: 1.5 }}>
+              Votre code WiFi s’affiche <b>ici même</b> dès la confirmation — quelques secondes.
+              Il vous est aussi envoyé par <b>SMS</b>. Pas besoin de recharger la page.
             </p>
             <RecoverLink slug={slug} />
           </>

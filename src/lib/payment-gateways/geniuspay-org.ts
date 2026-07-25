@@ -335,31 +335,48 @@ export async function getOrgPaymentStatus(
   creds: OrgGeniusCreds,
   reference: string,
 ): Promise<{ ok: true; status: OrgPaymentStatus } | { ok: false; error: string }> {
-  let res: Response;
-  try {
-    res = await fetch(`${baseUrl()}/payments/${encodeURIComponent(reference)}`, {
-      method: "GET",
-      headers: headers(creds),
-      cache: "no-store",
-    });
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Échec de contact GeniusPay." };
-  }
-  const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!res.ok) {
-    return { ok: false, error: geniusErrorMessage(json, res.status) };
-  }
-  const raw = String(
-    (json?.status as string) ||
-      ((json?.data as Record<string, unknown>)?.status as string) ||
-      "",
-  ).toLowerCase();
+  // GeniusPay (Laravel/LiteSpeed) renvoie PAR INTERMITTENCE sa page d'accueil SPA
+  // (HTML 200) au lieu du JSON → sans retry, `res.json()` échouait, le statut
+  // tombait à « unknown » et le webhook ABANDONNAIT la commande (fulfilled:false),
+  // d'où l'accès pas prêt quand le client revient. On réessaie donc les réponses
+  // non-JSON / réseau (lecture idempotente : aucun effet de bord à rejouer un GET).
+  const MAX_ATTEMPTS = 3;
+  let lastError = "Statut GeniusPay indisponible.";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) await new Promise((r) => setTimeout(r, 250 * (attempt - 1)));
+    let res: Response;
+    try {
+      res = await fetch(`${baseUrl()}/payments/${encodeURIComponent(reference)}`, {
+        method: "GET",
+        headers: headers(creds),
+        cache: "no-store",
+      });
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : "Échec de contact GeniusPay.";
+      continue; // réseau : transitoire → réessai
+    }
 
-  let status: OrgPaymentStatus = "unknown";
-  if (raw === "completed" || raw === "success") status = "completed";
-  else if (raw === "pending" || raw === "processing") status = "pending";
-  else if (raw === "failed" || raw === "cancelled" || raw === "refunded" || raw === "expired")
-    status = "failed";
+    const ct = res.headers.get("content-type") || "";
+    const rawText = await res.text().catch(() => "");
+    const json = ct.includes("json") ? safeParse(rawText) : null;
+    if (!json) {
+      // Réponse non-JSON (page SPA HTML) → transitoire → réessai.
+      lastError = `Réponse GeniusPay non-JSON (${res.status}).`;
+      continue;
+    }
+    if (!res.ok) {
+      return { ok: false, error: geniusErrorMessage(json, res.status) };
+    }
 
-  return { ok: true, status };
+    const raw = String(
+      (json.status as string) || ((json.data as Record<string, unknown>)?.status as string) || "",
+    ).toLowerCase();
+    let status: OrgPaymentStatus = "unknown";
+    if (raw === "completed" || raw === "success") status = "completed";
+    else if (raw === "pending" || raw === "processing") status = "pending";
+    else if (raw === "failed" || raw === "cancelled" || raw === "refunded" || raw === "expired")
+      status = "failed";
+    return { ok: true, status };
+  }
+  return { ok: false, error: lastError };
 }
