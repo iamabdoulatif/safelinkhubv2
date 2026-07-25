@@ -296,6 +296,61 @@ export async function fulfillPortalOrder(
 }
 
 /**
+ * PRÉ-PROVISIONNE le profil hotspot du forfait sur le routeur, EN ARRIÈRE-PLAN —
+ * appelé au moment du paiement (/pay), pendant que le client paie (~15-30 s).
+ * Ainsi, à la fulfillment, le profil existe DÉJÀ → création du ticket rapide
+ * (~300 ms) au lieu de ~4 s (création profil + scheduler à la volée) sur un
+ * routeur pas pré-provisionné (ex. MAMBA WIFI, jamais passé par l'auto-setup
+ * complet, ≠ RUE-NICOLAS). Best-effort, idempotent, silencieux : aucun effet si
+ * le profil est déjà là. La fulfillment reste le filet (elle le crée au besoin).
+ */
+export async function prewarmPortalVoucherProfile(orderId: string): Promise<void> {
+  try {
+    const db = getDb();
+    const [order] = await db
+      .select({
+        orgId: portalOrders.orgId,
+        routerId: portalOrders.routerId,
+        packageId: portalOrders.packageId,
+      })
+      .from(portalOrders)
+      .where(eq(portalOrders.id, orderId))
+      .limit(1);
+    if (!order?.routerId || !order.packageId) return;
+
+    const [pkgRow] = await db
+      .select({
+        durationValue: packages.durationValue,
+        durationUnit: packages.durationUnit,
+        priceCents: packages.priceCents,
+      })
+      .from(packages)
+      .where(eq(packages.id, order.packageId))
+      .limit(1);
+    const voucherProfile = pkgRow
+      ? voucherProfileForPackage(pkgRow.durationValue, pkgRow.durationUnit, pkgRow.priceCents)
+      : null;
+    if (!voucherProfile) return;
+
+    const [router] = await db
+      .select()
+      .from(routers)
+      .where(and(eq(routers.id, order.routerId), eq(routers.orgId, order.orgId)))
+      .limit(1);
+    if (!router) return;
+
+    const client = await connectToRouter(router);
+    try {
+      await ensureVoucherProfileOnRouter(client, voucherProfile);
+    } finally {
+      client.close();
+    }
+  } catch {
+    // best-effort : la fulfillment créera le profil si besoin (juste plus lent).
+  }
+}
+
+/**
  * Ouvre une session hotspot ACTIVE pour l'appareil (auto-login réseau), en
  * ARRIÈRE-PLAN et best-effort — appelée après que le code a été renvoyé, pour ne
  * jamais retarder son affichage. Ouvre sa propre connexion, retrouve l'IP du

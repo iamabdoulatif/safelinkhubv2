@@ -19,6 +19,7 @@ import {
 } from "@/lib/payment-gateways/geniuspay-org";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
+import { prewarmPortalVoucherProfile } from "@/lib/portal/fulfill";
 
 // Routage des rails sur GeniusPay v3 (geniuspay.ci), vérifié le 2026-07-23 :
 //  • "wave"                → rail direct pay.wave.com (fiable en captif)
@@ -142,6 +143,12 @@ export async function POST(
   if (!claim) {
     return corsJson({ error: "Cette commande est déjà en cours de paiement." }, { status: 409 });
   }
+
+  // Pré-provisionne le profil du forfait sur le routeur EN ARRIÈRE-PLAN pendant
+  // que le client paie (~15-30 s) → à la fulfillment le profil existe déjà et la
+  // création du ticket est rapide (évite ~4 s sur les routeurs pas
+  // pré-provisionnés, ex. MAMBA WIFI). Best-effort, détaché (conteneur persistant).
+  void prewarmPortalVoucherProfile(order.id);
 
   const base = appUrl();
   const payment = await createOrgPayment(creds, {
