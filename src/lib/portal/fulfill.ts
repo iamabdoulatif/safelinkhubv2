@@ -209,40 +209,6 @@ export async function fulfillPortalOrder(
       `=profile=${profileName}`,
       `=mac-address=${mac}`,
     ]);
-
-    // AUTO-LOGIN CÔTÉ ROUTEUR (best-effort) : ouvre immédiatement une session
-    // hotspot active pour l'appareil, sans dépendre du navigateur. C'est ce qui
-    // « connecte tout seul » le téléphone après l'achat — y compris quand le
-    // paiement mobile money l'a fait basculer en 4G (la page /portal/paid ne
-    // peut alors pas atteindre le routeur). On retrouve l'IP courante du client
-    // dans la table des hôtes hotspot (par MAC) puis on force le login avec le
-    // code. Un échec ici n'empêche JAMAIS l'accès : le code reste saisissable et
-    // l'auto-login navigateur + le SMS restent en repli. Volontairement non-fatal.
-    try {
-      // Timeout COURT (2,5 s) : cet auto-login réseau est un bonus — il ne doit
-      // JAMAIS retarder l'affichage du code. Sur un routeur lent / une commande
-      // non supportée, on abandonne vite au lieu d'attendre le timeout de 8 s par
-      // défaut (× 2 appels = jusqu'à 16 s ajoutés au « Activation en cours »).
-      const hosts = await client.talk(["/ip/hotspot/host/print", `?mac-address=${mac}`], 2500);
-      const ip =
-        hosts.find((h) => (h["mac-address"] ?? "").toUpperCase() === mac)?.["address"] ??
-        hosts[0]?.["address"];
-      if (ip) {
-        await client.talk(
-          [
-            "/ip/hotspot/active/login",
-            `=user=${code}`,
-            `=password=${code}`,
-            `=ip=${ip}`,
-            `=mac-address=${mac}`,
-          ],
-          2500,
-        );
-      }
-    } catch {
-      // Appareil absent de la table des hôtes (plus sur le WiFi) ou commande
-      // refusée : on ignore — repli sur l'auto-login navigateur + SMS.
-    }
   } catch (e) {
     createError = `Échec de création sur le routeur : ${e instanceof Error ? e.message : "inconnue"}.`;
   } finally {
@@ -307,9 +273,57 @@ export async function fulfillPortalOrder(
   // /portal/paid) — sinon smsStatus reste `pending`, et le filet du cron
   // enverra le code si le navigateur ne l'affiche jamais. Un échec SMS ne fait
   // jamais échouer le paiement (l'accès existe déjà).
+  // Auto-login réseau EN ARRIÈRE-PLAN (best-effort) : le code est déjà prêt —
+  // on n'attend PAS l'ouverture de session hotspot pour l'afficher (c'était le
+  // ~5 s de latence de trop). Le conteneur étant persistant, cette promesse
+  // détachée va à son terme. L'auto-login navigateur + le SMS restent en repli.
+  void activatePortalHotspotSession(router, mac, code);
+
   const smsSent = sendSms ? await trySendPortalSms(db, order, code) : false;
 
   return { ok: true, code, smsSent };
+}
+
+/**
+ * Ouvre une session hotspot ACTIVE pour l'appareil (auto-login réseau), en
+ * ARRIÈRE-PLAN et best-effort — appelée après que le code a été renvoyé, pour ne
+ * jamais retarder son affichage. Ouvre sa propre connexion, retrouve l'IP du
+ * client par MAC dans la table des hôtes, puis force le login avec le code.
+ * Silencieuse sur échec (appareil plus sur le WiFi, commande non supportée…).
+ */
+async function activatePortalHotspotSession(
+  router: Parameters<typeof connectToRouter>[0],
+  mac: string,
+  code: string,
+): Promise<void> {
+  let client;
+  try {
+    client = await connectToRouter(router);
+  } catch {
+    return; // routeur injoignable → repli auto-login navigateur + SMS
+  }
+  try {
+    const hosts = await client.talk(["/ip/hotspot/host/print", `?mac-address=${mac}`], 2500);
+    const ip =
+      hosts.find((h) => (h["mac-address"] ?? "").toUpperCase() === mac)?.["address"] ??
+      hosts[0]?.["address"];
+    if (ip) {
+      await client.talk(
+        [
+          "/ip/hotspot/active/login",
+          `=user=${code}`,
+          `=password=${code}`,
+          `=ip=${ip}`,
+          `=mac-address=${mac}`,
+        ],
+        2500,
+      );
+    }
+  } catch {
+    // best-effort : on ignore
+  } finally {
+    client.close();
+  }
 }
 
 /**
