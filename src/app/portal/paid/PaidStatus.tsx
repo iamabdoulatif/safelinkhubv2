@@ -51,6 +51,11 @@ export default function PaidStatus({
 }) {
   const canPoll = Boolean(orderId && slug) && !isError;
   const [phase, setPhase] = useState<Phase>(isError ? "failed" : canPoll ? "loading" : "processing");
+  // Passe à true si le paiement n'est toujours pas confirmé après ~25 s : on
+  // arrête d'afficher un spinner sans fin et on propose une action claire
+  // (« Retrouver mon code » par numéro, ou recommencer). Un paiement mobile
+  // money non abouti / abandonné laissait sinon l'écran tourner ~8 min.
+  const [slowWait, setSlowWait] = useState(false);
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
   // true ⇒ le SMS a déjà été envoyé (à la demande ou filet). Sinon on propose
@@ -111,6 +116,9 @@ export default function PaidStatus({
           return;
         }
         setPhase("processing");
+        // Toujours pas confirmé après ~14 sondages (~25 s) → mode « ça traîne » :
+        // on propose une action au lieu du spinner infini.
+        if (tries >= 14 && active) setSlowWait(true);
       } catch {
         // Erreur transitoire : on continue de sonder.
       }
@@ -480,13 +488,45 @@ export default function PaidStatus({
               />
             </div>
             <h1 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 8px" }}>
-              Confirmation du paiement…
+              {slowWait ? "Le paiement prend un peu plus de temps" : "Confirmation du paiement…"}
             </h1>
-            <p style={{ color: INK_SOFT, fontSize: ".95rem", margin: 0, lineHeight: 1.5 }}>
-              Votre code WiFi s’affiche <b>ici même</b> dès la confirmation — quelques secondes.
-              Il vous est aussi envoyé par <b>SMS</b>. Pas besoin de recharger la page.
+            <p style={{ color: INK_SOFT, fontSize: ".95rem", margin: "0 0 4px", lineHeight: 1.5 }}>
+              {slowWait ? (
+                <>
+                  Si vous venez de payer, patientez encore un instant. Si votre code ne s’affiche
+                  pas, récupérez-le avec votre <b>numéro</b> — il vous a aussi été envoyé par{" "}
+                  <b>SMS</b>.
+                </>
+              ) : (
+                <>
+                  Votre code WiFi s’affiche <b>ici même</b> dès la confirmation — quelques secondes.
+                  Il vous est aussi envoyé par <b>SMS</b>. Pas besoin de recharger la page.
+                </>
+              )}
             </p>
-            <RecoverLink slug={slug} />
+            {slowWait && slug ? (
+              <a
+                href={`/portal/recover?slug=${encodeURIComponent(slug)}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "100%",
+                  marginTop: 12,
+                  padding: "13px 16px",
+                  border: `2px solid ${INK}`,
+                  background: BRAND,
+                  color: INK,
+                  fontSize: "1rem",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                }}
+              >
+                Retrouver mon code
+              </a>
+            ) : (
+              <RecoverLink slug={slug} />
+            )}
           </>
         )}
       </div>
