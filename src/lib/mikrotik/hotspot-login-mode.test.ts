@@ -16,11 +16,12 @@ function mockClient(responses: Record<string, Record<string, string>[]>) {
 }
 
 describe("ensureHotspotLoginByCode", () => {
-  it("réécrit login-by quand le profil actif est incomplet", async () => {
+  it("ajoute les méthodes manquantes SANS retirer l'existant (préserve mac/mac-cookie)", async () => {
     const { client, recorded } = mockClient({
       "/ip/hotspot/print": [{ ".id": "*1", profile: "MAMBA WIFI", disabled: "false" }],
       "/ip/hotspot/profile/print": [
-        { ".id": "*P1", name: "MAMBA WIFI", "login-by": "http-pap" },
+        // manque http-pap ; mac + mac-cookie doivent être conservés (parité RUE-NICOLAS)
+        { ".id": "*P1", name: "MAMBA WIFI", "login-by": "mac,cookie,http-chap,mac-cookie" },
       ],
     });
 
@@ -30,14 +31,29 @@ describe("ensureHotspotLoginByCode", () => {
     const set = recorded.find((s) => s[0] === "/ip/hotspot/profile/set");
     assert.ok(set, "un /set doit être émis");
     assert.ok(set.includes("=numbers=*P1"));
-    assert.ok(set.includes("=login-by=cookie,http-chap,http-pap"));
+    // additif : existant préservé, http-pap ajouté à la fin
+    assert.ok(set.includes("=login-by=mac,cookie,http-chap,mac-cookie,http-pap"));
   });
 
-  it("ne touche à rien quand login-by couvre déjà les trois méthodes", async () => {
+  it("complète un profil vide/minimal vers les trois méthodes requises", async () => {
+    const { client, recorded } = mockClient({
+      "/ip/hotspot/print": [{ ".id": "*1", profile: "NEUF", disabled: "false" }],
+      "/ip/hotspot/profile/print": [{ ".id": "*P1", name: "NEUF", "login-by": "http-pap" }],
+    });
+
+    const { fixed } = await ensureHotspotLoginByCode(client as never);
+
+    assert.deepEqual(fixed, ["NEUF"]);
+    const set = recorded.find((s) => s[0] === "/ip/hotspot/profile/set");
+    assert.ok(set, "un /set doit être émis");
+    assert.ok(set.includes("=login-by=http-pap,cookie,http-chap"));
+  });
+
+  it("ne touche à rien quand login-by couvre déjà les trois méthodes (cas MAMBA/RUE-NICOLAS réel)", async () => {
     const { client, recorded } = mockClient({
       "/ip/hotspot/print": [{ ".id": "*1", profile: "RUE-NICOLAS", disabled: "false" }],
       "/ip/hotspot/profile/print": [
-        { ".id": "*P1", name: "RUE-NICOLAS", "login-by": "cookie,http-chap,http-pap,mac" },
+        { ".id": "*P1", name: "RUE-NICOLAS", "login-by": "mac,cookie,http-chap,http-pap,mac-cookie" },
       ],
     });
 

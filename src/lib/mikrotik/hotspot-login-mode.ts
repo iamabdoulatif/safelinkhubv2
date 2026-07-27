@@ -1,19 +1,20 @@
-// Garantit que le(s) profil(s) hotspot ACTIF(S) d'un routeur acceptent le login
-// PAR CODE + cookie — exactement ce que pose l'auto-setup complet
-// (provisionHotspotStack, container-setup.ts : login-by=cookie,http-chap,http-pap).
+// Garantit que le(s) profil(s) hotspot ACTIF(S) d'un routeur ACCEPTENT le login
+// PAR CODE + cookie — les méthodes nécessaires au paiement du portail captif.
 //
 // Pourquoi ce module : un routeur qui n'est PAS passé par l'auto-setup complet
 // (ex. MAMBA WIFI, configuré à la main) peut avoir un `login-by` incomplet — sans
 // `http-chap`/`http-pap` le code saisi n'authentifie pas de façon fiable, et sans
 // `cookie` l'appareil doit RE-SAISIR le code à chaque reconnexion (le navigateur
-// ne garde pas de session). RUE-NICOLAS, lui, a reçu la bonne valeur au setup.
-// Aucun chemin runtime ne ré-assurait ce réglage hors auto-setup : on le fait ici
-// pour amener n'importe quel routeur à parité, appelé depuis le flux de paiement.
+// ne garde pas de session). Aucun chemin runtime ne ré-assurait ce réglage hors
+// auto-setup : on le fait ici pour amener n'importe quel routeur à parité.
 //
-// Idempotent et NON destructif : on ne réécrit le profil QUE si sa valeur
-// `login-by` ne couvre pas déjà les trois méthodes attendues — sinon on ne touche
-// à rien (pas de perturbation des sessions en cours). Best-effort : ne lève pas.
-// Module serveur uniquement.
+// ADDITIF (et non écrasant) : on garantit la PRÉSENCE des méthodes requises SANS
+// retirer celles déjà là. Constaté on-device : le routeur de référence « parfait »
+// (RUE-NICOLAS) a `login-by=mac,cookie,http-chap,http-pap,mac-cookie` — écraser
+// par un jeu fixe `cookie,http-chap,http-pap` retirerait `mac`/`mac-cookie` et
+// DIVERGERAIT du routeur de référence. On préserve donc l'existant et on
+// n'ajoute QUE ce qui manque. Idempotent : ne /set que si une méthode manque.
+// Best-effort par profil : ne lève pas. Module serveur uniquement.
 
 import type { RouterOSClient } from "./client";
 
@@ -21,26 +22,24 @@ import type { RouterOSClient } from "./client";
 //   cookie    → le même navigateur ne re-saisit pas le code (session persistée)
 //   http-chap → saisie du code chiffrée (page de login standard RouterOS)
 //   http-pap  → repli en clair pour les clients/versions qui ne font pas CHAP
-// Ordre calé sur l'auto-setup (cookie,http-chap,http-pap).
+// On garantit leur PRÉSENCE ; les autres méthodes déjà posées sont préservées.
 const REQUIRED_LOGIN_METHODS = ["cookie", "http-chap", "http-pap"] as const;
-const DESIRED_LOGIN_BY = "cookie,http-chap,http-pap";
 
-function parseLoginBy(raw: string | undefined): Set<string> {
-  return new Set(
-    (raw ?? "")
-      .split(",")
-      .map((m) => m.trim().toLowerCase())
-      .filter(Boolean),
-  );
+function parseLoginBy(raw: string | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((m) => m.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 /**
- * Réaligne le `login-by` des profils hotspot réellement utilisés par un serveur
- * hotspot ACTIF sur `cookie,http-chap,http-pap`. Ne fait rien si c'est déjà le
- * cas. Best-effort par profil : un échec n'interrompt pas les autres et n'est
- * jamais relancé vers l'appelant.
+ * Garantit que chaque profil hotspot réellement utilisé par un serveur ACTIF
+ * accepte cookie+http-chap+http-pap, en PRÉSERVANT les méthodes déjà présentes
+ * (mac, mac-cookie…) : on ajoute uniquement les méthodes requises manquantes.
+ * Ne /set que si au moins une manque. Best-effort par profil : un échec
+ * n'interrompt pas les autres et n'est jamais relancé vers l'appelant.
  *
- * Renvoie la liste des profils effectivement corrigés (pour le log éventuel).
+ * Renvoie la liste des profils effectivement complétés (pour le log éventuel).
  */
 export async function ensureHotspotLoginByCode(
   client: RouterOSClient,
@@ -70,12 +69,15 @@ export async function ensureHotspotLoginByCode(
     if (!name || !id || !activeProfileNames.has(name)) continue;
 
     const current = parseLoginBy(profile["login-by"]);
-    const covered = REQUIRED_LOGIN_METHODS.every((m) => current.has(m));
-    if (covered) continue;
+    const present = new Set(current);
+    const missing = REQUIRED_LOGIN_METHODS.filter((m) => !present.has(m));
+    if (missing.length === 0) continue; // déjà couvert → on ne touche à rien
 
+    // Additif : méthodes existantes (ordre préservé) + celles qui manquent.
+    const merged = [...current, ...missing].join(",");
     try {
       await client.talk(
-        ["/ip/hotspot/profile/set", `=numbers=${id}`, `=login-by=${DESIRED_LOGIN_BY}`],
+        ["/ip/hotspot/profile/set", `=numbers=${id}`, `=login-by=${merged}`],
         timeoutMs,
       );
       fixed.push(name);
