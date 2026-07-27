@@ -6,6 +6,7 @@ import { openRouterTunnelWithRetry, ensureRouterPortForwards } from "./relay";
 import { reconcileWalledGardenOnce } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { ensureHotspotLoginByCode } from "./hotspot-login-mode";
+import { persistRouterLoginHost } from "@/lib/portal/router-login-url";
 import { enforceRouterSerialOnSync } from "./router-serial-lock";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
@@ -240,9 +241,12 @@ export async function syncRouterStats(
     // cookie,http-chap,http-pap (login par code + session cookie) — même logique
     // que le walled-garden : un routeur pas passé par l'auto-setup complet (ex.
     // MAMBA WIFI) obtient ainsi le réglage sans intervention, et le garde. Ne
-    // réécrit le profil que si la valeur est incomplète (idempotent). Best-effort.
+    // réécrit le profil que si la valeur est incomplète (idempotent). Capture
+    // aussi le host de login live (dns-name/hotspot-address) et le persiste si la
+    // base ne l'a pas → active l'AUTO-CONNEXION du portail. Best-effort.
     try {
-      await ensureHotspotLoginByCode(client);
+      const { loginHost } = await ensureHotspotLoginByCode(client);
+      await persistRouterLoginHost(routerId, loginHost);
     } catch {
       // Non-fatal — réessayé au prochain sync (routeur sans hotspot, hiccup API).
     }

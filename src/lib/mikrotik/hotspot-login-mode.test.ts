@@ -21,11 +21,17 @@ describe("ensureHotspotLoginByCode", () => {
       "/ip/hotspot/print": [{ ".id": "*1", profile: "MAMBA WIFI", disabled: "false" }],
       "/ip/hotspot/profile/print": [
         // manque http-pap ; mac + mac-cookie doivent être conservés (parité RUE-NICOLAS)
-        { ".id": "*P1", name: "MAMBA WIFI", "login-by": "mac,cookie,http-chap,mac-cookie" },
+        {
+          ".id": "*P1",
+          name: "MAMBA WIFI",
+          "login-by": "mac,cookie,http-chap,mac-cookie",
+          "dns-name": "mamba.ci",
+          "hotspot-address": "10.0.0.1",
+        },
       ],
     });
 
-    const { fixed } = await ensureHotspotLoginByCode(client as never);
+    const { fixed, loginHost } = await ensureHotspotLoginByCode(client as never);
 
     assert.deepEqual(fixed, ["MAMBA WIFI"]);
     const set = recorded.find((s) => s[0] === "/ip/hotspot/profile/set");
@@ -33,6 +39,8 @@ describe("ensureHotspotLoginByCode", () => {
     assert.ok(set.includes("=numbers=*P1"));
     // additif : existant préservé, http-pap ajouté à la fin
     assert.ok(set.includes("=login-by=mac,cookie,http-chap,mac-cookie,http-pap"));
+    // host de login live capturé pour l'auto-connexion
+    assert.deepEqual(loginHost, { dnsName: "mamba.ci", hotspotAddress: "10.0.0.1" });
   });
 
   it("complète un profil vide/minimal vers les trois méthodes requises", async () => {

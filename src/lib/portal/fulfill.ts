@@ -15,6 +15,7 @@ import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-pro
 import { reconcileWalledGardenOnce } from "@/lib/mikrotik/walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "@/lib/mikrotik/walled-garden-config";
 import { ensureHotspotLoginByCode } from "@/lib/mikrotik/hotspot-login-mode";
+import { persistRouterLoginHost } from "@/lib/portal/router-login-url";
 import { getAppUrl } from "@/lib/net/app-url";
 import { shouldAttemptPortalSms } from "@/lib/portal/sms-delivery";
 
@@ -381,9 +382,12 @@ export async function prewarmPortalVoucherProfile(orderId: string): Promise<void
         // best-effort : réconcilié au prochain health-check.
       }
 
-      // 2. Login par code (cookie+http-chap+http-pap sur le profil hotspot actif).
+      // 2. Login par code (cookie+http-chap+http-pap sur le profil hotspot actif),
+      // + capture du host de login live pour activer l'AUTO-CONNEXION même si
+      // l'instantané d'auto-setup en base est vide (ex. MAMBA WIFI).
       try {
-        await ensureHotspotLoginByCode(client);
+        const { loginHost } = await ensureHotspotLoginByCode(client);
+        await persistRouterLoginHost(router.id, loginHost);
       } catch {
         // best-effort : ne bloque pas la préparation.
       }

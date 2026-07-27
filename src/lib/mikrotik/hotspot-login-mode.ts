@@ -32,6 +32,14 @@ function parseLoginBy(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
+/** Host de login du hotspot lu EN LIVE sur le profil actif du routeur : sert à
+ * construire l'URL d'auto-connexion (`http://<host>/login`) même sur un routeur
+ * dont l'instantané d'auto-setup en base est vide (ex. MAMBA WIFI). */
+export type HotspotLoginHost = {
+  dnsName: string | null;
+  hotspotAddress: string | null;
+};
+
 /**
  * Garantit que chaque profil hotspot réellement utilisé par un serveur ACTIF
  * accepte cookie+http-chap+http-pap, en PRÉSERVANT les méthodes déjà présentes
@@ -39,34 +47,43 @@ function parseLoginBy(raw: string | undefined): string[] {
  * Ne /set que si au moins une manque. Best-effort par profil : un échec
  * n'interrompt pas les autres et n'est jamais relancé vers l'appelant.
  *
- * Renvoie la liste des profils effectivement complétés (pour le log éventuel).
+ * Renvoie la liste des profils complétés ET le host de login lu sur le profil du
+ * premier serveur actif (`dns-name`/`hotspot-address`) — l'appelant le persiste
+ * pour l'auto-connexion (voir persistRouterLoginHost).
  */
 export async function ensureHotspotLoginByCode(
   client: RouterOSClient,
   timeoutMs = 15000,
-): Promise<{ fixed: string[] }> {
+): Promise<{ fixed: string[]; loginHost: HotspotLoginHost | null }> {
   const fixed: string[] = [];
 
   const servers = await client
     .talk(["/ip/hotspot/print"], timeoutMs)
     .catch(() => [] as Record<string, string>[]);
-  // Profils rattachés à un serveur hotspot NON désactivé : les seuls qui
-  // servent la page de login vue par un client qui paie.
-  const activeProfileNames = new Set(
-    servers
-      .filter((s) => s.disabled !== "true" && s.profile)
-      .map((s) => s.profile as string),
-  );
-  if (activeProfileNames.size === 0) return { fixed };
+  // Serveurs hotspot NON désactivés : les seuls qui servent la page de login
+  // vue par un client qui paie. Le premier fournit le host de login à persister.
+  const enabledServers = servers.filter((s) => s.disabled !== "true" && s.profile);
+  const activeProfileNames = new Set(enabledServers.map((s) => s.profile as string));
+  if (activeProfileNames.size === 0) return { fixed, loginHost: null };
+  const primaryProfileName = enabledServers[0]?.profile;
 
   const profiles = await client
     .talk(["/ip/hotspot/profile/print"], timeoutMs)
     .catch(() => [] as Record<string, string>[]);
 
+  let loginHost: HotspotLoginHost | null = null;
   for (const profile of profiles) {
     const name = profile.name;
     const id = profile[".id"];
     if (!name || !id || !activeProfileNames.has(name)) continue;
+
+    // Host de login lu sur le profil du serveur actif principal.
+    if (name === primaryProfileName) {
+      loginHost = {
+        dnsName: profile["dns-name"]?.trim() || null,
+        hotspotAddress: profile["hotspot-address"]?.trim() || null,
+      };
+    }
 
     const current = parseLoginBy(profile["login-by"]);
     const present = new Set(current);
@@ -86,5 +103,5 @@ export async function ensureHotspotLoginByCode(
     }
   }
 
-  return { fixed };
+  return { fixed, loginHost };
 }
