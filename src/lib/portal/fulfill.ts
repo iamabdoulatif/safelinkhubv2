@@ -12,6 +12,10 @@ import { sendOrgSms } from "@/lib/sms/send";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
 import { voucherProfileForPackage } from "@/lib/mikrotik/package-voucher-profile";
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
+import { reconcileWalledGardenOnce } from "@/lib/mikrotik/walled-garden";
+import { getOrgWalledGardenDisabledHosts } from "@/lib/mikrotik/walled-garden-config";
+import { ensureHotspotLoginByCode } from "@/lib/mikrotik/hotspot-login-mode";
+import { getAppUrl } from "@/lib/net/app-url";
 import { shouldAttemptPortalSms } from "@/lib/portal/sms-delivery";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -296,13 +300,26 @@ export async function fulfillPortalOrder(
 }
 
 /**
- * PRÉ-PROVISIONNE le profil hotspot du forfait sur le routeur, EN ARRIÈRE-PLAN —
- * appelé au moment du paiement (/pay), pendant que le client paie (~15-30 s).
- * Ainsi, à la fulfillment, le profil existe DÉJÀ → création du ticket rapide
- * (~300 ms) au lieu de ~4 s (création profil + scheduler à la volée) sur un
- * routeur pas pré-provisionné (ex. MAMBA WIFI, jamais passé par l'auto-setup
- * complet, ≠ RUE-NICOLAS). Best-effort, idempotent, silencieux : aucun effet si
- * le profil est déjà là. La fulfillment reste le filet (elle le crée au besoin).
+ * PRÉPARE le routeur au paiement du portail, EN ARRIÈRE-PLAN — appelé au moment
+ * du paiement (/pay), pendant que le client paie (~15-30 s). Réutilise UNE seule
+ * connexion pour amener un routeur pas pré-provisionné (ex. MAMBA WIFI, jamais
+ * passé par l'auto-setup complet, ≠ RUE-NICOLAS) à la parité RUE-NICOLAS sur les
+ * trois états critiques du paiement :
+ *
+ *  1. WALLED-GARDEN — les hôtes des rails de paiement (Wave, GeniusPay, PawaPay…)
+ *     doivent être joignables AVANT connexion, sinon la page de paiement reste
+ *     bloquée. RUE-NICOLAS l'a reçu à l'auto-setup ; ailleurs ce n'était
+ *     réconcilié qu'au health-check (cron quotidien). Ici on le pose au plus tôt,
+ *     pendant que le client est encore sur la page de choix du moyen de paiement,
+ *     donc AVANT sa redirection vers le rail.
+ *  2. LOGIN PAR CODE — le profil hotspot actif doit accepter cookie+http-chap+
+ *     http-pap, sinon le client doit RE-SAISIR le code (pas de session persistée).
+ *  3. PROFIL VOUCHER du forfait — pré-créé pour que la fulfillment crée le ticket
+ *     en ~300 ms au lieu de ~4 s (création profil + scheduler à la volée).
+ *
+ * Best-effort, idempotent, silencieux : chaque étape est indépendante (une qui
+ * échoue n'empêche pas les autres) et sans effet si l'état est déjà bon. La
+ * fulfillment et le health-check restent les filets.
  */
 export async function prewarmPortalVoucherProfile(orderId: string): Promise<void> {
   try {
@@ -316,21 +333,7 @@ export async function prewarmPortalVoucherProfile(orderId: string): Promise<void
       .from(portalOrders)
       .where(eq(portalOrders.id, orderId))
       .limit(1);
-    if (!order?.routerId || !order.packageId) return;
-
-    const [pkgRow] = await db
-      .select({
-        durationValue: packages.durationValue,
-        durationUnit: packages.durationUnit,
-        priceCents: packages.priceCents,
-      })
-      .from(packages)
-      .where(eq(packages.id, order.packageId))
-      .limit(1);
-    const voucherProfile = pkgRow
-      ? voucherProfileForPackage(pkgRow.durationValue, pkgRow.durationUnit, pkgRow.priceCents)
-      : null;
-    if (!voucherProfile) return;
+    if (!order?.routerId) return;
 
     const [router] = await db
       .select()
@@ -339,14 +342,65 @@ export async function prewarmPortalVoucherProfile(orderId: string): Promise<void
       .limit(1);
     if (!router) return;
 
+    // Profil voucher du forfait (si un forfait est rattaché) — reconstruit
+    // depuis le forfait vendu ; null si le forfait a été supprimé.
+    let voucherProfile = null as ReturnType<typeof voucherProfileForPackage>;
+    if (order.packageId) {
+      const [pkgRow] = await db
+        .select({
+          durationValue: packages.durationValue,
+          durationUnit: packages.durationUnit,
+          priceCents: packages.priceCents,
+        })
+        .from(packages)
+        .where(eq(packages.id, order.packageId))
+        .limit(1);
+      if (pkgRow) {
+        voucherProfile = voucherProfileForPackage(
+          pkgRow.durationValue,
+          pkgRow.durationUnit,
+          pkgRow.priceCents,
+        );
+      }
+    }
+
     const client = await connectToRouter(router);
     try {
-      await ensureVoucherProfileOnRouter(client, voucherProfile);
+      // 1. Walled-garden — au plus une fois par (routeur, liste d'hôtes) et par
+      // process (reconcileWalledGardenOnce est caché), donc pas rejoué à chaque
+      // paiement une fois posé. getAppUrl peut lever (config locale en prod) :
+      // toléré, on saute juste cette étape.
+      try {
+        await reconcileWalledGardenOnce(
+          client,
+          new URL(getAppUrl()).host,
+          router.id,
+          await getOrgWalledGardenDisabledHosts(order.orgId),
+        );
+      } catch {
+        // best-effort : réconcilié au prochain health-check.
+      }
+
+      // 2. Login par code (cookie+http-chap+http-pap sur le profil hotspot actif).
+      try {
+        await ensureHotspotLoginByCode(client);
+      } catch {
+        // best-effort : ne bloque pas la préparation.
+      }
+
+      // 3. Profil voucher du forfait.
+      if (voucherProfile) {
+        try {
+          await ensureVoucherProfileOnRouter(client, voucherProfile);
+        } catch {
+          // best-effort : la fulfillment le crée au besoin (juste plus lent).
+        }
+      }
     } finally {
       client.close();
     }
   } catch {
-    // best-effort : la fulfillment créera le profil si besoin (juste plus lent).
+    // best-effort : la fulfillment et le health-check rattrapent.
   }
 }
 
@@ -369,10 +423,22 @@ async function activatePortalHotspotSession(
     return; // routeur injoignable → repli auto-login navigateur + SMS
   }
   try {
-    const hosts = await client.talk(["/ip/hotspot/host/print", `?mac-address=${mac}`], 2500);
-    const ip =
-      hosts.find((h) => (h["mac-address"] ?? "").toUpperCase() === mac)?.["address"] ??
-      hosts[0]?.["address"];
+    // L'appareil qui vient de payer n'apparaît pas toujours IMMÉDIATEMENT dans la
+    // table des hôtes hotspot (DHCP/ARP encore en cours, ou navigateur parti sur
+    // le rail de paiement). On réessaie brièvement de retrouver son IP par MAC
+    // avant d'abandonner — sans quoi l'auto-login réseau échoue en silence et le
+    // client doit ressaisir le code. Repli inchangé (auto-login navigateur + SMS)
+    // si l'appareil reste introuvable.
+    let ip: string | undefined;
+    for (let attempt = 0; attempt < 4 && !ip; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 1500));
+      const hosts = await client
+        .talk(["/ip/hotspot/host/print", `?mac-address=${mac}`], 2500)
+        .catch(() => [] as Record<string, string>[]);
+      ip =
+        hosts.find((h) => (h["mac-address"] ?? "").toUpperCase() === mac)?.["address"] ??
+        hosts[0]?.["address"];
+    }
     if (ip) {
       await client.talk(
         [
