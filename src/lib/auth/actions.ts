@@ -14,6 +14,7 @@ import {
   tokenExpiry,
 } from "./tokens";
 import { sendActivationEmail, sendPasswordResetEmail } from "./email";
+import { computeVpnQuotaGrant } from "@/lib/billing/vpn-quota";
 import {
   clearMfaPendingToken,
   createMfaPendingToken,
@@ -223,9 +224,22 @@ export async function register(_prevState: unknown, formData: FormData) {
   const slugBase = name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "org";
   const slug = `${slugBase}-${Math.random().toString(36).slice(2, 7)}`;
 
+  // Essai gratuit d'accès distant VPN dès l'inscription : 10 jours de quota
+  // `free_until` couvrant TOUS les services (WebFig, WinBox, MikHmon,
+  // SSH/FileZilla) sur TOUS les routeurs. C'est le mécanisme reconnu de bout en
+  // bout — evaluateRemoteAccessGate autorise (reason "quota"), l'expiration de
+  // l'accès est plafonnée à la fin de l'essai, et aucun débit n'est fait
+  // (shouldChargeVpnActivation renvoie false tant que le quota est gratuit).
+  // Après 10 jours, le quota expire → l'accès distant redevient payant.
+  const vpnTrial = computeVpnQuotaGrant("free_10_days");
   const [org] = await db
     .insert(organizations)
-    .values({ name: `Organisation de ${name}`, slug })
+    .values({
+      name: `Organisation de ${name}`,
+      slug,
+      vpnQuotaMode: vpnTrial.mode,
+      vpnQuotaExpiresAt: vpnTrial.expiresAt,
+    })
     .returning();
 
   const passwordHash = await bcrypt.hash(password, 10);
