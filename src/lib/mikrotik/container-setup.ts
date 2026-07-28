@@ -311,37 +311,50 @@ async function provisionDockerStack(
     const internalDisk = disks.find(
       (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot) && d.type !== "tmpfs",
     );
+    // Clé USB / microSD DÉTECTÉE EN DIRECT (slot "usb1", "usb2"…). RouterOS
+    // l'expose comme une entrée /disk même NON formatée. On ne se fie PAS au
+    // seul flag opts.hasUsbStorage : il vient de la détection de l'UI au
+    // chargement de la page et peut être PÉRIMÉ (clé branchée après la
+    // détection, ou re-run de l'auto-setup) — d'où des ax³/Chateau PRO ax/L009
+    // (requiresUsbForContainer, flash interne trop petite) qui basculaient à
+    // tort en tmpfs/interne au lieu d'utiliser leur clé. Comme pour le device-
+    // mode plus haut, on RE-VÉRIFIE l'USB en direct sur l'appareil. Même signal
+    // que device-detect.ts (usb1DiskLive).
+    const usbDisk = disks.find(
+      (d) => typeof d.slot === "string" && /^usb\d+$/i.test(d.slot),
+    );
     let containerRootDir = "tmp/mikhmon-app";
     let scenario: DeploymentScenario;
 
-    if (opts.hasUsbStorage) {
+    if (opts.hasUsbStorage || usbDisk) {
       // --- SCÉNARIO 1: USB / microSD ---
       scenario = 1;
+      // Slot réel de la clé (usb1/usb2/microSD), pas un "usb1" en dur.
+      const usbSlot = usbDisk?.slot ?? "usb1";
       // RouterOS exposes a plugged-in USB stick as an unformatted /disk
-      // entry (slot usb1) — /container/config's tmpdir=usb1/pull silently
+      // entry (slot usb1) — /container/config's tmpdir=<usb>/pull silently
       // fails to pull/extract images until that slot is formatted ext4
       // (this is MikroTik's own documented Container prerequisite, the
       // same "Format Drive" step done by hand in WinBox). Re-running
       // auto-setup on an already-formatted stick must not reformat it —
       // that would wipe whatever's already pulled/cached — so this only
       // formats when the slot isn't already ext4.
-      const usb1Disk = disks.find((d) => d.slot === "usb1");
-      if (usb1Disk && usb1Disk["file-system"] !== "ext4") {
+      if (usbDisk && usbDisk["file-system"] !== "ext4") {
         await run(
-          ["/disk/format-drive", "=slot=usb1", "=file-system=ext4"],
-          "format USB stick (usb1, ext4)",
+          ["/disk/format-drive", `=slot=${usbSlot}`, "=file-system=ext4"],
+          `format USB stick (${usbSlot}, ext4)`,
           60000,
         );
-      } else if (!usb1Disk) {
+      } else if (!usbDisk) {
         log.push(
-          "SKIP (format USB stick): no disk reported at slot usb1 — plug the USB stick in and re-run auto-setup before MikHmon can use it.",
+          "SKIP (format USB stick): no USB disk detected (slot usb*) — plug the USB stick in and re-run auto-setup before MikHmon can use it.",
         );
       }
 
-      containerRootDir = "usb1/mikhmon-app";
+      containerRootDir = `${usbSlot}/mikhmon-app`;
       const configured = await run(
-        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull"],
-        "container engine config (USB storage)",
+        ["/container/config/set", "=registry-url=https://registry-1.docker.io", `=tmpdir=${usbSlot}/pull`],
+        `container engine config (USB storage ${usbSlot})`,
       );
       if (!configured.ok) return { status: "failed", message: configured.error };
     } else if (internalDisk?.slot || opts.hasLargeOnboardStorage || opts.hasEmmcStorage) {
