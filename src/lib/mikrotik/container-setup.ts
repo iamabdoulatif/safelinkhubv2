@@ -23,7 +23,7 @@ import { scenarioLabel, type DeploymentScenario } from "./device-catalog";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { ensureWalledGarden } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
-import { loadSafelinkhubDefaultPackage, type PackageFile } from "@/lib/captive-templates/package-files";
+import { loadSafelinkBarakaPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import {
   evaluateAutoSetupGate,
@@ -1496,13 +1496,15 @@ export async function provisionHotspotStack(
         }
 
         if (!packageTemplate) {
-          // Auto-seeds the SafeLinkHub bundled portal ("hotspot-sfh1"),
-          // suffixed with the client's own WiFi (SSID) when known so an
-          // admin with more than one hotspot can still tell which portail
-          // belongs to which.
+          // Auto-seeds the SaaS DEFAULT bundled portal ("SafeLink Baraka"),
+          // suffixed with the client's own WiFi (SSID) when known so an admin
+          // with more than one hotspot can still tell which portail belongs to
+          // which. Baraka affiche les forfaits/prix EN DIRECT (renderInlinePlans
+          // + endpoint /plans) et intègre le paiement — tout nouveau routeur
+          // configuré obtient donc prix à jour + achat sans réglage manuel.
           const templateName = opts.ssid?.trim()
-            ? `hotspot-sfh1 — ${opts.ssid.trim()}`
-            : "hotspot-sfh1";
+            ? `SafeLink Baraka — ${opts.ssid.trim()}`
+            : "SafeLink Baraka";
           [packageTemplate] = await db
             .insert(captiveTemplates)
             .values({
@@ -1510,7 +1512,7 @@ export async function provisionHotspotStack(
               name: templateName,
               isDefault: false,
               templateType: "package",
-              packageFiles: loadSafelinkhubDefaultPackage(),
+              packageFiles: loadSafelinkBarakaPackage(),
             })
             .returning();
         }

@@ -210,18 +210,34 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
     .join("\n");
 }
 
+// Objet forfait tel que consommé par le portail (SLH_PLANS + endpoint live
+// /api/portal/[slug]/plans) : même forme des deux côtés, dérivée d'ici.
+export type PortalPlanDto = {
+  id: string;
+  name: string;
+  label: string;
+  price: number;
+  priceLabel: string;
+  durationValue: number;
+  durationUnit: string;
+};
+
+/** Sérialise des forfaits vers la forme attendue par le portail (SLH_PLANS et
+ * endpoint live partagent EXACTEMENT ce format). */
+export function portalPlanObjects(plans: PortalPlan[] | null | undefined): PortalPlanDto[] {
+  return (plans ?? []).map((plan) => ({
+    id: plan.id,
+    name: plan.name,
+    label: planDisplayName(plan),
+    price: plan.priceCents,
+    priceLabel: formatFcfa(plan.priceCents),
+    durationValue: plan.durationValue,
+    durationUnit: plan.durationUnit,
+  }));
+}
+
 function renderPlansJson(plans: PortalPlan[] | null | undefined): string {
-  return JSON.stringify(
-    (plans ?? []).map((plan) => ({
-      id: plan.id,
-      name: plan.name,
-      label: planDisplayName(plan),
-      price: plan.priceCents,
-      priceLabel: formatFcfa(plan.priceCents),
-      durationValue: plan.durationValue,
-      durationUnit: plan.durationUnit,
-    })),
-  );
+  return JSON.stringify(portalPlanObjects(plans));
 }
 
 function minPlanPriceLabel(plans: PortalPlan[] | null | undefined): string {
@@ -335,6 +351,36 @@ export function loadSafelinkhubDefaultPackage(): PackageFile[] {
 export function loadYahyaWifiPackage(): PackageFile[] {
   const dir = path.join(process.cwd(), "src/lib/captive-templates/packages/yahya-wifi");
   return loadPackage(dir, YAHYA_WIFI_FILES);
+}
+
+// Bundled "SafeLink Baraka" portal — devenu le portail par DÉFAUT du SaaS (voir
+// container-setup.ts). Paramétré pour le multi-tenant : le titre affiche le SSID
+// réel du routeur ({{SSID}}), et sa liste de forfaits est VIDE dans le HTML —
+// SafeLinkHub la remplit EN DIRECT (renderInlinePlans + endpoint /plans, prix
+// toujours à jour, achat en 1 tap). Bannières/images de marque figées retirées.
+const SAFELINK_BARAKA_FILES = [
+  "login.html",
+  "alogin.html",
+  "rlogin.html",
+  "redirect.html",
+  "logout.html",
+  "error.html",
+  "status.html",
+  "radvert.html",
+  "md5.js",
+  "style.css",
+  "errors.txt",
+  "errors-en.txt",
+  "font/fontello.woff",
+  "font/fontello.woff2",
+  "font/fontello.svg",
+];
+
+/** Reads the bundled "SafeLink Baraka" hotspot portal off disk (SaaS default),
+ * ready to store in `captiveTemplates.packageFiles`. */
+export function loadSafelinkBarakaPackage(): PackageFile[] {
+  const dir = path.join(process.cwd(), "src/lib/captive-templates/packages/baraka");
+  return loadPackage(dir, SAFELINK_BARAKA_FILES);
 }
 
 const EXT_TO_CONTENT_TYPE: Record<string, string> = {
@@ -692,7 +738,26 @@ const PORTAL_PAY_SCRIPT = `(function(){
   // flottant "Payer mon forfait" + un selecteur des forfaits de l org
   // (window.SLH_PLANS). N apparait PAS si le portail a deja des boutons
   // [data-package-id] (SafeLinkHub ou portail deja equipe) : il gere seul.
-  function slhPlans(){ return (window.SLH_PLANS && window.SLH_PLANS.length) ? window.SLH_PLANS : []; }
+  // Forfaits affiches : les LIVE (fetch au chargement, prix toujours a jour)
+  // priment sur ceux cuits dans la page (SLH_PLANS, repli hors-ligne / walled-
+  // garden pas encore ouvert). Voir fetchLivePlans + endpoint /plans.
+  var LIVE_PLANS = null;
+  function slhPlans(){
+    if(LIVE_PLANS && LIVE_PLANS.length) return LIVE_PLANS;
+    return (window.SLH_PLANS && window.SLH_PLANS.length) ? window.SLH_PLANS : [];
+  }
+  // Recupere les forfaits EN DIRECT depuis SafeLinkHub (dans le walled-garden) :
+  // un changement de prix cote SaaS se reflete SANS re-installer le portail. En
+  // cas d echec (reseau, hors walled-garden), on garde les prix cuits. Le
+  // callback est appele dans tous les cas (succes comme echec).
+  function fetchLivePlans(cb){
+    if(!cfg.appUrl || !cfg.slug){ cb(); return; }
+    var url = cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + "/plans" + (cfg.routerId ? ("?routerId=" + encodeURIComponent(cfg.routerId)) : "");
+    fetch(url, { cache: "no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if(d && d.plans && d.plans.length){ LIVE_PLANS = d.plans; } cb(); })
+      .catch(function(){ cb(); });
+  }
   function hasNativeButtons(){ return document.querySelectorAll("[data-package-id]").length > 0; }
   function openPicker(){
     var old = document.getElementById("slh-pick-modal"); if(old) old.remove();
@@ -773,7 +838,9 @@ const PORTAL_PAY_SCRIPT = `(function(){
   // 2) sinon (aucun conteneur) monte le bouton flottant. Un 2e passage differe
   // rattrape un portail qui remplit ses forfaits tardivement (rendu async).
   function slhBoot(){ renderInlinePlans(); if(configured()) mountFab(); }
-  slhReady(function(){ slhBoot(); setTimeout(slhBoot, 800); });
+  // Rendu immediat avec les prix cuits (affichage instantane), puis fetch LIVE
+  // -> re-rendu avec les prix a jour des qu ils arrivent, puis rattrapage differe.
+  slhReady(function(){ slhBoot(); fetchLivePlans(function(){ slhBoot(); }); setTimeout(slhBoot, 800); });
 })();`;
 
 /** Bloc <script> injecté en fin de login.html : config + flux de paiement. */

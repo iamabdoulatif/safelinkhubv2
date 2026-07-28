@@ -184,6 +184,9 @@ describe("renderPackageFile", () => {
     assert.ok(body.includes("renderInlinePlans"), "inline-plan renderer injected");
     assert.ok(body.includes('getElementById("forfaits")'), "targets #forfaits container");
     assert.ok(body.includes("data-package-id"), "cards carry the purchase hook");
+    // Prix LIVE : le portail fetch l'endpoint /plans au chargement (toujours à jour).
+    assert.ok(body.includes("fetchLivePlans"), "live-plans fetcher injected");
+    assert.ok(body.includes('/plans'), "live /plans endpoint referenced");
 
     // Le script injecté reste du JS syntaxiquement valide.
     const scripts = [...body.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
