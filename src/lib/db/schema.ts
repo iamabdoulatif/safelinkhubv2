@@ -347,6 +347,10 @@ export const packages = pgTable("packages", {
   commissionCents: integer("commission_cents").notNull().default(0),
   billingStartsOn: text("billing_starts_on").notNull().default("Upon First Use"),
   active: boolean("active").notNull().default(true),
+  // Forfait AFFICHÉ sur le portail captif mais NON payable en ligne (le clic ne
+  // déclenche pas le paiement) — ex. petits forfaits vendus seulement en espèces
+  // par un vendeur, ou sous le minimum de l'agrégateur (GeniusPay = 200 FCFA).
+  portalPayDisabled: boolean("portal_pay_disabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

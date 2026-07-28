@@ -195,6 +195,28 @@ describe("renderPackageFile", () => {
     assert.doesNotThrow(() => new Function(flow), "injected script is syntactically valid");
   });
 
+  it("renders a payDisabled plan as visible-but-inert (no data-package-id)", () => {
+    const file: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: '<div class="plans-grid">{{PLANS_HTML}}</div>',
+    };
+    const body = renderPackageFile(file, {
+      ssid: "X",
+      plans: [
+        { id: "pkg-100", name: "06-HEURES", priceCents: 100, durationValue: 6, durationUnit: "Hours", payDisabled: true },
+        { id: "pkg-300", name: "01-JOUR", priceCents: 300, durationValue: 1, durationUnit: "Days" },
+      ],
+    }).toString("utf8");
+
+    // Le forfait payable porte le hook d'achat ; le désactivé NON.
+    assert.ok(body.includes('data-package-id="pkg-300"'), "payable plan is buyable");
+    assert.ok(!body.includes('data-package-id="pkg-100"'), "disabled plan has no purchase hook");
+    // Mais il reste AFFICHÉ avec son prix.
+    assert.ok(body.includes("100 FCFA"), "disabled plan still shown");
+    assert.ok(body.includes("Auprès d'un vendeur") || body.includes("Aupr&#233;s"), "disabled plan labelled");
+  });
+
   it("does not inject the payment flow without appUrl, nor into non-login files", () => {
     const login: PackageFile = {
       path: "login.html",

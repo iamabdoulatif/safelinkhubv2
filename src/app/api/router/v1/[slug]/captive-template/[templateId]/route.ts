@@ -1,13 +1,14 @@
 import { NextRequest } from "next/server";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { organizations, captiveTemplates, packages, routers } from "@/lib/db/schema";
+import { organizations, captiveTemplates, routers } from "@/lib/db/schema";
 import {
   contentTypeForPath,
   renderPackageFile,
   type PackageFile,
   type PackageVendor,
 } from "@/lib/captive-templates/package-files";
+import { getPortalPlansForRouter } from "@/lib/portal/plans";
 import { getOrgDial } from "@/lib/portal/org-dial";
 
 /**
@@ -66,41 +67,9 @@ export async function GET(
   // ceux-là ; sinon (org legacy jamais re-configurée) on retombe sur les
   // forfaits « globaux » (routerId=null). Un forfait null est adopté (routerId
   // renseigné) au prochain auto-setup du routeur — voir container-setup.ts.
-  const planColumns = {
-    id: packages.id,
-    name: packages.name,
-    priceCents: packages.priceCents,
-    durationValue: packages.durationValue,
-    durationUnit: packages.durationUnit,
-  } as const;
-  let plans = routerId
-    ? await db
-        .select(planColumns)
-        .from(packages)
-        .where(
-          and(
-            eq(packages.orgId, org.id),
-            eq(packages.active, true),
-            eq(packages.routerId, routerId),
-          ),
-        )
-        .orderBy(asc(packages.priceCents))
-    : [];
-  if (plans.length === 0) {
-    // Aucun forfait rattaché à ce routeur (ou routerId absent) → forfaits
-    // legacy globaux de l'org.
-    plans = await db
-      .select(planColumns)
-      .from(packages)
-      .where(
-        and(
-          eq(packages.orgId, org.id),
-          eq(packages.active, true),
-          isNull(packages.routerId),
-        ),
-      )
-      .orderBy(asc(packages.priceCents));
-  }
+  // Source unique partagée avec l'endpoint live /api/portal/[slug]/plans :
+  // forfaits du routeur (repli global), avec le drapeau payDisabled.
+  const plans = await getPortalPlansForRouter(org.id, routerId || null);
 
   // Branding scopé au ROUTEUR (saisi dans l'auto-setup) prioritaire sur celui
   // du modèle, qui sert de repli champ par champ. Un routeur qui a défini ses

@@ -15,6 +15,7 @@ const PLAN_COLUMNS = {
   priceCents: packages.priceCents,
   durationValue: packages.durationValue,
   durationUnit: packages.durationUnit,
+  payDisabled: packages.portalPayDisabled,
 } as const;
 
 /**
