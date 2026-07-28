@@ -156,6 +156,42 @@ describe("renderPackageFile", () => {
     assert.doesNotThrow(() => new Function(flow), "injected script is syntactically valid");
   });
 
+  it("injects inline-plan rendering that fills an imported portal's #forfaits container", () => {
+    // Portail importé façon Safelink_baraka : conteneur #forfaits + forfaits
+    // codés en dur. Le script injecté doit contenir de quoi le remplir avec les
+    // vrais forfaits du SaaS (renderInlinePlans + SLH_PLANS), et rester du JS valide.
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content:
+        '<html><body><div id="forfaits" class="forfaits"></div><script>var PORTAL_CONFIG={forfaits:[{label:"01-JOUR",price:"200 Fcfa"}]};</script></body></html>',
+    };
+    const body = renderPackageFile(login, {
+      ssid: "ABDOULATIF-WIFI",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+      routerId: "router-1",
+      plans: [
+        { id: "pkg-1j", name: "1j", priceCents: 200, durationValue: 1, durationUnit: "Days" },
+        { id: "pkg-1s", name: "1s", priceCents: 1000, durationValue: 1, durationUnit: "Weeks" },
+      ],
+    }).toString("utf8");
+
+    // Les vrais forfaits du SaaS sont injectés (SLH_PLANS) avec leurs prix.
+    assert.ok(body.includes('window.SLH_PLANS='), "SLH_PLANS injected");
+    assert.ok(body.includes('"priceLabel":"200 FCFA"'), "live price in SLH_PLANS");
+    // Le script sait cibler le conteneur du portail et poser des cartes achetables.
+    assert.ok(body.includes("renderInlinePlans"), "inline-plan renderer injected");
+    assert.ok(body.includes('getElementById("forfaits")'), "targets #forfaits container");
+    assert.ok(body.includes("data-package-id"), "cards carry the purchase hook");
+
+    // Le script injecté reste du JS syntaxiquement valide.
+    const scripts = [...body.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    const flow = scripts.find((s) => s.includes("renderInlinePlans")) ?? "";
+    assert.ok(flow.length > 0, "flow script extracted");
+    assert.doesNotThrow(() => new Function(flow), "injected script is syntactically valid");
+  });
+
   it("does not inject the payment flow without appUrl, nor into non-login files", () => {
     const login: PackageFile = {
       path: "login.html",

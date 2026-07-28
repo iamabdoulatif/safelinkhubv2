@@ -721,6 +721,43 @@ const PORTAL_PAY_SCRIPT = `(function(){
     });
     document.body.appendChild(o);
   }
+  // ===== Rendu INLINE des forfaits du SaaS dans le portail =====
+  // Portail importe : ses forfaits sont souvent CODES EN DUR (prix statiques,
+  // boutons inertes, ex. "Safelink_baraka"). Des qu on a les forfaits live du
+  // SaaS (SLH_PLANS) et un conteneur de forfaits reconnu, on le remplit avec les
+  // VRAIES cartes : prix a jour (suivent la page Forfaits) + achat en 1 tap
+  // (data-package-id -> flux universel). Ne touche a rien si le portail a deja
+  // ses propres boutons SaaS (SafeLinkHub/Yahya groupes).
+  function planContainer(){
+    return document.getElementById("forfaits")
+      || document.querySelector("[data-slh-plans], .forfaits, .forfaits-grid, .plans-grid, .plan-list, .plans");
+  }
+  function ensurePlanStyle(){
+    if(document.getElementById("slh-plan-style")) return;
+    var s = document.createElement("style");
+    s.id = "slh-plan-style";
+    s.textContent = ".slh-plan-card{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;box-sizing:border-box;margin:0 0 8px;padding:12px 14px;border:1px solid rgba(148,163,184,.45);border-radius:10px;background:rgba(148,163,184,.12);cursor:pointer;font-family:system-ui,sans-serif;}.slh-plan-card .slh-plan-name{font-weight:700;}.slh-plan-card .slh-plan-price{font-weight:800;color:#dc2626;white-space:nowrap;}";
+    (document.head || document.body).appendChild(s);
+  }
+  function renderInlinePlans(){
+    var list = slhPlans(); if(!list.length) return false;
+    if(hasNativeButtons()) return false;       // deja des cartes de forfait SaaS
+    var box = planContainer(); if(!box) return false;
+    ensurePlanStyle();
+    var html = "";
+    for(var i=0;i<list.length;i++){
+      var p = list[i];
+      // Classes du portail (forfait-*, plan-*) POUR que sa CSS habille la carte,
+      // + slh-plan-* comme repli visuel garanti. data-* -> binder de paiement.
+      html += '<div class="forfait-card plan-card slh-plan-card" role="button" tabindex="0" data-package-id="' + esc(p.id) + '" data-plan="' + esc(p.label) + '" data-price="' + esc(p.priceLabel) + '">'
+        +   '<span class="forfait-label plan-name slh-plan-name">' + esc(p.label) + '</span>'
+        +   '<span class="forfait-price plan-price slh-plan-price">' + esc(p.priceLabel) + '</span>'
+        + '</div>';
+    }
+    box.innerHTML = html;
+    return true;
+  }
+
   function mountFab(){
     if(hasNativeButtons()) return;   // le portail a ses propres boutons de forfait
     if(!slhPlans().length) return;   // aucun forfait configure cote org
@@ -732,7 +769,11 @@ const PORTAL_PAY_SCRIPT = `(function(){
     document.body.appendChild(b);
   }
   function slhReady(fn){ if(document.readyState !== "loading"){ fn(); } else { document.addEventListener("DOMContentLoaded", fn); } }
-  slhReady(function(){ if(configured()) mountFab(); });
+  // 1) affiche les vrais prix du SaaS dans le conteneur du portail (renderInlinePlans),
+  // 2) sinon (aucun conteneur) monte le bouton flottant. Un 2e passage differe
+  // rattrape un portail qui remplit ses forfaits tardivement (rendu async).
+  function slhBoot(){ renderInlinePlans(); if(configured()) mountFab(); }
+  slhReady(function(){ slhBoot(); setTimeout(slhBoot, 800); });
 })();`;
 
 /** Bloc <script> injecté en fin de login.html : config + flux de paiement. */
