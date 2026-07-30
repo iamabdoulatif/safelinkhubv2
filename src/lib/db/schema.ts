@@ -125,6 +125,11 @@ export const routers = pgTable("routers", {
   passwordEncrypted: text("password_encrypted"),
   status: text("status").notNull().default("offline"),
   lastSyncAt: timestamp("last_sync_at"),
+  // Horodatage de la dernière ALERTE « hors ligne » envoyée pour l'épisode
+  // courant : posé quand on notifie la chute, remis à null au retour en ligne.
+  // Garde anti-doublon (une seule alerte par épisode, robuste aux syncs
+  // concurrents et aux redémarrages du process). Voir router-offline-alert.ts.
+  offlineAlertedAt: timestamp("offline_alerted_at"),
   uptimeSeconds: integer("uptime_seconds").default(0),
   activeUsers: integer("active_users").default(0),
   cpuLoad: integer("cpu_load").default(0),

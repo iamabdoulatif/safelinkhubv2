@@ -7,6 +7,7 @@ import { reconcileWalledGardenOnce } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { ensureHotspotLoginByCode } from "./hotspot-login-mode";
 import { persistRouterLoginHost } from "@/lib/portal/router-login-url";
+import { notifyRouterWentOffline } from "./router-offline-alert";
 import { enforceRouterSerialOnSync } from "./router-serial-lock";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
@@ -97,6 +98,9 @@ export async function syncRouterStats(
         .update(routers)
         .set({ status: "offline", lastSyncAt: new Date() })
         .where(eq(routers.id, routerId));
+      // Alerte e-mail aux admins si le routeur ÉTAIT en ligne (chute réelle) —
+      // détaché, best-effort, dédoublonné (voir notifyRouterWentOffline).
+      void notifyRouterWentOffline(routerId, router.status);
     }
     return {
       success: false,
@@ -160,6 +164,8 @@ export async function syncRouterStats(
         cpuLoad,
         memoryUsage,
         activeUsers: activeUsers.length,
+        // Retour en ligne : réarme l'alerte pour le PROCHAIN épisode hors ligne.
+        offlineAlertedAt: null,
       })
       .where(eq(routers.id, routerId));
 
@@ -256,6 +262,7 @@ export async function syncRouterStats(
         .update(routers)
         .set({ status: "offline", lastSyncAt: new Date() })
         .where(eq(routers.id, routerId));
+      void notifyRouterWentOffline(routerId, router.status);
     }
     return {
       success: false,

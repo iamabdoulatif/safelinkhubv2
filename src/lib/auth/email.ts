@@ -84,6 +84,37 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
   return !error;
 }
 
+/**
+ * Alerte « routeur hors ligne » envoyée à un administrateur de l'org dès qu'un
+ * MikroTik perd sa liaison à SafeLinkHub (tunnel WireGuard/OpenVPN tombé).
+ * Best-effort : renvoie false si Resend n'est pas configuré ou l'envoi échoue.
+ */
+export async function sendRouterOfflineEmail(
+  to: string,
+  name: string,
+  routerName: string,
+): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+  const url = `${appBaseUrl()}/admin/router`;
+  const safeRouter = escapeHtml(routerName);
+  const html = layout(
+    `⚠️ ${safeRouter} est hors ligne`,
+    `<p style="font-size:15px;line-height:1.6">Bonjour ${escapeHtml(name)},</p>
+     <p style="font-size:15px;line-height:1.6">Votre routeur <strong>${safeRouter}</strong> vient de perdre sa connexion à SafeLinkHub&nbsp;: son tunnel de gestion (VPN) ne répond plus. Le WiFi peut sembler fonctionner sur place, mais le routeur n'est plus pilotable à distance (ventes du portail, accès distant, synchronisation).</p>
+     <p style="font-size:15px;line-height:1.6"><strong>À vérifier sur place&nbsp;:</strong> l'accès Internet réel du routeur (ouvrez un site depuis un téléphone connecté au WiFi), la box/FAI et le forfait data, l'alimentation. Un redémarrage du routeur et de la box résout la plupart des cas. Le routeur repassera « en ligne » automatiquement dès qu'il retrouve Internet.</p>`,
+    "Voir mes routeurs",
+    url,
+  );
+  const { error } = await resend.emails.send({
+    from: getFrom(),
+    to,
+    subject: `⚠️ SafeLinkHub — ${routerName} est hors ligne`,
+    html,
+  });
+  return !error;
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
