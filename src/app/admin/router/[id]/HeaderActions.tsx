@@ -3,15 +3,17 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react";
-import { deleteRouter, refreshRouterStats } from "@/lib/mikrotik/actions";
+import { Loader2, Pencil, RefreshCw, Trash2, Gauge } from "lucide-react";
+import { deleteRouter, optimizeRouterWifi, refreshRouterStats } from "@/lib/mikrotik/actions";
 
 export default function HeaderActions({ routerId }: { routerId: string }) {
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
+  const [isOptimizing, startOptimize] = useTransition();
   const [isDeleting, startDelete] = useTransition();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
 
   if (confirmingDelete) {
     return (
@@ -62,12 +64,18 @@ export default function HeaderActions({ routerId }: { routerId: string }) {
           {error}
         </span>
       )}
+      {ok && (
+        <span role="status" className="text-xs font-medium text-ok">
+          {ok}
+        </span>
+      )}
       <button
         type="button"
         disabled={isRefreshing}
         onClick={() =>
           startRefresh(async () => {
             setError(null);
+            setOk(null);
             const result = await refreshRouterStats(routerId);
             setError(result?.error ?? null);
             router.refresh();
@@ -77,6 +85,29 @@ export default function HeaderActions({ routerId }: { routerId: string }) {
       >
         <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
         {isRefreshing ? "Actualisation..." : "Actualiser"}
+      </button>
+      <button
+        type="button"
+        disabled={isOptimizing}
+        title="Unifie le SSID (band steering) + 5 GHz en 80 MHz + 2,4 GHz en 20 MHz"
+        onClick={() =>
+          startOptimize(async () => {
+            setError(null);
+            setOk(null);
+            const result = await optimizeRouterWifi(routerId);
+            if (result?.error) setError(result.error);
+            else setOk(result?.summary ? `WiFi optimisé — ${result.summary}` : "WiFi optimisé.");
+            router.refresh();
+          })
+        }
+        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60"
+      >
+        {isOptimizing ? (
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+        ) : (
+          <Gauge aria-hidden="true" className="h-4 w-4" />
+        )}
+        {isOptimizing ? "Optimisation..." : "Optimiser le WiFi"}
       </button>
       <Link
         href="/admin/settings/router-setup"

@@ -13,6 +13,7 @@ import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
 import { syncRouterStats, connectToRouter, refreshStaleRouters } from "./router-sync";
 import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 import { shardForIndex } from "./shards";
+import { optimizeWifiThroughput } from "./wifi-compat";
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -106,6 +107,61 @@ export async function refreshRouterStats(routerId: string) {
 
   revalidatePath("/admin/router");
   return { success: true };
+}
+
+/**
+ * OPTIMISE LE DÉBIT WiFi d'un routeur (bouton « Optimiser le WiFi » de la fiche
+ * routeur) — le correctif « faible connexion » en un clic : unifie le SSID sur
+ * les deux bandes (band steering → les appareils prennent la 5GHz rapide), met
+ * la 5GHz en 80MHz et la 2.4GHz en 20MHz. Conserve le SSID existant. Ne touche
+ * ni au hotspot ni aux forfaits.
+ */
+export async function optimizeRouterWifi(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || router.orgId !== session.orgId) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour optimiser le WiFi.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await optimizeWifiThroughput(client);
+    if (res.applied.length === 0) {
+      // Pas de radio / pas de SSID / échec total : renvoyer un message clair.
+      return res.failed.length > 0
+        ? { error: `Optimisation refusée par le routeur : ${res.failed[0].error}` }
+        : { error: res.note ?? res.summary };
+    }
+    revalidatePath("/admin/router");
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: res.summary };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec de l'optimisation : ${err.message}` : "Échec de l'optimisation.",
+    };
+  } finally {
+    client.close();
+  }
 }
 
 /** Resynchronise tous les routeurs de l'organisation (bouton "Synchroniser"

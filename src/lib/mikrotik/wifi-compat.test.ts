@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { RouterOSClient } from "./client";
-import { applySsid, primarySsid, readWifiState } from "./wifi-compat";
+import { applySsid, optimizeWifiThroughput, primarySsid, readWifiState } from "./wifi-compat";
 
 type Rows = Record<string, string>[];
 
@@ -135,5 +135,45 @@ describe("wifi-compat — application du SSID", () => {
     const res = await applySsid(client, "X", { dryRun: true });
     assert.deepEqual(res.applied, ["wifi1", "wifi2"]);
     assert.equal(client.sent.filter((w) => w[0].endsWith("/set")).length, 0);
+  });
+});
+
+describe("optimizeWifiThroughput", () => {
+  it("unifie sur le SSID 2.4GHz + 5GHz 80MHz + 2.4GHz 20MHz (cas SONGON)", async () => {
+    // wifi1 = 5GHz avec suffixe -5G ; wifi2 = 2.4GHz nom « propre ».
+    const client = fakeClient({
+      "/interface/wifi/print": [
+        { name: "wifi1", "default-name": "wifi1", "configuration.ssid": "SONGON WIFI-5G" },
+        { name: "wifi2", "default-name": "wifi2", "configuration.ssid": "SONGON WIFI" },
+      ],
+      "/interface/wifi/radio/print": [
+        { interface: "wifi1", bands: "5ghz-ax" },
+        { interface: "wifi2", bands: "2ghz-ax" },
+      ],
+      "/interface/wireless/print": "ERR",
+    });
+
+    const res = await optimizeWifiThroughput(client);
+    assert.equal(res.ssid, "SONGON WIFI"); // garde le nom 2.4GHz, PAS le -5G
+    assert.deepEqual(res.applied, ["wifi1", "wifi2"]);
+
+    const sets = client.sent.filter((s) => s[0] === "/interface/wifi/set");
+    const w1 = sets.find((s) => s.includes("=numbers=wifi1")); // 5GHz
+    const w2 = sets.find((s) => s.includes("=numbers=wifi2")); // 2.4GHz
+    assert.ok(w1 && w1.includes("=channel.width=20/40/80mhz"), "5GHz en 80MHz");
+    assert.ok(w1.includes("=configuration.ssid=SONGON WIFI"), "5GHz reçoit le SSID unifié");
+    assert.ok(w2 && w2.includes("=channel.width=20mhz"), "2.4GHz en 20MHz");
+    assert.ok(w2.includes("=configuration.ssid=SONGON WIFI"), "2.4GHz garde son SSID");
+  });
+
+  it("signale l'absence de radio WiFi sans échouer", async () => {
+    const client = fakeClient({
+      "/interface/wifi/print": [],
+      "/interface/wireless/print": [],
+    });
+    const res = await optimizeWifiThroughput(client);
+    assert.equal(res.api, "none");
+    assert.deepEqual(res.applied, []);
+    assert.ok(res.summary.length > 0);
   });
 });
