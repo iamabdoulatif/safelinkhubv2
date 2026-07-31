@@ -62,7 +62,7 @@ export function deploymentScenario(input: {
   if (!input.supportsContainers) return 4; // architecture MIPS ou RouterOS < v7
   if (input.hasUsbStorage) return 1; // clé USB / microSD branchée (recommandé)
   if (input.hasEmmcStorage || input.hasLargeOnboardStorage) return 3; // disque interne — jamais tmpfs
-  return 2; // flash interne limité → pull en tmpfs (usure NAND possible)
+  return 2; // ax lite/ax² : conteneur sur la flash NAND « flash/… » (persistant au reboot)
 }
 
 export function scenarioLabel(scenario: DeploymentScenario): string {

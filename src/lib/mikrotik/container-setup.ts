@@ -303,9 +303,10 @@ async function provisionDockerStack(
     //   • SCÉNARIO 3 (eMMC/flash interne généreux : CCR/CRS, RB4011, RB3011,
     //     RB5009) : disque interne propre ("disk1"/Files) — JAMAIS tmpfs,
     //     survit au reboot ;
-    //   • SCÉNARIO 2 (flash interne limité : hAP ax lite/ax²) : repli tmpfs
-    //     RAM (usure NAND — usage intensif déconseillé).
-    // Règle d'or : jamais tmpfs si hasEmmcStorage OU hasLargeOnboardStorage.
+    //   • SCÉNARIO 2 (hAP ax lite/ax², sans USB ni slot disk1) : conteneur sur
+    //     la flash NAND système « flash/… » — PERSISTANT au reboot (root-dir +
+    //     layer-dir sur flash), le tmpfs ne sert plus que de scratch de pull.
+    // Règle d'or : jamais tmpfs pour le root-dir — la session MikHmon doit survivre.
     // Un seul /disk/print, réutilisé par les 3 branches.
     const disks = await client.talk(["/disk/print"]).catch(() => []);
     const internalDisk = disks.find(
@@ -378,12 +379,29 @@ async function provisionDockerStack(
       );
       if (!configured.ok) return { status: "failed", message: configured.error };
     } else {
-      // --- SCÉNARIO 2: flash interne limité → tmpfs RAM ---
+      // --- SCÉNARIO 2: hAP ax lite/ax² (flash NAND interne, PAS de slot USB) ---
+      // Ces boards n'ont ni clé USB ni slot /disk interne (disk1) — mais ils ont
+      // TOUS la flash NAND système, adressable « flash/… », PERSISTANTE au reboot.
+      // C'est là que le conteneur DOIT vivre. On plaçait avant le conteneur en
+      // tmpfs (RAM) : la session MikHmon (src/src/include/config.php) et les
+      // layers de l'image étaient PERDUS à chaque extinction → l'admin devait
+      // recréer la session à chaque allumage, bug récurrent signalé sur HSPT-WIFI.
+      // Modèle de référence validé en prod : un hAP ax lite (HSPT-YAHYA-GBEMA)
+      // dont le conteneur tourne en root-dir=/flash/mikhmon-root +
+      // layer-dir=/flash/mikhmon-layers — la session y reste INTACTE reboot après
+      // reboot, sans aucun scheduler de sauvegarde. On reproduit exactement ça :
+      // root-dir ET layer-dir sur la flash (persistant, et évite un re-pull de
+      // l'image au boot). Le tmpfs ne sert plus que de SCRATCH d'extraction
+      // pendant le pull (tmpdir=tmp/pull), pour épargner la NAND — les writes
+      // MikHmon en régime établi (config.php aux changements de session) restent
+      // légers, largement soutenables par la NAND (cf. board de référence, des
+      // mois d'uptime cumulé).
       scenario = 2;
+      containerRootDir = "flash/mikhmon-app";
       if (!disks.some((d) => d.slot === "tmp")) {
         const tmpfsCreated = await run(
           ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
-          "tmpfs disk slot",
+          "tmpfs disk slot (scratch de pull uniquement)",
         );
         if (!tmpfsCreated.ok) {
           return {
@@ -392,9 +410,16 @@ async function provisionDockerStack(
           };
         }
       }
+      // layer-dir sur la flash = image persistante (pas de re-pull au boot) ;
+      // tmpdir sur tmpfs = extraction en RAM (moins d'écritures NAND au pull).
       const configured = await run(
-        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull"],
-        "container engine config (tmpfs)",
+        [
+          "/container/config/set",
+          "=registry-url=https://registry-1.docker.io",
+          "=layer-dir=flash/mikhmon-layers",
+          "=tmpdir=tmp/pull",
+        ],
+        "container engine config (flash NAND persistante + scratch tmpfs)",
       );
       if (!configured.ok) return { status: "failed", message: configured.error };
     }
@@ -456,7 +481,43 @@ async function provisionDockerStack(
       if (added > 0 && !envFailed) mikhmonEnvlist = MIKHMON_ENVLIST;
     }
 
-    const containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+    let containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+
+    // MIGRATION tmpfs → flash (scénario 2, routeurs DÉJÀ installés). Un conteneur
+    // MikHmon posé sur le tmpfs RAM (root-dir « tmp/… », l'ancien comportement)
+    // PERD sa session à chaque reboot. Maintenant qu'on cible la flash NAND
+    // persistante, on RETIRE l'ancien conteneur tmpfs pour qu'il soit recréé plus
+    // bas sur « flash/mikhmon-app ». La session config.php du tmpfs est de toute
+    // façon éphémère (déjà reperdue à chaque extinction) : l'admin la recrée une
+    // ULTIME fois, puis elle persiste définitivement. On ne touche QU'aux
+    // conteneurs sur tmpfs — un conteneur déjà sur flash/usb/disk1 est préservé.
+    if (scenario === 2) {
+      const staleTmpfs = containers.filter((c) => {
+        const rootDir = String(c["root-dir"] ?? "");
+        const isMikhmon =
+          c.name === CONTAINER_NAME ||
+          /mikhmon/i.test(String(c.name ?? "")) ||
+          /mikhmon/i.test(rootDir);
+        return isMikhmon && /^tmp\//.test(rootDir);
+      });
+      for (const c of staleTmpfs) {
+        if (!c[".id"]) continue;
+        await client.talk(["/container/stop", `=numbers=${c[".id"]}`]).catch(() => {});
+        const removed = await run(
+          ["/container/remove", `=numbers=${c[".id"]}`],
+          `migration tmpfs→flash : retrait de l'ancien conteneur MikHmon (root-dir=${c["root-dir"]})`,
+        );
+        if (removed.ok) {
+          log.push(
+            "OK: ancien conteneur MikHmon (tmpfs) retiré — recréé sur la flash NAND persistante (session à recréer une dernière fois, puis conservée aux reboots)",
+          );
+        }
+      }
+      if (staleTmpfs.length) {
+        containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+      }
+    }
+
     const existingContainer = containers.find(
       (container) =>
         container.name === CONTAINER_NAME || container["root-dir"] === containerRootDir,
@@ -517,11 +578,12 @@ async function provisionDockerStack(
     // boot puis toutes les 30 s pendant ~3 min, (re)démarre le conteneur tant
     // qu'il n'est pas lancé — idempotent : démarrer un conteneur déjà lancé est
     // avalé par le on-error. Remove par nom d'abord (pas de doublon aux
-    // re-runs / à la « Réparation »). NB boards tmpfs/RAM (ax lite/ax² sans
-    // stockage persistant) : le conteneur est perdu au reboot et doit être
-    // re-provisionné — le scheduler est alors inoffensif (le find ne renvoie
-    // rien). Ce correctif s'applique aussi aux routeurs DÉJÀ installés dès leur
-    // prochaine passe d'auto-setup / réparation.
+    // re-runs / à la « Réparation »). Depuis que le scénario 2 (ax lite/ax²)
+    // place le conteneur sur la flash NAND persistante, le conteneur SURVIT au
+    // reboot dans tous les scénarios — ce scheduler garantit juste qu'il est
+    // (re)démarré au boot (mêmes rôle que le mikhmon-watchdog du board de
+    // référence). Ce correctif s'applique aussi aux routeurs DÉJÀ installés dès
+    // leur prochaine passe d'auto-setup / réparation.
     await client.talk(["/system/scheduler/remove", "=numbers=MIKHMON_BOOT"]).catch(() => {});
     await run(
       [

@@ -82,8 +82,11 @@ function buildScript(opts: {
 #   - Boards with a large internal flash but no listed disk slot (RB3011,
 #     RB5009…, detected via total-hdd-space) use a plain Files directory —
 #     never tmpfs on these, the image must survive reboots.
-#   - Everything else (ax2 / hAP ax lite: ~16MB flash) falls back to a
-#     tmpfs scratch slot created here if it doesn't exist yet.
+#   - Everything else (ax2 / hAP ax lite) installs the layers on the internal
+#     flash NAND ("flash/mikhmon-layers") so the image AND the MikHmon session
+#     survive reboots, with the pull extraction kept in a RAM tmpfs scratch
+#     slot (tmp/pull) to spare the NAND. NEVER the tmpfs for the layers — that
+#     lost the session at every power-cycle.
 # /container/config/set goes through [:parse] for the same reason as the
 # veth block above — without the container package the /container menu
 # doesn't exist and an inline command would kill the whole import at
@@ -105,6 +108,10 @@ function buildScript(opts: {
         :set tmpDir "pull"
         :set layerDir "mikhmon-layers"
       } else={
+        # ax2 / hAP ax lite : layers sur la flash NAND persistante (survivent au
+        # reboot, sinon session MikHmon perdue), extraction du pull en RAM.
+        :set layerDir "flash/mikhmon-layers"
+        :set tmpDir "tmp/pull"
         :if ([:len [/disk find where slot="tmp"]] = 0) do={
           /disk add slot=tmp type=tmpfs tmpfs-max-size=150000000
         }
