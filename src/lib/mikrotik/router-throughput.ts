@@ -114,53 +114,58 @@ export async function setRouterBandwidthCap(
   const on = targetMbps > 0;
   const limit = on ? `${targetMbps}M/${targetMbps}M` : "0/0";
 
+  // Les files hotspot d'origine sont DYNAMIQUES (créées par le serveur hotspot,
+  // « can't edit dynamic object »). On ne les touche donc PAS : on gère notre
+  // PROPRE file STATIQUE « SafeLinkHub-cap », placée EN TÊTE pour primer sur la
+  // dynamique (les simple queues s'évaluent de haut en bas, 1re correspondance).
+  const CAP_NAME = "SafeLinkHub-cap";
   const queues = await client.talk(["/queue/simple/print"], timeoutMs).catch(() => []);
-  const hs = queues.filter(
-    (q) => /HOTSPOT/i.test(q.target ?? "") || /^hs-/i.test(q.name ?? "") || /SafeLinkHub/i.test(q.comment ?? ""),
-  );
-
+  const mine = queues.find((q) => q.name === CAP_NAME);
+  const pcq = "=queue=pcq-download-default/pcq-upload-default"; // partage équitable par IP client
   let queuesSet = 0;
-  // PCQ par client si dispo (types par défaut de RouterOS) ; sinon plafond simple.
-  const withPcq = (words: string[]) => [
-    ...words,
-    `=max-limit=${limit}`,
-    ...(on ? ["=queue=pcq-download-default/pcq-upload-default"] : ["=queue=default-small/default-small"]),
-  ];
-  for (const q of hs) {
-    if (!q[".id"]) continue;
-    const r = await client
-      .talk(withPcq(["/queue/simple/set", `=numbers=${q[".id"]}`]), timeoutMs)
-      .then(() => true)
-      // Repli sans PCQ si les types PCQ n'existent pas sur ce routeur.
-      .catch(async () => {
-        await client
-          .talk(["/queue/simple/set", `=numbers=${q[".id"]}`, `=max-limit=${limit}`], timeoutMs)
-          .catch(() => {});
-        return true;
-      });
-    if (r) queuesSet += 1;
-  }
-  // Aucune queue hotspot et on veut un plafond : en créer une sur le bridge HOTSPOT.
-  if (on && hs.length === 0) {
+
+  if (on) {
+    if (mine?.[".id"] && mine.dynamic !== "true") {
+      const ok = await client
+        .talk(["/queue/simple/set", `=numbers=${mine[".id"]}`, `=max-limit=${limit}`, pcq, "=disabled=no"], timeoutMs)
+        .then(() => true)
+        .catch(async () => {
+          // Repli sans PCQ si les types PCQ manquent sur ce routeur.
+          await client
+            .talk(["/queue/simple/set", `=numbers=${mine[".id"]}`, `=max-limit=${limit}`, "=disabled=no"], timeoutMs)
+            .catch(() => {});
+          return true;
+        });
+      if (ok) queuesSet += 1;
+    } else {
+      const first = queues.find((q) => q[".id"]);
+      const add = [
+        "/queue/simple/add",
+        `=name=${CAP_NAME}`,
+        "=target=HOTSPOT",
+        `=max-limit=${limit}`,
+        pcq,
+        "=comment=SafeLinkHub plafond debit (PCQ par client)",
+      ];
+      if (first?.[".id"]) add.push(`=place-before=${first[".id"]}`);
+      const ok = await client
+        .talk(add, timeoutMs)
+        .then(() => true)
+        .catch(async () => {
+          const a2 = ["/queue/simple/add", `=name=${CAP_NAME}`, "=target=HOTSPOT", `=max-limit=${limit}`, "=comment=SafeLinkHub plafond debit"];
+          if (first?.[".id"]) a2.push(`=place-before=${first[".id"]}`);
+          await client.talk(a2, timeoutMs).catch(() => {});
+          return true;
+        });
+      if (ok) queuesSet += 1;
+    }
+  } else if (mine?.[".id"]) {
     await client
-      .talk(
-        withPcq(["/queue/simple/add", "=name=SafeLinkHub-cap", "=target=HOTSPOT", "=comment=SafeLinkHub plafond debit"]),
-        timeoutMs,
-      )
+      .talk(["/queue/simple/remove", `=numbers=${mine[".id"]}`], timeoutMs)
       .then(() => {
         queuesSet += 1;
       })
-      .catch(async () => {
-        await client
-          .talk(
-            ["/queue/simple/add", "=name=SafeLinkHub-cap", "=target=HOTSPOT", `=max-limit=${limit}`, "=comment=SafeLinkHub plafond debit"],
-            timeoutMs,
-          )
-          .then(() => {
-            queuesSet += 1;
-          })
-          .catch(() => {});
-      });
+      .catch(() => {});
   }
 
   // Fasttrack vs file d'attente : off si plafond actif, on sinon.
