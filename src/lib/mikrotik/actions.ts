@@ -204,7 +204,7 @@ export async function lockRouterPorts(routerId: string) {
     const n = res.locked.length + res.alreadyDisabled.length;
     return {
       success: true,
-      summary: `Routeur verrouillé — ${n} interface(s) coupée(s), seul ${res.kept} reste actif.`,
+      summary: `Routeur verrouillé — ${n} interface(s) coupée(s), seul le WAN (${res.kept.join(", ")}) reste actif.`,
     };
   } catch (err) {
     return {

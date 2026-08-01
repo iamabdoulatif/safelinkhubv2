@@ -163,7 +163,7 @@ export default function HeaderActions({
         </button>
       ) : confirmingLock ? (
         <span className="flex items-center gap-2">
-          <span className="text-sm font-medium text-ink">Couper tous les ports sauf ether1 ?</span>
+          <span className="text-sm font-medium text-ink">Couper tous les ports sauf le WAN ?</span>
           <button
             type="button"
             disabled={isLocking}
@@ -190,7 +190,7 @@ export default function HeaderActions({
         <button
           type="button"
           disabled={isLocking}
-          title="Paralyse le routeur : coupe tous les ports et le WiFi sauf ether1 (lien de gestion)"
+          title="Paralyse le routeur : coupe tous les ports et le WiFi sauf le port WAN (lien de gestion)"
           onClick={() => setConfirmingLock(true)}
           className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-err transition-colors duration-150 hover:bg-err hover:text-white"
         >

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Link2, Router as RouterIcon, Save, Search } from "lucide-react";
+import { ArrowUpRight, Link2, Lock, Router as RouterIcon, Save, Search } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
 import SyncAllButton from "./SyncAllButton";
 
@@ -27,6 +27,8 @@ export type RouterRow = {
   connectionMethod: string;
   /** Nom de l'organisation propriétaire — renseigné seulement en vue superadmin. */
   orgName?: string | null;
+  /** Routeur « paralysé » : ports + WiFi coupés sauf ether1 (kill-switch). */
+  locked?: boolean;
 };
 
 function isConfiguring(status: string) {
@@ -54,6 +56,16 @@ function StatusBadge({ status }: { status: string }) {
         }`}
       />
       {online ? "En ligne" : config ? "Configuration" : "Hors ligne"}
+    </span>
+  );
+}
+
+/** Chip « Verrouillé » : routeur paralysé par le kill-switch (ports coupés sauf ether1). */
+function LockedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 border border-err bg-err px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-white">
+      <Lock aria-hidden="true" className="h-3 w-3" />
+      Verrouillé
     </span>
   );
 }
@@ -90,6 +102,18 @@ export default function RoutersTable({
 
   const [filter, setFilter] = useState<StatusFilter>(initialFilter);
   const [query, setQuery] = useState(initialQuery);
+  const [orgFilter, setOrgFilter] = useState(searchParams.get("org") ?? "all");
+
+  // Liste des clients présents (vue superadmin) pour alimenter le filtre par org.
+  const orgNames = useMemo(
+    () =>
+      crossOrg
+        ? Array.from(new Set(routers.map((r) => r.orgName).filter((n): n is string => !!n))).sort(
+            (a, b) => a.localeCompare(b),
+          )
+        : [],
+    [crossOrg, routers],
+  );
 
   // Keep the URL in sync with the active filter/search so the view is
   // shareable and survives a refresh or browser back/forward. Debounced:
@@ -99,6 +123,7 @@ export default function RoutersTable({
       const params = new URLSearchParams();
       if (filter !== "all") params.set("status", filter);
       if (query) params.set("q", query);
+      if (orgFilter !== "all") params.set("org", orgFilter);
       const next = params.toString();
       const current = searchParams.toString();
       if (next !== current) {
@@ -106,7 +131,7 @@ export default function RoutersTable({
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [filter, query, pathname, router, searchParams]);
+  }, [filter, query, orgFilter, pathname, router, searchParams]);
 
   const counts = useMemo(
     () => ({
@@ -122,6 +147,7 @@ export default function RoutersTable({
     if (filter === "online" && r.status !== "online") return false;
     if (filter === "offline" && (r.status === "online" || isConfiguring(r.status))) return false;
     if (filter === "config" && !isConfiguring(r.status)) return false;
+    if (crossOrg && orgFilter !== "all" && (r.orgName ?? "") !== orgFilter) return false;
     if (query) {
       const q = query.toLowerCase();
       const haystack = `${r.name} ${r.host ?? ""} ${r.model ?? ""} ${r.orgName ?? ""}`.toLowerCase();
@@ -196,18 +222,35 @@ export default function RoutersTable({
         ))}
       </div>
 
-      {/* Recherche large */}
-      <div className="relative mt-4">
-        <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
-        <input
-          type="search"
-          name="router-search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Rechercher par nom, IP ou identité…"
-          aria-label="Rechercher un routeur par nom, IP ou identité"
-          className="w-full border-2 border-line bg-paper py-2.5 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-        />
+      {/* Recherche large + filtre client (superadmin) */}
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1">
+          <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+          <input
+            type="search"
+            name="router-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher par nom, IP, identité ou client…"
+            aria-label="Rechercher un routeur par nom, IP, identité ou client"
+            className="w-full border-2 border-line bg-paper py-2.5 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          />
+        </div>
+        {crossOrg && orgNames.length > 1 && (
+          <select
+            value={orgFilter}
+            onChange={(e) => setOrgFilter(e.target.value)}
+            aria-label="Filtrer par client"
+            className="border-2 border-line bg-paper px-3 py-2.5 text-sm font-medium text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink sm:w-64"
+          >
+            <option value="all">Tous les clients ({orgNames.length})</option>
+            {orgNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -252,7 +295,10 @@ export default function RoutersTable({
                       {r.host ? `${r.host}:${r.apiPort ?? 8728}` : "—"}
                     </span>
                   </Link>
-                  <StatusBadge status={r.status} />
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <StatusBadge status={r.status} />
+                    {r.locked && <LockedBadge />}
+                  </div>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-line-soft pt-3 text-xs">
                   <div className="flex justify-between gap-2">
@@ -331,7 +377,10 @@ export default function RoutersTable({
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-ink">{r.model ?? "—"}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={r.status} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge status={r.status} />
+                        {r.locked && <LockedBadge />}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <MeterCell percent={r.cpuLoad ?? 0} />

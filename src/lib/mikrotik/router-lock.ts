@@ -1,24 +1,30 @@
 import type { RouterOSClient } from "./client";
 
 /**
- * « Kill-switch » routeur : couper TOUS les ports d'accès (ethernet hors
- * ether1) ET le WiFi, en gardant ether1 vivant.
+ * « Kill-switch » routeur : couper TOUS les ports d'accès ET le WiFi, en gardant
+ * le port WAN vivant.
  *
- * ether1 est délibérément épargné : c'est le lien WAN / de gestion sur lequel
+ * Le port WAN est délibérément épargné : c'est le lien de gestion sur lequel
  * transite le tunnel WireGuard vers le relais SafeLinkHub. Le couper aussi
  * rendrait le routeur INJOIGNABLE — donc impossible à déverrouiller à distance
- * (déplacement physique obligatoire). On garde ether1 up pour pouvoir toujours
- * ré-ouvrir les ports depuis le SaaS.
+ * (déplacement physique obligatoire).
+ *
+ * IMPORTANT — le WAN n'est PAS repéré par le nom littéral « ether1 » : sur le
+ * parc, ce port est souvent RENOMMÉ (ex. « E1-WAN-FAI »). On le repère donc de
+ * façon robuste par : (1) le `default-name` d'usine « ether1 » (conservé même
+ * après renommage) ET (2) l'interface qui porte réellement Internet (client
+ * DHCP / route par défaut). Tout ce qui est ainsi identifié comme WAN est gardé
+ * up ; le nom d'affichage n'a aucune importance.
  */
-export const MANAGEMENT_PORT = "ether1";
+export const MANAGEMENT_DEFAULT_NAME = "ether1";
 
 export type RouterLockResult = {
   /** Interfaces effectivement désactivées par CETTE opération. */
   locked: string[];
   /** Interfaces d'accès déjà désactivées avant (laissées telles quelles). */
   alreadyDisabled: string[];
-  /** Interface conservée up (le lien WAN/gestion). */
-  kept: string;
+  /** Interface(s) conservée(s) up (le lien WAN/gestion). */
+  kept: string[];
 };
 
 export type RouterUnlockResult = {
@@ -29,22 +35,50 @@ export type RouterUnlockResult = {
 type IfaceState = { name: string; disabled: boolean };
 
 /**
- * Interfaces « d'accès » à couper : ports ethernet SAUF ether1, plus toutes les
+ * Noms des ports WAN à CONSERVER up. Robuste au renommage : on garde tout port
+ * ethernet dont le `default-name` d'usine est « ether1 » (donc « E1-WAN-FAI »
+ * est reconnu), ainsi que l'interface qui porte réellement Internet (uplink
+ * détecté). Le nom d'affichage n'entre jamais en compte.
+ */
+async function wanKeepNames(
+  client: RouterOSClient,
+  timeoutMs: number,
+): Promise<{ keep: Set<string>; uplink: string | null }> {
+  const keep = new Set<string>();
+  const eth = await client.talk(["/interface/ethernet/print"], timeoutMs).catch(() => []);
+  for (const e of eth) {
+    const name = e.name;
+    if (!name) continue;
+    if (name === MANAGEMENT_DEFAULT_NAME || e["default-name"] === MANAGEMENT_DEFAULT_NAME) {
+      keep.add(name);
+    }
+  }
+  const uplink = await detectUplinkInterface(client, timeoutMs);
+  if (uplink) keep.add(uplink);
+  return { keep, uplink };
+}
+
+/**
+ * Interfaces « d'accès » à couper : ports ethernet HORS WAN, plus toutes les
  * radios WiFi (API récente /interface/wifi et legacy /interface/wireless). On ne
  * touche JAMAIS aux bridges, veth conteneur, WireGuard, VLAN ou loopback — les
  * couper romprait le chemin de gestion ou serait inutile au « gel » des clients.
  */
-async function accessInterfaces(client: RouterOSClient, timeoutMs: number): Promise<IfaceState[]> {
+async function accessInterfaces(
+  client: RouterOSClient,
+  timeoutMs: number,
+  keep: Set<string>,
+): Promise<IfaceState[]> {
   const out: IfaceState[] = [];
   const eth = await client.talk(["/interface/ethernet/print"], timeoutMs).catch(() => []);
   for (const e of eth) {
-    if (!e.name || e.name === MANAGEMENT_PORT) continue;
+    if (!e.name || keep.has(e.name)) continue;
     out.push({ name: e.name, disabled: e.disabled === "true" });
   }
   const wifi = await client.talk(["/interface/wifi/print"], timeoutMs).catch(() => []);
-  for (const w of wifi) if (w.name) out.push({ name: w.name, disabled: w.disabled === "true" });
+  for (const w of wifi) if (w.name && !keep.has(w.name)) out.push({ name: w.name, disabled: w.disabled === "true" });
   const legacy = await client.talk(["/interface/wireless/print"], timeoutMs).catch(() => []);
-  for (const w of legacy) if (w.name) out.push({ name: w.name, disabled: w.disabled === "true" });
+  for (const w of legacy) if (w.name && !keep.has(w.name)) out.push({ name: w.name, disabled: w.disabled === "true" });
   // Dédoublonnage par nom (une radio peut apparaître dans deux /print selon le paquet).
   const seen = new Set<string>();
   return out.filter((i) => (seen.has(i.name) ? false : (seen.add(i.name), true)));
@@ -79,12 +113,13 @@ async function detectUplinkInterface(
 }
 
 /**
- * Verrouille le routeur : désactive tous les ports d'accès + WiFi sauf ether1.
+ * Verrouille le routeur : désactive tous les ports d'accès + WiFi SAUF le port
+ * WAN (repéré par son default-name ether1 ET par l'uplink Internet, quel que
+ * soit son nom d'affichage — « E1-WAN-FAI » compris).
  *
- * GARDE-FOU anti-auto-exclusion : si le WAN (Internet/tunnel) passe par une
- * interface qu'on s'apprête à couper (≠ ether1), on ABANDONNE sans rien
- * désactiver — sinon on perdrait l'accès distant et le déverrouillage. L'admin
- * doit d'abord câbler le WAN sur ether1.
+ * GARDE-FOU anti-auto-exclusion : si aucun port WAN ne peut être identifié
+ * (ni default-name ether1, ni uplink détecté), on ABANDONNE sans rien couper —
+ * verrouiller à l'aveugle risquerait de trancher l'accès distant.
  */
 export async function lockRouterInterfaces(
   client: RouterOSClient,
@@ -92,17 +127,15 @@ export async function lockRouterInterfaces(
 ): Promise<RouterLockResult> {
   const timeoutMs = opts.timeoutMs ?? 20000;
 
-  const ifaces = await accessInterfaces(client, timeoutMs);
-  const disableNames = new Set(ifaces.map((i) => i.name));
-
-  const uplink = await detectUplinkInterface(client, timeoutMs);
-  if (uplink && uplink !== MANAGEMENT_PORT && disableNames.has(uplink)) {
+  const { keep, uplink } = await wanKeepNames(client, timeoutMs);
+  if (keep.size === 0) {
     throw new Error(
-      `Le lien Internet/WAN passe par « ${uplink} », pas par ether1 — verrouillage annulé ` +
-        `pour ne pas couper l'accès distant. Basculez le WAN sur ether1 avant de verrouiller.`,
+      "Impossible d'identifier le port WAN (ni default-name ether1, ni lien Internet détecté) — " +
+        "verrouillage annulé par sécurité pour ne pas couper l'accès distant.",
     );
   }
 
+  const ifaces = await accessInterfaces(client, timeoutMs, keep);
   const toDisable = ifaces.filter((i) => !i.disabled).map((i) => i.name);
   const alreadyDisabled = ifaces.filter((i) => i.disabled).map((i) => i.name);
 
@@ -111,7 +144,9 @@ export async function lockRouterInterfaces(
     await client.talk(["/interface/disable", `=numbers=${name}`], timeoutMs);
   }
 
-  return { locked: toDisable, alreadyDisabled, kept: MANAGEMENT_PORT };
+  // On préfère afficher le port qui porte réellement Internet ; sinon la garde WAN.
+  const kept = uplink ? [uplink] : Array.from(keep);
+  return { locked: toDisable, alreadyDisabled, kept };
 }
 
 /**
@@ -130,13 +165,15 @@ export async function unlockRouterInterfaces(
   if (names && names.length > 0) {
     targets = names;
   } else {
-    targets = (await accessInterfaces(client, timeoutMs)).map((i) => i.name);
+    // Repli (verrou posé hors SaaS) : réactive tous les ports d'accès + WiFi,
+    // hors ports WAN (jamais touchés au verrouillage de toute façon).
+    const { keep } = await wanKeepNames(client, timeoutMs);
+    targets = (await accessInterfaces(client, timeoutMs, keep)).map((i) => i.name);
   }
 
   const enabled: string[] = [];
   const failed: { name: string; error: string }[] = [];
   for (const name of targets) {
-    if (name === MANAGEMENT_PORT) continue;
     try {
       await client.talk(["/interface/enable", `=numbers=${name}`], timeoutMs);
       enabled.push(name);

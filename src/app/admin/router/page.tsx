@@ -52,6 +52,7 @@ export default async function RouterDashboardPage() {
           lastSyncAtMs: r.lastSyncAt?.getTime() ?? null,
           connectionMethod: r.connectionMethod,
           orgName,
+          locked: Boolean(r.portsLockedAt),
         }))}
       />
     </div>
