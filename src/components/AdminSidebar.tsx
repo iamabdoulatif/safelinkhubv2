@@ -29,6 +29,7 @@ import {
   BarChart3,
   Megaphone,
   ArrowUpRight,
+  Filter,
   Menu,
   X,
 } from "lucide-react";
@@ -46,6 +47,7 @@ const mainLinks = [
   { href: "/admin/users", label: "Utilisateurs", icon: Users },
   { href: "/admin/packages", label: "Forfaits", icon: Package },
   { href: "/admin/transactions", label: "Transactions", icon: ArrowLeftRight },
+  { href: "/admin/conversion", label: "Conversion paiement", icon: Filter },
   { href: "/admin/agent", label: "Agent", icon: UserCog },
   { href: "/admin/vouchers", label: "Vouchers", icon: Ticket },
   { href: "/admin/roaming", label: "Roaming", icon: RadioTower },
