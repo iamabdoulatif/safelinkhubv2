@@ -14,7 +14,7 @@ import { readWifiState } from "./wifi-compat";
 
 export type AuditSeverity = "error" | "warn" | "info" | "ok";
 /** Correctif automatisable rattaché à un constat (mappé côté UI vers une action). */
-export type AuditFixKind = "wifi" | "throughput" | "cap" | null;
+export type AuditFixKind = "wifi" | "throughput" | "cap" | "mikhmon" | null;
 
 export type AuditFinding = {
   id: string;
@@ -144,7 +144,7 @@ export async function auditRouter(
     if (mk) {
       const rootDir = String(mk["root-dir"] ?? "");
       if (/^\/?tmp\//.test(rootDir))
-        add("warn", "MikHmon", "mikhmon-tmpfs", "MikHmon en RAM (tmpfs)", "Le conteneur MikHmon est en mémoire vive : sa session est perdue à chaque coupure de courant. Relancez l'auto-setup pour le déplacer sur la flash (persistant).");
+        add("warn", "MikHmon", "mikhmon-tmpfs", "MikHmon en RAM (tmpfs)", "Le conteneur MikHmon est en mémoire vive : sa session est perdue à chaque coupure de courant. Le correctif le déplace sur la flash (persistant, ~1 à 3 min).", "mikhmon");
       else add("ok", "MikHmon", "mikhmon-persist", "MikHmon persistant", "Le conteneur MikHmon survit aux reboots.");
       if (mk.running !== "true")
         add("error", "MikHmon", "mikhmon-stopped", "Conteneur MikHmon arrêté", "MikHmon n'est pas démarré — les vouchers ne sont pas gérés.");

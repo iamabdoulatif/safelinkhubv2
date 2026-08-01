@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { randomBytes, randomUUID } from "crypto";
 import { eq, count } from "drizzle-orm";
 import { getDb } from "@/lib/db";
@@ -21,6 +22,7 @@ import {
   setRouterBandwidthCap as setBandwidthCap,
 } from "./router-throughput";
 import { auditRouter } from "./router-audit";
+import { migrateMikhmonToFlash } from "./mikhmon-flash";
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -308,6 +310,44 @@ export async function optimizeRouterThroughput(routerId: string) {
   } finally {
     client.close();
   }
+}
+
+/**
+ * CORRECTIF « MikHmon en RAM » : déplace le conteneur MikHmon du tmpfs vers la
+ * flash NAND (persistant). Long (re-pull de l'image) → lancé en ARRIÈRE-PLAN
+ * (after) pour éviter la coupure Cloudflare ~100 s ; l'utilisateur ré-analyse
+ * ensuite pour confirmer.
+ */
+export async function repairMikhmonStorage(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  after(async () => {
+    let client: RouterOSClient | null = null;
+    try {
+      client = await connectToRouter(router, 30000);
+      await migrateMikhmonToFlash(client);
+    } catch {
+      /* arrière-plan : l'utilisateur constatera l'état via une ré-analyse */
+    } finally {
+      client?.close();
+    }
+  });
+
+  return {
+    success: true,
+    summary:
+      "Migration de MikHmon vers la flash lancée (~1 à 3 min : re-téléchargement de l'image). Ré-analysez ensuite pour confirmer, puis recréez la session une dernière fois.",
+  };
 }
 
 /**

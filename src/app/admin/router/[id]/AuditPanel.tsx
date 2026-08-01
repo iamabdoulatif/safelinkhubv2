@@ -16,6 +16,7 @@ import {
   optimizeRouterWifi,
   optimizeRouterThroughput,
   setRouterBandwidthCap,
+  repairMikhmonStorage,
 } from "@/lib/mikrotik/actions";
 import type { AuditFinding, AuditSeverity, RouterAudit } from "@/lib/mikrotik/router-audit";
 
@@ -33,6 +34,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   wifi: "Optimiser le WiFi",
   throughput: "Optimiser le débit",
   cap: "Plafonner à 450 Mbps",
+  mikhmon: "Déplacer sur la flash",
 };
 
 function scoreTone(score: number) {
@@ -72,16 +74,21 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
           ? await optimizeRouterWifi(routerId)
           : finding.fix === "throughput"
             ? await optimizeRouterThroughput(routerId)
-            : await setRouterBandwidthCap(routerId, 450);
+            : finding.fix === "mikhmon"
+              ? await repairMikhmonStorage(routerId)
+              : await setRouterBandwidthCap(routerId, 450);
       setFixingId(null);
       if (res?.error) {
         setFixMsg({ id: finding.id, ok: false, text: res.error });
         return;
       }
       setFixMsg({ id: finding.id, ok: true, text: res?.summary ?? "Correctif appliqué." });
-      // Ré-analyse pour refléter l'état corrigé.
-      const fresh = await runRouterAudit(routerId);
-      if (fresh?.audit) setAudit(fresh.audit);
+      // Ré-analyse auto pour refléter l'état corrigé — sauf la migration MikHmon,
+      // longue et lancée en arrière-plan : l'utilisateur ré-analyse après ~2 min.
+      if (finding.fix !== "mikhmon") {
+        const fresh = await runRouterAudit(routerId);
+        if (fresh?.audit) setAudit(fresh.audit);
+      }
     });
   }
 
