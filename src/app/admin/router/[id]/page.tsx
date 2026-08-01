@@ -191,7 +191,7 @@ export default async function RouterDetailPage({
             </div>
           </div>
         </div>
-        <HeaderActions routerId={router.id} />
+        <HeaderActions routerId={router.id} locked={Boolean(router.portsLockedAt)} />
       </div>
 
       {/* Cartes métriques */}

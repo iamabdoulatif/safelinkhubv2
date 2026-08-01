@@ -151,6 +151,15 @@ export const routers = pgTable("routers", {
   // lib/mikrotik/ipv6-bypass.ts. Only meaningful when connectionMethod="vpn".
   ipv6BypassEnabled: boolean("ipv6_bypass_enabled").notNull().default(false),
   ipv6BypassEnabledAt: timestamp("ipv6_bypass_enabled_at"),
+  // « Kill-switch » routeur : quand posé, tous les ports d'accès ET le WiFi ont
+  // été DÉSACTIVÉS sauf ether1 (le lien WAN/gestion qui garde le tunnel
+  // WireGuard vivant, donc le routeur reste joignable pour déverrouiller à
+  // distance). Posé par lockRouterPorts / effacé par unlockRouterPorts
+  // (actions.ts). lockedInterfaces mémorise EXACTEMENT les interfaces qu'on a
+  // coupées, pour que le déverrouillage ne réactive que celles-là — jamais une
+  // interface que l'admin avait déjà désactivée avant le verrouillage.
+  portsLockedAt: timestamp("ports_locked_at"),
+  lockedInterfaces: jsonb("locked_interfaces").$type<string[]>(),
   installTokenHash: text("install_token_hash"),
   installTokenExpiresAt: timestamp("install_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

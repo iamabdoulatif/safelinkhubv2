@@ -14,6 +14,7 @@ import { syncRouterStats, connectToRouter, refreshStaleRouters } from "./router-
 import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 import { shardForIndex } from "./shards";
 import { optimizeWifiThroughput } from "./wifi-compat";
+import { lockRouterInterfaces, unlockRouterInterfaces } from "./router-lock";
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -158,6 +159,103 @@ export async function optimizeRouterWifi(routerId: string) {
   } catch (err) {
     return {
       error: err instanceof Error ? `Échec de l'optimisation : ${err.message}` : "Échec de l'optimisation.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * VERROUILLE le routeur (« kill-switch ») : coupe tous les ports d'accès + le
+ * WiFi sauf ether1. Sert à paralyser un routeur à distance (ex. client qui n'a
+ * pas payé) tout en gardant le tunnel de gestion vivant pour le déverrouiller.
+ * Mémorise les interfaces coupées pour un déverrouillage exact.
+ */
+export async function lockRouterPorts(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || router.orgId !== session.orgId) return { error: "Routeur introuvable." };
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour être verrouillé.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await lockRouterInterfaces(client);
+    await db
+      .update(routers)
+      .set({ portsLockedAt: new Date(), lockedInterfaces: res.locked })
+      .where(eq(routers.id, routerId));
+    revalidatePath("/admin/router");
+    revalidatePath(`/admin/router/${routerId}`);
+    const n = res.locked.length + res.alreadyDisabled.length;
+    return {
+      success: true,
+      summary: `Routeur verrouillé — ${n} interface(s) coupée(s), seul ${res.kept} reste actif.`,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Échec du verrouillage.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/** DÉVERROUILLE le routeur : réactive les interfaces coupées par lockRouterPorts. */
+export async function unlockRouterPorts(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || router.orgId !== session.orgId) return { error: "Routeur introuvable." };
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour être déverrouillé.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await unlockRouterInterfaces(client, router.lockedInterfaces ?? null);
+    await db
+      .update(routers)
+      .set({ portsLockedAt: null, lockedInterfaces: null })
+      .where(eq(routers.id, routerId));
+    revalidatePath("/admin/router");
+    revalidatePath(`/admin/router/${routerId}`);
+    if (res.failed.length > 0) {
+      return {
+        success: true,
+        summary: `Routeur déverrouillé — ${res.enabled.length} interface(s) réactivée(s), ${res.failed.length} en échec (${res.failed[0].name} : ${res.failed[0].error}).`,
+      };
+    }
+    return { success: true, summary: `Routeur déverrouillé — ${res.enabled.length} interface(s) réactivée(s).` };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec du déverrouillage : ${err.message}` : "Échec du déverrouillage.",
     };
   } finally {
     client.close();
