@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
 
 /**
@@ -30,7 +30,7 @@ export async function enableBackToHome(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
@@ -98,7 +98,7 @@ export async function getBackToHomeStatus(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
