@@ -1,0 +1,12 @@
+[Unit]
+Description=Declenche conversion-alert une fois par jour (08:00, jour ecoule)
+
+[Timer]
+# 08:00 chaque jour (UTC ≈ Afrique/Abidjan) : évalue la journée de la VEILLE.
+OnCalendar=*-*-* 08:00:00
+AccuracySec=5min
+# Rattrape un tir manqué si le VPS était éteint à 08:00.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

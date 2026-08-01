@@ -115,6 +115,31 @@ export async function sendRouterOfflineEmail(
   return !error;
 }
 
+export async function sendConversionAlertEmail(
+  to: string,
+  name: string,
+  params: { orgName: string; rate: number; threshold: number; paid: number; total: number },
+): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+  const url = `${appBaseUrl()}/admin/conversion`;
+  const html = layout(
+    `📉 Conversion paiement en baisse (${params.rate}%)`,
+    `<p style="font-size:15px;line-height:1.6">Bonjour ${escapeHtml(name)},</p>
+     <p style="font-size:15px;line-height:1.6">Hier, le taux de <strong>conversion des paiements</strong> du portail captif${params.orgName ? ` de <strong>${escapeHtml(params.orgName)}</strong>` : ""} est tombé à <strong>${params.rate}%</strong> (seuil d'alerte&nbsp;: ${params.threshold}%)&nbsp;: seulement <strong>${params.paid}</strong> paiement(s) abouti(s) sur <strong>${params.total}</strong> commande(s).</p>
+     <p style="font-size:15px;line-height:1.6"><strong>À vérifier&nbsp;:</strong> les clients atteignent-ils le paiement puis abandonnent (souvent le mini-navigateur du portail captif — pensez à ouvrir dans le vrai navigateur)&nbsp;? Le moyen de paiement (Wave/Orange/MTN) fonctionne-t-il&nbsp;? Le détail par jour est dans « Conversion paiement ».</p>`,
+    "Voir la conversion",
+    url,
+  );
+  const { error } = await resend.emails.send({
+    from: getFrom(),
+    to,
+    subject: `📉 SafeLinkHub — conversion paiement à ${params.rate}% hier`,
+    html,
+  });
+  return !error;
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
