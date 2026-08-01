@@ -1,14 +1,16 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Gauge, SlidersHorizontal, LayoutGrid } from "lucide-react";
+import { Gauge, SlidersHorizontal, LayoutGrid, Stethoscope } from "lucide-react";
 import ResourcesPanel from "./ResourcesPanel";
 import ServicesWizard from "./ServicesWizard";
+import AuditPanel from "./AuditPanel";
 
-type TabKey = "overview" | "resources" | "services";
+type TabKey = "overview" | "diagnostic" | "resources" | "services";
 
 const TABS: { key: TabKey; label: string; icon: typeof Gauge }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutGrid },
+  { key: "diagnostic", label: "Diagnostic", icon: Stethoscope },
   { key: "resources", label: "Ressources", icon: Gauge },
   { key: "services", label: "Configurer les services", icon: SlidersHorizontal },
 ];
@@ -71,6 +73,8 @@ export default function RouterDetailTabs({
               <p className="border-2 border-line bg-clay px-4 py-6 text-center text-sm text-ink-soft">
                 Le routeur doit être en ligne pour lire ses informations en direct.
               </p>
+            ) : key === "diagnostic" ? (
+              <AuditPanel routerId={routerId} />
             ) : key === "resources" ? (
               <ResourcesPanel routerId={routerId} />
             ) : (

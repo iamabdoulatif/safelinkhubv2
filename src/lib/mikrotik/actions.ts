@@ -15,7 +15,12 @@ import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 import { shardForIndex } from "./shards";
 import { optimizeWifiThroughput } from "./wifi-compat";
 import { lockRouterInterfaces, unlockRouterInterfaces } from "./router-lock";
-import { optimizeRouterThroughput as optimizeThroughput, runRouterSpeedTest } from "./router-throughput";
+import {
+  optimizeRouterThroughput as optimizeThroughput,
+  runRouterSpeedTest,
+  setRouterBandwidthCap as setBandwidthCap,
+} from "./router-throughput";
+import { auditRouter } from "./router-audit";
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -300,6 +305,85 @@ export async function optimizeRouterThroughput(routerId: string) {
     return {
       error: err instanceof Error ? `Échec de l'optimisation débit : ${err.message}` : "Échec de l'optimisation débit.",
     };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * AUDIT MikroTik : analyse (lecture seule) la config du routeur au regard des
+ * bonnes pratiques de l'auto-setup et renvoie les constats + correctifs. Utilisé
+ * par l'outil « Diagnostic » de la fiche routeur.
+ */
+export async function runRouterAudit(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 30000);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour l'analyse.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const audit = await auditRouter(client);
+    return { success: true, audit };
+  } catch (err) {
+    return { error: err instanceof Error ? `Échec de l'analyse : ${err.message}` : "Échec de l'analyse." };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * PLAFOND DÉBIT (« Débit maximal ») : pose/retire un plafond agrégé + partage
+ * équitable par client (PCQ) sur le hotspot. targetMbps=0 retire le plafond.
+ */
+export async function setRouterBandwidthCap(routerId: string, targetMbps: number) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const target = Math.max(0, Math.min(2000, Math.round(Number(targetMbps) || 0)));
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await setBandwidthCap(client, target);
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: res.summary };
+  } catch (err) {
+    return { error: err instanceof Error ? `Échec : ${err.message}` : "Échec du plafond de débit." };
   } finally {
     client.close();
   }

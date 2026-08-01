@@ -82,6 +82,110 @@ export async function optimizeRouterThroughput(
   return { fasttrackAdded, layer7Disabled, summary: parts.join(" · ") };
 }
 
+export type BandwidthCapResult = {
+  targetMbps: number;
+  queuesSet: number;
+  fasttrackToggled: boolean;
+  summary: string;
+};
+
+/**
+ * PLAFOND DE DÉBIT ÉQUITABLE (le « débit maximal » configurable, ex. 450 Mbps).
+ *
+ * Pose un plafond agrégé sur le trafic hotspot avec un partage PCQ **par client**
+ * (chaque IP reçoit une part équitable du plafond) — anti-bufferbloat, latence
+ * basse, personne ne monopolise la ligne. À régler juste SOUS le débit réel de
+ * la ligne (ex. 450 sur une ligne de 500) pour absorber les pics sans lag.
+ *
+ * ⚠️ Le fasttrack court-circuite les files d'attente : tant qu'un plafond est
+ * actif, on DÉSACTIVE le fasttrack SafeLinkHub (sinon le plafond/partage ne
+ * s'applique pas) ; on le réactive quand on retire le plafond (target=0). Le
+ * RB4011 (4×1,2 GHz) encaisse largement 450 Mbps « queués ».
+ *
+ * NB : un plafond ne PEUT PAS augmenter la capacité livrée par le FAI — il
+ * répartit et lisse ce que la ligne délivre déjà.
+ */
+export async function setRouterBandwidthCap(
+  client: RouterOSClient,
+  targetMbps: number,
+  opts: { timeoutMs?: number } = {},
+): Promise<BandwidthCapResult> {
+  const timeoutMs = opts.timeoutMs ?? 20000;
+  const on = targetMbps > 0;
+  const limit = on ? `${targetMbps}M/${targetMbps}M` : "0/0";
+
+  const queues = await client.talk(["/queue/simple/print"], timeoutMs).catch(() => []);
+  const hs = queues.filter(
+    (q) => /HOTSPOT/i.test(q.target ?? "") || /^hs-/i.test(q.name ?? "") || /SafeLinkHub/i.test(q.comment ?? ""),
+  );
+
+  let queuesSet = 0;
+  // PCQ par client si dispo (types par défaut de RouterOS) ; sinon plafond simple.
+  const withPcq = (words: string[]) => [
+    ...words,
+    `=max-limit=${limit}`,
+    ...(on ? ["=queue=pcq-download-default/pcq-upload-default"] : ["=queue=default-small/default-small"]),
+  ];
+  for (const q of hs) {
+    if (!q[".id"]) continue;
+    const r = await client
+      .talk(withPcq(["/queue/simple/set", `=numbers=${q[".id"]}`]), timeoutMs)
+      .then(() => true)
+      // Repli sans PCQ si les types PCQ n'existent pas sur ce routeur.
+      .catch(async () => {
+        await client
+          .talk(["/queue/simple/set", `=numbers=${q[".id"]}`, `=max-limit=${limit}`], timeoutMs)
+          .catch(() => {});
+        return true;
+      });
+    if (r) queuesSet += 1;
+  }
+  // Aucune queue hotspot et on veut un plafond : en créer une sur le bridge HOTSPOT.
+  if (on && hs.length === 0) {
+    await client
+      .talk(
+        withPcq(["/queue/simple/add", "=name=SafeLinkHub-cap", "=target=HOTSPOT", "=comment=SafeLinkHub plafond debit"]),
+        timeoutMs,
+      )
+      .then(() => {
+        queuesSet += 1;
+      })
+      .catch(async () => {
+        await client
+          .talk(
+            ["/queue/simple/add", "=name=SafeLinkHub-cap", "=target=HOTSPOT", `=max-limit=${limit}`, "=comment=SafeLinkHub plafond debit"],
+            timeoutMs,
+          )
+          .then(() => {
+            queuesSet += 1;
+          })
+          .catch(() => {});
+      });
+  }
+
+  // Fasttrack vs file d'attente : off si plafond actif, on sinon.
+  const filters = await client.talk(["/ip/firewall/filter/print"], timeoutMs).catch(() => []);
+  let fasttrackToggled = false;
+  for (const f of filters) {
+    if (f.action === "fasttrack-connection" && f[".id"]) {
+      const want = on ? "yes" : "no";
+      if ((f.disabled === "true") !== on) {
+        await client
+          .talk(["/ip/firewall/filter/set", `=numbers=${f[".id"]}`, `=disabled=${want}`], timeoutMs)
+          .then(() => {
+            fasttrackToggled = true;
+          })
+          .catch(() => {});
+      }
+    }
+  }
+
+  const summary = on
+    ? `Plafond ${targetMbps} Mbps posé (partage équitable par client) sur ${queuesSet} file(s) hotspot${fasttrackToggled ? " · fasttrack désactivé (requis pour le plafond)" : ""}.`
+    : `Plafond retiré (débit illimité)${fasttrackToggled ? " · fasttrack réactivé (débit brut max)" : ""}.`;
+  return { targetMbps, queuesSet, fasttrackToggled, summary };
+}
+
 export type SpeedTestResult = {
   downMbps: number;
   bytes: number;
