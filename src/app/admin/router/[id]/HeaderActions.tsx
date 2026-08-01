@@ -3,13 +3,15 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, RefreshCw, Trash2, Gauge, Lock, LockOpen } from "lucide-react";
+import { Loader2, Pencil, RefreshCw, Trash2, Gauge, Lock, LockOpen, Zap, Activity } from "lucide-react";
 import {
   deleteRouter,
   optimizeRouterWifi,
   refreshRouterStats,
   lockRouterPorts,
   unlockRouterPorts,
+  optimizeRouterThroughput,
+  speedTestRouter,
 } from "@/lib/mikrotik/actions";
 
 export default function HeaderActions({
@@ -22,6 +24,8 @@ export default function HeaderActions({
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
   const [isOptimizing, startOptimize] = useTransition();
+  const [isTuning, startTune] = useTransition();
+  const [isTesting, startTest] = useTransition();
   const [isLocking, startLock] = useTransition();
   const [confirmingLock, setConfirmingLock] = useState(false);
   const [isDeleting, startDelete] = useTransition();
@@ -145,6 +149,51 @@ export default function HeaderActions({
           <Gauge aria-hidden="true" className="h-4 w-4" />
         )}
         {isOptimizing ? "Optimisation..." : "Optimiser le WiFi"}
+      </button>
+      <button
+        type="button"
+        disabled={isTuning}
+        title="Active le fasttrack (connexions établies) et désactive le layer7 — débloque le débit routé sans casser le filtrage"
+        onClick={() =>
+          startTune(async () => {
+            setError(null);
+            setOk(null);
+            const result = await optimizeRouterThroughput(routerId);
+            if (result?.error) setError(result.error);
+            else setOk(result?.summary ? `Débit optimisé — ${result.summary}` : "Débit optimisé.");
+            router.refresh();
+          })
+        }
+        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60"
+      >
+        {isTuning ? (
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+        ) : (
+          <Zap aria-hidden="true" className="h-4 w-4" />
+        )}
+        {isTuning ? "Optimisation..." : "Optimiser le débit"}
+      </button>
+      <button
+        type="button"
+        disabled={isTesting}
+        title="Mesure le débit descendant réel du WAN du routeur (téléchargement de test ~40 Mo)"
+        onClick={() =>
+          startTest(async () => {
+            setError(null);
+            setOk(null);
+            const result = await speedTestRouter(routerId);
+            if (result?.error) setError(result.error);
+            else setOk(result?.summary ?? "Test de débit terminé.");
+          })
+        }
+        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60"
+      >
+        {isTesting ? (
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+        ) : (
+          <Activity aria-hidden="true" className="h-4 w-4" />
+        )}
+        {isTesting ? "Test en cours..." : "Test débit"}
       </button>
       {locked ? (
         <button

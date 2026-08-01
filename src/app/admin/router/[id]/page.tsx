@@ -46,6 +46,12 @@ function Badge({ tone, children }: { tone: "ok" | "brand" | "muted"; children: R
   );
 }
 
+// Le test de débit (server action « speedTestRouter » de cette page) attend la
+// fin d'un téléchargement de test côté routeur, jusqu'à ~75 s sur un lien lent —
+// au-delà du timeout par défaut des Server Actions. On le relève ici (les
+// actions héritent du maxDuration de la page qui les invoque).
+export const maxDuration = 120;
+
 export default async function RouterDetailPage({
   params,
 }: {

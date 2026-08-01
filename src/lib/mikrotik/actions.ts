@@ -15,6 +15,7 @@ import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 import { shardForIndex } from "./shards";
 import { optimizeWifiThroughput } from "./wifi-compat";
 import { lockRouterInterfaces, unlockRouterInterfaces } from "./router-lock";
+import { optimizeRouterThroughput as optimizeThroughput, runRouterSpeedTest } from "./router-throughput";
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -256,6 +257,89 @@ export async function unlockRouterPorts(routerId: string) {
   } catch (err) {
     return {
       error: err instanceof Error ? `Échec du déverrouillage : ${err.message}` : "Échec du déverrouillage.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * OPTIMISE LE DÉBIT routé (bouton « Optimiser le débit ») : fasttrack des
+ * connexions établies + désactivation des règles layer7 (tueur de débit).
+ * Garde le filtrage tls-host/ports intact. Idempotent.
+ */
+export async function optimizeRouterThroughput(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour optimiser le débit.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await optimizeThroughput(client);
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: res.summary };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec de l'optimisation débit : ${err.message}` : "Échec de l'optimisation débit.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * TEST DÉBIT (bouton « Test débit ») : mesure le débit descendant réel du WAN
+ * du routeur — il télécharge un fichier de test via SA connexion Internet, le
+ * tunnel ne porte que le déclenchement + le résultat.
+ */
+export async function speedTestRouter(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 90000);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour tester le débit.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await runRouterSpeedTest(client);
+    return { success: true, summary: res.summary, downMbps: res.downMbps };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Échec du test de débit.",
     };
   } finally {
     client.close();
