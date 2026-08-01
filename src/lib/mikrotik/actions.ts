@@ -5,7 +5,7 @@ import { randomBytes, randomUUID } from "crypto";
 import { eq, count } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
@@ -96,7 +96,7 @@ export async function refreshRouterStats(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -127,7 +127,7 @@ export async function optimizeRouterWifi(routerId: string) {
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -177,7 +177,7 @@ export async function lockRouterPorts(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || router.orgId !== session.orgId) return { error: "Routeur introuvable." };
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return { error: "Routeur introuvable." };
   if (!router.host || !router.username || !router.passwordEncrypted) {
     return { error: "Détails de connexion du routeur manquants." };
   }
@@ -222,7 +222,7 @@ export async function unlockRouterPorts(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || router.orgId !== session.orgId) return { error: "Routeur introuvable." };
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return { error: "Routeur introuvable." };
   if (!router.host || !router.username || !router.passwordEncrypted) {
     return { error: "Détails de connexion du routeur manquants." };
   }
@@ -350,7 +350,7 @@ export async function deleteRouter(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
@@ -458,7 +458,7 @@ export async function resetRouterDevice(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
@@ -596,7 +596,7 @@ export async function checkRouterConnection(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
   if (router.status === "online") {

@@ -25,6 +25,8 @@ export type RouterRow = {
   activeUsers: number | null;
   lastSyncAtMs: number | null;
   connectionMethod: string;
+  /** Nom de l'organisation propriétaire — renseigné seulement en vue superadmin. */
+  orgName?: string | null;
 };
 
 function isConfiguring(status: string) {
@@ -69,7 +71,14 @@ function MeterCell({ percent }: { percent: number }) {
   );
 }
 
-export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
+export default function RoutersTable({
+  routers,
+  crossOrg = false,
+}: {
+  routers: RouterRow[];
+  /** Vue superadmin : routeurs de TOUTES les organisations, avec le nom du client. */
+  crossOrg?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -115,7 +124,7 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
     if (filter === "config" && !isConfiguring(r.status)) return false;
     if (query) {
       const q = query.toLowerCase();
-      const haystack = `${r.name} ${r.host ?? ""} ${r.model ?? ""}`.toLowerCase();
+      const haystack = `${r.name} ${r.host ?? ""} ${r.model ?? ""} ${r.orgName ?? ""}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -130,7 +139,9 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
             Routeurs MikroTik
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
-            Gestion, synchronisation et provisionnement de vos MikroTik.
+            {crossOrg
+              ? "Vue superadmin — routeurs de tous les clients. Vous pouvez mener des actions sur chacun."
+              : "Gestion, synchronisation et provisionnement de vos MikroTik."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -232,6 +243,11 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                     className="min-w-0 font-display text-base font-bold text-ink hover:text-brand-deep"
                   >
                     <span className="block truncate">{r.name}</span>
+                    {crossOrg && r.orgName && (
+                      <span className="block truncate text-xs font-semibold text-brand-deep">
+                        {r.orgName}
+                      </span>
+                    )}
                     <span className="block truncate font-mono text-xs font-medium text-ink-soft">
                       {r.host ? `${r.host}:${r.apiPort ?? 8728}` : "—"}
                     </span>
@@ -305,6 +321,9 @@ export default function RoutersTable({ routers }: { routers: RouterRow[] }) {
                     <td className="px-4 py-3">
                       <Link href={`/admin/router/${r.id}`} className="group block">
                         <span className="font-bold text-ink group-hover:text-brand-deep">{r.name}</span>
+                        {crossOrg && r.orgName && (
+                          <span className="block text-xs font-semibold text-brand-deep">{r.orgName}</span>
+                        )}
                         <span className="block font-mono text-xs text-ink-soft">
                           {r.host ? `${r.host}:${r.apiPort ?? 8728}` : "—"}
                         </span>

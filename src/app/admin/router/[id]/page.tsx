@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Clock, Router as RouterIcon, Users, Cpu, MemoryStick } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import HeaderActions from "./HeaderActions";
 import RouterDetailTabs from "./RouterDetailTabs";
 
@@ -56,10 +56,16 @@ export default async function RouterDetailPage({
   if (!session) notFound();
 
   const db = getDb();
+  // Le superadmin (opérateur de la plateforme) peut ouvrir la fiche de N'IMPORTE
+  // quel routeur pour y mener des actions ; un admin reste limité à son org.
   const [router] = await db
     .select()
     .from(routers)
-    .where(and(eq(routers.id, id), eq(routers.orgId, session.orgId)))
+    .where(
+      isSuperAdmin(session.role)
+        ? eq(routers.id, id)
+        : and(eq(routers.id, id), eq(routers.orgId, session.orgId)),
+    )
     .limit(1);
 
   if (!router) notFound();
