@@ -20,6 +20,7 @@ import {
   reconfigureMikhmonSession,
 } from "@/lib/mikrotik/actions";
 import type { AuditFinding, AuditSeverity, RouterAudit } from "@/lib/mikrotik/router-audit";
+import NetworkGuide from "./NetworkGuide";
 
 const SEV: Record<
   AuditSeverity,
@@ -231,6 +232,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                     À traiter manuellement (souvent physique : câble, appareil, ou relance de l&apos;auto-setup).
                   </p>
                 )}
+                {f.id === "eth-100m" && <NetworkGuide />}
               </div>
             );
           })}
