@@ -105,3 +105,62 @@ export async function ensureHotspotLoginByCode(
 
   return { fixed, loginHost };
 }
+
+// Méthodes de login nécessaires à l'AUTO-LOGIN PAR MAC (roaming inter-zones) :
+//   mac        → un utilisateur hotspot nommé <MAC> est authentifié sans portail
+//   mac-cookie → le MAC reste auto-reconnecté après une 1ʳᵉ authentification
+// C'est ce que porte déjà le routeur de référence (RUE-NICOLAS). Ajout ADDITIF :
+// on ne retire jamais les méthodes existantes (cookie/http-chap/http-pap…).
+const MAC_LOGIN_METHODS = ["mac", "mac-cookie"] as const;
+
+/**
+ * Garantit que les profils hotspot des serveurs ACTIFS acceptent le login par
+ * MAC (mac + mac-cookie), en PRÉSERVANT les méthodes déjà présentes. Sans ça,
+ * l'utilisateur `name=<MAC>` créé sur les zones sœurs ne serait jamais
+ * auto-logué et le client devrait re-saisir son code en changeant de zone.
+ *
+ * Idempotent (ne /set que si une méthode manque), best-effort par profil.
+ * Renvoie les profils complétés.
+ */
+export async function ensureMacAutoLogin(
+  client: RouterOSClient,
+  timeoutMs = 15000,
+): Promise<{ fixed: string[] }> {
+  const fixed: string[] = [];
+
+  const servers = await client
+    .talk(["/ip/hotspot/print"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  const activeProfileNames = new Set(
+    servers.filter((s) => s.disabled !== "true" && s.profile).map((s) => s.profile as string),
+  );
+  if (activeProfileNames.size === 0) return { fixed };
+
+  const profiles = await client
+    .talk(["/ip/hotspot/profile/print"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+
+  for (const profile of profiles) {
+    const name = profile.name;
+    const id = profile[".id"];
+    if (!name || !id || !activeProfileNames.has(name)) continue;
+
+    const current = parseLoginBy(profile["login-by"]);
+    const present = new Set(current);
+    const missing = MAC_LOGIN_METHODS.filter((m) => !present.has(m));
+    if (missing.length === 0) continue;
+
+    const merged = [...current, ...missing].join(",");
+    try {
+      await client.talk(
+        ["/ip/hotspot/profile/set", `=numbers=${id}`, `=login-by=${merged}`],
+        timeoutMs,
+      );
+      fixed.push(name);
+    } catch {
+      // best-effort : un profil qui refuse le set ne bloque pas les autres.
+    }
+  }
+
+  return { fixed };
+}
