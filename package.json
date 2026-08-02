@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@aws-sdk/client-textract": "^3.1101.0",
     "@vercel/blob": "^2.5.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
