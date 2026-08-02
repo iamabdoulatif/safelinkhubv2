@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { randomBytes, randomUUID } from "crypto";
 import { eq, count } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
@@ -13,6 +14,17 @@ import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
 import { syncRouterStats, connectToRouter, refreshStaleRouters } from "./router-sync";
 import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 import { shardForIndex } from "./shards";
+import { optimizeWifiThroughput } from "./wifi-compat";
+import { lockRouterInterfaces, unlockRouterInterfaces } from "./router-lock";
+import {
+  optimizeRouterThroughput as optimizeThroughput,
+  runRouterSpeedTest,
+  setRouterBandwidthCap as setBandwidthCap,
+} from "./router-throughput";
+import { auditRouter } from "./router-audit";
+import { migrateMikhmonToFlash } from "./mikhmon-flash";
+import { writeMikhmonSession } from "./mikhmon-session";
+import { decryptSecret } from "./crypto";
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -94,7 +106,7 @@ export async function refreshRouterStats(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -106,6 +118,430 @@ export async function refreshRouterStats(routerId: string) {
 
   revalidatePath("/admin/router");
   return { success: true };
+}
+
+/**
+ * OPTIMISE LE DÉBIT WiFi d'un routeur (bouton « Optimiser le WiFi » de la fiche
+ * routeur) — le correctif « faible connexion » en un clic : unifie le SSID sur
+ * les deux bandes (band steering → les appareils prennent la 5GHz rapide), met
+ * la 5GHz en 80MHz et la 2.4GHz en 20MHz. Conserve le SSID existant. Ne touche
+ * ni au hotspot ni aux forfaits.
+ */
+export async function optimizeRouterWifi(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour optimiser le WiFi.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await optimizeWifiThroughput(client);
+    if (res.applied.length === 0) {
+      // Pas de radio / pas de SSID / échec total : renvoyer un message clair.
+      return res.failed.length > 0
+        ? { error: `Optimisation refusée par le routeur : ${res.failed[0].error}` }
+        : { error: res.note ?? res.summary };
+    }
+    revalidatePath("/admin/router");
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: res.summary };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec de l'optimisation : ${err.message}` : "Échec de l'optimisation.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * VERROUILLE le routeur (« kill-switch ») : coupe tous les ports d'accès + le
+ * WiFi sauf ether1. Sert à paralyser un routeur à distance (ex. client qui n'a
+ * pas payé) tout en gardant le tunnel de gestion vivant pour le déverrouiller.
+ * Mémorise les interfaces coupées pour un déverrouillage exact.
+ */
+export async function lockRouterPorts(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return { error: "Routeur introuvable." };
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour être verrouillé.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await lockRouterInterfaces(client);
+    await db
+      .update(routers)
+      .set({ portsLockedAt: new Date(), lockedInterfaces: res.locked })
+      .where(eq(routers.id, routerId));
+    revalidatePath("/admin/router");
+    revalidatePath(`/admin/router/${routerId}`);
+    const n = res.locked.length + res.alreadyDisabled.length;
+    return {
+      success: true,
+      summary: `Routeur verrouillé — ${n} interface(s) coupée(s), seul le WAN (${res.kept.join(", ")}) reste actif.`,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Échec du verrouillage.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/** DÉVERROUILLE le routeur : réactive les interfaces coupées par lockRouterPorts. */
+export async function unlockRouterPorts(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return { error: "Routeur introuvable." };
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour être déverrouillé.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await unlockRouterInterfaces(client, router.lockedInterfaces ?? null);
+    await db
+      .update(routers)
+      .set({ portsLockedAt: null, lockedInterfaces: null })
+      .where(eq(routers.id, routerId));
+    revalidatePath("/admin/router");
+    revalidatePath(`/admin/router/${routerId}`);
+    if (res.failed.length > 0) {
+      return {
+        success: true,
+        summary: `Routeur déverrouillé — ${res.enabled.length} interface(s) réactivée(s), ${res.failed.length} en échec (${res.failed[0].name} : ${res.failed[0].error}).`,
+      };
+    }
+    return { success: true, summary: `Routeur déverrouillé — ${res.enabled.length} interface(s) réactivée(s).` };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec du déverrouillage : ${err.message}` : "Échec du déverrouillage.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * OPTIMISE LE DÉBIT routé (bouton « Optimiser le débit ») : fasttrack des
+ * connexions établies + désactivation des règles layer7 (tueur de débit).
+ * Garde le filtrage tls-host/ports intact. Idempotent.
+ */
+export async function optimizeRouterThroughput(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour optimiser le débit.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await optimizeThroughput(client);
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: res.summary };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec de l'optimisation débit : ${err.message}` : "Échec de l'optimisation débit.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * CORRECTIF « MikHmon en RAM » : déplace le conteneur MikHmon du tmpfs vers la
+ * flash NAND (persistant). Long (re-pull de l'image) → lancé en ARRIÈRE-PLAN
+ * (after) pour éviter la coupure Cloudflare ~100 s ; l'utilisateur ré-analyse
+ * ensuite pour confirmer.
+ */
+export async function repairMikhmonStorage(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  after(async () => {
+    let client: RouterOSClient | null = null;
+    try {
+      client = await connectToRouter(router, 30000);
+      await migrateMikhmonToFlash(client);
+    } catch {
+      /* arrière-plan : l'utilisateur constatera l'état via une ré-analyse */
+    } finally {
+      client?.close();
+    }
+  });
+
+  return {
+    success: true,
+    summary:
+      "Migration de MikHmon vers la flash lancée (~1 à 3 min : re-téléchargement de l'image). Ré-analysez ensuite pour confirmer, puis recréez la session une dernière fois.",
+  };
+}
+
+/**
+ * RECONFIGURE la session MikHmon (« SafeLinkHub ») : réécrit le config.php du
+ * conteneur avec les valeurs dérivées du routeur (hotspot = nom du Server
+ * Profile, DNS = passerelle, IP/API fixes). Utilisé par le bouton du Diagnostic.
+ */
+export async function reconfigureMikhmonSession(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 30000);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const conts = await client.talk(["/container/print", "=detail"]).catch(() => [] as Record<string, string>[]);
+    const mk = conts.find(
+      (c) => /mikhmon/i.test(String(c.name ?? "")) || /mikhmon/i.test(String(c["root-dir"] ?? "")),
+    );
+    if (!mk?.[".id"]) return { error: "Aucun conteneur MikHmon sur ce routeur." };
+    const rootDir = String(mk["root-dir"] ?? "").replace(/^\//, "");
+
+    const profs = await client.talk(["/ip/hotspot/profile/print", "=detail"]).catch(() => [] as Record<string, string>[]);
+    const prof = profs.find((p) => p.name && p.name !== "default") ?? {};
+    const hotspot = String(prof.name ?? router.name);
+    const dns = String(prof["hotspot-address"] ?? "");
+
+    const wrote = await writeMikhmonSession(
+      client,
+      rootDir,
+      "SafeLinkHub",
+      {
+        ip: "11.11.11.1",
+        user: router.username,
+        pass: decryptSecret(router.passwordEncrypted),
+        hotspot,
+        dns,
+        currency: "fcfa",
+        autoload: 10,
+        iface: 1,
+        infolp: "",
+        idle: "disable",
+        livereport: "enable",
+      },
+      mk[".id"],
+    );
+    if (!wrote.ok) return { error: `Écriture impossible : ${wrote.error}` };
+    await db.update(routers).set({ mikhmonSessionAt: new Date() }).where(eq(routers.id, routerId));
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: `Session MikHmon « SafeLinkHub » reconfigurée (hotspot ${hotspot}, DNS ${dns}).` };
+  } catch (err) {
+    return { error: err instanceof Error ? `Échec : ${err.message}` : "Échec de la reconfiguration." };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * AUDIT MikroTik : analyse (lecture seule) la config du routeur au regard des
+ * bonnes pratiques de l'auto-setup et renvoie les constats + correctifs. Utilisé
+ * par l'outil « Diagnostic » de la fiche routeur.
+ */
+export async function runRouterAudit(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 30000);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour l'analyse.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const audit = await auditRouter(client, { mikhmonConfigured: Boolean(router.mikhmonSessionAt) });
+    return { success: true, audit };
+  } catch (err) {
+    return { error: err instanceof Error ? `Échec de l'analyse : ${err.message}` : "Échec de l'analyse." };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * PLAFOND DÉBIT (« Débit maximal ») : pose/retire un plafond agrégé + partage
+ * équitable par client (PCQ) sur le hotspot. targetMbps=0 retire le plafond.
+ */
+export async function setRouterBandwidthCap(routerId: string, targetMbps: number) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const target = Math.max(0, Math.min(2000, Math.round(Number(targetMbps) || 0)));
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await setBandwidthCap(client, target);
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: res.summary };
+  } catch (err) {
+    return { error: err instanceof Error ? `Échec : ${err.message}` : "Échec du plafond de débit." };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * TEST DÉBIT (bouton « Test débit ») : mesure le débit descendant réel du WAN
+ * du routeur — il télécharge un fichier de test via SA connexion Internet, le
+ * tunnel ne porte que le déclenchement + le résultat.
+ */
+export async function speedTestRouter(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 90000);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour tester le débit.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await runRouterSpeedTest(client);
+    return { success: true, summary: res.summary, downMbps: res.downMbps };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Échec du test de débit.",
+    };
+  } finally {
+    client.close();
+  }
 }
 
 /** Resynchronise tous les routeurs de l'organisation (bouton "Synchroniser"
@@ -196,7 +632,7 @@ export async function deleteRouter(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
@@ -304,7 +740,7 @@ export async function resetRouterDevice(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
@@ -442,7 +878,7 @@ export async function checkRouterConnection(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
   if (router.status === "online") {

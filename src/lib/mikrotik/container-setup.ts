@@ -20,10 +20,11 @@ import {
 } from "./constants";
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 import { scenarioLabel, type DeploymentScenario } from "./device-catalog";
+import { writeMikhmonSession } from "./mikhmon-session";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { ensureWalledGarden } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
-import { loadSafelinkhubDefaultPackage, type PackageFile } from "@/lib/captive-templates/package-files";
+import { loadSafelinkBarakaPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import {
   evaluateAutoSetupGate,
@@ -303,45 +304,59 @@ async function provisionDockerStack(
     //   • SCÉNARIO 3 (eMMC/flash interne généreux : CCR/CRS, RB4011, RB3011,
     //     RB5009) : disque interne propre ("disk1"/Files) — JAMAIS tmpfs,
     //     survit au reboot ;
-    //   • SCÉNARIO 2 (flash interne limité : hAP ax lite/ax²) : repli tmpfs
-    //     RAM (usure NAND — usage intensif déconseillé).
-    // Règle d'or : jamais tmpfs si hasEmmcStorage OU hasLargeOnboardStorage.
+    //   • SCÉNARIO 2 (hAP ax lite/ax², sans USB ni slot disk1) : conteneur sur
+    //     la flash NAND système « flash/… » — PERSISTANT au reboot (root-dir +
+    //     layer-dir sur flash), le tmpfs ne sert plus que de scratch de pull.
+    // Règle d'or : jamais tmpfs pour le root-dir — la session MikHmon doit survivre.
     // Un seul /disk/print, réutilisé par les 3 branches.
     const disks = await client.talk(["/disk/print"]).catch(() => []);
     const internalDisk = disks.find(
       (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot) && d.type !== "tmpfs",
     );
+    // Clé USB / microSD DÉTECTÉE EN DIRECT (slot "usb1", "usb2"…). RouterOS
+    // l'expose comme une entrée /disk même NON formatée. On ne se fie PAS au
+    // seul flag opts.hasUsbStorage : il vient de la détection de l'UI au
+    // chargement de la page et peut être PÉRIMÉ (clé branchée après la
+    // détection, ou re-run de l'auto-setup) — d'où des ax³/Chateau PRO ax/L009
+    // (requiresUsbForContainer, flash interne trop petite) qui basculaient à
+    // tort en tmpfs/interne au lieu d'utiliser leur clé. Comme pour le device-
+    // mode plus haut, on RE-VÉRIFIE l'USB en direct sur l'appareil. Même signal
+    // que device-detect.ts (usb1DiskLive).
+    const usbDisk = disks.find(
+      (d) => typeof d.slot === "string" && /^usb\d+$/i.test(d.slot),
+    );
     let containerRootDir = "tmp/mikhmon-app";
     let scenario: DeploymentScenario;
 
-    if (opts.hasUsbStorage) {
+    if (opts.hasUsbStorage || usbDisk) {
       // --- SCÉNARIO 1: USB / microSD ---
       scenario = 1;
+      // Slot réel de la clé (usb1/usb2/microSD), pas un "usb1" en dur.
+      const usbSlot = usbDisk?.slot ?? "usb1";
       // RouterOS exposes a plugged-in USB stick as an unformatted /disk
-      // entry (slot usb1) — /container/config's tmpdir=usb1/pull silently
+      // entry (slot usb1) — /container/config's tmpdir=<usb>/pull silently
       // fails to pull/extract images until that slot is formatted ext4
       // (this is MikroTik's own documented Container prerequisite, the
       // same "Format Drive" step done by hand in WinBox). Re-running
       // auto-setup on an already-formatted stick must not reformat it —
       // that would wipe whatever's already pulled/cached — so this only
       // formats when the slot isn't already ext4.
-      const usb1Disk = disks.find((d) => d.slot === "usb1");
-      if (usb1Disk && usb1Disk["file-system"] !== "ext4") {
+      if (usbDisk && usbDisk["file-system"] !== "ext4") {
         await run(
-          ["/disk/format-drive", "=slot=usb1", "=file-system=ext4"],
-          "format USB stick (usb1, ext4)",
+          ["/disk/format-drive", `=slot=${usbSlot}`, "=file-system=ext4"],
+          `format USB stick (${usbSlot}, ext4)`,
           60000,
         );
-      } else if (!usb1Disk) {
+      } else if (!usbDisk) {
         log.push(
-          "SKIP (format USB stick): no disk reported at slot usb1 — plug the USB stick in and re-run auto-setup before MikHmon can use it.",
+          "SKIP (format USB stick): no USB disk detected (slot usb*) — plug the USB stick in and re-run auto-setup before MikHmon can use it.",
         );
       }
 
-      containerRootDir = "usb1/mikhmon-app";
+      containerRootDir = `${usbSlot}/mikhmon-app`;
       const configured = await run(
-        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=usb1/pull"],
-        "container engine config (USB storage)",
+        ["/container/config/set", "=registry-url=https://registry-1.docker.io", `=tmpdir=${usbSlot}/pull`],
+        `container engine config (USB storage ${usbSlot})`,
       );
       if (!configured.ok) return { status: "failed", message: configured.error };
     } else if (internalDisk?.slot || opts.hasLargeOnboardStorage || opts.hasEmmcStorage) {
@@ -365,12 +380,29 @@ async function provisionDockerStack(
       );
       if (!configured.ok) return { status: "failed", message: configured.error };
     } else {
-      // --- SCÉNARIO 2: flash interne limité → tmpfs RAM ---
+      // --- SCÉNARIO 2: hAP ax lite/ax² (flash NAND interne, PAS de slot USB) ---
+      // Ces boards n'ont ni clé USB ni slot /disk interne (disk1) — mais ils ont
+      // TOUS la flash NAND système, adressable « flash/… », PERSISTANTE au reboot.
+      // C'est là que le conteneur DOIT vivre. On plaçait avant le conteneur en
+      // tmpfs (RAM) : la session MikHmon (src/src/include/config.php) et les
+      // layers de l'image étaient PERDUS à chaque extinction → l'admin devait
+      // recréer la session à chaque allumage, bug récurrent signalé sur HSPT-WIFI.
+      // Modèle de référence validé en prod : un hAP ax lite (HSPT-YAHYA-GBEMA)
+      // dont le conteneur tourne en root-dir=/flash/mikhmon-root +
+      // layer-dir=/flash/mikhmon-layers — la session y reste INTACTE reboot après
+      // reboot, sans aucun scheduler de sauvegarde. On reproduit exactement ça :
+      // root-dir ET layer-dir sur la flash (persistant, et évite un re-pull de
+      // l'image au boot). Le tmpfs ne sert plus que de SCRATCH d'extraction
+      // pendant le pull (tmpdir=tmp/pull), pour épargner la NAND — les writes
+      // MikHmon en régime établi (config.php aux changements de session) restent
+      // légers, largement soutenables par la NAND (cf. board de référence, des
+      // mois d'uptime cumulé).
       scenario = 2;
+      containerRootDir = "flash/mikhmon-app";
       if (!disks.some((d) => d.slot === "tmp")) {
         const tmpfsCreated = await run(
           ["/disk/add", "=slot=tmp", "=tmpfs-max-size=150000000", "=type=tmpfs"],
-          "tmpfs disk slot",
+          "tmpfs disk slot (scratch de pull uniquement)",
         );
         if (!tmpfsCreated.ok) {
           return {
@@ -379,9 +411,16 @@ async function provisionDockerStack(
           };
         }
       }
+      // layer-dir sur la flash = image persistante (pas de re-pull au boot) ;
+      // tmpdir sur tmpfs = extraction en RAM (moins d'écritures NAND au pull).
       const configured = await run(
-        ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=tmpdir=tmp/pull"],
-        "container engine config (tmpfs)",
+        [
+          "/container/config/set",
+          "=registry-url=https://registry-1.docker.io",
+          "=layer-dir=flash/mikhmon-layers",
+          "=tmpdir=tmp/pull",
+        ],
+        "container engine config (flash NAND persistante + scratch tmpfs)",
       );
       if (!configured.ok) return { status: "failed", message: configured.error };
     }
@@ -443,7 +482,43 @@ async function provisionDockerStack(
       if (added > 0 && !envFailed) mikhmonEnvlist = MIKHMON_ENVLIST;
     }
 
-    const containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+    let containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+
+    // MIGRATION tmpfs → flash (scénario 2, routeurs DÉJÀ installés). Un conteneur
+    // MikHmon posé sur le tmpfs RAM (root-dir « tmp/… », l'ancien comportement)
+    // PERD sa session à chaque reboot. Maintenant qu'on cible la flash NAND
+    // persistante, on RETIRE l'ancien conteneur tmpfs pour qu'il soit recréé plus
+    // bas sur « flash/mikhmon-app ». La session config.php du tmpfs est de toute
+    // façon éphémère (déjà reperdue à chaque extinction) : l'admin la recrée une
+    // ULTIME fois, puis elle persiste définitivement. On ne touche QU'aux
+    // conteneurs sur tmpfs — un conteneur déjà sur flash/usb/disk1 est préservé.
+    if (scenario === 2) {
+      const staleTmpfs = containers.filter((c) => {
+        const rootDir = String(c["root-dir"] ?? "");
+        const isMikhmon =
+          c.name === CONTAINER_NAME ||
+          /mikhmon/i.test(String(c.name ?? "")) ||
+          /mikhmon/i.test(rootDir);
+        return isMikhmon && /^tmp\//.test(rootDir);
+      });
+      for (const c of staleTmpfs) {
+        if (!c[".id"]) continue;
+        await client.talk(["/container/stop", `=numbers=${c[".id"]}`]).catch(() => {});
+        const removed = await run(
+          ["/container/remove", `=numbers=${c[".id"]}`],
+          `migration tmpfs→flash : retrait de l'ancien conteneur MikHmon (root-dir=${c["root-dir"]})`,
+        );
+        if (removed.ok) {
+          log.push(
+            "OK: ancien conteneur MikHmon (tmpfs) retiré — recréé sur la flash NAND persistante (session à recréer une dernière fois, puis conservée aux reboots)",
+          );
+        }
+      }
+      if (staleTmpfs.length) {
+        containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+      }
+    }
+
     const existingContainer = containers.find(
       (container) =>
         container.name === CONTAINER_NAME || container["root-dir"] === containerRootDir,
@@ -504,11 +579,12 @@ async function provisionDockerStack(
     // boot puis toutes les 30 s pendant ~3 min, (re)démarre le conteneur tant
     // qu'il n'est pas lancé — idempotent : démarrer un conteneur déjà lancé est
     // avalé par le on-error. Remove par nom d'abord (pas de doublon aux
-    // re-runs / à la « Réparation »). NB boards tmpfs/RAM (ax lite/ax² sans
-    // stockage persistant) : le conteneur est perdu au reboot et doit être
-    // re-provisionné — le scheduler est alors inoffensif (le find ne renvoie
-    // rien). Ce correctif s'applique aussi aux routeurs DÉJÀ installés dès leur
-    // prochaine passe d'auto-setup / réparation.
+    // re-runs / à la « Réparation »). Depuis que le scénario 2 (ax lite/ax²)
+    // place le conteneur sur la flash NAND persistante, le conteneur SURVIT au
+    // reboot dans tous les scénarios — ce scheduler garantit juste qu'il est
+    // (re)démarré au boot (mêmes rôle que le mikhmon-watchdog du board de
+    // référence). Ce correctif s'applique aussi aux routeurs DÉJÀ installés dès
+    // leur prochaine passe d'auto-setup / réparation.
     await client.talk(["/system/scheduler/remove", "=numbers=MIKHMON_BOOT"]).catch(() => {});
     await run(
       [
@@ -521,6 +597,43 @@ async function provisionDockerStack(
       ],
       "MikHmon boot auto-start scheduler",
     );
+
+    // Pré-configuration AUTOMATIQUE de la session MikHmon : on écrit directement
+    // le config.php du conteneur (l'envlist étant rejeté par RouterOS 7.23.x sur
+    // ces boards). Valeurs : session « SafeLinkHub » (fixe), IP MikroTik = veth
+    // 11.11.11.1 (fixe), user/pass = compte API, Nom du Hotspot = nom du Server
+    // Profile, Nom DNS = passerelle du hotspot, devise fcfa, autoload 10, délai
+    // d'inactivité = disable, rapport en direct = enable. Voir mikhmon-session.ts.
+    if (opts.mikhmonSession) {
+      const s = opts.mikhmonSession;
+      const cont = (await client.talk(["/container/print"]).catch(() => [] as Sentence[])).find(
+        (c) => c.name === CONTAINER_NAME,
+      );
+      const wrote = await writeMikhmonSession(
+        client,
+        containerRootDir,
+        "SafeLinkHub",
+        {
+          ip: s.mtIp,
+          user: s.mtUser,
+          pass: s.mtPass,
+          hotspot: s.hotspotName ?? "",
+          dns: opts.hotspotAddress?.trim() || s.dnsName || "",
+          currency: s.currency ?? "fcfa",
+          autoload: 10,
+          iface: 1,
+          infolp: "",
+          idle: "disable",
+          livereport: "enable",
+        },
+        cont?.[".id"],
+      ).catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : "erreur" }));
+      log.push(
+        wrote.ok
+          ? "OK: session MikHmon pré-configurée automatiquement (SafeLinkHub)"
+          : `WARN: session MikHmon non pré-remplie (${wrote.error}) — à configurer à la main.`,
+      );
+    }
 
     // NAT: Docker subnet masquerade, remote-access dst-nat, and a second
     // dst-nat reachable via the hotspot gateway IP itself. Each checked
@@ -737,7 +850,7 @@ export async function getAutoSetupBillingStatus(routerId: string, supportsContai
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
@@ -822,7 +935,7 @@ export async function provisionHotspotStack(
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
@@ -1496,13 +1609,15 @@ export async function provisionHotspotStack(
         }
 
         if (!packageTemplate) {
-          // Auto-seeds the SafeLinkHub bundled portal ("hotspot-sfh1"),
-          // suffixed with the client's own WiFi (SSID) when known so an
-          // admin with more than one hotspot can still tell which portail
-          // belongs to which.
+          // Auto-seeds the SaaS DEFAULT bundled portal ("SafeLink Baraka"),
+          // suffixed with the client's own WiFi (SSID) when known so an admin
+          // with more than one hotspot can still tell which portail belongs to
+          // which. Baraka affiche les forfaits/prix EN DIRECT (renderInlinePlans
+          // + endpoint /plans) et intègre le paiement — tout nouveau routeur
+          // configuré obtient donc prix à jour + achat sans réglage manuel.
           const templateName = opts.ssid?.trim()
-            ? `hotspot-sfh1 — ${opts.ssid.trim()}`
-            : "hotspot-sfh1";
+            ? `SafeLink Baraka — ${opts.ssid.trim()}`
+            : "SafeLink Baraka";
           [packageTemplate] = await db
             .insert(captiveTemplates)
             .values({
@@ -1510,7 +1625,7 @@ export async function provisionHotspotStack(
               name: templateName,
               isDefault: false,
               templateType: "package",
-              packageFiles: loadSafelinkhubDefaultPackage(),
+              packageFiles: loadSafelinkBarakaPackage(),
             })
             .returning();
         }
@@ -1755,6 +1870,23 @@ export async function provisionHotspotStack(
         error: `MikHmon n'a pas pu être installé : ${containerSetup.message ?? "le routeur a refusé une commande de conteneur."}`,
         log,
       };
+    }
+
+    // Le conteneur MikHmon est en place ET la session a été pré-écrite (config.php)
+    // → on horodate pour le contrôle « Session MikHmon » du Diagnostic (le fichier
+    // interne du conteneur n'étant pas énumérable via l'API RouterOS).
+    if (
+      opts.supportsContainers &&
+      containerSetup.status !== "failed" &&
+      containerSetup.status !== "skipped" &&
+      router.username &&
+      router.passwordEncrypted
+    ) {
+      await getDb()
+        .update(routers)
+        .set({ mikhmonSessionAt: new Date() })
+        .where(eq(routers.id, router.id))
+        .catch(() => {});
     }
 
 
@@ -2190,7 +2322,7 @@ export async function repairRouterConfig(routerId: string) {
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
   if (!router.lastAutoSetupConfig) {

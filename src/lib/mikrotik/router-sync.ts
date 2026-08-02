@@ -5,6 +5,9 @@ import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry, ensureRouterPortForwards } from "./relay";
 import { reconcileWalledGardenOnce } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
+import { ensureHotspotLoginByCode } from "./hotspot-login-mode";
+import { persistRouterLoginHost } from "@/lib/portal/router-login-url";
+import { notifyRouterWentOffline } from "./router-offline-alert";
 import { enforceRouterSerialOnSync } from "./router-serial-lock";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
@@ -95,6 +98,9 @@ export async function syncRouterStats(
         .update(routers)
         .set({ status: "offline", lastSyncAt: new Date() })
         .where(eq(routers.id, routerId));
+      // Alerte e-mail aux admins si le routeur ÉTAIT en ligne (chute réelle) —
+      // détaché, best-effort, dédoublonné (voir notifyRouterWentOffline).
+      void notifyRouterWentOffline(routerId, router.status);
     }
     return {
       success: false,
@@ -158,6 +164,8 @@ export async function syncRouterStats(
         cpuLoad,
         memoryUsage,
         activeUsers: activeUsers.length,
+        // Retour en ligne : réarme l'alerte pour le PROCHAIN épisode hors ligne.
+        offlineAlertedAt: null,
       })
       .where(eq(routers.id, routerId));
 
@@ -234,12 +242,27 @@ export async function syncRouterStats(
     } catch {
       // Non-fatal — réessayé au prochain sync (routeur sans hotspot, hiccup API).
     }
+
+    // Réaligne AUTOMATIQUEMENT le login-by du profil hotspot actif sur
+    // cookie,http-chap,http-pap (login par code + session cookie) — même logique
+    // que le walled-garden : un routeur pas passé par l'auto-setup complet (ex.
+    // MAMBA WIFI) obtient ainsi le réglage sans intervention, et le garde. Ne
+    // réécrit le profil que si la valeur est incomplète (idempotent). Capture
+    // aussi le host de login live (dns-name/hotspot-address) et le persiste si la
+    // base ne l'a pas → active l'AUTO-CONNEXION du portail. Best-effort.
+    try {
+      const { loginHost } = await ensureHotspotLoginByCode(client);
+      await persistRouterLoginHost(routerId, loginHost);
+    } catch {
+      // Non-fatal — réessayé au prochain sync (routeur sans hotspot, hiccup API).
+    }
   } catch (err) {
     if (markOfflineOnFailure) {
       await db
         .update(routers)
         .set({ status: "offline", lastSyncAt: new Date() })
         .where(eq(routers.id, routerId));
+      void notifyRouterWentOffline(routerId, router.status);
     }
     return {
       success: false,

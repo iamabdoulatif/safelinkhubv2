@@ -42,11 +42,23 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
   const [error, setError] = useState("");
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  const [captive, setCaptive] = useState(false);
 
   useEffect(() => {
     // client-only : window absent au rendu serveur.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPageUrl(window.location.href);
+    // Détection du mini-navigateur de portail captif (CNA). Sur iOS le CNA
+    // s'annonce « CaptiveNetworkSupport » OU se distingue de Safari par l'absence
+    // de « Safari » dans l'UA (WebView-like). Sur Android, l'appli de connexion
+    // WiFi est une WebView (« ; wv »). Dans ces contextes, les checkouts de
+    // paiement (Wave/GeniusPay/3DS) échouent souvent (« pompe sur le logo ») →
+    // on pousse d'emblée l'ouverture dans le vrai navigateur.
+    const ua = navigator.userAgent || "";
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+    const iosCaptive = isIOS && (/CaptiveNetworkSupport/i.test(ua) || !/Safari/i.test(ua));
+    const androidCaptive = /Android/i.test(ua) && /;\s*wv\)/i.test(ua);
+    setCaptive(iosCaptive || androidCaptive);
   }, []);
 
   async function pay(method: string) {
@@ -108,6 +120,80 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
 
   return (
     <div>
+      {/* ── Portail captif détecté : pousser le vrai navigateur EN PREMIER ──
+          Le mini-navigateur (CNA iOS / WebView Android) fait échouer la plupart
+          des checkouts. On met donc l'ouverture navigateur en tête, bien visible,
+          AVANT les moyens de paiement — c'est le chemin fiable. */}
+      {captive ? (
+        <div
+          style={{
+            margin: "0 0 16px",
+            padding: "14px 14px 16px",
+            border: "2px solid #1C1917",
+            background: "#FEF3C7",
+          }}
+        >
+          <p style={{ margin: "0 0 4px", fontSize: ".95rem", fontWeight: 800, color: "#1C1917" }}>
+            Pour payer, ouvrez dans votre navigateur
+          </p>
+          <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#57534E", lineHeight: 1.5 }}>
+            La fenêtre WiFi bloque souvent le paiement. Ouvrez cette page dans{" "}
+            <b>Chrome</b> ou <b>Safari</b>, payez, puis un <b>code WiFi</b> s’affiche (aussi par SMS).
+          </p>
+          <button
+            type="button"
+            onClick={openInBrowser}
+            style={{
+              width: "100%",
+              padding: 13,
+              border: "2px solid #1C1917",
+              background: "#1C1917",
+              color: "#FBFAF8",
+              fontSize: "1rem",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            Ouvrir dans mon navigateur
+          </button>
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <input
+              readOnly
+              value={pageUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                padding: "9px 10px",
+                border: "1px solid #D8D2C6",
+                fontSize: ".78rem",
+                color: "#57534E",
+                background: "#FBFAF8",
+              }}
+            />
+            <button
+              type="button"
+              onClick={copyLink}
+              style={{
+                padding: "9px 12px",
+                border: "1px solid #D8D2C6",
+                background: "#FBFAF8",
+                color: "#1C1917",
+                fontSize: ".8rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {copied ? "Copié" : "Copier"}
+            </button>
+          </div>
+          <p style={{ margin: "10px 0 0", fontSize: ".72rem", color: "#57534E", textAlign: "center" }}>
+            Ou continuez ci-dessous (peut ne pas aboutir dans la fenêtre WiFi).
+          </p>
+        </div>
+      ) : null}
+
       {/* CTA principal : le checkout hébergé GeniusPay (payment_method omis)
           — la page qui liste tous les moyens ET permet d'en CHANGER en cours
           de route (même expérience que le checkout des paiements VPN/accès

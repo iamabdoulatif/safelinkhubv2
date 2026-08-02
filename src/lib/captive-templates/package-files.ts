@@ -24,6 +24,9 @@ export type PortalPlan = {
   priceCents: number; // stored as whole FCFA units across the app
   durationValue: number;
   durationUnit: string; // "Minutes" | "Hours" | "Days" | "Weeks" | "Months"
+  // true = affiché mais NON payable en ligne (le clic ne déclenche pas le
+  // paiement) — voir packages.portalPayDisabled.
+  payDisabled?: boolean;
 };
 
 export type PackageBrandingVars = {
@@ -129,6 +132,17 @@ function renderPlansHtml(plans: PortalPlan[] | null | undefined): string {
     .map((plan) => {
       const label = escapeHtml(planDisplayName(plan));
       const priceLabel = escapeHtml(formatFcfa(plan.priceCents));
+      // Forfait NON payable en ligne : carte sans data-package-id (le binder de
+      // paiement l'ignore) → affichée mais inerte (achat auprès d'un vendeur).
+      if (plan.payDisabled) {
+        return `          <div class="plan-card" style="cursor:default;opacity:.72;">
+            <div class="plan-info">
+              <span class="plan-name">${label}</span>
+              <span class="plan-details">Auprès d'un vendeur</span>
+            </div>
+            <span class="plan-price">${priceLabel}</span>
+          </div>`;
+      }
       return `          <div class="plan-card" role="button" tabindex="0" data-plan="${label}" data-price="${priceLabel}" data-price-cents="${plan.priceCents}" data-package-id="${escapeHtml(plan.id)}">
             <div class="plan-info">
               <span class="plan-name">${label}</span>
@@ -187,6 +201,16 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
       const priceLabel = escapeHtml(`${plan.priceCents.toLocaleString("fr-FR")} F`);
       const onclickArg = escapeForOnclickArg(plan.name);
       const planLabel = escapeHtml(planDisplayName(plan));
+      // Forfait NON payable en ligne : bouton remplacé par un libellé inerte
+      // (pas de data-package-id ni d'onclick) → visible mais non actionnable.
+      const buyControl = plan.payDisabled
+        ? `      <span class="btn-pay" style="opacity:.72;cursor:default;">
+        <span class="price-amount">${priceLabel}</span>
+      </span>`
+        : `      <button onclick="openPhoneModal('${onclickArg}')" class="btn-pay" data-package-id="${escapeHtml(plan.id)}" data-plan="${planLabel}" data-price="${priceLabel}">
+        <i class="fas fa-cart-shopping"></i>
+        <span class="price-amount">${priceLabel}</span>
+      </button>`;
       // data-* pour le binder de paiement universel (voir PORTAL_PAY_SCRIPT).
       // L'onclick legacy reste comme repli quand le paiement n'est pas configuré
       // (le binder universel intercepte en capture et neutralise cet onclick).
@@ -201,27 +225,42 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
           <p><i class="fas fa-check-circle"></i> ${details}</p>
         </div>
       </div>
-      <button onclick="openPhoneModal('${onclickArg}')" class="btn-pay" data-package-id="${escapeHtml(plan.id)}" data-plan="${planLabel}" data-price="${priceLabel}">
-        <i class="fas fa-cart-shopping"></i>
-        <span class="price-amount">${priceLabel}</span>
-      </button>
+${buyControl}
     </div>`;
     })
     .join("\n");
 }
 
+// Objet forfait tel que consommé par le portail (SLH_PLANS + endpoint live
+// /api/portal/[slug]/plans) : même forme des deux côtés, dérivée d'ici.
+export type PortalPlanDto = {
+  id: string;
+  name: string;
+  label: string;
+  price: number;
+  priceLabel: string;
+  durationValue: number;
+  durationUnit: string;
+  payDisabled: boolean;
+};
+
+/** Sérialise des forfaits vers la forme attendue par le portail (SLH_PLANS et
+ * endpoint live partagent EXACTEMENT ce format). */
+export function portalPlanObjects(plans: PortalPlan[] | null | undefined): PortalPlanDto[] {
+  return (plans ?? []).map((plan) => ({
+    id: plan.id,
+    name: plan.name,
+    label: planDisplayName(plan),
+    price: plan.priceCents,
+    priceLabel: formatFcfa(plan.priceCents),
+    durationValue: plan.durationValue,
+    durationUnit: plan.durationUnit,
+    payDisabled: Boolean(plan.payDisabled),
+  }));
+}
+
 function renderPlansJson(plans: PortalPlan[] | null | undefined): string {
-  return JSON.stringify(
-    (plans ?? []).map((plan) => ({
-      id: plan.id,
-      name: plan.name,
-      label: planDisplayName(plan),
-      price: plan.priceCents,
-      priceLabel: formatFcfa(plan.priceCents),
-      durationValue: plan.durationValue,
-      durationUnit: plan.durationUnit,
-    })),
-  );
+  return JSON.stringify(portalPlanObjects(plans));
 }
 
 function minPlanPriceLabel(plans: PortalPlan[] | null | undefined): string {
@@ -335,6 +374,36 @@ export function loadSafelinkhubDefaultPackage(): PackageFile[] {
 export function loadYahyaWifiPackage(): PackageFile[] {
   const dir = path.join(process.cwd(), "src/lib/captive-templates/packages/yahya-wifi");
   return loadPackage(dir, YAHYA_WIFI_FILES);
+}
+
+// Bundled "SafeLink Baraka" portal — devenu le portail par DÉFAUT du SaaS (voir
+// container-setup.ts). Paramétré pour le multi-tenant : le titre affiche le SSID
+// réel du routeur ({{SSID}}), et sa liste de forfaits est VIDE dans le HTML —
+// SafeLinkHub la remplit EN DIRECT (renderInlinePlans + endpoint /plans, prix
+// toujours à jour, achat en 1 tap). Bannières/images de marque figées retirées.
+const SAFELINK_BARAKA_FILES = [
+  "login.html",
+  "alogin.html",
+  "rlogin.html",
+  "redirect.html",
+  "logout.html",
+  "error.html",
+  "status.html",
+  "radvert.html",
+  "md5.js",
+  "style.css",
+  "errors.txt",
+  "errors-en.txt",
+  "font/fontello.woff",
+  "font/fontello.woff2",
+  "font/fontello.svg",
+];
+
+/** Reads the bundled "SafeLink Baraka" hotspot portal off disk (SaaS default),
+ * ready to store in `captiveTemplates.packageFiles`. */
+export function loadSafelinkBarakaPackage(): PackageFile[] {
+  const dir = path.join(process.cwd(), "src/lib/captive-templates/packages/baraka");
+  return loadPackage(dir, SAFELINK_BARAKA_FILES);
 }
 
 const EXT_TO_CONTENT_TYPE: Record<string, string> = {
@@ -692,11 +761,33 @@ const PORTAL_PAY_SCRIPT = `(function(){
   // flottant "Payer mon forfait" + un selecteur des forfaits de l org
   // (window.SLH_PLANS). N apparait PAS si le portail a deja des boutons
   // [data-package-id] (SafeLinkHub ou portail deja equipe) : il gere seul.
-  function slhPlans(){ return (window.SLH_PLANS && window.SLH_PLANS.length) ? window.SLH_PLANS : []; }
+  // Forfaits affiches : les LIVE (fetch au chargement, prix toujours a jour)
+  // priment sur ceux cuits dans la page (SLH_PLANS, repli hors-ligne / walled-
+  // garden pas encore ouvert). Voir fetchLivePlans + endpoint /plans.
+  var LIVE_PLANS = null;
+  function slhPlans(){
+    if(LIVE_PLANS && LIVE_PLANS.length) return LIVE_PLANS;
+    return (window.SLH_PLANS && window.SLH_PLANS.length) ? window.SLH_PLANS : [];
+  }
+  // Forfaits ACHETABLES en ligne (hors ceux marques payDisabled) : utilises par
+  // le bouton flottant + son selecteur, qui sont des actions d achat.
+  function buyablePlans(){ return slhPlans().filter(function(p){ return !p.payDisabled; }); }
+  // Recupere les forfaits EN DIRECT depuis SafeLinkHub (dans le walled-garden) :
+  // un changement de prix cote SaaS se reflete SANS re-installer le portail. En
+  // cas d echec (reseau, hors walled-garden), on garde les prix cuits. Le
+  // callback est appele dans tous les cas (succes comme echec).
+  function fetchLivePlans(cb){
+    if(!cfg.appUrl || !cfg.slug){ cb(); return; }
+    var url = cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + "/plans" + (cfg.routerId ? ("?routerId=" + encodeURIComponent(cfg.routerId)) : "");
+    fetch(url, { cache: "no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if(d && d.plans && d.plans.length){ LIVE_PLANS = d.plans; } cb(); })
+      .catch(function(){ cb(); });
+  }
   function hasNativeButtons(){ return document.querySelectorAll("[data-package-id]").length > 0; }
   function openPicker(){
     var old = document.getElementById("slh-pick-modal"); if(old) old.remove();
-    var list = slhPlans();
+    var list = buyablePlans(); // selecteur d achat -> seulement les payables
     if(!list.length){ hint("Aucun forfait disponible pour le moment."); return; }
     var items = "";
     for(var i=0;i<list.length;i++){
@@ -721,9 +812,56 @@ const PORTAL_PAY_SCRIPT = `(function(){
     });
     document.body.appendChild(o);
   }
+  // ===== Rendu INLINE des forfaits du SaaS dans le portail =====
+  // Portail importe : ses forfaits sont souvent CODES EN DUR (prix statiques,
+  // boutons inertes, ex. "Safelink_baraka"). Des qu on a les forfaits live du
+  // SaaS (SLH_PLANS) et un conteneur de forfaits reconnu, on le remplit avec les
+  // VRAIES cartes : prix a jour (suivent la page Forfaits) + achat en 1 tap
+  // (data-package-id -> flux universel). Ne touche a rien si le portail a deja
+  // ses propres boutons SaaS (SafeLinkHub/Yahya groupes).
+  function planContainer(){
+    return document.getElementById("forfaits")
+      || document.querySelector("[data-slh-plans], .forfaits, .forfaits-grid, .plans-grid, .plan-list, .plans");
+  }
+  function ensurePlanStyle(){
+    if(document.getElementById("slh-plan-style")) return;
+    var s = document.createElement("style");
+    s.id = "slh-plan-style";
+    s.textContent = ".slh-plan-card{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;box-sizing:border-box;margin:0 0 8px;padding:12px 14px;border:1px solid rgba(148,163,184,.45);border-radius:10px;background:rgba(148,163,184,.12);cursor:pointer;font-family:system-ui,sans-serif;}.slh-plan-card .slh-plan-name{font-weight:700;}.slh-plan-card .slh-plan-price{font-weight:800;color:#dc2626;white-space:nowrap;}.slh-plan-card.slh-plan-off{cursor:default;opacity:.72;}";
+    (document.head || document.body).appendChild(s);
+  }
+  function renderInlinePlans(){
+    var list = slhPlans(); if(!list.length) return false;
+    if(hasNativeButtons()) return false;       // deja des cartes de forfait SaaS
+    var box = planContainer(); if(!box) return false;
+    ensurePlanStyle();
+    var html = "";
+    for(var i=0;i<list.length;i++){
+      var p = list[i];
+      if(p.payDisabled){
+        // Forfait AFFICHÉ mais NON payable en ligne : carte inerte (pas de
+        // data-package-id -> le binder de paiement l ignore), grisee, avec une
+        // mention discrete. Le client l achete aupres d un vendeur.
+        html += '<div class="forfait-card plan-card slh-plan-card slh-plan-off">'
+          +   '<span class="forfait-label plan-name slh-plan-name">' + esc(p.label) + '</span>'
+          +   '<span class="slh-plan-price">' + esc(p.priceLabel) + ' <small style="opacity:.7;font-weight:600;">&middot; vendeur</small></span>'
+          + '</div>';
+        continue;
+      }
+      // Classes du portail (forfait-*, plan-*) POUR que sa CSS habille la carte,
+      // + slh-plan-* comme repli visuel garanti. data-* -> binder de paiement.
+      html += '<div class="forfait-card plan-card slh-plan-card" role="button" tabindex="0" data-package-id="' + esc(p.id) + '" data-plan="' + esc(p.label) + '" data-price="' + esc(p.priceLabel) + '">'
+        +   '<span class="forfait-label plan-name slh-plan-name">' + esc(p.label) + '</span>'
+        +   '<span class="forfait-price plan-price slh-plan-price">' + esc(p.priceLabel) + '</span>'
+        + '</div>';
+    }
+    box.innerHTML = html;
+    return true;
+  }
+
   function mountFab(){
     if(hasNativeButtons()) return;   // le portail a ses propres boutons de forfait
-    if(!slhPlans().length) return;   // aucun forfait configure cote org
+    if(!buyablePlans().length) return;   // aucun forfait PAYABLE cote org
     if(document.getElementById("slh-fab")) return;
     var b = document.createElement("button");
     b.id = "slh-fab"; b.type = "button"; b.textContent = "Payer mon forfait";
@@ -732,7 +870,13 @@ const PORTAL_PAY_SCRIPT = `(function(){
     document.body.appendChild(b);
   }
   function slhReady(fn){ if(document.readyState !== "loading"){ fn(); } else { document.addEventListener("DOMContentLoaded", fn); } }
-  slhReady(function(){ if(configured()) mountFab(); });
+  // 1) affiche les vrais prix du SaaS dans le conteneur du portail (renderInlinePlans),
+  // 2) sinon (aucun conteneur) monte le bouton flottant. Un 2e passage differe
+  // rattrape un portail qui remplit ses forfaits tardivement (rendu async).
+  function slhBoot(){ renderInlinePlans(); if(configured()) mountFab(); }
+  // Rendu immediat avec les prix cuits (affichage instantane), puis fetch LIVE
+  // -> re-rendu avec les prix a jour des qu ils arrivent, puis rattrapage differe.
+  slhReady(function(){ slhBoot(); fetchLivePlans(function(){ slhBoot(); }); setTimeout(slhBoot, 800); });
 })();`;
 
 /** Bloc <script> injecté en fin de login.html : config + flux de paiement. */

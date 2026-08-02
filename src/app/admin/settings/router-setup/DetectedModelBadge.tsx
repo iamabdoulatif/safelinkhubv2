@@ -135,9 +135,9 @@ export default function DetectedModelBadge({
         </span>
       </div>
       {scenario === 2 && (
-        <p className="mt-1.5 text-xs text-warn">
-          Ni clé USB ni disque interne : MikHmon tournera en RAM (tmpfs). Usure
-          possible de la flash — usage intensif déconseillé, ou branchez une clé USB.
+        <p className="mt-1.5 text-xs text-ok">
+          Ni clé USB ni disque interne : MikHmon sera installé sur la flash NAND
+          interne et survivra au reboot (session conservée), sans clé USB.
         </p>
       )}
       {scenario === 3 && (

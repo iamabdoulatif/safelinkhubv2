@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, bridges, organizations } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
@@ -49,7 +49,7 @@ export async function listRouterInterfaces(routerId: string) {
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
@@ -119,7 +119,7 @@ export async function saveBridge(_prevState: unknown, formData: FormData) {
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 
@@ -262,7 +262,7 @@ export async function testHotspotConfig(bridgeId: string) {
     .from(routers)
     .where(eq(routers.id, bridge.routerId))
     .limit(1);
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
   if (!bridge.hotspotEnabled) {

@@ -3,7 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, routerPortForwards } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
 import { REMOTE_ACCESS_PORT, DOCKER_WEB_PORT, HOTSPOT_BRIDGE_NAME } from "./constants";
 import { getRelayPublicHost } from "./relay";
@@ -52,7 +52,7 @@ export async function getMikhmonLink(routerId: string) {
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || router.orgId !== session.orgId) {
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
   }
 

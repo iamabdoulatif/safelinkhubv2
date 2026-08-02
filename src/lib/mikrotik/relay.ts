@@ -1,5 +1,5 @@
 import { Client } from "ssh2";
-import { shardingEnabled, isShard, portRangeForShard } from "./shards";
+import { shardingEnabled, isShard } from "./shards";
 
 export function normalizeRelayPublicHost(value: string | undefined | null): string {
   if (!value) return "";
@@ -379,7 +379,10 @@ export async function openRouterTunnelWithRetry(
 export async function allocatePortForward(
   tunnelIp: string,
   targetPort: number,
-  shard?: string | null,
+  // Le shard ne détermine plus la PLAGE de port (l'allocation est désormais
+  // aléatoire sur une plage globale, voir plus bas) — il ne sert qu'au HÔTE
+  // public (getRelayPublicHost, sN.safelinkhub.io), résolu par l'appelant.
+  _shard?: string | null,
   // Browser services (WebFig/MikHmon) are TLS-terminated by nginx on the
   // public port instead of raw-DNAT'd — browsers force HTTPS and a plain DNAT
   // port only speaks HTTP. For those we don't add a DNAT; we add a no-op
@@ -387,25 +390,42 @@ export async function allocatePortForward(
   // (which scans iptables), and nginx binds and terminates TLS on it.
   tlsTerminated = false,
 ): Promise<{ publicPort: number }> {
-  // Sharded routers draw their public port from their shard's disjoint range
-  // (e.g. s2 → 39000–47999); everything else uses the legacy 30000–30999 pool.
-  const [rangeStart, rangeEnd] = portRangeForShard(shard);
-  const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${rangeStart} ${rangeEnd} ${tlsTerminated ? 1 : 0} <<'SCRIPT'
+  // Port public TIRÉ AU HASARD sur une plage large [1500, 64000] (mélange 4 et
+  // 5 chiffres), au lieu du premier libre séquentiel dans la plage du shard —
+  // les ports d'accès distant sont ainsi imprévisibles et variés. On EXCLUT
+  // toujours : les ports déjà pris par un forward (scan iptables) ET les ports
+  // que le relais écoute lui-même (ss), pour ne jamais détourner un service du
+  // relais. On reste ≥ 1500 : les ports < 1024 sont réservés/privilégiés
+  // (SSH/HTTP/HTTPS…) et les détourner casserait le relais.
+  const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${tlsTerminated ? 1 : 0} <<'SCRIPT'
 set -euo pipefail
 TUNNEL_IP="$1"
 TARGET_PORT="$2"
-RANGE_START="$3"
-RANGE_END="$4"
-TLS_TERMINATED="$5"
+TLS_TERMINATED="$3"
 
+LOW=1500
+HIGH=64000
 USED=$(iptables -t nat -L PREROUTING -n | grep -oP 'dpt:\\K[0-9]+' || true)
+LISTEN=$(ss -tlnH 2>/dev/null | awk '{n=split($4,a,":"); print a[n]}' | grep -oE '^[0-9]+$' | sort -un || true)
+
 PORT=""
-for candidate in $(seq "$RANGE_START" "$RANGE_END"); do
-  if ! grep -qx "$candidate" <<< "$USED"; then
-    PORT="$candidate"
-    break
-  fi
+n=0
+while [ "$n" -lt 400 ]; do
+  n=$((n + 1))
+  cand=$(( ( (RANDOM << 15) | RANDOM ) % (HIGH - LOW + 1) + LOW ))
+  if grep -qx "$cand" <<< "$USED"; then continue; fi
+  if grep -qx "$cand" <<< "$LISTEN"; then continue; fi
+  PORT="$cand"
+  break
 done
+if [[ -z "$PORT" ]]; then
+  for cand in $(seq "$LOW" "$HIGH"); do
+    if grep -qx "$cand" <<< "$USED"; then continue; fi
+    if grep -qx "$cand" <<< "$LISTEN"; then continue; fi
+    PORT="$cand"
+    break
+  done
+fi
 if [[ -z "$PORT" ]]; then
   echo "No available forward port" >&2
   exit 1

@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/router-backup",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/conversion-alert",
+      "schedule": "0 8 * * *"
     }
   ],
   "redirects": [

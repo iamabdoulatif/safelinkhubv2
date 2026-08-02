@@ -1,0 +1,16 @@
+[Unit]
+# Alerte quotidienne « conversion paiement en baisse » : calcule le taux de
+# conversion du portail captif de la veille par org et e-maile les admins si le
+# taux tombe sous le seuil (CONVERSION_ALERT_THRESHOLD, défaut 20%). Voir
+# src/app/api/cron/conversion-alert/route.ts. Déclenché par le .timer voisin.
+Description=SafeLinkHub — alerte quotidienne conversion paiement en baisse
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Fournit CRON_SECRET (et le seuil optionnel) à ExecStart.
+EnvironmentFile=/root/safelinkhub-app/.env
+ExecStart=/usr/bin/curl -fsS -X GET \
+  -H "Authorization: Bearer ${CRON_SECRET}" \
+  https://safelinkhub.io/api/cron/conversion-alert

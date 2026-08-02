@@ -106,7 +106,16 @@ export type SsidApplyResult = {
 export async function applySsid(
   client: RouterOSClient,
   ssid: string,
-  opts: { country?: string; dryRun?: boolean; timeoutMs?: number } = {},
+  opts: {
+    country?: string;
+    dryRun?: boolean;
+    timeoutMs?: number;
+    // Largeur de canal 2.4GHz (défaut "20/40mhz"). L'optimisation débit passe
+    // "20mhz" : en 2.4GHz encombrée, le 40MHz double le canal mais multiplie le
+    // brouillage/les pertes — 20MHz est plus stable. Le 5GHz reste en
+    // 20/40/80mhz (large = plein débit, peu de voisins).
+    width2ghz?: string;
+  } = {},
 ): Promise<SsidApplyResult> {
   const timeoutMs = opts.timeoutMs ?? 20000;
   const state = await readWifiState(client, timeoutMs);
@@ -139,7 +148,7 @@ export async function applySsid(
             `=numbers=${radio.name}`,
             `=channel.band=${use5ghz ? "5ghz-ax" : "2ghz-ax"}`,
             "=channel.skip-dfs-channels=all",
-            `=channel.width=${use5ghz ? "20/40/80mhz" : "20/40mhz"}`,
+            `=channel.width=${use5ghz ? "20/40/80mhz" : opts.width2ghz ?? "20/40mhz"}`,
             `=configuration.country=${country}`,
             "=configuration.mode=ap",
             `=configuration.ssid=${ssid}`,
@@ -171,4 +180,68 @@ export async function applySsid(
     }
   }
   return result;
+}
+
+export type WifiOptimizeResult = SsidApplyResult & {
+  /** SSID unifié appliqué à toutes les radios (band steering). */
+  ssid: string | null;
+  /** Résumé humain des changements, pour l'UI. */
+  summary: string;
+};
+
+/**
+ * OPTIMISE LE DÉBIT WiFi d'un routeur en un seul appel — le correctif « faible
+ * connexion » packagé en fonctionnalité :
+ *  1. UNIFIE le SSID sur toutes les radios (2.4 + 5GHz portent le MÊME nom) →
+ *     les appareils basculent seuls sur la 5GHz rapide (band steering) ;
+ *  2. 5GHz en 20/40/80MHz (plein débit, ~866Mbps) ;
+ *  3. 2.4GHz en 20MHz (stable, moins de brouillage/pertes que 40MHz).
+ *
+ * Conserve le SSID EXISTANT du routeur (on ne renomme pas le réseau) : on prend
+ * le SSID de la première radio active, ou celui fourni. Ne touche pas au hotspot
+ * ni au reste. Sur une board legacy (/interface/wireless) : unifie au moins le
+ * SSID (la largeur de canal n'y est pas pilotée de la même façon).
+ */
+export async function optimizeWifiThroughput(
+  client: RouterOSClient,
+  opts: { ssid?: string; country?: string; timeoutMs?: number } = {},
+): Promise<WifiOptimizeResult> {
+  const state = await readWifiState(client, opts.timeoutMs);
+  // On garde le nom du réseau que les CLIENTS utilisent : de préférence celui de
+  // la 2.4GHz (portée max, la majorité des appareils y sont, et il n'a
+  // généralement pas de suffixe « -5G »), sinon le premier SSID trouvé. Sans ça,
+  // on renommerait tout d'après la 5GHz (souvent « …-5G »), l'inverse du but.
+  const band24 = state.radios.find((r) => r.band5ghz === false && r.ssid && r.ssid.trim());
+  const ssid = opts.ssid?.trim() || band24?.ssid?.trim() || primarySsid(state);
+
+  if (state.api === "none" || state.radios.length === 0) {
+    return {
+      api: state.api,
+      applied: [],
+      failed: [],
+      ssid: null,
+      note: "Ce routeur n'a aucune radio WiFi — rien à optimiser.",
+      summary: "Aucune radio WiFi sur ce routeur.",
+    };
+  }
+  if (!ssid) {
+    return {
+      api: state.api,
+      applied: [],
+      failed: [],
+      ssid: null,
+      summary: "Aucun SSID détecté — impossible d'optimiser (configurez d'abord le WiFi).",
+    };
+  }
+
+  const res = await applySsid(client, ssid, {
+    country: opts.country,
+    timeoutMs: opts.timeoutMs,
+    width2ghz: "20mhz",
+  });
+
+  const parts = [`SSID unifié « ${ssid} » sur ${res.applied.length} radio(s)`];
+  if (state.api === "wifi") parts.push("5GHz en 80MHz, 2.4GHz en 20MHz");
+  if (res.failed.length) parts.push(`${res.failed.length} radio(s) en échec`);
+  return { ...res, ssid, summary: parts.join(" · ") };
 }

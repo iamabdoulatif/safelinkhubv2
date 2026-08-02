@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title id="title"></title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="theme-color" content="#FFA000" />
+    <meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=1.0;" />
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <form name="sendin" action="$(link-login-only)" method="post">
+        <input type="hidden" name="username" />
+        <input type="hidden" name="password" />
+        <input type="hidden" name="dst" value="$(link-orig)" />
+        <input type="hidden" name="popup" value="true" />
+    </form>
+
+    <script type="text/javascript" src="md5.js"></script>
+    <script type="text/javascript">
+        function doLogin() {
+            document.sendin.username.value = document.login.username.value;
+            document.sendin.password.value = hexMD5('$(chap-id)' + document.login.password.value +
+                '$(chap-challenge)');
+            document.sendin.submit();
+            return false;
+        }
+    </script>
+
+    <div id="main" class="main">
+
+        <!-- Nom du réseau : le SaaS injecte le SSID réel du routeur ({{SSID}}). -->
+        <h1 id="siteName" class="site-name">{{SSID}}</h1>
+
+        <!-- Boutons Ticket / Compte -->
+        <div class="box">
+            <button id="btnvrc" class="small-button" onclick="voucher();"><i class="icon icon-ticket">&#xe802;</i> Ticket</button>
+            <button id="btnmem" class="small-button" onclick="member();"><i class="icon icon-user-circle-o">&#xf2be;</i> Compte</button>
+
+        </div>
+
+        <!-- Message d'instruction -->
+        <div class="box" id="infologin"></div>
+
+        <!-- Formulaire de connexion -->
+        <form autocomplete="off" name="login" action="$(link-login-only)" method="post" $(if chap-id) onSubmit="return doLogin()" $(endif)>
+            <input type="hidden" name="dst" value="$(link-orig)" />
+            <input type="hidden" name="popup" value="true" />
+            <input class="username" name="username" type="text" value="" />
+            <input class="password" name="password" placeholder="Mot de passe" type="hidden" />
+            <button class="button" type="submit"><i class="icon icon-login">&#xe803;</i> Connexion</button>
+        </form>
+
+        <!-- Forfaits + boutons « Payer » (remplis EN DIRECT par SafeLinkHub) -->
+        <div class="forfaits-title">Acheter un forfait</div>
+        <div id="forfaits" class="forfaits"></div>
+
+<script type="text/javascript">
+/* =======================================================================
+   CONFIGURATION — modifiez uniquement les valeurs ci-dessous.
+   - siteName   : nom affiché en titre (texte modifiable)
+   - showBanner : true = affiche l'image 105.png ; false = titre texte seul
+   - forfaits   : liste des forfaits ; payUrl = lien ouvert au clic « Payer »
+                  (laissez "" pour un bouton grisé tant que le paiement n'est
+                  pas branché). payInNewTab : ouvrir dans un nouvel onglet.
+   ======================================================================= */
+var PORTAL_CONFIG = {
+  // Nom du réseau : le SaaS injecte le SSID réel du routeur ({{SSID}}). Titre
+  // TEXTE (showBanner:false) — la bannière image d'origine était une marque figée.
+  siteName: "{{SSID}}",
+  showBanner: false,
+  payInNewTab: false,
+  // Forfaits VIDES : SafeLinkHub les remplit EN DIRECT (renderInlinePlans +
+  // endpoint /plans, prix toujours à jour) dans #forfaits, achetables en 1 tap.
+  forfaits: []
+};
+/* ============================ FIN CONFIG ============================ */
+
+(function () {
+  var nameEl = document.getElementById("siteName");
+  var banner = document.getElementById("bannerImg");
+  if (nameEl && PORTAL_CONFIG.siteName) nameEl.textContent = PORTAL_CONFIG.siteName;
+  // showBanner:true  → on garde l'image de marque (105.png) et on masque le
+  //                    titre texte (évite le doublon de nom).
+  // showBanner:false → on masque l'image et on affiche le NOM EN TEXTE modifiable
+  //                    (change simplement siteName ci-dessus).
+  if (PORTAL_CONFIG.showBanner === false) {
+    if (banner) banner.style.display = "none";
+    if (nameEl) nameEl.style.display = "block";
+  } else {
+    if (nameEl) nameEl.style.display = "none";
+  }
+
+  var box = document.getElementById("forfaits");
+  if (box && PORTAL_CONFIG.forfaits) {
+    var target = PORTAL_CONFIG.payInNewTab ? ' target="_blank" rel="noopener"' : "";
+    box.innerHTML = PORTAL_CONFIG.forfaits.map(function (f) {
+      var url = f && f.payUrl ? String(f.payUrl) : "";
+      var btn = url
+        ? '<a class="btn-pay" href="' + url + '"' + target + '>Payer</a>'
+        : '<span class="btn-pay is-disabled" aria-disabled="true">Payer</span>';
+      return '<div class="forfait-card">'
+        + '<div class="forfait-info">'
+        + '<span class="forfait-label">' + ((f && f.label) || "") + '</span>'
+        + '<span class="forfait-validity">' + ((f && f.validity) || "") + '</span>'
+        + '</div>'
+        + '<div class="forfait-buy">'
+        + '<span class="forfait-price">' + ((f && f.price) || "") + '</span>'
+        + btn
+        + '</div>'
+        + '</div>';
+    }).join("");
+  }
+})();
+</script>
+
+        <br />
+
+        <!-- Signature -->
+        <div class="signature">
+            Configurer par : <strong>safeLinkHub</strong> 
+        </div>
+
+    </div>
+
+    <br />
+    <div class="box" style="color:#000;">
+        <i>Creer &copy; safelinkhub.io</i><br />
+        <i><a style="color:#000; text-decoration:underline;" href="https://laksa19.github.io"></a></i>
+        <!-- Tolong jangan dihilangkan bagian ini-->
+    </div>
+
+<script type="text/javascript">
+var hostname = window.location.hostname;
+document.getElementById('title').innerHTML = hostname + " > connexion";
+
+document.login.username.focus();
+
+var infologin = document.getElementById('infologin');
+infologin.innerHTML = "Entrez le code du ticket, puis cliquez sur connexion.";
+
+var username = document.login.username;
+var password = document.login.password;
+
+username.placeholder = "Entrez svp le code";
+
+function setpass() {
+    var user = username.value;
+    username.value = user;
+    password.value = user;
+}
+
+username.onkeyup = setpass;
+
+function voucher() {
+    username.focus();
+    username.onkeyup = setpass;
+    username.placeholder = "Entrez svp le code";
+    username.style = "border-radius:3px;";
+    password.type = "hidden";
+    infologin.innerHTML = "Entrez le code du ticket, puis cliquez sur connexion.";
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('voucher_code');
+    if (code) {
+        username.value = code;
+        password.value = code;
+        document.login.submit();
+    }
+}
+
+function member() {
+    username.focus();
+    username.onkeyup = "";
+    username.placeholder = "Nom d'utilisateur";
+    username.style = "border-radius:3px 3px 0px 0px;";
+    password.type = "password";
+    infologin.innerHTML = "Entrez votre identifiant et mot de passe, puis cliquez sur connexion.";
+}
+</script>
+</body>
+
+</html>

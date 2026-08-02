@@ -125,6 +125,11 @@ export const routers = pgTable("routers", {
   passwordEncrypted: text("password_encrypted"),
   status: text("status").notNull().default("offline"),
   lastSyncAt: timestamp("last_sync_at"),
+  // Horodatage de la dernière ALERTE « hors ligne » envoyée pour l'épisode
+  // courant : posé quand on notifie la chute, remis à null au retour en ligne.
+  // Garde anti-doublon (une seule alerte par épisode, robuste aux syncs
+  // concurrents et aux redémarrages du process). Voir router-offline-alert.ts.
+  offlineAlertedAt: timestamp("offline_alerted_at"),
   uptimeSeconds: integer("uptime_seconds").default(0),
   activeUsers: integer("active_users").default(0),
   cpuLoad: integer("cpu_load").default(0),
@@ -146,6 +151,21 @@ export const routers = pgTable("routers", {
   // lib/mikrotik/ipv6-bypass.ts. Only meaningful when connectionMethod="vpn".
   ipv6BypassEnabled: boolean("ipv6_bypass_enabled").notNull().default(false),
   ipv6BypassEnabledAt: timestamp("ipv6_bypass_enabled_at"),
+  // « Kill-switch » routeur : quand posé, tous les ports d'accès ET le WiFi ont
+  // été DÉSACTIVÉS sauf ether1 (le lien WAN/gestion qui garde le tunnel
+  // WireGuard vivant, donc le routeur reste joignable pour déverrouiller à
+  // distance). Posé par lockRouterPorts / effacé par unlockRouterPorts
+  // (actions.ts). lockedInterfaces mémorise EXACTEMENT les interfaces qu'on a
+  // coupées, pour que le déverrouillage ne réactive que celles-là — jamais une
+  // interface que l'admin avait déjà désactivée avant le verrouillage.
+  portsLockedAt: timestamp("ports_locked_at"),
+  lockedInterfaces: jsonb("locked_interfaces").$type<string[]>(),
+  // Horodatage de la dernière écriture RÉUSSIE de la session MikHmon
+  // (« SafeLinkHub ») dans le config.php du conteneur — par l'auto-setup ou le
+  // bouton « Reconfigurer la session ». Sert au contrôle Diagnostic : le fichier
+  // interne du conteneur n'étant pas énumérable via l'API RouterOS, on s'appuie
+  // sur ce flag plutôt que sur une lecture peu fiable. Voir mikhmon-session.ts.
+  mikhmonSessionAt: timestamp("mikhmon_session_at"),
   installTokenHash: text("install_token_hash"),
   installTokenExpiresAt: timestamp("install_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -347,6 +367,10 @@ export const packages = pgTable("packages", {
   commissionCents: integer("commission_cents").notNull().default(0),
   billingStartsOn: text("billing_starts_on").notNull().default("Upon First Use"),
   active: boolean("active").notNull().default(true),
+  // Forfait AFFICHÉ sur le portail captif mais NON payable en ligne (le clic ne
+  // déclenche pas le paiement) — ex. petits forfaits vendus seulement en espèces
+  // par un vendeur, ou sous le minimum de l'agrégateur (GeniusPay = 200 FCFA).
+  portalPayDisabled: boolean("portal_pay_disabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Clock, Router as RouterIcon, Users, Cpu, MemoryStick } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import HeaderActions from "./HeaderActions";
 import RouterDetailTabs from "./RouterDetailTabs";
 
@@ -46,6 +46,12 @@ function Badge({ tone, children }: { tone: "ok" | "brand" | "muted"; children: R
   );
 }
 
+// Le test de débit (server action « speedTestRouter » de cette page) attend la
+// fin d'un téléchargement de test côté routeur, jusqu'à ~75 s sur un lien lent —
+// au-delà du timeout par défaut des Server Actions. On le relève ici (les
+// actions héritent du maxDuration de la page qui les invoque).
+export const maxDuration = 120;
+
 export default async function RouterDetailPage({
   params,
 }: {
@@ -56,10 +62,16 @@ export default async function RouterDetailPage({
   if (!session) notFound();
 
   const db = getDb();
+  // Le superadmin (opérateur de la plateforme) peut ouvrir la fiche de N'IMPORTE
+  // quel routeur pour y mener des actions ; un admin reste limité à son org.
   const [router] = await db
     .select()
     .from(routers)
-    .where(and(eq(routers.id, id), eq(routers.orgId, session.orgId)))
+    .where(
+      isSuperAdmin(session.role)
+        ? eq(routers.id, id)
+        : and(eq(routers.id, id), eq(routers.orgId, session.orgId)),
+    )
     .limit(1);
 
   if (!router) notFound();
@@ -191,7 +203,7 @@ export default async function RouterDetailPage({
             </div>
           </div>
         </div>
-        <HeaderActions routerId={router.id} />
+        <HeaderActions routerId={router.id} locked={Boolean(router.portsLockedAt)} />
       </div>
 
       {/* Cartes métriques */}
