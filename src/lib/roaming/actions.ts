@@ -22,8 +22,12 @@ import {
   SUPPORTED_PROFILE_DURATIONS,
 } from "@/lib/mikrotik/package-voucher-profile";
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
+import { ensureMacAutoLogin } from "@/lib/mikrotik/hotspot-login-mode";
+import { getAppUrl } from "@/lib/net/app-url";
 import { parseRoamingPriceOverride, roamingGroupCode, roamingRouterProfileName } from "./forms";
 import { effectiveRoamingPrice } from "./pricing";
+import { appendRoamingSeenHook } from "./on-login-hook";
+import { deriveRouterKey } from "./webhook-secret";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -256,25 +260,41 @@ export async function generateRoamingVouchers(_prevState: unknown, formData: For
   };
 
   try {
+    const appUrl = getAppUrl();
     for (const { router } of groupRouters) {
       const client = await connectToRouter(router);
       connected.push({ router, client });
       await ensureVoucherProfileOnRouter(client, voucherProfile);
-      // ROAMING : un ticket doit rester connecté LONGTEMPS et sur PLUSIEURS
-      // appareils entre zones. Par défaut le profil hérite d'un keepalive-timeout
-      // court (2m) + shared-users=1 → la session « lâche » après quelques minutes
-      // (téléphone en veille) et un 2e téléphone ne peut pas partager le code. On
-      // lève donc les timeouts (keepalive/idle = none, la validité reste bornée par
-      // l'expiration du forfait via le scheduler) et on autorise 2 appareils.
+      // ROAMING : un ticket doit rester connecté LONGTEMPS entre zones. Par
+      // défaut le profil hérite d'un keepalive-timeout court (2m) → la session
+      // « lâche » après quelques minutes (téléphone en veille). On lève donc les
+      // timeouts (keepalive/idle = none, la validité reste bornée par
+      // l'expiration du forfait via le scheduler).
+      //
+      // AUTO-LOGIN INTER-ZONES (1 appareil / code) :
+      //  • shared-users=1 → anti-partage (le code se lie au 1er MAC vu) ;
+      //  • on-login étendu → à chaque connexion, le routeur signale (code, MAC)
+      //    au SaaS (/api/roaming/seen) qui lie ce MAC au ticket sur les zones
+      //    sœurs, où `login-by=mac` l'auto-logue sans re-saisie.
+      const hookedOnLogin = appendRoamingSeenHook(
+        voucherProfile.onLogin,
+        appUrl,
+        router.id,
+        deriveRouterKey(router.id),
+      );
       await client
         .talk([
           "/ip/hotspot/user/profile/set",
           `=numbers=${voucherProfile.name}`,
           "=keepalive-timeout=none",
           "=idle-timeout=none",
-          "=shared-users=2",
+          "=shared-users=1",
+          `=on-login=${hookedOnLogin}`,
         ])
         .catch(() => {});
+      // Le profil serveur doit accepter le login par MAC pour que l'utilisateur
+      // `name=<MAC>` posé sur les zones sœurs soit auto-logué (additif).
+      await ensureMacAutoLogin(client).catch(() => {});
     }
 
     // Ne jamais rattacher silencieusement un ancien compte MikHmon qui ne
