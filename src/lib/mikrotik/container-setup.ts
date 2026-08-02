@@ -20,6 +20,7 @@ import {
 } from "./constants";
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 import { scenarioLabel, type DeploymentScenario } from "./device-catalog";
+import { writeMikhmonSession } from "./mikhmon-session";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { ensureWalledGarden } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
@@ -596,6 +597,43 @@ async function provisionDockerStack(
       ],
       "MikHmon boot auto-start scheduler",
     );
+
+    // Pré-configuration AUTOMATIQUE de la session MikHmon : on écrit directement
+    // le config.php du conteneur (l'envlist étant rejeté par RouterOS 7.23.x sur
+    // ces boards). Valeurs : session « SafeLinkHub » (fixe), IP MikroTik = veth
+    // 11.11.11.1 (fixe), user/pass = compte API, Nom du Hotspot = nom du Server
+    // Profile, Nom DNS = passerelle du hotspot, devise fcfa, autoload 10, délai
+    // d'inactivité = disable, rapport en direct = enable. Voir mikhmon-session.ts.
+    if (opts.mikhmonSession) {
+      const s = opts.mikhmonSession;
+      const cont = (await client.talk(["/container/print"]).catch(() => [] as Sentence[])).find(
+        (c) => c.name === CONTAINER_NAME,
+      );
+      const wrote = await writeMikhmonSession(
+        client,
+        containerRootDir,
+        "SafeLinkHub",
+        {
+          ip: s.mtIp,
+          user: s.mtUser,
+          pass: s.mtPass,
+          hotspot: s.hotspotName ?? "",
+          dns: opts.hotspotAddress?.trim() || s.dnsName || "",
+          currency: s.currency ?? "fcfa",
+          autoload: 10,
+          iface: 1,
+          infolp: "",
+          idle: "disable",
+          livereport: "enable",
+        },
+        cont?.[".id"],
+      ).catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : "erreur" }));
+      log.push(
+        wrote.ok
+          ? "OK: session MikHmon pré-configurée automatiquement (SafeLinkHub)"
+          : `WARN: session MikHmon non pré-remplie (${wrote.error}) — à configurer à la main.`,
+      );
+    }
 
     // NAT: Docker subnet masquerade, remote-access dst-nat, and a second
     // dst-nat reachable via the hotspot gateway IP itself. Each checked
