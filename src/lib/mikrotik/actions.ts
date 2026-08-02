@@ -414,6 +414,7 @@ export async function reconfigureMikhmonSession(routerId: string) {
       mk[".id"],
     );
     if (!wrote.ok) return { error: `Écriture impossible : ${wrote.error}` };
+    await db.update(routers).set({ mikhmonSessionAt: new Date() }).where(eq(routers.id, routerId));
     revalidatePath(`/admin/router/${routerId}`);
     return { success: true, summary: `Session MikHmon « SafeLinkHub » reconfigurée (hotspot ${hotspot}, DNS ${dns}).` };
   } catch (err) {
@@ -453,7 +454,7 @@ export async function runRouterAudit(routerId: string) {
     };
   }
   try {
-    const audit = await auditRouter(client);
+    const audit = await auditRouter(client, { mikhmonConfigured: Boolean(router.mikhmonSessionAt) });
     return { success: true, audit };
   } catch (err) {
     return { error: err instanceof Error ? `Échec de l'analyse : ${err.message}` : "Échec de l'analyse." };

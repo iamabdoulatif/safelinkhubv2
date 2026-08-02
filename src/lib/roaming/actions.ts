@@ -260,6 +260,21 @@ export async function generateRoamingVouchers(_prevState: unknown, formData: For
       const client = await connectToRouter(router);
       connected.push({ router, client });
       await ensureVoucherProfileOnRouter(client, voucherProfile);
+      // ROAMING : un ticket doit rester connecté LONGTEMPS et sur PLUSIEURS
+      // appareils entre zones. Par défaut le profil hérite d'un keepalive-timeout
+      // court (2m) + shared-users=1 → la session « lâche » après quelques minutes
+      // (téléphone en veille) et un 2e téléphone ne peut pas partager le code. On
+      // lève donc les timeouts (keepalive/idle = none, la validité reste bornée par
+      // l'expiration du forfait via le scheduler) et on autorise 2 appareils.
+      await client
+        .talk([
+          "/ip/hotspot/user/profile/set",
+          `=numbers=${voucherProfile.name}`,
+          "=keepalive-timeout=none",
+          "=idle-timeout=none",
+          "=shared-users=2",
+        ])
+        .catch(() => {});
     }
 
     // Ne jamais rattacher silencieusement un ancien compte MikHmon qui ne
@@ -281,8 +296,16 @@ export async function generateRoamingVouchers(_prevState: unknown, formData: For
         // sur MikHmon). Sur les tickets NEUFS le commentaire = la note ; à la 1re
         // connexion le on-login du profil y stampe la date d'expiration (parité
         // MikHmon), la note reste donc utile tant que le ticket n'est pas activé.
-        const addCmd = ["/ip/hotspot/user/add", `=name=${code}`, `=password=${code}`, `=profile=${profileName}`];
-        if (note) addCmd.push(`=comment=${note}`);
+        // Commentaire TOUJOURS posé (note du lot, sinon un libellé de lot daté) →
+        // MikHmon l'affiche dans « Commentaire » pour filtrer/imprimer le lot.
+        const batchComment = note || `Lot ${new Date().toISOString().slice(0, 10)}`;
+        const addCmd = [
+          "/ip/hotspot/user/add",
+          `=name=${code}`,
+          `=password=${code}`,
+          `=profile=${profileName}`,
+          `=comment=${batchComment}`,
+        ];
         await client.talk(addCmd);
         added.push({ routerId: router.id, username: code });
       }

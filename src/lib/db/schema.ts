@@ -160,6 +160,12 @@ export const routers = pgTable("routers", {
   // interface que l'admin avait déjà désactivée avant le verrouillage.
   portsLockedAt: timestamp("ports_locked_at"),
   lockedInterfaces: jsonb("locked_interfaces").$type<string[]>(),
+  // Horodatage de la dernière écriture RÉUSSIE de la session MikHmon
+  // (« SafeLinkHub ») dans le config.php du conteneur — par l'auto-setup ou le
+  // bouton « Reconfigurer la session ». Sert au contrôle Diagnostic : le fichier
+  // interne du conteneur n'étant pas énumérable via l'API RouterOS, on s'appuie
+  // sur ce flag plutôt que sur une lecture peu fiable. Voir mikhmon-session.ts.
+  mikhmonSessionAt: timestamp("mikhmon_session_at"),
   installTokenHash: text("install_token_hash"),
   installTokenExpiresAt: timestamp("install_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

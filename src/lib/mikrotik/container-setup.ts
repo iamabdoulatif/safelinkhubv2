@@ -1872,6 +1872,23 @@ export async function provisionHotspotStack(
       };
     }
 
+    // Le conteneur MikHmon est en place ET la session a été pré-écrite (config.php)
+    // → on horodate pour le contrôle « Session MikHmon » du Diagnostic (le fichier
+    // interne du conteneur n'étant pas énumérable via l'API RouterOS).
+    if (
+      opts.supportsContainers &&
+      containerSetup.status !== "failed" &&
+      containerSetup.status !== "skipped" &&
+      router.username &&
+      router.passwordEncrypted
+    ) {
+      await getDb()
+        .update(routers)
+        .set({ mikhmonSessionAt: new Date() })
+        .where(eq(routers.id, router.id))
+        .catch(() => {});
+    }
+
 
     // Lock down unused management services. Winbox (8291), WebFig (www —
     // moved to :85 below) and the API stay enabled and reachable: the admin

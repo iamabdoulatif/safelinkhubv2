@@ -44,7 +44,7 @@ const num = (v: string | undefined) => Number(v ?? 0) || 0;
 
 export async function auditRouter(
   client: RouterOSClient,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; mikhmonConfigured?: boolean } = {},
 ): Promise<RouterAudit> {
   const t = opts.timeoutMs ?? 20000;
   const findings: AuditFinding[] = [];
@@ -149,16 +149,14 @@ export async function auditRouter(
       if (mk.running !== "true")
         add("error", "MikHmon", "mikhmon-stopped", "Conteneur MikHmon arrêté", "MikHmon n'est pas démarré — les vouchers ne sont pas gérés.");
 
-      // Session MikHmon « SafeLinkHub » écrite dans le config.php du conteneur ?
-      // On repère par la TAILLE du fichier : un config.php avec la session est
-      // nettement plus gros que le défaut (admin seul, ~215 o).
-      const cfgPath = `${rootDir.replace(/^\//, "")}/src/src/include/config.php`;
-      const cfg = await client.talk(["/file/print", `?name=${cfgPath}`], t).catch(() => []);
-      const cfgSize = cfg[0] ? Number(cfg[0].size ?? 0) : 0;
-      if (cfgSize > 300)
-        add("ok", "MikHmon", "mikhmon-session", "Session MikHmon configurée", "La session « SafeLinkHub » est écrite dans le conteneur (pré-remplie automatiquement).");
+      // Session MikHmon « SafeLinkHub » : les fichiers internes du conteneur ne
+      // sont pas énumérables via l'API RouterOS, on s'appuie donc sur le flag
+      // routers.mikhmonSessionAt (posé à l'écriture par l'auto-setup / le bouton
+      // Reconfigurer), transmis ici.
+      if (opts.mikhmonConfigured)
+        add("ok", "MikHmon", "mikhmon-session", "Session MikHmon configurée", "La session « SafeLinkHub » a été écrite automatiquement dans le conteneur.");
       else
-        add("warn", "MikHmon", "mikhmon-session", "Session MikHmon à configurer", "La session « SafeLinkHub » n'est pas détectée — sinon MikHmon demande de la recréer à la main. Le correctif l'écrit automatiquement (session, hotspot, DNS, API).", "mikhmon-session");
+        add("warn", "MikHmon", "mikhmon-session", "Session MikHmon à configurer", "La session « SafeLinkHub » n'a pas encore été posée par le SaaS — sinon MikHmon demande de la recréer à la main. Le correctif l'écrit automatiquement (session, hotspot, DNS, API).", "mikhmon-session");
     }
   } catch {
     /* container package absent — pas un défaut */
