@@ -31,14 +31,16 @@ export type SwitchCatalog = {
 };
 
 export const SWITCH_CATALOG: SwitchCatalog = {
-  currency: "EUR",
+  // Devise locale FCFA. Prix indicatifs marché Afrique de l'Ouest — à ajuster
+  // aux tarifs réels des revendeurs (import + marge locale).
+  currency: "XOF",
   locale: "fr-FR",
   switches: [
     {
       brand: "TP-Link",
       model: "LS1005G",
-      priceMin: 15,
-      priceMax: 20,
+      priceMin: 12000,
+      priceMax: 18000,
       recommended: true,
       badge: "Recommandé",
       specs: ["5× ports RJ45 1 Gbps", "Non-managé, plug & play", "Alim externe"],
@@ -48,8 +50,8 @@ export const SWITCH_CATALOG: SwitchCatalog = {
     {
       brand: "UGREEN",
       model: "UM106X",
-      priceMin: 90,
-      priceMax: 120,
+      priceMin: 65000,
+      priceMax: 90000,
       recommended: false,
       badge: "Futur-proof",
       specs: ["5× ports RJ45 2,5 Gbps", "1× SFP+ 10 Gbps", "Link Aggregation / VLAN"],
