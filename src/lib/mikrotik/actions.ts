@@ -23,6 +23,8 @@ import {
 } from "./router-throughput";
 import { auditRouter } from "./router-audit";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
+import { writeMikhmonSession } from "./mikhmon-session";
+import { decryptSecret } from "./crypto";
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -348,6 +350,77 @@ export async function repairMikhmonStorage(routerId: string) {
     summary:
       "Migration de MikHmon vers la flash lancée (~1 à 3 min : re-téléchargement de l'image). Ré-analysez ensuite pour confirmer, puis recréez la session une dernière fois.",
   };
+}
+
+/**
+ * RECONFIGURE la session MikHmon (« SafeLinkHub ») : réécrit le config.php du
+ * conteneur avec les valeurs dérivées du routeur (hotspot = nom du Server
+ * Profile, DNS = passerelle, IP/API fixes). Utilisé par le bouton du Diagnostic.
+ */
+export async function reconfigureMikhmonSession(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 30000);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const conts = await client.talk(["/container/print", "=detail"]).catch(() => [] as Record<string, string>[]);
+    const mk = conts.find(
+      (c) => /mikhmon/i.test(String(c.name ?? "")) || /mikhmon/i.test(String(c["root-dir"] ?? "")),
+    );
+    if (!mk?.[".id"]) return { error: "Aucun conteneur MikHmon sur ce routeur." };
+    const rootDir = String(mk["root-dir"] ?? "").replace(/^\//, "");
+
+    const profs = await client.talk(["/ip/hotspot/profile/print", "=detail"]).catch(() => [] as Record<string, string>[]);
+    const prof = profs.find((p) => p.name && p.name !== "default") ?? {};
+    const hotspot = String(prof.name ?? router.name);
+    const dns = String(prof["hotspot-address"] ?? "");
+
+    const wrote = await writeMikhmonSession(
+      client,
+      rootDir,
+      "SafeLinkHub",
+      {
+        ip: "11.11.11.1",
+        user: router.username,
+        pass: decryptSecret(router.passwordEncrypted),
+        hotspot,
+        dns,
+        currency: "fcfa",
+        autoload: 10,
+        iface: 1,
+        infolp: "",
+        idle: "disable",
+        livereport: "enable",
+      },
+      mk[".id"],
+    );
+    if (!wrote.ok) return { error: `Écriture impossible : ${wrote.error}` };
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: `Session MikHmon « SafeLinkHub » reconfigurée (hotspot ${hotspot}, DNS ${dns}).` };
+  } catch (err) {
+    return { error: err instanceof Error ? `Échec : ${err.message}` : "Échec de la reconfiguration." };
+  } finally {
+    client.close();
+  }
 }
 
 /**

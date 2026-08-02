@@ -14,7 +14,7 @@ import { readWifiState } from "./wifi-compat";
 
 export type AuditSeverity = "error" | "warn" | "info" | "ok";
 /** Correctif automatisable rattaché à un constat (mappé côté UI vers une action). */
-export type AuditFixKind = "wifi" | "throughput" | "cap" | "mikhmon" | null;
+export type AuditFixKind = "wifi" | "throughput" | "cap" | "mikhmon" | "mikhmon-session" | null;
 
 export type AuditFinding = {
   id: string;
@@ -148,6 +148,17 @@ export async function auditRouter(
       else add("ok", "MikHmon", "mikhmon-persist", "MikHmon persistant", "Le conteneur MikHmon survit aux reboots.");
       if (mk.running !== "true")
         add("error", "MikHmon", "mikhmon-stopped", "Conteneur MikHmon arrêté", "MikHmon n'est pas démarré — les vouchers ne sont pas gérés.");
+
+      // Session MikHmon « SafeLinkHub » écrite dans le config.php du conteneur ?
+      // On repère par la TAILLE du fichier : un config.php avec la session est
+      // nettement plus gros que le défaut (admin seul, ~215 o).
+      const cfgPath = `${rootDir.replace(/^\//, "")}/src/src/include/config.php`;
+      const cfg = await client.talk(["/file/print", `?name=${cfgPath}`], t).catch(() => []);
+      const cfgSize = cfg[0] ? Number(cfg[0].size ?? 0) : 0;
+      if (cfgSize > 300)
+        add("ok", "MikHmon", "mikhmon-session", "Session MikHmon configurée", "La session « SafeLinkHub » est écrite dans le conteneur (pré-remplie automatiquement).");
+      else
+        add("warn", "MikHmon", "mikhmon-session", "Session MikHmon à configurer", "La session « SafeLinkHub » n'est pas détectée — sinon MikHmon demande de la recréer à la main. Le correctif l'écrit automatiquement (session, hotspot, DNS, API).", "mikhmon-session");
     }
   } catch {
     /* container package absent — pas un défaut */

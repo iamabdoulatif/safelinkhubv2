@@ -17,6 +17,7 @@ import {
   optimizeRouterThroughput,
   setRouterBandwidthCap,
   repairMikhmonStorage,
+  reconfigureMikhmonSession,
 } from "@/lib/mikrotik/actions";
 import type { AuditFinding, AuditSeverity, RouterAudit } from "@/lib/mikrotik/router-audit";
 
@@ -35,6 +36,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   throughput: "Optimiser le débit",
   cap: "Plafonner à 450 Mbps",
   mikhmon: "Déplacer sur la flash",
+  "mikhmon-session": "Reconfigurer la session",
 };
 
 function scoreTone(score: number) {
@@ -76,7 +78,9 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
             ? await optimizeRouterThroughput(routerId)
             : finding.fix === "mikhmon"
               ? await repairMikhmonStorage(routerId)
-              : await setRouterBandwidthCap(routerId, 450);
+              : finding.fix === "mikhmon-session"
+                ? await reconfigureMikhmonSession(routerId)
+                : await setRouterBandwidthCap(routerId, 450);
       setFixingId(null);
       if (res?.error) {
         setFixMsg({ id: finding.id, ok: false, text: res.error });
