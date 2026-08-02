@@ -275,7 +275,15 @@ export async function generateRoamingVouchers(_prevState: unknown, formData: For
 
     for (const { router, client } of connected) {
       for (const code of codeList) {
-        await client.talk(["/ip/hotspot/user/add", `=name=${code}`, `=password=${code}`, `=profile=${profileName}`]);
+        // La NOTE du lot (ex. « lot-aout ») est posée comme COMMENTAIRE du user
+        // hotspot → MikHmon la lit dans sa colonne « Commentaire », ce qui permet
+        // de filtrer/imprimer le lot depuis MikHmon (générés sur le SaaS, imprimés
+        // sur MikHmon). Sur les tickets NEUFS le commentaire = la note ; à la 1re
+        // connexion le on-login du profil y stampe la date d'expiration (parité
+        // MikHmon), la note reste donc utile tant que le ticket n'est pas activé.
+        const addCmd = ["/ip/hotspot/user/add", `=name=${code}`, `=password=${code}`, `=profile=${profileName}`];
+        if (note) addCmd.push(`=comment=${note}`);
+        await client.talk(addCmd);
         added.push({ routerId: router.id, username: code });
       }
     }
