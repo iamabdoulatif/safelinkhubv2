@@ -33,3 +33,18 @@ test("la vue ciblée conserve son CTA de liaison lorsque les actions de parc son
   assert.doesNotMatch(markup, /Synchroniser/);
   assert.doesNotMatch(markup, /Sauvegardes/);
 });
+
+test("la table peut utiliser un titre de second niveau sous le titre de page", () => {
+  const markup = renderToStaticMarkup(
+    <AppRouterContext.Provider value={router}>
+      <PathnameContext.Provider value="/admin/router">
+        <SearchParamsContext.Provider value={new URLSearchParams()}>
+          <RoutersTable routers={[]} title="Mon parc SafeLinkHub" headingLevel="h2" />
+        </SearchParamsContext.Provider>
+      </PathnameContext.Provider>
+    </AppRouterContext.Provider>,
+  );
+
+  assert.match(markup, /<h2[^>]*>Mon parc SafeLinkHub<\/h2>/);
+  assert.doesNotMatch(markup, /<h1[^>]*>Mon parc SafeLinkHub<\/h1>/);
+});

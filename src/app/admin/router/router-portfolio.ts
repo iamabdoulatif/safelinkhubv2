@@ -45,6 +45,28 @@ export type ClientPortfolio = {
   routerCounts: RouterStatusCounts;
 };
 
+export type RouterPortfolioView =
+  | { kind: "own-fleet" }
+  | { kind: "client-cards" }
+  | { kind: "client-fleet"; client: ClientPortfolio };
+
+export function resolveRouterPortfolioView({
+  scope,
+  orgId,
+  clients,
+}: {
+  scope: string | null | undefined;
+  orgId: string | null | undefined;
+  clients: ClientPortfolio[];
+}): RouterPortfolioView {
+  if (parseRouterPortfolioScope(scope) !== "clients") {
+    return { kind: "own-fleet" };
+  }
+
+  const client = clients.find((portfolio) => portfolio.id === orgId);
+  return client ? { kind: "client-fleet", client } : { kind: "client-cards" };
+}
+
 type ClientPortfolioInput = {
   ownOrgId: string;
   organizations: Array<{ id: string; name: string }>;

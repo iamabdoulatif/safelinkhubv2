@@ -83,6 +83,7 @@ type RoutersTableProps = {
   routers: RouterRow[];
   title?: string;
   description?: string;
+  headingLevel?: "h1" | "h2";
   backHref?: string;
   backLabel?: string;
   showFleetActions?: boolean;
@@ -92,6 +93,7 @@ export default function RoutersTable({
   routers,
   title = "Routeurs MikroTik",
   description = "Gestion, synchronisation et provisionnement de vos MikroTik.",
+  headingLevel = "h1",
   backHref,
   backLabel,
   showFleetActions = true,
@@ -107,6 +109,7 @@ export default function RoutersTable({
 
   const [filter, setFilter] = useState<StatusFilter>(initialFilter);
   const [query, setQuery] = useState(initialQuery);
+  const Heading = headingLevel;
 
   // Keep the URL in sync with the active filter/search so the view is
   // shareable and survives a refresh or browser back/forward. Debounced:
@@ -159,9 +162,9 @@ export default function RoutersTable({
               {backLabel ?? "Retour"}
             </Link>
           )}
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
+          <Heading className="font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
             {title}
-          </h1>
+          </Heading>
           <p className="mt-1 text-sm text-ink-soft">{description}</p>
         </div>
         {showFleetActions && (
