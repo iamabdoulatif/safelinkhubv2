@@ -87,6 +87,57 @@ export async function auditRouter(
   if (!hasMasq)
     add("error", "Réseau", "no-nat", "Pas de NAT (masquerade)", "Aucune règle masquerade active — les clients du réseau local n'ont pas d'accès Internet.");
 
+  // ── Réseau : conflit d'adressage (sous-réseaux qui se chevauchent) ──────
+  // Deux interfaces dont les plages IPv4 se recouvrent = routage ambigu :
+  // typiquement plus d'Internet (WAN livré en 10.x qui recouvre le hotspot
+  // 10.0.0.0/8) ou portail injoignable (deux LAN sur la même plage). Détection
+  // DÉTERMINISTE depuis /ip/address — pas de log à interpréter. On ignore les
+  // /32 (adresses hôtes, ex. la gestion WireGuard) et le loopback 127/8.
+  try {
+    const addrs = await client.talk(["/ip/address/print"], t).catch(() => []);
+    const parseV4 = (s?: string): { ip: number; prefix: number } | null => {
+      if (!s) return null;
+      const [addr, pfxRaw] = s.split("/");
+      const prefix = Number(pfxRaw);
+      const parts = (addr ?? "").split(".").map(Number);
+      if (
+        parts.length !== 4 ||
+        parts.some((p) => Number.isNaN(p) || p < 0 || p > 255) ||
+        Number.isNaN(prefix) || prefix < 0 || prefix > 32
+      )
+        return null;
+      const ip = (((parts[0] << 24) >>> 0) + (parts[1] << 16) + (parts[2] << 8) + parts[3]) >>> 0;
+      return { ip, prefix };
+    };
+    const nets: { label: string; ip: number; prefix: number }[] = [];
+    for (const a of addrs) {
+      if (a.disabled === "true") continue;
+      const p = parseV4(a.address);
+      if (!p || p.prefix >= 32 || p.ip === 0 || p.ip >>> 24 === 127) continue;
+      nets.push({ label: `${a.address} (${a.interface ?? "?"})`, ip: p.ip, prefix: p.prefix });
+    }
+    const overlaps: string[] = [];
+    for (let i = 0; i < nets.length; i++)
+      for (let j = i + 1; j < nets.length; j++) {
+        const minPfx = Math.min(nets[i].prefix, nets[j].prefix);
+        const mask = minPfx === 0 ? 0 : (0xffffffff << (32 - minPfx)) >>> 0;
+        if (((nets[i].ip & mask) >>> 0) === ((nets[j].ip & mask) >>> 0))
+          overlaps.push(`${nets[i].label} ↔ ${nets[j].label}`);
+      }
+    if (overlaps.length > 0)
+      add(
+        "error",
+        "Réseau",
+        "ip-overlap",
+        "Conflit d'adressage (sous-réseaux qui se chevauchent)",
+        `Des interfaces partagent la même plage d'adresses : ${overlaps.join(" ; ")}. Le routage devient ambigu — typiquement plus d'accès Internet (le WAN est livré dans la même plage que le LAN hotspot) ou portail captif injoignable. À corriger sur site : réattribuer un sous-réseau distinct à l'interface en conflit (le hotspot SafeLinkHub utilise 10.0.0.0/8, évitez tout WAN/LAN en 10.x).`,
+      );
+    else if (nets.length >= 2)
+      add("ok", "Réseau", "ip-no-overlap", "Adressage sans conflit", "Aucun chevauchement de plages IP entre les interfaces.");
+  } catch {
+    /* /ip/address illisible — on n'ajoute pas de constat trompeur. */
+  }
+
   // ── Débit : fasttrack + layer7 ──────────────────────────────────────────
   const filters = await client.talk(["/ip/firewall/filter/print"], t).catch(() => []);
   const hasFasttrack = filters.some((f) => f.action === "fasttrack-connection" && f.disabled !== "true");
