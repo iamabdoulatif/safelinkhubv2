@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import UsersControlCenter from "./UsersControlCenter";
 import { UsersDirectoryIndex } from "./UsersDirectoryIndex";
 import { UsersRegisterPriority } from "./UsersRegisterPriority";
 import type { OrganizationFocus } from "./organization-focus";
+import type { UserControlRow } from "./users-control-center";
 
 const summary = { attentionCount: 3, freeCount: 18, paidCount: 14, organizationCount: 17 };
 
@@ -23,6 +25,20 @@ const filters = [
 
 const filterCounts = { all: 32, admins: 4, superadmins: 1, free: 18, paid: 14, expiring: 3 };
 
+const controlCenterRows: UserControlRow[] = [
+  {
+    id: "user-awa",
+    name: "Awa Traoré",
+    email: "awa@example.com",
+    orgName: "Atelier Réseau Abidjan",
+    role: "admin",
+    quotaCategory: "paid",
+    quotaLabel: "VPN payant",
+    quotaExpiresAt: null,
+    createdAt: "2026-07-01T00:00:00.000Z",
+  },
+];
+
 function assertMarkupOrder(markup: string, labels: string[]) {
   const positions = labels.map((label) => markup.indexOf(`>${label}<`));
   positions.forEach((position) => assert.notEqual(position, -1));
@@ -34,6 +50,32 @@ function priorityCellClassTokens(markup: string) {
 }
 
 describe("users register presentation", () => {
+  it("places register priorities and the directory before temporary access", () => {
+    const markup = renderToStaticMarkup(
+      <UsersControlCenter
+        rows={controlCenterRows}
+        superadmin
+        temporaryAccess={{
+          organizations: [{ id: "org-1", name: "Atelier Réseau Abidjan", slug: "atelier-reseau" }],
+          routers: [],
+          grants: [],
+        }}
+        organizationFocus={null}
+      />,
+    );
+
+    const priorityPosition = markup.indexOf('aria-label="Repères du registre"');
+    const personPosition = markup.indexOf(">Personne<");
+    const temporaryAccessPosition = markup.indexOf(">Passes d’accès temporaire<");
+
+    assert.notEqual(priorityPosition, -1);
+    assert.notEqual(personPosition, -1);
+    assert.notEqual(temporaryAccessPosition, -1);
+    assert.ok(priorityPosition < personPosition);
+    assert.ok(personPosition < temporaryAccessPosition);
+    assert.match(markup, />AT<\/span>/);
+  });
+
   it("renders the global register priorities in order", () => {
     const markup = renderToStaticMarkup(
       <UsersRegisterPriority summary={summary} focusedOrganization={null} />,
