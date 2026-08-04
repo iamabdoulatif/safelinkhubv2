@@ -245,7 +245,7 @@ export default function RoutersTable({
               ? "Commencez par lier un MikroTik : le provisionnement et la supervision se font ensuite automatiquement."
               : "Aucun routeur ne correspond à ce filtre ou à cette recherche."}
           </p>
-          {routers.length === 0 && showFleetActions && (
+          {routers.length === 0 && (
             <Link
               href="/admin/settings/router-setup?new=1"
               className="mt-5 inline-flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper"
