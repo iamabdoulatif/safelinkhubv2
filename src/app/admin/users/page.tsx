@@ -7,6 +7,7 @@ import UsersControlCenter from "./UsersControlCenter";
 import { listAllRemoteAccessGrants } from "@/lib/remote-access/grants";
 import { countRouterStatuses } from "../router/router-portfolio";
 import { resolveOrganizationFocusQuery, resolveFocusedRouterTableHref } from "./organization-focus";
+import { loadUsersTemporaryAccessPayload } from "./users-temporary-access";
 
 type UsersPageProps = {
   searchParams: Promise<{ org?: string }>;
@@ -135,16 +136,25 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
     };
   });
 
-  const temporaryAccess = superadmin
-    ? {
-        organizations: availableOrganizations,
-        routers: await db
+  const temporaryAccess = await loadUsersTemporaryAccessPayload({
+    superadmin,
+    focusedOrganization: focusedOrganization !== null,
+    load: async () => {
+      const [temporaryAccessRouters, grants] = await Promise.all([
+        db
           .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
           .from(routers)
           .orderBy(routers.name),
-        grants: await listAllRemoteAccessGrants(),
-      }
-    : null;
+        listAllRemoteAccessGrants(),
+      ]);
+
+      return {
+        organizations: availableOrganizations,
+        routers: temporaryAccessRouters,
+        grants,
+      };
+    },
+  });
 
   return (
     <UsersControlCenter

@@ -127,7 +127,7 @@ describe("users register presentation", () => {
     });
   });
 
-  it("does not serialize global temporary access data in an organization focus", () => {
+  it("does not render global temporary access details in an organization focus", () => {
     const markup = renderToStaticMarkup(
       <AppRouterContext.Provider value={appRouter}>
         <UsersControlCenter
