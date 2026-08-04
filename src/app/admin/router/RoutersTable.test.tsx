@@ -30,5 +30,6 @@ test("la vue ciblée conserve son CTA de liaison lorsque les actions de parc son
   );
 
   assert.equal((markup.match(/Lier un MikroTik/g) ?? []).length, 1);
+  assert.doesNotMatch(markup, /Synchroniser/);
   assert.doesNotMatch(markup, /Sauvegardes/);
 });
