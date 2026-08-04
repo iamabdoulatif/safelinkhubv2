@@ -18,8 +18,6 @@ function routerStatusLabel(status: string) {
 }
 
 export function OrganizationFocusPanel({ focus }: OrganizationFocusPanelProps) {
-  const technicalTableHref = `/admin/router?scope=clients&org=${focus.id}`;
-
   return (
     <section className="border-2 border-line bg-paper p-5 md:p-6" aria-labelledby={`organization-focus-${focus.id}`}>
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -39,12 +37,14 @@ export function OrganizationFocusPanel({ focus }: OrganizationFocusPanelProps) {
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Retour aux parcs clients
           </Link>
-          <Link
-            href={technicalTableHref}
-            className="inline-flex items-center gap-2 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-ink transition-colors hover:bg-ink hover:text-paper"
-          >
-            Voir la table technique <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
+          {focus.routerTableHref && (
+            <Link
+              href={focus.routerTableHref}
+              className="inline-flex items-center gap-2 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-ink transition-colors hover:bg-ink hover:text-paper"
+            >
+              Voir la table technique <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
         </div>
       </div>
 

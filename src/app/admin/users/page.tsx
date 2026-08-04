@@ -6,7 +6,7 @@ import { getVpnQuotaStatus } from "@/lib/billing/vpn-quota";
 import UsersControlCenter from "./UsersControlCenter";
 import { listAllRemoteAccessGrants } from "@/lib/remote-access/grants";
 import { countRouterStatuses } from "../router/router-portfolio";
-import { resolveFocusedOrganization } from "./organization-focus";
+import { resolveOrganizationFocusQuery, resolveFocusedRouterTableHref } from "./organization-focus";
 
 type UsersPageProps = {
   searchParams: Promise<{ org?: string }>;
@@ -47,7 +47,8 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
         .from(organizations)
         .orderBy(organizations.name)
     : [];
-  const focusedOrganization = resolveFocusedOrganization(superadmin, params.org, availableOrganizations);
+  const focusQuery = resolveOrganizationFocusQuery(superadmin, params.org, availableOrganizations);
+  const focusedOrganization = focusQuery.organization;
 
   const orgUsers = session
     ? superadmin
@@ -65,7 +66,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
           })
           .from(users)
           .innerJoin(organizations, eq(users.orgId, organizations.id))
-          .where(focusedOrganization ? eq(users.orgId, focusedOrganization.id) : undefined)
+          .where(focusQuery.userOrgId ? eq(users.orgId, focusQuery.userOrgId) : undefined)
           .orderBy(desc(users.createdAt))
       : await db
           .select({
@@ -103,6 +104,12 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
     ? {
         id: focusedOrganization.id,
         name: focusedOrganization.name,
+        routerTableHref: resolveFocusedRouterTableHref({
+          organization: focusedOrganization,
+          ownOrganizationId: session?.orgId,
+          memberCount: orgUsers.length,
+          routerCount: focusedRouters.length,
+        }),
         memberCount: orgUsers.length,
         routerCounts: countRouterStatuses(focusedRouters),
         routers: focusedRouters,

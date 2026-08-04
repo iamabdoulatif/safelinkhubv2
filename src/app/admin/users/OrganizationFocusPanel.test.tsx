@@ -7,6 +7,7 @@ import UsersControlCenter from "./UsersControlCenter";
 const focus = {
   id: "d303c049-2675-4d53-a972-c4be95e9d61e",
   name: "Réseaux du Marché",
+  routerTableHref: "/admin/router?scope=clients&org=d303c049-2675-4d53-a972-c4be95e9d61e",
   memberCount: 3,
   routerCounts: { total: 3, online: 1, configuring: 1, offline: 1 },
   routers: [
@@ -45,6 +46,7 @@ test("le panneau d’organisation ciblée explique l’absence de routeur", () =
         ...focus,
         id: "f7f48736-0263-40dc-b65f-6b3d8e804e93",
         name: "Association zéro routeur",
+        routerTableHref: null,
         routerCounts: { total: 0, online: 0, configuring: 0, offline: 0 },
         routers: [],
       }}
@@ -54,6 +56,24 @@ test("le panneau d’organisation ciblée explique l’absence de routeur", () =
   assert.match(markup, /Association zéro routeur/);
   assert.match(markup, /0 routeurs/);
   assert.match(markup, /Aucun routeur n’est encore rattaché à cette organisation/);
+  assert.match(markup, /href="\/admin\/router\?scope=clients"/);
+  assert.doesNotMatch(markup, /Voir la table technique/);
+});
+
+test("le panneau utilise la table serveur du parc propre lorsqu’elle est fournie", () => {
+  const markup = renderToStaticMarkup(
+    <OrganizationFocusPanel
+      focus={{
+        ...focus,
+        id: "org-mine",
+        name: "SafeLinkHub",
+        routerTableHref: "/admin/router?scope=mine",
+      }}
+    />,
+  );
+
+  assert.match(markup, /href="\/admin\/router\?scope=mine"/);
+  assert.doesNotMatch(markup, /href="\/admin\/router\?scope=clients&amp;org=org-mine"/);
 });
 
 test("la station de contrôle rend clairement la portée ciblée sans colonne organisation", () => {
