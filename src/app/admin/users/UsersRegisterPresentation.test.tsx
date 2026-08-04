@@ -29,8 +29,8 @@ function assertMarkupOrder(markup: string, labels: string[]) {
   positions.slice(1).forEach((position, index) => assert.ok(positions[index] < position));
 }
 
-function priorityCellClasses(markup: string) {
-  return Array.from(markup.matchAll(/<div class="([^"]*min-w-0[^"]*)">/g), ([, className]) => className);
+function priorityCellClassTokens(markup: string) {
+  return Array.from(markup.matchAll(/<div class="([^"]*min-w-0[^"]*)">/g), ([, className]) => new Set(className.split(" ")));
 }
 
 describe("users register presentation", () => {
@@ -41,13 +41,27 @@ describe("users register presentation", () => {
 
     assertMarkupOrder(markup, ["À traiter maintenant", "Quota gratuit", "VPN payant", "Organisations actives"]);
     assert.match(markup, />3</);
-    assert.deepEqual(priorityCellClasses(markup).map((className) => className.match(/border[^ ]*(?: [^ ]+)*$/)?.[0]), [
-      "border-b-2 border-line sm:border-r-2 xl:border-b-0",
-      "border-b-2 border-line xl:border-r-2 xl:border-b-0",
-      "border-b-2 border-line sm:border-r-2 sm:border-b-0 xl:border-r-2",
-      undefined,
-    ]);
-    assert.doesNotMatch(markup, /xl:\[&amp;:nth-child/);
+    const priorityCells = priorityCellClassTokens(markup);
+    assert.equal(priorityCells.length, 4);
+    const [first, second, third, fourth] = priorityCells;
+    assert.ok(first.has("border-b-2"));
+    assert.ok(second.has("border-b-2"));
+    assert.ok(third.has("border-b-2"));
+    assert.equal(fourth.has("border-b-2"), false);
+    assert.ok(first.has("sm:border-r-2"));
+    assert.equal(first.has("sm:border-b-0"), false);
+    assert.equal(second.has("sm:border-r-2"), false);
+    assert.equal(second.has("sm:border-b-0"), false);
+    assert.ok(third.has("sm:border-r-2"));
+    assert.ok(third.has("sm:border-b-0"));
+    assert.equal(fourth.has("sm:border-r-2"), false);
+    assert.equal(fourth.has("sm:border-b-0"), false);
+    assert.ok(second.has("xl:border-r-2"));
+    assert.ok(third.has("xl:border-r-2"));
+    assert.ok(first.has("xl:border-b-0"));
+    assert.ok(second.has("xl:border-b-0"));
+    assert.ok(third.has("sm:border-b-0"));
+    assert.equal(fourth.has("xl:border-r-2"), false);
   });
 
   it("renders organization-scoped priorities in order without global totals", () => {
@@ -75,7 +89,9 @@ describe("users register presentation", () => {
     );
 
     assert.match(markup, /aria-label="Rechercher un utilisateur"/);
+    assert.match(markup, /<label class="[^"]*focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink/);
     assert.match(markup, />14 affichés</);
+    assert.match(markup, /aria-live="polite"/);
     assert.match(markup, /Réinitialiser/);
     assert.match(markup, /aria-label="Filtres utilisateurs"/);
     assert.match(markup, /aria-pressed="true" class="[^"]*border-ink bg-ink text-paper/);

@@ -28,7 +28,7 @@ export function UsersDirectoryIndex({
 
   return (
     <section aria-label="Index du registre" className="border-y-2 border-line py-4">
-      <label className="flex min-w-0 items-center gap-3 border-2 border-line bg-paper px-3.5 py-3">
+      <label className="flex min-w-0 items-center gap-3 border-2 border-line bg-paper px-3.5 py-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink">
         <Search className="h-4 w-4 shrink-0 text-ink-soft" aria-hidden="true" />
         <input
           type="search"
@@ -41,7 +41,7 @@ export function UsersDirectoryIndex({
       </label>
 
       <div className="mt-4 flex flex-col gap-3 border-t border-line-soft pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="flex items-center gap-2 text-xs text-ink-soft">
+        <p aria-live="polite" className="flex items-center gap-2 text-xs text-ink-soft">
           <SlidersHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="font-semibold text-ink">{resultCount} affiché{resultCount > 1 ? "s" : ""}</span>
         </p>
