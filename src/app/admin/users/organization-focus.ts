@@ -1,6 +1,22 @@
+import type { RouterStatusCounts } from "../router/router-portfolio";
+
 type Organization = {
   id: string;
   name: string;
+};
+
+export type OrganizationFocus = {
+  id: string;
+  name: string;
+  memberCount: number;
+  routerCounts: RouterStatusCounts;
+  routers: Array<{
+    id: string;
+    name: string;
+    model: string | null;
+    status: string;
+    activeUsers: number | null;
+  }>;
 };
 
 export function resolveFocusedOrganization<T extends Organization>(

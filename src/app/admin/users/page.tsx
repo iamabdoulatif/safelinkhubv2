@@ -5,6 +5,12 @@ import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getVpnQuotaStatus } from "@/lib/billing/vpn-quota";
 import UsersControlCenter from "./UsersControlCenter";
 import { listAllRemoteAccessGrants } from "@/lib/remote-access/grants";
+import { countRouterStatuses } from "../router/router-portfolio";
+import { resolveFocusedOrganization } from "./organization-focus";
+
+type UsersPageProps = {
+  searchParams: Promise<{ org?: string }>;
+};
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -30,10 +36,18 @@ function quotaCategory(fields: { vpnQuotaMode: string | null; vpnQuotaExpiresAt:
   return "default" as const;
 }
 
-export default async function UsersPage() {
+export default async function UsersPage({ searchParams }: UsersPageProps) {
+  const params = await searchParams;
   const session = await getSession();
   const db = getDb();
   const superadmin = isSuperAdmin(session?.role);
+  const availableOrganizations = superadmin
+    ? await db
+        .select({ id: organizations.id, name: organizations.name, slug: organizations.slug })
+        .from(organizations)
+        .orderBy(organizations.name)
+    : [];
+  const focusedOrganization = resolveFocusedOrganization(superadmin, params.org, availableOrganizations);
 
   const orgUsers = session
     ? superadmin
@@ -51,6 +65,7 @@ export default async function UsersPage() {
           })
           .from(users)
           .innerJoin(organizations, eq(users.orgId, organizations.id))
+          .where(focusedOrganization ? eq(users.orgId, focusedOrganization.id) : undefined)
           .orderBy(desc(users.createdAt))
       : await db
           .select({
@@ -69,6 +84,30 @@ export default async function UsersPage() {
           .where(eq(users.orgId, session.orgId))
           .orderBy(desc(users.createdAt))
     : [];
+
+  const focusedRouters = focusedOrganization
+    ? await db
+        .select({
+          id: routers.id,
+          name: routers.name,
+          model: routers.model,
+          status: routers.status,
+          activeUsers: routers.activeUsers,
+        })
+        .from(routers)
+        .where(eq(routers.orgId, focusedOrganization.id))
+        .orderBy(routers.name)
+    : [];
+
+  const organizationFocus = focusedOrganization
+    ? {
+        id: focusedOrganization.id,
+        name: focusedOrganization.name,
+        memberCount: orgUsers.length,
+        routerCounts: countRouterStatuses(focusedRouters),
+        routers: focusedRouters,
+      }
+    : null;
 
   const controlRows = orgUsers.map((user) => {
     const fields = {
@@ -91,10 +130,7 @@ export default async function UsersPage() {
 
   const temporaryAccess = superadmin
     ? {
-        organizations: await db
-          .select({ id: organizations.id, name: organizations.name, slug: organizations.slug })
-          .from(organizations)
-          .orderBy(organizations.name),
+        organizations: availableOrganizations,
         routers: await db
           .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
           .from(routers)
@@ -103,5 +139,12 @@ export default async function UsersPage() {
       }
     : null;
 
-  return <UsersControlCenter rows={controlRows} superadmin={superadmin} temporaryAccess={temporaryAccess} />;
+  return (
+    <UsersControlCenter
+      rows={controlRows}
+      superadmin={superadmin}
+      temporaryAccess={temporaryAccess}
+      organizationFocus={organizationFocus}
+    />
+  );
 }

@@ -27,6 +27,8 @@ import TemporaryAccessPasses, {
   type Organization,
 } from "../remote-access/TemporaryAccessPasses";
 import { buildUsersCsv, filterUsers, type UserControlFilter, type UserControlRow } from "./users-control-center";
+import { OrganizationFocusPanel } from "./OrganizationFocusPanel";
+import type { OrganizationFocus } from "./organization-focus";
 
 const FILTERS: Array<{ value: UserControlFilter; label: string }> = [
   { value: "all", label: "Tous" },
@@ -59,6 +61,7 @@ export default function UsersControlCenter({
   rows,
   superadmin,
   temporaryAccess,
+  organizationFocus,
 }: {
   rows: UserControlRow[];
   superadmin: boolean;
@@ -67,6 +70,7 @@ export default function UsersControlCenter({
     routers: GrantRouter[];
     grants: Grant[];
   } | null;
+  organizationFocus: OrganizationFocus | null;
 }) {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<UserControlFilter>("all");
@@ -141,9 +145,13 @@ export default function UsersControlCenter({
             <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-ok">
               <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Station de contrôle
             </div>
-            <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink md:text-4xl">Utilisateurs</h1>
+            <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink md:text-4xl">
+              {organizationFocus ? `Utilisateurs de ${organizationFocus.name}` : "Utilisateurs"}
+            </h1>
             <p className="mt-2 max-w-xl text-sm leading-6 text-ink-soft">
-              {superadmin
+              {organizationFocus
+                ? `Les membres visibles de ${organizationFocus.name}, avec l’état de ses routeurs.`
+                : superadmin
                 ? "Une vue calme pour comprendre les comptes, les organisations et les accès VPN qui méritent votre attention."
                 : "Les membres de l’équipe qui ont accès à cette organisation SafeLinkHub."}
             </p>
@@ -166,6 +174,8 @@ export default function UsersControlCenter({
           </div>
         </div>
       </section>
+
+      {organizationFocus && <OrganizationFocusPanel focus={organizationFocus} />}
 
       <section className="overflow-hidden border border-line-soft bg-paper">
         <div className="grid divide-y divide-line-soft sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
@@ -288,7 +298,7 @@ export default function UsersControlCenter({
                   </div>
                   <span className="shrink-0 rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-ink-soft">{roleLabel(row.role)}</span>
                 </div>
-                {superadmin && <p className="mt-3 truncate text-xs text-ink-soft">{row.orgName}</p>}
+                {superadmin && !organizationFocus && <p className="mt-3 truncate text-xs text-ink-soft">{row.orgName}</p>}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {superadmin && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${quotaTone(row.quotaCategory)}`}>{row.quotaLabel}</span>}
                   <span className="text-xs text-ink-soft">Inscrit le {formatDate(row.createdAt)}</span>
@@ -302,12 +312,16 @@ export default function UsersControlCenter({
           <div className="hidden overflow-hidden border border-line-soft bg-paper md:block">
             <div className="table-mobile-wrapper">
               <table className="w-full text-left text-sm">
-                <caption className="sr-only">Utilisateurs correspondant aux filtres actifs</caption>
+                <caption className="sr-only">
+                  {organizationFocus
+                    ? `Utilisateurs de ${organizationFocus.name} correspondant aux filtres actifs`
+                    : "Utilisateurs correspondant aux filtres actifs"}
+                </caption>
                 <thead className="border-b border-line-soft bg-clay/70 text-ink-soft">
                   <tr>
                     <th className="px-4 py-3 font-medium">Nom</th>
                     <th className="px-4 py-3 font-medium">Email</th>
-                    {superadmin && <th className="px-4 py-3 font-medium">Organisation</th>}
+                    {superadmin && !organizationFocus && <th className="px-4 py-3 font-medium">Organisation</th>}
                     <th className="px-4 py-3 font-medium">Rôle</th>
                     {superadmin && <th className="px-4 py-3 font-medium">Quota VPN</th>}
                     <th className="px-4 py-3 font-medium">Inscrit le</th>
@@ -319,7 +333,7 @@ export default function UsersControlCenter({
                     <tr key={row.id} className="align-top transition-colors hover:bg-clay/35">
                       <td className="px-5 py-5 font-semibold text-ink">{row.name}</td>
                       <td className="px-5 py-5 text-ink-soft"><span className="inline-flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" aria-hidden="true" />{row.email}</span></td>
-                      {superadmin && <td className="px-5 py-5 text-ink-soft">{row.orgName}</td>}
+                      {superadmin && !organizationFocus && <td className="px-5 py-5 text-ink-soft">{row.orgName}</td>}
                       <td className="px-5 py-5"><span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ink-soft">{roleLabel(row.role)}</span></td>
                       {superadmin && <td className="min-w-64 px-5 py-5"><div className="flex flex-col gap-2"><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${quotaTone(row.quotaCategory)}`}>{row.quotaLabel}</span><VpnQuotaForm userId={row.id} userEmail={row.email} /></div></td>}
                       <td className="whitespace-nowrap px-5 py-5 text-ink-soft">{formatDate(row.createdAt)}</td>
