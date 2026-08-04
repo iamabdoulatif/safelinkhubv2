@@ -38,7 +38,6 @@ export default async function RouterDashboardPage() {
   return (
     <div className="animate-fade-in-up">
       <RoutersTable
-        crossOrg={superadmin}
         routers={rows.map(({ router: r, orgName }) => ({
           id: r.id,
           name: r.name,

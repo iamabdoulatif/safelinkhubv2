@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, Link2, Lock, Router as RouterIcon, Save, Search } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Link2, Lock, Router as RouterIcon, Save, Search } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
 import SyncAllButton from "./SyncAllButton";
+import { isConfiguringRouter } from "./router-portfolio";
+import { buildRouterTableQuery, type RouterTableStatusFilter } from "./router-table-query";
 
-type StatusFilter = "all" | "online" | "offline" | "config";
+type StatusFilter = RouterTableStatusFilter;
 
 function isStatusFilter(value: string | null): value is StatusFilter {
   return value === "all" || value === "online" || value === "offline" || value === "config";
@@ -25,15 +27,9 @@ export type RouterRow = {
   activeUsers: number | null;
   lastSyncAtMs: number | null;
   connectionMethod: string;
-  /** Nom de l'organisation propriétaire — renseigné seulement en vue superadmin. */
-  orgName?: string | null;
   /** Routeur « paralysé » : ports + WiFi coupés sauf ether1 (kill-switch). */
   locked?: boolean;
 };
-
-function isConfiguring(status: string) {
-  return status === "pending" || status === "installing";
-}
 
 export function timeAgo(ms: number | null) {
   if (!ms) return "jamais";
@@ -45,7 +41,7 @@ export function timeAgo(ms: number | null) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const config = isConfiguring(status);
+  const config = isConfiguringRouter(status);
   const online = status === "online";
   return (
     <span className="inline-flex items-center gap-1.5 border border-line-soft bg-paper px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-ink">
@@ -83,14 +79,23 @@ function MeterCell({ percent }: { percent: number }) {
   );
 }
 
+type RoutersTableProps = {
+  routers: RouterRow[];
+  title?: string;
+  description?: string;
+  backHref?: string;
+  backLabel?: string;
+  showFleetActions?: boolean;
+};
+
 export default function RoutersTable({
   routers,
-  crossOrg = false,
-}: {
-  routers: RouterRow[];
-  /** Vue superadmin : routeurs de TOUTES les organisations, avec le nom du client. */
-  crossOrg?: boolean;
-}) {
+  title = "Routeurs MikroTik",
+  description = "Gestion, synchronisation et provisionnement de vos MikroTik.",
+  backHref,
+  backLabel,
+  showFleetActions = true,
+}: RoutersTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -102,28 +107,13 @@ export default function RoutersTable({
 
   const [filter, setFilter] = useState<StatusFilter>(initialFilter);
   const [query, setQuery] = useState(initialQuery);
-  const [orgFilter, setOrgFilter] = useState(searchParams.get("org") ?? "all");
-
-  // Liste des clients présents (vue superadmin) pour alimenter le filtre par org.
-  const orgNames = useMemo(
-    () =>
-      crossOrg
-        ? Array.from(new Set(routers.map((r) => r.orgName).filter((n): n is string => !!n))).sort(
-            (a, b) => a.localeCompare(b),
-          )
-        : [],
-    [crossOrg, routers],
-  );
 
   // Keep the URL in sync with the active filter/search so the view is
   // shareable and survives a refresh or browser back/forward. Debounced:
   // router.replace à chaque frappe ferait un aller-retour RSC par lettre.
   useEffect(() => {
     const timer = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (filter !== "all") params.set("status", filter);
-      if (query) params.set("q", query);
-      if (orgFilter !== "all") params.set("org", orgFilter);
+      const params = buildRouterTableQuery(searchParams, { status: filter, query });
       const next = params.toString();
       const current = searchParams.toString();
       if (next !== current) {
@@ -131,26 +121,25 @@ export default function RoutersTable({
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [filter, query, orgFilter, pathname, router, searchParams]);
+  }, [filter, query, pathname, router, searchParams]);
 
   const counts = useMemo(
     () => ({
       all: routers.length,
       online: routers.filter((r) => r.status === "online").length,
-      offline: routers.filter((r) => r.status !== "online" && !isConfiguring(r.status)).length,
-      config: routers.filter((r) => isConfiguring(r.status)).length,
+      offline: routers.filter((r) => r.status !== "online" && !isConfiguringRouter(r.status)).length,
+      config: routers.filter((r) => isConfiguringRouter(r.status)).length,
     }),
     [routers],
   );
 
   const filtered = routers.filter((r) => {
     if (filter === "online" && r.status !== "online") return false;
-    if (filter === "offline" && (r.status === "online" || isConfiguring(r.status))) return false;
-    if (filter === "config" && !isConfiguring(r.status)) return false;
-    if (crossOrg && orgFilter !== "all" && (r.orgName ?? "") !== orgFilter) return false;
+    if (filter === "offline" && (r.status === "online" || isConfiguringRouter(r.status))) return false;
+    if (filter === "config" && !isConfiguringRouter(r.status)) return false;
     if (query) {
       const q = query.toLowerCase();
-      const haystack = `${r.name} ${r.host ?? ""} ${r.model ?? ""} ${r.orgName ?? ""}`.toLowerCase();
+      const haystack = `${r.name} ${r.host ?? ""} ${r.model ?? ""}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -161,32 +150,39 @@ export default function RoutersTable({
       {/* En-tête éditorial */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
+          {backHref && (
+            <Link
+              href={backHref}
+              className="mb-3 inline-flex items-center gap-1.5 text-sm font-bold text-ink-soft transition-colors duration-150 hover:text-ink"
+            >
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              {backLabel ?? "Retour"}
+            </Link>
+          )}
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
-            Routeurs MikroTik
+            {title}
           </h1>
-          <p className="mt-1 text-sm text-ink-soft">
-            {crossOrg
-              ? "Vue superadmin — routeurs de tous les clients. Vous pouvez mener des actions sur chacun."
-              : "Gestion, synchronisation et provisionnement de vos MikroTik."}
-          </p>
+          <p className="mt-1 text-sm text-ink-soft">{description}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <SyncAllButton />
-          <Link
-            href="/admin/router/backups"
-            className="flex items-center gap-2 border-2 border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-ink hover:text-paper"
-          >
-            <Save aria-hidden="true" className="h-4 w-4" />
-            Sauvegardes
-          </Link>
-          <Link
-            href="/admin/settings/router-setup?new=1"
-            className="flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper"
-          >
-            <Link2 aria-hidden="true" className="h-4 w-4" />
-            Lier un MikroTik
-          </Link>
-        </div>
+        {showFleetActions && (
+          <div className="flex flex-wrap items-center gap-3">
+            <SyncAllButton />
+            <Link
+              href="/admin/router/backups"
+              className="flex items-center gap-2 border-2 border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-ink hover:text-paper"
+            >
+              <Save aria-hidden="true" className="h-4 w-4" />
+              Sauvegardes
+            </Link>
+            <Link
+              href="/admin/settings/router-setup?new=1"
+              className="flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper"
+            >
+              <Link2 aria-hidden="true" className="h-4 w-4" />
+              Lier un MikroTik
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Filtres en chips */}
@@ -222,8 +218,8 @@ export default function RoutersTable({
         ))}
       </div>
 
-      {/* Recherche large + filtre client (superadmin) */}
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+      {/* Recherche large */}
+      <div className="mt-4">
         <div className="relative flex-1">
           <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
           <input
@@ -231,26 +227,11 @@ export default function RoutersTable({
             name="router-search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher par nom, IP, identité ou client…"
-            aria-label="Rechercher un routeur par nom, IP, identité ou client"
+            placeholder="Rechercher par nom, IP ou identité…"
+            aria-label="Rechercher par nom, IP ou identité…"
             className="w-full border-2 border-line bg-paper py-2.5 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           />
         </div>
-        {crossOrg && orgNames.length > 1 && (
-          <select
-            value={orgFilter}
-            onChange={(e) => setOrgFilter(e.target.value)}
-            aria-label="Filtrer par client"
-            className="border-2 border-line bg-paper px-3 py-2.5 text-sm font-medium text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink sm:w-64"
-          >
-            <option value="all">Tous les clients ({orgNames.length})</option>
-            {orgNames.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -264,7 +245,7 @@ export default function RoutersTable({
               ? "Commencez par lier un MikroTik : le provisionnement et la supervision se font ensuite automatiquement."
               : "Aucun routeur ne correspond à ce filtre ou à cette recherche."}
           </p>
-          {routers.length === 0 && (
+          {routers.length === 0 && showFleetActions && (
             <Link
               href="/admin/settings/router-setup?new=1"
               className="mt-5 inline-flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper"
@@ -286,11 +267,6 @@ export default function RoutersTable({
                     className="min-w-0 font-display text-base font-bold text-ink hover:text-brand-deep"
                   >
                     <span className="block truncate">{r.name}</span>
-                    {crossOrg && r.orgName && (
-                      <span className="block truncate text-xs font-semibold text-brand-deep">
-                        {r.orgName}
-                      </span>
-                    )}
                     <span className="block truncate font-mono text-xs font-medium text-ink-soft">
                       {r.host ? `${r.host}:${r.apiPort ?? 8728}` : "—"}
                     </span>
@@ -367,9 +343,6 @@ export default function RoutersTable({
                     <td className="px-4 py-3">
                       <Link href={`/admin/router/${r.id}`} className="group block">
                         <span className="font-bold text-ink group-hover:text-brand-deep">{r.name}</span>
-                        {crossOrg && r.orgName && (
-                          <span className="block text-xs font-semibold text-brand-deep">{r.orgName}</span>
-                        )}
                         <span className="block font-mono text-xs text-ink-soft">
                           {r.host ? `${r.host}:${r.apiPort ?? 8728}` : "—"}
                         </span>
