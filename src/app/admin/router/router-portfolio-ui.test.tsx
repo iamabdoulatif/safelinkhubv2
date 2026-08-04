@@ -17,7 +17,7 @@ test("les onglets de portefeuille exposent les deux portées et la portée activ
   assert.match(clientsMarkup, /aria-current="page"[^>]*>Parcs clients<\/a>/);
 });
 
-test("une organisation cliente sans routeur conserve ses compteurs et ses deux actions", () => {
+test("une organisation cliente affiche chaque compteur d’état et ses deux actions", () => {
   const clientId = "d303c049-2675-4d53-a972-c4be95e9d61e";
   const markup = renderToStaticMarkup(
     <ClientPortfolioGrid
@@ -26,7 +26,7 @@ test("une organisation cliente sans routeur conserve ses compteurs et ses deux a
           id: clientId,
           name: "Réseaux du Marché",
           memberCount: 3,
-          routerCounts: { total: 0, online: 0, configuring: 0, offline: 0 },
+          routerCounts: { total: 7, online: 4, configuring: 2, offline: 1 },
         },
       ]}
     />,
@@ -34,10 +34,10 @@ test("une organisation cliente sans routeur conserve ses compteurs et ses deux a
 
   assert.match(markup, /Réseaux du Marché/);
   assert.match(markup, /3 membres/);
-  assert.match(markup, /0 routeur/);
-  assert.match(markup, /En ligne\s*:\s*0/);
-  assert.match(markup, /En configuration\s*:\s*0/);
-  assert.match(markup, /Hors ligne\s*:\s*0/);
+  assert.match(markup, /7 routeurs/);
+  assert.match(markup, /En ligne\s*:\s*4/);
+  assert.match(markup, /En configuration\s*:\s*2/);
+  assert.match(markup, /Hors ligne\s*:\s*1/);
   assert.match(markup, /Ouvrir l’organisation/);
   assert.match(markup, /Voir les routeurs/);
   assert.deepEqual(
@@ -47,6 +47,26 @@ test("une organisation cliente sans routeur conserve ses compteurs et ses deux a
       `/admin/router?scope=clients&amp;org=${clientId}`,
     ],
   );
+});
+
+test("une organisation cliente sans routeur conserve un total nul et ses actions", () => {
+  const clientId = "9b922f5e-eb10-4b63-8460-00d5799cb965";
+  const markup = renderToStaticMarkup(
+    <ClientPortfolioGrid
+      clients={[
+        {
+          id: clientId,
+          name: "Association zéro routeur",
+          memberCount: 1,
+          routerCounts: { total: 0, online: 0, configuring: 0, offline: 0 },
+        },
+      ]}
+    />,
+  );
+
+  assert.match(markup, /0 routeurs/);
+  assert.match(markup, new RegExp(`/admin/users\\?org=${clientId}`));
+  assert.match(markup, new RegExp(`/admin/router\\?scope=clients&amp;org=${clientId}`));
 });
 
 test("une liste cliente vide explique qu’aucune organisation cliente n’est disponible", () => {

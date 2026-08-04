@@ -37,9 +37,9 @@ export function ClientPortfolioGrid({ clients }: ClientPortfolioGridProps) {
               <span className="flex h-10 w-10 shrink-0 items-center justify-center border-2 border-line bg-brand text-[#1C1917]" aria-hidden="true">
                 <Router className="h-5 w-5" />
               </span>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Organisation cliente</p>
-                <h2 id={organizationTitleId} className="mt-1 text-lg font-bold text-ink">
+                <h2 id={organizationTitleId} className="mt-1 break-words text-lg font-bold text-ink">
                   {client.name}
                 </h2>
               </div>
@@ -69,9 +69,9 @@ export function ClientPortfolioGrid({ clients }: ClientPortfolioGridProps) {
             <section className="mt-4" aria-label={`État des routeurs de ${client.name}`}>
               <h3 className="text-xs font-bold uppercase tracking-wide text-ink-soft">État des routeurs</h3>
               <ul className="mt-2 grid grid-cols-3 gap-2 text-xs text-ink">
-                <li className="border border-ok bg-ok/10 px-2 py-2 text-ok">En ligne : {routerCounts.online}</li>
-                <li className="border border-warn bg-warn/10 px-2 py-2 text-warn">En configuration : {routerCounts.configuring}</li>
-                <li className="border border-err bg-err/10 px-2 py-2 text-err">Hors ligne : {routerCounts.offline}</li>
+                <li className="border border-ok bg-ok/10 px-2 py-2 text-ink">En ligne : {routerCounts.online}</li>
+                <li className="border border-warn bg-warn/10 px-2 py-2 text-ink">En configuration : {routerCounts.configuring}</li>
+                <li className="border border-err bg-err/10 px-2 py-2 text-ink">Hors ligne : {routerCounts.offline}</li>
               </ul>
             </section>
 
