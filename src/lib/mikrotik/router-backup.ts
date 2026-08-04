@@ -31,8 +31,12 @@ import {
  */
 export const BACKUP_VERSION = 1 as const;
 
-/** Retenues par routeur ; au-delà, les plus anciennes sont purgées. */
-export const BACKUP_RETENTION = 7;
+/**
+ * Retenues par routeur ; au-delà, les plus anciennes sont purgées automatiquement
+ * après chaque capture (pruneOldBackups). Fixé à 2 : on ne garde que la dernière
+ * bonne sauvegarde + la précédente comme filet de sécurité.
+ */
+export const BACKUP_RETENTION = 2;
 
 export type BackupSection = Record<string, string>[];
 
