@@ -56,22 +56,20 @@ export type FulfillResult =
 
 /**
  * Honore la commande `orderId`. Ne lève jamais : renvoie un résultat.
- * - Si déjà `fulfilled`, renvoie le code (et n'envoie le SMS que si demandé).
+ * - Si déjà `fulfilled`, renvoie le code et confirme l'envoi SMS si nécessaire.
  * - Échec routeur → la commande reste `paid` (rejouable par le webhook).
  * - Échec SMS → la commande est quand même `fulfilled` (l'accès est créé) et
  *   `smsSent:false` : le code reste récupérable sur le portail / au support.
  *
- * `opts.sendSms` (défaut false) : par défaut on CRÉE le code sans envoyer de
- * SMS — le client choisit sur /portal/paid (« Recevoir par SMS » / « Copier »),
- * ce qui économise les crédits SMS. L'envoi automatique est assuré comme FILET
- * par le cron de réconciliation si le navigateur ne revient jamais afficher le
- * code (paiement mobile money hors-navigateur).
+ * `opts.sendSms` est activé par défaut : la livraison du code ne dépend pas du
+ * retour du navigateur ni du timer de réconciliation. Le cron reste un filet
+ * de reprise si le fournisseur SMS est temporairement indisponible.
  */
 export async function fulfillPortalOrder(
   orderId: string,
   opts?: { sendSms?: boolean },
 ): Promise<FulfillResult> {
-  const sendSms = opts?.sendSms ?? false;
+  const sendSms = opts?.sendSms ?? true;
   const db = getDb();
 
   const [order] = await db
@@ -285,10 +283,9 @@ export async function fulfillPortalOrder(
     );
   }
 
-  // Le ticket est créé. On n'envoie le SMS QUE si demandé (le client décide sur
-  // /portal/paid) — sinon smsStatus reste `pending`, et le filet du cron
-  // enverra le code si le navigateur ne l'affiche jamais. Un échec SMS ne fait
-  // jamais échouer le paiement (l'accès existe déjà).
+  // Le ticket est créé. Le SMS est envoyé immédiatement par défaut. Un échec
+  // d'envoi ne fait jamais échouer le paiement (l'accès existe déjà) et le cron
+  // le reprendra.
   // Auto-login réseau EN ARRIÈRE-PLAN (best-effort) : le code est déjà prêt —
   // on n'attend PAS l'ouverture de session hotspot pour l'afficher (c'était le
   // ~5 s de latence de trop). Le conteneur étant persistant, cette promesse
@@ -463,9 +460,9 @@ async function activatePortalHotspotSession(
 }
 
 /**
- * Envoie le code par SMS À LA DEMANDE (bouton « Recevoir par SMS » de
- * /portal/paid). Renvoie l'état d'envoi. Idempotent : si déjà envoyé, ne
- * redéclenche pas (trySendPortalSms ignore un `smsStatus="sent"`).
+ * Réessaie l'envoi du code par SMS (bouton « Recevoir par SMS » de
+ * /portal/paid). Idempotent : si déjà envoyé, ne redéclenche pas
+ * (trySendPortalSms ignore un `smsStatus="sent"`).
  */
 export async function sendPortalTicketSms(
   orderId: string,
@@ -482,10 +479,9 @@ export async function sendPortalTicketSms(
 }
 
 /**
- * Marque la commande « code vu au navigateur » (smsStatus `held`) : le client
- * est présent sur /portal/paid, le filet SMS automatique ne doit donc PAS
- * partir (il choisira via le bouton). Ne touche que les commandes encore
- * `pending` (jamais un SMS déjà envoyé/échoué/tenu).
+ * Compatibilité avec les anciennes commandes : suspend un SMS de secours avant
+ * la mise en place de l'envoi automatique. Les nouveaux parcours ne l'appellent
+ * plus. Ne touche que les commandes encore `pending`.
  */
 export async function holdPortalTicketSms(orderId: string): Promise<void> {
   const db = getDb();

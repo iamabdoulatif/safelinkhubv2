@@ -20,9 +20,8 @@ const ORDER_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
 // abandonnées saturent le plafond, ordre le plus ancien d'abord, et les
 // commandes RÉCEMMENT payées ne sont jamais atteintes — bug vécu le 23/07).
 const PENDING_EXPIRY_MS = 3 * 60 * 60 * 1000;
-// Délai avant l'envoi SMS de secours : laisse au navigateur le temps de
-// revenir afficher le code (paiement Wave direct) avant de conclure qu'il est
-// parti (paiement mobile money hors-navigateur) et d'envoyer le code par SMS.
+// Délai avant la reprise SMS : laisse au fournisseur le temps de finaliser une
+// tentative en cours, puis retente les envois restés `pending` ou `failed`.
 const SMS_SAFETY_MS = 2 * 60 * 1000;
 
 export type PortalReconcileResult = {
@@ -123,14 +122,10 @@ export async function reconcilePortalOrders(): Promise<PortalReconcileResult> {
     }
   }
 
-  // FILET SMS. Le code n'est plus envoyé automatiquement à l'honneur : le
-  // client choisit « Recevoir par SMS » / « Copier » sur /portal/paid (économie
-  // de crédits). Mais si le navigateur ne revient JAMAIS afficher le code
-  // (paiement mobile money terminé sur le téléphone), il faut quand même livrer.
-  //   • smsStatus `held`  = navigateur a affiché le code → NE PAS auto-envoyer.
-  //   • smsStatus `pending` (jamais affiché) et honoré depuis > SMS_SAFETY_MS
-  //     → on envoie (le client est parti sans voir son code).
-  //   • smsStatus `failed` = un envoi (à la demande ou filet) a échoué → réessai.
+  // FILET SMS. L'honneur envoie le code immédiatement. Cette reprise couvre les
+  // commandes dont le fournisseur SMS était temporairement indisponible.
+  //   • smsStatus `pending` depuis > SMS_SAFETY_MS → tentative inachevée/rejouée.
+  //   • smsStatus `failed` → un envoi a échoué → nouvel essai.
   const smsCandidates = await db
     .select({ id: portalOrders.id })
     .from(portalOrders)

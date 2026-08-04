@@ -25,10 +25,26 @@ type Row = {
   revenue_cents: number;
 };
 
+type PendingPaymentRow = {
+  id: string;
+  phone: string;
+  profile_name: string | null;
+  price_cents: number | null;
+  status: string;
+  payment_reference: string;
+  failure_reason: string | null;
+  created_at: string;
+};
+
 function fmtDay(d: string) {
   const date = new Date(d);
   return date.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" });
 }
+
+function fmtDate(d: string) {
+  return new Date(d).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+
 // priceCents stocke le montant EN FCFA directement (voir pay/route.ts :
 // amountFcfa = order.priceCents), pas des centimes — donc pas de division.
 function fcfa(amount: number) {
@@ -69,6 +85,23 @@ export default async function ConversionPage() {
       group by 1 order by 1 desc
     `)
   ).rows as unknown as Row[];
+
+  // Les ventes ne montrent que les paiements confirmés. Cette liste distincte
+  // rend visibles les références GeniusPay encore à vérifier sans les compter
+  // à tort comme revenu.
+  const pendingPayments = (
+    await db.execute(sql`
+      select id, phone, profile_name, price_cents, status, payment_reference,
+        failure_reason, created_at
+      from portal_orders
+      where ${orgFilter}
+        and status <> 'fulfilled'
+        and payment_reference is not null
+        and created_at > now() - interval '14 days'
+      order by created_at desc
+      limit 25
+    `)
+  ).rows as unknown as PendingPaymentRow[];
 
   const sum = daily.reduce(
     (a, r) => ({
@@ -170,6 +203,51 @@ export default async function ConversionPage() {
         « Checkout atteint » = le client est arrivé jusqu&apos;au paiement (référence créée) mais n&apos;a
         pas finalisé. « Abandonné avant » = commande créée sans jamais choisir de moyen de paiement.
       </p>
+
+      {pendingPayments.length > 0 && (
+        <section className="mt-8">
+          <h2 className="font-display text-xl font-bold text-ink">Commandes à vérifier</h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            Références GeniusPay non encore confirmées — elles ne sont pas comptées dans le revenu.
+          </p>
+          <div className="mt-3 overflow-x-auto border-2 border-warn bg-paper">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b-2 border-warn bg-amber-50">
+                <tr className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
+                  <th className="px-4 py-3">Client</th>
+                  <th className="px-4 py-3">Forfait</th>
+                  <th className="px-4 py-3">Montant</th>
+                  <th className="px-4 py-3">Référence</th>
+                  <th className="px-4 py-3">Statut</th>
+                  <th className="px-4 py-3">Diagnostic</th>
+                  <th className="px-4 py-3">Créée</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingPayments.map((payment) => (
+                  <tr key={payment.id} className="border-b border-line-soft last:border-0">
+                    <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">{payment.phone}</td>
+                    <td className="px-4 py-3 text-ink-soft">{payment.profile_name ?? "Forfait"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-ink">{fcfa(payment.price_cents ?? 0)}</td>
+                    <td className="max-w-44 truncate px-4 py-3 font-mono text-xs text-ink-soft" title={payment.payment_reference}>
+                      {payment.payment_reference}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                        {payment.status}
+                      </span>
+                    </td>
+                    <td className="max-w-64 px-4 py-3 text-xs text-ink-soft">
+                      {payment.failure_reason ?? "En attente de confirmation GeniusPay."}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-ink-soft">{fmtDate(payment.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

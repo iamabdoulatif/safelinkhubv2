@@ -1,7 +1,6 @@
 // Endpoint PUBLIC appelé par /portal/paid quand le client appuie sur « Recevoir
-// par SMS » : envoie le code de la commande honorée à son numéro. À la demande
-// (le code n'est plus envoyé automatiquement à l'honneur — économie de crédits ;
-// le cron sert de filet si le navigateur ne revient jamais). Aucune session.
+// par SMS » : réessaie l'envoi du code de la commande honorée à son numéro si
+// la livraison automatique a échoué. Aucune session.
 
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";

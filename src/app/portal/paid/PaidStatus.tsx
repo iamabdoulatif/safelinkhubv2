@@ -58,8 +58,8 @@ export default function PaidStatus({
   const [slowWait, setSlowWait] = useState(false);
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
-  // true ⇒ le SMS a déjà été envoyé (à la demande ou filet). Sinon on propose
-  // le bouton « Recevoir par SMS » (le code n'est plus envoyé d'office).
+  // true ⇒ le fournisseur SMS a accepté l'envoi automatique. Sinon, le bouton
+  // permet au client de demander un nouvel essai.
   const [smsSent, setSmsSent] = useState(false);
   const [copied, setCopied] = useState(false);
   // État du bouton « Recevoir par SMS » : idle | sending | sent | error.
@@ -134,8 +134,8 @@ export default function PaidStatus({
     };
   }, [canPoll, orderId, slug]);
 
-  // « Recevoir par SMS » : envoie le code au numéro de la commande, à la demande
-  // (le code n'est plus envoyé d'office → on économise les crédits SMS).
+  // « Recevoir par SMS » : réessaie l'envoi au numéro de la commande si le
+  // client n'a pas reçu le message automatique.
   async function requestSms() {
     if (!orderId || smsState === "sending" || smsState === "sent") return;
     setSmsState("sending");
@@ -315,8 +315,8 @@ export default function PaidStatus({
               {copied ? "Code copié !" : "Touchez le code pour le copier"}
             </p>
 
-            {/* Choix du client : recevoir le code par SMS OU le copier. Le SMS
-                n'est envoyé qu'à la demande (économie de crédits). */}
+            {/* Le SMS est envoyé automatiquement ; ce bouton reste disponible
+                pour renvoyer le code si le client ne l'a pas reçu. */}
             <div style={{ display: "flex", gap: 8, margin: "0 0 12px" }}>
               <button
                 type="button"
