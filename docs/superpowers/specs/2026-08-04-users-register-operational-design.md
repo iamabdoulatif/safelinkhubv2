@@ -40,8 +40,9 @@ seule bande bordée, composée de quatre informations :
 1. **À traiter maintenant** : comptes dont le quota expire dans les 30 jours ;
    c’est le signal dominant, couleur d’alerte uniquement lorsque le compteur
    est non nul.
-2. **Expirent bientôt** : le même total, accompagné d’un libellé temporel qui
-   rend le signal explicite.
+2. **Quota gratuit** : total des comptes bénéficiant encore d’un quota gratuit
+   ou illimité ; ce repère rend visible l’équilibre des accès sans dupliquer
+   l’alerte d’expiration.
 3. **VPN payant** : total des comptes en quota payant.
 4. **Organisations actives** : total des organisations visibles.
 
