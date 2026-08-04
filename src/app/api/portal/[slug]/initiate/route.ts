@@ -8,7 +8,6 @@
 // Le portail poll ensuite /api/portal/<slug>/status?orderId=… jusqu'à ce que le
 // paiement soit confirmé et l'accès créé (voir status/route.ts + fulfill.ts).
 
-import { after } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, routers, portalOrders, portalOtps } from "@/lib/db/schema";
@@ -80,10 +79,11 @@ export async function POST(
     return corsJson({ error: "Paiement en ligne non configuré." }, { status: 400 });
   }
 
-  // Auto-répare le webhook des orgs configurées avant cette fonctionnalité, sans
-  // les faire re-sauver leurs clés. Après la réponse (best-effort, non bloquant),
-  // et court-circuité en mémoire une fois confirmé → pas d'appel à chaque achat.
-  after(() => ensureOrgWebhook(creds, org.id));
+  // Crée (une seule fois) le webhook SIGNÉ avant d'ouvrir le paiement. Il ne
+  // faut pas le décaler après la réponse : un paiement Wave très rapide pouvait
+  // réussir avant l'inscription du webhook et retomber sur le polling lent.
+  // La fonction reste best-effort et le polling demeure le filet de secours.
+  await ensureOrgWebhook(creds, org.id);
 
   const [pkg] = await db
     .select()

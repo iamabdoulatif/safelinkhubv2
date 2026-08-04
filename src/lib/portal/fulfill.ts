@@ -628,6 +628,47 @@ export async function confirmAndFulfillPortalByReference(
   return { found: true, fulfilled: result.ok };
 }
 
+/**
+ * Accepte un événement GeniusPay DÉJÀ authentifié par le secret HMAC de
+ * l'organisation. Contrairement au repli historique, il ne relit pas
+ * `/payments/:reference` : GeniusPay peut livrer `payment.success` quelques
+ * secondes avant que cet endpoint reflète `completed`, ce qui laissait le
+ * portail captif en attente malgré un paiement réel.
+ */
+export async function confirmSignedPortalPaymentByReference(params: {
+  orgId: string;
+  reference: string;
+  succeeded: boolean;
+}): Promise<{ found: boolean; orderId?: string }> {
+  const { orgId, reference, succeeded } = params;
+  const db = getDb();
+  const [order] = await db
+    .select({ id: portalOrders.id, status: portalOrders.status })
+    .from(portalOrders)
+    .where(and(eq(portalOrders.orgId, orgId), eq(portalOrders.paymentReference, reference)))
+    .limit(1);
+  if (!order) return { found: false };
+
+  if (succeeded) {
+    await db
+      .update(portalOrders)
+      .set({ status: "paid", failureReason: null })
+      .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "pending")));
+  } else {
+    await db
+      .update(portalOrders)
+      .set({ status: "failed", failureReason: "Paiement échoué ou annulé." })
+      .where(
+        and(
+          eq(portalOrders.id, order.id),
+          or(eq(portalOrders.status, "pending"), eq(portalOrders.status, "payment_initiating")),
+        ),
+      );
+  }
+
+  return { found: true, orderId: order.id };
+}
+
 export type RecoverCodeResult =
   | { found: false }
   | {

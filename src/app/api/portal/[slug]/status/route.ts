@@ -2,19 +2,32 @@
 // Vérifie le paiement server-to-server (API GeniusPay, clés de l'org), et à la
 // confirmation honore la commande (user hotspot lié au MAC + SMS) puis renvoie
 // le code pour que login.html auto-soumette le formulaire de login du routeur.
-// Aucun webhook : le portail sonde ce statut (le client final est présent, et
-// les clés par-org n'ont pas de secret de webhook).
+// Un webhook GeniusPay signé confirme désormais le paiement dès sa réception.
+// Ce polling reste un filet de secours pour les anciens comptes et il renvoie
+// le code dès que le ticket est réellement créé sur le routeur.
 
+import { after } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, portalOrders } from "@/lib/db/schema";
-import { fulfillPortalOrder } from "@/lib/portal/fulfill";
+import { fulfillPortalOrder, sendPortalTicketSms } from "@/lib/portal/fulfill";
 import { buildRouterLoginUrl } from "@/lib/portal/router-login-url";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
 
 export function OPTIONS() {
   return corsPreflight();
+}
+
+// Le code est prêt dès que le user hotspot et le voucher sont persistés. Le SMS
+// est une livraison secondaire : `after` le continue sans retenir la réponse
+// HTTP qui affiche le code au client. Next.js le garantit pour le serveur Node
+// auto-hébergé et l'image Docker de production.
+function queuePortalTicketSms(orderId: string): void {
+  after(async () => {
+    const sms = await sendPortalTicketSms(orderId);
+    if (!sms.ok) console.warn("[portal:sms] envoi différé impossible", { orderId, error: sms.error });
+  });
 }
 
 export async function GET(
@@ -41,7 +54,8 @@ export async function GET(
   if (!order) return corsJson({ error: "Commande introuvable." }, { status: 404 });
 
   if (order.status === "fulfilled") {
-    const fulfilled = await fulfillPortalOrder(order.id); // idempotent → renvoie le code
+    const fulfilled = await fulfillPortalOrder(order.id, { sendSms: false }); // idempotent → renvoie le code
+    if (fulfilled.ok) queuePortalTicketSms(order.id);
     return corsJson({
       status: "fulfilled",
       code: fulfilled.ok ? fulfilled.code : "",
@@ -106,8 +120,9 @@ export async function GET(
   }
 
   // paid | fulfilling (ou tout juste basculé) : tenter l'honneur (mono-flight).
-  const result = await fulfillPortalOrder(order.id);
+  const result = await fulfillPortalOrder(order.id, { sendSms: false });
   if (result.ok) {
+    queuePortalTicketSms(order.id);
     return corsJson({
       status: "fulfilled",
       code: result.code,

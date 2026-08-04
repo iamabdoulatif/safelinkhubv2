@@ -302,6 +302,12 @@ export const paymentGateways = pgTable("payment_gateways", {
   // Genius Pay has no standalone "merchant id". Both go out as request headers.
   merchantId: text("merchant_id"),
   apiKeyEncrypted: text("api_key_encrypted"),
+  // Secret HMAC du webhook GeniusPay propre à l'organisation. Il est retourné
+  // une seule fois par GeniusPay à la création du webhook : on le chiffre donc
+  // immédiatement pour pouvoir authentifier payment.success sans re-poller
+  // l'API de paiement (dont le statut peut avoir quelques secondes de retard).
+  webhookId: text("webhook_id"),
+  webhookSecretEncrypted: text("webhook_secret_encrypted"),
   enabled: boolean("enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

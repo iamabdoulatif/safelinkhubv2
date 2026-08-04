@@ -7,11 +7,18 @@
 // À enregistrer côté GeniusPay : POST https://<domaine>/api/payments/geniuspay/webhook
 // avec l'événement payment.success (au minimum).
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { verifyGeniusWebhookSignature } from "@/lib/payment-gateways/geniuspay";
+import { verifyOrgGeniusWebhookSignature } from "@/lib/payment-gateways/geniuspay-org";
 import { approveRemoteAccessPaymentByReference } from "@/lib/billing/remote-access-authorization-service";
 import { approveAutoSetupPaymentByReference } from "@/lib/billing/auto-setup-authorization-service";
-import { confirmAndFulfillPortalByReference } from "@/lib/portal/fulfill";
+import {
+  confirmAndFulfillPortalByReference,
+  confirmSignedPortalPaymentByReference,
+  fulfillPortalOrder,
+  sendPortalTicketSms,
+} from "@/lib/portal/fulfill";
 import { completeWalletTopupByReference } from "@/lib/wallet/actions";
 import { completeSafecoinTopupByReference } from "@/lib/safecoin/actions";
 
@@ -22,6 +29,7 @@ export async function POST(request: Request) {
   const signature = request.headers.get("x-webhook-signature");
   const timestamp = request.headers.get("x-webhook-timestamp");
   const event = request.headers.get("x-webhook-event");
+  const orgId = new URL(request.url).searchParams.get("org")?.trim() ?? "";
 
   let payload: Record<string, unknown> | null = null;
   try {
@@ -37,7 +45,49 @@ export async function POST(request: Request) {
   const reference = (data.reference as string) || (payload?.reference as string) || "";
   const status = (data.status as string) || "";
 
-  // 1) PORTAIL CAPTIF (paiements PAR-ORG). Pas de secret de signature partagé :
+  // 1) PORTAIL CAPTIF v2 : le webhook est signé avec le secret propre à
+  // l'organisation, créé et chiffré au premier achat. Le payload
+  // `payment.success` devient donc l'autorité immédiate : ne pas re-poller
+  // GeniusPay, dont GET /payments/:reference peut rester pending plusieurs
+  // secondes après cette notification.
+  if (orgId) {
+    const signed = await verifyOrgGeniusWebhookSignature({ orgId, rawBody, signature, timestamp });
+    if (!signed) {
+      console.warn("[geniuspay:webhook] signature org invalide", { orgId, hasSig: Boolean(signature) });
+      return Response.json({ error: "invalid signature" }, { status: 401 });
+    }
+    if (!reference) return Response.json({ error: "missing reference" }, { status: 400 });
+
+    const succeeded = eventType === "payment.success" || status === "completed" || status === "success";
+    const failed = ["payment.failed", "payment.cancelled", "payment.expired"].includes(eventType) ||
+      ["failed", "cancelled", "expired", "refunded"].includes(status);
+    if (!succeeded && !failed) return Response.json({ received: true, handled: false, kind: "portal" });
+
+    try {
+      const portal = await confirmSignedPortalPaymentByReference({ orgId, reference, succeeded });
+      if (!portal.found || !portal.orderId) {
+        return Response.json({ received: true, handled: false, kind: "portal" });
+      }
+      if (succeeded) {
+        const orderId = portal.orderId;
+        after(async () => {
+          const fulfilled = await fulfillPortalOrder(orderId, { sendSms: false });
+          if (fulfilled.ok) {
+            await sendPortalTicketSms(orderId);
+            revalidatePath("/admin/vouchers");
+          }
+        });
+      }
+      console.info("[geniuspay:webhook] commande portail signée", { reference, orgId, succeeded });
+      return Response.json({ received: true, handled: true, kind: "portal" });
+    } catch (e) {
+      console.error("[geniuspay:webhook] échec traitement portail signé", { reference, orgId, error: String(e) });
+      return Response.json({ error: "processing failed" }, { status: 500 });
+    }
+  }
+
+  // 2) PORTAIL CAPTIF historique (sans query org signé). Pendant la migration,
+  // on garde ce repli prudent qui re-vérifie l'API avant d'honorer.
   // on retrouve la commande par sa référence et on RE-VÉRIFIE le paiement via les
   // clés de l'org (autorité) avant d'honorer — un faux webhook ne débloque rien.
   // Traité AVANT la vérif de signature plateforme. Si la référence n'est pas une
@@ -60,7 +110,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // 2) PLATEFORME (accès distant / auto-setup) : exige une signature HMAC valide
+  // 3) PLATEFORME (accès distant / auto-setup) : exige une signature HMAC valide
   // (GENIUSPAY_WEBHOOK_SECRET).
   if (!verifyGeniusWebhookSignature({ rawBody, signature, timestamp })) {
     console.warn("[geniuspay:webhook] signature invalide", { event, hasSig: Boolean(signature) });

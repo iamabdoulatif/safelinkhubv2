@@ -9,10 +9,11 @@
 // X-API-Secret, POST /payments → checkout_url, GET /payments/{reference} →
 // { status }, GET /pawapay/providers?country=XX → opérateurs mobile money.
 
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { paymentGateways } from "@/lib/db/schema";
-import { decryptSecret } from "@/lib/mikrotik/crypto";
+import { decryptSecret, encryptSecret } from "@/lib/mikrotik/crypto";
 import { formatGeniusPayCustomer, type GeniusPayCustomer } from "./phone";
 
 // Plateforme GeniusPay v3 (geniuspay.ci). L'ancien host pay.genius.ci routait
@@ -51,6 +52,50 @@ export async function getOrgGeniusCreds(orgId: string): Promise<OrgGeniusCreds |
   } catch {
     return null;
   }
+}
+
+/** Vérifie le HMAC du webhook propre à une organisation (fenêtre anti-rejeu : 5 min). */
+export async function verifyOrgGeniusWebhookSignature(params: {
+  orgId: string;
+  rawBody: string;
+  signature: string | null;
+  timestamp: string | null;
+}): Promise<boolean> {
+  const { orgId, rawBody, signature, timestamp } = params;
+  if (!signature || !timestamp) return false;
+
+  const timestampSeconds = Number(timestamp);
+  if (!Number.isFinite(timestampSeconds) || Math.abs(Date.now() / 1000 - timestampSeconds) > 5 * 60) {
+    return false;
+  }
+
+  const db = getDb();
+  const [gateway] = await db
+    .select({ webhookSecretEncrypted: paymentGateways.webhookSecretEncrypted })
+    .from(paymentGateways)
+    .where(
+      and(
+        eq(paymentGateways.orgId, orgId),
+        eq(paymentGateways.provider, "genius_pay"),
+        eq(paymentGateways.enabled, true),
+      ),
+    )
+    .limit(1);
+  if (!gateway?.webhookSecretEncrypted) return false;
+
+  let webhookSecret: string;
+  try {
+    webhookSecret = decryptSecret(gateway.webhookSecretEncrypted);
+  } catch {
+    return false;
+  }
+
+  const expected = createHmac("sha256", webhookSecret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest("hex");
+  const received = Buffer.from(signature);
+  const computed = Buffer.from(expected);
+  return received.length === computed.length && timingSafeEqual(received, computed);
 }
 
 function headers(creds: OrgGeniusCreds): Record<string, string> {
@@ -240,16 +285,15 @@ export async function createOrgPayment(
 // pay.genius.ci). Comme le portail captif encaisse sur le compte GeniusPay de
 // CHAQUE org, on enregistre nous-mêmes le webhook dans le compte de l'org pour
 // que la notification arrive « sur tous les portails par défaut », sans config
-// manuelle. Le endpoint /api/payments/geniuspay/webhook ré-vérifie chaque
-// notification via les clés de l'org : on n'a donc PAS besoin du secret
-// whsec_… renvoyé à la création (aucun secret partagé pour le flux portail).
+// manuelle. Le secret `whsec_…` retourné à la création est chiffré en base :
+// un `payment.success` signé devient alors l'autorité immédiate du portail.
 
 const WEBHOOK_NAME = "safelinkhub-webhook";
 
-/** URL publique de notre endpoint webhook (identique pour toutes les orgs). */
-function webhookUrl(): string {
+/** URL distincte par organisation pour ne pas modifier les anciens webhooks. */
+function webhookUrl(orgId: string): string {
   const base = (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
-  return `${base}/api/payments/geniuspay/webhook`;
+  return `${base}/api/payments/geniuspay/webhook?org=${encodeURIComponent(orgId)}&v=2`;
 }
 
 // Orgs dont le webhook a déjà été confirmé pendant la vie de ce process : évite
@@ -263,52 +307,63 @@ export function forgetOrgWebhook(orgId: string): void {
 
 /**
  * Garantit que le compte GeniusPay de l'org possède un webhook pointant vers
- * notre endpoint (événements payment.success / payment.failed). Idempotent
- * (vérifie l'existant avant de créer) et best-effort : ne lève jamais et
- * n'échoue jamais un paiement — le portail retombe de toute façon sur le
- * polling si le webhook n'est pas enregistré.
+ * notre endpoint signé (événements payment.success / payment.failed). Les
+ * anciens webhooks sans secret restent en place comme repli, mais l'URL v2
+ * évite toute collision et laisse chaque org migrer automatiquement.
  */
 export async function ensureOrgWebhook(
   creds: OrgGeniusCreds,
   orgId: string,
-  opts?: { force?: boolean },
 ): Promise<void> {
-  if (!opts?.force && ensuredOrgs.has(orgId)) return;
-  const url = webhookUrl();
-  try {
-    // Déjà présent ? (idempotence — pas de doublon à chaque re-save.)
-    const listRes = await fetch(`${baseUrl()}/webhooks`, {
-      method: "GET",
-      headers: headers(creds),
-      cache: "no-store",
-    });
-    if (listRes.ok) {
-      const listJson = (await listRes.json().catch(() => null)) as unknown;
-      const raw = listJson as Record<string, unknown> | null;
-      const items: unknown[] = Array.isArray(listJson)
-        ? listJson
-        : Array.isArray(raw?.data)
-          ? (raw!.data as unknown[])
-          : Array.isArray(raw?.webhooks)
-            ? (raw!.webhooks as unknown[])
-            : [];
-      if (items.some((w) => (w as Record<string, unknown>)?.url === url)) {
-        ensuredOrgs.add(orgId);
-        return;
-      }
-    }
+  if (ensuredOrgs.has(orgId)) return;
 
+  const db = getDb();
+  const [gateway] = await db
+    .select({ id: paymentGateways.id, webhookSecretEncrypted: paymentGateways.webhookSecretEncrypted })
+    .from(paymentGateways)
+    .where(
+      and(
+        eq(paymentGateways.orgId, orgId),
+        eq(paymentGateways.provider, "genius_pay"),
+        eq(paymentGateways.enabled, true),
+      ),
+    )
+    .limit(1);
+  if (!gateway) return;
+  if (gateway.webhookSecretEncrypted) {
+    ensuredOrgs.add(orgId);
+    return;
+  }
+
+  const url = webhookUrl(orgId);
+  try {
     const createRes = await fetch(`${baseUrl()}/webhooks`, {
       method: "POST",
       headers: headers(creds),
       body: JSON.stringify({
-        name: WEBHOOK_NAME,
+        name: `${WEBHOOK_NAME}-v2`,
         url,
         events: ["payment.success", "payment.failed"],
       }),
       cache: "no-store",
     });
     if (createRes.ok) {
+      const json = (await createRes.json().catch(() => null)) as Record<string, unknown> | null;
+      const data = (json?.data as Record<string, unknown> | undefined) ?? json ?? {};
+      const secret = data.secret ?? data.webhook_secret;
+      const id = data.id;
+      if (typeof secret !== "string" || !secret) {
+        console.warn("[geniuspay:webhook] secret absent à la création", { orgId });
+        return;
+      }
+      await db
+        .update(paymentGateways)
+        .set({
+          webhookId: id == null ? null : String(id),
+          webhookSecretEncrypted: encryptSecret(secret),
+          updatedAt: new Date(),
+        })
+        .where(eq(paymentGateways.id, gateway.id));
       ensuredOrgs.add(orgId);
       console.info("[geniuspay:webhook] enregistré sur le compte de l'org", { orgId });
     } else {

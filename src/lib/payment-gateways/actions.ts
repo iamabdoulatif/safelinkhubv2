@@ -54,11 +54,23 @@ export async function savePaymentGateway(_prevState: unknown, formData: FormData
     .limit(1);
 
   const apiKeyEncrypted = apiKey ? encryptSecret(apiKey) : existing?.apiKeyEncrypted ?? null;
+  // Un changement de compte/clés rend le secret du webhook précédent invalide.
+  // On l'efface pour qu'ensureOrgWebhook crée un endpoint signé sur le nouveau
+  // compte, sans jamais accepter une signature d'un ancien marchand.
+  const geniusCredentialsChanged =
+    provider === "genius_pay" &&
+    (Boolean(apiKey) || (merchantId.length > 0 && merchantId !== (existing?.merchantId ?? "")));
 
   if (existing) {
     await db
       .update(paymentGateways)
-      .set({ merchantId: merchantId || null, apiKeyEncrypted, enabled, updatedAt: new Date() })
+      .set({
+        merchantId: merchantId || null,
+        apiKeyEncrypted,
+        enabled,
+        ...(geniusCredentialsChanged ? { webhookId: null, webhookSecretEncrypted: null } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(paymentGateways.id, existing.id));
   } else {
     await db.insert(paymentGateways).values({
@@ -72,12 +84,13 @@ export async function savePaymentGateway(_prevState: unknown, formData: FormData
 
   // GeniusPay actif : enregistre le webhook sur le compte de l'org pour que le
   // portail captif soit notifié des paiements (best-effort — n'échoue pas la
-  // sauvegarde ; le portail retombe sur le polling si ça rate). `force` car les
-  // clés viennent peut-être de changer (nouveau compte GeniusPay).
+  // sauvegarde ; le portail retombe sur le polling si ça rate). Si les clés ont
+  // changé, le secret précédent vient d'être supprimé afin de créer un webhook
+  // signé propre au nouveau compte.
   if (provider === "genius_pay" && enabled) {
     forgetOrgWebhook(session.orgId);
     const creds = await getOrgGeniusCreds(session.orgId);
-    if (creds) await ensureOrgWebhook(creds, session.orgId, { force: true });
+    if (creds) await ensureOrgWebhook(creds, session.orgId);
   }
 
   revalidatePath("/admin/settings/payment-gateways");
