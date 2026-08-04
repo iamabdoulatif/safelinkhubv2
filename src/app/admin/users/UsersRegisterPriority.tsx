@@ -20,7 +20,7 @@ function PriorityCell({ label, value, hint, icon: Icon, urgent = false, highligh
   const emphasisClass = urgent ? "text-err" : "text-ink";
 
   return (
-    <div className={`min-w-0 p-4 ${highlighted ? "bg-brand/15" : "bg-paper"} border-b border-line last:border-b-0 xl:border-b-0 xl:border-r xl:last:border-r-0`}>
+    <div className={`min-w-0 border-b-2 border-line p-4 last:border-b-0 sm:border-b-0 sm:[&:nth-child(-n+2)]:border-b-2 sm:[&:nth-child(odd)]:border-r-2 xl:[&:nth-child(-n+2)]:border-b-0 xl:[&:nth-child(odd)]:border-r-0 xl:[&:nth-child(-n+3)]:border-r-2 ${highlighted ? "bg-brand/15" : "bg-paper"}`}>
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft">
         <Icon className={`h-4 w-4 shrink-0 ${emphasisClass}`} aria-hidden="true" />
         <span className="truncate">{label}</span>
