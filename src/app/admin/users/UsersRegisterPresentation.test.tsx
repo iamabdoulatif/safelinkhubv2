@@ -74,11 +74,37 @@ describe("users register presentation", () => {
     assert.ok(priorityPosition < personPosition);
     assert.ok(personPosition < temporaryAccessPosition);
 
-    const monogramSpans = markup.match(
-      /<span(?=[^>]*class="[^"]*\bh-10\b[^"]*\bw-10\b[^"]*\bborder\b[^"]*")[^>]*>AT<\/span>/g,
-    ) ?? [];
-    assert.equal(monogramSpans.length, 2);
-    monogramSpans.forEach((span) => assert.match(span, / aria-hidden="true"/));
+    const classOrderVariantMarkup = markup.replaceAll(
+      "flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink",
+      "w-10 flex shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink h-10",
+    );
+    const mobileDirectoryPosition = classOrderVariantMarkup.indexOf('class="space-y-4 md:hidden"');
+    const desktopDirectoryPosition = classOrderVariantMarkup.indexOf(
+      'class="hidden overflow-hidden border border-line-soft bg-paper md:block"',
+      mobileDirectoryPosition,
+    );
+    const temporaryAccessInVariantPosition = classOrderVariantMarkup.indexOf(
+      ">Passes d’accès temporaire<",
+      desktopDirectoryPosition,
+    );
+
+    assert.notEqual(mobileDirectoryPosition, -1);
+    assert.notEqual(desktopDirectoryPosition, -1);
+    assert.notEqual(temporaryAccessInVariantPosition, -1);
+    assert.ok(mobileDirectoryPosition < desktopDirectoryPosition);
+    assert.ok(desktopDirectoryPosition < temporaryAccessInVariantPosition);
+
+    const responsiveIdentityRegions = [
+      classOrderVariantMarkup.slice(mobileDirectoryPosition, desktopDirectoryPosition),
+      classOrderVariantMarkup.slice(desktopDirectoryPosition, temporaryAccessInVariantPosition),
+    ];
+    const atMonogramOpeningTag = /<span(?=[^>]*(?:class="|\s)h-10(?:\s|"))(?=[^>]*(?:class="|\s)w-10(?:\s|"))(?=[^>]*(?:class="|\s)border(?:\s|"))[^>]*>(?=AT<\/span>)/g;
+
+    responsiveIdentityRegions.forEach((region) => {
+      const monogramOpeningTags = region.match(atMonogramOpeningTag) ?? [];
+      assert.equal(monogramOpeningTags.length, 1);
+      monogramOpeningTags.forEach((tag) => assert.match(tag, /\saria-hidden="true"(?:\s|>)/));
+    });
   });
 
   it("renders the global register priorities in order", () => {
