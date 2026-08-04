@@ -98,6 +98,37 @@ export default function MarketingForm({ settings }: { settings: MarketingSetting
         </div>
       </section>
 
+      <section className="border-2 border-line bg-paper p-4 sm:p-6">
+        <h2 className="text-sm font-semibold text-ink">Communauté</h2>
+        <p className="mt-1 text-xs text-ink-soft">
+          Liens affichés aux organisations sur la page Support pour rejoindre la
+          communauté SafeLinkHub. Laissez vide pour masquer un bouton.
+        </p>
+        <div className="mt-4 space-y-4">
+          <Field
+            name="communityYoutubeUrl"
+            label="Chaîne YouTube"
+            placeholder="https://youtube.com/@SafeLinkHub"
+            optional
+            defaultValue={settings.communityYoutubeUrl}
+          />
+          <Field
+            name="communityTelegramUrl"
+            label="Groupe Telegram"
+            placeholder="https://t.me/safelinkhub"
+            optional
+            defaultValue={settings.communityTelegramUrl}
+          />
+          <Field
+            name="communityWhatsappUrl"
+            label="Groupe WhatsApp"
+            placeholder="https://chat.whatsapp.com/XXXXXXXXXXXXXXX"
+            optional
+            defaultValue={settings.communityWhatsappUrl}
+          />
+        </div>
+      </section>
+
       {error && (
         <p className="border-2 border-err bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
       )}

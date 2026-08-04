@@ -28,6 +28,23 @@ function validateMarketingId(
   return { value };
 }
 
+/** URL de lien communautaire : vide → null, sinon doit être une URL http(s). */
+function validateUrl(
+  value: string | null,
+  label: string,
+): { value: string | null } | { error: string } {
+  if (!value) return { value: null };
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return { error: `${label} doit commencer par http:// ou https://.` };
+    }
+  } catch {
+    return { error: `${label} n'est pas une URL valide.` };
+  }
+  return { value };
+}
+
 export async function updateMarketingSettings(formData: FormData): Promise<Result> {
   const session = await getSession();
   if (!isSuperAdmin(session?.role)) return { error: "Réservé au superadmin." };
@@ -61,6 +78,13 @@ export async function updateMarketingSettings(formData: FormData): Promise<Resul
   );
   if ("error" in adsenseSlotId) return adsenseSlotId;
 
+  const communityYoutubeUrl = validateUrl(clean(formData.get("communityYoutubeUrl")), "Lien YouTube");
+  if ("error" in communityYoutubeUrl) return communityYoutubeUrl;
+  const communityTelegramUrl = validateUrl(clean(formData.get("communityTelegramUrl")), "Lien Telegram");
+  if ("error" in communityTelegramUrl) return communityTelegramUrl;
+  const communityWhatsappUrl = validateUrl(clean(formData.get("communityWhatsappUrl")), "Lien WhatsApp");
+  if ("error" in communityWhatsappUrl) return communityWhatsappUrl;
+
   const values = {
     metaPixelId: metaPixelId.value,
     ga4MeasurementId: ga4MeasurementId.value,
@@ -69,6 +93,9 @@ export async function updateMarketingSettings(formData: FormData): Promise<Resul
     adsenseClientId: adsenseClientId.value,
     adsenseSlotId: adsenseSlotId.value,
     adsenseEnabled: formData.get("adsenseEnabled") === "on",
+    communityYoutubeUrl: communityYoutubeUrl.value,
+    communityTelegramUrl: communityTelegramUrl.value,
+    communityWhatsappUrl: communityWhatsappUrl.value,
     updatedAt: new Date(),
   };
 

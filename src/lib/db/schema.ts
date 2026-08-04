@@ -1050,6 +1050,12 @@ export const marketingSettings = pgTable("marketing_settings", {
   // Interrupteur d'affichage des pubs sur le blog (le script reste chargé si
   // le client est renseigné, mais aucune unité n'est rendue si désactivé).
   adsenseEnabled: boolean("adsense_enabled").notNull().default(false),
+  // Liens communautaires affichés sur la page Support (mêmes pour toutes les
+  // orgs, gérés par le superadmin) : chaîne YouTube, groupe Telegram, groupe
+  // WhatsApp. Optionnels — un lien vide n'affiche pas son bouton.
+  communityYoutubeUrl: text("community_youtube_url"),
+  communityTelegramUrl: text("community_telegram_url"),
+  communityWhatsappUrl: text("community_whatsapp_url"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

@@ -1,5 +1,6 @@
-import { LifeBuoy } from "lucide-react";
+import { LifeBuoy, PlayCircle, Send, MessageCircle } from "lucide-react";
 import { listSupportTickets } from "@/lib/support/actions";
+import { getMarketingSettings } from "@/lib/marketing/queries";
 import NewTicketForm from "./NewTicketForm";
 
 function formatDate(date: Date) {
@@ -7,7 +8,33 @@ function formatDate(date: Date) {
 }
 
 export default async function SupportPage() {
-  const tickets = await listSupportTickets();
+  const [tickets, marketing] = await Promise.all([
+    listSupportTickets(),
+    getMarketingSettings(),
+  ]);
+
+  // Liens communautaires gérés par le superadmin (marketing settings) — on
+  // n'affiche que ceux qui sont renseignés, et rien si aucun ne l'est.
+  const community = [
+    {
+      key: "youtube",
+      label: "Chaîne YouTube",
+      url: marketing.communityYoutubeUrl,
+      Icon: PlayCircle,
+    },
+    {
+      key: "telegram",
+      label: "Groupe Telegram",
+      url: marketing.communityTelegramUrl,
+      Icon: Send,
+    },
+    {
+      key: "whatsapp",
+      label: "Groupe WhatsApp",
+      url: marketing.communityWhatsappUrl,
+      Icon: MessageCircle,
+    },
+  ].filter((c) => c.url);
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in-up">
@@ -18,6 +45,29 @@ export default async function SupportPage() {
       <p className="mt-1 text-sm text-ink-soft">
         Envoyez une demande à l&apos;équipe SafeLinkHub et suivez son statut.
       </p>
+
+      {community.length > 0 && (
+        <div className="mt-6 border-2 border-line bg-paper p-4">
+          <h2 className="text-sm font-semibold text-ink">Rejoignez la communauté</h2>
+          <p className="mt-1 text-xs text-ink-soft">
+            Actualités, entraide et astuces avec les autres opérateurs SafeLinkHub.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {community.map(({ key, label, url, Icon }) => (
+              <a
+                key={key}
+                href={url as string}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6">
         <NewTicketForm />

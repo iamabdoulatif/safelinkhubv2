@@ -20,6 +20,9 @@ export type MarketingSettings = {
   adsenseClientId: string | null;
   adsenseSlotId: string | null;
   adsenseEnabled: boolean;
+  communityYoutubeUrl: string | null;
+  communityTelegramUrl: string | null;
+  communityWhatsappUrl: string | null;
 };
 
 const EMPTY: MarketingSettings = {
@@ -30,6 +33,9 @@ const EMPTY: MarketingSettings = {
   adsenseClientId: null,
   adsenseSlotId: null,
   adsenseEnabled: false,
+  communityYoutubeUrl: null,
+  communityTelegramUrl: null,
+  communityWhatsappUrl: null,
 };
 
 /** Lecture directe (non cachée) — utilisée par la page d'admin qui doit voir
@@ -47,6 +53,9 @@ export async function readMarketingSettings(): Promise<MarketingSettings> {
       adsenseClientId: marketingSettings.adsenseClientId,
       adsenseSlotId: marketingSettings.adsenseSlotId,
       adsenseEnabled: marketingSettings.adsenseEnabled,
+      communityYoutubeUrl: marketingSettings.communityYoutubeUrl,
+      communityTelegramUrl: marketingSettings.communityTelegramUrl,
+      communityWhatsappUrl: marketingSettings.communityWhatsappUrl,
     })
     .from(marketingSettings)
     .limit(1);
