@@ -14,7 +14,7 @@ import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
 import { syncRouterStats, connectToRouter, refreshStaleRouters } from "./router-sync";
 import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
 import { shardForIndex } from "./shards";
-import { optimizeWifiThroughput } from "./wifi-compat";
+import { optimizeWifiThroughput, fixWifiDfs } from "./wifi-compat";
 import { lockRouterInterfaces, unlockRouterInterfaces } from "./router-lock";
 import {
   optimizeRouterThroughput as optimizeThroughput,
@@ -169,6 +169,59 @@ export async function optimizeRouterWifi(routerId: string) {
   } catch (err) {
     return {
       error: err instanceof Error ? `Échec de l'optimisation : ${err.message}` : "Échec de l'optimisation.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * Correctif injectable « radio 5 GHz coincée en DFS » : pose un pays réglementaire
+ * (si manquant) et force un canal NON-DFS (skip-dfs) sur chaque radio 5 GHz, pour
+ * qu'elle sorte du « channel availability check » perpétuel et diffuse enfin.
+ * Voir fixWifiDfs (validé sur RB4011 / RouterOS 7.23).
+ */
+export async function fixRouterWifiDfs(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour corriger le WiFi.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await fixWifiDfs(client);
+    if (res.applied.length === 0) {
+      return res.failed.length > 0
+        ? { error: `Correctif refusé par le routeur : ${res.failed[0].error}` }
+        : { error: res.note ?? "Aucune radio 5 GHz à corriger." };
+    }
+    revalidatePath("/admin/router");
+    revalidatePath(`/admin/router/${routerId}`);
+    const failedNote = res.failed.length > 0 ? ` (${res.failed.length} échec(s))` : "";
+    return {
+      success: true,
+      summary: `Canal WiFi corrigé (non-DFS) sur : ${res.applied.join(", ")}${failedNote}. Comptez ~1 min de reprise.`,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec du correctif WiFi : ${err.message}` : "Échec du correctif WiFi.",
     };
   } finally {
     client.close();

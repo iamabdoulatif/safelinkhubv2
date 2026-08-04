@@ -14,6 +14,7 @@ import {
 import {
   runRouterAudit,
   optimizeRouterWifi,
+  fixRouterWifiDfs,
   optimizeRouterThroughput,
   setRouterBandwidthCap,
   repairMikhmonStorage,
@@ -34,6 +35,7 @@ const SEV: Record<
 
 const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   wifi: "Optimiser le WiFi",
+  "wifi-dfs": "Corriger le canal WiFi (DFS)",
   throughput: "Optimiser le débit",
   cap: "Plafonner à 450 Mbps",
   mikhmon: "Déplacer sur la flash",
@@ -75,6 +77,8 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
       const res =
         finding.fix === "wifi"
           ? await optimizeRouterWifi(routerId)
+          : finding.fix === "wifi-dfs"
+          ? await fixRouterWifiDfs(routerId)
           : finding.fix === "throughput"
             ? await optimizeRouterThroughput(routerId)
             : finding.fix === "mikhmon"

@@ -14,7 +14,7 @@ import { readWifiState } from "./wifi-compat";
 
 export type AuditSeverity = "error" | "warn" | "info" | "ok";
 /** Correctif automatisable rattaché à un constat (mappé côté UI vers une action). */
-export type AuditFixKind = "wifi" | "throughput" | "cap" | "mikhmon" | "mikhmon-session" | null;
+export type AuditFixKind = "wifi" | "wifi-dfs" | "throughput" | "cap" | "mikhmon" | "mikhmon-session" | null;
 
 export type AuditFinding = {
   id: string;
@@ -170,6 +170,19 @@ export async function auditRouter(
       // un SSID : une radio allumée mais sans nom de réseau ne diffuse rien.
       const serving = wifi.radios.filter((r) => !r.disabled && r.ssid && r.ssid.trim());
       routerServesClientWifi = serving.length > 0;
+      // DFS : une radio 5 GHz sans pays réglementaire est poussée sur des canaux
+      // DFS et reste coincée en « Channel Availability Check » (cas HSPT-ROXY).
+      // Correctif injectable dédié (fix "wifi-dfs" → fixRouterWifiDfs).
+      if (wifi.api === "wifi" && wifi.radios.some((r) => r.band5ghz && !r.country))
+        add(
+          "warn",
+          "WiFi",
+          "wifi-dfs",
+          "Radio 5 GHz sans pays → blocage DFS possible",
+          "Une radio 5 GHz n'a pas de pays réglementaire (Country) configuré. La réglementation par défaut ne propose alors souvent que des canaux DFS, sur lesquels la radio reste bloquée en « channel availability check » (~1 min, relancé à chaque détection radar) : le WiFi ne se diffuse pas, ou par intermittence (cas constaté sur HSPT-ROXY). Correction depuis le SaaS : le bouton « Corriger le canal WiFi (DFS) » pose un pays et force un canal non-DFS (skip-dfs). Correction sur site (Winbox → WiFi → onglet Channel/Configuration) : définir le pays et fixer un canal non-DFS (ex. 5180 ou 5745) ou activer « Skip DFS Channels ».",
+          "wifi-dfs",
+        );
+
       if (wifi.radios.every((r) => r.disabled)) {
         add("warn", "WiFi", "wifi-off", "Toutes les radios WiFi désactivées", "Aucun réseau WiFi n'est diffusé.");
       } else if (serving.length === 0 && wifi.radios.some((r) => !r.disabled && !(r.ssid && r.ssid.trim()))) {

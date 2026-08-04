@@ -53,8 +53,8 @@ function scan(over: Partial<HardwareScan>): HardwareScan {
     wifi: {
       api: "wifi",
       radios: [
-        { name: "wifi1", ssid: null, band5ghz: true, disabled: false },
-        { name: "wifi2", ssid: null, band5ghz: false, disabled: false },
+        { name: "wifi1", ssid: null, band5ghz: true, disabled: false, country: null },
+        { name: "wifi2", ssid: null, band5ghz: false, disabled: false, country: null },
       ],
     },
     supportsContainers: true,

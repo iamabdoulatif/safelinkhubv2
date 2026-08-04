@@ -24,6 +24,10 @@ export type WifiRadio = {
   /** 5GHz si connu ; null quand la board ne le dit pas. */
   band5ghz: boolean | null;
   disabled: boolean;
+  /** Pays réglementaire configuré sur l'interface (API wifi-qcom). Vide/nul =
+   * non défini → la réglementation par défaut ne propose souvent que des canaux
+   * DFS, ce qui coince la radio 5 GHz en « channel availability check ». */
+  country: string | null;
 };
 
 export type WifiState = {
@@ -46,7 +50,10 @@ export function primarySsid(state: WifiState): string | null {
  * simple try/catch conclurait « pas de WiFi » sur un routeur qui en a deux.
  */
 export async function readWifiState(client: RouterOSClient, timeoutMs = 20000): Promise<WifiState> {
-  const wifiRows = await client.talk(["/interface/wifi/print"], timeoutMs).catch(() => null);
+  // `=detail=` est INDISPENSABLE : sans lui, `/interface/wifi/print` n'inclut
+  // NI `configuration.ssid` NI `configuration.country` (constaté sur wifi-qcom),
+  // ce qui faisait lire un SSID vide sur une radio pourtant nommée.
+  const wifiRows = await client.talk(["/interface/wifi/print", "=detail="], timeoutMs).catch(() => null);
   if (wifiRows && wifiRows.length > 0) {
     const radios = await client
       .talk(["/interface/wifi/radio/print"], timeoutMs)
@@ -59,11 +66,13 @@ export async function readWifiState(client: RouterOSClient, timeoutMs = 20000): 
           const radio = radios.find(
             (x) => x.interface === r.name || x.interface === r["default-name"],
           );
+          const country = (r["configuration.country"] ?? "").trim();
           return {
             name: r.name,
             ssid: r["configuration.ssid"] ?? null,
             band5ghz: radio ? (radio.bands ?? "").includes("5ghz") : null,
             disabled: r.disabled === "true",
+            country: country || null,
           };
         }),
     };
@@ -80,11 +89,67 @@ export async function readWifiState(client: RouterOSClient, timeoutMs = 20000): 
           ssid: r.ssid ?? null,
           band5ghz: (r.band ?? "").includes("5ghz"),
           disabled: r.disabled === "true",
+          // La board legacy gère le DFS via `dfs-mode`, pas via un pays
+          // d'interface — non pertinent pour le correctif DFS wifi-qcom.
+          country: (r.country ?? "").trim() || null,
         })),
     };
   }
 
   return { api: "none", radios: [] };
+}
+
+/**
+ * Corrige la panne « radio 5 GHz coincée en DFS » (Channel Availability Check
+ * perpétuel → aucune diffusion) sur les boards wifi-qcom. Cause racine constatée :
+ * `configuration.country` non défini → la réglementation par défaut ne propose
+ * que des canaux DFS. Le correctif, VALIDÉ sur RB4011 (RouterOS 7.23) :
+ *   - pose un pays (celui déjà configuré, sinon "United States" — même défaut
+ *     que l'auto-setup) pour débloquer les canaux non-DFS ;
+ *   - `channel.skip-dfs-channels=all` → la radio évite définitivement le DFS ;
+ *   - `channel.width=20/40/80mhz` → laisse choisir la plus large bande non-DFS.
+ * Lecture seule sur les autres bandes/boards : n'agit que sur les radios 5 GHz
+ * de l'API wifi-qcom.
+ */
+export async function fixWifiDfs(
+  client: RouterOSClient,
+  timeoutMs = 20000,
+): Promise<{ applied: string[]; failed: { radio: string; error: string }[]; note?: string }> {
+  const result: { applied: string[]; failed: { radio: string; error: string }[]; note?: string } = {
+    applied: [],
+    failed: [],
+  };
+  const state = await readWifiState(client, timeoutMs);
+  if (state.api !== "wifi") {
+    result.note =
+      state.api === "wireless"
+        ? "Board WiFi legacy (wireless) : le DFS s'y règle via dfs-mode, pas via ce correctif."
+        : "Aucune radio WiFi wifi-qcom sur ce routeur.";
+    return result;
+  }
+  const targets = state.radios.filter((r) => r.band5ghz);
+  if (targets.length === 0) {
+    result.note = "Aucune radio 5 GHz — le DFS ne concerne que la bande 5 GHz.";
+    return result;
+  }
+  for (const radio of targets) {
+    const words = [
+      "/interface/wifi/set",
+      `=numbers=${radio.name}`,
+      "=channel.skip-dfs-channels=all",
+      "=channel.width=20/40/80mhz",
+    ];
+    // Ne pose un pays QUE s'il manque (ne pas écraser un pays choisi exprès).
+    if (!radio.country) words.push("=configuration.country=United States");
+    try {
+      // talk() jette sur !trap (commande refusée) — capté ci-dessous.
+      await client.talk(words, timeoutMs);
+      result.applied.push(radio.name);
+    } catch (err) {
+      result.failed.push({ radio: radio.name, error: err instanceof Error ? err.message : "erreur" });
+    }
+  }
+  return result;
 }
 
 export type SsidApplyResult = {
