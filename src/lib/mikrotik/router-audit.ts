@@ -166,10 +166,24 @@ export async function auditRouter(
         add("warn", "WiFi", "ssid-split", "SSID non unifié (pas de band steering)", `Les bandes 2,4 et 5 GHz portent des noms différents (${[...uniqueSsids].join(", ")}) — les appareils ne basculent pas seuls sur la 5 GHz rapide.`, "wifi");
       else if (named.length > 0)
         add("ok", "WiFi", "ssid-ok", "WiFi unifié", "Un seul nom de réseau sur les bandes — les appareils prennent la bande la plus rapide.");
-      const disabled = wifi.radios.filter((r) => r.disabled);
-      if (disabled.length === wifi.radios.length && wifi.radios.length > 0)
+      // Une radio « sert » les clients seulement si elle est ACTIVE **et** porte
+      // un SSID : une radio allumée mais sans nom de réseau ne diffuse rien.
+      const serving = wifi.radios.filter((r) => !r.disabled && r.ssid && r.ssid.trim());
+      routerServesClientWifi = serving.length > 0;
+      if (wifi.radios.every((r) => r.disabled)) {
         add("warn", "WiFi", "wifi-off", "Toutes les radios WiFi désactivées", "Aucun réseau WiFi n'est diffusé.");
-      else routerServesClientWifi = true;
+      } else if (serving.length === 0 && wifi.radios.some((r) => !r.disabled && !(r.ssid && r.ssid.trim()))) {
+        // Bug « ROXY-WIFI » : radio allumée mais MUETTE (aucun SSID) → panne
+        // silencieuse. Pas de correctif un-clic (optimizeRouterWifi suppose un
+        // SSID existant) : on documente les deux vraies corrections en contenu.
+        add(
+          "warn",
+          "WiFi",
+          "wifi-no-ssid",
+          "Radio WiFi active mais muette (aucun SSID)",
+          "La radio WiFi du routeur est allumée mais AUCUN nom de réseau (SSID) n'y est configuré : elle ne diffuse donc aucun WiFi, tout en apparaissant « activée » — panne silencieuse (cas constaté sur HSPT-ROXY : radio 5 GHz active, sans SSID, 0 client). Les clients ne voient jamais le réseau du routeur et dépendent d'un point d'accès externe. Correction depuis le SaaS : « Reconfigurer » le routeur (auto-setup) en renseignant un nom de réseau (SSID) — l'auto-setup pose le SSID sur la radio et l'active. Correction sur site (Winbox/WebFig → WiFi) : définir un SSID + une sécurité WPA2 sur la radio, puis la rattacher au bridge HOTSPOT.",
+        );
+      }
     }
   } catch {
     // WiFi indéterminable — on ne conseille rien à tort (on n'affiche pas le
