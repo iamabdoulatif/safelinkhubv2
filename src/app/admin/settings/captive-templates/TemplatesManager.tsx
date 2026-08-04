@@ -6,11 +6,8 @@ import { Copy, Package, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import {
   deleteCaptiveTemplate,
   duplicateCaptiveTemplate,
-  importSafelinkhubDefaultPackage,
-  importYahyaWifiPackage,
   setDefaultCaptiveTemplate,
 } from "@/lib/captive-templates/actions";
-import { ButtonLoader } from "@/components/FancyLoader";
 import CaptivePreview from "./CaptivePreview";
 import ImportPortalButton from "./ImportPortalButton";
 import PackagePreview from "./PackagePreview";
@@ -46,36 +43,6 @@ export default function TemplatesManager({
         <h2 className="text-sm font-semibold text-ink">Vos modèles</h2>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <ImportPortalButton />
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                const res = await importSafelinkhubDefaultPackage();
-                if (res?.error) setError(res.error);
-                else goBackIfRetour();
-              })
-            }
-            className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
-          >
-            {pending ? <ButtonLoader size="sm" color="currentColor" /> : <Package className="h-4 w-4" />}
-            Importer le portail hotspot-sfh1
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                const res = await importYahyaWifiPackage();
-                if (res?.error) setError(res.error);
-                else goBackIfRetour();
-              })
-            }
-            className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
-          >
-            {pending ? <ButtonLoader size="sm" color="currentColor" /> : <Package className="h-4 w-4" />}
-            Importer le portail hotspot-sfh2
-          </button>
           <button
             type="button"
             onClick={() => setEditing("new")}

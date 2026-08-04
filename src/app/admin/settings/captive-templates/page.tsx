@@ -7,10 +7,21 @@ import { bridges, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
+import {
+  loadSafelinkhubDefaultPackage,
+  loadYahyaWifiPackage,
+  type PackageFile,
+} from "@/lib/captive-templates/package-files";
 import TemplatesManager from "./TemplatesManager";
+import DefaultPortals, { type DefaultPortal } from "./DefaultPortals";
 import BridgeAssignments from "./BridgeAssignments";
 import InstallOnRouter from "./InstallOnRouter";
 import ThemeGallery from "./ThemeGallery";
+
+// PackagePreview ne lit que le schéma de couleurs des CSS — on n'envoie donc que
+// les .css au client pour l'aperçu, pas les images base64 du package entier.
+const cssOnly = (files: PackageFile[]) =>
+  files.filter((f) => f.path.endsWith(".css") && f.encoding === "utf8");
 
 export default async function CaptiveTemplatesPage({
   searchParams,
@@ -35,6 +46,27 @@ export default async function CaptiveTemplatesPage({
   }
 
   const templates = await listCaptiveTemplates();
+
+  // Les 2 portails « package » prêts à l'emploi fournis par SafeLinkHub, mis en
+  // avant dans CHAQUE org. « alreadyAdded » = l'org a déjà un modèle package du
+  // même nom bundled (hotspot-sfh1/2), auquel cas le bouton propose une mise à
+  // jour plutôt qu'une adoption.
+  const defaultPortals: DefaultPortal[] = [
+    {
+      key: "sfh1",
+      name: "Portail SafeLinkHub",
+      description: "Le portail hotspot officiel SafeLinkHub, prêt à l'emploi.",
+      previewFiles: cssOnly(loadSafelinkhubDefaultPackage()),
+      alreadyAdded: templates.some((t) => t.name === "hotspot-sfh1"),
+    },
+    {
+      key: "sfh2",
+      name: "Portail SafeLink Africa",
+      description: "Le portail hotspot SafeLink Africa (design Yahya WiFi).",
+      previewFiles: cssOnly(loadYahyaWifiPackage()),
+      alreadyAdded: templates.some((t) => t.name === "hotspot-sfh2"),
+    },
+  ];
 
   const orgBridges = session
     ? await db
@@ -79,6 +111,8 @@ export default async function CaptiveTemplatesPage({
         connectant au Wi-Fi (logo, couleurs, textes), puis assignez un modèle
         à chaque bridge hotspot.
       </p>
+
+      <DefaultPortals portals={defaultPortals} />
 
       <ThemeGallery existingNames={templates.map((t) => t.name)} />
 
