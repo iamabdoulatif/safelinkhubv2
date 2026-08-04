@@ -73,7 +73,12 @@ describe("users register presentation", () => {
     assert.notEqual(temporaryAccessPosition, -1);
     assert.ok(priorityPosition < personPosition);
     assert.ok(personPosition < temporaryAccessPosition);
-    assert.match(markup, />AT<\/span>/);
+
+    const monogramSpans = markup.match(
+      /<span(?=[^>]*class="[^"]*\bh-10\b[^"]*\bw-10\b[^"]*\bborder\b[^"]*")[^>]*>AT<\/span>/g,
+    ) ?? [];
+    assert.equal(monogramSpans.length, 2);
+    monogramSpans.forEach((span) => assert.match(span, / aria-hidden="true"/));
   });
 
   it("renders the global register priorities in order", () => {

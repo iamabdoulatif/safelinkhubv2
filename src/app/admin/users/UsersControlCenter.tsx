@@ -204,7 +204,7 @@ export default function UsersControlCenter({
               <div key={row.id} className="border border-line-soft bg-paper p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink" aria-hidden="true">
                       {userMonogram(row.name)}
                     </span>
                     <div className="min-w-0">
@@ -250,7 +250,7 @@ export default function UsersControlCenter({
                     <tr key={row.id} className="align-top transition-colors hover:bg-clay/35">
                       <td className="px-5 py-5">
                         <div className="flex min-w-0 items-start gap-3">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink" aria-hidden="true">
                             {userMonogram(row.name)}
                           </span>
                           <div className="min-w-0">
