@@ -275,7 +275,7 @@ export default function UsersControlCenter({
         </>
       )}
 
-      {superadmin && temporaryAccess && (
+      {superadmin && !organizationFocus && temporaryAccess && (
         <details className="group overflow-hidden border-2 border-line bg-paper">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-clay/55 marker:hidden md:px-6">
             <div className="flex min-w-0 items-center gap-3">

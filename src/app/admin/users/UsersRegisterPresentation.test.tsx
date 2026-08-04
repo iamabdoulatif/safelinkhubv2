@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import {
+  AppRouterContext,
+  type AppRouterInstance,
+} from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import UsersControlCenter from "./UsersControlCenter";
 import { UsersDirectoryIndex } from "./UsersDirectoryIndex";
@@ -38,6 +42,15 @@ const controlCenterRows: UserControlRow[] = [
     createdAt: "2026-07-01T00:00:00.000Z",
   },
 ];
+
+const appRouter: AppRouterInstance = {
+  back: () => undefined,
+  forward: () => undefined,
+  refresh: () => undefined,
+  push: () => undefined,
+  replace: () => undefined,
+  prefetch: () => undefined,
+};
 
 function assertMarkupOrder(markup: string, labels: string[]) {
   const positions = labels.map((label) => markup.indexOf(`>${label}<`));
@@ -112,6 +125,45 @@ describe("users register presentation", () => {
       assert.equal(monogramOpeningTags.length, 1);
       monogramOpeningTags.forEach(({ tag }) => assert.match(tag, /\saria-hidden="true"(?:\s|>)/));
     });
+  });
+
+  it("does not serialize global temporary access data in an organization focus", () => {
+    const markup = renderToStaticMarkup(
+      <AppRouterContext.Provider value={appRouter}>
+        <UsersControlCenter
+          rows={controlCenterRows}
+          superadmin
+          temporaryAccess={{
+            organizations: [{ id: "foreign-org", name: "Organisation étrangère", slug: "organisation-etrangere" }],
+            routers: [{ id: "foreign-router", name: "Routeur étranger", orgId: "foreign-org" }],
+            grants: [
+              {
+                id: "foreign-grant",
+                orgId: "foreign-org",
+                orgName: "Organisation étrangère",
+                orgSlug: "organisation-etrangere",
+                routerId: "foreign-router",
+                routerName: "Routeur étranger",
+                services: [],
+                durationKey: "hour_1",
+                startsAt: new Date("2026-08-04T09:00:00.000Z"),
+                expiresAt: new Date("2026-08-04T10:00:00.000Z"),
+                status: "active",
+                reason: "support",
+                note: "Donnée hors périmètre",
+                createdAt: new Date("2026-08-04T09:00:00.000Z"),
+                revokedAt: null,
+                revokeReason: null,
+              },
+            ],
+          }}
+          organizationFocus={focus}
+        />
+      </AppRouterContext.Provider>,
+    );
+
+    assert.equal(markup.includes(">Passes d’accès temporaire<"), false);
+    assert.equal(markup.includes("Organisation étrangère"), false);
   });
 
   it("renders the global register priorities in order", () => {
