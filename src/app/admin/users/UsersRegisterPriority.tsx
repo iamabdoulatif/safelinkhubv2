@@ -14,13 +14,14 @@ type PriorityCell = {
   icon: typeof Building2;
   urgent?: boolean;
   highlighted?: boolean;
+  dividerClassName?: string;
 };
 
-function PriorityCell({ label, value, hint, icon: Icon, urgent = false, highlighted = false }: PriorityCell) {
+function PriorityCell({ label, value, hint, icon: Icon, urgent = false, highlighted = false, dividerClassName = "" }: PriorityCell) {
   const emphasisClass = urgent ? "text-err" : "text-ink";
 
   return (
-    <div className={`min-w-0 border-b-2 border-line p-4 last:border-b-0 sm:border-b-0 sm:[&:nth-child(-n+2)]:border-b-2 sm:[&:nth-child(odd)]:border-r-2 xl:[&:nth-child(-n+2)]:border-b-0 xl:[&:nth-child(odd)]:border-r-0 xl:[&:nth-child(-n+3)]:border-r-2 ${highlighted ? "bg-brand/15" : "bg-paper"}`}>
+    <div className={`min-w-0 p-4 ${highlighted ? "bg-brand/15" : "bg-paper"} ${dividerClassName}`}>
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft">
         <Icon className={`h-4 w-4 shrink-0 ${emphasisClass}`} aria-hidden="true" />
         <span className="truncate">{label}</span>
@@ -32,6 +33,12 @@ function PriorityCell({ label, value, hint, icon: Icon, urgent = false, highligh
 }
 
 export function UsersRegisterPriority({ summary, focusedOrganization }: UsersRegisterPriorityProps) {
+  const dividerClassNames = [
+    "border-b-2 border-line sm:border-r-2 xl:border-b-0",
+    "border-b-2 border-line xl:border-r-2 xl:border-b-0",
+    "border-b-2 border-line sm:border-r-2 sm:border-b-0 xl:border-r-2",
+    "",
+  ];
   const cells: PriorityCell[] = focusedOrganization
     ? [
         {
@@ -66,7 +73,7 @@ export function UsersRegisterPriority({ summary, focusedOrganization }: UsersReg
 
   return (
     <section aria-label="Repères du registre" className="grid border-2 border-line bg-paper sm:grid-cols-2 xl:grid-cols-4">
-      {cells.map((cell) => <PriorityCell key={cell.label} {...cell} />)}
+      {cells.map((cell, index) => <PriorityCell key={cell.label} {...cell} dividerClassName={dividerClassNames[index] ?? ""} />)}
     </section>
   );
 }

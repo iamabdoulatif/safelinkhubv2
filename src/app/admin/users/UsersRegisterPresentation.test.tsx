@@ -29,6 +29,10 @@ function assertMarkupOrder(markup: string, labels: string[]) {
   positions.slice(1).forEach((position, index) => assert.ok(positions[index] < position));
 }
 
+function priorityCellClasses(markup: string) {
+  return Array.from(markup.matchAll(/<div class="([^"]*min-w-0[^"]*)">/g), ([, className]) => className);
+}
+
 describe("users register presentation", () => {
   it("renders the global register priorities in order", () => {
     const markup = renderToStaticMarkup(
@@ -37,9 +41,13 @@ describe("users register presentation", () => {
 
     assertMarkupOrder(markup, ["À traiter maintenant", "Quota gratuit", "VPN payant", "Organisations actives"]);
     assert.match(markup, />3</);
-    assert.match(markup, /sm:\[&amp;:nth-child\(-n\+2\)\]:border-b-2/);
-    assert.match(markup, /sm:\[&amp;:nth-child\(odd\)\]:border-r-2/);
-    assert.match(markup, /xl:\[&amp;:nth-child\(-n\+3\)\]:border-r-2/);
+    assert.deepEqual(priorityCellClasses(markup).map((className) => className.match(/border[^ ]*(?: [^ ]+)*$/)?.[0]), [
+      "border-b-2 border-line sm:border-r-2 xl:border-b-0",
+      "border-b-2 border-line xl:border-r-2 xl:border-b-0",
+      "border-b-2 border-line sm:border-r-2 sm:border-b-0 xl:border-r-2",
+      undefined,
+    ]);
+    assert.doesNotMatch(markup, /xl:\[&amp;:nth-child/);
   });
 
   it("renders organization-scoped priorities in order without global totals", () => {
