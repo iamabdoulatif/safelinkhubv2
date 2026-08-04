@@ -49,6 +49,16 @@ function priorityCellClassTokens(markup: string) {
   return Array.from(markup.matchAll(/<div class="([^"]*min-w-0[^"]*)">/g), ([, className]) => new Set(className.split(" ")));
 }
 
+function openingTagsWithClassTokens(markup: string, tagName: "div" | "span", requiredTokens: string[]) {
+  return Array.from(markup.matchAll(new RegExp(`<${tagName}\\b[^>]*>`, "g"))).flatMap((match) => {
+    const className = match[0].match(/\bclass="([^"]*)"/)?.[1];
+    if (!className || match.index === undefined) return [];
+    const classTokens = new Set(className.split(/\s+/).filter(Boolean));
+    if (!requiredTokens.every((token) => classTokens.has(token))) return [];
+    return [{ tag: match[0], index: match.index }];
+  });
+}
+
 describe("users register presentation", () => {
   it("places register priorities and the directory before temporary access", () => {
     const markup = renderToStaticMarkup(
@@ -74,36 +84,33 @@ describe("users register presentation", () => {
     assert.ok(priorityPosition < personPosition);
     assert.ok(personPosition < temporaryAccessPosition);
 
-    const classOrderVariantMarkup = markup.replaceAll(
-      "flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink",
-      "w-10 flex shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink h-10",
-    );
-    const mobileDirectoryPosition = classOrderVariantMarkup.indexOf('class="space-y-4 md:hidden"');
-    const desktopDirectoryPosition = classOrderVariantMarkup.indexOf(
-      'class="hidden overflow-hidden border border-line-soft bg-paper md:block"',
-      mobileDirectoryPosition,
-    );
-    const temporaryAccessInVariantPosition = classOrderVariantMarkup.indexOf(
-      ">Passes d’accès temporaire<",
-      desktopDirectoryPosition,
-    );
-
-    assert.notEqual(mobileDirectoryPosition, -1);
-    assert.notEqual(desktopDirectoryPosition, -1);
-    assert.notEqual(temporaryAccessInVariantPosition, -1);
-    assert.ok(mobileDirectoryPosition < desktopDirectoryPosition);
-    assert.ok(desktopDirectoryPosition < temporaryAccessInVariantPosition);
+    const mobileWrappers = openingTagsWithClassTokens(markup, "div", ["space-y-4", "md:hidden"]);
+    const desktopWrappers = openingTagsWithClassTokens(markup, "div", [
+      "hidden",
+      "overflow-hidden",
+      "border",
+      "border-line-soft",
+      "bg-paper",
+      "md:block",
+    ]);
+    assert.equal(mobileWrappers.length, 1);
+    assert.equal(desktopWrappers.length, 1);
+    const [mobileWrapper] = mobileWrappers;
+    const [desktopWrapper] = desktopWrappers;
+    assert.ok(mobileWrapper);
+    assert.ok(desktopWrapper);
+    assert.ok(mobileWrapper.index < desktopWrapper.index);
 
     const responsiveIdentityRegions = [
-      classOrderVariantMarkup.slice(mobileDirectoryPosition, desktopDirectoryPosition),
-      classOrderVariantMarkup.slice(desktopDirectoryPosition, temporaryAccessInVariantPosition),
+      markup.slice(mobileWrapper.index, desktopWrapper.index),
+      markup.slice(desktopWrapper.index, temporaryAccessPosition),
     ];
-    const atMonogramOpeningTag = /<span(?=[^>]*(?:class="|\s)h-10(?:\s|"))(?=[^>]*(?:class="|\s)w-10(?:\s|"))(?=[^>]*(?:class="|\s)border(?:\s|"))[^>]*>(?=AT<\/span>)/g;
 
     responsiveIdentityRegions.forEach((region) => {
-      const monogramOpeningTags = region.match(atMonogramOpeningTag) ?? [];
+      const monogramOpeningTags = openingTagsWithClassTokens(region, "span", ["h-10", "w-10", "border"])
+        .filter(({ tag, index }) => region.slice(index + tag.length).startsWith("AT</span>"));
       assert.equal(monogramOpeningTags.length, 1);
-      monogramOpeningTags.forEach((tag) => assert.match(tag, /\saria-hidden="true"(?:\s|>)/));
+      monogramOpeningTags.forEach(({ tag }) => assert.match(tag, /\saria-hidden="true"(?:\s|>)/));
     });
   });
 
