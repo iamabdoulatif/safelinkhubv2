@@ -27,6 +27,45 @@ function shellArg(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
+/**
+ * RouterOS sends a WireGuard keepalive every 25 seconds.  Allow several
+ * packets of jitter before treating its most recent handshake as stale so a
+ * loaded relay cannot briefly turn a healthy tunnel into an "offline" UI
+ * state.
+ */
+export const WIREGUARD_HANDSHAKE_FRESH_MS = 2 * 60 * 1000;
+
+export function hasFreshWireGuardHandshake(
+  latestHandshakeAtMs: number | null,
+  nowMs = Date.now(),
+): boolean {
+  return (
+    latestHandshakeAtMs !== null &&
+    latestHandshakeAtMs <= nowMs &&
+    nowMs - latestHandshakeAtMs <= WIREGUARD_HANDSHAKE_FRESH_MS
+  );
+}
+
+/**
+ * Reads the relay's transport-level observation for a WireGuard peer.  This
+ * is independent from RouterOS' API: it remains useful when the router is
+ * busy answering hotspot requests and an API stats refresh times out.
+ */
+export async function getWireGuardPeerLatestHandshake(
+  peerPublicKey: string,
+): Promise<number | null> {
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(peerPublicKey)) {
+    throw new Error("Invalid WireGuard peer public key");
+  }
+
+  const output = await runOnRelay(
+    `sudo wg show wg0 latest-handshakes | awk -v peer=${shellArg(peerPublicKey)} '$1 == peer { print $2 }'`,
+    8000,
+  );
+  const seconds = Number(output.trim());
+  return Number.isSafeInteger(seconds) && seconds > 0 ? seconds * 1000 : null;
+}
+
 function getRelayPrivateKey(): string {
   const b64 = process.env.WG_RELAY_SSH_KEY_B64;
   if (!b64) throw new Error("WG_RELAY_SSH_KEY_B64 is not set");
@@ -134,7 +173,7 @@ PEER_PUB=$(echo "$PEER_PRIV" | wg pubkey)
 SERVER_PUB=$(cat server_public.key)
 SERVER_HOST="\${PUBLIC_HOST:-$(curl -fsS https://checkip.amazonaws.com)}"
 
-wg set wg0 peer "$PEER_PUB" allowed-ips "$PEER_IP"
+wg set wg0 peer "$PEER_PUB" allowed-ips "$PEER_IP" persistent-keepalive 25
 wg-quick save wg0 >/dev/null 2>&1 || true
 
 echo "# Peer: \${NAME}"

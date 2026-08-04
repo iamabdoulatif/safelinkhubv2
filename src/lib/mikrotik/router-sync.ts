@@ -2,7 +2,12 @@ import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, routerPortForwards } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
-import { openRouterTunnelWithRetry, ensureRouterPortForwards } from "./relay";
+import {
+  openRouterTunnelWithRetry,
+  ensureRouterPortForwards,
+  getWireGuardPeerLatestHandshake,
+  hasFreshWireGuardHandshake,
+} from "./relay";
 import { reconcileWalledGardenOnce } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { ensureHotspotLoginByCode } from "./hotspot-login-mode";
@@ -16,6 +21,26 @@ import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { isWebAccessService } from "./remote-access-host";
 
 type RouterRow = typeof routers.$inferSelect;
+
+/**
+ * A RouterOS API refresh includes several stats calls and may fail while the
+ * hotspot is under load.  Do not overwrite a recent WireGuard transport
+ * handshake with "offline" in that case: the tunnel is demonstrably alive.
+ */
+async function keepVpnRouterOnlineWhenHandshakeIsFresh(router: RouterRow): Promise<boolean> {
+  if (router.connectionMethod !== "vpn" || !router.wgPeerPublicKey) return false;
+
+  const latestHandshakeAtMs = await getWireGuardPeerLatestHandshake(router.wgPeerPublicKey).catch(
+    () => null,
+  );
+  if (!hasFreshWireGuardHandshake(latestHandshakeAtMs)) return false;
+
+  await getDb()
+    .update(routers)
+    .set({ status: "online", offlineAlertedAt: null })
+    .where(eq(routers.id, router.id));
+  return true;
+}
 
 export async function connectToRouter(
   router: RouterRow,
@@ -94,6 +119,13 @@ export async function syncRouterStats(
     client = await connectToRouter(router, timeoutMs, maxAttempts);
   } catch (err) {
     if (markOfflineOnFailure) {
+      if (await keepVpnRouterOnlineWhenHandshakeIsFresh(router)) {
+        return {
+          success: false,
+          error:
+            "Sync failed: l'API MikroTik est momentanément indisponible, mais le tunnel WireGuard est actif.",
+        };
+      }
       await db
         .update(routers)
         .set({ status: "offline", lastSyncAt: new Date() })
@@ -258,6 +290,13 @@ export async function syncRouterStats(
     }
   } catch (err) {
     if (markOfflineOnFailure) {
+      if (await keepVpnRouterOnlineWhenHandshakeIsFresh(router)) {
+        return {
+          success: false,
+          error:
+            "Sync failed: l'API MikroTik est momentanément indisponible, mais le tunnel WireGuard est actif.",
+        };
+      }
       await db
         .update(routers)
         .set({ status: "offline", lastSyncAt: new Date() })
