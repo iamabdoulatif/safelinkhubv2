@@ -100,6 +100,10 @@ export async function auditRouter(
     add("warn", "Débit", "layer7", "Règle layer7 active (tueur de débit)", `${activeL7.length} règle(s) layer7 inspectent chaque connexion — coûteux en CPU et bride le débit.`, "throughput");
 
   // ── WiFi : unification du SSID (band steering) ──────────────────────────
+  // On note au passage si le routeur diffuse LUI-MÊME le WiFi des clients. Si
+  // non, les clients passent par des points d'accès externes — d'où le conseil
+  // « mode pont » juste après (piège n°1 quand le portail ne s'affiche pas).
+  let routerServesClientWifi = false;
   try {
     const wifi = await readWifiState(client, t);
     if (wifi.api === "none" || wifi.radios.length === 0) {
@@ -114,10 +118,31 @@ export async function auditRouter(
       const disabled = wifi.radios.filter((r) => r.disabled);
       if (disabled.length === wifi.radios.length && wifi.radios.length > 0)
         add("warn", "WiFi", "wifi-off", "Toutes les radios WiFi désactivées", "Aucun réseau WiFi n'est diffusé.");
+      else routerServesClientWifi = true;
     }
   } catch {
-    /* WiFi indéterminable — on n'ajoute pas de constat trompeur. */
+    // WiFi indéterminable — on ne conseille rien à tort (on n'affiche pas le
+    // conseil « mode pont » ci-dessous sur une lecture WiFi ratée).
+    routerServesClientWifi = true;
   }
+
+  // ── Réseau : portail servi par une box tierce (mode routeur au lieu de pont) ─
+  // Quand le routeur ne diffuse pas lui-même le WiFi des clients, ceux-ci passent
+  // par des points d'accès externes. Le piège n°1 : un de ces boîtiers est en
+  // mode ROUTEUR (avec son PROPRE DHCP et son PROPRE portail) au lieu de PONT →
+  // le client n'atteint jamais le hotspot du MikroTik et voit un portail cassé à
+  // une adresse HORS hotspot (ex. 192.168.x.x/captiveXX.html injoignable, sur le
+  // réseau amont). Ce SSID pirate est diffusé sur l'air par un appareil tiers,
+  // donc INDÉTECTABLE depuis l'API du routeur : on le remonte en CONSEIL ciblé
+  // (info, sans impact sur le score) plutôt qu'en faux constat automatique.
+  if (!routerServesClientWifi)
+    add(
+      "info",
+      "Réseau",
+      "foreign-ap-portal",
+      "AP externes : vérifier le mode pont si le portail ne s'affiche pas",
+      "Les clients de ce site passent par des points d'accès WiFi externes (le routeur ne diffuse pas lui-même leur réseau). Si le portail captif ne s'affiche pas sur un téléphone — typiquement une page qui tente d'ouvrir une adresse hors hotspot injoignable (ex. 192.168.x.x/captiveXX.html) — c'est presque toujours qu'un de ces boîtiers WiFi est en mode ROUTEUR, avec son propre serveur DHCP et son propre portail, au lieu de relayer vers le hotspot. Correctif (sur site, sur le boîtier tiers — pas sur le MikroTik) : le passer en mode PONT / point d'accès (désactiver son DHCP et son portail) pour qu'il relaie les clients vers le hotspot du MikroTik, ou le débrancher.",
+    );
 
   // ── Ports ethernet : négociation à 100 Mbps (goulot physique) ───────────
   try {
