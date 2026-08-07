@@ -26,6 +26,8 @@ import { ensureWalledGarden } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { loadSafelinkBarakaPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
+import { pickBalanceSource } from "@/lib/billing/balance-source";
+import { awardReferral } from "@/lib/referrals/service";
 import {
   evaluateAutoSetupGate,
   consumeAuthorization,
@@ -1008,19 +1010,32 @@ export async function provisionHotspotStack(
     ? await autoSetupChargeScCents({ supportsContainers: opts.supportsContainers })
     : 0;
 
+  // Source du débit quand l'auto-setup n'a PAS été payé d'avance : portefeuille
+  // FCFA en priorité, sinon Safecoins — même règle que payAutoSetupFromBalance
+  // et que l'accès distant. Avant, la simple EXISTENCE d'un compte Safecoin
+  // rendait le portefeuille inaccessible : une org avec de quoi payer en FCFA
+  // mais 0 SC était bloquée alors que son solde suffisait.
+  let balanceSource: "wallet" | "safecoin" | null = null;
+
   if (billableCents !== null && billableCents > 0) {
-    if (safecoinAccount) {
-      if (safecoinAccount.balanceScCents < safecoinRequiredScCents) {
-        return {
-          error: `Solde Safecoin insuffisant : il faut ${(safecoinRequiredScCents / 100).toLocaleString("fr-FR")} SC pour configurer ce routeur supplémentaire (solde actuel : ${(safecoinAccount.balanceScCents / 100).toLocaleString("fr-FR")} SC).`,
-          paywall: true as const,
-          requiredScCents: safecoinRequiredScCents,
-          walletBalanceCents: 0,
-        };
-      }
-    }
     const walletBalanceCents = await getWalletBalanceCents(org.id);
-    if (!safecoinAccount && walletBalanceCents < billableCents) {
+    balanceSource = pickBalanceSource({
+      walletFcfa: walletBalanceCents,
+      amountFcfa: billableCents,
+      safecoinScCents: safecoinAccount?.balanceScCents ?? 0,
+      requiredScCents: safecoinRequiredScCents,
+      safecoinAvailable: !!safecoinAccount,
+    });
+    if (!balanceSource && safecoinAccount) {
+      return {
+        error: `Solde insuffisant : il faut ${billableCents.toLocaleString("fr-FR")} FCFA au portefeuille ou ${(safecoinRequiredScCents / 100).toLocaleString("fr-FR")} SC pour configurer ce routeur supplémentaire (portefeuille : ${walletBalanceCents.toLocaleString("fr-FR")} FCFA, Safecoins : ${(safecoinAccount.balanceScCents / 100).toLocaleString("fr-FR")} SC).`,
+        paywall: true as const,
+        requiredScCents: safecoinRequiredScCents,
+        requiredCents: billableCents,
+        walletBalanceCents,
+      };
+    }
+    if (!balanceSource) {
       return {
         error: `Solde du portefeuille insuffisant : il faut ${billableCents.toLocaleString("fr-FR")} FCFA pour configurer ce routeur supplémentaire (solde actuel : ${walletBalanceCents.toLocaleString("fr-FR")} FCFA).`,
         paywall: true as const,
@@ -1055,7 +1070,7 @@ export async function provisionHotspotStack(
   }
 
   let safecoinCharge: { created: boolean; entryId?: string } | null = null;
-  if (billableCents !== null && billableCents > 0 && safecoinAccount) {
+  if (balanceSource === "safecoin") {
     const charge = await chargeAutoSetup({
       orgId: org.id,
       userId: session.userId,
@@ -2266,7 +2281,7 @@ export async function provisionHotspotStack(
           .where(eq(organizations.id, org.id));
         log.push("OK: essai gratuit de configuration automatique utilisé pour ce routeur.");
       } else {
-        if (safecoinAccount) {
+        if (balanceSource === "safecoin") {
           log.push(
             `OK: ${(safecoinRequiredScCents / 100).toLocaleString("fr-FR")} SC débités pour cette configuration.`,
           );
@@ -2290,6 +2305,11 @@ export async function provisionHotspotStack(
     if (gate.reason === "authorized" && gate.authorizationId) {
       await consumeAuthorization(gate.authorizationId);
     }
+
+    // Parrainage : le filleul vient de réussir un auto-setup → prime au parrain.
+    // Idempotente (une seule fois par filleul) et best-effort : un auto-setup
+    // réussi ne doit pas être signalé en échec parce qu'une prime a raté.
+    await awardReferral(org.id, "auto_setup");
 
     return {
       success: true,

@@ -29,7 +29,15 @@ const iconClass = "absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-sof
 const choiceClass =
   "h-4 w-4 accent-brand focus:outline-none focus:ring-4 focus:ring-brand/35";
 
-export default function RegisterForm() {
+export default function RegisterForm({
+  referralCode = "",
+  referrerName = null,
+}: {
+  /** Code porté par le lien /auth/register?ref=… (déjà normalisé). */
+  referralCode?: string;
+  /** Nom du parrain si le code correspond à une org, sinon null. */
+  referrerName?: string | null;
+} = {}) {
   const [state, formAction, pending] = useActionState(register, undefined);
   const [dialCode, setDialCode] = useState(COUNTRIES[0].dialCode);
   const [whatsappSame, setWhatsappSame] = useState(true);
@@ -50,6 +58,24 @@ export default function RegisterForm() {
 
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
+      {/* Parrainage : le code voyage en champ caché pour survivre à une erreur
+          de validation (le formulaire est re-rendu, la query string non). */}
+      {referralCode && <input type="hidden" name="referralCode" value={referralCode} />}
+      {referralCode && (
+        <div className="border-2 border-line bg-brand/10 px-3 py-2.5 text-sm font-semibold text-ink">
+          {referrerName ? (
+            <>
+              Vous avez été invité par <span className="marker">{referrerName}</span>.
+            </>
+          ) : (
+            <>
+              Code de parrainage <span className="font-mono">{referralCode}</span> — il sera vérifié
+              à la création du compte.
+            </>
+          )}
+        </div>
+      )}
+
       {state?.error && (
         <div className="flex items-center gap-2 border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-semibold text-err">
           <AlertCircle className="h-4 w-4 shrink-0" />

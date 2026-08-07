@@ -10,6 +10,9 @@ export type SafecoinEntryType =
   | "fee"
   | "admin_credit"
   | "admin_debit"
+  // Prime de parrainage créditée au PARRAIN quand son filleul franchit une
+  // étape (inscription activée, auto-setup, VPN annuel). Voir lib/referrals.
+  | "referral_bonus"
   | "refund"
   | "reversal";
 

@@ -2,12 +2,26 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
 import { getSession } from "@/lib/auth/session";
+import { findOrgByReferralCode } from "@/lib/referrals/service";
+import { normalizeReferralCode } from "@/lib/referrals/rewards";
 import RegisterForm from "./RegisterForm";
 
-export default async function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string }>;
+}) {
   // Un utilisateur déjà connecté n'a rien à faire sur l'inscription.
   const session = await getSession();
   if (session) redirect("/admin");
+
+  // Lien de parrainage /auth/register?ref=CODE : on résout le code CÔTÉ SERVEUR
+  // pour afficher le nom du parrain (le filleul voit qui l'a invité, et un code
+  // erroné se repère avant de remplir le formulaire). Le rattachement réel se
+  // refait à l'inscription — cet affichage n'est qu'informatif.
+  const { ref } = await searchParams;
+  const referralCode = ref ? normalizeReferralCode(ref) : "";
+  const referrer = referralCode ? await findOrgByReferralCode(referralCode) : null;
 
   return (
     <AuthShell
@@ -41,7 +55,7 @@ export default async function RegisterPage() {
         <p className="mt-2 text-sm leading-6 text-ink-soft">
           Le compte démarre gratuitement, sans carte bancaire.
         </p>
-        <RegisterForm />
+        <RegisterForm referralCode={referralCode} referrerName={referrer?.name ?? null} />
       </div>
     </AuthShell>
   );

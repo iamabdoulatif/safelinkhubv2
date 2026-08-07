@@ -12,6 +12,7 @@ import type { PaymentMethodId } from "./auto-setup-gate-config";
 import type { RemoteAccessService } from "./remote-access-gate-config";
 import type { BillingPeriod } from "@/lib/mikrotik/billing-plans";
 import { findUsableRemoteAccessGrant } from "@/lib/remote-access/grants";
+import { awardVpnYearlyReferral } from "@/lib/referrals/service";
 
 export type RemoteAccessAuthorizationRow = typeof remoteAccessAuthorizations.$inferSelect;
 
@@ -212,6 +213,11 @@ export async function approveRemoteAccessPaymentByReference(
       ),
     )
     .returning();
+  // Parrainage : un accès distant D'UN AN qui vient d'être payé rapporte au
+  // parrain du filleul. Placé ici (et non chez l'appelant) pour couvrir le
+  // webhook quel que soit son point d'entrée. Le `pending`-only ci-dessus rend
+  // l'appel idempotent, awardReferral l'est aussi.
+  if (row) await awardVpnYearlyReferral(row.orgId, row.billingPeriod);
   return row ?? null;
 }
 
@@ -295,5 +301,9 @@ export async function decideRemoteAccessAuthorization(
       ),
     )
     .returning();
+  // Même prime que par le webhook quand l'admin valide une preuve manuelle.
+  if (row && decision === "approved") {
+    await awardVpnYearlyReferral(row.orgId, row.billingPeriod);
+  }
   return row ?? null;
 }

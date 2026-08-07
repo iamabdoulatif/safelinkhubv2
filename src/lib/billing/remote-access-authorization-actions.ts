@@ -15,6 +15,8 @@ import { getSafecoinBalance, appendSafecoinDebit } from "@/lib/safecoin/ledger";
 import { vpnActivationChargeScCents } from "@/lib/safecoin/service-charges";
 import { scCentsToFcfa } from "@/lib/safecoin/pricing";
 import { DEFAULT_SC_RATE_FCFA } from "@/lib/safecoin/constants";
+import { pickBalanceSource } from "./balance-source";
+import { awardVpnYearlyReferral } from "@/lib/referrals/service";
 import {
   createPendingRemoteAccessPayment,
   attachRemoteAccessPaymentReference,
@@ -305,8 +307,12 @@ export async function payRemoteAccessFromBalance(formData: FormData): Promise<
     getSafecoinBalance(session.orgId),
   ]);
 
-  const source: "wallet" | "safecoin" | null =
-    walletBal >= amountFcfa ? "wallet" : scBal >= scCost ? "safecoin" : null;
+  const source = pickBalanceSource({
+    walletFcfa: walletBal,
+    amountFcfa,
+    safecoinScCents: scBal,
+    requiredScCents: scCost,
+  });
   if (!source) {
     return { error: "Solde insuffisant (portefeuille et Safecoins) pour cet accès." };
   }
@@ -351,6 +357,11 @@ export async function payRemoteAccessFromBalance(formData: FormData): Promise<
       return { error: "Solde Safecoin insuffisant." };
     }
   }
+
+  // Parrainage : l'autorisation est créée déjà approuvée par ce chemin, elle ne
+  // passe donc ni par le webhook ni par la validation admin — la prime « 1 an »
+  // doit être versée ici aussi.
+  await awardVpnYearlyReferral(session.orgId, billingPeriod);
 
   revalidatePath("/admin/remote-access");
   revalidatePath("/admin/authorizations");

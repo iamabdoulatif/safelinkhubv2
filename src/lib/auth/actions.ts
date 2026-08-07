@@ -15,6 +15,7 @@ import {
 } from "./tokens";
 import { sendActivationEmail, sendPasswordResetEmail } from "./email";
 import { computeVpnQuotaGrant } from "@/lib/billing/vpn-quota";
+import { attachReferrer, awardReferral } from "@/lib/referrals/service";
 import {
   clearMfaPendingToken,
   createMfaPendingToken,
@@ -198,6 +199,9 @@ export async function register(_prevState: unknown, formData: FormData) {
   // so a later phone change doesn't silently overwrite a custom value.
   const whatsapp = String(formData.get("whatsapp") ?? "").trim() || null;
   const telegram = String(formData.get("telegram") ?? "").trim() || null;
+  // Code de parrainage, porté par le lien /auth/register?ref=… (champ caché) ou
+  // saisi à la main. Facultatif : une inscription sans code reste normale.
+  const referralCode = String(formData.get("referralCode") ?? "").trim();
 
   if (!name || !email || !password || !confirmPassword || !country || !phoneDialCode || !phone) {
     return { error: "Tous les champs sont requis." };
@@ -241,6 +245,12 @@ export async function register(_prevState: unknown, formData: FormData) {
       vpnQuotaExpiresAt: vpnTrial.expiresAt,
     })
     .returning();
+
+  // Rattachement au parrain, si l'inscription vient d'un lien de parrainage.
+  // Best-effort : un code inconnu ou périmé ne doit pas empêcher de s'inscrire.
+  if (referralCode) {
+    await attachReferrer(org.id, referralCode).catch(() => {});
+  }
 
   const passwordHash = await bcrypt.hash(password, 10);
 
@@ -314,6 +324,11 @@ export async function activateAccount(
       activationTokenExpiresAt: null,
     })
     .where(eq(users.id, user.id));
+
+  // Prime de parrainage « inscription » : versée ICI et pas à l'inscription,
+  // pour qu'une adresse jetable jamais confirmée ne rapporte rien au parrain.
+  // Idempotente et best-effort — elle ne doit jamais bloquer une activation.
+  await awardReferral(user.orgId, "signup");
 
   await createSession({
     userId: user.id,

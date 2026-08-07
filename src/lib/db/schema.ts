@@ -9,6 +9,7 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 export const organizations = pgTable("organizations", {
@@ -44,7 +45,53 @@ export const organizations = pgTable("organizations", {
     .$type<string[]>()
     .notNull()
     .default([]),
+  // Parrainage — code public partagé par cette org pour inviter (suffixe du
+  // lien /auth/register?ref=…). Nullable : les orgs créées avant la
+  // fonctionnalité n'en ont pas, il est frappé à la demande le jour où
+  // l'utilisateur ouvre sa carte de parrainage (ensureReferralCode).
+  referralCode: text("referral_code").unique(),
+  // L'org QUI A PARRAINÉ celle-ci, figée à l'inscription. ON DELETE SET NULL :
+  // la disparition du parrain ne doit pas supprimer le filleul en cascade.
+  referredByOrgId: uuid("referred_by_org_id").references(
+    (): AnyPgColumn => organizations.id,
+    { onDelete: "set null" },
+  ),
 });
+
+/**
+ * Une prime de parrainage VERSÉE, une ligne par (filleul, étape).
+ *
+ * Pourquoi une table alors que le grand livre Safecoin porte déjà l'écriture :
+ * l'unicité `(referred_org_id, event)` est ce qui garantit AU NIVEAU DE LA BASE
+ * qu'une étape n'est primée qu'une fois — deux auto-setups concurrents du même
+ * filleul ne peuvent pas créditer deux fois le parrain. La clé d'idempotence du
+ * grand livre offre la même garantie sur l'écriture comptable ; les deux se
+ * couvrent mutuellement. Elle sert aussi de source d'affichage à la carte
+ * « Parrainage » (qui j'ai parrainé, ce que ça m'a rapporté) sans avoir à
+ * filtrer tout le grand livre.
+ */
+export const referralRewards = pgTable(
+  "referral_rewards",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    referrerOrgId: uuid("referrer_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    referredOrgId: uuid("referred_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // signup | auto_setup | vpn_yearly
+    event: text("event").notNull(),
+    amountScCents: integer("amount_sc_cents").notNull(),
+    // Écriture correspondante au grand livre (traçabilité comptable).
+    ledgerEntryId: uuid("ledger_entry_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("referral_rewards_referred_event_key").on(t.referredOrgId, t.event),
+    index("referral_rewards_referrer_idx").on(t.referrerOrgId),
+  ],
+);
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),

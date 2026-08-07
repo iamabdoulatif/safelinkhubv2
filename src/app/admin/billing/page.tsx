@@ -18,6 +18,9 @@ import WalletTopupReturn from "./WalletTopupReturn";
 import WalletTransactions from "./WalletTransactions";
 import SafecoinWalletCard from "./SafecoinWalletCard";
 import SafecoinTopupReturn from "./SafecoinTopupReturn";
+import ReferralCard from "./ReferralCard";
+import { getReferralSummary } from "@/lib/referrals/service";
+import { getAppUrl } from "@/lib/net/app-url";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(date);
@@ -54,6 +57,12 @@ export default async function BillingPage({
   const teamCount = session
     ? (await db.select({ id: users.id }).from(users).where(eq(users.orgId, session.orgId))).length
     : 0;
+  // Parrainage. Tolérant à l'ordre migration/déploiement (même garde-fou que la
+  // page sauvegardes) : sans la table, la carte disparaît au lieu de casser
+  // toute la facturation.
+  const referral = session
+    ? await getReferralSummary(session.orgId).catch(() => null)
+    : null;
   const [currentUser] = session
     ? await db
         .select({ country: users.country })
@@ -202,6 +211,30 @@ export default async function BillingPage({
           geniusPayEnabled={isGeniusPayCheckoutEnabled()}
         />
       </div>
+
+      {referral && (
+        <div className="mt-8">
+          <ReferralCard
+            code={referral.code}
+            shareUrl={`${getAppUrl()}/auth/register?ref=${referral.code}`}
+            totalScCents={referral.totalScCents}
+            referredCount={referral.referredCount}
+            rewards={referral.rewards.map((r) => ({
+              id: r.id,
+              event: r.event,
+              amountScCents: r.amountScCents,
+              referredName: r.referredName,
+              dateLabel: formatDate(r.createdAt),
+            }))}
+            referred={referral.referred.map((r) => ({
+              id: r.id,
+              name: r.name,
+              contact: r.contact,
+              dateLabel: formatDate(r.joinedAt),
+            }))}
+          />
+        </div>
+      )}
 
       <div className="mt-6 border-2 border-line bg-paper p-6">
         <h2 className="font-semibold text-ink">Gérer votre abonnement</h2>
