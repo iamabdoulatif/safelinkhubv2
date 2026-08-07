@@ -16,6 +16,7 @@ import {
   CreditCard,
   ShieldCheck,
   ChevronDown,
+  Wallet,
   X,
 } from "lucide-react";
 import {
@@ -29,6 +30,8 @@ import {
   submitAutoSetupAuthorizationRequest,
   getAutoSetupGateConfigPublic,
   startAutoSetupPayment,
+  getAutoSetupBalancesPublic,
+  payAutoSetupFromBalance,
 } from "@/lib/billing/auto-setup-authorization-actions";
 
 type PublicConfig = {
@@ -62,6 +65,9 @@ export default function AutoSetupPaywallModal({
   const [done, setDone] = useState<{ whatsappUrl: string; emailSent: boolean } | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Soldes de l'org pour le paiement « depuis le solde » (portefeuille / Safecoins).
+  const [balances, setBalances] = useState<{ walletFcfa: number; safecoinFcfa: number } | null>(null);
+  const [balanceDone, setBalanceDone] = useState<"wallet" | "safecoin" | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -70,6 +76,17 @@ export default function AutoSetupPaywallModal({
       setAmount(String(autoSetupPriceFcfa(c, supportsContainers)));
     });
   }, [open, supportsContainers]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    getAutoSetupBalancesPublic().then((b) => {
+      if (!cancelled) setBalances({ walletFcfa: b.walletFcfa, safecoinFcfa: b.safecoinFcfa });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // Fermeture au clavier (Échap) — attendu d'un dialogue.
   useEffect(() => {
@@ -88,6 +105,13 @@ export default function AutoSetupPaywallModal({
   const geniusOn = !!config?.geniusPayEnabled;
   // Sans GeniusPay, le paiement manuel EST le parcours principal : toujours ouvert.
   const manualExpanded = manualOpen || (!!config && !geniusOn);
+  // Estimation d'affichage : le coût Safecoin réel inclut les frais de service,
+  // donc le serveur revérifie le solde avant de débiter.
+  const canPayFromBalance = Boolean(
+    balances &&
+      applicable !== null &&
+      (balances.walletFcfa >= applicable || balances.safecoinFcfa >= applicable),
+  );
 
   function submit() {
     setError(null);
@@ -130,6 +154,25 @@ export default function AutoSetupPaywallModal({
         return;
       }
       window.location.href = res.paymentUrl;
+    });
+  }
+
+  // Paiement depuis le solde : débite le portefeuille FCFA en priorité, sinon
+  // les Safecoins, et autorise l'auto-setup immédiatement (pas de checkout
+  // externe, pas de validation admin).
+  function payWithBalance() {
+    setError(null);
+    const fd = new FormData();
+    fd.set("routerId", routerId);
+    fd.set("supportsContainers", supportsContainers ? "1" : "0");
+    startTransition(async () => {
+      const res = await payAutoSetupFromBalance(fd);
+      if ("error" in res) {
+        setError(res.error);
+        return;
+      }
+      setBalanceDone(res.source);
+      onSubmitted();
     });
   }
 
@@ -189,6 +232,28 @@ export default function AutoSetupPaywallModal({
               <button
                 onClick={onClose}
                 className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        ) : balanceDone ? (
+          <div className="mt-5">
+            <div className="flex items-start gap-2 rounded-lg bg-green-50 p-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden="true" />
+              <div className="text-sm text-green-800">
+                <p className="font-medium">Configuration débloquée !</p>
+                <p className="mt-1">
+                  Payé avec{" "}
+                  {balanceDone === "wallet" ? "votre portefeuille (FCFA)" : "vos Safecoins"}. Fermez
+                  cette fenêtre et relancez l&apos;auto-setup.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={onClose}
+                className="rounded-md bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:opacity-90"
               >
                 Fermer
               </button>
@@ -254,6 +319,33 @@ export default function AutoSetupPaywallModal({
                   Paiement sécurisé · l&apos;auto-setup se débloque automatiquement dès confirmation.
                 </p>
               </>
+            )}
+
+            {/* Paiement depuis le solde — même offre que l'accès distant :
+                portefeuille FCFA en priorité, sinon Safecoins. */}
+            {balances && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={payWithBalance}
+                  disabled={pending || !canPayFromBalance || applicable === null}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-brand-deep bg-brand/10 px-4 py-2.5 text-sm font-semibold text-brand-deep hover:bg-brand/20 disabled:opacity-50"
+                >
+                  {pending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wallet className="h-4 w-4" />
+                  )}
+                  Payer avec mon solde {priceLabel ?? ""}
+                </button>
+                <p className="mt-1.5 text-[11px] text-ink-soft">
+                  Portefeuille : {formatFcfa(balances.walletFcfa)} · Safecoins : ≈{" "}
+                  {formatFcfa(balances.safecoinFcfa)}.{" "}
+                  {canPayFromBalance
+                    ? "Débité immédiatement (portefeuille en priorité), l’auto-setup se débloque aussitôt."
+                    : "Solde insuffisant — rechargez, ou payez en ligne / manuellement."}
+                </p>
+              </div>
             )}
 
             {/* Paiement manuel : replié en secondaire quand GeniusPay est actif ;

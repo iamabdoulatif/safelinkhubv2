@@ -251,6 +251,60 @@ export async function approveAutoSetupPaymentByReference(
   return row ?? null;
 }
 
+/**
+ * Crée une autorisation DÉJÀ APPROUVÉE — utilisée par le paiement « depuis le
+ * solde » (portefeuille FCFA ou Safecoins), débité côté serveur. Pendant exact
+ * de createApprovedRemoteAccessAuthorization : aucun webhook à attendre, aucun
+ * admin à solliciter, l'auto-setup passe la porte au clic suivant.
+ * `paymentMethod` = "wallet" | "safecoin" (colonne texte libre, comme
+ * "geniuspay").
+ */
+export async function createApprovedAutoSetupAuthorization(input: {
+  orgId: string;
+  userId: string;
+  requesterEmail: string;
+  requesterName: string;
+  routerId: string;
+  routerName: string | null;
+  supportsContainers: boolean;
+  amountFcfa: number;
+  paymentMethod: string;
+  adminNote: string;
+}): Promise<AutoSetupAuthorizationRow> {
+  const db = getDb();
+  const [row] = await db
+    .insert(autoSetupAuthorizations)
+    .values({
+      orgId: input.orgId,
+      userId: input.userId,
+      requesterEmail: input.requesterEmail,
+      requesterName: input.requesterName,
+      routerId: input.routerId,
+      routerName: input.routerName,
+      supportsContainers: input.supportsContainers,
+      amountFcfa: input.amountFcfa,
+      paymentMethod: input.paymentMethod,
+      proofUrl: null,
+      status: "approved",
+      decidedAt: new Date(),
+      adminNote: input.adminNote,
+    })
+    .returning();
+  return row;
+}
+
+/** Filet : rejette une autorisation (ex. si le débit du solde échoue après coup). */
+export async function markAutoSetupAuthorizationRejected(
+  id: string,
+  note: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(autoSetupAuthorizations)
+    .set({ status: "rejected", adminNote: note })
+    .where(eq(autoSetupAuthorizations.id, id));
+}
+
 /** Liste toutes les demandes (dashboard superadmin), plus récentes d'abord. */
 export async function listAuthorizations(): Promise<AutoSetupAuthorizationRow[]> {
   const db = getDb();

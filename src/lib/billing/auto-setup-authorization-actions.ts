@@ -9,9 +9,15 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
-import { routers, autoSetupAuthorizations } from "@/lib/db/schema";
+import { routers, autoSetupAuthorizations, walletTransactions, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import { getWalletBalanceCents } from "@/lib/wallet/actions";
+import { getSafecoinBalance } from "@/lib/safecoin/ledger";
+import { autoSetupChargeScCents, chargeAutoSetup } from "@/lib/safecoin/service-charges";
+import { scCentsToFcfa } from "@/lib/safecoin/pricing";
+import { DEFAULT_SC_RATE_FCFA } from "@/lib/safecoin/constants";
+import { pickBalanceSource } from "./balance-source";
 import {
   autoSetupPriceFcfa,
   buildWhatsappLink,
@@ -27,6 +33,9 @@ import {
   getAutoSetupGateStatusForRouter,
   createPendingAutoSetupPayment,
   attachAutoSetupPaymentReference,
+  createApprovedAutoSetupAuthorization,
+  markAutoSetupAuthorizationRejected,
+  findUsableAuthorization,
 } from "./auto-setup-authorization-service";
 
 const MAX_PROOF_BYTES = 5 * 1024 * 1024; // 5 Mo
@@ -252,6 +261,128 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
 
   await attachAutoSetupPaymentReference(row.id, payment.reference);
   return { paymentUrl: payment.paymentUrl };
+}
+
+/**
+ * Soldes de l'org pour le paiement « depuis le solde » du paywall Auto-Setup.
+ * Le montant Safecoin est converti en FCFA au taux courant, uniquement pour
+ * l'affichage — le débit, lui, se fait en SC (frais de service inclus).
+ */
+export async function getAutoSetupBalancesPublic(): Promise<{
+  walletFcfa: number;
+  safecoinScCents: number;
+  safecoinFcfa: number;
+}> {
+  const session = await getSession();
+  if (!session) return { walletFcfa: 0, safecoinScCents: 0, safecoinFcfa: 0 };
+  const [settings] = await getDb()
+    .select({ rate: safecoinSettings.rateFcfaPerSc })
+    .from(safecoinSettings)
+    .limit(1);
+  const rate = settings?.rate ?? DEFAULT_SC_RATE_FCFA;
+  const [walletFcfa, safecoinScCents] = await Promise.all([
+    getWalletBalanceCents(session.orgId),
+    getSafecoinBalance(session.orgId),
+  ]);
+  return { walletFcfa, safecoinScCents, safecoinFcfa: scCentsToFcfa(safecoinScCents, rate) };
+}
+
+/**
+ * Paie l'Auto-Setup DEPUIS LE SOLDE : débite le portefeuille FCFA en priorité,
+ * sinon les Safecoins, puis crée une autorisation DÉJÀ APPROUVÉE — l'assistant
+ * passe la porte immédiatement, sans checkout externe ni validation admin.
+ * Même contrat que payRemoteAccessFromBalance, pour que les deux parcours
+ * payants du produit se comportent pareil.
+ *
+ * Le tarif est imposé côté serveur (le client n'envoie que le routeur et sa
+ * capacité container). Aucun double débit possible : une fois l'autorisation
+ * approuvée, evaluateAutoSetupGate renvoie "authorized" et provisionHotspotStack
+ * met billableCents à null — le prélèvement d'exécution est court-circuité.
+ */
+export async function payAutoSetupFromBalance(formData: FormData): Promise<
+  { success: true; source: "wallet" | "safecoin" } | { error: string }
+> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const routerId = String(formData.get("routerId") ?? "");
+  const supportsContainers = String(formData.get("supportsContainers") ?? "") === "1";
+  if (!routerId) return { error: "Routeur manquant." };
+
+  const db = getDb();
+  const [router] = await db
+    .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
+    .from(routers)
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .limit(1);
+  if (!router) return { error: "Routeur introuvable." };
+
+  // Déjà payé et pas encore consommé : ne pas débiter une seconde fois. Le
+  // débit Safecoin est idempotent par routeur (clé `auto-setup:<routerId>`),
+  // mais rien n'empêcherait un second débit du PORTEFEUILLE sans ce garde-fou.
+  const existing = await findUsableAuthorization(router.id, session.userId);
+  if (existing) {
+    return { error: "Cette configuration est déjà payée — relancez simplement l'auto-setup." };
+  }
+
+  const amountFcfa = autoSetupPriceFcfa(getAutoSetupGateConfig(), supportsContainers);
+  const scCost = await autoSetupChargeScCents({ supportsContainers });
+  const [walletBal, scBal] = await Promise.all([
+    getWalletBalanceCents(session.orgId),
+    getSafecoinBalance(session.orgId),
+  ]);
+
+  const source = pickBalanceSource({
+    walletFcfa: walletBal,
+    amountFcfa,
+    safecoinScCents: scBal,
+    requiredScCents: scCost,
+  });
+  if (!source) {
+    return { error: "Solde insuffisant (portefeuille et Safecoins) pour cette configuration." };
+  }
+
+  const auth = await createApprovedAutoSetupAuthorization({
+    orgId: session.orgId,
+    userId: session.userId,
+    requesterEmail: session.email,
+    requesterName: session.name,
+    routerId: router.id,
+    routerName: router.name,
+    supportsContainers,
+    amountFcfa,
+    paymentMethod: source,
+    adminNote: source === "wallet" ? "Payé avec le portefeuille (FCFA)" : "Payé avec les Safecoins",
+  });
+
+  if (source === "wallet") {
+    await db.insert(walletTransactions).values({
+      orgId: session.orgId,
+      type: "charge",
+      amountCents: amountFcfa,
+      status: "completed",
+      note: `Configuration automatique — ${router.name ?? "routeur"} (${mikrotikKindLabel(supportsContainers)})`,
+      createdBy: session.userId,
+    });
+  } else {
+    const debit = await chargeAutoSetup({
+      orgId: session.orgId,
+      userId: session.userId,
+      routerId: router.id,
+      supportsContainers,
+    });
+    if ("error" in debit) {
+      await markAutoSetupAuthorizationRejected(
+        auth.id,
+        "Débit Safecoin refusé (solde insuffisant).",
+      );
+      return { error: "Solde Safecoin insuffisant." };
+    }
+  }
+
+  revalidatePath("/admin/settings/router-setup");
+  revalidatePath("/admin/authorizations");
+  return { success: true, source };
 }
 
 /** État de la porte pour un routeur (UI). */
