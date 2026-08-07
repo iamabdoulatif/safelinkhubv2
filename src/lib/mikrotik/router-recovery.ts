@@ -1,3 +1,5 @@
+import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
+
 export const ROUTER_REPLACEMENT_STATUSES = [
   "pending",
   "installing",
@@ -41,7 +43,7 @@ export function buildReplacementInstallCommand(
   const fileName = method === "openvpn" ? "ovpn.rsc" : "vpn.rsc";
   const preamble =
     method === "vpn"
-      ? "/interface/ethernet/set [find name=ether1] name=E1-WAN-FAI; /interface/wifi/set [find] disabled=no; "
+      ? `/interface/ethernet/set [find name=ether1] name=E1-WAN-FAI; ${WIFI_ENABLE_ANY_VERSION}; `
       : "";
   const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";
   return `${preamble}/tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="${fileName}" mode=${fetchMode}; :delay 2s; /import file-name="${fileName}"; :delay 1s; /file remove "${fileName}"`;

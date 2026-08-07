@@ -19,6 +19,8 @@ import {
   setRouterBandwidthCap,
   repairMikhmonStorage,
   reconfigureMikhmonSession,
+  upgradeRouterFirmware,
+  fixRouterApiGroupPolicy,
 } from "@/lib/mikrotik/actions";
 import type { AuditFinding, AuditSeverity, RouterAudit } from "@/lib/mikrotik/router-audit";
 import NetworkGuide from "./NetworkGuide";
@@ -40,6 +42,8 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   cap: "Plafonner à 450 Mbps",
   mikhmon: "Déplacer sur la flash",
   "mikhmon-session": "Reconfigurer la session",
+  "rb-firmware": "Mettre à niveau le firmware",
+  "api-policy": "Corriger les droits MikHmon",
 };
 
 function scoreTone(score: number) {
@@ -85,7 +89,11 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
               ? await repairMikhmonStorage(routerId)
               : finding.fix === "mikhmon-session"
                 ? await reconfigureMikhmonSession(routerId)
-                : await setRouterBandwidthCap(routerId, 450);
+                : finding.fix === "rb-firmware"
+                  ? await upgradeRouterFirmware(routerId)
+                  : finding.fix === "api-policy"
+                    ? await fixRouterApiGroupPolicy(routerId)
+                    : await setRouterBandwidthCap(routerId, 450);
       setFixingId(null);
       if (res?.error) {
         setFixMsg({ id: finding.id, ok: false, text: res.error });

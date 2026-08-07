@@ -22,6 +22,8 @@ import {
   setRouterBandwidthCap as setBandwidthCap,
 } from "./router-throughput";
 import { auditRouter } from "./router-audit";
+import { ensureApiGroupPolicy, upgradeRouterboardFirmware } from "./router-audit-fixes";
+import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
 import { decryptSecret } from "./crypto";
@@ -222,6 +224,114 @@ export async function fixRouterWifiDfs(routerId: string) {
   } catch (err) {
     return {
       error: err instanceof Error ? `Échec du correctif WiFi : ${err.message}` : "Échec du correctif WiFi.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * Correctif d'audit « firmware RouterBOARD périmé » : stage le firmware du
+ * bootloader embarqué par le RouterOS courant (/system/routerboard/upgrade).
+ * NE redémarre PAS — le firmware s'applique au prochain reboot (à planifier
+ * hors-pointe). Idempotent : no-op si déjà à jour ou si ce n'est pas un
+ * RouterBOARD.
+ */
+export async function upgradeRouterFirmware(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour mettre à niveau le firmware.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await upgradeRouterboardFirmware(client);
+    if (!res.applied) {
+      return {
+        success: true,
+        summary: res.routerboard
+          ? `Firmware RouterBOARD déjà à jour (${res.current}).`
+          : "Pas de RouterBOARD à mettre à niveau (firmware géré autrement).",
+      };
+    }
+    revalidatePath(`/admin/router/${routerId}`);
+    return {
+      success: true,
+      summary: `Firmware RouterBOARD ${res.current} → ${res.target} stagé. Il s'appliquera au PROCHAIN redémarrage du routeur (à planifier hors-pointe) — aucune coupure pour l'instant.`,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec de la mise à niveau firmware : ${err.message}` : "Échec de la mise à niveau firmware.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * Correctif d'audit « MikHmon : tickets sans expiration & revenu absent » :
+ * complète les permissions API du groupe de service (safelinkhub-group) —
+ * notamment « policy », sans laquelle le MikHmon hébergé ne peut poser ni les
+ * schedulers d'expiration ni le journal de revenu. Idempotent, sans coupure
+ * (n'affecte que le compte de service).
+ */
+export async function fixRouterApiGroupPolicy(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour corriger les droits API.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await ensureApiGroupPolicy(client);
+    if (!res.found) {
+      return { error: "Groupe de service « safelinkhub-group » introuvable — relancez l'installation VPN du routeur." };
+    }
+    if (!res.applied) {
+      return { success: true, summary: "Droits API déjà complets — MikHmon peut gérer expiration et revenu." };
+    }
+    revalidatePath(`/admin/router/${routerId}`);
+    return {
+      success: true,
+      summary: `Droits API complétés (ajout de ${res.missing.map((m) => `« ${m} »`).join(", ")}). Le MikHmon hébergé peut désormais faire expirer les tickets et afficher le revenu sur ce routeur.`,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec de la correction des droits API : ${err.message}` : "Échec de la correction des droits API.",
     };
   } finally {
     client.close();
@@ -663,12 +773,15 @@ export async function generateInstallScript(
   // container-setup.ts's WAN rename), the RouterOS CLI's own [find ...]
   // selector always does. A no-op (not an error) if ether1 doesn't exist
   // or was already renamed, so this is safe to run on every install.
-  // /interface/wifi/set [find] disabled=no enables every WiFi radio the
-  // board has (no-op if it has none) — just the on/off flag here, not the
-  // band/width/SSID/country tuning provisionHotspotStack does, since this
-  // one-shot script only ever runs the VPN install, not the full
-  // auto-setup.
-  const command = `/interface/ethernet/set [find name=ether1] name=E1-WAN-FAI; /interface/wifi/set [find] disabled=no; /tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="vpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="vpn.rsc"; :delay 1s; /ip route remove [find dst-address=10.66.0.0/24 gateway=safelinkhub-wg0]; /ip route add dst-address=10.66.0.0/24 gateway=safelinkhub-wg0; :delay 1s; /file remove "vpn.rsc"`;
+  // WIFI_ENABLE_ANY_VERSION enables every WiFi radio the board has (no-op if
+  // it has none) — just the on/off flag here, not the band/width/SSID/country
+  // tuning provisionHotspotStack does, since this one-shot script only ever
+  // runs the VPN install, not the full auto-setup. It is version-tolerant
+  // (RouterOS 7.9 → 7.23.x): the WiFi menu path differs across versions/drivers
+  // (/interface/wifi vs /interface/wifiwave2 vs /interface/wireless) and a
+  // missing menu would otherwise fail at PARSE time and abort the whole pasted
+  // line — see provisioning-commands.ts.
+  const command = `/interface/ethernet/set [find name=ether1] name=E1-WAN-FAI; ${WIFI_ENABLE_ANY_VERSION}; /tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="vpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="vpn.rsc"; :delay 1s; /ip route remove [find dst-address=10.66.0.0/24 gateway=safelinkhub-wg0]; /ip route add dst-address=10.66.0.0/24 gateway=safelinkhub-wg0; :delay 1s; /file remove "vpn.rsc"`;
 
   revalidatePath("/admin/settings/router-setup");
   return { success: true, routerId: router.id, command };

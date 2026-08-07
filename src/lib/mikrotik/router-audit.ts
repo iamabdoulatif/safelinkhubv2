@@ -1,5 +1,6 @@
 import type { RouterOSClient } from "./client";
 import { readWifiState } from "./wifi-compat";
+import { readRouterboardFirmware, missingApiGroupPolicies, API_GROUP_NAME } from "./router-audit-fixes";
 
 /**
  * OUTIL D'AUDIT MikroTik — analyse un routeur (souvent mal configuré, importé
@@ -14,7 +15,16 @@ import { readWifiState } from "./wifi-compat";
 
 export type AuditSeverity = "error" | "warn" | "info" | "ok";
 /** Correctif automatisable rattaché à un constat (mappé côté UI vers une action). */
-export type AuditFixKind = "wifi" | "wifi-dfs" | "throughput" | "cap" | "mikhmon" | "mikhmon-session" | null;
+export type AuditFixKind =
+  | "wifi"
+  | "wifi-dfs"
+  | "throughput"
+  | "cap"
+  | "mikhmon"
+  | "mikhmon-session"
+  | "rb-firmware"
+  | "api-policy"
+  | null;
 
 export type AuditFinding = {
   id: string;
@@ -263,6 +273,57 @@ export async function auditRouter(
     }
   } catch {
     /* container package absent — pas un défaut */
+  }
+
+  // ── Système : firmware RouterBOARD périmé ───────────────────────────────
+  // RouterOS et le firmware du RouterBOARD (bootloader) se mettent à jour
+  // SÉPARÉMENT : après une montée de RouterOS, il faut encore /system/router-
+  // board/upgrade + reboot, très souvent oublié → firmware décalé. Détection
+  // déterministe (current-firmware ≠ upgrade-firmware). Correctif stagé, sans
+  // coupure immédiate (fix "rb-firmware" → upgradeRouterFirmware).
+  try {
+    const fw = await readRouterboardFirmware(client, t);
+    if (fw.pending)
+      add(
+        "warn",
+        "Système",
+        "rb-firmware",
+        "Firmware RouterBOARD périmé",
+        `Le firmware du RouterBOARD est resté en ${fw.current} alors que le RouterOS installé embarque ${fw.target}. Le paquet RouterOS et le firmware du bootloader se mettent à jour séparément : après une montée de RouterOS, le firmware reste en arrière tant qu'on ne lance pas /system/routerboard/upgrade puis un reboot — d'où un décalage fréquent. Le correctif le met à niveau en un clic ; il est STAGÉ et ne s'applique qu'au prochain redémarrage (à planifier hors-pointe), sans coupure immédiate des clients.`,
+        "rb-firmware",
+      );
+    else if (fw.routerboard)
+      add("ok", "Système", "rb-firmware-ok", "Firmware RouterBOARD à jour", `Le firmware du RouterBOARD est aligné sur le RouterOS (${fw.current}).`);
+  } catch {
+    /* /system/routerboard illisible (ex. CHR) — pas un défaut. */
+  }
+
+  // ── MikHmon : droits API du compte de service (expiration + revenu) ──────
+  // Le MikHmon hébergé se connecte au routeur AVEC le compte safelinkhub-api
+  // (groupe safelinkhub-group). Si ce groupe n'a pas « policy » (routeurs
+  // provisionnés avant correctif), MikHmon ne peut ni poser les schedulers
+  // d'expiration des tickets ni écrire/relire le journal de revenu → tickets
+  // qui n'expirent pas + revenu absent. Détection déterministe sur le champ
+  // policy du groupe ; correctif idempotent (fix "api-policy").
+  try {
+    const groups = await client.talk(["/user/group/print", `?name=${API_GROUP_NAME}`], t).catch(() => []);
+    const grp = groups[0];
+    if (grp) {
+      const missing = missingApiGroupPolicies(grp.policy);
+      if (missing.length > 0)
+        add(
+          "warn",
+          "MikHmon",
+          "api-policy",
+          "MikHmon : tickets sans expiration & revenu absent (droits API incomplets)",
+          `Le compte de service « ${API_GROUP_NAME} », utilisé par le MikHmon hébergé pour piloter le routeur, n'a pas ${missing.map((m) => `« ${m} »`).join(", ")} dans ses permissions API. Sans « policy » notamment, MikHmon ne peut pas poser les schedulers d'expiration des tickets ni écrire/relire le journal de revenu (/system script) — d'où des tickets qui n'expirent jamais et un revenu qui ne s'affiche pas. Le correctif complète les permissions manquantes en un clic (sans coupure : n'affecte que le compte de service SafeLinkHub).`,
+          "api-policy",
+        );
+      else
+        add("ok", "MikHmon", "api-policy-ok", "Droits API MikHmon complets", "Le compte de service a les permissions requises pour gérer expiration des tickets et revenu.");
+    }
+  } catch {
+    /* /user/group illisible — on ne conseille rien à tort. */
   }
 
   // ── Score de santé ──────────────────────────────────────────────────────

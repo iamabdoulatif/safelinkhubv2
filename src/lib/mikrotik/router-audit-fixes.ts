@@ -1,0 +1,129 @@
+import type { RouterOSClient } from "./client";
+
+/**
+ * Correctifs d'audit à ÉCRITURE (par opposition aux constats lecture-seule de
+ * router-audit.ts) : complétion des policies du groupe API et mise à niveau du
+ * firmware RouterBOARD. Isolés ici pour que la DÉTECTION (router-audit.ts) et
+ * les CORRECTIFS (server actions) partagent exactement les mêmes constantes.
+ */
+
+// ── Groupe API : policies requises par MikHmon ──────────────────────────────
+
+/** Nom du groupe du compte de service API créé par install-vpn.rsc. */
+export const API_GROUP_NAME = "safelinkhub-group";
+
+/**
+ * Policies dont le groupe API a besoin. `policy` est la permission
+ * historiquement manquante (routeurs provisionnés avant correctif) : sans elle,
+ * le MikHmon hébergé — qui se connecte AVEC ce compte — ne peut pas écrire les
+ * scripts `on-login`/`on-logout` des profils, les schedulers d'expiration des
+ * tickets, ni les scripts de journal de revenu (`/system script`, comment=
+ * mikhmon) qu'il relit pour calculer les recettes. D'où « tickets qui
+ * n'expirent pas » + « revenu absent ». `ftp` reste requis pour l'upload du
+ * portail captif. On garde le principe de moindre privilège : rien de plus.
+ */
+export const REQUIRED_API_GROUP_POLICIES = [
+  "api",
+  "read",
+  "write",
+  "policy",
+  "test",
+  "sensitive",
+  "ssh",
+  "ftp",
+] as const;
+
+/**
+ * Policies MANQUANTES dans un champ `policy=` RouterOS (ex.
+ * "ssh,ftp,read,write,test,sensitive,api,!policy,…"). Ne compte que les
+ * permissions ACTIVES (on ignore celles préfixées de `!`).
+ */
+export function missingApiGroupPolicies(policyField: string | undefined | null): string[] {
+  const present = new Set(
+    (policyField ?? "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0 && !p.startsWith("!")),
+  );
+  return REQUIRED_API_GROUP_POLICIES.filter((p) => !present.has(p));
+}
+
+export type ApiGroupPolicyResult = {
+  /** Le groupe safelinkhub-group existe-t-il ? */
+  found: boolean;
+  /** Permissions qui manquaient avant correction (vide si déjà conforme). */
+  missing: string[];
+  /** Un `set` a-t-il été appliqué ? (false = déjà conforme ou introuvable) */
+  applied: boolean;
+};
+
+/**
+ * Complète les policies du groupe API si `policy` (ou toute autre requise)
+ * manque. Idempotent : no-op si déjà conforme. LECTURE d'abord pour ne réécrire
+ * que si nécessaire et pour renvoyer un résumé exact.
+ */
+export async function ensureApiGroupPolicy(
+  client: RouterOSClient,
+  timeoutMs = 15000,
+): Promise<ApiGroupPolicyResult> {
+  const groups = await client
+    .talk(["/user/group/print", `?name=${API_GROUP_NAME}`], timeoutMs)
+    .catch(() => []);
+  const group = groups[0];
+  if (!group) return { found: false, missing: [], applied: false };
+
+  const missing = missingApiGroupPolicies(group.policy);
+  if (missing.length === 0) return { found: true, missing: [], applied: false };
+
+  await client.talk(
+    [
+      "/user/group/set",
+      `=numbers=${group[".id"]}`,
+      `=policy=${REQUIRED_API_GROUP_POLICIES.join(",")}`,
+    ],
+    timeoutMs,
+  );
+  return { found: true, missing, applied: true };
+}
+
+// ── Firmware RouterBOARD ────────────────────────────────────────────────────
+
+export type RouterboardFirmware = {
+  routerboard: boolean;
+  current: string;
+  /** Version que le RouterOS installé embarque pour le RouterBOARD. */
+  target: string;
+  /** current ≠ target ET c'est bien un RouterBOARD → mise à niveau en attente. */
+  pending: boolean;
+};
+
+/** Lecture seule de l'état du firmware RouterBOARD. */
+export async function readRouterboardFirmware(
+  client: RouterOSClient,
+  timeoutMs = 15000,
+): Promise<RouterboardFirmware> {
+  const [rb] = await client.talk(["/system/routerboard/print"], timeoutMs).catch(() => []);
+  const routerboard = rb?.routerboard === "true";
+  const current = rb?.["current-firmware"] ?? "?";
+  const target = rb?.["upgrade-firmware"] ?? "?";
+  const pending = routerboard && current !== "?" && target !== "?" && current !== target;
+  return { routerboard, current, target, pending };
+}
+
+export type RouterboardUpgradeResult = RouterboardFirmware & { applied: boolean };
+
+/**
+ * Stage le firmware RouterBOARD embarqué par le RouterOS courant. La commande
+ * ÉCRIT le nouveau firmware mais ne redémarre PAS : il s'applique au prochain
+ * reboot (à planifier hors-pointe). Idempotent : no-op si déjà à jour ou si ce
+ * n'est pas un RouterBOARD (ex. CHR).
+ */
+export async function upgradeRouterboardFirmware(
+  client: RouterOSClient,
+  timeoutMs = 15000,
+): Promise<RouterboardUpgradeResult> {
+  const state = await readRouterboardFirmware(client, timeoutMs);
+  if (!state.pending) return { ...state, applied: false };
+  await client.talk(["/system/routerboard/upgrade"], timeoutMs);
+  return { ...state, applied: true };
+}

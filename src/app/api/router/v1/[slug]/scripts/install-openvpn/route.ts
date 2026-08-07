@@ -28,7 +28,7 @@ function buildScript(opts: {
 
 /user remove [find name=safelinkhub-api]
 /user group remove [find name=safelinkhub-group]
-/user group add name=safelinkhub-group policy=api,read,write,test,sensitive,ssh,ftp
+/user group add name=safelinkhub-group policy=api,read,write,policy,test,sensitive,ssh,ftp
 /user add name=safelinkhub-api password="${opts.apiPassword}" group=safelinkhub-group
 
 
