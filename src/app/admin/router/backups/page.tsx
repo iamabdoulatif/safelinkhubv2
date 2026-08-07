@@ -5,8 +5,10 @@ import { getDb } from "@/lib/db";
 import { routerRestoreJobs, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { listOrgBackups } from "@/lib/mikrotik/router-backup";
+import { getOrgUploadedBackups } from "@/lib/mikrotik/backup-upload-actions";
 import BackupsManager from "./BackupsManager";
 import RestoreGuide from "./RestoreGuide";
+import UploadedBackupsCard from "./UploadedBackupsCard";
 
 // La restauration réelle recrée les tickets UN À UN (RouterOS n'a pas d'ajout en
 // lot), soit plusieurs minutes pour un gros site comme RUE-NICOLAS. Elle tourne
@@ -71,6 +73,11 @@ export default async function RouterBackupsPage() {
       ? { jobId: live.id, backupId: live.backupId, targetRouterId: live.targetRouterId }
       : null;
 
+  // Tolérant à l'ordre migration/déploiement : si la table n'existe pas encore,
+  // on dégrade en liste vide au lieu de casser toute la page (même garde-fou que
+  // la requête runningJobs ci-dessus).
+  const uploadedBackups = session ? await getOrgUploadedBackups().catch(() => []) : [];
+
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <Link
@@ -112,6 +119,18 @@ export default async function RouterBackupsPage() {
         }))}
         routers={orgRouters}
         initialJob={initialJob}
+      />
+
+      <UploadedBackupsCard
+        routers={orgRouters}
+        initialItems={uploadedBackups.map((b) => ({
+          id: b.id,
+          fileName: b.fileName,
+          sizeBytes: b.sizeBytes,
+          encrypted: b.encrypted,
+          uploadedByName: b.uploadedByName,
+          createdAt: b.createdAt.toISOString(),
+        }))}
       />
     </div>
   );

@@ -1106,6 +1106,39 @@ export const routerBackups = pgTable(
   ],
 );
 
+// Sauvegardes BINAIRES RouterOS UPLOADÉES à la main (/system backup save), par
+// opposition aux snapshots LOGIQUES de router_backups. Sert à cloner la config
+// d'un MikroTik sur un autre (ou le réparer) via /system backup load. Le blob
+// est stocké en base64 texte (comme router_backups.payload) pour rester
+// self-contained (pas de dépendance Blob sur l'hôte Docker). fetchToken* : jeton
+// éphémère que le routeur cible présente pour récupérer le binaire via /tool
+// fetch pendant la restauration (même schéma que l'install-token du VPN).
+export const routerUploadedBackups = pgTable(
+  "router_uploaded_backups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // Snapshot de l'uploadeur (affichage superadmin même si le compte part).
+    uploadedByEmail: text("uploaded_by_email"),
+    uploadedByName: text("uploaded_by_name"),
+    fileName: text("file_name").notNull(),
+    sizeBytes: integer("size_bytes").notNull().default(0),
+    encrypted: boolean("encrypted").notNull().default(false),
+    // Binaire .backup encodé base64.
+    data: text("data").notNull(),
+    // Jeton éphémère (haché) pour le /tool fetch du routeur pendant la restore.
+    fetchTokenHash: text("fetch_token_hash"),
+    fetchTokenExpiresAt: timestamp("fetch_token_expires_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("router_uploaded_backups_org_id_idx").on(table.orgId),
+    index("router_uploaded_backups_created_at_idx").on(table.createdAt),
+  ],
+);
+
 /**
  * Une restauration en cours, suivie hors du cycle requête/réponse.
  *
