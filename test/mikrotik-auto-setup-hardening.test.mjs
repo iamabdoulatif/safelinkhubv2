@@ -21,9 +21,12 @@ test("auto-setup installs the mikhmon-sf-v1 image and cleans up the legacy v3 co
 test("MikHmon container commands only use RouterOS 7.23 supported properties and fail fast", async () => {
   const source = await containerSetupSource();
 
-  // RouterOS documents tmpdir on /container/config and root-dir on
-  // /container/add. layer-dir is not a supported property on either command.
-  assert.doesNotMatch(source, /=layer-dir=/);
+  // layer-dir IS a /container/config property, and scenario 2 (hAP ax lite/ax²,
+  // no USB and no disk1) deliberately points it at the persistent flash NAND so
+  // the pulled image survives a power cut. What RouterOS does NOT accept is
+  // layer-dir on /container/add — that command only takes root-dir.
+  assert.match(source, /"\/container\/config\/set",[\s\S]{0,200}"=layer-dir=flash\/mikhmon-layers"/);
+  assert.doesNotMatch(source, /\/container\/add"[\s\S]{0,400}=layer-dir=/);
   // /container/envs identifies a variable list with `list`, not `name`.
   assert.match(source, /\/container\/envs\/add", `=list=\$\{MIKHMON_ENVLIST\}`/);
   // Never wait three minutes for an image if /container/add was rejected.
@@ -49,12 +52,18 @@ test("auto-setup repairs MikHmon tunnel access and removes duplicate legacy Dock
   assert.match(helper, /MIKHMON_TUNNEL_INTERFACES/);
 });
 
-test("USB container installs use USB root and temporary pull paths", async () => {
+test("USB container installs use the detected USB slot for root and pull paths", async () => {
   const source = await containerSetupSource();
 
-  assert.match(source, /"usb1\/mikhmon-app"/);
-  assert.match(source, /=tmpdir=usb1\/pull/);
-  assert.doesNotMatch(source, /\/flash\/mikhmon/);
+  // Le slot réel rapporté par /disk/print (usb1, usb2, microSD…), jamais "usb1"
+  // en dur : une clé branchée sur un autre slot doit rester utilisable.
+  assert.match(source, /const usbSlot = usbDisk\?\.slot \?\? "usb1"/);
+  assert.match(source, /containerRootDir = `\$\{usbSlot\}\/mikhmon-app`/);
+  assert.match(source, /`=tmpdir=\$\{usbSlot\}\/pull`/);
+  // Règle d'or du choix de stockage : le root-dir du conteneur n'est JAMAIS sur
+  // le tmpfs. Sans clé USB ni slot disk interne, MikHmon vit sur la flash NAND
+  // persistante — sinon la session est perdue à chaque coupure de courant.
+  assert.match(source, /containerRootDir = "flash\/mikhmon-app"/);
 });
 
 test("server-side auto-setup rechecks RouterOS device-mode container flag", async () => {

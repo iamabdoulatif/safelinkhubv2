@@ -104,7 +104,28 @@ test("RouterOS VPN script removes API user before its group during reinstall", a
   );
 });
 
-test("RouterOS install scripts grant the managed API user SSH/SFTP policy for FileZilla access", async () => {
+test("RouterOS install scripts create the API group with every policy the audit requires", async () => {
+  // La DÉTECTION (audit) et la CRÉATION (scripts d'install) doivent partager la
+  // même liste, sinon l'un des deux ment : soit l'audit signale « groupe API
+  // incomplet » sur des routeurs fraîchement provisionnés, soit un routeur naît
+  // sans une permission dont MikHmon a besoin. REQUIRED_API_GROUP_POLICIES est
+  // la source de vérité — ce test lit la constante au lieu de figer la chaîne,
+  // pour qu'ajouter une policy à l'audit sans l'ajouter ici casse le test.
+  const fixes = await readFile(
+    new URL("../src/lib/mikrotik/router-audit-fixes.ts", import.meta.url),
+    "utf8",
+  );
+  const listMatch = fixes.match(/REQUIRED_API_GROUP_POLICIES = \[([\s\S]*?)\] as const/);
+  assert.ok(listMatch, "router-audit-fixes.ts should export REQUIRED_API_GROUP_POLICIES");
+  const required = [...listMatch[1].matchAll(/"([a-z!]+)"/g)].map((m) => m[1]);
+  // `policy` = permission historiquement manquante (schedulers d'expiration des
+  // tickets + journal de revenu MikHmon) ; `ftp` = upload du portail captif ;
+  // `ssh` = accès FileZilla/SFTP.
+  assert.ok(required.length >= 8, "expected the full least-privilege policy set");
+  for (const policy of ["policy", "ftp", "ssh"]) {
+    assert.ok(required.includes(policy), `${policy} should be a required API group policy`);
+  }
+
   const wireguard = await readFile(
     new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/route.ts", import.meta.url),
     "utf8",
@@ -115,7 +136,14 @@ test("RouterOS install scripts grant the managed API user SSH/SFTP policy for Fi
   );
 
   for (const source of [wireguard, openvpn]) {
-    assert.match(source, /user group add name=safelinkhub-group policy=api,read,write,test,sensitive,ssh,ftp/);
+    const groupAdd = source
+      .split("\n")
+      .find((line) => line.startsWith("/user group add name=safelinkhub-group policy="));
+    assert.ok(groupAdd, "install script should create safelinkhub-group");
+    const granted = groupAdd.slice(groupAdd.indexOf("policy=") + 7).split(",");
+    for (const policy of required) {
+      assert.ok(granted.includes(policy), `install script should grant ${policy}`);
+    }
   }
 });
 
