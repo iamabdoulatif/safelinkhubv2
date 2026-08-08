@@ -93,10 +93,6 @@ export async function listRouterInterfaces(routerId: string) {
   }
 }
 
-export async function listBridges(routerId: string) {
-  const db = getDb();
-  return db.select().from(bridges).where(eq(bridges.routerId, routerId));
-}
 
 export async function saveBridge(_prevState: unknown, formData: FormData) {
   const session = await getSession();

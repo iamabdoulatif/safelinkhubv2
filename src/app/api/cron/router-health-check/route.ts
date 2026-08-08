@@ -3,7 +3,7 @@ import { inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
-import { syncMndpAnnouncementsForAllOrgs } from "@/lib/mikrotik/mndp-relay";
+import { syncMndpAnnouncementsForAllOrgs } from "@/lib/mikrotik/mndp-sync";
 
 export const maxDuration = 300;
 

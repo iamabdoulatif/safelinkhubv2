@@ -1,11 +1,12 @@
 "use server";
 
-import { eq, and, inArray } from "drizzle-orm";
-import { getDb } from "@/lib/db";
-import { routers, personalVpnAccess, organizations } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
-import { connectToRouter } from "./router-sync";
 import { runOnRelay } from "./relay";
+import {
+  MNDP_CONFIG_DIR as CONFIG_DIR,
+  MNDP_TARGETS_FILE as TARGETS_FILE,
+  syncMndpAnnouncementsForOrg,
+} from "./mndp-sync";
 
 /**
  * MikroTik's MNDP (Neighbor Discovery, UDP port 5678) is what makes a
@@ -31,8 +32,6 @@ import { runOnRelay } from "./relay";
  */
 
 const RELAY_DIR = "/opt/safelinkhub";
-const CONFIG_DIR = "/etc/safelinkhub";
-const TARGETS_FILE = `${CONFIG_DIR}/mndp-targets.json`;
 const DAEMON_PATH = `${RELAY_DIR}/mndp-relay.py`;
 const SERVICE_NAME = "safelinkhub-mndp-relay";
 
@@ -187,86 +186,17 @@ export async function getMndpRelayStatus() {
 }
 
 /**
- * Refreshes the targets file the daemon reads from: every online VPN/OpenVPN
- * router's live identity/version/board/MAC/uptime, announced to every
- * active personal VPN access peer in the same org. Call this after any
- * change to either side (router connects, personal access granted/revoked)
- * and periodically from the health-check cron so uptime stays fresh.
+ * Rafraîchit les annonces MNDP de L'ORGANISATION DE L'APPELANT.
+ *
+ * Façade GARDÉE : elle ne prend plus d'identifiant d'organisation en paramètre.
+ * Elle en prenait un, et n'avait aucune vérification de session — un appelant
+ * anonyme pouvait donc déclencher l'ouverture de sessions API sur les routeurs
+ * de n'importe quelle organisation. L'org vient désormais de la session signée,
+ * et le travail réel vit dans mndp-sync.ts (module sans "use server", donc non
+ * exposé comme endpoint).
  */
-export async function syncMndpAnnouncements(orgId: string) {
-  const db = getDb();
-
-  const candidateRouters = await db
-    .select()
-    .from(routers)
-    .where(
-      and(
-        eq(routers.orgId, orgId),
-        eq(routers.status, "online"),
-        inArray(routers.connectionMethod, ["vpn", "openvpn"]),
-      ),
-    );
-
-  const routerTargets = (
-    await Promise.all(
-      candidateRouters
-        .filter((r) => r.tunnelIp)
-        .map(async (router) => {
-          let client;
-          try {
-            client = await connectToRouter(router, 8000);
-          } catch {
-            return null;
-          }
-          try {
-            const [resource] = await client.talk(["/system/resource/print"], 8000);
-            const [identityRow] = await client.talk(["/system/identity/print"], 8000);
-            const [ethernet] = await client.talk(["/interface/ethernet/print"], 8000).catch(() => []);
-            return {
-              identity: identityRow?.name || router.name,
-              version: resource?.version ?? "",
-              board: resource?.["board-name"] ?? router.model ?? "",
-              mac: ethernet?.["mac-address"] ?? "",
-              uptimeSeconds: router.uptimeSeconds ?? 0,
-              tunnelIp: router.tunnelIp,
-            };
-          } catch {
-            return null;
-          } finally {
-            client.close();
-          }
-        }),
-    )
-  ).filter((r): r is NonNullable<typeof r> => r !== null);
-
-  const peerRows = await db
-    .select({ vpnIp: personalVpnAccess.vpnIp })
-    .from(personalVpnAccess)
-    .where(and(eq(personalVpnAccess.orgId, orgId), eq(personalVpnAccess.status, "active")));
-  const peers = peerRows.map((p) => p.vpnIp).filter((ip): ip is string => Boolean(ip));
-
-  const payload = JSON.stringify({ routers: routerTargets, peers });
-  const payloadB64 = Buffer.from(payload, "utf8").toString("base64");
-
-  try {
-    await runOnRelay(
-      `sudo mkdir -p ${CONFIG_DIR} && echo ${payloadB64} | base64 -d | sudo tee ${TARGETS_FILE} >/dev/null`,
-      15000,
-    );
-    return { success: true, routerCount: routerTargets.length, peerCount: peers.length };
-  } catch (err) {
-    return {
-      error: err instanceof Error ? `Sync failed: ${err.message}` : "Sync failed.",
-    };
-  }
-}
-
-/** Used by the health-check cron, which doesn't have a session to scope to. */
-export async function syncMndpAnnouncementsForAllOrgs() {
-  const db = getDb();
-  const orgRows = await db.select({ id: organizations.id }).from(organizations);
-  const results = await Promise.all(
-    orgRows.map((o) => syncMndpAnnouncements(o.id).catch((err) => ({ error: String(err) }))),
-  );
-  return { orgsProcessed: results.length };
+export async function syncMndpAnnouncements() {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." as const };
+  return syncMndpAnnouncementsForOrg(session.orgId);
 }

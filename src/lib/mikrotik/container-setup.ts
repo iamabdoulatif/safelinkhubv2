@@ -32,7 +32,7 @@ import {
   evaluateAutoSetupGate,
   consumeAuthorization,
 } from "@/lib/billing/auto-setup-authorization-service";
-import { getWalletBalanceCents } from "@/lib/wallet/actions";
+import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { getSafecoinAccount } from "@/lib/safecoin/ledger";
 import { autoSetupChargeScCents, chargeAutoSetup } from "@/lib/safecoin/service-charges";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";

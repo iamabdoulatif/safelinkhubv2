@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
 import { walletTransactions } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { completeWalletTopupByReference } from "./topup-confirmation";
 import {
   createPlatformV3Payment,
   getPlatformV3PaymentStatus,
@@ -31,18 +32,6 @@ function toIntlPhone(localRaw: string, countryIso2: string): string {
   return `+${dial}${local}`;
 }
 
-export async function getWalletBalanceCents(orgId: string) {
-  const db = getDb();
-  const rows = await db
-    .select({ type: walletTransactions.type, amountCents: walletTransactions.amountCents })
-    .from(walletTransactions)
-    .where(and(eq(walletTransactions.orgId, orgId), eq(walletTransactions.status, "completed")));
-
-  return rows.reduce(
-    (sum, r) => sum + (r.type === "topup" ? r.amountCents : -r.amountCents),
-    0,
-  );
-}
 
 /** Enregistre un dépôt confirmé manuellement par l'équipe SafeLinkHub. */
 export async function addWalletFunds(_prevState: unknown, formData: FormData) {
@@ -289,22 +278,3 @@ export async function confirmWalletTopupPayment(
   return { status: "pending" };
 }
 
-/** Crédite un dépôt une seule fois après validation du webhook Genius Pay. */
-export async function completeWalletTopupByReference(paymentReference: string): Promise<boolean> {
-  if (!paymentReference) return false;
-  const db = getDb();
-  const [row] = await db
-    .update(walletTransactions)
-    .set({ status: "completed", note: "Dépôt portefeuille confirmé par Genius Pay" })
-    .where(
-      and(
-        eq(walletTransactions.type, "topup"),
-        eq(walletTransactions.status, "pending"),
-        eq(walletTransactions.paymentReference, paymentReference),
-      ),
-    )
-    .returning({ orgId: walletTransactions.orgId });
-  if (!row) return false;
-  revalidatePath("/admin/billing");
-  return true;
-}

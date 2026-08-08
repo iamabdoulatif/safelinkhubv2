@@ -12,7 +12,7 @@ import { getDb } from "@/lib/db";
 import { routers, autoSetupAuthorizations, walletTransactions, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
-import { getWalletBalanceCents } from "@/lib/wallet/actions";
+import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { getSafecoinBalance } from "@/lib/safecoin/ledger";
 import { autoSetupChargeScCents, chargeAutoSetup } from "@/lib/safecoin/service-charges";
 import { scCentsToFcfa } from "@/lib/safecoin/pricing";

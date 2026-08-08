@@ -19,8 +19,8 @@ import {
   fulfillPortalOrder,
   sendPortalTicketSms,
 } from "@/lib/portal/fulfill";
-import { completeWalletTopupByReference } from "@/lib/wallet/actions";
-import { completeSafecoinTopupByReference } from "@/lib/safecoin/actions";
+import { completeWalletTopupByReference } from "@/lib/wallet/topup-confirmation";
+import { completeSafecoinTopupByReference } from "@/lib/safecoin/topup-confirmation";
 
 export async function POST(request: Request) {
   // Corps BRUT indispensable au calcul HMAC (un JSON re-sérialisé casserait

@@ -4,7 +4,11 @@ import { useState, useTransition } from "react";
 import { Check, Loader2, Radar } from "lucide-react";
 import { deployMndpRelay, syncMndpAnnouncements } from "@/lib/mikrotik/mndp-relay";
 
-export default function MndpRelaySection({ orgId }: { orgId: string }) {
+// NOTE : ce composant n'est rendu par aucune page aujourd'hui (aucun import
+// ailleurs dans src/). Conservé tel quel — il n'est pas de ce correctif de
+// décider de sa suppression — mais il n'a plus besoin d'orgId : l'action le
+// dérive de la session.
+export default function MndpRelaySection() {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<
     | { error: string }
@@ -20,8 +24,9 @@ export default function MndpRelaySection({ orgId }: { orgId: string }) {
         setResult({ error: deployRes.error });
         return;
       }
-      const syncRes = await syncMndpAnnouncements(orgId);
-      if (syncRes?.error) {
+      // Plus d'orgId transmis : l'action le dérive de la session côté serveur.
+      const syncRes = await syncMndpAnnouncements();
+      if ("error" in syncRes) {
         setResult({ error: syncRes.error });
         return;
       }

@@ -6,7 +6,11 @@ import { getDb } from "@/lib/db";
 import { floatTransactions } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 
-export async function getFloatBalanceCents(orgId: string) {
+// Non exporté À DESSEIN : dans un module "use server", toute fonction
+// exportée devient un endpoint appelable — et celle-ci prend l'organisation en
+// paramètre. Son unique appelant est createFloatTransaction, juste en dessous,
+// qui passe session.orgId.
+async function getFloatBalanceCents(orgId: string) {
   const db = getDb();
   const rows = await db
     .select({ type: floatTransactions.type, amountCents: floatTransactions.amountCents })
