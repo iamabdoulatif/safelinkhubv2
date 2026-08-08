@@ -3,6 +3,7 @@ import { BarChart2 } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { routers, vouchers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import LineChart from "@/components/charts/LineChart";
 
 function formatUptime(seconds: number) {
   if (seconds <= 0) return "0m";
@@ -79,18 +80,15 @@ export default async function UsageAnalyticsPage() {
     const bucket = countByDay.get(key);
     if (bucket) bucket.count += 1;
   }
-  const maxCount = Math.max(1, ...days.map((d) => d.count));
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <BarChart2 className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">
-          Analyse d&apos;utilisation
-        </h1>
+        <h1 className="text-2xl font-bold text-ink">Supervision</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
-        Activité réseau en direct et tendance d&apos;activation des vouchers.
+        Activité réseau en direct et tendance d&apos;activation des tickets.
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -120,20 +118,21 @@ export default async function UsageAnalyticsPage() {
 
       <div className="mt-6 border-2 border-line bg-paper p-6">
         <h2 className="font-semibold text-ink">
-          Activations de vouchers (14 derniers jours)
+          Activations de tickets (14 derniers jours)
         </h2>
-        <div className="mt-4 flex items-end gap-1.5" style={{ height: 140 }}>
-          {days.map((d) => (
-            <div key={d.key} className="flex flex-1 flex-col items-center gap-1">
-              <div
-                className="w-full rounded-t bg-brand/80"
-                style={{ height: `${Math.max(4, (d.count / maxCount) * 120)}px` }}
-                title={`${d.count} activation(s)`}
-              />
-              <span className="text-[10px] text-ink-soft">{d.label}</span>
-            </div>
-          ))}
-        </div>
+        <LineChart
+          labels={days.map((d) => d.label)}
+          series={[
+            {
+              key: "activations",
+              label: "Activations",
+              color: "var(--chart-1)",
+              values: days.map((d) => d.count),
+            },
+          ]}
+          ariaLabel="Activations de tickets par jour sur les quatorze derniers jours"
+          emptyLabel="Aucune activation sur les quatorze derniers jours."
+        />
       </div>
 
       <div className="mt-6 overflow-hidden border-2 border-line bg-paper">

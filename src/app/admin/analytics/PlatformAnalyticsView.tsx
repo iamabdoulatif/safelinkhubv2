@@ -19,6 +19,7 @@ import {
 import { useMemo, useState } from "react";
 import { buildPlatformSalesCsv, type PlatformAnalyticsReport, type PlatformSaleRow } from "@/lib/admin/platform-analytics";
 import { formatFcfa, PAYMENT_METHODS } from "@/lib/billing/auto-setup-gate-config";
+import LineChart from "@/components/charts/LineChart";
 import { periodLabel, serviceLabel } from "@/lib/billing/remote-access-gate-config";
 
 const paymentMethodLabels: Record<string, string> = {
@@ -50,72 +51,35 @@ function percentLabel(value: number) {
   return `${value.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}%`;
 }
 
+/**
+ * Ventes VPN et Auto-Setup au fil des jours.
+ *
+ * Deux séries de barres accolées, dont l'une en `var(--ink)` — la couleur du
+ * TEXTE : le mark se confondait avec la typographie environnante. En courbes,
+ * chaque service garde sa propre pente et l'écart se lit d'un coup.
+ */
 function DailySalesChart({ report }: { report: PlatformAnalyticsReport }) {
-  const W = 760;
-  const H = 236;
-  const PAD_BOTTOM = 26;
-  const max = Math.max(
-    ...report.daily.map((point) => Math.max(point.vpnAmountFcfa, point.autoSetupAmountFcfa)),
-    1,
-  );
-  const slot = W / Math.max(report.daily.length, 1);
-  const barW = Math.min(28, Math.max(4, slot * 0.62));
-  const labelEvery = Math.max(1, Math.ceil(report.daily.length / 8));
-
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      role="img"
-      aria-label="Ventes VPN et auto-setup par jour"
-      className="mt-5 h-auto w-full"
-    >
-      <line x1="0" y1={H - PAD_BOTTOM} x2={W} y2={H - PAD_BOTTOM} stroke="var(--line)" strokeWidth="2" />
-      {report.daily.map((point, index) => {
-        const center = index * slot + slot / 2;
-        const vpnHeight = ((H - PAD_BOTTOM - 16) * point.vpnAmountFcfa) / max;
-        const setupHeight = ((H - PAD_BOTTOM - 16) * point.autoSetupAmountFcfa) / max;
-        return (
-          <g key={point.day}>
-            {point.vpnAmountFcfa > 0 && (
-              <rect
-                x={center - barW / 2}
-                y={H - PAD_BOTTOM - vpnHeight}
-                width={barW / 2 - 1}
-                height={vpnHeight}
-                fill="var(--ink)"
-              >
-                <title>{`${formatDay(point.day)} — VPN ${formatFcfa(point.vpnAmountFcfa)}`}</title>
-              </rect>
-            )}
-            {point.autoSetupAmountFcfa > 0 && (
-              <rect
-                x={center + 1}
-                y={H - PAD_BOTTOM - setupHeight}
-                width={barW / 2 - 1}
-                height={setupHeight}
-                fill="var(--brand)"
-                stroke="var(--line)"
-                strokeWidth="1"
-              >
-                <title>{`${formatDay(point.day)} — Auto-Setup ${formatFcfa(point.autoSetupAmountFcfa)}`}</title>
-              </rect>
-            )}
-            {index % labelEvery === 0 && (
-              <text
-                x={center}
-                y={H - 7}
-                textAnchor="middle"
-                fontSize="10"
-                fontFamily="var(--font-geist-mono), monospace"
-                fill="var(--ink-soft)"
-              >
-                {formatDay(point.day)}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+    <LineChart
+      labels={report.daily.map((point) => formatDay(point.day))}
+      series={[
+        {
+          key: "vpn",
+          label: "VPN",
+          color: "var(--chart-1)",
+          values: report.daily.map((point) => point.vpnAmountFcfa),
+        },
+        {
+          key: "autosetup",
+          label: "Auto-Setup",
+          color: "var(--chart-2)",
+          values: report.daily.map((point) => point.autoSetupAmountFcfa),
+        },
+      ]}
+      unit="fcfa"
+      ariaLabel="Ventes VPN et Auto-Setup par jour"
+      emptyLabel="Aucune vente sur la période sélectionnée."
+    />
   );
 }
 

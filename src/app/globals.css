@@ -25,6 +25,18 @@
   --err:  #C2410C;
   --err-soft: #FFF3ED;  /* fond des encarts d'erreur */
 
+  /* Séries de graphiques. Deux jetons DÉDIÉS, parce que les graphiques
+     empruntaient jusqu'ici --err (rouge d'erreur) et --ink (couleur du texte) :
+     un statut réservé ne doit pas signifier « série 2 », et une courbe de la
+     couleur du texte se confond avec lui.
+     --chart-1 est le moutarde ENCRE, pas le moutarde vif : mesuré, #EAB308 ne
+     tient que 1,84:1 sur le papier — invisible en trait de 2 px, alors qu'il
+     reste parfait en aplat. Le couple (#A16207, #1D4ED8) passe les six
+     contrôles : bande de clarté, chroma, séparation daltonienne (ΔE 30,2
+     protan / 21,8 tritan), plancher vision normale (34,0) et contraste ≥ 3:1. */
+  --chart-1: #A16207;
+  --chart-2: #1D4ED8;
+
   --background: var(--paper);
   --foreground: var(--ink);
   --font-syne: "Arial Black", "Trebuchet MS", system-ui, sans-serif;
@@ -46,6 +58,10 @@
   --warn: #D97706;
   --err:  #E05B2B;
   --err-soft: #2B1812;
+  /* Mode sombre : jetons posés par cohérence, mais NON VALIDÉS à l'écran —
+     la classe .dark n'est appliquée nulle part dans l'application aujourd'hui. */
+  --chart-1: #EAB308;
+  --chart-2: #93C5FD;
 }
 
 @theme inline {

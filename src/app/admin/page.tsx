@@ -5,6 +5,7 @@ import { getDashboardData, type DailyPoint } from "@/lib/dashboard/queries";
 import { getSafecoinReport } from "@/lib/safecoin/queries";
 import { formatSc } from "@/lib/safecoin/pricing";
 import DateRangePicker from "./DateRangePicker";
+import LineChart from "@/components/charts/LineChart";
 
 const fcfa = new Intl.NumberFormat("fr-FR");
 
@@ -36,72 +37,41 @@ function parseDay(value: string | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** Graphique en barres plat, sans dépendance : revenu brut par jour
- * (aplat moutarde) et dépenses par jour (aplat encre, plus étroit). */
+/**
+ * Revenu brut et dépenses au fil des jours.
+ *
+ * C'était deux séries de BARRES SUPERPOSÉES — la barre « dépenses », plus
+ * étroite, se dessinait par-dessus la barre « revenu ». Quand les deux
+ * montants étaient proches, la seconde disparaissait derrière la première, et
+ * l'œil devait comparer des hauteurs voisines au lieu de suivre deux
+ * tendances. Deux courbes répondent à la vraie question : est-ce que ça monte,
+ * et l'écart entre les deux se creuse-t-il.
+ *
+ * Les dépenses ne portent plus --err : le rouge d'erreur est un statut
+ * RÉSERVÉ, pas une couleur de série.
+ */
 function DailyChart({ daily }: { daily: DailyPoint[] }) {
-  const W = 720;
-  const H = 190;
-  const PAD_BOTTOM = 22;
-  const max = Math.max(...daily.map((p) => Math.max(p.grossCents, p.expenseCents)), 1);
-  const slot = W / daily.length;
-  const barW = Math.min(28, Math.max(3, slot * 0.55));
-  // Étiquettes d'axe : au plus ~8 pour rester lisibles
-  const labelEvery = Math.max(1, Math.ceil(daily.length / 8));
-
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      role="img"
-      aria-label="Revenu brut et dépenses par jour sur la période"
-      className="mt-4 w-full"
-    >
-      <line x1="0" y1={H - PAD_BOTTOM} x2={W} y2={H - PAD_BOTTOM} stroke="var(--line)" strokeWidth="2" />
-      {daily.map((p, i) => {
-        const cx = i * slot + slot / 2;
-        const grossH = ((H - PAD_BOTTOM - 8) * p.grossCents) / max;
-        const expH = ((H - PAD_BOTTOM - 8) * p.expenseCents) / max;
-        return (
-          <g key={p.day}>
-            {p.grossCents > 0 && (
-              <rect
-                x={cx - barW / 2}
-                y={H - PAD_BOTTOM - grossH}
-                width={barW}
-                height={grossH}
-                fill="var(--brand)"
-                stroke="var(--line)"
-                strokeWidth="1"
-              >
-                <title>{`${formatDay(p.day)} — brut ${formatFcfa(p.grossCents)}`}</title>
-              </rect>
-            )}
-            {p.expenseCents > 0 && (
-              <rect
-                x={cx - barW / 6}
-                y={H - PAD_BOTTOM - expH}
-                width={barW / 3}
-                height={expH}
-                fill="var(--err)"
-              >
-                <title>{`${formatDay(p.day)} — dépenses ${formatFcfa(p.expenseCents)}`}</title>
-              </rect>
-            )}
-            {i % labelEvery === 0 && (
-              <text
-                x={cx}
-                y={H - 6}
-                textAnchor="middle"
-                fontSize="10"
-                fontFamily="var(--font-geist-mono), monospace"
-                fill="var(--ink-soft)"
-              >
-                {formatDay(p.day)}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+    <LineChart
+      labels={daily.map((p) => formatDay(p.day))}
+      series={[
+        {
+          key: "gross",
+          label: "Revenu brut",
+          color: "var(--chart-1)",
+          values: daily.map((p) => p.grossCents),
+        },
+        {
+          key: "expense",
+          label: "Dépenses",
+          color: "var(--chart-2)",
+          values: daily.map((p) => p.expenseCents),
+        },
+      ]}
+      unit="fcfa"
+      ariaLabel="Revenu brut et dépenses par jour sur la période"
+      emptyLabel="Aucun mouvement sur la période sélectionnée."
+    />
   );
 }
 
