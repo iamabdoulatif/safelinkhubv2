@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test": "tsx --test \"test/*.test.mjs\" \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint src test"
   },
   "dependencies": {
     "@aws-sdk/client-textract": "^3.1101.0",
@@ -43,6 +45,7 @@
     "eslint-config-next": "16.2.9",
     "playwright": "^1.61.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.11",
     "typescript": "^5"
   },
   "overrides": {

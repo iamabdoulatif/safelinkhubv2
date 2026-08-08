@@ -43,6 +43,27 @@ const EMPTY: MarketingSettings = {
 export async function readMarketingSettings(): Promise<MarketingSettings> {
   if (!process.env.DATABASE_URL) return EMPTY;
 
+  try {
+    return await selectMarketingSettings();
+  } catch (err) {
+    // Base injoignable, ou SCHÉMA EN RETARD sur le code. Ce second cas a
+    // cassé la CI pendant quatre jours : le build prérend des pages publiques,
+    // la base du secret GitHub n'avait pas reçu la migration des liens
+    // communautaires, et un `column does not exist` a tué chaque build.
+    //
+    // Des pixels d'analytics absents ne valent pas un déploiement bloqué :
+    // on dégrade en réglages vides, comme lorsqu'aucune DATABASE_URL n'est
+    // définie. Même garde-fou que la page sauvegardes et la carte de
+    // parrainage, qui tolèrent déjà l'ordre migration/déploiement.
+    console.warn(
+      "[marketing] réglages illisibles, rendu sans tags analytics :",
+      err instanceof Error ? err.message : String(err),
+    );
+    return EMPTY;
+  }
+}
+
+async function selectMarketingSettings(): Promise<MarketingSettings> {
   const db = getDb();
   const [row] = await db
     .select({

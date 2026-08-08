@@ -18,7 +18,28 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
+  # Garde-fou AVANT de construire quoi que ce soit. La CI ne vérifiait rien :
+  # elle construisait l'image et la poussait, sans typecheck ni tests — et 42
+  # fichiers de tests étaient de toute façon inexécutables (imports TS sans
+  # extension, que `node --test` seul ne résout pas ; d'où tsx).
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Tests
+        run: npm test
+
   build:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read

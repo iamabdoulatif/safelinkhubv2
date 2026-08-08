@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -76,10 +76,17 @@ export default function VoucherTable({
   const vouchers = view === "active" ? activeVouchers : trashedVouchers;
   const allSelected = vouchers.length > 0 && selected.size === vouchers.length;
 
-  useEffect(() => {
+  // Remise à zéro de la sélection au changement d'onglet, PENDANT le rendu et
+  // non dans un effet : un setState dans un effet déclenche un second rendu en
+  // cascade, et l'utilisateur voit brièvement la sélection de l'onglet précédent
+  // appliquée au nouveau. C'est le motif « ajuster l'état pendant le rendu »
+  // recommandé par React pour dériver d'un changement de valeur.
+  const [renderedView, setRenderedView] = useState<View>(view);
+  if (renderedView !== view) {
+    setRenderedView(view);
     setSelected(new Set());
     setActionMessage(null);
-  }, [view]);
+  }
 
   function toggleAll() {
     setSelected(allSelected ? new Set() : new Set(vouchers.map((voucher) => voucher.id)));

@@ -9,9 +9,8 @@ async function walk(dir) {
   const out = [];
   for (const entry of await readdir(dir)) {
     const p = join(dir, entry);
-    (await stat(p)).isDirectory()
-      ? out.push(...(await walk(p)))
-      : /\.tsx?$/.test(p) && out.push(p);
+    if ((await stat(p)).isDirectory()) out.push(...(await walk(p)));
+    else if (/\.tsx?$/.test(p)) out.push(p);
   }
   return out;
 }
