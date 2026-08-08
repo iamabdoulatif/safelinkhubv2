@@ -9,12 +9,15 @@ import {
   CheckCircle2,
   Loader2,
   RotateCcw,
+  Trash2,
   Ticket,
 } from "lucide-react";
 import DownloadVouchersModal, {
   type SelectedVoucher,
 } from "./DownloadVouchersModal";
-import { archiveVouchers, restoreVouchers } from "@/lib/vouchers/actions";
+import { archiveVouchers, deleteVouchers, emptyVoucherTrash, restoreVouchers } from "@/lib/vouchers/actions";
+import type { VoucherDeleteScope } from "@/lib/vouchers/delete-scope";
+import DeleteTicketsModal from "./DeleteTicketsModal";
 import type { TicketBrand } from "@/lib/vouchers/ticket-templates";
 
 export type VoucherRow = {
@@ -73,6 +76,8 @@ export default function VoucherTable({
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<ActionMessage | null>(null);
+  // Suppression définitive : le dialogue porte le choix de portée, jamais le bouton.
+  const [deleteAsk, setDeleteAsk] = useState<{ mode: "selection" | "empty"; ids: string[] } | null>(null);
   const vouchers = view === "active" ? activeVouchers : trashedVouchers;
   const allSelected = vouchers.length > 0 && selected.size === vouchers.length;
 
@@ -138,6 +143,43 @@ export default function VoucherTable({
     const label = username ? ` le ticket « ${username} »` : ` ${ids.length} ticket(s)`;
     if (!window.confirm(`Archiver${label} ? Vous pourrez les restaurer depuis la corbeille.`)) return;
     runMutation(ids, "archive", ids.length === 1 ? ids[0] : "bulk");
+  }
+
+  function confirmDelete(scope: VoucherDeleteScope) {
+    if (!deleteAsk) return;
+    const { mode, ids } = deleteAsk;
+    setBusyId("delete");
+    setActionMessage(null);
+    startTransition(async () => {
+      try {
+        const result = mode === "empty" ? await emptyVoucherTrash(scope) : await deleteVouchers(ids, scope);
+        if ("error" in result) {
+          setActionMessage({ kind: "error", text: result.error });
+          return;
+        }
+        // Message FACTUEL : ce qui a été supprimé, ce qui a été retiré du
+        // matériel, et surtout ce qui a été volontairement CONSERVÉ.
+        const parts = [`${result.deleted} ticket(s) supprimé(s) de la plateforme.`];
+        if (result.removedOnRouter > 0) parts.push(`${result.removedOnRouter} retiré(s) du MikroTik.`);
+        if (result.keptForUnreachableRouter > 0) {
+          parts.push(
+            `${result.keptForUnreachableRouter} conservé(s) : routeur injoignable (${result.unreachableRouters.join(", ")}). Relancez quand il sera revenu.`,
+          );
+        }
+        if (result.remaining > 0) parts.push(`${result.remaining} restant(s) — relancez pour continuer.`);
+        setSelected(new Set());
+        setDeleteAsk(null);
+        setActionMessage({
+          kind: result.keptForUnreachableRouter > 0 ? "error" : "success",
+          text: parts.join(" "),
+        });
+        router.refresh();
+      } catch {
+        setActionMessage({ kind: "error", text: "La suppression n'a pas pu être réalisée." });
+      } finally {
+        setBusyId(null);
+      }
+    });
   }
 
   function restore(ids: string[]) {
@@ -234,6 +276,28 @@ export default function VoucherTable({
                   <ArchiveRestore className="h-4 w-4" />
                 )}
                 {view === "active" ? "Archiver" : "Restaurer"} ({selected.size})
+              </button>
+            )}
+            {view === "trash" && selected.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setDeleteAsk({ mode: "selection", ids: [...selected] })}
+                disabled={pending}
+                className="inline-flex items-center gap-2 rounded-sm border-2 border-line bg-paper px-3 py-2 text-sm font-bold text-ink hover:bg-err-soft disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                Supprimer ({selected.size})
+              </button>
+            )}
+            {view === "trash" && stats.trashed > 0 && (
+              <button
+                type="button"
+                onClick={() => setDeleteAsk({ mode: "empty", ids: [] })}
+                disabled={pending}
+                className="inline-flex items-center gap-2 rounded-sm border-2 border-line-soft px-3 py-2 text-sm font-bold text-ink-soft hover:border-ink hover:text-ink disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                Vider la corbeille
               </button>
             )}
             {view === "active" && (
@@ -355,6 +419,18 @@ export default function VoucherTable({
                       )}
                       {view === "active" ? "Archiver" : "Restaurer"}
                     </button>
+                    {view === "trash" && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteAsk({ mode: "selection", ids: [voucher.id] })}
+                        disabled={pending}
+                        aria-label={`Supprimer définitivement le ticket ${voucher.username}`}
+                        className="ml-1.5 inline-flex items-center gap-1 rounded-sm border border-line-soft bg-paper px-2 py-1.5 text-xs font-bold text-ink hover:border-err hover:bg-err-soft disabled:opacity-40"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Supprimer
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -366,6 +442,15 @@ export default function VoucherTable({
           <span className="font-mono">{vouchers.length} ticket(s) affiché(s)</span>
         </div>
       </section>
+
+      <DeleteTicketsModal
+        open={deleteAsk !== null}
+        mode={deleteAsk?.mode ?? "selection"}
+        count={deleteAsk?.mode === "empty" ? stats.trashed : (deleteAsk?.ids.length ?? 0)}
+        pending={pending && busyId === "delete"}
+        onCancel={() => setDeleteAsk(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

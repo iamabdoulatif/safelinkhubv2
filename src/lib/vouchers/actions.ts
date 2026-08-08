@@ -18,6 +18,11 @@ import { parseExpiryComment, wallToDate, wallKey, type Wall } from "./reconcile"
 import { durationFromProfileName, durationToMs } from "./expiry";
 import { matchPackageForProfile, parseMikhmonVoucherCsv } from "./csv-import";
 import { isImportedVoucherUseCase } from "./source";
+import {
+  isVoucherDeleteScope,
+  type VoucherDeleteResult,
+  type VoucherDeleteScope,
+} from "./delete-scope";
 
 import { randomAccessCode as randomCode } from "@/lib/access-code";
 
@@ -269,6 +274,181 @@ export async function archiveImportedVouchers() {
     );
   revalidatePath("/admin/vouchers");
   return { success: true, archived: rows.length };
+}
+
+/**
+ * Plafond de suppressions CÔTÉ ROUTEUR par passage.
+ *
+ * RouterOS n'a pas de suppression en lot : il faut un aller-retour d'API par
+ * ticket. Or safelinkhub.io passe par Cloudflare, qui coupe toute réponse au
+ * -delà de ~100 s. Vider une corbeille de 2 000 tickets sur le matériel ne peut
+ * donc pas tenir dans une seule requête. On en fait un lot borné, on annonce le
+ * reste, et l'opération est idempotente : relancer reprend là où on s'est
+ * arrêté. La suppression côté PLATEFORME, elle, est un seul DELETE SQL et n'a
+ * aucune limite.
+ */
+const MAX_ROUTER_DELETE_PER_RUN = 300;
+
+/**
+ * Supprime DÉFINITIVEMENT des tickets de la corbeille.
+ *
+ * Deux garde-fous délibérés :
+ *
+ * 1. Seuls les tickets DÉJÀ dans la corbeille sont supprimables. On ne peut pas
+ *    détruire un ticket actif d'un seul geste — il faut l'archiver d'abord, ce
+ *    qui laisse une étape pour se raviser.
+ * 2. En portée "platform_and_router", un ticket dont le routeur est INJOIGNABLE
+ *    n'est pas supprimé de la plateforme. Le supprimer quand même laisserait un
+ *    compte hotspot actif sur le matériel sans plus aucune trace ici : un accès
+ *    Wi-Fi fantôme, impossible à retrouver. Tant que le routeur ne répond pas,
+ *    la plateforme reste la mémoire de ce qui existe encore sur l'appareil.
+ */
+export async function deleteVouchers(
+  ids: string[],
+  scope: VoucherDeleteScope,
+): Promise<VoucherDeleteResult | { error: string }> {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+  if (!Array.isArray(ids) || ids.length === 0) return { error: "Aucun ticket." };
+  if (!isVoucherDeleteScope(scope)) return { error: "Portée de suppression invalide." };
+
+  return deleteTrashedVouchers(session.orgId, scope, ids);
+}
+
+/** Vide la corbeille entière, avec la même portée et les mêmes garde-fous. */
+export async function emptyVoucherTrash(
+  scope: VoucherDeleteScope,
+): Promise<VoucherDeleteResult | { error: string }> {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+  if (!isVoucherDeleteScope(scope)) return { error: "Portée de suppression invalide." };
+
+  return deleteTrashedVouchers(session.orgId, scope, null);
+}
+
+async function deleteTrashedVouchers(
+  orgId: string,
+  scope: VoucherDeleteScope,
+  ids: string[] | null,
+): Promise<VoucherDeleteResult | { error: string }> {
+  const db = getDb();
+
+  const trashed = await db
+    .select({ id: vouchers.id, username: vouchers.username })
+    .from(vouchers)
+    .where(
+      and(
+        eq(vouchers.orgId, orgId),
+        isNotNull(vouchers.deletedAt),
+        ...(ids ? [inArray(vouchers.id, ids)] : []),
+      ),
+    );
+  if (trashed.length === 0) return { error: "Aucun ticket dans la corbeille à supprimer." };
+
+  // Portée plateforme : un seul DELETE, aucune connexion au matériel.
+  if (scope === "platform") {
+    await db
+      .delete(vouchers)
+      .where(and(eq(vouchers.orgId, orgId), inArray(vouchers.id, trashed.map((v) => v.id))));
+    revalidatePath("/admin/vouchers");
+    return {
+      success: true,
+      deleted: trashed.length,
+      removedOnRouter: 0,
+      keptForUnreachableRouter: 0,
+      remaining: 0,
+      unreachableRouters: [],
+    };
+  }
+
+  // Portée matériel : borner le lot (voir MAX_ROUTER_DELETE_PER_RUN).
+  const batch = trashed.slice(0, MAX_ROUTER_DELETE_PER_RUN);
+  const remaining = trashed.length - batch.length;
+  const batchIds = batch.map((v) => v.id);
+
+  // Où chaque ticket a-t-il été provisionné ? voucher_routers est la source
+  // multi-routeurs ; vouchers.router_id couvre les tickets d'avant cette table.
+  const links = await db
+    .select({ voucherId: voucherRouters.voucherId, routerId: voucherRouters.routerId })
+    .from(voucherRouters)
+    .where(and(eq(voucherRouters.orgId, orgId), inArray(voucherRouters.voucherId, batchIds)));
+  const legacy = await db
+    .select({ voucherId: vouchers.id, routerId: vouchers.routerId })
+    .from(vouchers)
+    .where(and(inArray(vouchers.id, batchIds), isNotNull(vouchers.routerId)));
+
+  const byRouter = new Map<string, Set<string>>();
+  for (const link of [...links, ...legacy]) {
+    if (!link.routerId) continue;
+    const set = byRouter.get(link.routerId) ?? new Set<string>();
+    set.add(link.voucherId);
+    byRouter.set(link.routerId, set);
+  }
+
+  const usernameOf = new Map(batch.map((v) => [v.id, v.username]));
+  const blocked = new Set<string>();
+  const unreachableRouters: string[] = [];
+  let removedOnRouter = 0;
+
+  for (const [routerId, voucherIds] of byRouter) {
+    const [router] = await db
+      .select()
+      .from(routers)
+      .where(and(eq(routers.id, routerId), eq(routers.orgId, orgId)))
+      .limit(1);
+    // Routeur retiré du parc : plus rien à nettoyer, la suppression peut suivre.
+    if (!router) continue;
+
+    let client: RouterOSClient;
+    try {
+      client = await connectToRouter(router);
+    } catch {
+      unreachableRouters.push(router.name);
+      voucherIds.forEach((id) => blocked.add(id));
+      continue;
+    }
+
+    try {
+      for (const voucherId of voucherIds) {
+        const username = usernameOf.get(voucherId);
+        if (!username) continue;
+        try {
+          const rows = await client
+            .talk(["/ip/hotspot/user/print", `?name=${username}`], 8000)
+            .catch(() => [] as Record<string, string>[]);
+          const userId = rows[0]?.[".id"];
+          // Absent du routeur = déjà retiré : la suppression peut suivre.
+          if (userId) {
+            await client.talk(["/ip/hotspot/user/remove", `=.id=${userId}`], 8000);
+            removedOnRouter += 1;
+          }
+        } catch {
+          // Échec sur CE ticket : on le garde, sinon il deviendrait un accès
+          // fantôme sur le routeur.
+          blocked.add(voucherId);
+        }
+      }
+    } finally {
+      client.close();
+    }
+  }
+
+  const deletable = batchIds.filter((id) => !blocked.has(id));
+  if (deletable.length > 0) {
+    await db
+      .delete(vouchers)
+      .where(and(eq(vouchers.orgId, orgId), inArray(vouchers.id, deletable)));
+  }
+
+  revalidatePath("/admin/vouchers");
+  return {
+    success: true,
+    deleted: deletable.length,
+    removedOnRouter,
+    keptForUnreachableRouter: blocked.size,
+    remaining,
+    unreachableRouters: [...new Set(unreachableRouters)],
+  };
 }
 
 /** Restaure les tickets de la corbeille avec leurs liaisons de routeur intactes. */
