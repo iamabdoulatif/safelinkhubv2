@@ -505,7 +505,11 @@ Les 69 tests actifs sont par ailleurs presque tous des **tests de câblage** (le
 - ✅ **Script de déploiement verrouillé et documenté** (`/root/deploy-slh.sh`) : verrou atomique, numérotation automatique, garde stricte contre un déploiement concurrent, **rollback automatique** si le conteneur ne démarre pas, conteneur précédent conservé.
 - ✅ Sauvegardes des routeurs automatisées (cron), 2 dernières conservées.
 - 🟠 **HIGH** — **La CI est décorative** : `DEPLOY_ENABLED=false`, et le job de build **échoue à chaque poussée depuis le 4 août** (vérifié : 5 exécutions consécutives en échec). Le vrai déploiement est manuel. Un dépôt dont la CI est rouge en permanence a perdu son signal.
-- 🟠 **HIGH** — **Aucune sauvegarde de la base** trouvée dans le dépôt ou les unités systemd. Les sauvegardes concernent les *routeurs*, pas PostgreSQL, qui tourne sur le même VPS que l'application. **À VÉRIFIER** hors dépôt.
+- ⚠️ **CONSTAT CORRIGÉ (8 août)** — j'avais écrit qu'aucune sauvegarde n'existait. **C'est faux.** Le constat était marqué « à vérifier hors dépôt », et la vérification l'a infirmé : `/usr/local/bin/slh-neon-backup` tourne chaque nuit à 03h15 depuis des semaines, produit un dump `pg_dump -Fc` (restaurable), applique une rétention de 14 jours, lit l'URL de connexion en direct dans l'environnement du conteneur, écrit de façon atomique (`.tmp` puis `mv`) et journalise chaque exécution. 15 dumps présents, aucun échec au journal. **Le script est bien fait.** Ce qui manquait réellement est plus bas.
+- 🟠 **HIGH — LE VRAI MANQUE : les sauvegardes ne quittent pas le VPS.** Les 15 dumps vivent dans `/root/backups-neon`, sur la machine qui héberge aussi PostgreSQL et l'application. Une perte du VPS (incident hébergeur, disque, rançongiciel, litige de compte) emporte la base ET ses sauvegardes. C'est le seul scénario contre lequel la sauvegarde actuelle ne protège pas — et c'est le scénario pour lequel on fait des sauvegardes. Aucun outil d'export distant n'est installé (`rclone`, `restic`, `aws` absents). ⚠️ Vercel Blob, le seul stockage externe déjà configuré, est utilisé par ce code en `access: "public"` — **à exclure formellement** pour des dumps de base.
+- ✅ **AJOUTÉ le 8 août — vérification automatique des restaurations** (`/usr/local/bin/slh-backup-verify`, cron 04h05). « pg_dump a rendu 0 » ne prouve pas qu'un dump est restaurable : ce contrôle restaure pour de bon la dernière sauvegarde dans une base jetable, compare tables, index et comptages métier à la production, puis la supprime. Première exécution : **46 tables, 104 index, comptages identiques**. Ses trois garde-fous (absence de sauvegarde, dump tronqué, dump périmé > 26 h) ont été testés un par un et renvoient bien un code 1.
+- ✅ **AJOUTÉ** — dumps passés en `0600` et répertoire en `0700`, `umask 077` dans le script de sauvegarde. *(Défense en profondeur : `/root` étant en `drwx------`, j'ai vérifié qu'aucun compte non-root n'y accédait déjà — ce n'était donc pas une faille exploitable.)*
+- 🟡 **MEDIUM** — **Un échec de sauvegarde reste silencieux.** Aucun agent de mail n'est installé sur le VPS ; le contrôle sort en code 1 et journalise, mais personne n'est prévenu. C'est la pièce manquante pour fermer le sujet.
 - 🟡 **MEDIUM** — Pas de `HEALTHCHECK` Docker, pas de sonde de vivacité.
 - 🟡 **MEDIUM** — Migrations manuelles, non versionnées dans un journal d'application : rien ne dit quelles migrations sont passées sur quelle base.
 
@@ -606,10 +610,12 @@ Aujourd'hui, **une erreur en production n'est visible que si quelqu'un lit `dock
 **Solution :** colonne `session_version` sur `users`, contrôlée dans `getSession`.
 **Difficulté :** faible · **Priorité :** haute
 
-### 6. Pas de sauvegarde de la base — 🟠 HIGH
-**Preuve :** aucune unité systemd ni script de `pg_dump`. PostgreSQL tourne sur le même VPS que l'application.
-**Scénario :** perte du VPS ⇒ perte de 34 organisations, de l'historique financier et des tickets.
-**Solution :** `pg_dump` chiffré planifié vers un stockage externe, restauration testée.
+### 6. Les sauvegardes ne quittent pas le VPS — 🟠 HIGH *(reformulé le 8 août)*
+**Correction :** la sauvegarde quotidienne EXISTE et fonctionne (`slh-neon-backup`, 03h15, rétention 14 j) — mon constat initial était faux.
+**Preuve du vrai problème :** les 15 dumps sont dans `/root/backups-neon`, sur la machine qui héberge la base et l'application.
+**Scénario :** perte du VPS ⇒ la base ET ses sauvegardes disparaissent ensemble. 34 organisations, l'historique financier et les tickets.
+**Solution :** copie chiffrée vers un stockage hors VPS. Décision de destination à prendre.
+**Fait depuis :** restauration vérifiée automatiquement chaque jour, permissions durcies.
 **Difficulté :** faible · **Priorité :** immédiate
 
 ### 7. Aucun en-tête de sécurité — 🟠 HIGH
@@ -789,7 +795,7 @@ Les faiblesses ne sont pas des erreurs de conception : ce sont des **filets manq
 Il *est* en production et sert 34 organisations. La question réelle est : peut-il y rester sans risque inacceptable ? **Pas en l'état** — pas sans sauvegarde de base de données ni suivi d'erreurs.
 
 **2. Ce qui empêche une mise en production sûre**
-Dans l'ordre : absence de sauvegarde PostgreSQL, actions de crédit non gardées, absence totale d'observabilité, tests inopérants, CI rouge.
+Dans l'ordre : sauvegardes confinées au VPS qu'elles doivent protéger, actions de crédit non gardées, absence totale d'observabilité, tests inopérants, CI rouge.
 
 **3. La vulnérabilité la plus dangereuse**
 *(Révisé après la passe exhaustive.)* Deux candidates, selon le critère retenu.
@@ -817,7 +823,7 @@ Remplacer l'agrégation applicative des soldes par un `SUM` SQL ou un solde mat�
 Les **42 fichiers de tests qui ne s'exécutent pas**. Chaque jour qui passe en ajoute, tous donnent l'illusion d'une couverture, et le coût de leur remise en marche croît avec leur nombre.
 
 **10. Prochaine action de développement**
-*(Révisé après la passe exhaustive.)* Dans cet ordre, sur une journée : (a) remplacer `Math.random()` par `crypto.randomInt` dans les 4 `randomCode()`, (b) `pg_dump` planifié hors VPS, (c) sortir les 7 helpers internes des modules `"use server"`, (d) rendre la suite de tests exécutable et l'ajouter à la CI. Aucune de ces trois actions ne demande de décision d'architecture.
+*(Révisé après la passe exhaustive.)* Dans cet ordre, sur une journée : (a) remplacer `Math.random()` par `crypto.randomInt` dans les 4 `randomCode()`, (b) copier les sauvegardes hors VPS, (c) sortir les 7 helpers internes des modules `"use server"`, (d) rendre la suite de tests exécutable et l'ajouter à la CI. Aucune de ces trois actions ne demande de décision d'architecture.
 
 ---
 
@@ -825,6 +831,6 @@ Les **42 fichiers de tests qui ne s'exécutent pas**. Chaque jour qui passe en a
 
 **Justification.** Le verdict n'est pas 🔴 : aucune faille exploitable à distance sans authentification n'a été trouvée, l'isolation multi-tenant tient sur 83 points de contrôle vérifiés, les paiements ne font jamais confiance au client, et les webhooks sont signés. Le produit encaisse de l'argent correctement.
 
-Il n'est pas non plus 🟡, et la passe exhaustive a **renforcé** ce constat : les codes WiFi vendus sont tirés par un générateur non cryptographique et servent d'identifiant comme de mot de passe (`portal/fulfill.ts:24` + 3 copies) ; sept helpers internes destinés au cron et au webhook sont exposés en endpoints publics, dont deux qui ouvrent des sessions API sur la totalité du parc (`mndp-relay.ts:196`, `:265`) et deux qui créditent de l'argent sans aucune vérification (`wallet/actions.ts:293`, `safecoin/actions.ts:165`), une clé unique protège à la fois les sessions et 31 mots de passe de routeurs, **aucune sauvegarde de base de données n'existe**, et la seule assurance qualité du projet — 42 fichiers de tests — n'a jamais été exécutée une seule fois (`ERR_MODULE_NOT_FOUND`, `pass 0`).
+Il n'est pas non plus 🟡, et la passe exhaustive a **renforcé** ce constat : les codes WiFi vendus sont tirés par un générateur non cryptographique et servent d'identifiant comme de mot de passe (`portal/fulfill.ts:24` + 3 copies) ; sept helpers internes destinés au cron et au webhook sont exposés en endpoints publics, dont deux qui ouvrent des sessions API sur la totalité du parc (`mndp-relay.ts:196`, `:265`) et deux qui créditent de l'argent sans aucune vérification (`wallet/actions.ts:293`, `safecoin/actions.ts:165`), une clé unique protège à la fois les sessions et 31 mots de passe de routeurs, **les sauvegardes de la base ne quittent jamais le VPS qui l'héberge** (elles existent bel et bien et sont désormais vérifiées automatiquement — mon constat d'absence était faux), et la seule assurance qualité du projet — 42 fichiers de tests — n'a jamais été exécutée une seule fois (`ERR_MODULE_NOT_FOUND`, `pass 0`).
 
 Ce sont des corrections majeures, mais toutes de faible difficulté. L'essentiel du chemin vers 🟢 tient en une semaine de travail ciblé, sans refonte.
