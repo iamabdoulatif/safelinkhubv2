@@ -8,6 +8,10 @@ const columns = [
       { href: "/", label: "Accueil" },
       { href: "#features", label: "Fonctionnalités" },
       { href: "#plateforme", label: "Plateforme" },
+      // Repris ici depuis la navigation principale, qu'ils saturaient : le prix
+      // et la FAQ sont ce qu'un visiteur cherche en bas de page.
+      { href: "#tarifs", label: "Tarifs" },
+      { href: "#faq", label: "FAQ" },
       { href: "/boutique", label: "Boutique" },
       { href: "/auth/register", label: "Commencer" },
     ],

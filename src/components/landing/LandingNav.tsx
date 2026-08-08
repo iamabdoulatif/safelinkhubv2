@@ -5,14 +5,18 @@ import Link from "next/link";
 import { LayoutDashboard, Menu, X } from "lucide-react";
 import Logo from "./Logo";
 
+// Navigation principale volontairement COURTE. Elle comptait neuf entrées, dont
+// six ancres vers des sections de cette même page — une barre saturée où plus
+// rien ne ressortait.
+//
+// Matériel, Tarifs, Safecoin et FAQ n'y figurent plus : leurs sections restent
+// en place sur la landing (on y arrive en faisant défiler), Tarifs et FAQ sont
+// repris dans le pied de page. Une FAQ, en particulier, se cherche en bas de
+// page une fois le reste lu — pas en haut avant d'avoir rien vu.
 const links = [
   { href: "#features", label: "Fonctionnalités" },
   { href: "#plateforme", label: "Plateforme" },
-  { href: "#materiel", label: "Matériel" },
-  { href: "#tarifs", label: "Tarifs" },
-  { href: "#safecoin", label: "Safecoin" },
   { href: "/boutique", label: "Boutique" },
-  { href: "#faq", label: "FAQ" },
   { href: "/blog", label: "Blog" },
   { href: "/contact", label: "Contact" },
 ] as const;
