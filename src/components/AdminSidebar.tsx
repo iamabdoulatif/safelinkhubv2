@@ -37,44 +37,120 @@ import { useEffect, useRef, useState } from "react";
 import UserMenu from "./UserMenu";
 import Logo from "./landing/Logo";
 
-const mainLinks = [
-  { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard },
-  { href: "/admin/router", label: "Routeur", icon: Router },
-  { href: "/admin/usage-analytics", label: "Analyse d'utilisation", icon: BarChart2 },
-  { href: "/admin/expenses", label: "Dépenses", icon: Receipt },
-  { href: "/admin/sales", label: "Ventes", icon: TrendingUp },
-  { href: "/admin/float", label: "Solde flottant", icon: Droplet },
-  { href: "/admin/users", label: "Utilisateurs", icon: Users },
-  { href: "/admin/packages", label: "Forfaits", icon: Package },
-  { href: "/admin/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { href: "/admin/conversion", label: "Conversion paiement", icon: Filter },
-  { href: "/admin/agent", label: "Agent", icon: UserCog },
-  { href: "/admin/vouchers", label: "Vouchers", icon: Ticket },
-  { href: "/admin/roaming", label: "Roaming", icon: RadioTower },
-  { href: "/admin/remote-access", label: "Accès distant", icon: Wifi },
-  { href: "/admin/mikhmon-online", label: "Mikhmon Online", icon: Globe },
-];
+/**
+ * Navigation d'administration, GROUPÉE PAR MÉTIER.
+ *
+ * Elle a longtemps été une liste plate de seize entrées sans aucun titre, dans
+ * un ordre qui alternait réseau, vente, comptabilité et administration
+ * (« Analyse d'utilisation » puis « Dépenses » puis « Ventes » puis « Solde
+ * flottant » puis « Utilisateurs »…). Sans repère, retrouver une page imposait
+ * de relire les seize libellés à chaque fois, et les pages parentes se
+ * retrouvaient éloignées : Forfaits et Tickets — ce qu'on vend — étaient
+ * séparés par Transactions, Conversion et Agent.
+ *
+ * Les groupes suivent ce que fait l'opérateur, pas l'ordre d'arrivée des
+ * fonctionnalités. Le tableau de bord reste seul en tête : c'est la page
+ * d'atterrissage, elle n'appartient à aucune catégorie.
+ *
+ * Une seule entrée « Paramètres » : la navigation interne du hub (Général,
+ * Configuration routeur, Passerelles…) appartient aux onglets SettingsTabs —
+ * pas de deuxième système de navigation concurrent dans la sidebar.
+ */
+type NavLink = { href: string; label: string; icon: typeof LayoutDashboard };
+type NavSection = { title: string | null; links: NavLink[] };
 
-// Une seule entrée "Paramètres" : la navigation interne du hub (Général,
-// Configuration routeur, Passerelles…) appartient aux onglets SettingsTabs
-// — pas de deuxième système de navigation concurrent dans la sidebar.
+const mainSections: NavSection[] = [
+  {
+    title: null,
+    links: [{ href: "/admin", label: "Tableau de bord", icon: LayoutDashboard }],
+  },
+  {
+    title: "Réseau",
+    links: [
+      // Pluriel : la page liste le parc, elle n'en configure pas un seul.
+      { href: "/admin/router", label: "Routeurs", icon: Router },
+      { href: "/admin/remote-access", label: "Accès distant", icon: Wifi },
+      { href: "/admin/roaming", label: "Roaming", icon: RadioTower },
+      // Casse officielle du produit : MikHmon.
+      { href: "/admin/mikhmon-online", label: "MikHmon Online", icon: Globe },
+      // Utilisateurs actifs + routeurs en ligne : de la supervision réseau,
+      // pas de l'analyse commerciale (à ne pas confondre avec « Analyse
+      // commerciale », côté superadmin — d'où le renommage).
+      { href: "/admin/usage-analytics", label: "Supervision", icon: BarChart2 },
+    ],
+  },
+  {
+    title: "Vente",
+    links: [
+      { href: "/admin/packages", label: "Forfaits", icon: Package },
+      // « Vouchers » était le seul libellé anglais de la sidebar, alors que la
+      // page elle-même s'intitule « Station Tickets » et compte des « tickets ».
+      { href: "/admin/vouchers", label: "Tickets", icon: Ticket },
+      { href: "/admin/agent", label: "Agents", icon: UserCog },
+      { href: "/admin/sales", label: "Ventes", icon: TrendingUp },
+      // La page est l'entonnoir des commandes du portail captif (combien
+      // atteignent le checkout, combien paient). « Conversion paiement »
+      // laissait croire à un réglage de moyens de paiement.
+      { href: "/admin/conversion", label: "Tunnel de conversion", icon: Filter },
+    ],
+  },
+  {
+    title: "Finances",
+    links: [
+      { href: "/admin/transactions", label: "Transactions", icon: ArrowLeftRight },
+      { href: "/admin/float", label: "Solde flottant", icon: Droplet },
+      { href: "/admin/expenses", label: "Dépenses", icon: Receipt },
+    ],
+  },
+  {
+    title: "Organisation",
+    links: [
+      { href: "/admin/users", label: "Utilisateurs", icon: Users },
+      { href: "/admin/settings/general", label: "Paramètres", icon: Settings },
+    ],
+  },
+];
 
 const accountLinks = [
   { href: "/admin/billing", label: "Facturation", icon: CreditCard },
   { href: "/admin/support", label: "Support", icon: LifeBuoy },
 ];
 
+/** Style d'un lien de navigation — extrait pour que les trois blocs (métier,
+ * compte, superadmin) ne puissent plus diverger : ils portaient la même longue
+ * chaîne de classes recopiée trois fois. */
+function navLinkClass(active: boolean) {
+  return `flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
+    active
+      ? "bg-brand font-bold text-[#1C1917]"
+      : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
+  }`;
+}
+
+function SectionTitle({ children, className = "" }: { children: string; className?: string }) {
+  return (
+    <p
+      className={`px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-soft ${className}`}
+    >
+      {children}
+    </p>
+  );
+}
+
 // Sections réservées au superadmin — le lien n'est qu'un raccourci visuel,
 // chaque page/action vérifie elle-même isSuperAdmin côté serveur.
+// Réordonné : ce sur quoi on AGIT d'abord (Autorisations porte un badge de
+// demandes en attente — il était en septième position), le contenu éditorial
+// ensuite, puisqu'on s'y rend par intention et non par urgence.
 const superadminLinks = [
-  { href: "/admin/blog", label: "Blog", icon: Newspaper },
-  { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
-  { href: "/admin/contact", label: "Messages de contact", icon: Mail },
-  { href: "/admin/testimonials", label: "Témoignages", icon: Quote },
-  { href: "/admin/analytics", label: "Analyse commerciale", icon: BarChart3 },
-  { href: "/admin/safecoin", label: "Safecoin", icon: Coins },
   { href: "/admin/authorizations", label: "Autorisations", icon: ShieldCheck },
   { href: "/admin/vpn-access", label: "Accès VPN clients", icon: KeyRound },
+  { href: "/admin/analytics", label: "Analyse commerciale", icon: BarChart3 },
+  { href: "/admin/safecoin", label: "Safecoin", icon: Coins },
+  { href: "/admin/contact", label: "Messages de contact", icon: Mail },
+  { href: "/admin/testimonials", label: "Témoignages", icon: Quote },
+  { href: "/admin/blog", label: "Blog", icon: Newspaper },
+  { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
 ];
 
 export default function AdminSidebar({
@@ -95,8 +171,15 @@ export default function AdminSidebar({
   const [mobileOpen, setMobileOpen] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
 
-  const isActive = (href: string) =>
-    href === "/admin" ? pathname === "/admin" : pathname?.startsWith(href);
+  const isActive = (href: string) => {
+    // Le tableau de bord ne doit s'allumer que sur /admin exactement, sinon il
+    // resterait actif sur toutes les sous-pages.
+    if (href === "/admin") return pathname === "/admin";
+    // « Paramètres » pointe vers /admin/settings/general mais représente TOUT le
+    // hub : il doit rester actif sur /admin/settings/gateways, /router-setup…
+    if (href.startsWith("/admin/settings")) return pathname?.startsWith("/admin/settings");
+    return pathname?.startsWith(href);
+  };
 
   const closeMobile = () => setMobileOpen(false);
 
@@ -211,55 +294,31 @@ export default function AdminSidebar({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-3">
-          <ul className="space-y-0.5">
-            {mainLinks.map(({ href, label, icon: Icon }) => (
-              <li key={href}>
-                <Link
-                  href={href}
-                  onClick={closeMobile}
-                  className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
-                    isActive(href)
-                      ? "bg-brand font-bold text-[#1C1917]"
-                      : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
-                  }`}
-                >
-                  <Icon className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{label}</span>
-                </Link>
-              </li>
-            ))}
+          {mainSections.map((section, index) => (
+            <div key={section.title ?? "principal"} className={index > 0 ? "mt-5" : undefined}>
+              {section.title && <SectionTitle>{section.title}</SectionTitle>}
+              <ul className={section.title ? "mt-1 space-y-0.5" : "space-y-0.5"}>
+                {section.links.map(({ href, label, icon: Icon }) => (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      onClick={closeMobile}
+                      className={navLinkClass(isActive(href))}
+                    >
+                      <Icon className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{label}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
-            <li>
-              <Link
-                href="/admin/settings/general"
-                onClick={closeMobile}
-                className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
-                  pathname?.startsWith("/admin/settings")
-                    ? "bg-brand font-bold text-[#1C1917]"
-                    : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
-                }`}
-              >
-                <Settings className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate">Paramètres</span>
-              </Link>
-            </li>
-          </ul>
-
-          <p className="mt-5 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-soft">
-            Compte
-          </p>
+          <SectionTitle className="mt-5">Compte</SectionTitle>
           <ul className="mt-1 space-y-0.5">
             {accountLinks.map(({ href, label, icon: Icon }) => (
               <li key={href}>
-                <Link
-                  href={href}
-                  onClick={closeMobile}
-                  className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
-                    isActive(href)
-                      ? "bg-brand font-bold text-[#1C1917]"
-                      : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
-                  }`}
-                >
+                <Link href={href} onClick={closeMobile} className={navLinkClass(isActive(href))}>
                   <Icon className="h-4 w-4 flex-shrink-0" />
                   <span className="truncate">{label}</span>
                 </Link>
@@ -269,9 +328,7 @@ export default function AdminSidebar({
 
           {superadmin && (
             <>
-              <p className="mt-5 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-soft">
-                Superadmin
-              </p>
+              <SectionTitle className="mt-5">Superadmin</SectionTitle>
               <ul className="mt-1 space-y-0.5">
                 {superadminLinks.map(({ href, label, icon: Icon }) => {
                   const badge =
@@ -283,11 +340,7 @@ export default function AdminSidebar({
                       <Link
                         href={href}
                         onClick={closeMobile}
-                        className={`flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
-                          isActive(href)
-                            ? "bg-brand font-bold text-[#1C1917]"
-                            : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
-                        }`}
+                        className={navLinkClass(isActive(href))}
                       >
                         <Icon className="h-4 w-4 flex-shrink-0" />
                         <span className="truncate">{label}</span>
