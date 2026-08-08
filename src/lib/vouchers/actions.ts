@@ -19,15 +19,7 @@ import { durationFromProfileName, durationToMs } from "./expiry";
 import { matchPackageForProfile, parseMikhmonVoucherCsv } from "./csv-import";
 import { isImportedVoucherUseCase } from "./source";
 
-const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-function randomCode(length = 6) {
-  let code = "";
-  for (let i = 0; i < length; i++) {
-    code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-  }
-  return code;
-}
+import { randomAccessCode as randomCode } from "@/lib/access-code";
 
 // Préfixe de lot : uniquement des minuscules/chiffres (mêmes contraintes que
 // les codes hotspot), 10 caractères max. On nettoie silencieusement plutôt que

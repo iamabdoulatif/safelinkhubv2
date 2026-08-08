@@ -19,15 +19,7 @@ import { persistRouterLoginHost } from "@/lib/portal/router-login-url";
 import { getAppUrl } from "@/lib/net/app-url";
 import { shouldAttemptPortalSms } from "@/lib/portal/sms-delivery";
 
-const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-function randomCode(length = 6): string {
-  let code = "";
-  for (let i = 0; i < length; i++) {
-    code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-  }
-  return code;
-}
+import { randomAccessCode as randomCode } from "@/lib/access-code";
 
 /** Retrouve le code (username du voucher) attribué à une commande honorée. */
 async function codeForOrder(

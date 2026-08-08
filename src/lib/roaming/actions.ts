@@ -29,13 +29,7 @@ import { effectiveRoamingPrice } from "./pricing";
 import { appendRoamingSeenHook } from "./on-login-hook";
 import { deriveRouterKey } from "./webhook-secret";
 
-const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-function randomCode(length = 6) {
-  let code = "";
-  for (let i = 0; i < length; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-  return code;
-}
+import { randomAccessCode as randomCode } from "@/lib/access-code";
 
 function sanitizePrefix(raw: string) {
   return raw.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10);

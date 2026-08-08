@@ -7,15 +7,7 @@ import { getDb } from "@/lib/db";
 import { users, vouchers, packages, floatTransactions } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 
-const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-function randomCode(length = 6) {
-  let code = "";
-  for (let i = 0; i < length; i++) {
-    code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-  }
-  return code;
-}
+import { randomAccessCode as randomCode } from "@/lib/access-code";
 
 export type AgentWithStats = {
   id: string;
