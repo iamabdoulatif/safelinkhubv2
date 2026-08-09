@@ -127,3 +127,78 @@ export async function upgradeRouterboardFirmware(
   await client.talk(["/system/routerboard/upgrade"], timeoutMs);
   return { ...state, applied: true };
 }
+
+// ── Tickets épinglés à une adresse MAC ──────────────────────────────────────
+
+export type MacBoundTicketsResult = {
+  /** Tickets portant une `mac-address` avant correction. */
+  found: number;
+  /** Tickets réellement déliés. */
+  unbound: number;
+  /** Comptes de roaming (nom = MAC) volontairement ÉPARGNÉS. */
+  skippedRoaming: number;
+  /** Échantillon d'adresses corrigées, pour le message d'interface. */
+  sample: string[];
+};
+
+/**
+ * Un MAC est-il « localement administré », c'est-à-dire une adresse PRIVÉE
+ * ALÉATOIRE générée par le téléphone plutôt que gravée par le fabricant ?
+ *
+ * C'est le deuxième bit de poids faible du premier octet. Ce sont ces adresses
+ * qui tournent, et donc celles qui cassent un ticket épinglé.
+ */
+export function isRandomizedMac(mac: string): boolean {
+  const first = Number.parseInt(mac.trim().slice(0, 2), 16);
+  return Number.isFinite(first) && (first & 0b10) !== 0;
+}
+
+/**
+ * Délie les tickets hotspot épinglés à une adresse MAC.
+ *
+ * POURQUOI : la livraison du portail créait le compte avec `=mac-address=` (le
+ * MAC vu à l'achat), pour empêcher le partage du code. Mais les téléphones
+ * changent de MAC privée régulièrement — le client revient quelques heures plus
+ * tard avec une autre adresse et RouterOS refuse son code. L'anti-partage est
+ * assuré autrement, par `shared-users=1` du profil.
+ *
+ * ÉPARGNE LES COMPTES DE ROAMING : la propagation MAC (lib/roaming) crée
+ * volontairement des comptes dont le NOM EST le MAC, pour l'auto-connexion
+ * inter-zones. Les délier casserait cette fonctionnalité. On ne touche donc
+ * qu'aux comptes dont le nom diffère de l'adresse.
+ *
+ * Idempotent : relancer sur un routeur déjà corrigé ne trouve rien.
+ */
+export async function unbindMacBoundTickets(
+  client: RouterOSClient,
+  timeoutMs = 20000,
+): Promise<MacBoundTicketsResult> {
+  const users = await client
+    .talk(["/ip/hotspot/user/print", "=.proplist=.id,name,mac-address"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+
+  const normalize = (value: string | undefined) => (value ?? "").trim().toUpperCase();
+  const bound = users.filter((user) => {
+    const mac = normalize(user["mac-address"]);
+    return mac !== "" && mac !== "00:00:00:00:00:00";
+  });
+  const roaming = bound.filter((user) => normalize(user.name) === normalize(user["mac-address"]));
+  const target = bound.filter((user) => normalize(user.name) !== normalize(user["mac-address"]));
+
+  const sample: string[] = [];
+  let unbound = 0;
+  for (const user of target) {
+    const id = user[".id"];
+    if (!id) continue;
+    try {
+      // Valeur vide = champ effacé côté RouterOS.
+      await client.talk(["/ip/hotspot/user/set", `=numbers=${id}`, "=mac-address="], timeoutMs);
+      unbound += 1;
+      if (sample.length < 5) sample.push(`${user.name} (${normalize(user["mac-address"])})`);
+    } catch {
+      // Un échec isolé ne doit pas arrêter le balayage du routeur.
+    }
+  }
+
+  return { found: target.length, unbound, skippedRoaming: roaming.length, sample };
+}

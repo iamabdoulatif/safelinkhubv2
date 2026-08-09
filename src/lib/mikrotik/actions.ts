@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { randomBytes, randomUUID } from "crypto";
-import { eq, count } from "drizzle-orm";
+import { eq, count, isNotNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
@@ -22,7 +22,11 @@ import {
   setRouterBandwidthCap as setBandwidthCap,
 } from "./router-throughput";
 import { auditRouter } from "./router-audit";
-import { ensureApiGroupPolicy, upgradeRouterboardFirmware } from "./router-audit-fixes";
+import {
+  ensureApiGroupPolicy,
+  unbindMacBoundTickets,
+  upgradeRouterboardFirmware,
+} from "./router-audit-fixes";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
@@ -336,6 +340,131 @@ export async function fixRouterApiGroupPolicy(routerId: string) {
   } finally {
     client.close();
   }
+}
+
+/**
+ * Délie les tickets épinglés à une adresse MAC, sur UN routeur.
+ *
+ * Le bug : la livraison du portail créait chaque compte hotspot avec le MAC vu
+ * à l'achat, pour empêcher le partage du code. Les téléphones changent de MAC
+ * privée régulièrement — le client revient quelques heures après avec une autre
+ * adresse et son code est refusé. Corrigé à la source dans fulfill.ts ; cette
+ * action répare les tickets DÉJÀ vendus.
+ *
+ * Les comptes de roaming (nom = MAC) sont épargnés : les délier casserait
+ * l'auto-connexion inter-zones.
+ */
+export async function fixRouterMacBoundTickets(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour délier les tickets.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await unbindMacBoundTickets(client);
+    revalidatePath(`/admin/router/${routerId}`);
+    if (res.found === 0) {
+      return {
+        success: true,
+        summary: `Aucun ticket épinglé sur ${router.name}.${res.skippedRoaming > 0 ? ` (${res.skippedRoaming} compte(s) de roaming épargné(s).)` : ""}`,
+      };
+    }
+    return {
+      success: true,
+      summary: `${res.unbound}/${res.found} ticket(s) déliés sur ${router.name} — ils refonctionnent quel que soit l'appareil.${res.skippedRoaming > 0 ? ` ${res.skippedRoaming} compte(s) de roaming épargné(s).` : ""}`,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Échec : ${err.message}` : "Échec du déliage des tickets.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * Même correction, sur TOUT LE PARC de l'organisation (tous les routeurs pour
+ * un superadmin). Chaque routeur est traité indépendamment : un routeur hors
+ * ligne est signalé nommément et n'interrompt pas les autres.
+ *
+ * Idempotent — relancer après le retour d'un routeur ne retouche que lui.
+ */
+export async function fixAllRoutersMacBoundTickets(): Promise<
+  | { error: string }
+  | {
+      success: true;
+      routersScanned: number;
+      found: number;
+      unbound: number;
+      skippedRoaming: number;
+      repaired: string[];
+      unreachable: string[];
+    }
+> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const fleet = await db
+    .select()
+    .from(routers)
+    .where(
+      isSuperAdmin(session.role) ? isNotNull(routers.id) : eq(routers.orgId, session.orgId),
+    );
+  if (fleet.length === 0) return { error: "Aucun routeur enregistré." };
+
+  let unbound = 0;
+  let found = 0;
+  let skippedRoaming = 0;
+  const repaired: string[] = [];
+  const unreachable: string[] = [];
+
+  for (const router of fleet) {
+    let client: RouterOSClient;
+    try {
+      client = await connectToRouter(router);
+    } catch {
+      unreachable.push(router.name);
+      continue;
+    }
+    try {
+      const res = await unbindMacBoundTickets(client);
+      found += res.found;
+      unbound += res.unbound;
+      skippedRoaming += res.skippedRoaming;
+      if (res.unbound > 0) repaired.push(`${router.name} (${res.unbound})`);
+    } catch {
+      unreachable.push(router.name);
+    } finally {
+      client.close();
+    }
+  }
+
+  revalidatePath("/admin/router");
+  return {
+    success: true as const,
+    routersScanned: fleet.length - unreachable.length,
+    found,
+    unbound,
+    skippedRoaming,
+    repaired,
+    unreachable,
+  };
 }
 
 /**

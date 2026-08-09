@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, Link2, Lock, Router as RouterIcon, Save, Search } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
 import SyncAllButton from "./SyncAllButton";
+import UnbindMacTicketsButton from "./UnbindMacTicketsButton";
 import { isConfiguringRouter } from "./router-portfolio";
 import { buildRouterTableQuery, type RouterTableStatusFilter } from "./router-table-query";
 
@@ -170,6 +171,7 @@ export default function RoutersTable({
         {showFleetActions && (
           <div className="flex flex-wrap items-center gap-3">
             <SyncAllButton />
+            <UnbindMacTicketsButton />
             <Link
               href="/admin/router/backups"
               className="flex items-center gap-2 border-2 border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-ink hover:text-paper"

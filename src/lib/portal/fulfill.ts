@@ -205,7 +205,21 @@ export async function fulfillPortalOrder(
       `=name=${code}`,
       `=password=${code}`,
       `=profile=${profileName}`,
-      `=mac-address=${mac}`,
+      // PAS de `=mac-address=` ici — c'était un bug, pas un oubli.
+      //
+      // L'intention était d'empêcher le partage d'un code entre appareils. Mais
+      // épingler le ticket au MAC vu à l'achat le casse quelques heures plus
+      // tard : les téléphones utilisent une MAC PRIVÉE ALÉATOIRE par SSID et la
+      // font tourner. Le client revient, son téléphone présente une autre
+      // adresse, RouterOS refuse le code — « mon ticket ne marche plus ».
+      // Constaté en production sur RUE-NICOLAS : 26 tickets liés, dont les MAC
+      // observées sont TOUTES localement administrées (EA:, 96:, 7E:, F6:, 1E:,
+      // 22: — bit « locally administered » à 1), donc aléatoires, sur des
+      // profils 01-MOIS où la rotation tombe forcément pendant la validité.
+      //
+      // L'anti-partage reste assuré par `shared-users=1` du profil hotspot
+      // (défaut RouterOS) : un seul appareil connecté à la fois avec ce code.
+      // C'est déjà le levier que le code roaming documente et applique.
     ]);
   } catch (e) {
     createError = `Échec de création sur le routeur : ${e instanceof Error ? e.message : "inconnue"}.`;
