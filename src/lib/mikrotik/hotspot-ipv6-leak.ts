@@ -23,6 +23,16 @@ export type HotspotIpv6Inspection = {
   bridges: string[];
   /** Bridges qui reçoivent des annonces de routeur (ND) actives. */
   advertisingBridges: string[];
+  /**
+   * PREUVE FACTUELLE : nombre de voisins du bridge hotspot détenant réellement
+   * une IPv6 globale. Ne déduit rien — constate.
+   */
+  clientsWithIpv6: number;
+  /**
+   * La source est-elle EN AMONT du MikroTik (box du FAI pontée sur le même
+   * segment) plutôt que le routeur lui-même ? Change ce qu'il faut poser.
+   */
+  upstreamSource: boolean;
   /** Notre blocage est-il déjà en place ? */
   alreadyBlocked: boolean;
   /** Verdict : des clients hotspot peuvent-ils sortir en IPv6 sans payer ? */
@@ -76,6 +86,8 @@ export async function inspectHotspotIpv6(
       hasGlobalIpv6: false,
       bridges,
       advertisingBridges: [],
+      clientsWithIpv6: 0,
+      upstreamSource: false,
       alreadyBlocked: false,
       leaking: false,
       verdict: "Le paquet IPv6 est désactivé sur ce routeur — aucune fuite possible.",
@@ -101,24 +113,58 @@ export async function inspectHotspotIpv6(
     }),
   );
 
+  // PREUVE FACTUELLE. Demander « qui annonce ? » est une déduction, et elle a
+  // un angle mort : si la box du FAI est PONTÉE sur le même segment que les
+  // clients, c'est elle qui annonce, le MikroTik n'a aucune entrée ND, et la
+  // déduction conclut à tort qu'il n'y a pas de fuite. La table des voisins,
+  // elle, répond à la seule question qui compte : mes clients détiennent-ils
+  // une IPv6 globale, quelle qu'en soit la source ?
+  const neighbors = await client
+    .talk(["/ipv6/neighbor/print"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  const clientsWithIpv6 = neighbors.filter((row) => {
+    const iface = (row.interface ?? "").trim();
+    if (!bridges.includes(iface)) return false;
+    const address = (row.address ?? "").trim().toLowerCase();
+    return (
+      address !== "" &&
+      !address.startsWith("fe80:") &&
+      !address.startsWith("fc") &&
+      !address.startsWith("fd")
+    );
+  }).length;
+
   const existing = await client
     .talk(["/ipv6/firewall/filter/print", `?comment=${HOTSPOT_IPV6_COMMENT}`], timeoutMs)
     .catch(() => [] as Record<string, string>[]);
   const alreadyBlocked = existing.length > 0;
 
-  const leaking = hasGlobalIpv6 && advertisingBridges.length > 0 && !alreadyBlocked;
+  // Des clients porteurs d'IPv6 alors que le routeur n'annonce rien : la source
+  // est ailleurs, en amont.
+  const upstreamSource = clientsWithIpv6 > 0 && advertisingBridges.length === 0;
+
+  // Constat OU déduction. La déduction reste utile : un scan de nuit, sans
+  // client connecté, doit quand même repérer un routeur qui distribuera de
+  // l'IPv6 dès le premier arrivant.
+  const leaking =
+    !alreadyBlocked &&
+    (clientsWithIpv6 > 0 || (hasGlobalIpv6 && advertisingBridges.length > 0));
 
   let verdict: string;
   if (bridges.length === 0) {
     verdict = "Aucun bridge hotspot identifié sur ce routeur.";
-  } else if (!hasGlobalIpv6) {
-    verdict = "IPv6 active mais sans adresse globale — les clients n'ont pas de sortie IPv6.";
   } else if (alreadyBlocked) {
     verdict = "Sortie IPv6 des clients hotspot déjà bloquée par SafeLinkHub.";
-  } else if (advertisingBridges.length === 0) {
-    verdict = "IPv6 globale présente, mais aucune annonce de routeur sur le bridge hotspot.";
+  } else if (upstreamSource) {
+    verdict = `FUITE CONSTATÉE : ${clientsWithIpv6} client(s) détiennent une IPv6 globale alors que le routeur n'annonce rien — la source est en amont (box du FAI pontée sur le segment client).`;
+  } else if (clientsWithIpv6 > 0) {
+    verdict = `FUITE CONSTATÉE : ${clientsWithIpv6} client(s) hotspot détiennent une IPv6 globale et peuvent sortir sans passer par le portail.`;
+  } else if (hasGlobalIpv6 && advertisingBridges.length > 0) {
+    verdict = `FUITE À VENIR : aucun client porteur d'IPv6 pour l'instant, mais ${advertisingBridges.join(", ")} en annonce — le prochain arrivant en recevra.`;
+  } else if (!hasGlobalIpv6) {
+    verdict = "IPv6 active mais sans adresse globale — les clients n'ont pas de sortie IPv6.";
   } else {
-    verdict = `FUITE : les clients de ${advertisingBridges.join(", ")} peuvent sortir en IPv6 sans passer par le portail.`;
+    verdict = "IPv6 globale présente, mais aucune annonce sur le bridge hotspot et aucun client porteur.";
   }
 
   return {
@@ -126,6 +172,8 @@ export async function inspectHotspotIpv6(
     hasGlobalIpv6,
     bridges,
     advertisingBridges,
+    clientsWithIpv6,
+    upstreamSource,
     alreadyBlocked,
     leaking,
     verdict,
@@ -139,6 +187,8 @@ export type HotspotIpv6BlockResult = {
   rulesAdded: number;
   /** Annonces de routeur coupées sur le bridge. */
   ndDisabled: number;
+  /** Filtres de PONT posés (cas de la box du FAI pontée sur le segment client). */
+  bridgeRulesAdded: number;
 };
 
 /**
@@ -161,11 +211,12 @@ export async function blockHotspotIpv6(
 ): Promise<HotspotIpv6BlockResult> {
   const bridges = await findHotspotBridges(client, preferredBridgeName, timeoutMs);
   if (bridges.length === 0) {
-    return { applied: false, bridges: [], rulesAdded: 0, ndDisabled: 0 };
+    return { applied: false, bridges: [], rulesAdded: 0, ndDisabled: 0, bridgeRulesAdded: 0 };
   }
 
   let rulesAdded = 0;
   let ndDisabled = 0;
+  let bridgeRulesAdded = 0;
 
   for (const bridge of bridges) {
     // 1. Couper les annonces de routeur sur ce bridge. Une entrée SPÉCIFIQUE
@@ -217,18 +268,57 @@ export async function blockHotspotIpv6(
         })
         .catch(() => {});
     }
+
+    // 3. Filtre de PONT. Indispensable quand la box du FAI est pontée sur le
+    //    même segment que les clients : leur trafic IPv6 va alors directement
+    //    de la box au client au niveau 2, sans jamais traverser la pile IPv6
+    //    du routeur — la règle `forward` ci-dessus ne le voit même pas.
+    //    Scopé au bridge hotspot (`in-bridge`), donc le pont des conteneurs
+    //    n'est pas concerné. Chaîne forward : le routeur lui-même n'est pas
+    //    affecté.
+    const existingBridgeRule = await client
+      .talk(
+        ["/interface/bridge/filter/print", `?comment=${HOTSPOT_IPV6_COMMENT}`, `?in-bridge=${bridge}`],
+        timeoutMs,
+      )
+      .catch(() => [] as Record<string, string>[]);
+    if (existingBridgeRule.length === 0) {
+      await client
+        .talk(
+          [
+            "/interface/bridge/filter/add",
+            "=chain=forward",
+            `=in-bridge=${bridge}`,
+            "=mac-protocol=ipv6",
+            "=action=drop",
+            `=comment=${HOTSPOT_IPV6_COMMENT}`,
+          ],
+          timeoutMs,
+        )
+        .then(() => {
+          bridgeRulesAdded += 1;
+        })
+        .catch(() => {});
+    }
   }
 
-  return { applied: rulesAdded > 0 || ndDisabled > 0, bridges, rulesAdded, ndDisabled };
+  return {
+    applied: rulesAdded > 0 || ndDisabled > 0 || bridgeRulesAdded > 0,
+    bridges,
+    rulesAdded,
+    ndDisabled,
+    bridgeRulesAdded,
+  };
 }
 
 /** Annule exactement ce que blockHotspotIpv6 a posé, et rien d'autre. */
 export async function unblockHotspotIpv6(
   client: RouterOSClient,
   timeoutMs = 15000,
-): Promise<{ rulesRemoved: number; ndReenabled: number }> {
+): Promise<{ rulesRemoved: number; ndReenabled: number; bridgeRulesRemoved: number }> {
   let rulesRemoved = 0;
   let ndReenabled = 0;
+  let bridgeRulesRemoved = 0;
 
   const rules = await client
     .talk(["/ipv6/firewall/filter/print", `?comment=${HOTSPOT_IPV6_COMMENT}`], timeoutMs)
@@ -256,5 +346,18 @@ export async function unblockHotspotIpv6(
       .catch(() => {});
   }
 
-  return { rulesRemoved, ndReenabled };
+  const bridgeRules = await client
+    .talk(["/interface/bridge/filter/print", `?comment=${HOTSPOT_IPV6_COMMENT}`], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  for (const rule of bridgeRules) {
+    if (!rule[".id"]) continue;
+    await client
+      .talk(["/interface/bridge/filter/remove", `=numbers=${rule[".id"]}`], timeoutMs)
+      .then(() => {
+        bridgeRulesRemoved += 1;
+      })
+      .catch(() => {});
+  }
+
+  return { rulesRemoved, ndReenabled, bridgeRulesRemoved };
 }

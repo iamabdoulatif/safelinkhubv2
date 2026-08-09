@@ -8,13 +8,18 @@ const MODULE = "src/lib/mikrotik/hotspot-ipv6-leak.ts";
 const ACTIONS = "src/lib/mikrotik/actions.ts";
 const BUTTON = "src/app/admin/router/HotspotIpv6Button.tsx";
 
-test("le diagnostic exige les TROIS conditions d'une vraie fuite", async () => {
+test("le diagnostic constate AVANT de déduire", async () => {
   const source = await read(MODULE);
 
-  // Une seule condition manquante = pas de fuite, donc on ne touche à rien.
-  assert.match(source, /const leaking = hasGlobalIpv6 && advertisingBridges\.length > 0 && !alreadyBlocked/);
+  // La preuve factuelle : les clients détiennent-ils une IPv6 globale ? Elle
+  // seule attrape le cas où la box du FAI est pontée sur le segment client —
+  // le routeur n'annonce alors rien et la déduction conclurait à tort au calme.
+  assert.match(source, /\/ipv6\/neighbor\/print/);
+  assert.match(source, /clientsWithIpv6 > 0 \|\| \(hasGlobalIpv6 && advertisingBridges\.length > 0\)/);
+  // Source amont = clients porteurs alors que le routeur n'annonce pas.
+  assert.match(source, /upstreamSource = clientsWithIpv6 > 0 && advertisingBridges\.length === 0/);
   // Paquet IPv6 absent : le menu /ipv6 n'existe pas, l'appel échoue, on conclut.
-  assert.match(source, /ipv6Enabled: false[\s\S]{0,200}aucune fuite possible/);
+  assert.match(source, /ipv6Enabled: false[\s\S]{0,400}aucune fuite possible/);
   // Lien-local et unique-local ne sortent pas sur Internet : ne pas les compter.
   assert.match(source, /!address\.startsWith\("fe80:"\)/);
   assert.match(source, /!address\.startsWith\("fc"\) && !address\.startsWith\("fd"\)/);
@@ -37,6 +42,27 @@ test("le diagnostic n'écrit rien sur le routeur", async () => {
   }
   assert.match(inspect, /\/ipv6\/address\/print/);
   assert.match(inspect, /\/ipv6\/nd\/print/);
+  assert.match(inspect, /\/ipv6\/neighbor\/print/);
+});
+
+test("le filtre de PONT couvre la box du FAI pontée sur le segment client", async () => {
+  const source = await read(MODULE);
+  const block = source.slice(
+    source.indexOf("export async function blockHotspotIpv6"),
+    source.indexOf("export async function unblockHotspotIpv6"),
+  );
+
+  // En topologie pontée, le trafic client ne traverse jamais la pile IPv6 du
+  // routeur : la règle /ipv6/firewall ne le voit pas. Il faut filtrer au pont.
+  assert.match(block, /"\/interface\/bridge\/filter\/add"/);
+  assert.match(block, /"=mac-protocol=ipv6"/);
+  // Scopé au bridge hotspot : le pont des conteneurs n'est pas concerné.
+  assert.match(block, /`=in-bridge=\$\{bridge\}`/);
+  assert.match(block, /"=chain=forward"/);
+
+  // Et le retrait le reprend.
+  const undo = source.slice(source.indexOf("export async function unblockHotspotIpv6"));
+  assert.match(undo, /\/interface\/bridge\/filter\/remove/);
 });
 
 test("la correction est marquée, donc réversible", async () => {
