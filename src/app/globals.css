@@ -444,6 +444,88 @@ html {
   scroll-behavior: smooth;
 }
 
+/* ── Navigation publique : cadre scanner ────────────────────────
+   Le menu reprend le langage Bitume : un cadre moutarde net, sans
+   fond progressif ni ombre diffuse. Le label est isolé au-dessus du
+   pseudo-élément pour garder le texte lisible à chaque étape. */
+.nav-scanner-link {
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
+  transition: color 160ms steps(2, end), transform 160ms steps(2, end);
+}
+
+.nav-scanner-link span {
+  position: relative;
+  z-index: 1;
+}
+
+.nav-scanner-link::before {
+  content: "";
+  position: absolute;
+  inset: -0.35rem -0.45rem;
+  z-index: 0;
+  border: 2px solid var(--brand);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.84);
+  transform-origin: center;
+  transition: opacity 80ms steps(2, end), transform 160ms steps(2, end);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nav-scanner-link:hover {
+    color: var(--ink);
+    transform: translateY(-2px);
+  }
+
+  .nav-scanner-link:hover::before {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.nav-scanner-link:focus-visible {
+  transform: translateY(-2px);
+}
+
+.nav-scanner-link:focus-visible::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@keyframes nav-mobile-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nav-mobile-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nav-mobile-panel {
+  animation: nav-mobile-panel-enter 140ms steps(2, end) both;
+  transform-origin: top;
+}
+
+.nav-mobile-item {
+  animation: nav-mobile-item-enter 160ms steps(2, end) both;
+  animation-delay: calc(35ms + (var(--nav-index) * 35ms));
+}
+
 /* Mobile table overflow wrapper */
 .table-mobile-wrapper {
   overflow-x: auto;
@@ -517,5 +599,19 @@ html {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .nav-scanner-link,
+  .nav-scanner-link:focus-visible {
+    transform: none;
+  }
+
+  .nav-scanner-link:hover::before,
+  .nav-scanner-link:focus-visible::before {
+    transform: scale(1);
+  }
+
+  .nav-mobile-item {
+    animation-delay: 0ms !important;
   }
 }

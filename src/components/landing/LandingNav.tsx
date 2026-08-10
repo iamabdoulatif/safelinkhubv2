@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { LayoutDashboard, Menu, X } from "lucide-react";
 import Logo from "./Logo";
@@ -20,6 +20,11 @@ const links = [
   { href: "/blog", label: "Blog" },
   { href: "/contact", label: "Contact" },
 ] as const;
+
+const desktopLinkClass = "nav-scanner-link px-1 text-ink";
+const mobileLinkClass = "block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay";
+
+const mobileItemStyle = (index: number) => ({ "--nav-index": index }) as CSSProperties;
 
 export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: string }) {
   const [open, setOpen] = useState(false);
@@ -63,17 +68,17 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
               <a
                 key={l.href}
                 href={getHref(l.href)}
-                className="px-1 hover:bg-brand hover:text-[#1C1917]"
+                className={desktopLinkClass}
               >
-                {l.label}
+                <span>{l.label}</span>
               </a>
             ) : (
               <Link
                 key={l.href}
                 href={l.href}
-                className="px-1 hover:bg-brand hover:text-[#1C1917]"
+                className={desktopLinkClass}
               >
-                {l.label}
+                <span>{l.label}</span>
               </Link>
             ),
           )}
@@ -122,16 +127,16 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
         <nav
           id="mobile-menu"
           aria-label="Navigation mobile"
-          className="border-t-2 border-line bg-paper md:hidden"
+          className="nav-mobile-panel border-t-2 border-line bg-paper md:hidden"
         >
           <ul role="list" className="divide-y divide-line-soft">
-            {links.map((l) => (
-              <li key={l.href}>
+            {links.map((l, index) => (
+              <li key={l.href} className="nav-mobile-item" style={mobileItemStyle(index)}>
                 {l.href.startsWith("#") ? (
                   <a
                     href={getHref(l.href)}
                     onClick={() => setOpen(false)}
-                    className="block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay"
+                    className={mobileLinkClass}
                   >
                     {l.label}
                   </a>
@@ -139,14 +144,14 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
                   <Link
                     href={l.href}
                     onClick={() => setOpen(false)}
-                    className="block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay"
+                    className={mobileLinkClass}
                   >
                     {l.label}
                   </Link>
                 )}
               </li>
             ))}
-            <li>
+            <li className="nav-mobile-item" style={mobileItemStyle(links.length)}>
               {authenticated ? (
                 <Link
                   href="/admin"
