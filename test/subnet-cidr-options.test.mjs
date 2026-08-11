@@ -49,3 +49,33 @@ test("les grands préfixes ne font énumérer aucune adresse", async () => {
   assert.doesNotMatch(pool, /Array\.from|for \(|\.map\(/);
   assert.match(pool, /`\$\{intToIp\(poolStartInt\)\}-\$\{subnet\.lastUsable\}`/);
 });
+
+test("les passerelles proposées sont groupées par bloc privé", async () => {
+  const source = await read(SUBNET);
+
+  assert.match(source, /export const GATEWAY_IP_PRESET_GROUPS/);
+  // La vue à plat reste dérivée du groupé : impossible qu'elles divergent.
+  assert.match(source, /GATEWAY_IP_PRESET_GROUPS\.flatMap/);
+  // Le libellé porte l'avertissement : une passerelle en 192.168 en aval d'une
+  // box FAI crée un conflit de routage. Une pastille ne pouvait pas le dire.
+  assert.match(source, /192\.168\.0\.0\/16 — attention/);
+  assert.match(source, /10\.0\.0\.0\/8 — recommandé/);
+});
+
+test("les deux écrans lisent la liste partagée, dans un sélecteur", async () => {
+  const [wizard, topology] = await Promise.all([read(WIZARD), read(TOPOLOGY)]);
+
+  for (const [name, source] of [["ServicesWizard", wizard], ["TopologyBuilder", topology]]) {
+    assert.match(source, /GATEWAY_IP_PRESET_GROUPS\.map/, `${name} doit rendre les groupes`);
+    assert.match(source, /<optgroup/, `${name} doit grouper les options`);
+    // Le champ libre survit au sélecteur : une passerelle hors liste reste
+    // saisissable, et le sélecteur retombe simplement sur son option vide.
+    assert.match(
+      source,
+      /GATEWAY_IP_PRESETS\.includes\(gatewayIp\) \? gatewayIp : ""/,
+      `${name} doit tolérer une adresse hors liste`,
+    );
+  }
+  // Et le wizard ne garde plus sa propre liste de 4 adresses.
+  assert.doesNotMatch(wizard, /const GATEWAY_PRESETS =/);
+});

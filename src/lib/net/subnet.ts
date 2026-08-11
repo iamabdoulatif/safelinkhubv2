@@ -4,18 +4,54 @@ function rangeArray(start: number, end: number): number[] {
   return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
-// Gateway IPs offered by every bridge/auto-setup selector (topology step,
-// auto-setup step, services wizard) — one shared list so the two screens
-// never drift apart. 192.168.88.1 is MikroTik's own factory default.
-export const GATEWAY_IP_PRESETS = [
-  "192.168.88.1",
-  "192.168.10.1",
-  "10.10.10.1",
-  "10.10.0.1",
-  "10.0.0.1",
-  "172.16.0.1",
-  "10.200.5.1",
+/**
+ * Passerelles proposées par TOUS les sélecteurs (topologie, auto-setup, wizard
+ * des services) — une seule liste, pour que les écrans ne divergent pas.
+ *
+ * Groupées par bloc privé RFC 1918, parce que le choix n'est pas neutre : un
+ * hotspot dont la passerelle tombe sur le même sous-réseau que la box du FAI en
+ * amont crée un conflit de routage. Le bloc 10.0.0.0/8 est le plus sûr — les
+ * box grand public n'y vont presque jamais — alors que 192.168.x est
+ * précisément là où elles vivent. Les libellés le disent, plutôt que de laisser
+ * l'opérateur le découvrir en panne.
+ */
+export const GATEWAY_IP_PRESET_GROUPS = [
+  {
+    label: "10.0.0.0/8 — recommandé (le plus loin des box FAI)",
+    ips: [
+      "10.0.0.1",
+      "10.1.1.1",
+      "10.5.0.1",
+      "10.10.0.1",
+      "10.10.10.1",
+      "10.20.0.1",
+      "10.50.0.1",
+      "10.100.0.1",
+      "10.200.5.1",
+    ],
+  },
+  {
+    label: "172.16.0.0/12 — peu utilisé, bon repli",
+    ips: ["172.16.0.1", "172.20.0.1", "172.30.0.1"],
+  },
+  {
+    label: "192.168.0.0/16 — attention : terrain des box FAI",
+    ips: [
+      "192.168.10.1",
+      "192.168.20.1",
+      "192.168.50.1",
+      // Défaut d'usine MikroTik.
+      "192.168.88.1",
+      // Très répandu côté box (dont Orange) : à éviter en aval de l'une d'elles.
+      "192.168.100.1",
+    ],
+  },
 ] as const;
+
+/** Vue à plat, pour la validation et les valeurs par défaut. */
+export const GATEWAY_IP_PRESETS = GATEWAY_IP_PRESET_GROUPS.flatMap(
+  (group) => group.ips,
+) as readonly string[];
 
 // Picking a class narrows the /bits dropdown to that class's conventional
 // range; "Any" exposes the full supported range. Hotspot subnets are

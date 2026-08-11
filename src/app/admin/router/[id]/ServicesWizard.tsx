@@ -27,11 +27,15 @@ import {
 import Link from "next/link";
 import { listRouterInterfaces, saveBridge } from "@/lib/mikrotik/bridges";
 import { HOTSPOT_BRIDGE_NAME } from "@/lib/mikrotik/constants";
-import { CLASS_PREFIX_OPTIONS, getImpactNote } from "@/lib/net/subnet";
+import {
+  CLASS_PREFIX_OPTIONS,
+  GATEWAY_IP_PRESET_GROUPS,
+  GATEWAY_IP_PRESETS,
+  getImpactNote,
+} from "@/lib/net/subnet";
 
 type Port = { name: string; type: string; running: boolean; disabled: boolean };
 
-const GATEWAY_PRESETS = ["192.168.100.1", "10.0.0.1", "10.10.0.1", "10.200.5.1"];
 
 function StatusDot({ port }: { port: Port }) {
   const color = port.disabled ? "bg-err" : port.running ? "bg-ok" : "bg-line-soft";
@@ -527,22 +531,30 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                       gatewayValid ? "border-line" : "border-err"
                     }`}
                   />
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {GATEWAY_PRESETS.map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => setGatewayIp(preset)}
-                        className={`border px-2 py-0.5 font-mono text-[11px] font-semibold transition-colors duration-150 ${
-                          gatewayIp === preset
-                            ? "border-line bg-brand text-[#1C1917]"
-                            : "border-line-soft bg-paper text-ink-soft hover:bg-clay"
-                        }`}
-                      >
-                        {preset}
-                      </button>
+                  {/* Sélecteur plutôt qu'une rangée de boutons : la liste est
+                      passée de 4 à 17 adresses, et les grouper par bloc privé
+                      dit ce qu'une rangée de pastilles ne pouvait pas dire —
+                      lequel est risqué en aval d'une box FAI. Le champ reste
+                      libre : le sélecteur le remplit, il ne le remplace pas. */}
+                  <select
+                    aria-label="Choisir une passerelle courante"
+                    value={GATEWAY_IP_PRESETS.includes(gatewayIp) ? gatewayIp : ""}
+                    onChange={(e) => {
+                      if (e.target.value) setGatewayIp(e.target.value);
+                    }}
+                    className="mt-2 w-full border-2 border-line-soft bg-paper px-3 py-1.5 font-mono text-xs text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  >
+                    <option value="">Passerelles courantes…</option>
+                    {GATEWAY_IP_PRESET_GROUPS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.ips.map((ip) => (
+                          <option key={ip} value={ip}>
+                            {ip}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
-                  </div>
+                  </select>
                 </div>
                 <div>
                   <label htmlFor="sw-subnet" className="block text-sm font-semibold text-ink">

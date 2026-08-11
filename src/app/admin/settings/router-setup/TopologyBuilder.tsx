@@ -17,6 +17,7 @@ import {
   CLASS_DEFAULT_PREFIX,
   CLASS_PREFIX_OPTIONS,
   GATEWAY_IP_PRESETS,
+  GATEWAY_IP_PRESET_GROUPS,
   type NetworkClass,
 } from "@/lib/net/subnet";
 import BootstrapModal from "./BootstrapModal";
@@ -930,22 +931,29 @@ export default function TopologyBuilder({
                     onChange={(e) => setGatewayIp(e.target.value)}
                     className="w-full rounded-lg border border-line-soft px-4 py-2.5 text-base placeholder:text-ink-soft focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
                   />
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {GATEWAY_IP_PRESETS.map((ip) => (
-                      <button
-                        key={ip}
-                        type="button"
-                        onClick={() => setGatewayIp(ip)}
-                        className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
-                          gatewayIp === ip
-                            ? "border-[#3A362F] bg-[#3A362F] text-white"
-                            : "border-line-soft text-ink-soft hover:bg-clay"
-                        }`}
-                      >
-                        {ip}
-                      </button>
+                  {/* Sélecteur et non plus une rangée de pastilles : la liste
+                      partagée est passée de 7 à 17 adresses, et les groupes
+                      portent l'avertissement sur le bloc 192.168 — ce qu'une
+                      pastille ne peut pas dire. Le champ reste libre. */}
+                  <select
+                    aria-label="Choisir une passerelle courante"
+                    value={GATEWAY_IP_PRESETS.includes(gatewayIp) ? gatewayIp : ""}
+                    onChange={(e) => {
+                      if (e.target.value) setGatewayIp(e.target.value);
+                    }}
+                    className="mt-2 w-full rounded-lg border border-line-soft px-3 py-2 text-sm text-ink-soft focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  >
+                    <option value="">Passerelles courantes…</option>
+                    {GATEWAY_IP_PRESET_GROUPS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.ips.map((ip) => (
+                          <option key={ip} value={ip}>
+                            {ip}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
-                  </div>
+                  </select>
                 </div>
               </div>
 
