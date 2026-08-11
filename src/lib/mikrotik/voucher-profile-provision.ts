@@ -30,6 +30,7 @@ export async function ensureVoucherProfileOnRouter(
     `=address-pool=${HOTSPOT_POOL_NAME}`,
     `=on-login=${profile.onLogin}`,
     "=parent-queue=none",
+    "=add-mac-cookie=yes",
   ];
   if (profile.rateLimit) createProfile.push(`=rate-limit=${profile.rateLimit}`);
   await client.talk(createProfile, timeoutMs);

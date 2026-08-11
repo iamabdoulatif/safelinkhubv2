@@ -1,12 +1,13 @@
 // Garantit que le(s) profil(s) hotspot ACTIF(S) d'un routeur ACCEPTENT le login
-// PAR CODE + cookie — les méthodes nécessaires au paiement du portail captif.
+// PAR CODE + cookie navigateur + mac-cookie — les méthodes nécessaires au
+// paiement du portail captif et à la reconnexion automatique d'un appareil.
 //
 // Pourquoi ce module : un routeur qui n'est PAS passé par l'auto-setup complet
 // (ex. MAMBA WIFI, configuré à la main) peut avoir un `login-by` incomplet — sans
 // `http-chap`/`http-pap` le code saisi n'authentifie pas de façon fiable, et sans
-// `cookie` l'appareil doit RE-SAISIR le code à chaque reconnexion (le navigateur
-// ne garde pas de session). Aucun chemin runtime ne ré-assurait ce réglage hors
-// auto-setup : on le fait ici pour amener n'importe quel routeur à parité.
+// `mac-cookie` un téléphone qui revient sur le WiFi doit re-saisir son code.
+// Aucun chemin runtime ne ré-assurait ce réglage hors auto-setup : on le fait ici
+// pour amener n'importe quel routeur à parité.
 //
 // ADDITIF (et non écrasant) : on garantit la PRÉSENCE des méthodes requises SANS
 // retirer celles déjà là. Constaté on-device : le routeur de référence « parfait »
@@ -23,13 +24,18 @@ import type { RouterOSClient } from "./client";
 //   http-chap → saisie du code chiffrée (page de login standard RouterOS)
 //   http-pap  → repli en clair pour les clients/versions qui ne font pas CHAP
 // On garantit leur PRÉSENCE ; les autres méthodes déjà posées sont préservées.
-const REQUIRED_LOGIN_METHODS = ["cookie", "http-chap", "http-pap"] as const;
+const REQUIRED_LOGIN_METHODS = ["cookie", "http-chap", "http-pap", "mac-cookie"] as const;
 
 function parseLoginBy(raw: string | undefined): string[] {
   return (raw ?? "")
     .split(",")
     .map((m) => m.trim().toLowerCase())
     .filter(Boolean);
+}
+
+function isRouterOsEnabled(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "true" || normalized === "yes";
 }
 
 /** Host de login du hotspot lu EN LIVE sur le profil actif du routeur : sert à
@@ -42,8 +48,8 @@ export type HotspotLoginHost = {
 
 /**
  * Garantit que chaque profil hotspot réellement utilisé par un serveur ACTIF
- * accepte cookie+http-chap+http-pap, en PRÉSERVANT les méthodes déjà présentes
- * (mac, mac-cookie…) : on ajoute uniquement les méthodes requises manquantes.
+ * accepte cookie+http-chap+http-pap+mac-cookie, en PRÉSERVANT les méthodes déjà
+ * présentes (mac…) : on ajoute uniquement les méthodes requises manquantes.
  * Ne /set que si au moins une manque. Best-effort par profil : un échec
  * n'interrompt pas les autres et n'est jamais relancé vers l'appelant.
  *
@@ -98,6 +104,28 @@ export async function ensureHotspotLoginByCode(
         timeoutMs,
       );
       fixed.push(name);
+    } catch {
+      // best-effort : un profil qui refuse le set ne bloque pas les autres.
+    }
+  }
+
+  // `mac-cookie` dans le profil du serveur n'est utile que si les profils de
+  // tickets demandent à RouterOS d'en créer un après l'authentification valide.
+  // Cette option est sur le user-profile (et non le server profile) ; elle doit
+  // donc être réparée séparément pour les profils provenant d'une restauration
+  // ou créés avant cette garantie.
+  const voucherProfiles = await client
+    .talk(["/ip/hotspot/user/profile/print"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  for (const voucherProfile of voucherProfiles) {
+    const id = voucherProfile[".id"];
+    if (!id || isRouterOsEnabled(voucherProfile["add-mac-cookie"])) continue;
+
+    try {
+      await client.talk(
+        ["/ip/hotspot/user/profile/set", `=numbers=${id}`, "=add-mac-cookie=yes"],
+        timeoutMs,
+      );
     } catch {
       // best-effort : un profil qui refuse le set ne bloque pas les autres.
     }

@@ -1512,13 +1512,12 @@ export async function provisionHotspotStack(
       `=html-directory-override=${htmlDirectory}`,
       "=http-cookie-lifetime=52w1d",
       "=install-hotspot-queue=yes",
-      // Login PAR CODE uniquement (http-chap/http-pap, username=code) + cookie
-      // navigateur (même onglet ne re-saisit pas). PAS de login MAC : on retire
-      // "mac" et "mac-cookie" + mac-auth-mode → aucun appareil ne se reconnecte
-      // silencieusement par son adresse MAC (demande utilisateur). Le user reste
-      // lié au MAC (mac-address dans fulfill.ts) mais ça RESTREINT le partage du
-      // code, ça n'auto-connecte pas.
-      "=login-by=cookie,http-chap,http-pap",
+      // Login par code (http-chap/http-pap) + cookie navigateur et MAC cookie.
+      // `mac-cookie` ne donne pas accès avec la seule MAC : il mémorise les
+      // identifiants après un premier login valide, afin que l'appareil se
+      // reconnecte automatiquement pendant la durée de son ticket. On n'ajoute
+      // volontairement PAS `mac`, qui authentifierait une MAC sans ticket.
+      "=login-by=cookie,http-chap,http-pap,mac-cookie",
     ];
     if (matchingProfile?.[".id"]) {
       await run(
@@ -2071,6 +2070,9 @@ export async function provisionHotspotStack(
         `=address-pool=${HOTSPOT_POOL_NAME}`,
         `=on-login=${profile.onLogin}`,
         "=parent-queue=none",
+        // Après une authentification par ticket valide, autorise RouterOS à
+        // mémoriser le mac-cookie pour la reconnexion automatique.
+        "=add-mac-cookie=yes",
         // Débit personnalisé (rx/tx côté client) si l'admin l'a saisi ;
         // sinon la valeur vide efface une ancienne limite et rétablit le
         // débit du lien, comme la création initiale sans rate-limit.

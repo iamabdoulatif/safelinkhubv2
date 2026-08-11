@@ -25,5 +25,6 @@ describe("provisionnement de profil voucher", () => {
     const profileAdd = calls.find((sentence) => sentence[0] === "/ip/hotspot/user/profile/add");
     assert.ok(profileAdd);
     assert.ok(profileAdd.includes("=rate-limit=2M/5M"));
+    assert.ok(profileAdd.includes("=add-mac-cookie=yes"));
   });
 });
