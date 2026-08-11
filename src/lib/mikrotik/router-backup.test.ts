@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   findDanglingHotspotUserProfileRepairs,
+  selectRecoverableHotspotSessions,
   selectMikhmonSchedulers,
   type BackupSection,
 } from "./router-backup";
@@ -136,5 +137,57 @@ describe("réparation des liens ticket → profil après restauration", () => {
     );
 
     assert.deepEqual(repairs, []);
+  });
+});
+
+describe("reprise des sessions Hotspot actives", () => {
+  it("ne retient que les appareils actifs dont le ticket a une expiration sûre", () => {
+    const sessions = selectRecoverableHotspotSessions(
+      [
+        { user: "ticket-actif", "mac-address": "aa-bb-cc-dd-ee-ff" },
+        { user: "ticket-expire", "mac-address": "11:22:33:44:55:66" },
+        { user: "ticket-sans-date", "mac-address": "22:33:44:55:66:77" },
+      ],
+      [
+        { ".id": "*1", name: "01-JOUR" },
+        { ".id": "*2", name: "01-MOIS" },
+      ],
+      [
+        { name: "ticket-actif", profile: "*1", comment: "aug/12/2026 12:00:00 debut aug/11/2026 12:00:00" },
+        { name: "ticket-expire", profile: "01-MOIS", comment: "aug/10/2026 12:00:00" },
+        { name: "ticket-sans-date", profile: "01-JOUR", comment: "vente en attente" },
+      ],
+      [{ name: "01-JOUR" }, { name: "01-MOIS" }],
+      new Date("2026-08-11T10:00:00Z"),
+    );
+
+    assert.deepEqual(sessions, [
+      {
+        username: "ticket-actif",
+        macAddress: "AA:BB:CC:DD:EE:FF",
+        profile: "01-JOUR",
+        comment: "aug/12/2026 12:00:00 debut aug/11/2026 12:00:00",
+        expiresOn: "aug/12/2026",
+        expiresAt: "12:00:00",
+      },
+    ]);
+  });
+
+  it("écarte un MAC ambigu plutôt que de donner un accès au mauvais ticket", () => {
+    const sessions = selectRecoverableHotspotSessions(
+      [
+        { user: "ticket-a", "mac-address": "AA:BB:CC:DD:EE:FF" },
+        { user: "ticket-b", "mac-address": "AA:BB:CC:DD:EE:FF" },
+      ],
+      [{ name: "01-JOUR" }],
+      [
+        { name: "ticket-a", profile: "01-JOUR", comment: "aug/12/2026 12:00:00" },
+        { name: "ticket-b", profile: "01-JOUR", comment: "aug/12/2026 12:00:00" },
+      ],
+      [{ name: "01-JOUR" }],
+      new Date("2026-08-11T10:00:00Z"),
+    );
+
+    assert.deepEqual(sessions, []);
   });
 });

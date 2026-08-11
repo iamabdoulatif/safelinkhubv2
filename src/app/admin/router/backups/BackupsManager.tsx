@@ -54,6 +54,7 @@ const SECTION_LABELS: Record<string, string> = {
   hotspotUsers: "tickets",
   hotspotUserProfiles: "profils",
   hotspotUserProfileLinks: "liens ticket → profil",
+  activeSessionHandover: "reprise des sessions actives",
   mikhmonSchedulers: "expiration des tickets",
   mikhmonSales: "recettes MikHmon",
   walledGarden: "walled-garden",

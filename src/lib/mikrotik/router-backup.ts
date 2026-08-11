@@ -4,7 +4,9 @@ import { getDb } from "@/lib/db";
 import { bridges, captiveTemplates, routerBackups, routers } from "@/lib/db/schema";
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
+import { ensureMacAutoLogin } from "./hotspot-login-mode";
 import { applySsid, primarySsid, readWifiState, type WifiApi } from "./wifi-compat";
+import { parseExpiryComment, wallToDate } from "@/lib/vouchers/reconcile";
 import {
   applyIdentity,
   buildRestorePlan,
@@ -130,6 +132,15 @@ const SECTIONS: {
     ],
   },
   { key: "hotspotUserProfiles", cmd: "/ip/hotspot/user/profile/print", restorable: true },
+  // Les sessions actives ne sont pas réinjectables telles quelles (RouterOS les
+  // expose en lecture seule). Elles permettent toutefois de recréer, sur le
+  // rechange, un accès MAC TEMPORAIRE borné par l'expiration déjà inscrite sur
+  // le ticket — voir restoreActiveSessionHandover.
+  {
+    key: "hotspotActive",
+    cmd: "/ip/hotspot/active/print",
+    proplist: ["user", "mac-address", "server", "session-time-left", "login-by"],
+  },
   { key: "walledGarden", cmd: "/ip/hotspot/walled-garden/print", restorable: true },
   { key: "walledGardenIp", cmd: "/ip/hotspot/walled-garden/ip/print", restorable: true },
   /**
@@ -537,6 +548,7 @@ export type RestoreProgress = {
     | "hotspotUserProfileLinks"
     | "mikhmonSchedulers"
     | "hotspotUsers"
+    | "activeSessionHandover"
     | "mikhmonSales"
     | "walledGarden"
     | "walledGardenIp"
@@ -731,6 +743,24 @@ export async function restoreBackupToRouter(
       ),
     );
     await emit({ phase: "hotspotUsers", reports: [...reports], ticketsTotal: ticketRows.length });
+
+    // Les clients réellement connectés au moment de la capture peuvent revenir
+    // sur le nouveau routeur sans retaper leur code. RouterOS ne permet pas de
+    // réinsérer une ligne /ip/hotspot/cookie (lecture seule), donc on crée à la
+    // place un compte MAC temporaire, sans on-login, qui s'efface à la MÊME
+    // date d'expiration que le ticket source. Les sessions sans expiration
+    // explicite restent volontairement ignorées : ne jamais transformer une
+    // restauration en accès illimité.
+    reports.push(
+      await restoreActiveSessionHandover(
+        client,
+        snapshot.sections.hotspotActive ?? [],
+        snapshot.sections.hotspotUsers ?? [],
+        snapshot.sections.hotspotUserProfiles ?? [],
+        opts.dryRun,
+      ),
+    );
+    await emit({ phase: "activeSessionHandover", reports: [...reports] });
 
     // Après les tickets : une vente n'a de sens qu'une fois son ticket là. Comme
     // les tickets, ces lignes s'écrivent une par une et se comptent par milliers
@@ -945,6 +975,237 @@ async function restoreHotspotUsers(
     dryRun,
     onProgress,
   });
+}
+
+export type RecoverableHotspotSession = {
+  /** Ticket d'origine, conservé pour les logs d'erreur uniquement. */
+  username: string;
+  /** MAC normalisé de l'appareil qui était réellement connecté. */
+  macAddress: string;
+  /** Profil de débit/quotas du ticket d'origine. */
+  profile: string;
+  /** Commentaire original, dont les 20 premiers caractères portent l'expiration. */
+  comment: string;
+  /** Date RouterOS à laquelle l'accès temporaire doit disparaître. */
+  expiresOn: string;
+  expiresAt: string;
+};
+
+function normalizeMacAddress(raw: string | undefined): string | null {
+  const hex = (raw ?? "").replace(/[^0-9a-f]/gi, "").toUpperCase();
+  if (hex.length !== 12) return null;
+  return (hex.match(/.{2}/g) ?? []).join(":");
+}
+
+function profileNameBySourceReference(profile: string, profiles: BackupSection): string | null {
+  const names = new Set(profiles.map((row) => row.name).filter((name): name is string => !!name));
+  if (names.has(profile)) return profile;
+  return profiles.find((row) => row[".id"] === profile)?.name ?? null;
+}
+
+/**
+ * Énumère les clients à reprendre sans recopier de cookie RouterOS — son menu
+ * est explicitement en lecture seule. Un accès ne sera proposé que si le
+ * ticket porte déjà une expiration absolue et que son profil existe sur la
+ * cible. Un MAC vu avec deux tickets est rejeté : choisir arbitrairement l'un
+ * d'eux donnerait l'accès au mauvais client.
+ */
+export function selectRecoverableHotspotSessions(
+  activeRows: BackupSection,
+  sourceProfiles: BackupSection,
+  sourceUsers: BackupSection,
+  targetProfiles: BackupSection,
+  now = new Date(),
+): RecoverableHotspotSession[] {
+  const sourceUserByName = new Map(
+    sourceUsers.filter((user) => !!user.name && user.default !== "true").map((user) => [user.name!, user]),
+  );
+  const targetProfileNames = new Set(
+    targetProfiles.map((profile) => profile.name).filter((name): name is string => !!name),
+  );
+  const byMac = new Map<string, RecoverableHotspotSession | null>();
+
+  for (const active of activeRows) {
+    const username = active.user;
+    const macAddress = normalizeMacAddress(active["mac-address"]);
+    if (!username || !macAddress) continue;
+
+    const ticket = sourceUserByName.get(username);
+    if (!ticket?.profile || ticket.disabled === "true") continue;
+    const profile = profileNameBySourceReference(ticket.profile, sourceProfiles);
+    if (!profile || !targetProfileNames.has(profile)) continue;
+
+    const comment = ticket.comment ?? "";
+    const expiry = parseExpiryComment(comment);
+    if (!expiry || wallToDate(expiry).getTime() <= now.getTime()) continue;
+
+    const candidate: RecoverableHotspotSession = {
+      username,
+      macAddress,
+      profile,
+      comment,
+      expiresOn: comment.slice(0, 11),
+      expiresAt: comment.slice(12, 20),
+    };
+    const existing = byMac.get(macAddress);
+    // Une répétition exacte de la même session est sans effet ; deux tickets
+    // différents pour un même MAC sont ambigus et sont donc tous deux écartés.
+    if (!byMac.has(macAddress)) {
+      byMac.set(macAddress, candidate);
+    } else if (!existing || existing.username !== candidate.username) {
+      byMac.set(macAddress, null);
+    }
+  }
+  return [...byMac.values()].filter((session): session is RecoverableHotspotSession => !!session);
+}
+
+const SESSION_PROFILE_COPY_FIELDS = [
+  "address-pool",
+  "shared-users",
+  "rate-limit",
+  "session-timeout",
+  "idle-timeout",
+  "keepalive-timeout",
+  "address-list",
+  "transparent-proxy",
+] as const;
+
+function recoveryProfileName(profileName: string): string {
+  let hash = 5381;
+  for (const char of profileName) hash = ((hash << 5) + hash) ^ char.charCodeAt(0);
+  const readable = profileName.replace(/[^a-z0-9-]/gi, "").slice(0, 14) || "profile";
+  return `SLH-S-${readable}-${(hash >>> 0).toString(36)}`;
+}
+
+function recoverySchedulerName(macAddress: string): string {
+  return `SLH-RST-${macAddress.replace(/:/g, "")}`;
+}
+
+/**
+ * Reconstruit l'expérience « je reviens sur le Wi‑Fi et je suis reconnecté »
+ * pour les appareils qui étaient ACTIFS à la capture. Chaque compte MAC est
+ * affecté à une copie sans on-login du profil de départ (pas de nouvelle vente
+ * MikHmon, pas de prolongation) et un scheduler le supprime exactement à la
+ * date du ticket d'origine.
+ */
+async function restoreActiveSessionHandover(
+  client: RouterOSClient,
+  activeRows: BackupSection,
+  sourceUsers: BackupSection,
+  sourceProfiles: BackupSection,
+  dryRun?: boolean,
+): Promise<RestoreReport> {
+  const targetProfiles = await client.talk(["/ip/hotspot/user/profile/print"], 45000);
+  const sessions = selectRecoverableHotspotSessions(
+    activeRows,
+    sourceProfiles,
+    sourceUsers,
+    targetProfiles,
+  );
+  const report: RestoreReport = {
+    section: "activeSessionHandover",
+    created: 0,
+    skipped: 0,
+    updated: 0,
+    failed: [],
+  };
+  if (sessions.length === 0) return report;
+  if (dryRun) {
+    report.created = sessions.length;
+    return report;
+  }
+
+  // `mac` authentifie les comptes nommés par leur MAC ; `mac-cookie` maintient
+  // ensuite le confort de reconnexion tant que le routeur restauré est en vie.
+  await ensureMacAutoLogin(client);
+
+  const existingUsers = await client.talk(
+    ["/ip/hotspot/user/print", "=.proplist=.id,name"],
+    45000,
+  );
+  const existingUserNames = new Set(
+    existingUsers.map((user) => user.name).filter((name): name is string => !!name),
+  );
+  const profilesByName = new Map(
+    targetProfiles.filter((profile) => !!profile.name).map((profile) => [profile.name!, profile]),
+  );
+
+  for (const session of sessions) {
+    // Ne remplace jamais un compte MAC déjà existant (roaming/admin) : il est
+    // déjà une source d'autorité plus récente que cette sauvegarde.
+    if (existingUserNames.has(session.macAddress)) {
+      report.skipped++;
+      continue;
+    }
+    const baseProfile = profilesByName.get(session.profile);
+    if (!baseProfile) {
+      report.failed.push({ name: session.username, error: "Profil de session introuvable." });
+      continue;
+    }
+
+    const sessionProfile = recoveryProfileName(session.profile);
+    if (!profilesByName.has(sessionProfile)) {
+      try {
+        await client.talk([
+          "/ip/hotspot/user/profile/add",
+          `=name=${sessionProfile}`,
+          ...pick(baseProfile, SESSION_PROFILE_COPY_FIELDS),
+        ]);
+        profilesByName.set(sessionProfile, { name: sessionProfile });
+      } catch (err) {
+        report.failed.push({
+          name: session.username,
+          error: err instanceof Error ? err.message : "Création du profil de session impossible.",
+        });
+        continue;
+      }
+    }
+
+    const schedulerName = recoverySchedulerName(session.macAddress);
+    const cleanupEvent = [
+      `/ip hotspot active remove [find where user="${session.macAddress}"]`,
+      `/ip hotspot user remove [find where name="${session.macAddress}"]`,
+      `/system scheduler remove [find where name="${schedulerName}"]`,
+    ].join("; ");
+    try {
+      await client.talk([
+        "/ip/hotspot/user/add",
+        `=name=${session.macAddress}`,
+        `=password=${session.macAddress}`,
+        `=mac-address=${session.macAddress}`,
+        `=profile=${sessionProfile}`,
+        `=comment=${session.comment}`,
+        "=server=all",
+      ]);
+      await client
+        .talk(["/system/scheduler/remove", `=numbers=${schedulerName}`])
+        .catch(() => {});
+      await client.talk([
+        "/system/scheduler/add",
+        `=name=${schedulerName}`,
+        `=start-date=${session.expiresOn}`,
+        `=start-time=${session.expiresAt}`,
+        "=interval=0s",
+        `=on-event=${cleanupEvent}`,
+        "=policy=read,write,policy,test",
+        "=comment=SafeLinkHub temporary restored session",
+      ]);
+      existingUserNames.add(session.macAddress);
+      report.created++;
+    } catch (err) {
+      // Sans scheduler, le profil de reprise ne doit jamais devenir une porte
+      // d'accès qui survivrait au ticket. On retire donc immédiatement le user
+      // temporaire créé juste avant l'erreur éventuelle.
+      await client
+        .talk(["/ip/hotspot/user/remove", `=numbers=${session.macAddress}`])
+        .catch(() => {});
+      report.failed.push({
+        name: session.username,
+        error: err instanceof Error ? err.message : "Reprise de session impossible.",
+      });
+    }
+  }
+  return report;
 }
 
 export type HotspotUserProfileRepair = {
