@@ -73,10 +73,18 @@ export function prepareHotspotRestore(args: {
   sourceTickets: HotspotRestoreRow[];
   targetProfiles: HotspotRestoreRow[];
   targetServers: HotspotRestoreRow[];
+  /** Pré-vol avant la création des profils : seules les références source sont vérifiées. */
+  allowMissingTargetProfiles?: boolean;
 }): HotspotRestorePreparation {
   const blockers: string[] = [];
   const sourceProfiles = args.sourceProfiles.filter(hasUsableName);
   const targetProfiles = args.targetProfiles.filter(hasUsableName);
+  const sourceTickets = args.sourceTickets.filter(
+    (ticket) => hasUsableName(ticket) && ticket.default !== "true",
+  );
+  if (sourceProfiles.length === 0 && sourceTickets.length === 0) {
+    return { blockers, tickets: [], profileBindings: [], parentQueueAdaptations: [] };
+  }
   const activeServers = args.targetServers.filter(
     (server) => hasUsableName(server) && server.disabled !== "true",
   );
@@ -102,8 +110,7 @@ export function prepareHotspotRestore(args: {
   const targetProfileByName = new Map(targetProfiles.map((profile) => [profile.name, profile]));
 
   const ticketCandidates: { ticket: HotspotRestoreRow; profile: string }[] = [];
-  for (const ticket of args.sourceTickets) {
-    if (!hasUsableName(ticket) || ticket.default === "true") continue;
+  for (const ticket of sourceTickets) {
     const sourceReference = ticket.profile?.trim();
     if (!sourceReference) {
       blockers.push(`Le ticket « ${ticket.name} » n'a pas de profil source à traduire.`);
@@ -112,11 +119,11 @@ export function prepareHotspotRestore(args: {
     const profileName = sourceProfileNameByReference.get(sourceReference);
     if (!profileName) {
       blockers.push(
-        `Le ticket « ${ticket.name} » référence le profil source inconnu « ${sourceReference} » .`,
+        `Le ticket « ${ticket.name} » référence le profil source inconnu « ${sourceReference} ».`,
       );
       continue;
     }
-    if (!targetProfileByName.has(profileName)) {
+    if (!args.allowMissingTargetProfiles && !targetProfileByName.has(profileName)) {
       blockers.push(
         `Le profil « ${profileName} » requis par le ticket « ${ticket.name} » est absent de la cible après synchronisation.`,
       );

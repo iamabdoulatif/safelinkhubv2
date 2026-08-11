@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyHotspotProfileBindings,
   findDanglingHotspotUserProfileRepairs,
+  findRestoredHotspotBindingMismatches,
+  restoreResolvedHotspotUsers,
   selectRecoverableHotspotSessions,
   selectMikhmonSchedulers,
   type BackupSection,
 } from "./router-backup";
+import type { ResolvedHotspotTicket } from "./hotspot-restore-reconciliation";
 
 /**
  * Le balayage d'expiration est ce qui fait qu'un ticket restauré finit par
@@ -137,6 +141,116 @@ describe("réparation des liens ticket → profil après restauration", () => {
     );
 
     assert.deepEqual(repairs, []);
+  });
+});
+
+describe("écriture et vérification des liaisons HotSpot restaurées", () => {
+  const ticket: ResolvedHotspotTicket = {
+    name: "5jyw82",
+    profile: "05-JOURS",
+    server: "hotspot1",
+    fields: {
+      name: "5jyw82",
+      password: "5jyw82",
+      profile: "05-JOURS",
+      server: "hotspot1",
+      disabled: "false",
+      comment: "aug/12/2026 12:00:00",
+    },
+  };
+
+  it("réaligne un ticket homonyme sur les données source et les références cible", async () => {
+    const calls: string[][] = [];
+    const client = {
+      talk: async (words: string[]) => {
+        calls.push(words);
+        if (words[0] === "/ip/hotspot/user/print") {
+          return [{ ".id": "*U", name: "5jyw82", profile: "unknown", server: "hotspot-source" }];
+        }
+        return [];
+      },
+    };
+
+    const report = await restoreResolvedHotspotUsers(client, [ticket]);
+
+    assert.deepEqual(report, {
+      section: "hotspotUsers",
+      created: 0,
+      skipped: 0,
+      updated: 1,
+      failed: [],
+    });
+    assert.deepEqual(calls[1], [
+      "/ip/hotspot/user/set",
+      "=numbers=*U",
+      "=password=5jyw82",
+      "=profile=05-JOURS",
+      "=server=hotspot1",
+      "=disabled=false",
+      "=comment=aug/12/2026 12:00:00",
+    ]);
+  });
+
+  it("lie chaque profil restauré au pool du serveur cible avant les tickets", async () => {
+    const calls: string[][] = [];
+    const client = { talk: async (words: string[]) => (calls.push(words), []) };
+
+    const report = await applyHotspotProfileBindings(
+      client,
+      [{ name: "05-JOURS", addressPool: "POOL-HOTSPOT", parentQueue: "none" }],
+      [{ ".id": "*P", name: "05-JOURS", "address-pool": "*1" }],
+    );
+
+    assert.equal(report.updated, 1);
+    assert.deepEqual(calls, [
+      [
+        "/ip/hotspot/user/profile/set",
+        "=numbers=*P",
+        "=address-pool=POOL-HOTSPOT",
+        "=parent-queue=none",
+      ],
+    ]);
+  });
+
+  it("simule la liaison d'un nouveau profil sans exiger un identifiant qui n'existe pas encore", async () => {
+    const report = await applyHotspotProfileBindings(
+      { talk: async () => [] },
+      [{ name: "NOUVEAU", addressPool: "POOL-HOTSPOT", parentQueue: "none" }],
+      [{ name: "NOUVEAU" }],
+      true,
+    );
+
+    assert.deepEqual(report, {
+      section: "hotspotTargetBindings",
+      created: 0,
+      skipped: 0,
+      updated: 1,
+      failed: [],
+    });
+  });
+
+  it("signale une divergence de pool, de profil ou de serveur avant de reprendre les sessions", () => {
+    const mismatches = findRestoredHotspotBindingMismatches({
+      bindings: [{ name: "05-JOURS", addressPool: "POOL-HOTSPOT", parentQueue: "none" }],
+      tickets: [ticket],
+      targetProfiles: [{ name: "05-JOURS", "address-pool": "POOL-ANCIEN" }],
+      targetUsers: [
+        {
+          name: "5jyw82",
+          password: "5jyw82",
+          disabled: "false",
+          comment: "aug/12/2026 12:00:00",
+          profile: "unknown",
+          server: "hotspot-source",
+        },
+      ],
+    });
+
+    assert.deepEqual(mismatches, [
+      "Le profil « 05-JOURS » n'est pas lié au pool cible « POOL-HOTSPOT ».",
+      "Le ticket « 5jyw82 » ne référence pas le profil cible « 05-JOURS ».",
+      "Le ticket « 5jyw82 » ne référence pas le serveur HotSpot cible « hotspot1 ».",
+    ]);
   });
 });
 

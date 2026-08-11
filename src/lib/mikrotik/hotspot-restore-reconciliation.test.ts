@@ -1,17 +1,36 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { prepareHotspotRestore } from "./hotspot-restore-reconciliation";
+import {
+  prepareHotspotRestore,
+  type HotspotRestoreRow,
+} from "./hotspot-restore-reconciliation";
 
 describe("pré-vol des liaisons HotSpot restaurées", () => {
-  const sourceProfiles = [
+  const sourceProfiles: HotspotRestoreRow[] = [
     { ".id": "*1", name: "05-JOURS", "address-pool": "*1", "parent-queue": "*2" },
     { ".id": "*2", name: "01-MOIS" },
   ];
-  const targetProfiles = [
+  const targetProfiles: HotspotRestoreRow[] = [
     { ".id": "*A", name: "default", "address-pool": "POOL-HOTSPOT" },
     { ".id": "*B", name: "05-JOURS", "address-pool": "*1", "parent-queue": "local-parent" },
     { ".id": "*C", name: "01-MOIS", "address-pool": "POOL-HOTSPOT", "parent-queue": "*2" },
   ];
+
+  it("n'exige aucune topologie HotSpot lorsqu'aucune donnée HotSpot n'est à restaurer", () => {
+    const plan = prepareHotspotRestore({
+      sourceProfiles: [],
+      sourceTickets: [],
+      targetProfiles: [],
+      targetServers: [],
+    });
+
+    assert.deepEqual(plan, {
+      blockers: [],
+      profileBindings: [],
+      tickets: [],
+      parentQueueAdaptations: [],
+    });
+  });
 
   it("traduit les références internes de profil et de serveur vers la cible", () => {
     const plan = prepareHotspotRestore({
@@ -106,5 +125,20 @@ describe("pré-vol des liaisons HotSpot restaurées", () => {
 
     assert.equal(plan.tickets.length, 0);
     assert.ok(plan.blockers.some((message) => message.includes("01-MOIS")));
+  });
+
+  it("valide les références source avant la création des profils sans exiger leur présence prématurée", () => {
+    const plan = prepareHotspotRestore({
+      sourceProfiles,
+      sourceTickets: [{ name: "ticket-futur", profile: "*2", server: "hotspot-source" }],
+      targetProfiles: [{ ".id": "*A", name: "default" }],
+      targetServers: [{ name: "hotspot1", disabled: "false", "address-pool": "POOL-HOTSPOT" }],
+      allowMissingTargetProfiles: true,
+    });
+
+    assert.deepEqual(plan.blockers, []);
+    assert.deepEqual(plan.tickets.map((ticket) => [ticket.profile, ticket.server]), [
+      ["01-MOIS", "hotspot1"],
+    ]);
   });
 });

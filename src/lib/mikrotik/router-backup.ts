@@ -5,6 +5,11 @@ import { bridges, captiveTemplates, routerBackups, routers } from "@/lib/db/sche
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
 import { ensureMacAutoLogin } from "./hotspot-login-mode";
+import {
+  prepareHotspotRestore,
+  type HotspotProfileBinding,
+  type ResolvedHotspotTicket,
+} from "./hotspot-restore-reconciliation";
 import { applySsid, primarySsid, readWifiState, type WifiApi } from "./wifi-compat";
 import { parseExpiryComment, wallToDate } from "@/lib/vouchers/reconcile";
 import {
@@ -546,6 +551,8 @@ export type RestoreProgress = {
     | "remodel"
     | "hotspotUserProfiles"
     | "hotspotUserProfileLinks"
+    | "hotspotTargetBindings"
+    | "hotspotRestoreVerification"
     | "mikhmonSchedulers"
     | "hotspotUsers"
     | "activeSessionHandover"
@@ -574,10 +581,10 @@ const PROGRESS_EVERY = 200;
  * arrêtent la restauration — restaurer 4 800 tickets sur un routeur sans
  * hotspot ne produirait que 4 800 échecs.
  *
- * Idempotent par nom : ce qui existe déjà est laissé intact plutôt qu'écrasé —
- * une restauration relancée après une coupure réseau reprend là où elle en
- * était, et ne peut pas détruire un ticket déjà recréé. `dryRun` compte ce qui
- * serait fait sans rien écrire.
+ * Idempotent par nom : une relance réécrit la vérité de la source sur chaque
+ * ticket homonyme, ce qui corrige également les profils, serveurs et mots de
+ * passe restés sur l'ancien routeur. `dryRun` compte ce qui serait fait sans
+ * rien écrire.
  */
 export async function restoreBackupToRouter(
   backupId: string,
@@ -645,7 +652,7 @@ export async function restoreBackupToRouter(
   // Un blocage arrête l'écriture : sans hotspot sur la cible, les ~5 000 ajouts
   // de tickets échoueraient un par un. La simulation, elle, va au bout — c'est
   // justement là qu'on veut VOIR le blocage.
-  if (plan.blockers.length > 0 && !opts.dryRun && !opts.force) {
+  if (plan.blockers.length > 0 && !opts.dryRun) {
     client.close();
     return {
       error: `Restauration refusée : ${plan.blockers.join(" ")}`,
@@ -665,72 +672,110 @@ export async function restoreBackupToRouter(
     }
   };
 
+  const sourceProfiles = snapshot.sections.hotspotUserProfiles ?? [];
+  const sourceTicketRows = (snapshot.sections.hotspotUsers ?? []).filter(
+    (row) => row.name && row.default !== "true",
+  );
+  // Avant de toucher le moindre profil, on s'assure que chaque ID source peut
+  // déjà être traduit vers un nom de profil et le serveur cible unique. Les
+  // profils peuvent encore être absents : ils seront créés à l'étape suivante.
+  const sourcePreflight = prepareHotspotRestore({
+    sourceProfiles,
+    sourceTickets: sourceTicketRows,
+    targetProfiles: [],
+    targetServers: scan.hotspotServers.map((server) => ({
+      name: server.name,
+      disabled: "false",
+      "address-pool": server.addressPool ?? "",
+    })),
+    allowMissingTargetProfiles: true,
+  });
+  if (sourcePreflight.blockers.length > 0) {
+    plan.blockers.push(...sourcePreflight.blockers.filter((blocker) => !plan.blockers.includes(blocker)));
+    client.close();
+    return {
+      error: `Restauration refusée : ${sourcePreflight.blockers.join(" ")}`,
+      plan,
+      blocked: true as const,
+    };
+  }
+
   try {
     await applyRemodel(client, snapshot, plan, opts.dryRun);
     // Ordre imposé par les dépendances : un ticket référence son profil, donc
     // les profils doivent exister d'abord, sinon RouterOS refuse le ticket.
-    reports.push(
-      await restoreNamed(client, {
-        section: "hotspotUserProfiles",
-        rows: snapshot.sections.hotspotUserProfiles ?? [],
-        listCmd: "/ip/hotspot/user/profile/print",
-        addCmd: "/ip/hotspot/user/profile/add",
-        fields: PROFILE_FIELDS,
-        updateFields: PROFILE_SYNC_FIELDS,
-        updateCmd: "/ip/hotspot/user/profile/set",
-        dryRun: opts.dryRun,
-      }),
-    );
+    const profileReport = await restoreNamed(client, {
+      section: "hotspotUserProfiles",
+      rows: sourceProfiles,
+      listCmd: "/ip/hotspot/user/profile/print",
+      addCmd: "/ip/hotspot/user/profile/add",
+      fields: PROFILE_FIELDS,
+      updateFields: PROFILE_SYNC_FIELDS,
+      updateCmd: "/ip/hotspot/user/profile/set",
+      dryRun: opts.dryRun,
+    });
+    reports.push(profileReport);
     await emit({ phase: "hotspotUserProfiles", reports: [...reports] });
+    if (profileReport.failed.length > 0) {
+      return {
+        error: "Restauration interrompue : un profil HotSpot n'a pas pu être synchronisé.",
+        reports,
+        plan,
+      };
+    }
 
-    // Un profil peut avoir été supprimé puis recréé par une ancienne version
-    // de l'auto-setup. RouterOS conserve alors l'ancien ID sur les tickets,
-    // mais cet ID ne désigne plus aucun profil (Winbox affiche "unknown").
-    // Cette passe ne touche QUE ces références orphelines ; une modification
-    // manuelle qui vise encore un profil existant reste donc prioritaire.
-    reports.push(
-      await repairDanglingHotspotUserProfiles(
-        client,
-        snapshot.sections.hotspotUsers ?? [],
-        snapshot.sections.hotspotUserProfiles ?? [],
-        opts.dryRun,
-        (done, total) =>
-          emit({
-            phase: "hotspotUserProfileLinks",
-            reports: [
-              ...reports,
-              {
-                section: "hotspotUserProfileLinks",
-                created: 0,
-                skipped: 0,
-                updated: done,
-                failed: [],
-              },
-            ],
-            ticketsDone: done,
-            ticketsTotal: total,
-          }),
-      ),
-    );
-    await emit({ phase: "hotspotUserProfileLinks", reports: [...reports] });
+    const targetProfiles = await client
+      .talk(
+        ["/ip/hotspot/user/profile/print", "=.proplist=.id,name,address-pool,parent-queue"],
+        30000,
+      )
+      .catch(() => [] as BackupSection);
+    // Une simulation ne crée pas le profil sur le routeur. On complète donc sa
+    // vue cible pour tester les mêmes traductions sans réclamer un faux ID.
+    const profilesForResolution = opts.dryRun
+      ? mergeProjectedHotspotProfiles(targetProfiles, sourceProfiles)
+      : targetProfiles;
+    const resolvedHotspot = prepareHotspotRestore({
+      sourceProfiles,
+      sourceTickets: sourceTicketRows,
+      targetProfiles: profilesForResolution,
+      targetServers: scan.hotspotServers.map((server) => ({
+        name: server.name,
+        disabled: "false",
+        "address-pool": server.addressPool ?? "",
+      })),
+    });
+    if (resolvedHotspot.blockers.length > 0) {
+      plan.blockers.push(...resolvedHotspot.blockers.filter((blocker) => !plan.blockers.includes(blocker)));
+      return {
+        error: `Restauration interrompue : ${resolvedHotspot.blockers.join(" ")}`,
+        reports,
+        plan,
+        blocked: true as const,
+      };
+    }
 
-    // Aussitôt après les profils, et avant les tickets : c'est ce balayage qui
-    // fera expirer les tickets qu'on s'apprête à recréer.
-    reports.push(
-      await restoreMikhmonSchedulers(
-        client,
-        snapshot.sections.schedulers ?? [],
-        snapshot.sections.hotspotUserProfiles ?? [],
-        opts.dryRun,
-      ),
+    const bindingReport = await applyHotspotProfileBindings(
+      client,
+      resolvedHotspot.profileBindings,
+      profilesForResolution,
+      opts.dryRun,
     );
-    await emit({ phase: "mikhmonSchedulers", reports: [...reports] });
+    reports.push(bindingReport);
+    await emit({ phase: "hotspotTargetBindings", reports: [...reports] });
+    if (bindingReport.failed.length > 0) {
+      return {
+        error: "Restauration interrompue : les profils n'ont pas pu être reliés au pool cible.",
+        reports,
+        plan,
+      };
+    }
 
-    const ticketRows = (snapshot.sections.hotspotUsers ?? []).filter(
-      (r) => r.name && r.default !== "true",
-    );
-    reports.push(
-      await restoreHotspotUsers(client, snapshot.sections.hotspotUsers ?? [], opts.dryRun, (done) =>
+    const ticketReport = await restoreResolvedHotspotUsers(
+      client,
+      resolvedHotspot.tickets,
+      opts.dryRun,
+      (done) =>
         emit({
           phase: "hotspotUsers",
           reports: [
@@ -738,11 +783,72 @@ export async function restoreBackupToRouter(
             { section: "hotspotUsers", created: done, skipped: 0, updated: 0, failed: [] },
           ],
           ticketsDone: done,
-          ticketsTotal: ticketRows.length,
+          ticketsTotal: resolvedHotspot.tickets.length,
         }),
+    );
+    reports.push(ticketReport);
+    await emit({
+      phase: "hotspotUsers",
+      reports: [...reports],
+      ticketsTotal: resolvedHotspot.tickets.length,
+    });
+    if (ticketReport.failed.length > 0) {
+      return {
+        error: "Restauration interrompue : un ticket n'a pas pu être réaligné sur la sauvegarde.",
+        reports,
+        plan,
+      };
+    }
+
+    if (!opts.dryRun) {
+      const [verifiedProfiles, verifiedUsers] = await Promise.all([
+        client.talk(
+          ["/ip/hotspot/user/profile/print", "=.proplist=.id,name,address-pool,parent-queue"],
+          30000,
+        ),
+        client.talk(
+          [
+            "/ip/hotspot/user/print",
+            `=.proplist=.id,${USER_FIELDS.join(",")}`,
+          ],
+          45000,
+        ),
+      ]);
+      const mismatches = findRestoredHotspotBindingMismatches({
+        bindings: resolvedHotspot.profileBindings,
+        tickets: resolvedHotspot.tickets,
+        targetProfiles: verifiedProfiles,
+        targetUsers: verifiedUsers,
+      });
+      const verificationReport: RestoreReport = {
+        section: "hotspotRestoreVerification",
+        created: 0,
+        skipped: 0,
+        updated: mismatches.length === 0 ? resolvedHotspot.tickets.length : 0,
+        failed: mismatches.map((error) => ({ name: "HotSpot", error })),
+      };
+      reports.push(verificationReport);
+      await emit({ phase: "hotspotRestoreVerification", reports: [...reports] });
+      if (mismatches.length > 0) {
+        return {
+          error: `Restauration interrompue : ${mismatches.join(" ")}`,
+          reports,
+          plan,
+        };
+      }
+    }
+
+    // Le balayage d'expiration ne vient qu'après la vérification : un scheduler
+    // ne doit jamais s'exécuter sur un ticket dont la liaison reste douteuse.
+    reports.push(
+      await restoreMikhmonSchedulers(
+        client,
+        snapshot.sections.schedulers ?? [],
+        sourceProfiles,
+        opts.dryRun,
       ),
     );
-    await emit({ phase: "hotspotUsers", reports: [...reports], ticketsTotal: ticketRows.length });
+    await emit({ phase: "mikhmonSchedulers", reports: [...reports] });
 
     // Les clients réellement connectés au moment de la capture peuvent revenir
     // sur le nouveau routeur sans retaper leur code. RouterOS ne permet pas de
@@ -954,27 +1060,187 @@ async function restoreNamed(
 }
 
 /**
- * Les tickets sont recréés un à un (RouterOS n'a pas d'ajout en lot). Sur un
- * parc à ~5 000 tickets, c'est long mais c'est exactement la donnée qu'on ne
- * peut pas se permettre de perdre.
+ * En simulation, RouterOS n'attribue pas encore d'ID aux nouveaux profils. On
+ * projette donc uniquement leur nom — jamais les références locales de la
+ * source — afin de tester exactement la même résolution sans écrire.
  */
-async function restoreHotspotUsers(
-  client: RouterOSClient,
-  rows: BackupSection,
+function mergeProjectedHotspotProfiles(targetProfiles: BackupSection, sourceProfiles: BackupSection) {
+  const projected = new Map<string, Record<string, string>>();
+  for (const profile of targetProfiles) {
+    if (profile.name) projected.set(profile.name, profile);
+  }
+  for (const profile of sourceProfiles) {
+    if (profile.name && !projected.has(profile.name)) projected.set(profile.name, { name: profile.name });
+  }
+  return [...projected.values()];
+}
+
+type RouterOSTalker = Pick<RouterOSClient, "talk">;
+
+/**
+ * Refixe un profil sur les objets *déjà existants* du routeur cible. Cette
+ * écriture ne crée ni pool ni file : elle ne fait que relier le profil de
+ * ticket à la topologie que la cible expose déjà.
+ */
+export async function applyHotspotProfileBindings(
+  client: RouterOSTalker,
+  bindings: HotspotProfileBinding[],
+  targetProfiles: BackupSection,
+  dryRun?: boolean,
+): Promise<RestoreReport> {
+  const report: RestoreReport = {
+    section: "hotspotTargetBindings",
+    created: 0,
+    skipped: 0,
+    updated: 0,
+    failed: [],
+  };
+  const profilesByName = new Map(
+    targetProfiles.filter((profile) => !!profile.name).map((profile) => [profile.name!, profile]),
+  );
+
+  for (const binding of bindings) {
+    const targetProfile = profilesByName.get(binding.name);
+    const id = targetProfile?.[".id"];
+    if (dryRun) {
+      // Un profil nouvellement projeté n'a pas encore reçu son ID RouterOS.
+      // La simulation doit compter la liaison, sans la déclarer impossible.
+      report.updated++;
+      continue;
+    }
+    if (!id) {
+      report.failed.push({
+        name: binding.name,
+        error: "Profil cible absent ou sans identifiant RouterOS.",
+      });
+      continue;
+    }
+    try {
+      await client.talk(
+        [
+          "/ip/hotspot/user/profile/set",
+          `=numbers=${id}`,
+          `=address-pool=${binding.addressPool}`,
+          `=parent-queue=${binding.parentQueue}`,
+        ],
+        30000,
+      );
+      report.updated++;
+    } catch (err) {
+      report.failed.push({
+        name: binding.name,
+        error: err instanceof Error ? err.message : "Erreur inconnue",
+      });
+    }
+  }
+  return report;
+}
+
+function fieldsAsWords(fields: Record<string, string>, omitName = false) {
+  return Object.entries(fields)
+    .filter(([field]) => !omitName || field !== "name")
+    .map(([field, value]) => `=${field}=${value}`);
+}
+
+/**
+ * Les tickets sont écrits un à un avec la vérité de la source. À la différence
+ * de `restoreNamed`, un code homonyme est volontairement réaligné : ignorer un
+ * ticket déjà présent conserverait un mot de passe, un profil ou un serveur de
+ * l'ancien routeur.
+ */
+export async function restoreResolvedHotspotUsers(
+  client: RouterOSTalker,
+  tickets: ResolvedHotspotTicket[],
   dryRun?: boolean,
   onProgress?: (processed: number) => void | Promise<void>,
 ): Promise<RestoreReport> {
-  return restoreNamed(client, {
+  const report: RestoreReport = {
     section: "hotspotUsers",
-    // Les comptes de service MikHmon (role=vendeur) sont recréés comme les
-    // autres : ce sont les identifiants de vos vendeurs.
-    rows: rows.filter((r) => r.name && r.default !== "true"),
-    listCmd: "/ip/hotspot/user/print",
-    addCmd: "/ip/hotspot/user/add",
-    fields: USER_FIELDS,
-    dryRun,
-    onProgress,
-  });
+    created: 0,
+    skipped: 0,
+    updated: 0,
+    failed: [],
+  };
+  const existing = await client
+    .talk(["/ip/hotspot/user/print", "=.proplist=.id,name"], 45000)
+    .catch(() => [] as Record<string, string>[]);
+  const idByName = new Map(
+    existing.filter((user) => !!user.name && !!user[".id"]).map((user) => [user.name!, user[".id"]!]),
+  );
+
+  let processed = 0;
+  for (const ticket of tickets) {
+    const id = idByName.get(ticket.name);
+    if (dryRun) {
+      if (id) report.updated++;
+      else report.created++;
+    } else {
+      try {
+        if (id) {
+          await client.talk(
+            ["/ip/hotspot/user/set", `=numbers=${id}`, ...fieldsAsWords(ticket.fields, true)],
+            30000,
+          );
+          report.updated++;
+        } else {
+          await client.talk(["/ip/hotspot/user/add", ...fieldsAsWords(ticket.fields)], 30000);
+          report.created++;
+        }
+      } catch (err) {
+        report.failed.push({
+          name: ticket.name,
+          error: err instanceof Error ? err.message : "Erreur inconnue",
+        });
+      }
+    }
+    processed++;
+    if (onProgress && processed % PROGRESS_EVERY === 0) await onProgress(processed);
+  }
+  return report;
+}
+
+/** Relit les objets écrits et rend toute divergence exploitable dans le rapport. */
+export function findRestoredHotspotBindingMismatches(args: {
+  bindings: HotspotProfileBinding[];
+  tickets: ResolvedHotspotTicket[];
+  targetProfiles: BackupSection;
+  targetUsers: BackupSection;
+}) {
+  const mismatches: string[] = [];
+  const profilesByName = new Map(
+    args.targetProfiles.filter((profile) => !!profile.name).map((profile) => [profile.name!, profile]),
+  );
+  for (const binding of args.bindings) {
+    if (profilesByName.get(binding.name)?.["address-pool"] !== binding.addressPool) {
+      mismatches.push(
+        `Le profil « ${binding.name} » n'est pas lié au pool cible « ${binding.addressPool} ».`,
+      );
+    }
+  }
+
+  const usersByName = new Map(
+    args.targetUsers.filter((user) => !!user.name).map((user) => [user.name!, user]),
+  );
+  for (const ticket of args.tickets) {
+    const targetUser = usersByName.get(ticket.name);
+    if (targetUser?.profile !== ticket.profile) {
+      mismatches.push(
+        `Le ticket « ${ticket.name} » ne référence pas le profil cible « ${ticket.profile} ».`,
+      );
+    }
+    if (targetUser?.server !== ticket.server) {
+      mismatches.push(
+        `Le ticket « ${ticket.name} » ne référence pas le serveur HotSpot cible « ${ticket.server} ».`,
+      );
+    }
+    for (const [field, value] of Object.entries(ticket.fields)) {
+      if (field === "name" || field === "profile" || field === "server") continue;
+      if (targetUser?.[field] !== value) {
+        mismatches.push(`Le ticket « ${ticket.name} » diffère de la sauvegarde pour « ${field} » .`);
+      }
+    }
+  }
+  return mismatches;
 }
 
 export type RecoverableHotspotSession = {
