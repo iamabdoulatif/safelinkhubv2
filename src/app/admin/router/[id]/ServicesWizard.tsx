@@ -27,6 +27,7 @@ import {
 import Link from "next/link";
 import { listRouterInterfaces, saveBridge } from "@/lib/mikrotik/bridges";
 import { HOTSPOT_BRIDGE_NAME } from "@/lib/mikrotik/constants";
+import { CLASS_PREFIX_OPTIONS, getImpactNote } from "@/lib/net/subnet";
 
 type Port = { name: string; type: string; running: boolean; disabled: boolean };
 
@@ -553,12 +554,22 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     onChange={(e) => setSubnetBits(Number(e.target.value))}
                     className="mt-1.5 w-full border-2 border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                   >
-                    {[24, 23, 22, 21, 20, 19].map((bits) => (
+                    {/* Liste PARTAGÉE (lib/net/subnet), pas une copie locale :
+                        celle-ci s'arrêtait à /19 alors que le helper couvre /8
+                        à /24 depuis toujours et que container-setup annonce
+                        « e.g. 8, 19, 23, 24 ». Le Topology Builder, lui, lisait
+                        déjà la liste partagée — les deux écrans avaient donc
+                        divergé. Ordre décroissant pour garder /24, le cas
+                        courant, en tête. */}
+                    {[...CLASS_PREFIX_OPTIONS.any].reverse().map((bits) => (
                       <option key={bits} value={bits}>
-                        /{bits} — {Math.pow(2, 32 - bits) - 2} adresses
+                        /{bits} — {(Math.pow(2, 32 - bits) - 2).toLocaleString("fr-FR")} adresses
                       </option>
                     ))}
                   </select>
+                  {/* Un /8 réserve 16,7 millions d'adresses : le choix mérite
+                      d'être expliqué au moment où on le fait, pas après. */}
+                  <p className="mt-1.5 text-xs leading-5 text-ink-soft">{getImpactNote(subnetBits)}</p>
                 </div>
                 <div className="flex items-end">
                   <Toggle
