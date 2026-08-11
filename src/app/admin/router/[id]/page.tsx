@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import SerialLockPanel from "./SerialLockPanel";
+import TicketDiagnosisPanel from "./TicketDiagnosisPanel";
 import HeaderActions from "./HeaderActions";
 import RouterDetailTabs from "./RouterDetailTabs";
 
@@ -229,6 +230,10 @@ export default async function RouterDetailPage({
           n'a de sens que pour le superadmin, et il n'est utile que lorsque le
           routeur est justement hors ligne. */}
       {isSuperAdmin(session?.role) && !online && <SerialLockPanel routerId={router.id} />}
+
+      {/* Outil de support du quotidien : utile seulement si le routeur répond,
+          puisque tout y est lu en direct. */}
+      {online && <TicketDiagnosisPanel routerId={router.id} />}
     </div>
   );
 }

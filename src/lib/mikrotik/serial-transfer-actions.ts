@@ -172,3 +172,55 @@ export async function transferRouterSerialToThisRouter(
       `Il repassera en ligne à la prochaine synchronisation ; l'ancien routeur, lui, sera désormais gardé hors ligne.`,
   };
 }
+
+// ── Diagnostic « pourquoi ce ticket ne se connecte pas » ────────────────────
+
+export type TicketDiagnosisResult =
+  | { error: string }
+  | ({ success: true; routerName: string } & Awaited<
+      ReturnType<typeof import("./hotspot-connectivity-diagnosis").diagnoseHotspotConnectivity>
+    >);
+
+/**
+ * Lecture seule sur le routeur : capacité d'adressage, sessions ouvertes,
+ * cookies MAC, état du ticket, et les dernières lignes du journal hotspot.
+ *
+ * Accessible à tout admin de l'organisation propriétaire — c'est un outil de
+ * support du quotidien, pas une opération de plateforme. Le superadmin y accède
+ * sur n'importe quel routeur, comme partout ailleurs.
+ */
+export async function diagnoseTicketConnectivity(
+  routerId: string,
+  code: string,
+): Promise<TicketDiagnosisResult> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  const { diagnoseHotspotConnectivity } = await import("./hotspot-connectivity-diagnosis");
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}.`
+          : "Routeur injoignable.",
+    };
+  }
+  try {
+    const diagnosis = await diagnoseHotspotConnectivity(client, code.trim() || null);
+    return { success: true, routerName: router.name, ...diagnosis };
+  } catch (err) {
+    return { error: err instanceof Error ? `Diagnostic impossible : ${err.message}` : "Diagnostic impossible." };
+  } finally {
+    client.close();
+  }
+}
