@@ -111,6 +111,17 @@ test("hotspot auto-setup keeps one RouterOS server/profile pair with one address
   assert.doesNotMatch(source, /`=profile=\$\{opts\.hotspotName\}`/);
 });
 
+test("auto-setup preserves voucher-profile identities used by existing tickets", async () => {
+  const source = await containerSetupSource();
+
+  // Supprimer puis recréer un profil lui donne un nouvel ID RouterOS ; les
+  // tickets existants gardent l'ancien ID et Winbox les affiche alors
+  // "unknown". Un rerun doit donc mettre le profil à jour en place.
+  assert.doesNotMatch(source, /\/ip\/hotspot\/user\/profile\/remove/);
+  assert.match(source, /\/ip\/hotspot\/user\/profile\/print/);
+  assert.match(source, /\/ip\/hotspot\/user\/profile\/set/);
+});
+
 test("default hotspot users are created/reconciled with an optional distinct password", async () => {
   const source = await containerSetupSource();
 

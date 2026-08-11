@@ -2047,8 +2047,10 @@ export async function provisionHotspotStack(
     // own one-shot expiry job per user, and a matching always-on scheduler
     // job sweeps anyone whose voucher already expired (covers the case
     // where the router rebooted and lost the one-shot scheduler entries).
-    // Removed by name first so reruns replace rather than duplicate. The
-    // admin picks which durations to offer — including custom ones they
+    // A profile is UPDATED in place when it already exists: remove + add
+    // assigns a new internal RouterOS ID and leaves all existing tickets
+    // pointing at the old, now dangling ID (shown as "unknown" in Winbox).
+    // The admin picks which durations to offer — including custom ones they
     // defined themselves. Distinguishes "field omitted" (older callers
     // that never offered a choice — fall back to the 6 bundled presets)
     // from "explicitly an empty list" (the wizard's voucher step, where an
@@ -2056,21 +2058,29 @@ export async function provisionHotspotStack(
     // "give me the presets I just removed from the UI").
     const wantedProfiles =
       opts.voucherProfiles !== undefined ? opts.voucherProfiles : VOUCHER_PROFILES;
+    const existingVoucherProfiles = await client
+      .talk(["/ip/hotspot/user/profile/print", "=.proplist=.id,name"], 30000)
+      .catch(() => [] as Sentence[]);
+    const existingVoucherProfilesByName = new Map(
+      existingVoucherProfiles
+        .filter((existing) => !!existing.name && !!existing[".id"])
+        .map((existing) => [existing.name, existing[".id"]!]),
+    );
     for (const profile of wantedProfiles) {
-      await client
-        .talk(["/ip/hotspot/user/profile/remove", `=numbers=${profile.name}`])
-        .catch(() => {});
+      const profileSettings = [
+        `=address-pool=${HOTSPOT_POOL_NAME}`,
+        `=on-login=${profile.onLogin}`,
+        "=parent-queue=none",
+        // Débit personnalisé (rx/tx côté client) si l'admin l'a saisi ;
+        // sinon la valeur vide efface une ancienne limite et rétablit le
+        // débit du lien, comme la création initiale sans rate-limit.
+        `=rate-limit=${profile.rateLimit ?? ""}`,
+      ];
+      const existingId = existingVoucherProfilesByName.get(profile.name);
       await run(
-        [
-          "/ip/hotspot/user/profile/add",
-          `=name=${profile.name}`,
-          `=address-pool=${HOTSPOT_POOL_NAME}`,
-          `=on-login=${profile.onLogin}`,
-          "=parent-queue=none",
-          // Débit personnalisé (rx/tx côté client) si l'admin l'a saisi ;
-          // sinon RouterOS n'applique aucune limite (débit du lien).
-          ...(profile.rateLimit ? [`=rate-limit=${profile.rateLimit}`] : []),
-        ],
+        existingId
+          ? ["/ip/hotspot/user/profile/set", `=numbers=${existingId}`, ...profileSettings]
+          : ["/ip/hotspot/user/profile/add", `=name=${profile.name}`, ...profileSettings],
         `voucher profile ${profile.name}`,
       );
 

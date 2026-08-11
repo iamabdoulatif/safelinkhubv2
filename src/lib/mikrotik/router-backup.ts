@@ -534,6 +534,7 @@ export type RestoreProgress = {
   phase:
     | "remodel"
     | "hotspotUserProfiles"
+    | "hotspotUserProfileLinks"
     | "mikhmonSchedulers"
     | "hotspotUsers"
     | "mikhmonSales"
@@ -669,6 +670,37 @@ export async function restoreBackupToRouter(
       }),
     );
     await emit({ phase: "hotspotUserProfiles", reports: [...reports] });
+
+    // Un profil peut avoir été supprimé puis recréé par une ancienne version
+    // de l'auto-setup. RouterOS conserve alors l'ancien ID sur les tickets,
+    // mais cet ID ne désigne plus aucun profil (Winbox affiche "unknown").
+    // Cette passe ne touche QUE ces références orphelines ; une modification
+    // manuelle qui vise encore un profil existant reste donc prioritaire.
+    reports.push(
+      await repairDanglingHotspotUserProfiles(
+        client,
+        snapshot.sections.hotspotUsers ?? [],
+        snapshot.sections.hotspotUserProfiles ?? [],
+        opts.dryRun,
+        (done, total) =>
+          emit({
+            phase: "hotspotUserProfileLinks",
+            reports: [
+              ...reports,
+              {
+                section: "hotspotUserProfileLinks",
+                created: 0,
+                skipped: 0,
+                updated: done,
+                failed: [],
+              },
+            ],
+            ticketsDone: done,
+            ticketsTotal: total,
+          }),
+      ),
+    );
+    await emit({ phase: "hotspotUserProfileLinks", reports: [...reports] });
 
     // Aussitôt après les profils, et avant les tickets : c'est ce balayage qui
     // fera expirer les tickets qu'on s'apprête à recréer.
@@ -913,6 +945,122 @@ async function restoreHotspotUsers(
     dryRun,
     onProgress,
   });
+}
+
+export type HotspotUserProfileRepair = {
+  /** ID interne du ticket à modifier, propre au routeur cible. */
+  id: string;
+  /** Utilisé uniquement pour identifier une éventuelle erreur de restauration. */
+  name: string;
+  /** Nom du profil encore présent sur la cible. */
+  profile: string;
+};
+
+/**
+ * Sélectionne les tickets dont le champ `profile` pointe vers un ID RouterOS
+ * qui n'existe plus. C'est volontairement une fonction pure : le moteur de
+ * restauration peut la tester sans routeur, puis n'écrit que le sous-ensemble
+ * sûr qu'elle retourne.
+ */
+export function findDanglingHotspotUserProfileRepairs(
+  backupUsers: BackupSection,
+  backupProfiles: BackupSection,
+  targetUsers: BackupSection,
+  targetProfiles: BackupSection,
+): HotspotUserProfileRepair[] {
+  const sourceProfileNames = new Set(
+    backupProfiles.map((profile) => profile.name).filter((name): name is string => !!name),
+  );
+  const sourceProfileNamesById = new Map(
+    backupProfiles
+      .filter((profile) => !!profile[".id"] && !!profile.name)
+      .map((profile) => [profile[".id"]!, profile.name!]),
+  );
+  const expectedProfileByUser = new Map<string, string>();
+  for (const user of backupUsers) {
+    if (!user.name || user.default === "true" || !user.profile) continue;
+    const profile = sourceProfileNames.has(user.profile)
+      ? user.profile
+      : sourceProfileNamesById.get(user.profile);
+    if (profile) expectedProfileByUser.set(user.name, profile);
+  }
+
+  const targetProfileNames = new Set(
+    targetProfiles.map((profile) => profile.name).filter((name): name is string => !!name),
+  );
+  const repairs: HotspotUserProfileRepair[] = [];
+  for (const user of targetUsers) {
+    const id = user[".id"];
+    const currentProfile = user.profile;
+    if (!id || !user.name || !currentProfile || targetProfileNames.has(currentProfile)) continue;
+
+    const expectedProfile = expectedProfileByUser.get(user.name);
+    if (!expectedProfile || !targetProfileNames.has(expectedProfile)) continue;
+    repairs.push({ id, name: user.name, profile: expectedProfile });
+  }
+  return repairs;
+}
+
+/**
+ * Répare une restauration déjà affectée, sans écraser les tickets qui ont un
+ * profil valide sur le routeur cible. Une relance de restauration devient ainsi
+ * auto-réparatrice après la mise à jour de SafeLinkHub.
+ */
+async function repairDanglingHotspotUserProfiles(
+  client: RouterOSClient,
+  backupUsers: BackupSection,
+  backupProfiles: BackupSection,
+  dryRun?: boolean,
+  onProgress?: (done: number, total: number) => void | Promise<void>,
+): Promise<RestoreReport> {
+  const targetUsers = await client.talk(
+    ["/ip/hotspot/user/print", "=.proplist=.id,name,profile"],
+    45000,
+  );
+  const targetProfiles = await client.talk(
+    ["/ip/hotspot/user/profile/print", "=.proplist=.id,name"],
+    30000,
+  );
+  const repairs = findDanglingHotspotUserProfileRepairs(
+    backupUsers,
+    backupProfiles,
+    targetUsers,
+    targetProfiles,
+  );
+  const report: RestoreReport = {
+    section: "hotspotUserProfileLinks",
+    created: 0,
+    skipped: 0,
+    updated: 0,
+    failed: [],
+  };
+
+  for (const repair of repairs) {
+    if (dryRun) {
+      report.updated++;
+    } else {
+      try {
+        await client.talk(
+          [
+            "/ip/hotspot/user/set",
+            `=numbers=${repair.id}`,
+            `=profile=${repair.profile}`,
+          ],
+          30000,
+        );
+        report.updated++;
+      } catch (err) {
+        report.failed.push({
+          name: repair.name,
+          error: err instanceof Error ? err.message : "Erreur inconnue",
+        });
+      }
+    }
+    if (onProgress && (report.updated + report.failed.length) % PROGRESS_EVERY === 0) {
+      await onProgress(report.updated + report.failed.length, repairs.length);
+    }
+  }
+  return report;
 }
 
 /**

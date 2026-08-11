@@ -53,6 +53,7 @@ type Plan = {
 const SECTION_LABELS: Record<string, string> = {
   hotspotUsers: "tickets",
   hotspotUserProfiles: "profils",
+  hotspotUserProfileLinks: "liens ticket → profil",
   mikhmonSchedulers: "expiration des tickets",
   mikhmonSales: "recettes MikHmon",
   walledGarden: "walled-garden",
