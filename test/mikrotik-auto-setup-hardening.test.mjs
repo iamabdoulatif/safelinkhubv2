@@ -181,3 +181,30 @@ test("captive portal upload checks RouterOS fetch status replies, not only final
   assert.match(source, /fetchStatus && fetchStatus !== "finished"/);
   assert.doesNotMatch(source, /const finalStatus = replies\.at\(-1\)\?\.status/);
 });
+
+test("la veth MIKHMON est corrigée en place, jamais arrachée au conteneur", async () => {
+  const source = await containerSetupSource();
+
+  // RÉGRESSION : un remove+add fabriquait un objet veth NEUF sous un conteneur
+  // qui restait accroché à l'ancien — « could not acquire interface: no
+  // device », Interface « unknown », définitivement. Un simple re-run de
+  // l'auto-setup suffisait à casser un MikHmon qui marchait.
+  assert.doesNotMatch(source, /"\/interface\/veth\/remove"/);
+  assert.match(source, /"\/interface\/veth\/print", `\?name=\$\{VETH_NAME\}`/);
+  assert.match(source, /"\/interface\/veth\/set"/);
+
+  // Et le rattachement au pont ne se retente que s'il manque vraiment.
+  assert.match(source, /"\/interface\/bridge\/port\/print", `\?interface=\$\{VETH_NAME\}`/);
+});
+
+test("le conteneur existant se voit RÉAFFIRMER son interface", async () => {
+  const source = await containerSetupSource();
+  const setBlock = source.slice(source.indexOf("const baseSet = ["), source.indexOf("} else {", source.indexOf("const baseSet = [")));
+
+  // C'est ce qui répare un conteneur déjà orphelin : sans =interface=, le `set`
+  // ne touchait que start-on-boot et l'orphelin le restait.
+  assert.match(setBlock, /"\/container\/set"/);
+  assert.match(setBlock, /`=interface=\$\{VETH_NAME\}`/);
+  // Repli si le build refuse le paramètre, comme pour envlist.
+  assert.match(source, /\/interface\/i\.test\(containerUpdated\.error\)/);
+});

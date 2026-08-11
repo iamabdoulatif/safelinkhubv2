@@ -269,22 +269,54 @@ async function provisionDockerStack(
       log.push(`OK: ${DOCKER_BRIDGE_NAME} bridge already exists`);
     }
 
-    await client.talk(["/interface/veth/remove", `=numbers=${VETH_NAME}`]).catch(() => {});
-    await run(
-      [
-        "/interface/veth/add",
-        `=name=${VETH_NAME}`,
-        `=address=${VETH_ADDRESS}`,
-        `=gateway=${VETH_GATEWAY}`,
-        '=gateway6=',
-        "=dhcp=no",
-      ],
-      "MIKHMON veth interface",
-    );
-    await run(
-      ["/interface/bridge/port/add", `=bridge=${DOCKER_BRIDGE_NAME}`, `=interface=${VETH_NAME}`],
-      `attach veth to ${DOCKER_BRIDGE_NAME} bridge`,
-    );
+    // La veth est CORRIGÉE, jamais détruite-recréée.
+    //
+    // L'ancienne version faisait `/interface/veth/remove` puis `add`. Or le
+    // conteneur MikHmon est attaché à cette veth : la supprimer la lui arrache,
+    // et le `add` fabrique un OBJET NEUF auquel le conteneur n'est pas lié. Il
+    // reste alors accroché à une interface disparue et affiche pour toujours
+    // « could not acquire interface: no device », colonne Interface à
+    // « unknown ». Constaté sur HSPT-YAHYA-GBEMA. Un simple re-run de
+    // l'auto-setup suffisait à casser un MikHmon qui fonctionnait.
+    const vethRows = await client
+      .talk(["/interface/veth/print", `?name=${VETH_NAME}`])
+      .catch(() => [] as Sentence[]);
+    if (vethRows[0]?.[".id"]) {
+      await run(
+        [
+          "/interface/veth/set",
+          `=numbers=${vethRows[0][".id"]}`,
+          `=address=${VETH_ADDRESS}`,
+          `=gateway=${VETH_GATEWAY}`,
+        ],
+        "MIKHMON veth interface (corrigée en place, conteneur préservé)",
+      );
+    } else {
+      await run(
+        [
+          "/interface/veth/add",
+          `=name=${VETH_NAME}`,
+          `=address=${VETH_ADDRESS}`,
+          `=gateway=${VETH_GATEWAY}`,
+          '=gateway6=',
+          "=dhcp=no",
+        ],
+        "MIKHMON veth interface",
+      );
+    }
+    // Rattachement au pont, seulement s'il manque : un /add sur un port déjà
+    // présent échoue et polluait le journal à chaque passage.
+    const vethPortRows = await client
+      .talk(["/interface/bridge/port/print", `?interface=${VETH_NAME}`])
+      .catch(() => [] as Sentence[]);
+    if (vethPortRows.length === 0) {
+      await run(
+        ["/interface/bridge/port/add", `=bridge=${DOCKER_BRIDGE_NAME}`, `=interface=${VETH_NAME}`],
+        `attach veth to ${DOCKER_BRIDGE_NAME} bridge`,
+      );
+    } else {
+      log.push(`OK: veth ${VETH_NAME} already attached to ${DOCKER_BRIDGE_NAME}`);
+    }
 
     await removeAddressByAddress(client, `${VETH_GATEWAY}/28`);
     await run(
@@ -534,7 +566,16 @@ async function provisionDockerStack(
     // (l'envlist reste posé, réutilisé par les routeurs dont le build le gère).
     const ENVLIST_UNSUPPORTED = /envlist/i;
     if (existingContainer?.[".id"]) {
-      const baseSet = ["/container/set", `=numbers=${existingContainer[".id"]}`, "=start-on-boot=yes"];
+      // `=interface=` est RÉAFFIRMÉ à chaque passage — c'est ce qui répare les
+      // routeurs dont le conteneur a perdu sa veth (voir le commentaire sur la
+      // veth plus haut). Sans lui, un conteneur orphelin le restait
+      // définitivement : `set` ne touchait que start-on-boot.
+      const baseSet = [
+        "/container/set",
+        `=numbers=${existingContainer[".id"]}`,
+        `=interface=${VETH_NAME}`,
+        "=start-on-boot=yes",
+      ];
       let containerUpdated = await run(
         mikhmonEnvlist ? [...baseSet, `=envlist=${mikhmonEnvlist}`] : baseSet,
         "preserve existing MikHmon container download",
@@ -544,6 +585,20 @@ async function provisionDockerStack(
           "WARN: cette version de RouterOS ignore =envlist= sur /container/set — session MikHmon à configurer manuellement.",
         );
         containerUpdated = await run(baseSet, "preserve existing MikHmon container download (sans envlist)");
+      }
+      // Repli si ce build refuse `=interface=` sur /container/set, comme
+      // certains refusent `=envlist=` : on retombe sur la mise à jour minimale
+      // plutôt que de faire échouer tout l'auto-setup. Le conteneur orphelin ne
+      // sera pas réparé sur ces builds — il faudra le recréer — mais le reste
+      // de la configuration passe.
+      if (!containerUpdated.ok && /interface/i.test(containerUpdated.error)) {
+        log.push(
+          "WARN: cette version de RouterOS refuse =interface= sur /container/set — si MikHmon affiche « could not acquire interface », supprimez le conteneur et relancez pour qu'il soit recréé.",
+        );
+        containerUpdated = await run(
+          ["/container/set", `=numbers=${existingContainer[".id"]}`, "=start-on-boot=yes"],
+          "preserve existing MikHmon container download (sans interface)",
+        );
       }
       if (!containerUpdated.ok) return { status: "failed", message: containerUpdated.error };
       log.push("OK: existing MikHmon container download preserved");
