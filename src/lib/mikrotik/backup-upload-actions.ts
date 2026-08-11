@@ -11,6 +11,7 @@ import { RouterOSClient } from "./client";
 import { connectToRouter } from "./router-sync";
 import { hashToken } from "./install-token";
 import { inspectRouterOsBackup } from "./routeros-backup-file";
+import { binaryBackupRestoreGuard } from "./binary-backup-restore-guard";
 
 const PAGE = "/admin/router/backups";
 
@@ -138,9 +139,9 @@ export async function scanUploadedBackupRestore(uploadedId: string, targetRouter
 
     const warnings: string[] = [
       "Un « /system backup load » remplace TOUTE la configuration du routeur cible par celle de la sauvegarde (interfaces, IP, users, WiFi, portail…).",
-      "La sauvegarde contient l'identité SafeLinkHub du routeur SOURCE (tunnel WireGuard, clés, user API) : après restauration + reboot, le routeur cible revient avec CETTE identité → son tunnel actuel tombe et SafeLinkHub perd la main à distance.",
-      "→ Ré-adoption requise LÀ OÙ le routeur est joignable (sur place / même LAN) : recollez la commande d'installation SafeLinkHub (compatible RouterOS 7.9–7.23.3), puis lancez le diagnostic pour corriger portail + code.",
-      "Restauration inter-modèles fragile : si la sauvegarde vient d'un autre modèle, noms d'interfaces et pilote WiFi peuvent différer et casser la config.",
+      "Cette fonction est réservée au MÊME routeur physique et à la MÊME version RouterOS. La confirmation correspondante est exigée avant le chargement.",
+      "Une sauvegarde binaire restaure aussi les adresses MAC et l'identité du routeur. Elle ne doit jamais servir à migrer vers un routeur de remplacement, même de même modèle.",
+      "Pour migrer tickets, profils et portail vers un autre MikroTik, utilisez la sauvegarde SafeLinkHub (logique), qui restaure les données sans écraser les interfaces, WiFi ni tunnel.",
     ];
     if (uploaded.encrypted) {
       warnings.push("Cette sauvegarde semble CHIFFRÉE : le mot de passe du backup sera requis à la restauration.");
@@ -174,10 +175,13 @@ export async function scanUploadedBackupRestore(uploadedId: string, targetRouter
 export async function restoreUploadedBackup(
   uploadedId: string,
   targetRouterId: string,
-  opts: { backupPassword?: string } = {},
+  opts: { backupPassword?: string; sameDeviceAndRouterOsConfirmed?: boolean } = {},
 ) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
+
+  const guard = binaryBackupRestoreGuard(opts.sameDeviceAndRouterOsConfirmed === true);
+  if (!guard.ok) return { error: guard.error };
 
   const loaded = await loadUploadedAndTarget(uploadedId, targetRouterId, session.orgId, session.role);
   if ("error" in loaded) return { error: loaded.error };

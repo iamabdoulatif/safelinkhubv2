@@ -9,6 +9,7 @@ import {
   scanUploadedBackupRestore,
   restoreUploadedBackup,
 } from "@/lib/mikrotik/backup-upload-actions";
+import { resetBinaryBackupRestoreConfirmation } from "@/lib/mikrotik/binary-backup-restore-guard";
 
 type RouterRow = { id: string; name: string; status: string; model: string | null };
 type Uploaded = {
@@ -93,10 +94,10 @@ export default function UploadedBackupsCard({
         Restaurer depuis un fichier de sauvegarde (.backup)
       </h2>
       <p className="mt-1 text-sm text-ink-soft">
-        Uploadez une sauvegarde binaire MikroTik (<code>/system backup save</code>) pour la cloner sur un
-        autre routeur (ou le même). ⚠️ Une restauration binaire remplace TOUTE la config du routeur cible et
-        le fait redémarrer avec l&apos;identité de la sauvegarde&nbsp;: son tunnel tombe, il faut le ré-adopter
-        là où il est joignable, puis lancer le diagnostic pour corriger portail&nbsp;+ code. Faites
+        Uploadez une sauvegarde binaire MikroTik (<code>/system backup save</code>) uniquement pour la
+        restaurer sur le <strong>même routeur physique, sous la même version RouterOS</strong>. ⚠️ Elle
+        remplace TOUTE sa configuration et restaure aussi ses adresses MAC. Pour déplacer tickets et
+        profils vers un autre MikroTik, utilisez la sauvegarde SafeLinkHub (logique) ci-dessus. Faites
         «&nbsp;Simuler&nbsp;» d&apos;abord.
       </p>
 
@@ -152,6 +153,13 @@ function UploadedRow({
   const [scan, setScan] = useState<{ plan: ScanPlan; warnings: string[] } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string; steps?: string[] } | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [sameDeviceAndRouterOsConfirmed, setSameDeviceAndRouterOsConfirmed] = useState(false);
+
+  function resetConfirmation() {
+    const next = resetBinaryBackupRestoreConfirmation();
+    setConfirming(next.confirming);
+    setSameDeviceAndRouterOsConfirmed(next.sameDeviceAndRouterOsConfirmed);
+  }
 
   function doScan() {
     if (!targetId) return;
@@ -173,8 +181,9 @@ function UploadedRow({
     start(async () => {
       const res = await restoreUploadedBackup(backup.id, targetId, {
         backupPassword: password || undefined,
+        sameDeviceAndRouterOsConfirmed,
       });
-      setConfirming(false);
+      resetConfirmation();
       if (res && "success" in res && res.success) {
         setMsg({ ok: true, text: res.summary ?? "Restauration lancée.", steps: res.nextSteps });
       } else if (res && "error" in res && res.error) {
@@ -223,6 +232,7 @@ function UploadedRow({
           value={targetId}
           onChange={(e) => {
             setTargetId(e.target.value);
+            resetConfirmation();
             setScan(null);
             setMsg(null);
           }}
@@ -256,7 +266,10 @@ function UploadedRow({
         </button>
         <button
           type="button"
-          onClick={() => setConfirming(true)}
+          onClick={() => {
+            resetConfirmation();
+            setConfirming(true);
+          }}
           disabled={busy || !targetId}
           className="flex items-center justify-center gap-1.5 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:opacity-50"
         >
@@ -287,11 +300,24 @@ function UploadedRow({
             Confirmer la restauration binaire sur ce routeur ? Toute sa configuration sera remplacée et il
             redémarrera.
           </p>
+          <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={sameDeviceAndRouterOsConfirmed}
+              onChange={(event) => setSameDeviceAndRouterOsConfirmed(event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-ink"
+            />
+            <span>
+              Je confirme qu&apos;il s&apos;agit du <strong>même routeur physique</strong> et de la{' '}
+              <strong>même version RouterOS</strong>. Pour un routeur de remplacement, je dois utiliser la
+              restauration SafeLinkHub (logique).
+            </span>
+          </label>
           <div className="mt-2 flex gap-2">
             <button
               type="button"
               onClick={doRestore}
-              disabled={busy}
+              disabled={busy || !sameDeviceAndRouterOsConfirmed}
               className="flex items-center gap-1.5 border-2 border-line bg-brand px-3 py-1.5 text-sm font-bold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
@@ -299,7 +325,7 @@ function UploadedRow({
             </button>
             <button
               type="button"
-              onClick={() => setConfirming(false)}
+              onClick={resetConfirmation}
               disabled={busy}
               className="border-2 border-line-soft px-3 py-1.5 text-sm font-bold text-ink transition hover:bg-clay"
             >
