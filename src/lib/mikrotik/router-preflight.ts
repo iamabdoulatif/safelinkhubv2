@@ -35,6 +35,8 @@ export type HardwareScan = {
   scenario: DeploymentScenario;
   /** Un hotspot actif est requis : la restauration ne le crée pas (l'auto-setup si). */
   hasActiveHotspot: boolean;
+  /** Serveurs HotSpot effectivement activés, lus sans modifier la cible. */
+  hotspotServers: { name: string; addressPool: string | null }[];
 };
 
 /** Lit le matériel de la cible. Aucune écriture. */
@@ -58,7 +60,7 @@ export async function scanRouterHardware(client: RouterOSClient): Promise<Hardwa
     .talk(["/disk/print"], 20000)
     .catch(() => [] as Record<string, string>[]);
   const hotspots = await client
-    .talk(["/ip/hotspot/print"], 20000)
+    .talk(["/ip/hotspot/print", "=.proplist=.id,name,disabled,address-pool"], 20000)
     .catch(() => [] as Record<string, string>[]);
 
   const wifi = await readWifiState(client);
@@ -86,6 +88,15 @@ export async function scanRouterHardware(client: RouterOSClient): Promise<Hardwa
   const internalNonTmpfsDisk = diskRows.some(
     (d) => typeof d.slot === "string" && /^disk\d*$/i.test(d.slot) && d.type !== "tmpfs",
   );
+  const hotspotServers = hotspots
+    .filter((hotspot) => hotspot.disabled !== "true" && !!hotspot.name)
+    .map((hotspot) => ({
+      name: hotspot.name,
+      addressPool:
+        hotspot["address-pool"] && hotspot["address-pool"] !== "none"
+          ? hotspot["address-pool"]
+          : null,
+    }));
 
   return {
     model,
@@ -105,7 +116,8 @@ export async function scanRouterHardware(client: RouterOSClient): Promise<Hardwa
       hasEmmcStorage: !!catalog?.hasEmmcStorage,
       hasLargeOnboardStorage: !!catalog?.hasLargeOnboardStorage || internalNonTmpfsDisk,
     }),
-    hasActiveHotspot: hotspots.some((h) => h.disabled !== "true") || hotspots.length > 0,
+    hasActiveHotspot: hotspotServers.length > 0,
+    hotspotServers,
   };
 }
 
@@ -127,6 +139,8 @@ export type RestorePlan = {
     targetLabel: string;
   };
   data: { tickets: number; profiles: number; walledGarden: number };
+  /** Référence locale validée avant tout ticket ou profil restauré. */
+  hotspot: { server: string | null; addressPool: string | null; validated: boolean };
   /**
    * Le portail captif est RÉINSTALLÉ depuis le SaaS après la restauration : ses
    * fichiers ne sont pas dans la sauvegarde (ils vivent sur la flash), donc sans
@@ -273,6 +287,24 @@ export function buildRestorePlan(snapshot: BackupSnapshot, scan: HardwareScan): 
       "Aucun hotspot sur le rechange : les tickets n'ont nulle part où aller. Lancez l'auto-setup sur ce routeur AVANT de restaurer.",
     );
   }
+  const hasHotspotData =
+    (snapshot.sections.hotspotUsers ?? []).some((row) => row.name && row.default !== "true") ||
+    (snapshot.sections.hotspotUserProfiles ?? []).some((row) => row.name && row.name !== "default");
+  const targetHotspot = scan.hotspotServers.length === 1 ? scan.hotspotServers[0] : null;
+  const hotspot = {
+    server: targetHotspot?.name ?? null,
+    addressPool: targetHotspot?.addressPool ?? null,
+    validated: !!targetHotspot?.addressPool,
+  };
+  if (hasHotspotData && scan.hotspotServers.length !== 1) {
+    blockers.push(
+      `Le rechange doit avoir exactement un serveur HotSpot activé pour rétablir les tickets ; ${scan.hotspotServers.length} trouvé(s).`,
+    );
+  } else if (hasHotspotData && targetHotspot && !targetHotspot.addressPool) {
+    blockers.push(
+      `Le serveur HotSpot cible « ${targetHotspot.name} » n'a pas de pool IP configuré.`,
+    );
+  }
 
   return {
     identity,
@@ -284,6 +316,7 @@ export function buildRestorePlan(snapshot: BackupSnapshot, scan: HardwareScan): 
       profiles: (snapshot.sections.hotspotUserProfiles ?? []).length,
       walledGarden: (snapshot.sections.walledGarden ?? []).length,
     },
+    hotspot,
     portal,
     blockers,
     adjustments,

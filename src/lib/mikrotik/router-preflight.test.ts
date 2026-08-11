@@ -61,6 +61,7 @@ function scan(over: Partial<HardwareScan>): HardwareScan {
     hasUsbStorage: true,
     scenario: 1,
     hasActiveHotspot: true,
+    hotspotServers: [{ name: "hotspot1", addressPool: "POOL-HOTSPOT" }],
     ...over,
   };
 }
@@ -132,6 +133,41 @@ describe("plan de restauration — MikHmon selon l'architecture", () => {
 });
 
 describe("plan de restauration — pré-requis et ports", () => {
+  it("valide le serveur HotSpot unique et son pool IP avant la restauration", () => {
+    const plan = buildRestorePlan(snapshot({}), scan({}));
+
+    assert.deepEqual(plan.hotspot, {
+      server: "hotspot1",
+      addressPool: "POOL-HOTSPOT",
+      validated: true,
+    });
+    assert.ok(!plan.blockers.some((blocker) => blocker.includes("pool IP")));
+  });
+
+  it("bloque un rechange dont le serveur HotSpot est ambigu ou sans pool", () => {
+    const withoutServer = buildRestorePlan(
+      snapshot({}),
+      scan({ hasActiveHotspot: false, hotspotServers: [] }),
+    );
+    const manyServers = buildRestorePlan(
+      snapshot({}),
+      scan({
+        hotspotServers: [
+          { name: "hotspot1", addressPool: "POOL-HOTSPOT" },
+          { name: "hotspot2", addressPool: "POOL-SECOND" },
+        ],
+      }),
+    );
+    const withoutPool = buildRestorePlan(
+      snapshot({}),
+      scan({ hotspotServers: [{ name: "hotspot1", addressPool: null }] }),
+    );
+
+    assert.ok(withoutServer.blockers.some((blocker) => blocker.includes("exactement un")));
+    assert.ok(manyServers.blockers.some((blocker) => blocker.includes("exactement un")));
+    assert.ok(withoutPool.blockers.some((blocker) => blocker.includes("pool IP")));
+  });
+
   it("BLOQUE si le rechange n'a pas de hotspot (les tickets n'iraient nulle part)", () => {
     const plan = buildRestorePlan(snapshot({}), scan({ hasActiveHotspot: false }));
     assert.ok(plan.blockers.some((b) => b.includes("auto-setup")));
