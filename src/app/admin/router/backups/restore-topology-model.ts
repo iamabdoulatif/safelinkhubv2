@@ -9,6 +9,8 @@ export type PlanLike = {
   identity: { from: string | null; to: string | null; willApply: boolean };
   wifi: { ssid: string | null; sourceApi: string | null; targetApi: string; radios: string[]; translated: boolean };
   data: { tickets: number; profiles: number; walledGarden: number };
+  /** Absent sur les jobs enregistrés avant l'ajout de cette vérification. */
+  hotspot?: { server: string | null; addressPool: string | null; validated: boolean };
   portal: { templateId: string | null; templateName: string | null; willReinstall: boolean };
   blockers: string[];
 };
@@ -50,7 +52,7 @@ export function targetNode(target: TargetLike): TopologyNode {
 export function buildTopologyChannels(
   backup: BackupLike,
   plan: PlanLike | null,
-  phase: "idle" | "planned" | "done",
+  phase: "idle" | "planned" | "done" | "failed",
 ): TopologyChannel[] {
   const tickets = backup.counts.hotspotUsers ?? 0;
   const profiles = backup.counts.hotspotUserProfiles ?? 0;
@@ -71,7 +73,13 @@ export function buildTopologyChannels(
 
   // Un blocage vaut pour toute la reprise : rien ne sera écrit tant qu'il tient.
   const blocked = plan.blockers.length > 0;
-  const base: ChannelState = blocked ? "blocked" : phase === "done" ? "done" : "planned";
+  const base: ChannelState = blocked
+    ? "blocked"
+    : phase === "done"
+      ? "done"
+      : phase === "failed"
+        ? "failed"
+        : "planned";
 
   const wifiState: ChannelState = blocked
     ? "blocked"
@@ -110,7 +118,11 @@ export function buildTopologyChannels(
     {
       key: "data",
       label: "Tickets & profils",
-      detail: `${nf.format(tickets)} tickets · ${profiles} profils`,
+      detail: `${nf.format(tickets)} tickets · ${profiles} profils · ${
+        plan.hotspot?.validated
+          ? `${plan.hotspot.server} → ${plan.hotspot.addressPool}`
+          : "liaison HotSpot non validée"
+      }`,
       state: base,
     },
     {

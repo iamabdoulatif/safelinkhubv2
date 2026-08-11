@@ -46,6 +46,8 @@ type Plan = {
   ports: { source: number; target: number; delta: number };
   mikhmon: { sourceLabel: string | null; targetLabel: string };
   data: { tickets: number; profiles: number; walledGarden: number };
+  /** Peut manquer sur un job lancé avant cette version. */
+  hotspot?: { server: string | null; addressPool: string | null; validated: boolean };
   blockers: string[];
   adjustments: string[];
 };
@@ -54,6 +56,8 @@ const SECTION_LABELS: Record<string, string> = {
   hotspotUsers: "tickets",
   hotspotUserProfiles: "profils",
   hotspotUserProfileLinks: "liens ticket → profil",
+  hotspotTargetBindings: "liaisons serveur et pool des profils",
+  hotspotRestoreVerification: "vérification des tickets et profils",
   activeSessionHandover: "reprise des sessions actives",
   mikhmonSchedulers: "expiration des tickets",
   mikhmonSales: "recettes MikHmon",
@@ -88,6 +92,7 @@ export default function BackupsManager({
   const [reports, setReports] = useState<{
     backupId: string;
     dryRun: boolean;
+    outcome: "planned" | "done" | "failed";
     rows: Report[];
     plan: Plan | null;
   } | null>(null);
@@ -133,7 +138,7 @@ export default function BackupsManager({
       if ("stale" in res && res.stale) {
         setFeedback({
           kind: "err",
-          text: "Restauration interrompue (le serveur a redémarré). Relancez-la : les tickets déjà restaurés seront ignorés.",
+          text: "Restauration interrompue (le serveur a redémarré). Relancez-la : les tickets seront réalignés sur la sauvegarde.",
         });
         stop();
         navRouter.refresh();
@@ -159,6 +164,7 @@ export default function BackupsManager({
         setReports({
           backupId: activeJob.backupId,
           dryRun: false,
+          outcome: "done",
           rows: (progress?.reports ?? []) as Report[],
           plan: (progress?.plan ?? null) as Plan | null,
         });
@@ -175,6 +181,7 @@ export default function BackupsManager({
           setReports({
             backupId: activeJob.backupId,
             dryRun: false,
+            outcome: "failed",
             rows: (progress?.reports ?? []) as Report[],
             plan: progress.plan as Plan,
           });
@@ -259,7 +266,13 @@ export default function BackupsManager({
         // Un refus pour blocage rapporte quand même le plan : c'est lui qui dit
         // ce qu'il faut corriger sur le rechange avant de réessayer.
         if ("plan" in res && res.plan) {
-          setReports({ backupId: backup.id, dryRun: true, rows: [], plan: res.plan as Plan });
+          setReports({
+            backupId: backup.id,
+            dryRun: true,
+            outcome: "failed",
+            rows: [],
+            plan: res.plan as Plan,
+          });
         }
         setFeedback({ kind: "err", text: res.error });
         return;
@@ -268,6 +281,7 @@ export default function BackupsManager({
         setReports({
           backupId: backup.id,
           dryRun: true,
+          outcome: "planned",
           rows: res.reports as Report[],
           plan: (res.plan as Plan) ?? null,
         });
@@ -292,7 +306,7 @@ export default function BackupsManager({
       }
       if (res && "success" in res && res.success) {
         const plan = res.plan as Plan;
-        setReports({ backupId: backup.id, dryRun: true, rows: [], plan });
+        setReports({ backupId: backup.id, dryRun: true, outcome: "planned", rows: [], plan });
         setFeedback(
           plan.blockers.length > 0
             ? { kind: "err", text: "Ce rechange ne peut pas reprendre l'ancien en l'état — voir ci-dessous." }
@@ -462,8 +476,10 @@ export default function BackupsManager({
                   channels={buildTopologyChannels(
                     b,
                     reports?.backupId === b.id ? (reports.plan as PlanLike | null) : null,
-                    reports?.backupId === b.id && !reports.dryRun && reports.rows.length > 0
-                      ? "done"
+                    reports?.backupId === b.id && !reports.dryRun
+                      ? reports.outcome === "done"
+                        ? "done"
+                        : "failed"
                       : reports?.backupId === b.id && reports.plan
                         ? "planned"
                         : "idle",
@@ -472,13 +488,18 @@ export default function BackupsManager({
                   blocked={
                     reports?.backupId === b.id && (reports.plan?.blockers.length ?? 0) > 0
                   }
+                  failed={reports?.backupId === b.id && reports.outcome === "failed"}
                 />
               )}
 
               {reports?.backupId === b.id && (
                 <div className="mt-3 rounded-md border border-line-soft bg-clay p-3">
                   <p className="text-xs font-medium text-ink">
-                    {reports.dryRun ? "Simulation — aucune écriture" : "Résultat de la restauration"}
+                    {reports.dryRun
+                      ? "Simulation — aucune écriture"
+                      : reports.outcome === "failed"
+                        ? "Restauration interrompue — corrections requises"
+                        : "Résultat de la restauration"}
                   </p>
 
                   {reports.plan && (
@@ -495,6 +516,11 @@ export default function BackupsManager({
                         {reports.plan.mikhmon.sourceLabel && (
                           <span className="ml-1">
                             · MikHmon {reports.plan.mikhmon.sourceLabel} → {reports.plan.mikhmon.targetLabel}
+                          </span>
+                        )}
+                        {reports.plan.hotspot?.validated && (
+                          <span className="ml-1">
+                            · HotSpot {reports.plan.hotspot.server} → pool {reports.plan.hotspot.addressPool}
                           </span>
                         )}
                       </p>

@@ -269,7 +269,9 @@ async function runRestoreJob(
           reports,
           plan,
           portal,
-          ticketsTotal: usersReport ? usersReport.created + usersReport.skipped : undefined,
+          ticketsTotal: usersReport
+            ? usersReport.created + usersReport.updated + usersReport.skipped
+            : undefined,
         },
         finishedAt: new Date(),
       },

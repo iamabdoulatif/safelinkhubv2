@@ -19,6 +19,7 @@ function plan(over: Partial<PlanLike> = {}): PlanLike {
       translated: true,
     },
     data: { tickets: 1330, profiles: 11, walledGarden: 32 },
+    hotspot: { server: "hotspot1", addressPool: "POOL-HOTSPOT", validated: true },
     portal: { templateId: "tpl-1", templateName: "safelinkhub-gold", willReinstall: true },
     blockers: [],
     ...over,
@@ -48,6 +49,26 @@ describe("topologie — après le scan", () => {
     assert.ok(byKey(chans, "identity").detail.includes("MikroTik → RUE-NICOLAS"));
   });
 
+  it("expose le serveur HotSpot et le pool cible validés pour les tickets", () => {
+    const chans = buildTopologyChannels(
+      backup,
+      {
+        ...plan(),
+        hotspot: { server: "hotspot1", addressPool: "POOL-HOTSPOT", validated: true },
+      },
+      "planned",
+    );
+
+    assert.match(byKey(chans, "data").detail, /hotspot1.*POOL-HOTSPOT/u);
+  });
+
+  it("reste lisible pour un plan de job enregistré avant la liaison HotSpot", () => {
+    const { hotspot: _hotspot, ...legacyPlan } = plan();
+    const chans = buildTopologyChannels(backup, legacyPlan, "planned");
+
+    assert.ok(byKey(chans, "data").detail.includes("liaison HotSpot non validée"));
+  });
+
   /**
    * Le mensonge à ne jamais commettre sur cet écran : une simulation n'écrit
    * rien, donc ses canaux restent « prévus ». Seule une restauration réelle
@@ -62,6 +83,11 @@ describe("topologie — après le scan", () => {
     const chans = buildTopologyChannels(backup, plan(), "done");
     assert.equal(byKey(chans, "data").state, "done");
     assert.equal(byKey(chans, "portal").state, "done");
+  });
+
+  it("une restauration interrompue n'est jamais affichée comme terminée", () => {
+    const chans = buildTopologyChannels(backup, plan(), "failed");
+    assert.equal(byKey(chans, "data").state, "failed");
   });
 
   it("un blocage bloque TOUS les canaux : rien n'est écrit tant qu'il tient", () => {

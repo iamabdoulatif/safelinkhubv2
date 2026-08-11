@@ -12,7 +12,7 @@
  * et les variables de thème, donc pas de couleur en dur : le mode sombre suit.
  */
 
-export type ChannelState = "idle" | "planned" | "done" | "blocked" | "skipped";
+export type ChannelState = "idle" | "planned" | "done" | "blocked" | "failed" | "skipped";
 
 export type TopologyChannel = {
   key: string;
@@ -32,6 +32,7 @@ const COLOR: Record<ChannelState, string> = {
   planned: "var(--brand)",
   done: "var(--ok)",
   blocked: "var(--err)",
+  failed: "var(--err)",
   skipped: "var(--line-soft)",
 };
 
@@ -152,6 +153,7 @@ export default function RestoreTopology({
   channels,
   flowing,
   blocked,
+  failed,
 }: {
   source: TopologyNode;
   target: TopologyNode;
@@ -159,6 +161,8 @@ export default function RestoreTopology({
   /** Vrai pendant une restauration réelle : les paquets circulent. */
   flowing: boolean;
   blocked: boolean;
+  /** La reprise a écrit une partie des données mais son contrôle final a échoué. */
+  failed?: boolean;
 }) {
   const rows = channels.slice(0, 4);
   const firstY = 98;
@@ -184,7 +188,7 @@ export default function RestoreTopology({
         </text>
 
         <Device node={source} x={20} accent={false} />
-        <Device node={target} x={440} accent blocked={blocked} />
+        <Device node={target} x={440} accent blocked={blocked || failed} />
 
         {rows.map((c, i) => (
           <Channel key={c.key} channel={c} y={firstY + i * gap} flowing={flowing} />
@@ -193,6 +197,11 @@ export default function RestoreTopology({
         {blocked && (
           <text x="530" y="286" textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--err)">
             reprise impossible en l&apos;état
+          </text>
+        )}
+        {!blocked && failed && (
+          <text x="530" y="286" textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--err)">
+            reprise incomplète — correction requise
           </text>
         )}
       </svg>
@@ -213,6 +222,8 @@ export default function RestoreTopology({
                 ? "prévu"
                 : c.state === "done"
                   ? "repris"
+                  : c.state === "failed"
+                    ? "à corriger"
                   : c.state === "skipped"
                     ? "sans objet"
                     : "bloqué"}
