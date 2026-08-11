@@ -63,8 +63,7 @@ describe("topologie — après le scan", () => {
   });
 
   it("reste lisible pour un plan de job enregistré avant la liaison HotSpot", () => {
-    const { hotspot: _hotspot, ...legacyPlan } = plan();
-    const chans = buildTopologyChannels(backup, legacyPlan, "planned");
+    const chans = buildTopologyChannels(backup, { ...plan(), hotspot: undefined }, "planned");
 
     assert.ok(byKey(chans, "data").detail.includes("liaison HotSpot non validée"));
   });
