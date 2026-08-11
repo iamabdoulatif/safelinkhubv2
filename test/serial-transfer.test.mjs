@@ -72,3 +72,17 @@ test("l'interface impose de constater avant de transférer, avec confirmation no
   // Le panneau n'apparaît que pour un superadmin, et seulement si hors ligne.
   assert.match(page, /isSuperAdmin\(session\?\.role\) && !online && <SerialLockPanel/);
 });
+
+test("un verrou orphelin ne bloque plus personne", async () => {
+  const [service, actions] = await Promise.all([read(SERVICE), read(ACTIONS)]);
+
+  // router_id et org_id sont en ON DELETE SET NULL : supprimer le routeur vide
+  // la référence mais laissait la ligne ACTIVE, bloquant le numéro de série à
+  // vie sans aucune installation à défendre et sans moyen de le libérer.
+  assert.match(service, /const orphan = existing\.routerId === null \|\| existing\.orgId === null/);
+  assert.match(service, /if \(active && !orphan && existing\.orgId !== orgId && !opts\?\.force\)/);
+  // Le diagnostic doit dire la même chose que la règle, sinon le panneau
+  // nommerait un « routeur supprimé » comme détenteur d'un verrou inopérant.
+  assert.match(actions, /lock\.routerId === null \|\| lock\.orgId === null/);
+  assert.match(actions, /lock\.routerId === routerId \|\| orphan/);
+});

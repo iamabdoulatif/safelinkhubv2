@@ -51,7 +51,18 @@ export async function reserveRouterSerial(
 
   if (existing) {
     const active = existing.releasedAt === null;
-    if (active && existing.orgId !== orgId && !opts?.force) {
+    // Un verrou ORPHELIN ne protège plus rien. `router_id` et `org_id` sont en
+    // ON DELETE SET NULL : supprimer le routeur (ou l'organisation) vide la
+    // référence mais laisse la ligne ACTIVE, et le numéro de série reste bloqué
+    // pour toujours — sans aucune installation à défendre, et sans aucun moyen
+    // de le libérer depuis l'interface. Constaté en production : trois
+    // appareils rendus inutilisables de cette façon.
+    //
+    // Le verrou existe pour empêcher qu'un boîtier soit déplacé entre deux
+    // comptes VIVANTS. Quand le détenteur a supprimé son routeur, il a rendu
+    // l'appareil : il redevient réutilisable.
+    const orphan = existing.routerId === null || existing.orgId === null;
+    if (active && !orphan && existing.orgId !== orgId && !opts?.force) {
       return {
         ok: false,
         serial,

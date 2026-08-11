@@ -72,7 +72,11 @@ export async function inspectRouterSerialLock(routerId: string): Promise<SerialL
     .where(eq(routerSerialLocks.serialNumber, serial))
     .limit(1);
 
-  if (!lock || lock.releasedAt !== null || lock.routerId === routerId) {
+  // Verrou absent, libéré, déjà à nous — ou ORPHELIN : son routeur (ou son
+  // organisation) a été supprimé, il ne défend plus rien et n'oppose plus de
+  // refus. Voir reserveRouterSerial.
+  const orphan = lock ? lock.routerId === null || lock.orgId === null : false;
+  if (!lock || lock.releasedAt !== null || lock.routerId === routerId || orphan) {
     return { success: true, serial, blocked: false, holder: null };
   }
 
