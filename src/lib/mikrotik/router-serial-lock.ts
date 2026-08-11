@@ -112,3 +112,82 @@ export async function releaseRouterSerialLock(serialNumber: string, superadminUs
     .returning({ id: routerSerialLocks.id });
   return rows.length > 0;
 }
+
+/**
+ * Oublie l'état « SN déjà armé » pour un routeur.
+ *
+ * `serialArmed` évite de relire le numéro de série à chaque health-check, mais
+ * il mémorise aussi les SUCCÈS : après un transfert de verrou, l'ancien
+ * détenteur resterait considéré comme armé pour la durée de vie du process et
+ * continuerait à se croire légitime. On l'oublie explicitement des deux côtés
+ * pour que la prochaine synchro tranche sur l'état réel de la base.
+ */
+export function forgetArmedSerial(routerId: string): void {
+  serialArmed.delete(routerId);
+}
+
+export type SerialTransfer = {
+  serial: string;
+  /** Détenteur précédent, absent si le SN n'était pas encore verrouillé. */
+  from: { routerId: string | null; orgId: string | null } | null;
+  to: { routerId: string; orgId: string };
+};
+
+/**
+ * TRANSFÈRE le verrou d'un numéro de série vers un autre routeur, donc vers un
+ * autre compte. Réservé au superadmin (garde posée par l'action appelante).
+ *
+ * Pourquoi une opération dédiée plutôt qu'un « libérer puis re-synchroniser » :
+ * libérer laisse le SN en course. Le premier routeur qui se synchronise le
+ * reprend — y compris l'ancien, qui tourne peut-être encore chez son
+ * propriétaire. Le transfert désigne le gagnant en une écriture, sans fenêtre
+ * de course.
+ *
+ * L'ancien routeur n'est pas modifié : sa prochaine synchro constatera que le
+ * SN appartient désormais à un autre compte et le gardera hors ligne. C'est la
+ * même règle qui s'applique, dans l'autre sens — inutile d'aller écrire dans
+ * les données d'un tiers.
+ */
+export async function transferRouterSerialLock(
+  serialNumber: string,
+  target: { routerId: string; orgId: string },
+): Promise<{ ok: true; transfer: SerialTransfer } | { ok: false; error: string }> {
+  const serial = serialNumber.trim();
+  if (!serial) return { ok: false, error: "Numéro de série requis." };
+
+  const db = getDb();
+  const [existing] = await db
+    .select()
+    .from(routerSerialLocks)
+    .where(eq(routerSerialLocks.serialNumber, serial))
+    .limit(1);
+
+  if (existing && existing.routerId === target.routerId && existing.releasedAt === null) {
+    return { ok: false, error: "Ce numéro de série est déjà rattaché à ce routeur." };
+  }
+
+  const from = existing ? { routerId: existing.routerId, orgId: existing.orgId } : null;
+
+  if (existing) {
+    await db
+      .update(routerSerialLocks)
+      .set({
+        routerId: target.routerId,
+        orgId: target.orgId,
+        lockedAt: new Date(),
+        releasedAt: null,
+        releasedBy: null,
+      })
+      .where(eq(routerSerialLocks.id, existing.id));
+  } else {
+    await db
+      .insert(routerSerialLocks)
+      .values({ serialNumber: serial, routerId: target.routerId, orgId: target.orgId });
+  }
+
+  // Les deux routeurs doivent réévaluer leur légitimité à la prochaine synchro.
+  forgetArmedSerial(target.routerId);
+  if (from?.routerId) forgetArmedSerial(from.routerId);
+
+  return { ok: true, transfer: { serial, from, to: target } };
+}

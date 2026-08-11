@@ -4,6 +4,7 @@ import { Clock, Router as RouterIcon, Users, Cpu, MemoryStick } from "lucide-rea
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import SerialLockPanel from "./SerialLockPanel";
 import HeaderActions from "./HeaderActions";
 import RouterDetailTabs from "./RouterDetailTabs";
 
@@ -223,6 +224,11 @@ export default async function RouterDetailPage({
       </div>
 
       <RouterDetailTabs routerId={router.id} online={online} overview={overview} />
+
+      {/* Le verrou de série est un mécanisme de plateforme, pas de compte : il
+          n'a de sens que pour le superadmin, et il n'est utile que lorsque le
+          routeur est justement hors ligne. */}
+      {isSuperAdmin(session?.role) && !online && <SerialLockPanel routerId={router.id} />}
     </div>
   );
 }
