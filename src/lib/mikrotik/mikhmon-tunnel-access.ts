@@ -7,6 +7,7 @@ import {
   looksLikeMikhmonContainer,
   MIKHMON_DEFAULT_CONTAINER_IP,
   MIKHMON_TUNNEL_INTERFACES,
+  tunnelInterfacesFromAddresses,
 } from "./port-forward-rules";
 
 type Sentence = Record<string, string>;
@@ -102,7 +103,22 @@ async function ensureMikhmonTunnelFirewall(
     .catch(() => [] as Sentence[]);
   const placeBefore = forwardRules.find((rule) => rule[".id"])?.[".id"];
 
-  for (const tunnelInterface of MIKHMON_TUNNEL_INTERFACES) {
+  // L'interface tunnel est retrouvée D'APRÈS L'ADRESSE qu'elle porte, et non
+  // d'après une liste de noms.
+  //
+  // POURQUOI : la liste ne contenait que « safelinkhub-wg0 » et
+  // « safelinkhub-ovpn ». Or un client OpenVPN RouterOS s'appelle « ovpn-out1 »
+  // par défaut — sur SHIA-HSPT, raccordé en OpenVPN (10.67.0.0/24) et non en
+  // WireGuard, aucun nom ne correspondait : la règle d'acceptation n'était
+  // jamais posée et le trafic MikHmon mourait dans la chaîne forward. Le
+  // symptôme trompait, car MikHmon est le SEUL service à traverser forward —
+  // WebFig, WinBox et SSH terminent sur le routeur (chaîne input) et
+  // répondaient parfaitement.
+  const addresses = await client.talk(["/ip/address/print"]).catch(() => [] as Sentence[]);
+  const discovered = tunnelInterfacesFromAddresses(addresses);
+  const candidates = [...new Set([...discovered, ...MIKHMON_TUNNEL_INTERFACES])];
+
+  for (const tunnelInterface of candidates) {
     const interfaces = await client
       .talk(["/interface/print", `?name=${tunnelInterface}`])
       .catch(() => [] as Sentence[]);

@@ -2,6 +2,7 @@ import type { RouterOSClient } from "./client";
 import {
   getSshTunnelFirewallCommands,
   MIKHMON_TUNNEL_INTERFACES,
+  tunnelInterfacesFromAddresses,
 } from "./port-forward-rules";
 
 type Sentence = Record<string, string>;
@@ -46,7 +47,15 @@ async function ensureSshTunnelFirewall(client: RouterOSClient, log?: string[]) {
     .catch(() => [] as Sentence[]);
   const placeBefore = inputRules.find((rule) => rule[".id"])?.[".id"];
 
-  for (const tunnelInterface of MIKHMON_TUNNEL_INTERFACES) {
+  // Même règle que pour MikHmon : on retrouve l'interface tunnel d'après
+  // l'adresse qu'elle porte, pas d'après son nom. Un client OpenVPN RouterOS
+  // s'appelle « ovpn-out1 » par défaut et n'était donc jamais reconnu.
+  const addresses = await client.talk(["/ip/address/print"]).catch(() => [] as Sentence[]);
+  const candidates = [
+    ...new Set([...tunnelInterfacesFromAddresses(addresses), ...MIKHMON_TUNNEL_INTERFACES]),
+  ];
+
+  for (const tunnelInterface of candidates) {
     const interfaces = await client
       .talk(["/interface/print", `?name=${tunnelInterface}`])
       .catch(() => [] as Sentence[]);

@@ -21,7 +21,24 @@ const MIKHMON_TUNNEL_NAT_COMMENT = "MikHmon via tunnel";
 export const MIKHMON_DEFAULT_CONTAINER_IP = "11.11.11.11";
 const MIKHMON_CONTAINER_PORT = "80";
 export const MIKHMON_DOCKER_GATEWAY_ADDRESS = "11.11.11.1/28";
+/** Noms d'interface tunnel POSÉS par SafeLinkHub — un défaut, pas une liste close. */
 export const MIKHMON_TUNNEL_INTERFACES = ["safelinkhub-wg0", "safelinkhub-ovpn"] as const;
+
+/**
+ * Plan d'adressage des tunnels du relais : 10.66.0.0/24 (WireGuard, wg0) et
+ * 10.67.0.0/24 (OpenVPN, tun0). Sert à retrouver l'interface tunnel D'APRÈS
+ * L'ADRESSE qu'elle porte, quel que soit son nom.
+ */
+export const TUNNEL_ADDRESS_PLAN = /^10\.6[67]\./;
+
+/** Interfaces du routeur portant une adresse du plan de tunnel. */
+export function tunnelInterfacesFromAddresses(rows: Record<string, string>[]): string[] {
+  const names = rows
+    .filter((row) => TUNNEL_ADDRESS_PLAN.test(String(row.address ?? "")))
+    .map((row) => String(row.interface ?? "").trim())
+    .filter(Boolean);
+  return [...new Set(names)];
+}
 
 const MIKHMON_TUNNEL_FIREWALL_COMMENT = "Allow MikHmon via SafeLinkHub tunnel";
 const SSH_TUNNEL_FIREWALL_COMMENT = "Allow SSH/SFTP via SafeLinkHub tunnel";
@@ -77,7 +94,7 @@ export function getMikhmonTunnelNatCommands(containerIp = MIKHMON_DEFAULT_CONTAI
 }
 
 export function getMikhmonTunnelFirewallCommands(
-  tunnelInterface: (typeof MIKHMON_TUNNEL_INTERFACES)[number],
+  tunnelInterface: string,
   placeBefore?: string,
   containerIp = MIKHMON_DEFAULT_CONTAINER_IP,
 ) {
@@ -108,7 +125,7 @@ export function getMikhmonTunnelFirewallCommands(
 }
 
 export function getSshTunnelFirewallCommands(
-  tunnelInterface: (typeof MIKHMON_TUNNEL_INTERFACES)[number],
+  tunnelInterface: string,
   placeBefore?: string,
 ) {
   const comment = `${SSH_TUNNEL_FIREWALL_COMMENT} (${tunnelInterface})`;

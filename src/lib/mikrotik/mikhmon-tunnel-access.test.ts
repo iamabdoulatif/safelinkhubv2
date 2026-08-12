@@ -129,4 +129,75 @@ describe("MikHmon tunnel access repair", () => {
     assert.ok(nat?.includes("=to-addresses=11.11.11.11"));
     assert.ok(!nat?.includes("=to-addresses=10.9.9.9"));
   });
+
+  /**
+   * SHIA-HSPT : raccordé en OpenVPN (10.67.0.0/24) et non en WireGuard. Le
+   * client OVPN de RouterOS s'appelle « ovpn-out1 » — aucun nom de la liste ne
+   * correspondait, la règle d'acceptation n'était jamais posée, et le trafic
+   * MikHmon mourait dans la chaîne forward. Symptôme trompeur : MikHmon est le
+   * SEUL service à traverser forward, WebFig/WinBox/SSH terminent sur le
+   * routeur et répondaient très bien.
+   */
+  it("reconnaît un tunnel OpenVPN dont l'interface porte un autre nom", async () => {
+    const calls: string[][] = [];
+    const client = {
+      async talk(words: string[]) {
+        calls.push(words);
+        if (words[0] === "/container/print") {
+          return [{ ".id": "*1", name: "mikhmon", interface: "veth1", status: "running" }];
+        }
+        if (words[0] === "/interface/veth/print") return [{ address: "11.11.11.11/28" }];
+        if (words[0] === "/ip/address/print") {
+          return [
+            { address: "192.168.88.1/24", interface: "bridge-hotspot" },
+            { address: "10.67.0.3/24", interface: "ovpn-out1" },
+          ];
+        }
+        if (words[0] === "/interface/print") {
+          return words.includes("?name=ovpn-out1") ? [{ ".id": "*o" }] : [];
+        }
+        if (words[0] === "/ip/firewall/nat/print") return [{ ".id": "*n", "to-addresses": "11.11.11.11" }];
+        if (words[0] === "/ip/firewall/filter/print" && words.some((w) => w.startsWith("?comment="))) return [];
+        if (words[0] === "/ip/firewall/filter/print") return [{ ".id": "*first" }];
+        return [];
+      },
+    };
+
+    await ensureMikhmonTunnelAccess(client as never);
+
+    const added = calls.filter((w) => w[0] === "/ip/firewall/filter/add");
+    assert.equal(added.length, 1, "la règle doit être posée malgré le nom d'interface inattendu");
+    assert.ok(added[0].includes("=in-interface=ovpn-out1"));
+  });
+
+  it("ignore les interfaces locales, seul le plan de tunnel compte", async () => {
+    // Poser la règle sur le bridge du hotspot ouvrirait le conteneur à tous les
+    // clients WiFi — c'est exactement ce qu'il ne faut pas faire.
+    const calls: string[][] = [];
+    const client = {
+      async talk(words: string[]) {
+        calls.push(words);
+        if (words[0] === "/container/print") return [];
+        if (words[0] === "/ip/address/print") {
+          return [
+            { address: "192.168.88.1/24", interface: "bridge-hotspot" },
+            { address: "172.16.0.1/24", interface: "ether5" },
+          ];
+        }
+        if (words[0] === "/interface/print") return [{ ".id": "*any" }];
+        if (words[0] === "/ip/firewall/nat/print") return [];
+        if (words[0] === "/ip/firewall/filter/print" && words.some((w) => w.startsWith("?comment="))) return [];
+        if (words[0] === "/ip/firewall/filter/print") return [{ ".id": "*first" }];
+        return [];
+      },
+    };
+
+    await ensureMikhmonTunnelAccess(client as never);
+
+    const added = calls.filter((w) => w[0] === "/ip/firewall/filter/add");
+    for (const rule of added) {
+      assert.ok(!rule.includes("=in-interface=bridge-hotspot"), "jamais le bridge du hotspot");
+      assert.ok(!rule.includes("=in-interface=ether5"), "jamais un port local");
+    }
+  });
 });
