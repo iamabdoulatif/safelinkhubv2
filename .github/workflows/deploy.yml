@@ -90,21 +90,45 @@ jobs:
     # deploy step.
     if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
-    # Requires repo secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY (private key with
-    # access to the VPS), and the VPS having ~/safelinkhub/docker-compose.yml
-    # + .env in place (see deploy/README.md).
+    # Secrets requis : VPS_HOST, VPS_USER, VPS_SSH_KEY (clé privée DÉDIÉE au
+    # déploiement), VPS_HOST_KEY (clé publique d'hôte, pour épingler le serveur).
+    #
+    # POURQUOI PAS `docker compose` : il n'y a pas de docker-compose.yml sur le
+    # VPS. `slh-app` est un `docker run` manuel qui porte 14 labels Traefik et
+    # 36 variables d'environnement de production qui n'existent nulle part
+    # ailleurs — les recréer depuis un fichier, c'est risquer de les perdre.
+    # La bascule est donc faite par /root/deploy-slh-ghcr.sh, qui reprend
+    # l'environnement et les labels du conteneur VIVANT, garde un conteneur de
+    # rollback et revient en arrière tout seul si le nouveau ne démarre pas ou
+    # si la page d'accueil ne répond pas 200.
+    #
+    # POURQUOI PAS appleboy/ssh-action : ce job détient un accès à la machine de
+    # production. Un `ssh` direct évite d'exposer cette clé à une action tierce
+    # et laisse voir exactement ce qui est envoyé sur le fil.
+    #
+    # La clé est contrainte côté serveur par une commande forcée
+    # (authorized_keys) qui n'accepte QU'UN SHA de 40 caractères hexadécimaux :
+    # même divulguée, elle ne peut que déclencher le déploiement d'une image
+    # déjà construite par cette CI — pas ouvrir un shell.
     steps:
-      - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -euo pipefail
-            cd ~/safelinkhub
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            export APP_IMAGE=ghcr.io/${{ github.repository }}:${{ github.sha }}
-            docker compose pull
-            docker compose up -d
-            docker image prune -f
+      - name: Bascule du conteneur de production
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY"  > ~/.ssh/slh_deploy
+          printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/slh_deploy ~/.ssh/known_hosts
+          # StrictHostKeyChecking=yes + known_hosts épinglé : si l'empreinte du
+          # serveur change, on refuse au lieu de livrer à un inconnu.
+          ssh -i ~/.ssh/slh_deploy \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o ConnectTimeout=20 \
+              "$VPS_USER@$VPS_HOST" "$SHA"
