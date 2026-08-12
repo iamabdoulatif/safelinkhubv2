@@ -18,6 +18,7 @@ import {
   optimizeRouterThroughput,
   setRouterBandwidthCap,
   repairMikhmonStorage,
+  repairMikhmonRemoteAccess,
   reconfigureMikhmonSession,
   upgradeRouterFirmware,
   fixRouterApiGroupPolicy,
@@ -42,6 +43,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   cap: "Plafonner à 450 Mbps",
   mikhmon: "Déplacer sur la flash",
   "mikhmon-session": "Reconfigurer la session",
+  "mikhmon-access": "Rediriger l'accès distant",
   "rb-firmware": "Mettre à niveau le firmware",
   "api-policy": "Corriger les droits MikHmon",
 };
@@ -89,6 +91,8 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
               ? await repairMikhmonStorage(routerId)
               : finding.fix === "mikhmon-session"
                 ? await reconfigureMikhmonSession(routerId)
+                : finding.fix === "mikhmon-access"
+                ? await repairMikhmonRemoteAccess(routerId)
                 : finding.fix === "rb-firmware"
                   ? await upgradeRouterFirmware(routerId)
                   : finding.fix === "api-policy"

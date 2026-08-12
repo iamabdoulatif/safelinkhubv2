@@ -22,6 +22,7 @@ export type AuditFixKind =
   | "cap"
   | "mikhmon"
   | "mikhmon-session"
+  | "mikhmon-access"
   | "rb-firmware"
   | "api-policy"
   | null;
@@ -266,10 +267,44 @@ export async function auditRouter(
       // sont pas énumérables via l'API RouterOS, on s'appuie donc sur le flag
       // routers.mikhmonSessionAt (posé à l'écriture par l'auto-setup / le bouton
       // Reconfigurer), transmis ici.
+      // ── Accès distant : la règle vise-t-elle le BON conteneur ? ────────
+      // Le dst-nat a longtemps visé 11.11.11.11 EN DUR — l'adresse de la veth
+      // que SafeLinkHub crée lui-même. Un MikHmon installé autrement (à la
+      // main, par un prestataire) vit sur une autre veth : la règle envoie
+      // alors le trafic là où personne n'écoute, et le lien d'accès distant
+      // expire sans un mot. On compare donc les deux, au lieu de supposer.
+      const vethName = String(mk.interface ?? "").trim();
+      const veths = vethName
+        ? await client.talk(["/interface/veth/print", `?name=${vethName}`], t).catch(() => [])
+        : [];
+      const containerIp = String(veths[0]?.address ?? "").split("/")[0].trim();
+      const nats = await client
+        .talk(
+          ["/ip/firewall/nat/print", "?chain=dstnat", "?action=dst-nat", "?comment=MikHmon via tunnel"],
+          t,
+        )
+        .catch(() => []);
+      const natTarget = String(nats[0]?.["to-addresses"] ?? "");
+      if (!containerIp)
+        add("warn", "MikHmon", "mikhmon-veth", "Adresse du conteneur illisible", `Le conteneur « ${mk.name ?? "?"} » n'expose pas d'interface veth lisible (${vethName || "aucune"}) : impossible de vérifier que l'accès distant pointe au bon endroit.`);
+      else if (nats.length === 0)
+        add("error", "MikHmon", "mikhmon-access", "Accès distant MikHmon non configuré", `Aucune règle « MikHmon via tunnel » sur ce routeur, alors que le conteneur écoute sur ${containerIp}. Le correctif pose la règle.`, "mikhmon-access");
+      else if (natTarget !== containerIp)
+        add("error", "MikHmon", "mikhmon-access", "Accès distant dirigé au mauvais endroit", `La règle envoie le trafic vers ${natTarget || "une adresse inconnue"}, alors que le conteneur MikHmon écoute sur ${containerIp} — c'est pourquoi le lien d'accès distant expire. Le correctif redirige la règle vers le bon conteneur.`, "mikhmon-access");
+      else
+        add("ok", "MikHmon", "mikhmon-access", "Accès distant MikHmon correct", `La règle vise bien le conteneur (${containerIp}).`);
+
       if (opts.mikhmonConfigured)
         add("ok", "MikHmon", "mikhmon-session", "Session MikHmon configurée", "La session « SafeLinkHub » a été écrite automatiquement dans le conteneur.");
       else
         add("warn", "MikHmon", "mikhmon-session", "Session MikHmon à configurer", "La session « SafeLinkHub » n'a pas encore été posée par le SaaS — sinon MikHmon demande de la recréer à la main. Le correctif l'écrit automatiquement (session, hotspot, DNS, API).", "mikhmon-session");
+    } else {
+      // Sans ce constat, un routeur qui porte un conteneur MikHmon non reconnu
+      // (nom inhabituel) ne produisait AUCUNE ligne d'audit : l'écran laissait
+      // croire que tout allait bien pendant que l'accès distant expirait.
+      const names = conts.map((c) => String(c.name ?? c["root-dir"] ?? "?")).filter(Boolean);
+      if (names.length > 0)
+        add("warn", "MikHmon", "mikhmon-absent", "Aucun conteneur reconnu comme MikHmon", `Ce routeur porte ${names.length} conteneur(s) — ${names.join(", ")} — mais aucun dont le nom, le dossier ou l'étiquette ne mentionne « mikhmon ». L'accès distant MikHmon ne peut donc pas être dirigé automatiquement.`);
     }
   } catch {
     /* container package absent — pas un défaut */

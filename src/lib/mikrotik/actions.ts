@@ -725,6 +725,48 @@ export async function optimizeRouterThroughput(routerId: string) {
  * (after) pour éviter la coupure Cloudflare ~100 s ; l'utilisateur ré-analyse
  * ensuite pour confirmer.
  */
+/**
+ * Redirige l'accès distant MikHmon vers le conteneur RÉELLEMENT présent.
+ *
+ * Rejoue ensureMikhmonTunnelAccess, qui lit désormais l'adresse du conteneur
+ * sur l'appareil au lieu de supposer celle de la veth SafeLinkHub, et redresse
+ * une règle existante mal dirigée. Idempotent, et synchrone : l'opérateur doit
+ * savoir tout de suite si c'était bien ça.
+ */
+export async function repairMikhmonRemoteAccess(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 20000);
+  } catch (err) {
+    return { error: err instanceof Error ? `Routeur injoignable : ${err.message}` : "Routeur injoignable." };
+  }
+  const log: string[] = [];
+  try {
+    const { ensureMikhmonTunnelAccess } = await import("./mikhmon-tunnel-access");
+    await ensureMikhmonTunnelAccess(client, log);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Le routeur a refusé l'opération." };
+  } finally {
+    client.close();
+  }
+
+  return {
+    success: true,
+    summary: log.length
+      ? log.join(" · ")
+      : "Aucun changement : la règle visait déjà le bon conteneur.",
+  };
+}
+
 export async function repairMikhmonStorage(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
