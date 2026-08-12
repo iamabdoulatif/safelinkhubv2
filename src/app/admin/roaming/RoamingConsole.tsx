@@ -48,6 +48,9 @@ function money(value: number) {
 }
 
 function duration(value: number, unit: string) {
+  // Un profil illimité n'a pas de nombre à afficher : « 0 illimité » serait
+  // absurde, et c'est justement l'absence d'échéance qui le caractérise.
+  if (unit === "Unlimited") return "Illimité — sans expiration";
   const label = { Minutes: "min", Hours: "h", Days: "jour(s)", Weeks: "sem.", Months: "mois" }[unit] ?? unit;
   return `${value} ${label}`;
 }
@@ -77,6 +80,8 @@ export default function RoamingConsole({
 }) {
   const [groupState, groupAction, groupPending] = useActionState(createRoamingGroup, undefined);
   const [profileState, profileAction, profilePending] = useActionState(createRoamingProfile, undefined);
+  // Unité du profil en cours de saisie : « Illimité » n'attend aucune durée.
+  const [profileUnit, setProfileUnit] = useState("Hours");
   const [offerState, offerAction, offerPending] = useActionState(saveRoamingOffer, undefined);
   const [ticketState, ticketAction, ticketPending] = useActionState(generateRoamingVouchers, undefined);
   const [selectedGroupId, setSelectedGroupId] = useState(groups[0]?.id ?? "");
@@ -137,7 +142,7 @@ export default function RoamingConsole({
             {profiles.map((profile) => <article key={profile.id} className="border border-line-soft p-4"><div className="flex justify-between gap-3"><div><h3 className="font-mono text-sm font-bold text-ink">{profile.name}</h3><p className="mt-1 text-xs text-ink-soft">{duration(profile.durationValue, profile.durationUnit)} · {profile.uploadMbps}M/{profile.downloadMbps}M</p></div><strong className="text-sm text-ink">{money(profile.defaultPriceCents)}</strong></div><p className="mt-3 text-xs text-ink-soft">Prix catalogue</p></article>)}
             {profiles.length === 0 && <p className="rounded-md bg-clay p-4 text-sm text-ink-soft sm:col-span-2">Ajoutez 05-HEURES, 01-JOUR, 01-MOIS ou vos propres durées.</p>}
           </div>
-          <form action={profileAction} className="mt-5 border-t border-line-soft pt-5"><div className="flex items-center gap-2 text-sm font-semibold text-ink"><Plus className="h-4 w-4 text-brand" />Ajouter un profil</div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4"><label className={labelClass}>Durée<input name="durationValue" type="number" min="1" defaultValue="5" required className={inputClass} /></label><label className={labelClass}>Unité<select name="durationUnit" defaultValue="Hours" className={inputClass}><option value="Minutes">Minutes</option><option value="Hours">Heures</option><option value="Days">Jours</option><option value="Weeks">Semaines</option><option value="Months">Mois</option></select></label><label className={labelClass}>Montant<input name="uploadMbps" type="number" min="1" defaultValue="5" required className={inputClass} /></label><label className={labelClass}>Descendant<input name="downloadMbps" type="number" min="1" defaultValue="5" required className={inputClass} /></label></div><label className={`mt-3 ${labelClass}`}>Tarif catalogue (FCFA)<input name="defaultPriceCents" type="number" min="0" defaultValue="100" required className={inputClass} /></label><button disabled={profilePending} className="mt-3 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-paper hover:bg-brand disabled:opacity-60">{profilePending ? "Ajout…" : "Ajouter le profil"}</button><Notice state={profileState} /></form>
+          <form action={profileAction} className="mt-5 border-t border-line-soft pt-5"><div className="flex items-center gap-2 text-sm font-semibold text-ink"><Plus className="h-4 w-4 text-brand" />Ajouter un profil</div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4"><label className={labelClass}>Durée<input name="durationValue" type="number" min="1" defaultValue="5" required={profileUnit !== "Unlimited"} disabled={profileUnit === "Unlimited"} className={`${inputClass} disabled:opacity-40`} /></label><label className={labelClass}>Unité<select name="durationUnit" value={profileUnit} onChange={(e) => setProfileUnit(e.target.value)} className={inputClass}><option value="Minutes">Minutes</option><option value="Hours">Heures</option><option value="Days">Jours</option><option value="Weeks">Semaines</option><option value="Months">Mois</option><option value="Unlimited">Illimité (admin / technicien)</option></select></label><label className={labelClass}>Montant<input name="uploadMbps" type="number" min="1" defaultValue="5" required className={inputClass} /></label><label className={labelClass}>Descendant<input name="downloadMbps" type="number" min="1" defaultValue="5" required className={inputClass} /></label></div><label className={`mt-3 ${labelClass}`}>Tarif catalogue (FCFA)<input name="defaultPriceCents" type="number" min="0" defaultValue="100" required className={inputClass} /></label>{profileUnit === "Unlimited" && <p className="mt-3 border-l-2 border-brand bg-clay/50 px-3 py-2 text-xs leading-5 text-ink-soft">Compte <strong className="text-ink">sans expiration</strong>, destiné aux administrateurs et techniciens de zone. Le profil est créé sur les MikroTik sans planificateur de suppression : rien ne coupera la session d’un technicien en intervention. Ces comptes n’apparaissent pas dans le journal de ventes MikHmon — ils ne sont pas vendus.</p>}<button disabled={profilePending} className="mt-3 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-paper hover:bg-brand disabled:opacity-60">{profilePending ? "Ajout…" : "Ajouter le profil"}</button><Notice state={profileState} /></form>
         </section>
       </div>
 

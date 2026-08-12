@@ -14,6 +14,7 @@ import {
   dateToWall,
 } from "@/lib/vouchers/reconcile";
 import { durationToMs, type PackageDuration } from "@/lib/vouchers/expiry";
+import { isUnlimitedUnit } from "@/lib/mikrotik/package-voucher-profile";
 
 /** Normalise un MAC vers AA:BB:CC:DD:EE:FF, ou "" si invalide. */
 function normalizeMac(raw: string): string {
@@ -120,8 +121,12 @@ export async function propagateRoamingMac(input: {
   // Commentaire du user MAC = l'expiration du code si déjà stampée, sinon on la
   // calcule (début maintenant + durée) au format MikHmon → le sweep par profil
   // le supprimera à échéance (pas d'utilisateur MAC orphelin).
+  // Un profil illimité (admin / technicien) n'a pas d'échéance à tamponner :
+  // pas de commentaire d'expiration, donc rien que le balayage puisse ramasser.
+  // Le test tient déjà par la valeur 0, mais on le dit explicitement — c'est une
+  // session de technicien qu'on ne veut jamais voir coupée.
   const duration: PackageDuration | null =
-    voucher.durationValue && voucher.durationUnit
+    !isUnlimitedUnit(voucher.durationUnit ?? "") && voucher.durationValue && voucher.durationUnit
       ? {
           durationValue: voucher.durationValue,
           durationUnit: voucher.durationUnit,

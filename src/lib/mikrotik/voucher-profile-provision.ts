@@ -28,12 +28,20 @@ export async function ensureVoucherProfileOnRouter(
     "/ip/hotspot/user/profile/add",
     `=name=${profile.name}`,
     `=address-pool=${HOTSPOT_POOL_NAME}`,
-    `=on-login=${profile.onLogin}`,
     "=parent-queue=none",
     "=add-mac-cookie=yes",
   ];
+  // Un profil ILLIMITÉ n'a pas d'`on-login` : c'est ce script qui planifie la
+  // suppression du compte à l'échéance. Sans lui, rien n'expire — ce qui est
+  // exactement le but pour un administrateur ou un technicien de zone.
+  if (!profile.unlimited) createProfile.push(`=on-login=${profile.onLogin}`);
   if (profile.rateLimit) createProfile.push(`=rate-limit=${profile.rateLimit}`);
   await client.talk(createProfile, timeoutMs);
+
+  // …et pas de planificateur de balayage non plus : c'est le second mécanisme
+  // qui efface les comptes périmés. En poser un pour un profil sans expiration
+  // serait au mieux inutile, au pire un risque de suppression accidentelle.
+  if (profile.unlimited) return;
 
   await client
     .talk(["/system/scheduler/remove", `=numbers=${profile.name}`], timeoutMs)

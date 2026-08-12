@@ -18,6 +18,7 @@ import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
 import {
   packageProfileName,
+  isUnlimitedUnit,
   voucherProfileForPackage,
   SUPPORTED_PROFILE_DURATIONS,
 } from "@/lib/mikrotik/package-voucher-profile";
@@ -83,14 +84,21 @@ export async function createRoamingProfile(_prevState: unknown, formData: FormDa
   const session = await requireAdminSession();
   if (!session) return { error: "Non authentifié." };
 
-  const durationValue = positiveInteger(formData.get("durationValue"));
   const durationUnit = String(formData.get("durationUnit") ?? "Hours");
+  const unlimited = isUnlimitedUnit(durationUnit);
+  const parsedDuration = positiveInteger(formData.get("durationValue"));
   const uploadMbps = positiveInteger(formData.get("uploadMbps"));
   const downloadMbps = positiveInteger(formData.get("downloadMbps"));
   const defaultPriceCents = Number(formData.get("defaultPriceCents") ?? -1);
-  if (!durationValue || !uploadMbps || !downloadMbps || !Number.isInteger(defaultPriceCents) || defaultPriceCents < 0) {
-    return { error: "Saisissez une durée, des débits et un tarif valide." };
+  if (!uploadMbps || !downloadMbps || !Number.isInteger(defaultPriceCents) || defaultPriceCents < 0) {
+    return { error: "Saisissez des débits et un tarif valide." };
   }
+  if (!unlimited && !parsedDuration) {
+    return { error: "Saisissez une durée valide." };
+  }
+  // Un profil ILLIMITÉ n'a pas de durée à saisir : 0 marque explicitement
+  // « aucune échéance » plutôt qu'un nombre qui ne voudrait rien dire.
+  const durationValue = unlimited ? 0 : (parsedDuration as number);
 
   const name = packageProfileName(durationValue, durationUnit);
   if (!name) {

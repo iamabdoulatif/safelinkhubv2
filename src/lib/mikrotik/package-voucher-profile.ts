@@ -6,6 +6,8 @@
 // "plain" (pas de "use server") — importable partout.
 
 import {
+  buildUnlimitedProfile,
+  UNLIMITED_PROFILE_NAME,
   buildCustomProfileName,
   buildCustomProfileLabel,
   buildCustomDurationCode,
@@ -37,11 +39,23 @@ function unitOf(durationUnit: string): DurationUnit | null {
 }
 
 /**
+ * « Illimité » n'est pas une unité de durée : c'est l'absence d'échéance. On le
+ * reconnaît donc à part, avant toute conversion, et on tolère les graphies
+ * courantes (avec ou sans accent, français ou anglais).
+ */
+const UNLIMITED_UNITS = new Set(["unlimited", "illimite", "illimité", "infini", "none"]);
+
+export function isUnlimitedUnit(durationUnit: string): boolean {
+  return UNLIMITED_UNITS.has(durationUnit.trim().toLowerCase());
+}
+
+/**
  * Nom du profil hotspot RouterOS pour la durée du forfait, ou null si l'unité
  * est inconnue. Le profil peut ne pas encore exister sur le routeur : l'appelant
  * le crée à la demande (ensureVoucherProfileOnRouter).
  */
 export function packageProfileName(durationValue: number, durationUnit: string): string | null {
+  if (isUnlimitedUnit(durationUnit)) return UNLIMITED_PROFILE_NAME;
   const unit = unitOf(durationUnit);
   if (!unit || !Number.isFinite(durationValue) || durationValue <= 0) return null;
   return buildCustomProfileName(durationValue, unit);
@@ -59,6 +73,13 @@ export function voucherProfileForPackage(
     downloadMbps?: number;
   },
 ): VoucherProfile | null {
+  if (isUnlimitedUnit(durationUnit)) {
+    return buildUnlimitedProfile({
+      name: options?.name,
+      uploadMbps: options?.uploadMbps,
+      downloadMbps: options?.downloadMbps,
+    });
+  }
   const unit = unitOf(durationUnit);
   if (!unit || !Number.isFinite(durationValue) || durationValue <= 0) return null;
   return buildVoucherProfile({

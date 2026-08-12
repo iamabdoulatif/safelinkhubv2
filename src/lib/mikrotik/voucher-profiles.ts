@@ -16,6 +16,16 @@ export type VoucherProfile = {
   // quand l'admin saisit un débit dans l'auto-setup — cf. container-setup.ts
   // (=rate-limit=).
   rateLimit?: string;
+  /**
+   * Compte SANS expiration — administrateurs et techniciens de zone.
+   *
+   * Ce n'est pas « une très longue durée » : c'est l'ABSENCE de la mécanique
+   * d'expiration. Un profil normal embarque un `on-login` qui planifie la
+   * suppression du compte à l'échéance, plus un planificateur qui balaie les
+   * comptes périmés. Un profil illimité n'a ni l'un ni l'autre — rien ne peut
+   * donc effacer le compte d'un technicien au mauvais moment.
+   */
+  unlimited?: boolean;
 };
 
 const LABELS: Record<string, { label: string; durationCode: string }> = {
@@ -204,5 +214,40 @@ export function buildVoucherProfile(opts: {
     monitorInterval: monitorIntervalFor(opts.name),
     monitorOnEvent,
     rateLimit,
+  };
+}
+
+/** Nom du profil hotspot des comptes sans expiration. */
+export const UNLIMITED_PROFILE_NAME = "ILLIMITE";
+
+/**
+ * Profil hotspot SANS EXPIRATION, pour les administrateurs et techniciens
+ * chargés d'intervenir sur les zones.
+ *
+ * Volontairement dépourvu d'`on-login` et de planificateur de balayage : ce
+ * sont eux qui suppriment un compte à échéance. Un technicien en intervention
+ * ne doit pas voir sa session coupée parce qu'un compteur est arrivé au bout,
+ * et son compte ne doit pas disparaître du routeur pendant qu'il travaille.
+ *
+ * Conséquence assumée : ces comptes n'apparaissent pas dans le journal de
+ * ventes MikHmon (c'est l'`on-login` qui l'écrit). C'est voulu — ils ne sont
+ * pas vendus, et les compter comme des recettes fausserait le revenu.
+ */
+export function buildUnlimitedProfile(opts: {
+  name?: string;
+  uploadMbps?: number;
+  downloadMbps?: number;
+}): VoucherProfile {
+  const up = opts.uploadMbps;
+  const down = opts.downloadMbps;
+  return {
+    name: opts.name ?? UNLIMITED_PROFILE_NAME,
+    label: "Illimité",
+    durationCode: "",
+    onLogin: "",
+    monitorInterval: "",
+    monitorOnEvent: "",
+    rateLimit: up && down && up > 0 && down > 0 ? `${up}M/${down}M` : undefined,
+    unlimited: true,
   };
 }
