@@ -126,9 +126,23 @@ jobs:
           chmod 600 ~/.ssh/slh_deploy ~/.ssh/known_hosts
           # StrictHostKeyChecking=yes + known_hosts épinglé : si l'empreinte du
           # serveur change, on refuse au lieu de livrer à un inconnu.
-          ssh -i ~/.ssh/slh_deploy \
-              -o IdentitiesOnly=yes \
-              -o StrictHostKeyChecking=yes \
-              -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -o ConnectTimeout=20 \
-              "$VPS_USER@$VPS_HOST" "$SHA"
+          # Reprise sur echec : le trajet reseau GitHub -> hebergeur a deja
+          # expire une fois (16:54 UTC le 12/08) alors que le VPS allait bien.
+          # Sans reprise, un incident passager laisse la production un commit
+          # en arriere avec une croix rouge, et il faut relancer a la main. Le
+          # script de bascule est idempotent : reessayer ne coute rien, et s'il
+          # a deja bascule, il repond << deja en ligne >>.
+          for attempt in 1 2 3; do
+            if ssh -i ~/.ssh/slh_deploy \
+                   -o IdentitiesOnly=yes \
+                   -o StrictHostKeyChecking=yes \
+                   -o UserKnownHostsFile=~/.ssh/known_hosts \
+                   -o ConnectTimeout=20 \
+                   "$VPS_USER@$VPS_HOST" "$SHA"; then
+              exit 0
+            fi
+            echo "tentative $attempt echouee" >&2
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 15))
+          done
+          echo "::error::les 3 tentatives de bascule ont echoue" >&2
+          exit 1
