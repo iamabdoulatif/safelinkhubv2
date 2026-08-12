@@ -1,14 +1,16 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Eye, Layers3, MapPin, Plus, Ticket, UserPlus, Wifi } from "lucide-react";
+import { Eye, Layers3, MapPin, Pencil, Plus, Ticket, Trash2, UserPlus, Wifi } from "lucide-react";
 import {
   createRoamingGroup,
   createRoamingProfile,
   createRoamingUser,
+  deleteRoamingUser,
   generateRoamingVouchers,
   revealRoamingUserPassword,
   saveRoamingOffer,
+  updateRoamingUser,
 } from "@/lib/roaming/actions";
 
 type Group = {
@@ -51,7 +53,19 @@ type Offer = {
   profileActive: boolean;
 };
 type Router = { id: string; name: string; status: string };
-type ActionState = { error?: string; success?: boolean; created?: number; name?: string } | undefined;
+type ActionState =
+  | {
+      error?: string;
+      success?: boolean;
+      created?: number;
+      name?: string;
+      username?: string;
+      updatedOn?: number;
+      removedOn?: number;
+      /** Zones injoignables lors d'une modification — à dire, jamais à taire. */
+      skipped?: string[];
+    }
+  | undefined;
 
 function money(value: number) {
   return `${value.toLocaleString("fr-FR")} F`;
@@ -100,6 +114,13 @@ export default function RoamingConsole({
   // Mot de passe relu à la demande sur le routeur — jamais rendu dans la page
   // tant que personne ne l'a demandé.
   const [revealed, setRevealed] = useState<Record<string, string>>({});
+  const [editState, editAction, editPending] = useActionState(updateRoamingUser, undefined);
+  const [deleteState, deleteAction, deletePending] = useActionState(deleteRoamingUser, undefined);
+  // Compte dont le formulaire de modification est déplié.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // Suppression en DEUX temps : le premier clic arme, le second exécute. Pas de
+  // fenêtre système à cliquer à l'aveugle pour une action irréversible.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState(groups[0]?.id ?? "");
   const selectableOffers = useMemo(
     () => offers.filter((offer) => offer.groupId === selectedGroupId && offer.active && offer.groupActive && offer.profileActive),
@@ -171,7 +192,22 @@ export default function RoamingConsole({
 
           <form action={userAction} className="mt-5 border-t border-line-soft pt-5"><input type="hidden" name="groupId" value={selectedGroupId} /><p className="text-xs text-ink-soft">Groupe : <strong className="text-ink">{groups.find((group) => group.id === selectedGroupId)?.name ?? "à choisir en 04 — émission"}</strong> · le compte est posé sur <strong className="text-ink">toutes</strong> ses zones.</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className={labelClass}>Identifiant<input name="username" required maxLength={32} pattern="[A-Za-z0-9._\-]{2,32}" placeholder="ex : aroune" autoComplete="off" className={`${inputClass} font-mono`} /></label><label className={labelClass}>Mot de passe <span className="normal-case tracking-normal">(vide = identique)</span><input name="password" maxLength={64} placeholder="ex : aroune" autoComplete="off" className={`${inputClass} font-mono`} /></label></div><label className={`mt-3 ${labelClass}`}>Offre<select name="offerId" required disabled={!selectedGroupId || selectableOffers.length === 0} className={inputClass}><option value="">{selectableOffers.length ? "Choisir un profil…" : "Aucune offre active"}</option>{selectableOffers.map((offer) => <option key={offer.id} value={offer.id}>{offer.profileName} — {money(offer.effectivePriceCents)}</option>)}</select></label><label className={`mt-3 ${labelClass}`}>Rôle ou note<input name="note" maxLength={180} placeholder="ex : technicien zone nord" className={inputClass} /></label><button disabled={userPending || !selectedGroupId || selectableOffers.length === 0} className="mt-4 rounded-md bg-ink px-5 py-2.5 text-sm font-bold text-paper hover:bg-brand disabled:opacity-60">{userPending ? "Création…" : "Créer l’utilisateur"}</button><Notice state={userState} /></form>
 
-          {namedUsers.length > 0 && <div className="mt-5 border-t border-line-soft pt-4"><p className={labelClass}>Comptes existants</p><ul className="mt-2 divide-y divide-line-soft border-y border-line-soft">{namedUsers.map((user) => <li key={user.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5"><div><p className="font-mono text-sm font-bold text-ink">{user.username}</p><p className="mt-0.5 text-xs text-ink-soft">{[user.groupName, user.profileName, user.note].filter(Boolean).join(" · ") || "—"}</p></div>{revealed[user.id] ? <code className="rounded bg-clay px-2 py-1 font-mono text-xs text-ink">{revealed[user.id]}</code> : <button type="button" onClick={async () => { const res = await revealRoamingUserPassword(user.id); const shown = ("password" in res ? res.password : res.error) ?? "indisponible"; setRevealed((prev) => ({ ...prev, [user.id]: shown })); }} className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:bg-clay"><Eye className="h-3.5 w-3.5" />Mot de passe</button>}</li>)}</ul><p className="mt-2 text-xs leading-5 text-ink-soft">Le SaaS ne conserve pas ces mots de passe : ils sont relus sur le MikroTik, qui en est la source de vérité.</p></div>}
+          {namedUsers.length > 0 && <div className="mt-5 border-t border-line-soft pt-4"><p className={labelClass}>Comptes existants</p><ul className="mt-2 divide-y divide-line-soft border-y border-line-soft">{namedUsers.map((user) => <li key={user.id} className="py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><p className="font-mono text-sm font-bold text-ink">{user.username}</p><p className="mt-0.5 text-xs text-ink-soft">{[user.groupName, user.profileName, user.note].filter(Boolean).join(" · ") || "—"}</p></div>
+              <div className="flex items-center gap-1.5">
+                {revealed[user.id] ? <code className="rounded bg-clay px-2 py-1 font-mono text-xs text-ink">{revealed[user.id]}</code> : <button type="button" onClick={async () => { const res = await revealRoamingUserPassword(user.id); const shown = ("password" in res ? res.password : res.error) ?? "indisponible"; setRevealed((prev) => ({ ...prev, [user.id]: shown })); }} className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:bg-clay"><Eye className="h-3.5 w-3.5" />Mot de passe</button>}
+                <button type="button" onClick={() => { setEditingId(editingId === user.id ? null : user.id); setConfirmingId(null); }} aria-expanded={editingId === user.id} className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-clay"><Pencil className="h-3.5 w-3.5" />Modifier</button>
+                {confirmingId === user.id
+                  ? <form action={deleteAction} className="flex items-center gap-1.5"><input type="hidden" name="voucherId" value={user.id} /><button disabled={deletePending} className="rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-60">{deletePending ? "Suppression…" : "Confirmer"}</button><button type="button" onClick={() => setConfirmingId(null)} className="rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:bg-clay">Annuler</button></form>
+                  : <button type="button" onClick={() => { setConfirmingId(user.id); setEditingId(null); }} className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" />Supprimer</button>}
+              </div>
+            </div>
+            {confirmingId === user.id && <p className="mt-2 border-l-2 border-red-600 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">Le compte sera retiré de <strong>toutes</strong> les zones du groupe, la session en cours coupée, et l’appareil déjà associé (auto-login par MAC) supprimé avec lui. Si une zone ne répond pas, rien n’est retiré de la liste : on ne déclare pas révoqué un compte qui fonctionne encore quelque part.</p>}
+            {editingId === user.id && <form action={editAction} className="mt-3 border-l-2 border-brand bg-clay/30 p-3"><input type="hidden" name="voucherId" value={user.id} /><div className="grid gap-3 sm:grid-cols-2"><label className={labelClass}>Identifiant<input name="username" defaultValue={user.username} maxLength={32} pattern="[A-Za-z0-9._@\-]{2,32}" className={`${inputClass} font-mono`} /></label><label className={labelClass}>Mot de passe <span className="normal-case tracking-normal">(vide = inchangé)</span><input name="password" maxLength={64} placeholder="inchangé" autoComplete="off" className={`${inputClass} font-mono`} /></label></div><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className={labelClass}>Offre <span className="normal-case tracking-normal">(vide = inchangée)</span><select name="offerId" disabled={selectableOffers.length === 0} className={inputClass}><option value="">Inchangée — {user.profileName ?? "—"}</option>{selectableOffers.map((offer) => <option key={offer.id} value={offer.id}>{offer.profileName} — {money(offer.effectivePriceCents)}</option>)}</select></label><label className={labelClass}>Rôle ou note<input name="note" defaultValue={user.note ?? ""} maxLength={180} className={inputClass} /></label></div><button disabled={editPending} className="mt-3 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-paper hover:bg-brand disabled:opacity-60">{editPending ? "Modification…" : "Enregistrer"}</button>{selectableOffers.length === 0 && <p className="mt-2 text-xs text-ink-soft">Choisissez d’abord un groupe en 04 pour pouvoir changer d’offre.</p>}</form>}
+          </li>)}</ul>
+          <Notice state={editState} />{editState && "skipped" in editState && editState.skipped.length > 0 && <p className="mt-2 border-l-2 border-warn bg-clay/50 px-3 py-2 text-xs leading-5 text-ink-soft">Zones non mises à jour : <strong className="text-ink">{editState.skipped.join(", ")}</strong> — le compte y garde son ancien identifiant et son ancien mot de passe. Relancez quand elles seront revenues.</p>}<Notice state={deleteState} />
+          <p className="mt-2 text-xs leading-5 text-ink-soft">Le SaaS ne conserve pas ces mots de passe : ils sont relus sur le MikroTik, qui en est la source de vérité.</p></div>}
         </section>
       </div>
 

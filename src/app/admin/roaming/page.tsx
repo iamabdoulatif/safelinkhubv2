@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { effectiveRoamingPrice } from "@/lib/roaming/pricing";
+import { NAMED_USER_CASE } from "@/lib/roaming/provision";
 import RoamingConsole from "./RoamingConsole";
 
 export default async function RoamingPage() {
@@ -106,7 +107,7 @@ export default async function RoamingPage() {
       .where(
         and(
           eq(vouchers.orgId, session.orgId),
-          eq(vouchers.useCase, "Roaming Named User"),
+          eq(vouchers.useCase, NAMED_USER_CASE),
           isNull(vouchers.deletedAt),
         ),
       )

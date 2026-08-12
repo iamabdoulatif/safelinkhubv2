@@ -28,7 +28,12 @@ import {
 } from "./forms";
 
 import { randomAccessCode as randomCode } from "@/lib/access-code";
-import { provisionRoamingAccounts } from "./provision";
+import {
+  NAMED_USER_CASE,
+  deleteRoamingAccount,
+  provisionRoamingAccounts,
+  updateRoamingAccount,
+} from "./provision";
 
 
 function sanitizePrefix(raw: string) {
@@ -260,7 +265,7 @@ export async function createRoamingUser(_prevState: unknown, formData: FormData)
     credentials: [{ username, password }],
     comment: note || `Compte ${username}`,
     note,
-    useCase: "Roaming Named User",
+    useCase: NAMED_USER_CASE,
   });
   if ("error" in result) return result;
   refreshRoamingPages();
@@ -311,4 +316,70 @@ export async function revealRoamingUserPassword(voucherId: string) {
   } finally {
     client.close();
   }
+}
+
+/**
+ * Modifie un compte nominatif : identifiant, mot de passe, offre, rôle.
+ *
+ * Un champ laissé vide n'est pas touché — en particulier le mot de passe, où
+ * « vide » veut dire « inchangé » et non « efface-le ». C'est l'inverse de la
+ * création, où vide reprend l'identifiant : à la création il faut bien une
+ * valeur, à la modification il faut surtout ne rien casser par omission.
+ */
+export async function updateRoamingUser(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const voucherId = String(formData.get("voucherId") ?? "");
+  const username = String(formData.get("username") ?? "").trim();
+  const password = String(formData.get("password") ?? "").trim();
+  const offerId = String(formData.get("offerId") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim().slice(0, 180) || null;
+  if (!voucherId) return { error: "Compte introuvable." };
+  if (username && !isValidRoamingUsername(username)) {
+    return {
+      error:
+        "L'identifiant doit faire 2 à 32 caractères, sans espace ni accent (lettres, chiffres, point, tiret, souligné, arobase).",
+    };
+  }
+  if (password && (password.length < 2 || password.length > 64)) {
+    return { error: "Le mot de passe doit faire 2 à 64 caractères." };
+  }
+
+  const result = await updateRoamingAccount({
+    orgId: session.orgId,
+    voucherId,
+    username: username || undefined,
+    password: password || undefined,
+    offerId: offerId || undefined,
+    note,
+  });
+  if ("error" in result) return result;
+  refreshRoamingPages();
+  return {
+    success: true,
+    updatedOn: result.updatedOn,
+    // Les zones sautées sont dites, pas tues : le compte y garde son ancien état.
+    skipped: result.skipped,
+  };
+}
+
+/**
+ * Supprime un compte nominatif de toutes ses zones, session en cours comprise.
+ *
+ * Refuse de retirer la ligne tant qu'une zone n'a pas répondu : un compte
+ * déclaré révoqué alors qu'il fonctionne encore quelque part serait pire qu'un
+ * compte qui traîne dans la liste.
+ */
+export async function deleteRoamingUser(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const voucherId = String(formData.get("voucherId") ?? "");
+  if (!voucherId) return { error: "Compte introuvable." };
+
+  const result = await deleteRoamingAccount({ orgId: session.orgId, voucherId });
+  if ("error" in result) return result;
+  refreshRoamingPages();
+  return { success: true, removedOn: result.removedOn };
 }

@@ -45,6 +45,143 @@ export type RoamingCredential = { username: string; password: string };
 
 export type ProvisionResult = { error: string } | { success: true; created: number };
 
+/** useCase des comptes nominatifs — les distingue des tickets vendus. */
+export const NAMED_USER_CASE = "Roaming Named User";
+
+/**
+ * Charge l'offre d'un groupe et en dérive le profil RouterOS correspondant.
+ * Partagé par la création et la modification : le profil d'un compte modifié
+ * doit être exactement celui qu'aurait reçu un compte créé aujourd'hui.
+ */
+async function loadOffer(orgId: string, groupId: string, offerId: string) {
+  const db = getDb();
+  const [offer] = await db
+    .select({
+      priceOverrideCents: roamingGroupOffers.priceOverrideCents,
+      profileId: roamingProfiles.id,
+      durationValue: roamingProfiles.durationValue,
+      durationUnit: roamingProfiles.durationUnit,
+      uploadMbps: roamingProfiles.uploadMbps,
+      downloadMbps: roamingProfiles.downloadMbps,
+      defaultPriceCents: roamingProfiles.defaultPriceCents,
+      active: roamingGroupOffers.active,
+      profileActive: roamingProfiles.active,
+    })
+    .from(roamingGroupOffers)
+    .innerJoin(roamingProfiles, eq(roamingGroupOffers.profileId, roamingProfiles.id))
+    .where(
+      and(
+        eq(roamingGroupOffers.id, offerId),
+        eq(roamingGroupOffers.groupId, groupId),
+        eq(roamingGroupOffers.orgId, orgId),
+      ),
+    )
+    .limit(1);
+  if (!offer || !offer.active || !offer.profileActive) return null;
+
+  const baseProfileName = packageProfileName(offer.durationValue, offer.durationUnit);
+  const profileName = baseProfileName ? roamingRouterProfileName(groupId, baseProfileName) : null;
+  const voucherProfile = voucherProfileForPackage(
+    offer.durationValue,
+    offer.durationUnit,
+    effectiveRoamingPrice(offer.defaultPriceCents, offer.priceOverrideCents),
+    { name: profileName ?? undefined, uploadMbps: offer.uploadMbps, downloadMbps: offer.downloadMbps },
+  );
+  if (!profileName || !voucherProfile) return null;
+  return { offer, profileName, voucherProfile };
+}
+
+/** Zones d'un groupe roaming, bornées à l'organisation. */
+async function loadGroupRouters(orgId: string, groupId: string) {
+  const db = getDb();
+  return db
+    .select({ router: routers })
+    .from(roamingGroupRouters)
+    .innerJoin(routers, eq(roamingGroupRouters.routerId, routers.id))
+    .where(
+      and(
+        eq(roamingGroupRouters.groupId, groupId),
+        eq(roamingGroupRouters.orgId, orgId),
+        eq(routers.orgId, orgId),
+      ),
+    );
+}
+
+/**
+ * Pose le profil roaming sur une zone : création du profil, levée des timeouts,
+ * auto-login inter-zones. Idempotent.
+ *
+ * ROAMING : un compte doit rester connecté LONGTEMPS entre zones. Par défaut le
+ * profil hérite d'un keepalive-timeout court (2m) → la session « lâche » après
+ * quelques minutes (téléphone en veille). On lève donc les timeouts ; la
+ * validité reste bornée par l'expiration via le scheduler — sauf profil
+ * illimité, qui n'en a pas.
+ *
+ * AUTO-LOGIN INTER-ZONES (1 appareil / compte) :
+ *  • shared-users=1 → anti-partage (le compte se lie au 1er MAC vu) ;
+ *  • on-login étendu → à chaque connexion, le routeur signale (code, MAC) au
+ *    SaaS (/api/roaming/seen) qui lie ce MAC au compte sur les zones sœurs, où
+ *    `login-by=mac` l'auto-logue sans re-saisie.
+ */
+async function prepareProfileOnRouter(
+  client: RouterOSClient,
+  routerId: string,
+  voucherProfile: NonNullable<ReturnType<typeof voucherProfileForPackage>>,
+) {
+  await ensureVoucherProfileOnRouter(client, voucherProfile);
+  const hookedOnLogin = appendRoamingSeenHook(
+    voucherProfile.onLogin,
+    getAppUrl(),
+    routerId,
+    deriveRouterKey(routerId),
+  );
+  await client
+    .talk([
+      "/ip/hotspot/user/profile/set",
+      `=numbers=${voucherProfile.name}`,
+      "=keepalive-timeout=none",
+      "=idle-timeout=none",
+      "=shared-users=1",
+      `=on-login=${hookedOnLogin}`,
+    ])
+    .catch(() => {});
+  // Le profil serveur doit accepter le login par MAC pour que l'utilisateur
+  // `name=<MAC>` posé sur les zones sœurs soit auto-logué (additif).
+  await ensureMacAutoLogin(client).catch(() => {});
+}
+
+/** Retrouve un utilisateur hotspot par son nom, ou null. */
+async function findHotspotUser(client: RouterOSClient, name: string) {
+  const rows = await client
+    .talk(["/ip/hotspot/user/print", `?name=${name}`])
+    .catch(() => [] as Record<string, string>[]);
+  return rows[0] ?? null;
+}
+
+/**
+ * Charge un compte nominatif et le groupe auquel il appartient.
+ * Borné à l'organisation ET au useCase : on ne modifie ni ne supprime un
+ * ticket vendu par ces chemins.
+ */
+async function loadNamedAccount(orgId: string, voucherId: string) {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      id: vouchers.id,
+      username: vouchers.username,
+      note: vouchers.note,
+      profileName: vouchers.profileName,
+      groupId: vouchers.roamingGroupId,
+      useCase: vouchers.useCase,
+    })
+    .from(vouchers)
+    .where(and(eq(vouchers.id, voucherId), eq(vouchers.orgId, orgId)))
+    .limit(1);
+  if (!row || row.useCase !== NAMED_USER_CASE || !row.groupId) return null;
+  return row as typeof row & { groupId: string };
+}
+
+
 export async function provisionRoamingAccounts(opts: {
   orgId: string;
   groupId: string;
@@ -60,68 +197,19 @@ export async function provisionRoamingAccounts(opts: {
 
   const db = getDb();
   const [group] = await db
-    .select({ id: roamingGroups.id, active: roamingGroups.active })
+    .select({ active: roamingGroups.active })
     .from(roamingGroups)
     .where(and(eq(roamingGroups.id, groupId), eq(roamingGroups.orgId, orgId)))
     .limit(1);
   if (!group || !group.active) return { error: "Ce groupe roaming est introuvable ou désactivé." };
 
-  const [offer] = await db
-    .select({
-      id: roamingGroupOffers.id,
-      active: roamingGroupOffers.active,
-      priceOverrideCents: roamingGroupOffers.priceOverrideCents,
-      profileId: roamingProfiles.id,
-      profileName: roamingProfiles.name,
-      durationValue: roamingProfiles.durationValue,
-      durationUnit: roamingProfiles.durationUnit,
-      uploadMbps: roamingProfiles.uploadMbps,
-      downloadMbps: roamingProfiles.downloadMbps,
-      defaultPriceCents: roamingProfiles.defaultPriceCents,
-      profileActive: roamingProfiles.active,
-    })
-    .from(roamingGroupOffers)
-    .innerJoin(roamingProfiles, eq(roamingGroupOffers.profileId, roamingProfiles.id))
-    .where(
-      and(
-        eq(roamingGroupOffers.id, offerId),
-        eq(roamingGroupOffers.groupId, groupId),
-        eq(roamingGroupOffers.orgId, orgId),
-      ),
-    )
-    .limit(1);
-  if (!offer || !offer.active || !offer.profileActive) {
-    return { error: "Cette offre roaming est indisponible." };
-  }
+  const loaded = await loadOffer(orgId, groupId, offerId);
+  if (!loaded) return { error: "Cette offre roaming est indisponible." };
+  const { offer, profileName, voucherProfile } = loaded;
 
-  const groupRouters = await db
-    .select({ router: routers })
-    .from(roamingGroupRouters)
-    .innerJoin(routers, eq(roamingGroupRouters.routerId, routers.id))
-    .where(
-      and(
-        eq(roamingGroupRouters.groupId, groupId),
-        eq(roamingGroupRouters.orgId, orgId),
-        eq(routers.orgId, orgId),
-      ),
-    );
+  const groupRouters = await loadGroupRouters(orgId, groupId);
   if (groupRouters.length === 0) return { error: "Ce groupe n'a aucun MikroTik actif." };
 
-  const baseProfileName = packageProfileName(offer.durationValue, offer.durationUnit);
-  const profileName = baseProfileName
-    ? roamingRouterProfileName(group.id, baseProfileName)
-    : null;
-  const voucherProfile = voucherProfileForPackage(
-    offer.durationValue,
-    offer.durationUnit,
-    effectiveRoamingPrice(offer.defaultPriceCents, offer.priceOverrideCents),
-    {
-      name: profileName ?? undefined,
-      uploadMbps: offer.uploadMbps,
-      downloadMbps: offer.downloadMbps,
-    },
-  );
-  if (!profileName || !voucherProfile) return { error: "Le profil roaming est invalide." };
 
   // Un compte roaming ne doit JAMAIS être enregistré sur un sous-ensemble de
   // ses zones. On connecte et provisionne le profil partout avant de créer le
@@ -135,52 +223,17 @@ export async function provisionRoamingAccounts(opts: {
       added.map(async ({ routerId, username }) => {
         const entry = connected.find(({ router }) => router.id === routerId);
         if (!entry) return;
-        const users = await entry.client
-          .talk(["/ip/hotspot/user/print", `?name=${username}`])
-          .catch(() => [] as Record<string, string>[]);
-        const userId = users[0]?.[".id"];
+        const userId = (await findHotspotUser(entry.client, username))?.[".id"];
         if (userId) await entry.client.talk(["/ip/hotspot/user/remove", `=.id=${userId}`]).catch(() => {});
       }),
     );
   };
 
   try {
-    const appUrl = getAppUrl();
     for (const { router } of groupRouters) {
       const client = await connectToRouter(router);
       connected.push({ router, client });
-      await ensureVoucherProfileOnRouter(client, voucherProfile);
-      // ROAMING : un compte doit rester connecté LONGTEMPS entre zones. Par
-      // défaut le profil hérite d'un keepalive-timeout court (2m) → la session
-      // « lâche » après quelques minutes (téléphone en veille). On lève donc les
-      // timeouts (keepalive/idle = none, la validité reste bornée par
-      // l'expiration du forfait via le scheduler — sauf profil illimité, qui
-      // n'en a pas).
-      //
-      // AUTO-LOGIN INTER-ZONES (1 appareil / compte) :
-      //  • shared-users=1 → anti-partage (le compte se lie au 1er MAC vu) ;
-      //  • on-login étendu → à chaque connexion, le routeur signale (code, MAC)
-      //    au SaaS (/api/roaming/seen) qui lie ce MAC au compte sur les zones
-      //    sœurs, où `login-by=mac` l'auto-logue sans re-saisie.
-      const hookedOnLogin = appendRoamingSeenHook(
-        voucherProfile.onLogin,
-        appUrl,
-        router.id,
-        deriveRouterKey(router.id),
-      );
-      await client
-        .talk([
-          "/ip/hotspot/user/profile/set",
-          `=numbers=${voucherProfile.name}`,
-          "=keepalive-timeout=none",
-          "=idle-timeout=none",
-          "=shared-users=1",
-          `=on-login=${hookedOnLogin}`,
-        ])
-        .catch(() => {});
-      // Le profil serveur doit accepter le login par MAC pour que l'utilisateur
-      // `name=<MAC>` posé sur les zones sœurs soit auto-logué (additif).
-      await ensureMacAutoLogin(client).catch(() => {});
+      await prepareProfileOnRouter(client, router.id, voucherProfile);
     }
 
     // Ne jamais rattacher silencieusement un compte MikHmon préexistant qui ne
@@ -188,8 +241,8 @@ export async function provisionRoamingAccounts(opts: {
     // essai, pour un compte nominatif l'opérateur choisit un autre nom.
     for (const { router, client } of connected) {
       for (const { username } of credentials) {
-        const existing = await client.talk(["/ip/hotspot/user/print", `?name=${username}`]);
-        if (existing.length > 0) {
+        const existing = await findHotspotUser(client, username);
+        if (existing) {
           return {
             error: `« ${username} » existe déjà sur ${router.name}. Choisissez un autre nom (ou relancez le lot pour de nouveaux codes).`,
           };
@@ -246,4 +299,211 @@ export async function provisionRoamingAccounts(opts: {
   } finally {
     closeClients();
   }
+}
+
+/**
+ * Modifie un compte nominatif sur TOUTES les zones de son groupe.
+ *
+ * Champs optionnels : ce qui n'est pas fourni n'est pas touché. En particulier
+ * un mot de passe vide signifie « inchangé » — pas « efface le mot de passe ».
+ *
+ * Le renommage est vérifié PARTOUT avant la première écriture, et les zones
+ * déjà renommées sont remises à leur ancien nom si une zone refuse en cours de
+ * route : un compte qui répondrait à deux noms selon la zone serait pire que
+ * l'échec.
+ */
+export async function updateRoamingAccount(opts: {
+  orgId: string;
+  voucherId: string;
+  username?: string;
+  password?: string;
+  offerId?: string;
+  note: string | null;
+}): Promise<{ error: string } | { success: true; updatedOn: number; skipped: string[] }> {
+  const { orgId, voucherId, note } = opts;
+  const db = getDb();
+
+  const account = await loadNamedAccount(orgId, voucherId);
+  if (!account) return { error: "Compte introuvable." };
+
+  const rename = opts.username && opts.username !== account.username ? opts.username : null;
+  const password = opts.password?.trim() || null;
+
+  // Changement d'offre : le nouveau profil doit exister sur chaque zone avant
+  // qu'un compte ne le référence, sinon RouterOS refuse la connexion.
+  let target: Awaited<ReturnType<typeof loadOffer>> = null;
+  if (opts.offerId) {
+    target = await loadOffer(orgId, account.groupId, opts.offerId);
+    if (!target) return { error: "Cette offre roaming est indisponible." };
+  }
+
+  if (rename) {
+    const [taken] = await db
+      .select({ username: vouchers.username })
+      .from(vouchers)
+      .where(eq(vouchers.username, rename))
+      .limit(1);
+    if (taken) return { error: `L'identifiant « ${rename} » est déjà utilisé.` };
+  }
+
+  const groupRouters = await loadGroupRouters(orgId, account.groupId);
+  if (groupRouters.length === 0) return { error: "Ce groupe n'a aucun MikroTik actif." };
+
+  const connected: { name: string; id: string; client: RouterOSClient }[] = [];
+  const renamed: { client: RouterOSClient; userId: string }[] = [];
+  const closeClients = () => connected.forEach(({ client }) => client.close());
+  const skipped: string[] = [];
+
+  try {
+    for (const { router } of groupRouters) {
+      try {
+        connected.push({ name: router.name, id: router.id, client: await connectToRouter(router) });
+      } catch {
+        // Une zone injoignable ne doit pas empêcher de corriger les autres —
+        // mais elle est nommée dans le retour, pas passée sous silence.
+        skipped.push(router.name);
+      }
+    }
+    if (connected.length === 0) return { error: "Aucune zone joignable." };
+
+    if (rename) {
+      for (const { name, client } of connected) {
+        if (await findHotspotUser(client, rename)) {
+          return { error: `« ${rename} » existe déjà sur ${name}. Choisissez un autre identifiant.` };
+        }
+      }
+    }
+    if (target) {
+      for (const { id, client } of connected) {
+        await prepareProfileOnRouter(client, id, target.voucherProfile);
+      }
+    }
+
+    let updatedOn = 0;
+    for (const { name, client } of connected) {
+      const user = await findHotspotUser(client, account.username);
+      if (!user?.[".id"]) {
+        skipped.push(name);
+        continue;
+      }
+      const command = ["/ip/hotspot/user/set", `=.id=${user[".id"]}`];
+      if (rename) command.push(`=name=${rename}`);
+      if (password) command.push(`=password=${password}`);
+      if (target) command.push(`=profile=${target.profileName}`);
+      if (note !== null) command.push(`=comment=${note}`);
+      if (command.length > 2) await client.talk(command);
+      if (rename) renamed.push({ client, userId: user[".id"] });
+      updatedOn += 1;
+    }
+    if (updatedOn === 0) return { error: "Ce compte n'existe sur aucune zone joignable." };
+
+    await db
+      .update(vouchers)
+      .set({
+        ...(rename ? { username: rename } : {}),
+        ...(target ? { profileName: target.profileName, roamingProfileId: target.offer.profileId } : {}),
+        note,
+      })
+      .where(and(eq(vouchers.id, voucherId), eq(vouchers.orgId, orgId)));
+    if (target) {
+      await db
+        .update(voucherRouters)
+        .set({ profileName: target.profileName })
+        .where(eq(voucherRouters.voucherId, voucherId));
+    }
+
+    return { success: true, updatedOn, skipped };
+  } catch (error) {
+    // Remise de l'ancien nom là où il avait déjà changé.
+    await Promise.all(
+      renamed.map(({ client, userId }) =>
+        client
+          .talk(["/ip/hotspot/user/set", `=.id=${userId}`, `=name=${account.username}`])
+          .catch(() => {}),
+      ),
+    );
+    return {
+      error: `Modification annulée : ${error instanceof Error ? error.message : "un MikroTik a refusé l'opération"}`,
+    };
+  } finally {
+    closeClients();
+  }
+}
+
+/**
+ * Supprime un compte nominatif de toutes ses zones.
+ *
+ * Trois choses partent, pas une seule :
+ *  1. la session en cours — sinon le compte reste connecté jusqu'à ce qu'elle
+ *     tombe d'elle-même, ce qui n'est pas une révocation ;
+ *  2. l'utilisateur hotspot ;
+ *  3. le COMPAGNON `name=<MAC>` posé par la propagation inter-zones — sans lui,
+ *     le téléphone du technicien continuerait à s'auto-loguer alors que son
+ *     compte est censé être supprimé.
+ *
+ * Si une zone est injoignable, la ligne est CONSERVÉE en base et l'appelant est
+ * prévenu : mieux vaut un compte qui traîne dans la liste qu'un compte déclaré
+ * révoqué alors qu'il fonctionne encore quelque part.
+ */
+export async function deleteRoamingAccount(opts: {
+  orgId: string;
+  voucherId: string;
+}): Promise<{ error: string } | { success: true; removedOn: number; unreachable: string[] }> {
+  const { orgId, voucherId } = opts;
+  const db = getDb();
+
+  const account = await loadNamedAccount(orgId, voucherId);
+  if (!account) return { error: "Compte introuvable." };
+
+  const groupRouters = await loadGroupRouters(orgId, account.groupId);
+  const unreachable: string[] = [];
+  let removedOn = 0;
+
+  for (const { router } of groupRouters) {
+    let client: RouterOSClient;
+    try {
+      client = await connectToRouter(router);
+    } catch {
+      unreachable.push(router.name);
+      continue;
+    }
+    try {
+      const user = await findHotspotUser(client, account.username);
+      if (user?.[".id"]) {
+        const active = await client
+          .talk(["/ip/hotspot/active/print", `?user=${account.username}`])
+          .catch(() => [] as Record<string, string>[]);
+        for (const session of active) {
+          if (session[".id"]) {
+            await client.talk(["/ip/hotspot/active/remove", `=.id=${session[".id"]}`]).catch(() => {});
+          }
+        }
+        const boundMac = (user["mac-address"] ?? "").trim();
+        await client.talk(["/ip/hotspot/user/remove", `=.id=${user[".id"]}`]);
+        if (boundMac && boundMac !== "00:00:00:00:00:00") {
+          const companion = await findHotspotUser(client, boundMac);
+          if (companion?.[".id"]) {
+            await client.talk(["/ip/hotspot/user/remove", `=.id=${companion[".id"]}`]).catch(() => {});
+          }
+        }
+      }
+      removedOn += 1;
+    } catch {
+      unreachable.push(router.name);
+    } finally {
+      client.close();
+    }
+  }
+
+  if (unreachable.length > 0) {
+    return {
+      error:
+        `Compte retiré de ${removedOn} zone(s), mais ${unreachable.join(", ")} n'a pas répondu — ` +
+        `il y est peut-être encore actif. La ligne est conservée : relancez la suppression quand la zone sera revenue.`,
+    };
+  }
+
+  // Les liens voucher_routers partent en cascade avec la ligne.
+  await db.delete(vouchers).where(and(eq(vouchers.id, voucherId), eq(vouchers.orgId, orgId)));
+  return { success: true, removedOn, unreachable };
 }

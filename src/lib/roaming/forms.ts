@@ -30,16 +30,22 @@ export function roamingRouterProfileName(groupId: string, baseProfileName: strin
 }
 
 /**
- * Identifiant d'un compte nominatif (« aroune »), par opposition à un code
- * tiré au hasard.
+ * Identifiant d'un compte nominatif (« aroune », « latif@ », « karl- »), par
+ * opposition à un code tiré au hasard.
  *
- * Volontairement étroit : MikHmon et les scripts RouterOS manipulent ces noms
- * sans guillemets, et le on-login du profil les recopie dans des commandes.
- * Un espace, une apostrophe ou un accent y produit des surprises — mieux vaut
- * refuser à la saisie que découvrir le problème sur un routeur en clientèle.
+ * Le jeu autorisé est étroit pour une raison PRÉCISE : à chaque connexion, le
+ * on-login du profil renvoie l'identifiant au SaaS dans un corps
+ * `application/x-www-form-urlencoded` (« …&u=" . $user »), sans encodage. Un
+ * « & », un « = », un « + » ou un « % » y couperait le champ ou injecterait le
+ * suivant. L'arobase, le point, le tiret et le souligné, eux, y transitent sans
+ * dommage — d'où leur présence ici.
+ *
+ * (Le nom n'est PAS recopié littéralement dans le script RouterOS : celui-ci
+ * utilise la variable $user. Le risque n'est donc pas le guillemet, c'est le
+ * séparateur de formulaire.)
  */
 export function isValidRoamingUsername(raw: string) {
-  return /^[A-Za-z0-9._-]{2,32}$/.test(raw);
+  return /^[A-Za-z0-9._@-]{2,32}$/.test(raw);
 }
 
 /**

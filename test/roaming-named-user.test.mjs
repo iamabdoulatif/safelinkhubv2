@@ -9,12 +9,21 @@ import {
 
 const read = (p) => readFile(new URL(`../${p}`, import.meta.url), "utf8");
 
-test("un identifiant nominatif refuse ce qui casse les scripts RouterOS", () => {
-  for (const ok of ["aroune", "tech.nord", "admin_01", "A-1", "ar"]) {
+test("un identifiant nominatif accepte les formes demandées", () => {
+  // Les cas de l'énoncé, arobase et tiret final compris.
+  for (const ok of ["aroune", "latif@", "abou@", "karl-", "tech.nord", "admin_01", "A-1", "ar"]) {
     assert.equal(isValidRoamingUsername(ok), true, `« ${ok} » devrait être accepté`);
   }
-  // Espaces, accents, apostrophes et guillemets se retrouveraient tels quels
-  // dans le on-login du profil et dans MikHmon.
+});
+
+test("un identifiant refuse ce qui couperait le webhook roaming", () => {
+  // Le on-login renvoie l'identifiant dans un corps x-www-form-urlencoded
+  // (« …&u=" . $user »), SANS encodage : ces caractères y couperaient le champ
+  // ou injecteraient le suivant.
+  for (const ko of ["a&b", "a=b", "a+b", "a%20b", "a?b", "a#b"]) {
+    assert.equal(isValidRoamingUsername(ko), false, `« ${ko} » couperait le webhook`);
+  }
+  // Et le reste de ce qui n'a rien à faire dans un nom d'utilisateur hotspot.
   for (const ko of ["ar oune", "aroune!", "aroûne", "a", "o'brien", 'a"b', "x".repeat(33), ""]) {
     assert.equal(isValidRoamingUsername(ko), false, `« ${ko} » devrait être refusé`);
   }
@@ -95,4 +104,63 @@ test("le mot de passe est relu sur le routeur, pas stocké chez nous", async () 
   const actions = await read("src/lib/roaming/actions.ts");
   assert.match(actions, /export async function revealRoamingUserPassword/);
   assert.match(actions, /\/ip\/hotspot\/user\/print/);
+});
+
+test("la suppression révoque vraiment : session, compte, et compagnon MAC", async () => {
+  const provision = await read("src/lib/roaming/provision.ts");
+  const body = provision.slice(provision.indexOf("export async function deleteRoamingAccount"));
+
+  // 1. La session en cours est coupée — sinon le compte reste connecté.
+  assert.match(body, /\/ip\/hotspot\/active\/remove/);
+  // 2. Le compte lui-même part.
+  assert.match(body, /\/ip\/hotspot\/user\/remove/);
+  // 3. Le compagnon `name=<MAC>` posé par la propagation inter-zones part aussi,
+  //    sans quoi l'appareil continuerait de s'auto-loguer après révocation.
+  assert.match(body, /mac-address/);
+  assert.match(body, /findHotspotUser\(client, boundMac\)/);
+
+  // Une zone muette interdit de retirer la ligne : on ne déclare pas révoqué un
+  // compte qui fonctionne peut-être encore ailleurs.
+  const guard = body.indexOf("if (unreachable.length > 0)");
+  const del = body.indexOf("db.delete(vouchers)");
+  assert.ok(guard > 0 && del > guard, "la garde doit précéder la suppression en base");
+});
+
+test("modifier n'efface rien par omission", async () => {
+  const provision = await read("src/lib/roaming/provision.ts");
+  const body = provision.slice(
+    provision.indexOf("export async function updateRoamingAccount"),
+    provision.indexOf("export async function deleteRoamingAccount"),
+  );
+
+  // Chaque champ n'est poussé sur le routeur QUE s'il a été fourni : un mot de
+  // passe vide veut dire « inchangé », pas « efface-le ».
+  for (const conditional of [
+    'if (rename) command.push(`=name=${rename}`)',
+    'if (password) command.push(`=password=${password}`)',
+    'if (target) command.push(`=profile=${target.profileName}`)',
+  ]) {
+    assert.ok(body.includes(conditional), `attendu : ${conditional}`);
+  }
+
+  // Renommage : libre PARTOUT avant la première écriture, et remise en état si
+  // une zone refuse en cours de route — un compte répondant à deux noms selon
+  // la zone serait pire que l'échec.
+  const check = body.indexOf("existe déjà sur");
+  const write = body.indexOf('"/ip/hotspot/user/set"');
+  assert.ok(check > 0 && write > check, "la vérification doit précéder l'écriture");
+  assert.match(body, /renamed\.map/);
+  assert.match(body, /=name=\$\{account\.username\}/);
+});
+
+test("modifier et supprimer ne touchent que les comptes nominatifs", async () => {
+  const provision = await read("src/lib/roaming/provision.ts");
+  // loadNamedAccount borne à l'organisation ET au useCase : ces deux chemins ne
+  // peuvent pas servir à trafiquer un ticket vendu.
+  assert.match(provision, /row\.useCase !== NAMED_USER_CASE/);
+  assert.match(provision, /eq\(vouchers\.orgId, orgId\)/);
+  for (const fn of ["updateRoamingAccount", "deleteRoamingAccount"]) {
+    const body = provision.slice(provision.indexOf(`export async function ${fn}`));
+    assert.match(body.slice(0, 900), /loadNamedAccount\(orgId, voucherId\)/, `${fn} doit passer par loadNamedAccount`);
+  }
 });
