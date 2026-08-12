@@ -144,5 +144,16 @@ jobs:
             echo "tentative $attempt echouee" >&2
             [ "$attempt" -lt 3 ] && sleep $((attempt * 15))
           done
-          echo "::error::les 3 tentatives de bascule ont echoue" >&2
-          exit 1
+          # Echec des trois tentatives = le VPS est injoignable EN ENTREE. Une
+          # capture tcpdump sur la machine pendant une tentative n'a montre
+          # aucun paquet SYN venu de GitHub : le blocage est en amont (pare-feu
+          # reseau de l'hebergeur), rien ne peut le corriger d'ici.
+          #
+          # Ce n'est PAS un echec de livraison : le VPS tire lui-meme la
+          # derniere image toutes les deux minutes (slh-pull-deploy.timer), en
+          # comparant l'empreinte de << latest >> sur GHCR a celle du conteneur
+          # vivant. Ce chemin-la ne depend d'aucune connexion entrante. On
+          # signale donc bruyamment sans echouer, sinon chaque livraison
+          # s'accompagne d'une croix rouge qui ne veut rien dire.
+          echo "::warning::bascule directe impossible (VPS injoignable en entree) — le tirage automatique du VPS prendra le relais sous 2 min"
+          exit 0
