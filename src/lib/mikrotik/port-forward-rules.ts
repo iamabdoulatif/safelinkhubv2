@@ -8,7 +8,17 @@ const SERVICE_PORTS: Record<string, number> = {
 };
 
 const MIKHMON_TUNNEL_NAT_COMMENT = "MikHmon via tunnel";
-const MIKHMON_CONTAINER_IP = "11.11.11.11";
+/**
+ * Adresse de la veth que SafeLinkHub crée lui-même pour MikHmon.
+ *
+ * Ce n'est qu'un DÉFAUT, jamais une certitude : un MikroTik peut porter un
+ * conteneur MikHmon installé autrement (à la main, par un prestataire), sur une
+ * autre veth et donc une autre adresse. Le dst-nat qui visait 11.11.11.11 en
+ * dur tombait alors dans le vide, et l'accès distant expirait sans rien dire —
+ * constaté sur SHIA-HSPT. L'adresse réelle est désormais LUE sur l'appareil,
+ * voir resolveMikhmonContainerAddress.
+ */
+export const MIKHMON_DEFAULT_CONTAINER_IP = "11.11.11.11";
 const MIKHMON_CONTAINER_PORT = "80";
 export const MIKHMON_DOCKER_GATEWAY_ADDRESS = "11.11.11.1/28";
 export const MIKHMON_TUNNEL_INTERFACES = ["safelinkhub-wg0", "safelinkhub-ovpn"] as const;
@@ -20,7 +30,25 @@ export function getPortForwardTargetPort(service: string) {
   return SERVICE_PORTS[service] ?? null;
 }
 
-export function getMikhmonTunnelNatCommands() {
+/** Ce qu'il faut lire pour retrouver l'adresse réelle du conteneur MikHmon. */
+export function getMikhmonContainerDiscoveryCommands(vethName: string) {
+  return {
+    listContainers: ["/container/print"],
+    findVeth: ["/interface/veth/print", `?name=${vethName}`],
+  };
+}
+
+/** Un conteneur ressemble-t-il à MikHmon ? (même critère que l'audit) */
+export function looksLikeMikhmonContainer(row: Record<string, string>) {
+  return (
+    /mikhmon/i.test(String(row.name ?? "")) ||
+    /mikhmon/i.test(String(row["root-dir"] ?? "")) ||
+    /mikhmon/i.test(String(row.tag ?? "")) ||
+    /mikhmon/i.test(String(row.comment ?? ""))
+  );
+}
+
+export function getMikhmonTunnelNatCommands(containerIp = MIKHMON_DEFAULT_CONTAINER_IP) {
   return {
     findExisting: [
       "/ip/firewall/nat/print",
@@ -28,13 +56,20 @@ export function getMikhmonTunnelNatCommands() {
       "?action=dst-nat",
       `?comment=${MIKHMON_TUNNEL_NAT_COMMENT}`,
     ],
+    /** Redresse une règle existante qui viserait la mauvaise adresse. */
+    retarget: (id: string) => [
+      "/ip/firewall/nat/set",
+      `=numbers=${id}`,
+      `=to-addresses=${containerIp}`,
+      `=to-ports=${MIKHMON_CONTAINER_PORT}`,
+    ],
     add: [
       "/ip/firewall/nat/add",
       "=chain=dstnat",
       `=dst-port=${TUNNEL_ACCESS_PORT}`,
       "=protocol=tcp",
       "=action=dst-nat",
-      `=to-addresses=${MIKHMON_CONTAINER_IP}`,
+      `=to-addresses=${containerIp}`,
       `=to-ports=${MIKHMON_CONTAINER_PORT}`,
       `=comment=${MIKHMON_TUNNEL_NAT_COMMENT}`,
     ],
@@ -44,6 +79,7 @@ export function getMikhmonTunnelNatCommands() {
 export function getMikhmonTunnelFirewallCommands(
   tunnelInterface: (typeof MIKHMON_TUNNEL_INTERFACES)[number],
   placeBefore?: string,
+  containerIp = MIKHMON_DEFAULT_CONTAINER_IP,
 ) {
   const comment = `${MIKHMON_TUNNEL_FIREWALL_COMMENT} (${tunnelInterface})`;
   return {
@@ -52,13 +88,18 @@ export function getMikhmonTunnelFirewallCommands(
       "?chain=forward",
       `?comment=${comment}`,
     ],
+    retarget: (id: string) => [
+      "/ip/firewall/filter/set",
+      `=numbers=${id}`,
+      `=dst-address=${containerIp}`,
+    ],
     add: [
       "/ip/firewall/filter/add",
       "=chain=forward",
       "=action=accept",
       "=protocol=tcp",
       `=in-interface=${tunnelInterface}`,
-      `=dst-address=${MIKHMON_CONTAINER_IP}`,
+      `=dst-address=${containerIp}`,
       `=dst-port=${MIKHMON_CONTAINER_PORT}`,
       `=comment=${comment}`,
       ...(placeBefore ? [`=place-before=${placeBefore}`] : []),
