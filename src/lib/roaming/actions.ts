@@ -10,7 +10,6 @@ import {
   roamingGroups,
   roamingProfiles,
   routers,
-  voucherRouters,
   vouchers,
 } from "@/lib/db/schema";
 import { requireAdminSession } from "@/lib/auth/session";
@@ -19,18 +18,18 @@ import type { RouterOSClient } from "@/lib/mikrotik/client";
 import {
   packageProfileName,
   isUnlimitedUnit,
-  voucherProfileForPackage,
   SUPPORTED_PROFILE_DURATIONS,
 } from "@/lib/mikrotik/package-voucher-profile";
-import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
-import { ensureMacAutoLogin } from "@/lib/mikrotik/hotspot-login-mode";
-import { getAppUrl } from "@/lib/net/app-url";
-import { parseRoamingPriceOverride, roamingGroupCode, roamingRouterProfileName } from "./forms";
-import { effectiveRoamingPrice } from "./pricing";
-import { appendRoamingSeenHook } from "./on-login-hook";
-import { deriveRouterKey } from "./webhook-secret";
+import {
+  isValidRoamingUsername,
+  parseRoamingPriceOverride,
+  roamingGroupCode,
+  roamingUserPassword,
+} from "./forms";
 
 import { randomAccessCode as randomCode } from "@/lib/access-code";
+import { provisionRoamingAccounts } from "./provision";
+
 
 function sanitizePrefix(raw: string) {
   return raw.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10);
@@ -177,61 +176,14 @@ export async function generateRoamingVouchers(_prevState: unknown, formData: For
   }
 
   const db = getDb();
-  const [group] = await db
-    .select({ id: roamingGroups.id, active: roamingGroups.active })
-    .from(roamingGroups)
-    .where(and(eq(roamingGroups.id, groupId), eq(roamingGroups.orgId, session.orgId)))
-    .limit(1);
-  if (!group || !group.active) return { error: "Ce groupe roaming est introuvable ou désactivé." };
-
-  const [offer] = await db
-    .select({
-      id: roamingGroupOffers.id,
-      active: roamingGroupOffers.active,
-      priceOverrideCents: roamingGroupOffers.priceOverrideCents,
-      profileId: roamingProfiles.id,
-      profileName: roamingProfiles.name,
-      durationValue: roamingProfiles.durationValue,
-      durationUnit: roamingProfiles.durationUnit,
-      uploadMbps: roamingProfiles.uploadMbps,
-      downloadMbps: roamingProfiles.downloadMbps,
-      defaultPriceCents: roamingProfiles.defaultPriceCents,
-      profileActive: roamingProfiles.active,
-    })
-    .from(roamingGroupOffers)
-    .innerJoin(roamingProfiles, eq(roamingGroupOffers.profileId, roamingProfiles.id))
-    .where(and(eq(roamingGroupOffers.id, offerId), eq(roamingGroupOffers.groupId, groupId), eq(roamingGroupOffers.orgId, session.orgId)))
-    .limit(1);
-  if (!offer || !offer.active || !offer.profileActive) return { error: "Cette offre roaming est indisponible." };
-
-  const groupRouters = await db
-    .select({ router: routers })
-    .from(roamingGroupRouters)
-    .innerJoin(routers, eq(roamingGroupRouters.routerId, routers.id))
-    .where(and(eq(roamingGroupRouters.groupId, groupId), eq(roamingGroupRouters.orgId, session.orgId), eq(routers.orgId, session.orgId)));
-  if (groupRouters.length === 0) return { error: "Ce groupe n'a aucun MikroTik actif." };
-
-  const baseProfileName = packageProfileName(offer.durationValue, offer.durationUnit);
-  const profileName = baseProfileName
-    ? roamingRouterProfileName(group.id, baseProfileName)
-    : null;
-  const voucherProfile = voucherProfileForPackage(
-    offer.durationValue,
-    offer.durationUnit,
-    effectiveRoamingPrice(offer.defaultPriceCents, offer.priceOverrideCents),
-    {
-      name: profileName ?? undefined,
-      uploadMbps: offer.uploadMbps,
-      downloadMbps: offer.downloadMbps,
-    },
-  );
-  if (!profileName || !voucherProfile) return { error: "Le profil roaming est invalide." };
-
   const makeCode = () => `${prefix}${randomCode()}`;
   const batch = new Set<string>();
   while (batch.size < quantity) batch.add(makeCode());
   const codes = [...batch];
-  const existingCodes = await db.select({ username: vouchers.username }).from(vouchers).where(inArray(vouchers.username, codes));
+  const existingCodes = await db
+    .select({ username: vouchers.username })
+    .from(vouchers)
+    .where(inArray(vouchers.username, codes));
   const taken = new Set(existingCodes.map((voucher) => voucher.username));
   const codeList = codes.map((code) => {
     let candidate = code;
@@ -240,132 +192,123 @@ export async function generateRoamingVouchers(_prevState: unknown, formData: For
     return candidate;
   });
 
-  // Un ticket roaming ne doit JAMAIS être enregistré sur un sous-ensemble de
-  // ses zones. On connecte et provisionne le profil partout avant de créer le
-  // premier utilisateur, puis on compense uniquement les users ajoutés par ce
-  // lot en cas d'échec ultérieur.
-  const connected: { router: (typeof groupRouters)[number]["router"]; client: RouterOSClient }[] = [];
-  const added: { routerId: string; username: string }[] = [];
-  const closeClients = () => connected.forEach(({ client }) => client.close());
-  const cleanupAdded = async () => {
-    await Promise.all(
-      added.map(async ({ routerId, username }) => {
-        const entry = connected.find(({ router }) => router.id === routerId);
-        if (!entry) return;
-        const users = await entry.client
-          .talk(["/ip/hotspot/user/print", `?name=${username}`])
-          .catch(() => [] as Record<string, string>[]);
-        const userId = users[0]?.[".id"];
-        if (userId) await entry.client.talk(["/ip/hotspot/user/remove", `=.id=${userId}`]).catch(() => {});
-      }),
-    );
-  };
+  // La NOTE du lot (ex. « lot-aout ») est posée comme COMMENTAIRE du user
+  // hotspot → MikHmon la lit dans sa colonne « Commentaire », ce qui permet de
+  // filtrer/imprimer le lot depuis MikHmon (générés sur le SaaS, imprimés sur
+  // MikHmon). Sur les tickets NEUFS le commentaire = la note ; à la 1re
+  // connexion le on-login du profil y stampe la date d'expiration (parité
+  // MikHmon), la note reste donc utile tant que le ticket n'est pas activé.
+  const result = await provisionRoamingAccounts({
+    orgId: session.orgId,
+    groupId,
+    offerId,
+    // Sur un ticket vendu, le code EST le mot de passe.
+    credentials: codeList.map((code) => ({ username: code, password: code })),
+    comment: note || `Lot ${new Date().toISOString().slice(0, 10)}`,
+    note,
+    useCase: "Roaming Batch Create",
+  });
+  if ("error" in result) return result;
+  refreshRoamingPages();
+  return { success: true, created: result.created };
+}
 
+/**
+ * Compte NOMINATIF : un identifiant et un mot de passe choisis, au lieu d'un
+ * code tiré au hasard.
+ *
+ * POURQUOI : les codes en masse conviennent à la vente, pas aux personnes. Un
+ * administrateur ou un technicien de zone doit pouvoir se connecter partout
+ * avec un identifiant qu'il retient — « aroune », pas « k3f9zq ». Associé à une
+ * offre illimitée, cela donne un compte de service qui n'expire pas.
+ *
+ * Le compte est créé sur TOUTES les zones du groupe, par la même mécanique que
+ * les lots : mêmes options de profil, même auto-login inter-zones, et la même
+ * règle du tout-ou-rien (aucune zone n'est laissée de côté).
+ */
+export async function createRoamingUser(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const groupId = String(formData.get("groupId") ?? "");
+  const offerId = String(formData.get("offerId") ?? "");
+  const username = String(formData.get("username") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim().slice(0, 180) || null;
+
+  if (!groupId || !offerId) return { error: "Sélectionnez un groupe et une offre." };
+  if (!isValidRoamingUsername(username)) {
+    return {
+      error:
+        "L'identifiant doit faire 2 à 32 caractères, sans espace ni accent (lettres, chiffres, point, tiret, souligné).",
+    };
+  }
+  const password = roamingUserPassword(String(formData.get("password") ?? ""), username);
+  if (!password) return { error: "Le mot de passe doit faire 2 à 64 caractères." };
+
+  const db = getDb();
+  const [taken] = await db
+    .select({ username: vouchers.username })
+    .from(vouchers)
+    .where(eq(vouchers.username, username))
+    .limit(1);
+  if (taken) return { error: `L'identifiant « ${username} » est déjà utilisé.` };
+
+  const result = await provisionRoamingAccounts({
+    orgId: session.orgId,
+    groupId,
+    offerId,
+    credentials: [{ username, password }],
+    comment: note || `Compte ${username}`,
+    note,
+    useCase: "Roaming Named User",
+  });
+  if ("error" in result) return result;
+  refreshRoamingPages();
+  return { success: true, username };
+}
+
+/**
+ * Relit le mot de passe d'un compte roaming SUR LE ROUTEUR.
+ *
+ * Le SaaS ne stocke pas ce mot de passe : la source de vérité est RouterOS, qui
+ * le conserve en clair dans l'utilisateur hotspot. Le relire évite d'en garder
+ * une seconde copie chez nous, et reste juste même si quelqu'un l'a changé sur
+ * l'appareil. Sans cela, un compte de technicien créé il y a trois mois serait
+ * définitivement perdu.
+ */
+export async function revealRoamingUserPassword(voucherId: string) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [row] = await db
+    .select({ username: vouchers.username, routerId: vouchers.routerId })
+    .from(vouchers)
+    .where(and(eq(vouchers.id, voucherId), eq(vouchers.orgId, session.orgId)))
+    .limit(1);
+  if (!row || !row.routerId) return { error: "Compte introuvable." };
+
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(and(eq(routers.id, row.routerId), eq(routers.orgId, session.orgId)))
+    .limit(1);
+  if (!router) return { error: "Routeur introuvable." };
+
+  let client: RouterOSClient;
   try {
-    const appUrl = getAppUrl();
-    for (const { router } of groupRouters) {
-      const client = await connectToRouter(router);
-      connected.push({ router, client });
-      await ensureVoucherProfileOnRouter(client, voucherProfile);
-      // ROAMING : un ticket doit rester connecté LONGTEMPS entre zones. Par
-      // défaut le profil hérite d'un keepalive-timeout court (2m) → la session
-      // « lâche » après quelques minutes (téléphone en veille). On lève donc les
-      // timeouts (keepalive/idle = none, la validité reste bornée par
-      // l'expiration du forfait via le scheduler).
-      //
-      // AUTO-LOGIN INTER-ZONES (1 appareil / code) :
-      //  • shared-users=1 → anti-partage (le code se lie au 1er MAC vu) ;
-      //  • on-login étendu → à chaque connexion, le routeur signale (code, MAC)
-      //    au SaaS (/api/roaming/seen) qui lie ce MAC au ticket sur les zones
-      //    sœurs, où `login-by=mac` l'auto-logue sans re-saisie.
-      const hookedOnLogin = appendRoamingSeenHook(
-        voucherProfile.onLogin,
-        appUrl,
-        router.id,
-        deriveRouterKey(router.id),
-      );
-      await client
-        .talk([
-          "/ip/hotspot/user/profile/set",
-          `=numbers=${voucherProfile.name}`,
-          "=keepalive-timeout=none",
-          "=idle-timeout=none",
-          "=shared-users=1",
-          `=on-login=${hookedOnLogin}`,
-        ])
-        .catch(() => {});
-      // Le profil serveur doit accepter le login par MAC pour que l'utilisateur
-      // `name=<MAC>` posé sur les zones sœurs soit auto-logué (additif).
-      await ensureMacAutoLogin(client).catch(() => {});
-    }
-
-    // Ne jamais rattacher silencieusement un ancien compte MikHmon qui ne
-    // serait pas dans la base : le code est régénéré au prochain essai.
-    for (const { router, client } of connected) {
-      for (const code of codeList) {
-        const existing = await client.talk(["/ip/hotspot/user/print", `?name=${code}`]);
-        if (existing.length > 0) {
-          return { error: `Collision de code sur ${router.name}. Relancez le lot pour générer de nouveaux tickets.` };
-        }
-      }
-    }
-
-    for (const { router, client } of connected) {
-      for (const code of codeList) {
-        // La NOTE du lot (ex. « lot-aout ») est posée comme COMMENTAIRE du user
-        // hotspot → MikHmon la lit dans sa colonne « Commentaire », ce qui permet
-        // de filtrer/imprimer le lot depuis MikHmon (générés sur le SaaS, imprimés
-        // sur MikHmon). Sur les tickets NEUFS le commentaire = la note ; à la 1re
-        // connexion le on-login du profil y stampe la date d'expiration (parité
-        // MikHmon), la note reste donc utile tant que le ticket n'est pas activé.
-        // Commentaire TOUJOURS posé (note du lot, sinon un libellé de lot daté) →
-        // MikHmon l'affiche dans « Commentaire » pour filtrer/imprimer le lot.
-        const batchComment = note || `Lot ${new Date().toISOString().slice(0, 10)}`;
-        const addCmd = [
-          "/ip/hotspot/user/add",
-          `=name=${code}`,
-          `=password=${code}`,
-          `=profile=${profileName}`,
-          `=comment=${batchComment}`,
-        ];
-        await client.talk(addCmd);
-        added.push({ routerId: router.id, username: code });
-      }
-    }
-
-    const soldPriceCents = effectiveRoamingPrice(offer.defaultPriceCents, offer.priceOverrideCents);
-    const voucherRows = codeList.map((username) => ({
-      id: randomUUID(),
-      orgId: session.orgId,
-      username,
-      routerId: connected[0].router.id,
-      roamingGroupId: groupId,
-      roamingProfileId: offer.profileId,
-      soldPriceCents,
-      profileName,
-      status: "PROVISIONED" as const,
-      useCase: "Roaming Batch Create",
-      note,
-    }));
-    const links = voucherRows.flatMap((voucher) =>
-      connected.map(({ router }) => ({
-        orgId: session.orgId,
-        voucherId: voucher.id,
-        routerId: router.id,
-        profileName,
-        status: "PROVISIONED" as const,
-      })),
-    );
-    await db.transaction(async (tx) => {
-      await tx.insert(vouchers).values(voucherRows);
-      await tx.insert(voucherRouters).values(links);
-    });
-    refreshRoamingPages();
-    return { success: true, created: codeList.length };
+    client = await connectToRouter(router);
+  } catch {
+    return { error: `Routeur ${router.name} injoignable — impossible de relire le mot de passe.` };
+  }
+  try {
+    const users = await client.talk(["/ip/hotspot/user/print", `?name=${row.username}`]);
+    const password = users[0]?.password ?? "";
+    if (!password) return { error: "Ce compte n'a plus de mot de passe sur le routeur." };
+    return { success: true as const, username: row.username, password };
   } catch (error) {
-    await cleanupAdded();
-    return { error: `Lot roaming annulé : ${error instanceof Error ? error.message : "un MikroTik a refusé l'opération"}` };
+    return { error: error instanceof Error ? error.message : "Lecture impossible." };
   } finally {
-    closeClients();
+    client.close();
   }
 }

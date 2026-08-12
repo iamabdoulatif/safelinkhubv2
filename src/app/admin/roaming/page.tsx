@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   roamingGroupOffers,
@@ -6,6 +6,7 @@ import {
   roamingGroups,
   roamingProfiles,
   routers,
+  vouchers,
 } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { effectiveRoamingPrice } from "@/lib/roaming/pricing";
@@ -18,7 +19,7 @@ export default async function RoamingPage() {
     return <p className="text-sm text-ink-soft">Connectez-vous pour gérer vos groupes roaming.</p>;
   }
 
-  const [groupRows, profileRows, offerRows, orgRouters] = await Promise.all([
+  const [groupRows, profileRows, offerRows, orgRouters, namedUsers] = await Promise.all([
     db
       .select({
         id: roamingGroups.id,
@@ -88,6 +89,28 @@ export default async function RoamingPage() {
       .from(routers)
       .where(eq(routers.orgId, session.orgId))
       .orderBy(asc(routers.name)),
+    // Comptes NOMINATIFS (admins, techniciens) : ils se distinguent des tickets
+    // vendus par leur useCase, et méritent leur propre liste — on ne cherche pas
+    // « aroune » au milieu de 3 000 codes.
+    db
+      .select({
+        id: vouchers.id,
+        username: vouchers.username,
+        profileName: vouchers.profileName,
+        groupName: roamingGroups.name,
+        note: vouchers.note,
+        createdAt: vouchers.createdAt,
+      })
+      .from(vouchers)
+      .leftJoin(roamingGroups, eq(vouchers.roamingGroupId, roamingGroups.id))
+      .where(
+        and(
+          eq(vouchers.orgId, session.orgId),
+          eq(vouchers.useCase, "Roaming Named User"),
+          isNull(vouchers.deletedAt),
+        ),
+      )
+      .orderBy(asc(vouchers.username)),
   ]);
 
   const groupById = new Map<
@@ -123,6 +146,10 @@ export default async function RoamingPage() {
         effectivePriceCents: effectiveRoamingPrice(offer.defaultPriceCents, offer.priceOverrideCents),
       }))}
       routers={orgRouters}
+      namedUsers={namedUsers.map((user) => ({
+        ...user,
+        createdAt: user.createdAt.toISOString(),
+      }))}
     />
   );
 }
