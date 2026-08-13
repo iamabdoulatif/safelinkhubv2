@@ -9,6 +9,22 @@ export function roamingGroupCode(name: string) {
   return code || "ROAMING";
 }
 
+/**
+ * Déduplique les zones proposées à l'ajout et écarte celles qui couvrent déjà
+ * le groupe. La suppression d'une zone est volontairement un autre parcours :
+ * retirer les tickets qui y vivent est une opération de révocation, pas une
+ * simple modification de case à cocher.
+ */
+export function newRoamingRouterIds(currentRouterIds: string[], requestedRouterIds: string[]) {
+  const current = new Set(currentRouterIds);
+  const added = new Set<string>();
+  for (const routerId of requestedRouterIds) {
+    const id = routerId.trim();
+    if (id && !current.has(id)) added.add(id);
+  }
+  return [...added];
+}
+
 /** Empty means inherit catalogue price; undefined means malformed input. */
 export function parseRoamingPriceOverride(raw: string): number | null | undefined {
   const normalized = raw.replace(/\s/g, "").trim();

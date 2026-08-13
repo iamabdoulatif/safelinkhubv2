@@ -12,7 +12,7 @@
 // main se comporteront autrement que les tickets vendus.
 
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   roamingGroupOffers,
@@ -34,6 +34,7 @@ import { ensureMacAutoLogin } from "@/lib/mikrotik/hotspot-login-mode";
 import { getAppUrl } from "@/lib/net/app-url";
 import { roamingRouterProfileName } from "./forms";
 import { effectiveRoamingPrice } from "./pricing";
+import { newRoamingRouterIds } from "./forms";
 import { appendRoamingSeenHook } from "./on-login-hook";
 import { deriveRouterKey } from "./webhook-secret";
 
@@ -44,6 +45,10 @@ import { deriveRouterKey } from "./webhook-secret";
 export type RoamingCredential = { username: string; password: string };
 
 export type ProvisionResult = { error: string } | { success: true; created: number };
+
+type ExtendRoamingGroupResult =
+  | { error: string }
+  | { success: true; added: number; synchronizedAccounts: number };
 
 /** useCase des comptes nominatifs — les distingue des tickets vendus. */
 export const NAMED_USER_CASE = "Roaming Named User";
@@ -105,6 +110,212 @@ async function loadGroupRouters(orgId: string, groupId: string) {
         eq(routers.orgId, orgId),
       ),
     );
+}
+
+/**
+ * Ajoute des zones à un groupe SANS créer un groupe incohérent : les comptes
+ * déjà présents sont d'abord copiés sur chaque nouvelle zone, puis seulement
+ * ensuite les liens en base sont écrits. Le mot de passe n'est jamais gardé
+ * par SafeLinkHub ; il est relu sur une zone déjà membre, le temps de cette
+ * synchronisation unique.
+ */
+export async function extendRoamingGroup(opts: {
+  orgId: string;
+  groupId: string;
+  routerIds: string[];
+}): Promise<ExtendRoamingGroupResult> {
+  const { orgId, groupId } = opts;
+  const requestedRouterIds = [...new Set(opts.routerIds.map((id) => id.trim()).filter(Boolean))];
+  if (requestedRouterIds.length === 0) return { error: "Sélectionnez au moins une nouvelle zone." };
+
+  const db = getDb();
+  const [group] = await db
+    .select({ id: roamingGroups.id })
+    .from(roamingGroups)
+    .where(and(eq(roamingGroups.id, groupId), eq(roamingGroups.orgId, orgId)))
+    .limit(1);
+  if (!group) return { error: "Ce groupe roaming est introuvable." };
+
+  const [currentMembers, candidates] = await Promise.all([
+    loadGroupRouters(orgId, groupId),
+    db
+      .select()
+      .from(routers)
+      .where(and(eq(routers.orgId, orgId), inArray(routers.id, requestedRouterIds))),
+  ]);
+  if (candidates.length !== requestedRouterIds.length) {
+    return { error: "Une zone sélectionnée ne fait pas partie de votre organisation." };
+  }
+  const currentIds = new Set(currentMembers.map(({ router }) => router.id));
+  const additionIds = new Set(newRoamingRouterIds([...currentIds], requestedRouterIds));
+  const additions = candidates.filter((router) => additionIds.has(router.id));
+  if (additions.length === 0) return { error: "Ces zones couvrent déjà ce groupe." };
+
+  const accounts = await db
+    .select({
+      id: vouchers.id,
+      username: vouchers.username,
+      profileName: vouchers.profileName,
+      profileId: vouchers.roamingProfileId,
+      durationValue: roamingProfiles.durationValue,
+      durationUnit: roamingProfiles.durationUnit,
+      uploadMbps: roamingProfiles.uploadMbps,
+      downloadMbps: roamingProfiles.downloadMbps,
+      defaultPriceCents: roamingProfiles.defaultPriceCents,
+      priceOverrideCents: roamingGroupOffers.priceOverrideCents,
+    })
+    .from(vouchers)
+    .leftJoin(roamingProfiles, eq(vouchers.roamingProfileId, roamingProfiles.id))
+    .leftJoin(
+      roamingGroupOffers,
+      and(
+        eq(roamingGroupOffers.groupId, groupId),
+        eq(roamingGroupOffers.profileId, vouchers.roamingProfileId),
+        eq(roamingGroupOffers.orgId, orgId),
+      ),
+    )
+    .where(
+      and(
+        eq(vouchers.orgId, orgId),
+        eq(vouchers.roamingGroupId, groupId),
+        isNull(vouchers.deletedAt),
+      ),
+    );
+
+  const profilesByName = new Map<string, NonNullable<ReturnType<typeof voucherProfileForPackage>>>();
+  for (const account of accounts) {
+    if (
+      !account.profileName ||
+      !account.profileId ||
+      account.durationValue === null ||
+      account.durationUnit === null ||
+      account.uploadMbps === null ||
+      account.downloadMbps === null ||
+      account.defaultPriceCents === null
+    ) {
+      return { error: `Le compte « ${account.username} » n'a pas de profil roaming réutilisable.` };
+    }
+    const profile = voucherProfileForPackage(
+      account.durationValue,
+      account.durationUnit,
+      effectiveRoamingPrice(account.defaultPriceCents, account.priceOverrideCents),
+      {
+        name: account.profileName,
+        uploadMbps: account.uploadMbps,
+        downloadMbps: account.downloadMbps,
+      },
+    );
+    if (!profile) return { error: `Le profil du compte « ${account.username} » est invalide.` };
+    profilesByName.set(account.profileName, profile);
+  }
+
+  const targets: { router: (typeof candidates)[number]; client: RouterOSClient }[] = [];
+  const sources: { router: (typeof currentMembers)[number]["router"]; client: RouterOSClient }[] = [];
+  const addedUsers: { client: RouterOSClient; username: string }[] = [];
+  const closeAll = () => {
+    for (const { client } of [...targets, ...sources]) client.close();
+  };
+  const cleanupAddedUsers = async () => {
+    await Promise.all(
+      addedUsers.map(async ({ client, username }) => {
+        const user = await findHotspotUser(client, username);
+        if (user?.[".id"]) await client.talk(["/ip/hotspot/user/remove", `=.id=${user[".id"]}`]).catch(() => {});
+      }),
+    );
+  };
+
+  try {
+    for (const router of additions) {
+      targets.push({ router, client: await connectToRouter(router) });
+    }
+    // Un groupe vide n'a rien à recopier. Le premier ticket préparera son
+    // profil comme d'habitude via provisionRoamingAccounts.
+    if (accounts.length === 0) {
+      await db.insert(roamingGroupRouters).values(
+        additions.map((router) => ({ orgId, groupId, routerId: router.id })),
+      );
+      return { success: true, added: additions.length, synchronizedAccounts: 0 };
+    }
+
+    for (const { router } of currentMembers) {
+      try {
+        sources.push({ router, client: await connectToRouter(router) });
+      } catch {
+        // Une autre zone joignable peut rester une source complète.
+      }
+    }
+    if (sources.length === 0) {
+      return { error: "Aucune zone actuelle ne répond : impossible de recopier les comptes sans leur mot de passe." };
+    }
+
+    const sourceUsers = new Map<string, Record<string, string>>();
+    for (const account of accounts) {
+      for (const { client } of sources) {
+        const user = await findHotspotUser(client, account.username);
+        if (user?.password) {
+          sourceUsers.set(account.username, user);
+          break;
+        }
+      }
+      if (!sourceUsers.has(account.username)) {
+        return { error: `« ${account.username} » est absent des zones joignables ; la nouvelle zone n'a pas été ajoutée.` };
+      }
+    }
+
+    // Toutes les collisions sont détectées AVANT la première écriture : on ne
+    // transforme jamais un utilisateur local inconnu en compte roaming.
+    for (const { client } of targets) {
+      for (const account of accounts) {
+        if (await findHotspotUser(client, account.username)) {
+          return { error: `« ${account.username} » existe déjà sur la nouvelle zone ; aucune modification n'a été faite.` };
+        }
+      }
+    }
+
+    for (const { router, client } of targets) {
+      for (const profile of profilesByName.values()) {
+        await prepareProfileOnRouter(client, router.id, profile);
+      }
+    }
+    for (const { client } of targets) {
+      for (const account of accounts) {
+        const source = sourceUsers.get(account.username)!;
+        await client.talk([
+          "/ip/hotspot/user/add",
+          `=name=${account.username}`,
+          `=password=${source.password}`,
+          `=profile=${account.profileName}`,
+          `=comment=${source.comment ?? ""}`,
+        ]);
+        addedUsers.push({ client, username: account.username });
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.insert(roamingGroupRouters).values(
+        additions.map((router) => ({ orgId, groupId, routerId: router.id })),
+      );
+      await tx.insert(voucherRouters).values(
+        accounts.flatMap((account) =>
+          additions.map((router) => ({
+            orgId,
+            voucherId: account.id,
+            routerId: router.id,
+            profileName: account.profileName,
+            status: "PROVISIONED" as const,
+          })),
+        ),
+      );
+    });
+    return { success: true, added: additions.length, synchronizedAccounts: accounts.length };
+  } catch (error) {
+    await cleanupAddedUsers();
+    return {
+      error: `Ajout annulé : ${error instanceof Error ? error.message : "une nouvelle zone a refusé la synchronisation"}`,
+    };
+  } finally {
+    closeAll();
+  }
 }
 
 /**

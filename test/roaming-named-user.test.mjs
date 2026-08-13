@@ -60,8 +60,12 @@ test("le compte nominatif et le lot passent par la MÊME création", async () =>
     /\/ip\/hotspot\/user\/add/,
     "la création d'utilisateur hotspot ne doit plus être dupliquée dans actions.ts",
   );
+  const commonProvision = provision.slice(
+    provision.indexOf("export async function provisionRoamingAccounts"),
+    provision.indexOf("export async function updateRoamingAccount"),
+  );
   assert.equal(
-    (provision.match(/"\/ip\/hotspot\/user\/add"/g) ?? []).length,
+    (commonProvision.match(/"\/ip\/hotspot\/user\/add"/g) ?? []).length,
     1,
     "un seul endroit crée l'utilisateur hotspot",
   );
@@ -163,4 +167,41 @@ test("modifier et supprimer ne touchent que les comptes nominatifs", async () =>
     const body = provision.slice(provision.indexOf(`export async function ${fn}`));
     assert.match(body.slice(0, 900), /loadNamedAccount\(orgId, voucherId\)/, `${fn} doit passer par loadNamedAccount`);
   }
+});
+
+test("une zone ajoutée à un groupe reçoit ses comptes déjà existants", async () => {
+  const [actions, provision, console] = await Promise.all([
+    read("src/lib/roaming/actions.ts"),
+    read("src/lib/roaming/provision.ts"),
+    read("src/app/admin/roaming/RoamingConsole.tsx"),
+  ]);
+
+  assert.match(actions, /export async function addRoamingGroupRouters/);
+  assert.match(actions, /extendRoamingGroup\(\{/);
+  assert.match(provision, /export async function extendRoamingGroup/);
+  assert.match(
+    provision,
+    /voucherRouters\)\.values\(/,
+    "chaque compte synchronisé doit être rattaché à la nouvelle zone pour la réconciliation",
+  );
+  assert.match(console, /Ajouter une zone/);
+  assert.match(console, /useActionState\(addRoamingGroupRouters, undefined\)/);
+});
+
+test("modifier un compte propose seulement les offres de son propre groupe", async () => {
+  const [page, console] = await Promise.all([
+    read("src/app/admin/roaming/page.tsx"),
+    read("src/app/admin/roaming/RoamingConsole.tsx"),
+  ]);
+
+  assert.match(page, /groupId: vouchers\.roamingGroupId/);
+  assert.match(console, /offers\.filter\(\(offer\) => offer\.groupId === user\.groupId/);
+});
+
+test("le résultat de modifier ou supprimer reste visible auprès du compte concerné", async () => {
+  const console = await read("src/app/admin/roaming/RoamingConsole.tsx");
+  const accounts = console.slice(console.indexOf("Comptes existants"));
+
+  assert.match(accounts, /confirmingId === user\.id && <><p[\s\S]*?<Notice state=\{deleteState\} \/><\/>/);
+  assert.match(accounts, /editingId === user\.id && <><form[\s\S]*?<Notice state=\{editState\} \/>[\s\S]*?<\/>/);
 });

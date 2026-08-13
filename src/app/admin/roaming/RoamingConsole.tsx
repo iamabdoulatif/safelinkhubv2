@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import { Eye, Layers3, MapPin, Pencil, Plus, Ticket, Trash2, UserPlus, Wifi } from "lucide-react";
 import {
+  addRoamingGroupRouters,
   createRoamingGroup,
   createRoamingProfile,
   createRoamingUser,
@@ -23,6 +24,7 @@ type Group = {
 type NamedUser = {
   id: string;
   username: string;
+  groupId: string | null;
   profileName: string | null;
   groupName: string | null;
   note: string | null;
@@ -62,6 +64,8 @@ type ActionState =
       username?: string;
       updatedOn?: number;
       removedOn?: number;
+      added?: number;
+      synchronizedAccounts?: number;
       /** Zones injoignables lors d'une modification — à dire, jamais à taire. */
       skipped?: string[];
     }
@@ -105,6 +109,7 @@ export default function RoamingConsole({
   routers: Router[];
 }) {
   const [groupState, groupAction, groupPending] = useActionState(createRoamingGroup, undefined);
+  const [groupZoneState, groupZoneAction, groupZonePending] = useActionState(addRoamingGroupRouters, undefined);
   const [profileState, profileAction, profilePending] = useActionState(createRoamingProfile, undefined);
   // Unité du profil en cours de saisie : « Illimité » n'attend aucune durée.
   const [profileUnit, setProfileUnit] = useState("Hours");
@@ -121,6 +126,7 @@ export default function RoamingConsole({
   // Suppression en DEUX temps : le premier clic arme, le second exécute. Pas de
   // fenêtre système à cliquer à l'aveugle pour une action irréversible.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [addingZoneToGroupId, setAddingZoneToGroupId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState(groups[0]?.id ?? "");
   const selectableOffers = useMemo(
     () => offers.filter((offer) => offer.groupId === selectedGroupId && offer.active && offer.groupActive && offer.profileActive),
@@ -162,6 +168,8 @@ export default function RoamingConsole({
                 <div className="mt-3 flex flex-wrap gap-2">
                   {group.routers.map((router) => <span key={router.id} className="inline-flex items-center gap-1.5 rounded-full border border-line-soft px-2.5 py-1 text-xs text-ink"><i className={`h-1.5 w-1.5 rounded-full ${router.status === "online" ? "bg-ok" : "bg-ink-soft"}`} />{router.name}</span>)}
                 </div>
+                <button type="button" onClick={() => setAddingZoneToGroupId(addingZoneToGroupId === group.id ? null : group.id)} aria-expanded={addingZoneToGroupId === group.id} className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-clay"><Plus className="h-3.5 w-3.5" />Ajouter une zone</button>
+                {addingZoneToGroupId === group.id && <form action={groupZoneAction} className="mt-3 border-l-2 border-brand bg-clay/30 p-3"><input type="hidden" name="groupId" value={group.id} /><p className="text-xs leading-5 text-ink-soft">Les comptes déjà créés seront copiés sur chaque zone ajoutée avant que le groupe soit mis à jour. Les zones actuelles ne peuvent pas être retirées ici, pour ne pas laisser un ticket actif derrière elles.</p><fieldset className="mt-3"><legend className={labelClass}>Nouvelles zones</legend><div className="mt-1 grid max-h-32 gap-1 overflow-y-auto rounded-md border border-line-soft p-2 sm:grid-cols-2">{routers.filter((router) => !group.routers.some((member) => member.id === router.id)).map((router) => <label key={router.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-ink hover:bg-clay"><input type="checkbox" name="routerIds" value={router.id} />{router.name}</label>)}{routers.every((router) => group.routers.some((member) => member.id === router.id)) && <span className="px-2 py-1 text-sm text-ink-soft">Tous vos MikroTik sont déjà dans ce groupe.</span>}</div></fieldset><button disabled={groupZonePending || routers.every((router) => group.routers.some((member) => member.id === router.id))} className="mt-3 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-paper hover:bg-brand disabled:opacity-60">{groupZonePending ? "Synchronisation…" : "Ajouter les zones"}</button><Notice state={groupZoneState} /></form>}
               </article>
             ))}
           </div>
@@ -192,7 +200,7 @@ export default function RoamingConsole({
 
           <form action={userAction} className="mt-5 border-t border-line-soft pt-5"><input type="hidden" name="groupId" value={selectedGroupId} /><p className="text-xs text-ink-soft">Groupe : <strong className="text-ink">{groups.find((group) => group.id === selectedGroupId)?.name ?? "à choisir en 04 — émission"}</strong> · le compte est posé sur <strong className="text-ink">toutes</strong> ses zones.</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className={labelClass}>Identifiant<input name="username" required maxLength={32} pattern="[A-Za-z0-9._\-]{2,32}" placeholder="ex : aroune" autoComplete="off" className={`${inputClass} font-mono`} /></label><label className={labelClass}>Mot de passe <span className="normal-case tracking-normal">(vide = identique)</span><input name="password" maxLength={64} placeholder="ex : aroune" autoComplete="off" className={`${inputClass} font-mono`} /></label></div><label className={`mt-3 ${labelClass}`}>Offre<select name="offerId" required disabled={!selectedGroupId || selectableOffers.length === 0} className={inputClass}><option value="">{selectableOffers.length ? "Choisir un profil…" : "Aucune offre active"}</option>{selectableOffers.map((offer) => <option key={offer.id} value={offer.id}>{offer.profileName} — {money(offer.effectivePriceCents)}</option>)}</select></label><label className={`mt-3 ${labelClass}`}>Rôle ou note<input name="note" maxLength={180} placeholder="ex : technicien zone nord" className={inputClass} /></label><button disabled={userPending || !selectedGroupId || selectableOffers.length === 0} className="mt-4 rounded-md bg-ink px-5 py-2.5 text-sm font-bold text-paper hover:bg-brand disabled:opacity-60">{userPending ? "Création…" : "Créer l’utilisateur"}</button><Notice state={userState} /></form>
 
-          {namedUsers.length > 0 && <div className="mt-5 border-t border-line-soft pt-4"><p className={labelClass}>Comptes existants</p><ul className="mt-2 divide-y divide-line-soft border-y border-line-soft">{namedUsers.map((user) => <li key={user.id} className="py-2.5">
+          {namedUsers.length > 0 && <div className="mt-5 border-t border-line-soft pt-4"><p className={labelClass}>Comptes existants</p><ul className="mt-2 divide-y divide-line-soft border-y border-line-soft">{namedUsers.map((user) => { const userOffers = offers.filter((offer) => offer.groupId === user.groupId && offer.active && offer.groupActive && offer.profileActive); return <li key={user.id} className="py-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div><p className="font-mono text-sm font-bold text-ink">{user.username}</p><p className="mt-0.5 text-xs text-ink-soft">{[user.groupName, user.profileName, user.note].filter(Boolean).join(" · ") || "—"}</p></div>
               <div className="flex items-center gap-1.5">
@@ -203,10 +211,9 @@ export default function RoamingConsole({
                   : <button type="button" onClick={() => { setConfirmingId(user.id); setEditingId(null); }} className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" />Supprimer</button>}
               </div>
             </div>
-            {confirmingId === user.id && <p className="mt-2 border-l-2 border-red-600 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">Le compte sera retiré de <strong>toutes</strong> les zones du groupe, la session en cours coupée, et l’appareil déjà associé (auto-login par MAC) supprimé avec lui. Si une zone ne répond pas, rien n’est retiré de la liste : on ne déclare pas révoqué un compte qui fonctionne encore quelque part.</p>}
-            {editingId === user.id && <form action={editAction} className="mt-3 border-l-2 border-brand bg-clay/30 p-3"><input type="hidden" name="voucherId" value={user.id} /><div className="grid gap-3 sm:grid-cols-2"><label className={labelClass}>Identifiant<input name="username" defaultValue={user.username} maxLength={32} pattern="[A-Za-z0-9._@\-]{2,32}" className={`${inputClass} font-mono`} /></label><label className={labelClass}>Mot de passe <span className="normal-case tracking-normal">(vide = inchangé)</span><input name="password" maxLength={64} placeholder="inchangé" autoComplete="off" className={`${inputClass} font-mono`} /></label></div><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className={labelClass}>Offre <span className="normal-case tracking-normal">(vide = inchangée)</span><select name="offerId" disabled={selectableOffers.length === 0} className={inputClass}><option value="">Inchangée — {user.profileName ?? "—"}</option>{selectableOffers.map((offer) => <option key={offer.id} value={offer.id}>{offer.profileName} — {money(offer.effectivePriceCents)}</option>)}</select></label><label className={labelClass}>Rôle ou note<input name="note" defaultValue={user.note ?? ""} maxLength={180} className={inputClass} /></label></div><button disabled={editPending} className="mt-3 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-paper hover:bg-brand disabled:opacity-60">{editPending ? "Modification…" : "Enregistrer"}</button>{selectableOffers.length === 0 && <p className="mt-2 text-xs text-ink-soft">Choisissez d’abord un groupe en 04 pour pouvoir changer d’offre.</p>}</form>}
-          </li>)}</ul>
-          <Notice state={editState} />{editState && "skipped" in editState && (editState.skipped?.length ?? 0) > 0 && <p className="mt-2 border-l-2 border-warn bg-clay/50 px-3 py-2 text-xs leading-5 text-ink-soft">Zones non mises à jour : <strong className="text-ink">{editState.skipped?.join(", ")}</strong> — le compte y garde son ancien identifiant et son ancien mot de passe. Relancez quand elles seront revenues.</p>}<Notice state={deleteState} />
+            {confirmingId === user.id && <><p className="mt-2 border-l-2 border-red-600 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">Le compte sera retiré de <strong>toutes</strong> les zones du groupe, la session en cours coupée, et l’appareil déjà associé (auto-login par MAC) supprimé avec lui. Si une zone ne répond pas, les zones joignables sont traitées mais le compte reste dans la liste jusqu’à la révocation complète : relancez la suppression quand la zone sera revenue.</p><Notice state={deleteState} /></>}
+            {editingId === user.id && <><form action={editAction} className="mt-3 border-l-2 border-brand bg-clay/30 p-3"><input type="hidden" name="voucherId" value={user.id} /><div className="grid gap-3 sm:grid-cols-2"><label className={labelClass}>Identifiant<input name="username" defaultValue={user.username} maxLength={32} pattern="[A-Za-z0-9._@\-]{2,32}" className={`${inputClass} font-mono`} /></label><label className={labelClass}>Mot de passe <span className="normal-case tracking-normal">(vide = inchangé)</span><input name="password" maxLength={64} placeholder="inchangé" autoComplete="off" className={`${inputClass} font-mono`} /></label></div><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className={labelClass}>Offre <span className="normal-case tracking-normal">(vide = inchangée)</span><select name="offerId" disabled={userOffers.length === 0} className={inputClass}><option value="">Inchangée — {user.profileName ?? "—"}</option>{userOffers.map((offer) => <option key={offer.id} value={offer.id}>{offer.profileName} — {money(offer.effectivePriceCents)}</option>)}</select></label><label className={labelClass}>Rôle ou note<input name="note" defaultValue={user.note ?? ""} maxLength={180} className={inputClass} /></label></div><button disabled={editPending} className="mt-3 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-paper hover:bg-brand disabled:opacity-60">{editPending ? "Modification…" : "Enregistrer"}</button>{userOffers.length === 0 && <p className="mt-2 text-xs text-ink-soft">Aucune offre active n’est disponible pour le groupe de ce compte.</p>}</form><Notice state={editState} />{editState && "skipped" in editState && (editState.skipped?.length ?? 0) > 0 && <p className="mt-2 border-l-2 border-warn bg-clay/50 px-3 py-2 text-xs leading-5 text-ink-soft">Zones non mises à jour : <strong className="text-ink">{editState.skipped?.join(", ")}</strong> — le compte y garde son ancien identifiant et son ancien mot de passe. Relancez quand elles seront revenues.</p>}</>}
+          </li>; })}</ul>
           <p className="mt-2 text-xs leading-5 text-ink-soft">Le SaaS ne conserve pas ces mots de passe : ils sont relus sur le MikroTik, qui en est la source de vérité.</p></div>}
         </section>
       </div>

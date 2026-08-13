@@ -31,6 +31,7 @@ import { randomAccessCode as randomCode } from "@/lib/access-code";
 import {
   NAMED_USER_CASE,
   deleteRoamingAccount,
+  extendRoamingGroup,
   provisionRoamingAccounts,
   updateRoamingAccount,
 } from "./provision";
@@ -82,6 +83,21 @@ export async function createRoamingGroup(_prevState: unknown, formData: FormData
   );
   refreshRoamingPages();
   return { success: true, groupId };
+}
+
+/** Ajoute des zones à un groupe existant et y synchronise ses comptes. */
+export async function addRoamingGroupRouters(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const groupId = String(formData.get("groupId") ?? "");
+  const routerIds = [...new Set(formData.getAll("routerIds").map(String).filter(Boolean))];
+  if (!groupId || routerIds.length === 0) return { error: "Sélectionnez le groupe et au moins une nouvelle zone." };
+
+  const result = await extendRoamingGroup({ orgId: session.orgId, groupId, routerIds });
+  if ("error" in result) return result;
+  refreshRoamingPages();
+  return result;
 }
 
 export async function createRoamingProfile(_prevState: unknown, formData: FormData) {
