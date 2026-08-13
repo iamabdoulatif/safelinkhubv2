@@ -43,10 +43,11 @@ describe("audit — état du conteneur MikHmon", () => {
   });
 
   it("signale un conteneur réellement arrêté, avec un bouton pour le démarrer", async () => {
-    for (const container of [
+    const cases: Record<string, string>[] = [
       { ".id": "*1", name: "mikhmon", status: "stopped", "root-dir": "usb1/mikhmon" },
       { ".id": "*1", name: "mikhmon", running: "false", "root-dir": "usb1/mikhmon" },
-    ]) {
+    ];
+    for (const container of cases) {
       const audit = await auditRouter(routerWith(container) as never);
       const stopped = mikhmonFindings(audit).find((finding) => finding.id === "mikhmon-stopped");
       assert.ok(stopped, "un conteneur arrêté doit être signalé");
