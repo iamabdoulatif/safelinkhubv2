@@ -250,3 +250,43 @@ test("la création de compte a son propre groupe, indépendant de l'émission", 
   // en pointer un en pause affichait un champ vide tout en le soumettant.
   assert.match(console_, /groups\.find\(\(group\) => group\.active\)\?\.id/);
 });
+
+test("mettre en pause ne touche à RIEN sur les MikroTik", async () => {
+  const actions = await read("src/lib/roaming/actions.ts");
+  for (const fn of ["setRoamingOfferActive", "setRoamingGroupActive"]) {
+    const start = actions.indexOf(`export async function ${fn}`);
+    assert.ok(start > 0, `${fn} doit exister`);
+    const body = actions.slice(start, actions.indexOf("export async function", start + 10));
+
+    // La pause ferme l'ÉMISSION. Toucher aux routeurs couperait l'accès de
+    // clients ayant déjà payé — ce serait une tout autre décision.
+    assert.doesNotMatch(body, /\/ip\/hotspot/, `${fn} ne doit envoyer aucune commande RouterOS`);
+    assert.doesNotMatch(body, /connectToRouter/, `${fn} ne doit pas se connecter aux MikroTik`);
+
+    // Session obligatoire et portée à l'organisation.
+    assert.match(body, /requireAdminSession/, `${fn} doit exiger une session`);
+    assert.match(body, /session\.orgId/, `${fn} doit être borné à l'organisation`);
+    // Et refuser proprement si la ligne n'appartient pas à l'org (0 mise à jour).
+    assert.match(body, /updated\.length === 0/, `${fn} doit refuser une cible étrangère`);
+  }
+});
+
+test("un groupe en pause laisse encore révoquer un technicien", async () => {
+  // provisionRoamingAccounts refuse un groupe en pause (plus d'émission), mais
+  // modifier et supprimer ne doivent PAS le vérifier : sinon mettre un groupe
+  // en pause empêcherait de couper le compte d'un technicien qui part, soit
+  // l'inverse du but recherché.
+  const provision = await read("src/lib/roaming/provision.ts");
+  const between = (from, to) =>
+    provision.slice(provision.indexOf(from), to ? provision.indexOf(to) : undefined);
+
+  assert.match(
+    between("export async function provisionRoamingAccounts", "export async function updateRoamingAccount"),
+    /group\.active/,
+    "l'émission doit refuser un groupe en pause",
+  );
+  for (const fn of ["updateRoamingAccount", "deleteRoamingAccount"]) {
+    const body = between(`export async function ${fn}`, fn === "updateRoamingAccount" ? "export async function deleteRoamingAccount" : "export async function extendRoamingGroup");
+    assert.doesNotMatch(body, /group\.active/, `${fn} ne doit pas dépendre de l'état du groupe`);
+  }
+});

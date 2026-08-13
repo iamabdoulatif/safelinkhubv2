@@ -178,6 +178,65 @@ export async function saveRoamingOffer(_prevState: unknown, formData: FormData) 
 }
 
 /**
+ * Met une offre en pause, ou la réactive.
+ *
+ * CE QUE LA PAUSE FAIT, ET CE QU'ELLE NE FAIT PAS : elle ferme l'ÉMISSION —
+ * plus de nouveaux tickets ni de nouveaux comptes sur cette offre, et on ne
+ * peut plus y basculer un compte existant (loadOffer la refuse). Elle ne
+ * touche à RIEN sur les MikroTik : les comptes déjà posés continuent de
+ * fonctionner, et c'est voulu. Couper l'accès de clients ayant payé parce
+ * qu'on retire une offre du catalogue serait une tout autre décision.
+ */
+export async function setRoamingOfferActive(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const offerId = String(formData.get("offerId") ?? "");
+  const active = String(formData.get("active") ?? "") === "true";
+  if (!offerId) return { error: "Offre introuvable." };
+
+  const db = getDb();
+  const updated = await db
+    .update(roamingGroupOffers)
+    .set({ active })
+    .where(and(eq(roamingGroupOffers.id, offerId), eq(roamingGroupOffers.orgId, session.orgId)))
+    .returning({ id: roamingGroupOffers.id });
+  if (updated.length === 0) return { error: "Offre introuvable." };
+
+  refreshRoamingPages();
+  return { success: true, active };
+}
+
+/**
+ * Met un groupe roaming en pause, ou le réactive.
+ *
+ * Même règle que pour une offre : la pause arrête l'émission sur toutes les
+ * zones du groupe, sans rien retirer des MikroTik. Modifier ou RÉVOQUER un
+ * compte reste possible sur un groupe en pause — sinon mettre un groupe en
+ * pause empêcherait de désactiver le compte d'un technicien qui part, ce qui
+ * serait exactement l'inverse du but recherché.
+ */
+export async function setRoamingGroupActive(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const groupId = String(formData.get("groupId") ?? "");
+  const active = String(formData.get("active") ?? "") === "true";
+  if (!groupId) return { error: "Groupe introuvable." };
+
+  const db = getDb();
+  const updated = await db
+    .update(roamingGroups)
+    .set({ active })
+    .where(and(eq(roamingGroups.id, groupId), eq(roamingGroups.orgId, session.orgId)))
+    .returning({ id: roamingGroups.id });
+  if (updated.length === 0) return { error: "Groupe introuvable." };
+
+  refreshRoamingPages();
+  return { success: true, active };
+}
+
+/**
  * Creates the same real Hotspot account on every router in the selected
  * roaming group. Existing reconciliation then freezes the first expiry date
  * and propagates it back to every group member.
