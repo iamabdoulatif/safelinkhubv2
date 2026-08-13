@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   roamingGroupOffers,
@@ -175,6 +175,110 @@ export async function saveRoamingOffer(_prevState: unknown, formData: FormData) 
   }
   refreshRoamingPages();
   return { success: true };
+}
+
+/**
+ * Retire une offre du catalogue d'un groupe.
+ *
+ * Sans effet sur les MikroTik : les tickets et comptes déjà émis sous ce profil
+ * continuent de fonctionner, leur profil RouterOS reste en place. Ce qui
+ * disparaît, c'est la possibilité d'émettre à ce tarif — et la surcharge de
+ * prix propre au groupe, qui repassera au prix catalogue si l'offre est
+ * recréée plus tard.
+ */
+export async function deleteRoamingOffer(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const offerId = String(formData.get("offerId") ?? "");
+  if (!offerId) return { error: "Offre introuvable." };
+
+  const db = getDb();
+  const removed = await db
+    .delete(roamingGroupOffers)
+    .where(and(eq(roamingGroupOffers.id, offerId), eq(roamingGroupOffers.orgId, session.orgId)))
+    .returning({ id: roamingGroupOffers.id });
+  if (removed.length === 0) return { error: "Offre introuvable." };
+
+  refreshRoamingPages();
+  return { success: true };
+}
+
+/**
+ * Supprime un groupe roaming.
+ *
+ * REFUSÉ tant qu'il reste des comptes nominatifs dedans, et ce n'est pas de la
+ * prudence de principe : `vouchers.roaming_group_id` est en ON DELETE SET NULL,
+ * tandis que les zones et les offres partent en cascade. Un compte dont le
+ * groupe a disparu perd donc son rattachement — or c'est ce rattachement qui
+ * permet de le retrouver sur les routeurs. Résultat : un compte de technicien
+ * TOUJOURS ACTIF sur les MikroTik et devenu impossible à modifier comme à
+ * révoquer depuis le SaaS. On exige donc de les révoquer d'abord, un par un,
+ * avec le contrôle des zones injoignables que cela implique.
+ *
+ * Les TICKETS vendus, eux, ne bloquent pas : ils perdent leur lien de groupe
+ * (historique), ce qui n'empêche personne de rien. Leur nombre est annoncé.
+ */
+export async function deleteRoamingGroup(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const groupId = String(formData.get("groupId") ?? "");
+  if (!groupId) return { error: "Groupe introuvable." };
+
+  const db = getDb();
+  const [group] = await db
+    .select({ id: roamingGroups.id, name: roamingGroups.name })
+    .from(roamingGroups)
+    .where(and(eq(roamingGroups.id, groupId), eq(roamingGroups.orgId, session.orgId)))
+    .limit(1);
+  if (!group) return { error: "Groupe introuvable." };
+
+  const attached = await db
+    .select({ username: vouchers.username, useCase: vouchers.useCase })
+    .from(vouchers)
+    .where(
+      and(
+        eq(vouchers.orgId, session.orgId),
+        eq(vouchers.roamingGroupId, groupId),
+        isNull(vouchers.deletedAt),
+      ),
+    );
+  const namedAccounts = attached.filter((row) => row.useCase === NAMED_USER_CASE);
+  if (namedAccounts.length > 0) {
+    const names = namedAccounts.slice(0, 5).map((row) => row.username).join(", ");
+    return {
+      error:
+        `Ce groupe porte encore ${namedAccounts.length} compte(s) nominatif(s) : ${names}` +
+        `${namedAccounts.length > 5 ? "…" : ""}. Révoquez-les d'abord — sinon ils resteraient actifs ` +
+        `sur les MikroTik sans qu'aucun bouton ne puisse plus les couper.`,
+    };
+  }
+
+  const ticketCount = attached.length - namedAccounts.length;
+  const zones = await db
+    .select({ id: roamingGroupRouters.id })
+    .from(roamingGroupRouters)
+    .where(eq(roamingGroupRouters.groupId, groupId));
+  const groupOffers = await db
+    .select({ id: roamingGroupOffers.id })
+    .from(roamingGroupOffers)
+    .where(eq(roamingGroupOffers.groupId, groupId));
+
+  await db
+    .delete(roamingGroups)
+    .where(and(eq(roamingGroups.id, groupId), eq(roamingGroups.orgId, session.orgId)));
+
+  refreshRoamingPages();
+  return {
+    success: true,
+    summary:
+      `Groupe « ${group.name} » supprimé : ${zones.length} zone(s) et ${groupOffers.length} offre(s) avec lui.` +
+      (ticketCount > 0
+        ? ` ${ticketCount} ticket(s) déjà vendu(s) gardent leur code mais perdent le lien vers ce groupe.`
+        : "") +
+      " Les profils posés sur les MikroTik ne sont pas retirés.",
+  };
 }
 
 /**

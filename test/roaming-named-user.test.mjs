@@ -290,3 +290,35 @@ test("un groupe en pause laisse encore révoquer un technicien", async () => {
     assert.doesNotMatch(body, /group\.active/, `${fn} ne doit pas dépendre de l'état du groupe`);
   }
 });
+
+test("supprimer un groupe est refusé tant qu'un compte y vit encore", async () => {
+  const actions = await read("src/lib/roaming/actions.ts");
+  const body = actions.slice(
+    actions.indexOf("export async function deleteRoamingGroup"),
+    actions.indexOf("export async function setRoamingOfferActive"),
+  );
+
+  // vouchers.roaming_group_id est en ON DELETE SET NULL alors que zones et
+  // offres partent en cascade : un compte dont le groupe disparaît perd le
+  // rattachement qui permet de le retrouver sur les routeurs. Il resterait
+  // ACTIF sur les MikroTik, sans plus aucun bouton pour le couper.
+  const guard = body.indexOf("namedAccounts.length > 0");
+  const del = body.indexOf("db\n    .delete(roamingGroups)") >= 0
+    ? body.indexOf("db\n    .delete(roamingGroups)")
+    : body.indexOf(".delete(roamingGroups)");
+  assert.ok(guard > 0, "le garde-fou doit exister");
+  assert.ok(del > guard, "et précéder la suppression");
+  assert.match(body, /NAMED_USER_CASE/, "seuls les comptes nominatifs bloquent");
+  assert.match(body, /isNull\(vouchers\.deletedAt\)/, "un compte déjà supprimé ne bloque pas");
+
+  // Un ticket vendu ne bloque pas : il perd son lien d'historique, sans plus.
+  assert.match(body, /ticketCount/, "les tickets doivent être comptés, pas bloquants");
+
+  // Et aucune de ces suppressions ne touche aux MikroTik.
+  for (const fn of ["deleteRoamingOffer", "deleteRoamingGroup"]) {
+    const start = actions.indexOf(`export async function ${fn}`);
+    const scope = actions.slice(start, actions.indexOf("export async function", start + 10));
+    assert.doesNotMatch(scope, /connectToRouter|\/ip\/hotspot/, `${fn} ne doit rien envoyer aux routeurs`);
+    assert.match(scope, /session\.orgId/, `${fn} doit être borné à l'organisation`);
+  }
+});
