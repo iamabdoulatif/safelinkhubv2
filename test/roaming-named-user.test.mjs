@@ -322,3 +322,51 @@ test("supprimer un groupe est refusé tant qu'un compte y vit encore", async () 
     assert.match(scope, /session\.orgId/, `${fn} doit être borné à l'organisation`);
   }
 });
+
+test("la station roaming expose les quatre vues de la refonte", async () => {
+  const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
+
+  for (const label of ["Exploitation", "Groupes", "Catalogue", "Comptes"]) {
+    assert.match(console_, new RegExp(`>${label}<`), `la navigation doit exposer « ${label} »`);
+  }
+  assert.match(console_, /const \[activeView, setActiveView\]/);
+});
+
+test("l émission est ouverte depuis un tiroir guidé", async () => {
+  const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
+
+  assert.match(console_, /const \[drawer, setDrawer\]/);
+  assert.match(console_, /Créer des accès/);
+  assert.match(console_, /Vérifier avant création/);
+  assert.match(console_, /action=\{ticketAction\}/);
+});
+
+test("la vue exploitation montre la couverture et les zones à vérifier", async () => {
+  const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
+
+  assert.match(console_, /Zones en ligne/);
+  assert.match(console_, /À vérifier/);
+  assert.match(console_, /group\.routers\.filter\(\(router\) => router\.status === "online"\)/);
+  assert.match(console_, /zones non joignables/);
+});
+
+test("la vue catalogue conserve les profils et offres administrables", async () => {
+  const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
+
+  assert.match(console_, /Profils communs/);
+  assert.match(console_, /Offres du groupe/);
+  assert.match(console_, /action=\{profileAction\}/);
+  assert.match(console_, /action=\{offerAction\}/);
+  assert.match(console_, /action=\{offerToggleAction\}/);
+  assert.match(console_, /action=\{offerDropAction\}/);
+});
+
+test("la vue comptes conserve l édition, la révocation et la lecture du mot de passe", async () => {
+  const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
+  const accounts = console_.slice(console_.indexOf("Comptes existants"));
+
+  assert.match(console_, /action=\{userAction\}/);
+  assert.match(accounts, /revealRoamingUserPassword/);
+  assert.match(accounts, /action=\{editAction\}/);
+  assert.match(accounts, /action=\{deleteAction\}/);
+});
