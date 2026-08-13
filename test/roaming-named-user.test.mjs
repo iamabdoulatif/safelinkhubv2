@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  ROAMING_USERNAME_PATTERN,
   isValidRoamingUsername,
   roamingUserPassword,
 } from "../src/lib/roaming/forms.ts";
@@ -204,4 +205,48 @@ test("le résultat de modifier ou supprimer reste visible auprès du compte conc
 
   assert.match(accounts, /confirmingId === user\.id && <><p[\s\S]*?<Notice state=\{deleteState\} \/><\/>/);
   assert.match(accounts, /editingId === user\.id && <><form[\s\S]*?<Notice state=\{editState\} \/>[\s\S]*?<\/>/);
+});
+
+test("le navigateur n'est jamais plus strict que le serveur", async () => {
+  // Le formulaire de CRÉATION portait un motif sans arobase alors que le
+  // serveur l'acceptait et que celui de MODIFICATION l'autorisait : « latif@ »
+  // était rejeté par le navigateur, sans que rien n'atteigne le serveur. Les
+  // deux champs doivent donc tirer le motif de la MÊME constante.
+  const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
+  const literals = console_.match(/pattern="[^"]*"/g) ?? [];
+  assert.deepEqual(literals, [], "aucun motif écrit en dur dans le JSX");
+  assert.equal(
+    (console_.match(/pattern=\{ROAMING_USERNAME_PATTERN\}/g) ?? []).length,
+    2,
+    "création ET modification doivent partager la constante",
+  );
+
+  // Et la constante doit vraiment décrire ce que le serveur accepte.
+  const browserRe = new RegExp(`^${ROAMING_USERNAME_PATTERN}$`);
+  for (const value of ["latif@", "abou@", "karl-", "aroune", "tech.nord", "admin_01"]) {
+    assert.equal(browserRe.test(value), true, `« ${value} » doit passer le navigateur`);
+    assert.equal(isValidRoamingUsername(value), true, `« ${value} » doit passer le serveur`);
+  }
+  for (const value of ["a&b", "ar oune", "aroûne", "a"]) {
+    assert.equal(browserRe.test(value), false, `« ${value} » doit être bloqué par le navigateur`);
+    assert.equal(isValidRoamingUsername(value), false, `« ${value} » doit être bloqué par le serveur`);
+  }
+});
+
+test("la création de compte a son propre groupe, indépendant de l'émission", async () => {
+  // Un seul sélecteur partagé trompait : au chargement il pointait le premier
+  // groupe, dont les offres n'étaient pas celles des comptes listés dessous —
+  // impossible de créer un compte illimité sans deviner qu'il fallait changer
+  // le groupe dans une AUTRE section.
+  const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
+  assert.match(console_, /const \[userGroupId, setUserGroupId\]/);
+  assert.match(console_, /userCreationOffers/);
+  assert.match(
+    console_,
+    /name="groupId" value=\{userGroupId\}/,
+    "le formulaire de création doit soumettre SON groupe",
+  );
+  // Et le groupe par défaut doit être ACTIF : le sélecteur ne liste que ceux-là,
+  // en pointer un en pause affichait un champ vide tout en le soumettant.
+  assert.match(console_, /groups\.find\(\(group\) => group\.active\)\?\.id/);
 });

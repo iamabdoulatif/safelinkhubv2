@@ -60,8 +60,19 @@ export function roamingRouterProfileName(groupId: string, baseProfileName: strin
  * utilise la variable $user. Le risque n'est donc pas le guillemet, c'est le
  * séparateur de formulaire.)
  */
+/**
+ * Le jeu de caractères, sous sa forme `pattern` HTML.
+ *
+ * Exporté pour que les champs du navigateur et la validation du serveur ne
+ * puissent PAS diverger : le formulaire de création portait un motif sans
+ * arobase alors que le serveur l'acceptait et que le formulaire de
+ * modification l'autorisait — « latif@ » était donc refusé à la création, par
+ * le navigateur, sans que rien n'atteigne jamais le serveur.
+ */
+export const ROAMING_USERNAME_PATTERN = "[A-Za-z0-9._@-]{2,32}";
+
 export function isValidRoamingUsername(raw: string) {
-  return /^[A-Za-z0-9._@-]{2,32}$/.test(raw);
+  return new RegExp(`^${ROAMING_USERNAME_PATTERN}$`).test(raw);
 }
 
 /**
