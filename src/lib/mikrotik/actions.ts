@@ -733,6 +733,97 @@ export async function optimizeRouterThroughput(routerId: string) {
  * une règle existante mal dirigée. Idempotent, et synchrone : l'opérateur doit
  * savoir tout de suite si c'était bien ça.
  */
+/**
+ * Démarre le conteneur MikHmon arrêté.
+ *
+ * Un conteneur arrêté est la cause la plus directe d'un accès distant qui
+ * expire : le réseau a beau être parfaitement configuré, rien n'écoute au bout.
+ * Cette ligne d'audit n'avait pourtant aucun bouton — il fallait ouvrir WinBox.
+ *
+ * Synchrone et borné : on démarre, puis on vérifie réellement que le conteneur
+ * est passé en marche, au lieu d'annoncer un succès sur la seule absence
+ * d'erreur. RouterOS accepte /container/start sans broncher même quand le
+ * démarrage échouera ensuite (image absente, veth arrachée).
+ */
+export async function startMikhmonContainer(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 20000);
+  } catch (err) {
+    return { error: err instanceof Error ? `Routeur injoignable : ${err.message}` : "Routeur injoignable." };
+  }
+
+  // RouterOS ≤7.22 rapporte « status », 7.23+ le booléen « running ».
+  const readStatus = (row: Record<string, string> | undefined) =>
+    String(
+      row?.status ?? (row?.running === "true" ? "running" : row?.running === "false" ? "stopped" : ""),
+    ).toLowerCase();
+
+  try {
+    const rows = await client.talk(["/container/print"]);
+    const container = rows.find(
+      (row) =>
+        /mikhmon/i.test(String(row.name ?? "")) ||
+        /mikhmon/i.test(String(row["root-dir"] ?? "")) ||
+        /mikhmon/i.test(String(row.tag ?? "")),
+    );
+    if (!container?.[".id"]) {
+      return {
+        error:
+          "Aucun conteneur MikHmon sur ce routeur. Lancez l'auto-setup pour l'installer.",
+      };
+    }
+    if (readStatus(container) === "running") {
+      return { success: true, summary: "Le conteneur MikHmon tourne déjà." };
+    }
+
+    await client.talk(["/container/start", `=numbers=${container[".id"]}`]);
+
+    // Vérification réelle : jusqu'à ~15 s, le temps que RouterOS bascule l'état.
+    let status = "";
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const fresh = await client.talk(["/container/print"]).catch(() => []);
+      status = readStatus(fresh.find((row) => row[".id"] === container[".id"]));
+      if (status === "running") break;
+    }
+
+    if (status !== "running") {
+      const logs = await client
+        .talk(["/log/print"], 8000)
+        .catch(() => [] as Record<string, string>[]);
+      const hint = logs
+        .filter((row) => /container/i.test(`${row.topics ?? ""} ${row.message ?? ""}`))
+        .slice(-3)
+        .map((row) => row.message ?? "")
+        .join(" · ");
+      return {
+        error:
+          `Démarrage demandé, mais le conteneur est resté « ${status || "sans état"} ».` +
+          (hint ? ` Journal du routeur : ${hint}` : " Regardez /log sur le routeur."),
+      };
+    }
+
+    return {
+      success: true,
+      summary: "Conteneur MikHmon démarré. L'accès distant devrait répondre dans quelques secondes.",
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Le routeur a refusé l'opération." };
+  } finally {
+    client.close();
+  }
+}
+
 export async function repairMikhmonRemoteAccess(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };

@@ -23,6 +23,7 @@ export type AuditFixKind =
   | "mikhmon"
   | "mikhmon-session"
   | "mikhmon-access"
+  | "mikhmon-start"
   | "rb-firmware"
   | "api-policy"
   | null;
@@ -260,8 +261,20 @@ export async function auditRouter(
       if (/^\/?tmp\//.test(rootDir))
         add("warn", "MikHmon", "mikhmon-tmpfs", "MikHmon en RAM (tmpfs)", "Le conteneur MikHmon est en mémoire vive : sa session est perdue à chaque coupure de courant. Le correctif le déplace sur la flash (persistant, ~1 à 3 min).", "mikhmon");
       else add("ok", "MikHmon", "mikhmon-persist", "MikHmon persistant", "Le conteneur MikHmon survit aux reboots.");
-      if (mk.running !== "true")
-        add("error", "MikHmon", "mikhmon-stopped", "Conteneur MikHmon arrêté", "MikHmon n'est pas démarré — les vouchers ne sont pas gérés.");
+      // RouterOS ≤7.22 rapporte « status » ; 7.23+ l'a remplacé par le booléen
+      // « running ». Ne tester que « running » faisait passer pour ARRÊTÉ le
+      // conteneur de tout routeur en 7.19-7.22 — un faux positif qui envoie
+      // chercher une panne inexistante. container-setup.ts gérait déjà les deux
+      // conventions ; l'audit, non.
+      const containerStatus = String(
+        mk.status ?? (mk.running === "true" ? "running" : mk.running === "false" ? "stopped" : ""),
+      ).toLowerCase();
+      if (!containerStatus)
+        add("warn", "MikHmon", "mikhmon-status", "État du conteneur MikHmon inconnu", "RouterOS n'a rapporté ni « status » ni « running » pour ce conteneur — impossible de dire s'il tourne.");
+      else if (containerStatus !== "running")
+        add("error", "MikHmon", "mikhmon-stopped", "Conteneur MikHmon arrêté", `MikHmon n'est pas démarré (statut rapporté : « ${containerStatus} ») — les vouchers ne sont pas gérés et l'accès distant MikHmon ne peut pas aboutir. Le correctif le démarre.`, "mikhmon-start");
+      else
+        add("ok", "MikHmon", "mikhmon-running", "Conteneur MikHmon démarré", `Le conteneur tourne (statut « ${containerStatus} »).`);
 
       // Session MikHmon « SafeLinkHub » : les fichiers internes du conteneur ne
       // sont pas énumérables via l'API RouterOS, on s'appuie donc sur le flag

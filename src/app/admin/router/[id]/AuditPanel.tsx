@@ -19,6 +19,7 @@ import {
   setRouterBandwidthCap,
   repairMikhmonStorage,
   repairMikhmonRemoteAccess,
+  startMikhmonContainer,
   reconfigureMikhmonSession,
   upgradeRouterFirmware,
   fixRouterApiGroupPolicy,
@@ -44,6 +45,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   mikhmon: "Déplacer sur la flash",
   "mikhmon-session": "Reconfigurer la session",
   "mikhmon-access": "Rediriger l'accès distant",
+  "mikhmon-start": "Démarrer MikHmon",
   "rb-firmware": "Mettre à niveau le firmware",
   "api-policy": "Corriger les droits MikHmon",
 };
@@ -93,6 +95,8 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                 ? await reconfigureMikhmonSession(routerId)
                 : finding.fix === "mikhmon-access"
                 ? await repairMikhmonRemoteAccess(routerId)
+                : finding.fix === "mikhmon-start"
+                ? await startMikhmonContainer(routerId)
                 : finding.fix === "rb-firmware"
                   ? await upgradeRouterFirmware(routerId)
                   : finding.fix === "api-policy"
