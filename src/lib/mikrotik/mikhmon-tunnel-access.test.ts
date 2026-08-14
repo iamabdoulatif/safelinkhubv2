@@ -3,6 +3,68 @@ import { describe, it } from "node:test";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 
 describe("MikHmon tunnel access repair", () => {
+  it("préserve la passerelle d'un bridge Docker qui porte encore un conteneur MikHmon", async () => {
+    const calls: string[][] = [];
+    const client = {
+      async talk(words: string[]) {
+        calls.push(words);
+        if (words[0] === "/ip/address/print" && words.includes("?interface=dockers")) {
+          return [{ ".id": "*gateway", address: "11.11.11.1/28" }];
+        }
+        if (words[0] === "/interface/bridge/port/print" && words.includes("?bridge=dockers")) {
+          return [{ ".id": "*port", bridge: "dockers", interface: "MIKHMON" }];
+        }
+        if (words[0] === "/ip/address/print") return [];
+        if (words[0] === "/interface/bridge/port/print") return [];
+        if (words[0] === "/ip/firewall/nat/print") return [{ ".id": "*nat", "to-addresses": "11.11.11.11" }];
+        if (words[0] === "/interface/print") return [];
+        if (words[0] === "/ip/firewall/filter/print") return [];
+        return [];
+      },
+    };
+
+    await ensureMikhmonTunnelAccess(client as never);
+
+    assert.equal(
+      calls.filter((words) => words[0] === "/ip/address/remove").length,
+      0,
+      "une passerelle active est nécessaire au retour du trafic du conteneur",
+    );
+  });
+
+  it("rétablit la passerelle de la veth d'un MikHmon existant si elle manque", async () => {
+    const calls: string[][] = [];
+    const client = {
+      async talk(words: string[]) {
+        calls.push(words);
+        if (words[0] === "/container/print") {
+          return [{ ".id": "*container", name: "mikhmon-manuel", status: "running", interface: "MIKHMON" }];
+        }
+        if (words[0] === "/interface/veth/print") {
+          return [{ ".id": "*veth", name: "MIKHMON", address: "11.11.11.11/28", gateway: "11.11.11.1" }];
+        }
+        if (words[0] === "/interface/bridge/port/print" && words.includes("?bridge=dockers")) {
+          return [{ ".id": "*port", bridge: "dockers", interface: "MIKHMON" }];
+        }
+        if (words[0] === "/interface/bridge/port/print" && words.includes("?interface=MIKHMON")) {
+          return [{ ".id": "*port", bridge: "dockers", interface: "MIKHMON" }];
+        }
+        if (words[0] === "/ip/address/print") return [];
+        if (words[0] === "/ip/firewall/nat/print") return [{ ".id": "*nat", "to-addresses": "11.11.11.11" }];
+        if (words[0] === "/interface/print") return [];
+        if (words[0] === "/ip/firewall/filter/print") return [];
+        return [];
+      },
+    };
+
+    await ensureMikhmonTunnelAccess(client as never);
+
+    const addGateway = calls.find((words) => words[0] === "/ip/address/add");
+    assert.ok(addGateway, "la passerelle manquante doit être restaurée");
+    assert.ok(addGateway.includes("=address=11.11.11.1/28"));
+    assert.ok(addGateway.includes("=interface=dockers"));
+  });
+
   it("skips tunnel firewall rules for tunnel interfaces that do not exist on the router", async () => {
     const calls: string[][] = [];
     const client = {
