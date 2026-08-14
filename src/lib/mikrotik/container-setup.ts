@@ -309,16 +309,37 @@ async function provisionDockerStack(
         "MIKHMON veth interface",
       );
     }
-    // Rattachement au pont, seulement s'il manque : un /add sur un port déjà
-    // présent échoue et polluait le journal à chaque passage.
+    // Rattachement au pont : un ancien réparateur vérifiait seulement que la
+    // veth avait *un* bridge. Lorsqu'elle était déjà sur SAFELINKHUB-BRIDGE,
+    // le conteneur PHP semblait lancé mais ne répondait plus via le tunnel.
+    // Un MikHmon SafeLinkHub doit toujours être isolé sur DOCKERS ; déplacer
+    // son port ne recrée pas la veth et ne détache donc pas le conteneur.
     const vethPortRows = await client
       .talk(["/interface/bridge/port/print", `?interface=${VETH_NAME}`])
       .catch(() => [] as Sentence[]);
-    if (vethPortRows.length === 0) {
+    const vethPort = vethPortRows.find((row) => row.bridge);
+    if (!vethPort) {
       await run(
         ["/interface/bridge/port/add", `=bridge=${DOCKER_BRIDGE_NAME}`, `=interface=${VETH_NAME}`],
         `attach veth to ${DOCKER_BRIDGE_NAME} bridge`,
       );
+    } else if (vethPort.bridge !== DOCKER_BRIDGE_NAME && vethPort[".id"]) {
+      const detached = await run(
+        ["/interface/bridge/port/remove", `=numbers=${vethPort[".id"]}`],
+        `detach veth from incorrect bridge ${vethPort.bridge}`,
+      );
+      if (!detached.ok) return { status: "failed", message: detached.error };
+      const attached = await run(
+        ["/interface/bridge/port/add", `=bridge=${DOCKER_BRIDGE_NAME}`, `=interface=${VETH_NAME}`],
+        `move veth to ${DOCKER_BRIDGE_NAME} bridge`,
+      );
+      if (!attached.ok) return { status: "failed", message: attached.error };
+      log.push(`OK: veth ${VETH_NAME} moved from ${vethPort.bridge} to ${DOCKER_BRIDGE_NAME}`);
+    } else if (vethPort.bridge !== DOCKER_BRIDGE_NAME) {
+      return {
+        status: "failed",
+        message: `RouterOS did not return the bridge-port ID for ${VETH_NAME} on ${vethPort.bridge}.`,
+      };
     } else {
       log.push(`OK: veth ${VETH_NAME} already attached to ${DOCKER_BRIDGE_NAME}`);
     }

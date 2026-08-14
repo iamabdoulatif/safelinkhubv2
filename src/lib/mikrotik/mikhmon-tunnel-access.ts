@@ -12,11 +12,84 @@ import {
 
 type Sentence = Record<string, string>;
 
-// RouterOS conserve la casse des noms de bridge. Les installations historiques
-// ont utilisé à la fois `dockers` et `DOCKERS` : oublier la variante majuscule
-// laisse un bridge vide avec 11.11.11.1/28, donc une route ECMP qui peut voler
-// le trafic destiné au vrai conteneur MikHmon.
-export const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKERS", "DOCKER-SAFELINKHUB", "DOCKER"];
+// `DOCKERS` est le bridge isolé canonique de SafeLinkHub. RouterOS conserve la
+// casse : les autres orthographes sont historiques et peuvent être nettoyées si
+// elles sont vides, mais `DOCKERS` ne doit jamais être supprimé par ce réparateur.
+export const MIKHMON_DOCKER_BRIDGE_NAME = "DOCKERS";
+export const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKER-SAFELINKHUB", "DOCKER"];
+
+function isSafeLinkHubMikhmonContainer(row: Sentence) {
+  return /mikhmon-sf|safelinkhub/i.test(
+    [row.name, row.tag, row["root-dir"], row.comment].filter(Boolean).join(" "),
+  );
+}
+
+/**
+ * La veth MikHmon ne doit pas partager le bridge du hotspot. Sur ce bridge,
+ * certaines politiques Hotspot/bridge laissent le processus PHP démarré mais
+ * empêchent la réponse du conteneur vers le tunnel. On ne déplace que le
+ * conteneur géré par SafeLinkHub ; un MikHmon installé manuellement reste
+ * strictement sur son propre réseau.
+ */
+async function ensureManagedMikhmonDedicatedBridge(client: RouterOSClient, log?: string[]) {
+  const containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+  const container = containers.find(
+    (row) => isSafeLinkHubMikhmonContainer(row) && String(row.interface ?? "").trim(),
+  );
+  if (!container) return;
+
+  const vethName = String(container.interface ?? "").trim();
+  const ports = await client
+    .talk(["/interface/bridge/port/print", "?interface=" + vethName])
+    .catch(() => [] as Sentence[]);
+  const currentPort = ports.find((row) => row.bridge);
+  const currentBridge = String(currentPort?.bridge ?? "").trim();
+  if (currentBridge === MIKHMON_DOCKER_BRIDGE_NAME) return;
+
+  const targetRows = await client
+    .talk(["/interface/bridge/print", "?name=" + MIKHMON_DOCKER_BRIDGE_NAME])
+    .catch(() => [] as Sentence[]);
+  if (targetRows.length === 0) {
+    await client.talk(["/interface/bridge/add", "=name=" + MIKHMON_DOCKER_BRIDGE_NAME]);
+    log?.push("OK: recreated isolated DOCKERS bridge for MikHmon");
+  } else {
+    const targetPorts = await client
+      .talk(["/interface/bridge/port/print", "?bridge=" + MIKHMON_DOCKER_BRIDGE_NAME])
+      .catch(() => [] as Sentence[]);
+    // A bridge used by another service is not SafeLinkHub's to reconfigure.
+    if (targetPorts.some((row) => String(row.interface ?? "") !== vethName)) {
+      log?.push("WARN: DOCKERS bridge is used by another interface; MikHmon veth was left unchanged");
+      return;
+    }
+  }
+
+  if (currentPort?.[".id"]) {
+    await client.talk(["/interface/bridge/port/remove", "=numbers=" + currentPort[".id"]]);
+  }
+  await client.talk([
+    "/interface/bridge/port/add",
+    "=bridge=" + MIKHMON_DOCKER_BRIDGE_NAME,
+    "=interface=" + vethName,
+  ]);
+
+  // Laisser 11.11.11.1 sur les deux bridges crée une route ECMP : le retour
+  // du conteneur devient aléatoire. La passerelle sera réinstallée ensuite sur
+  // DOCKERS par ensureExistingMikhmonGateway.
+  if (currentBridge) {
+    const staleGateways = await client
+      .talk([
+        "/ip/address/print",
+        "?interface=" + currentBridge,
+        "?address=11.11.11.1/28",
+      ])
+      .catch(() => [] as Sentence[]);
+    for (const gateway of staleGateways) {
+      if (!gateway[".id"]) continue;
+      await client.talk(["/ip/address/remove", "=numbers=" + gateway[".id"]]);
+    }
+  }
+  log?.push("OK: moved SafeLinkHub MikHmon veth to isolated DOCKERS bridge");
+}
 
 async function cleanupLegacyDockerGateway(client: RouterOSClient, bridgeName: string, log?: string[]) {
   const commands = getDockerBridgeCleanupCommands(bridgeName);
@@ -196,6 +269,7 @@ async function ensureMikhmonTunnelFirewall(
 }
 
 export async function ensureMikhmonTunnelAccess(client: RouterOSClient, log?: string[]) {
+  await ensureManagedMikhmonDedicatedBridge(client, log);
   for (const bridgeName of LEGACY_DOCKER_BRIDGE_NAMES) {
     await cleanupLegacyDockerGateway(client, bridgeName, log);
   }
