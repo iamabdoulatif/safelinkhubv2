@@ -37,7 +37,13 @@ const LABELS: Record<string, { label: string; durationCode: string }> = {
   "01-MOIS": { label: "1 mois", durationCode: "30d" },
 };
 
-export const VOUCHER_PROFILES: VoucherProfile[] = [
+/**
+ * Les six profils historiques, recopiés d'un export MikHmon réel.
+ *
+ * Le catalogue EXPORTÉ (VOUCHER_PROFILES) est assemblé plus bas : il y ajoute
+ * les profils dérivés par buildVoucherProfile, qui n'est défini qu'après.
+ */
+const BUNDLED_VOUCHER_PROFILES: VoucherProfile[] = [
   {
     name: "01-JOUR",
     ...LABELS["01-JOUR"],
@@ -107,7 +113,7 @@ export const VOUCHER_PROFILES: VoucherProfile[] = [
  * template so a future edit to the 01-JOUR preset can't silently corrupt
  * custom profiles instead of failing loudly here.
  */
-const CUSTOM_PROFILE_TEMPLATE = VOUCHER_PROFILES.find((p) => p.name === "01-JOUR")!;
+const CUSTOM_PROFILE_TEMPLATE = BUNDLED_VOUCHER_PROFILES.find((p) => p.name === "01-JOUR")!;
 
 function replaceOnce(haystack: string, target: string, replacement: string, what: string): string {
   const occurrences = haystack.split(target).length - 1;
@@ -216,6 +222,36 @@ export function buildVoucherProfile(opts: {
     rateLimit,
   };
 }
+
+/**
+ * Forfait mensuel dédié aux téléviseurs et ordinateurs.
+ *
+ * Même mécanique d'expiration que 01-MOIS (30 jours), mais tarif distinct et
+ * débit dédié : ces appareils consomment autrement qu'un téléphone, et
+ * l'exploitant veut pouvoir les vendre — et les reconnaître dans le journal
+ * MikHmon — séparément.
+ *
+ * PRIX ET DÉBIT SONT INSCRITS DANS LE SCRIPT du profil : le tarif remonte tel
+ * quel dans le journal de ventes MikHmon. Pour les changer, c'est ici et
+ * nulle part ailleurs — puis relancer l'auto-setup sur les routeurs concernés.
+ */
+export const TV_PC_MONTH_PROFILE = buildVoucherProfile({
+  name: "MOIS-TV/PC",
+  label: "1 mois TV/PC — 5 000 FCFA",
+  durationCode: "30d",
+  price: 5000,
+  uploadMbps: 10,
+  downloadMbps: 10,
+});
+
+/**
+ * Catalogue posé par l'auto-setup quand l'assistant n'impose pas sa propre
+ * liste (voir container-setup : `opts.voucherProfiles ?? VOUCHER_PROFILES`).
+ */
+export const VOUCHER_PROFILES: VoucherProfile[] = [
+  ...BUNDLED_VOUCHER_PROFILES,
+  TV_PC_MONTH_PROFILE,
+];
 
 /** Nom du profil hotspot des comptes sans expiration. */
 export const UNLIMITED_PROFILE_NAME = "ILLIMITE";
