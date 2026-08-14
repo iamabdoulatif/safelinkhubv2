@@ -20,6 +20,7 @@
 // connecter.
 
 import { useEffect, useState } from "react";
+import type { PortalTheme } from "@/lib/portal/theme";
 
 type Method = { id: string; label: string; logo: string };
 
@@ -37,7 +38,15 @@ const METHODS: Method[] = [
   { id: "moov_money", label: "Moov Money", logo: "/payment/moov.png" },
 ];
 
-export default function PayMethods({ slug, orderId }: { slug: string; orderId: string }) {
+export default function PayMethods({
+  slug,
+  orderId,
+  theme,
+}: {
+  slug: string;
+  orderId: string;
+  theme: PortalTheme;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [pageUrl, setPageUrl] = useState("");
@@ -77,13 +86,18 @@ export default function PayMethods({ slug, orderId }: { slug: string; orderId: s
       const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, method }),
+        body: JSON.stringify({ orderId, method, theme }),
       });
       const data = (await res.json()) as { checkoutUrl?: string; error?: string };
       if (!res.ok || !data.checkoutUrl) {
         throw new Error(data.error || "Paiement impossible. Réessayez.");
       }
-      const paidUrl = `/portal/paid?orderId=${encodeURIComponent(orderId)}&slug=${encodeURIComponent(slug)}`;
+      const paidUrl = new URL("/portal/paid", window.location.origin);
+      paidUrl.searchParams.set("orderId", orderId);
+      paidUrl.searchParams.set("slug", slug);
+      paidUrl.searchParams.set("accent", theme.accent);
+      paidUrl.searchParams.set("surface", theme.surface);
+      paidUrl.searchParams.set("text", theme.text);
       if (win && !win.closed) {
         win.location.href = data.checkoutUrl; // Safari (nouvel onglet) → checkout OK
         // GeniusPay v3 ne redirige PAS vers success_url après paiement (le client

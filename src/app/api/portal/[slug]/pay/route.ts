@@ -20,6 +20,7 @@ import {
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
 import { prewarmPortalVoucherProfile } from "@/lib/portal/fulfill";
+import { appendPortalTheme, portalThemeFromUnknown } from "@/lib/portal/theme";
 
 // Routage des rails sur GeniusPay v3 (geniuspay.ci), vérifié le 2026-07-23 :
 //  • "wave"                → rail direct pay.wave.com (fiable en captif)
@@ -57,6 +58,7 @@ export async function POST(
 
   const orderId = String(body.orderId ?? "").trim();
   const methodRaw = String(body.method ?? "").trim();
+  const theme = portalThemeFromUnknown(body.theme);
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
 
   const db = getDb();
@@ -161,8 +163,14 @@ export async function POST(
     paymentMethod,
     mmoProvider,
     metadata: { orderId: order.id, slug, kind: "portal" },
-    successUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
-    errorUrl: `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}&status=error`,
+    successUrl: appendPortalTheme(
+      `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
+      theme,
+    ),
+    errorUrl: appendPortalTheme(
+      `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}&status=error`,
+      theme,
+    ),
   });
   if (!payment.ok) {
     await db

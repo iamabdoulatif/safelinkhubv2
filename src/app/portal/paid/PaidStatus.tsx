@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, Copy, Loader2, MessageSquareText, Plus, Wifi } from "lucide-react";
+import type { PortalTheme } from "@/lib/portal/theme";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
@@ -44,10 +45,12 @@ export default function PaidStatus({
   isError,
   orderId,
   slug,
+  theme,
 }: {
   isError: boolean;
   orderId: string;
   slug: string;
+  theme?: PortalTheme;
 }) {
   const canPoll = Boolean(orderId && slug) && !isError;
   const [phase, setPhase] = useState<Phase>(isError ? "failed" : canPoll ? "loading" : "processing");
@@ -258,11 +261,11 @@ export default function PaidStatus({
         justifyContent: "center",
         padding: 24,
         fontFamily: "system-ui, sans-serif",
-        background: PAPER,
-        color: INK,
+        background: theme?.surface ?? PAPER,
+        color: theme?.text ?? INK,
       }}
     >
-      <div style={CARD}>
+      <div style={{ ...CARD, background: theme?.surface ?? PAPER, borderColor: theme?.text ?? INK }}>
         {phase === "fulfilled" ? (
           <>
             <div style={{ marginBottom: 8 }}>

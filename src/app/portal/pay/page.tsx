@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
+import { portalThemeFromParams, portalThemeSearch } from "@/lib/portal/theme";
 import PayMethods from "./PayMethods";
 
 function fcfa(n: number): string {
@@ -18,9 +19,17 @@ function fcfa(n: number): string {
 export default async function PortalPayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string; slug?: string }>;
+  searchParams: Promise<{
+    orderId?: string;
+    slug?: string;
+    accent?: string;
+    surface?: string;
+    text?: string;
+  }>;
 }) {
-  const { orderId, slug } = await searchParams;
+  const params = await searchParams;
+  const { orderId, slug } = params;
+  const theme = portalThemeFromParams(params);
 
   // Thème « Bitume » (tokens de la landing) : paper/anthracite, bordure 2px,
   // aplats opaques — pas de dégradé, pas d'ombre, angles droits.
@@ -33,16 +42,16 @@ export default async function PortalPayPage({
         justifyContent: "center",
         padding: 20,
         fontFamily: "system-ui, sans-serif",
-        background: "#FBFAF8",
-        color: "#1C1917",
+        background: theme.surface,
+        color: theme.text,
       }}
     >
       <div
         style={{
           maxWidth: 400,
           width: "100%",
-          background: "#FBFAF8",
-          border: "2px solid #1C1917",
+          background: theme.surface,
+          border: `2px solid ${theme.text}`,
           padding: 24,
         }}
       >
@@ -76,7 +85,9 @@ export default async function PortalPayPage({
 
   // Déjà payée / en cours / honorée → on montre le suivi, pas un nouveau paiement.
   if (order.status !== "pending" || order.paymentReference) {
-    redirect(`/portal/paid?orderId=${orderId}&slug=${encodeURIComponent(slug)}`);
+    redirect(
+      `/portal/paid?orderId=${orderId}&slug=${encodeURIComponent(slug)}&${portalThemeSearch(theme)}`,
+    );
   }
 
   return wrap(
@@ -97,7 +108,7 @@ export default async function PortalPayPage({
       >
         {fcfa(order.priceCents ?? 0)}
       </p>
-      <PayMethods slug={slug} orderId={orderId} />
+      <PayMethods slug={slug} orderId={orderId} theme={theme} />
     </>,
   );
 }
