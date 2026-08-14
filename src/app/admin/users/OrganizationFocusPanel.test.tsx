@@ -39,6 +39,18 @@ test("le panneau d’organisation ciblée expose les résumés et les parcours d
   assert.match(markup, new RegExp(`href="/admin/router/${focus.routers[0].id}"`));
 });
 
+test("le panneau d’organisation ciblée conserve les éléments essentiels en mode compact", () => {
+  const markup = renderToStaticMarkup(<OrganizationFocusPanel compact focus={focus} />);
+
+  assert.match(markup, /class="border-2 border-line bg-brand\/10 p-4 md:p-5"/);
+  assert.match(markup, /class="mt-4 grid gap-3 border-y border-line py-3 sm:grid-cols-2 xl:grid-cols-5"/);
+  assert.match(markup, /Organisation ciblée/);
+  assert.match(markup, /Vue limitée aux utilisateurs et routeurs de cette organisation/);
+  assert.match(markup, /Retour aux parcs clients/);
+  assert.match(markup, /Voir la table technique/);
+  assert.match(markup, /Routeurs de l’organisation/);
+});
+
 test("le panneau d’organisation ciblée explique l’absence de routeur", () => {
   const markup = renderToStaticMarkup(
     <OrganizationFocusPanel

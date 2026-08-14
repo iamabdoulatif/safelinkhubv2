@@ -5,6 +5,7 @@ import type { OrganizationFocus } from "./organization-focus";
 
 type OrganizationFocusPanelProps = {
   focus: OrganizationFocus;
+  compact?: boolean;
 };
 
 function pluralize(count: number, singular: string, plural: string) {
@@ -17,10 +18,13 @@ function routerStatusLabel(status: string) {
   return "Hors ligne";
 }
 
-export function OrganizationFocusPanel({ focus }: OrganizationFocusPanelProps) {
+export function OrganizationFocusPanel({ focus, compact = false }: OrganizationFocusPanelProps) {
   return (
-    <section className="border-2 border-line bg-paper p-5 md:p-6" aria-labelledby={`organization-focus-${focus.id}`}>
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+    <section
+      className={compact ? "border-2 border-line bg-brand/10 p-4 md:p-5" : "border-2 border-line bg-paper p-5 md:p-6"}
+      aria-labelledby={`organization-focus-${focus.id}`}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-deep">Organisation ciblée</p>
           <h2 id={`organization-focus-${focus.id}`} className="mt-1 font-display text-2xl font-extrabold tracking-tight text-ink">
@@ -48,7 +52,7 @@ export function OrganizationFocusPanel({ focus }: OrganizationFocusPanelProps) {
         </div>
       </div>
 
-      <dl className="mt-5 grid gap-3 border-y border-line-soft py-4 sm:grid-cols-2 xl:grid-cols-5">
+      <dl className={compact ? "mt-4 grid gap-3 border-y border-line py-3 sm:grid-cols-2 xl:grid-cols-5" : "mt-5 grid gap-3 border-y border-line-soft py-4 sm:grid-cols-2 xl:grid-cols-5"}>
         <div>
           <dt className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-ink-soft">
             <Users className="h-4 w-4" aria-hidden="true" /> Utilisateurs
