@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Copy, CreditCard, ExternalLink, Globe2, Loader2, ShieldOff } from "lucide-react";
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
@@ -24,6 +24,12 @@ type RouterRow = {
 };
 
 type AccessPlan = BillingPeriod | "__unlimited__" | "__quota__";
+
+type AccessConfirmation =
+  | { kind: "enable"; service: string; plan: BillingPeriod }
+  | { kind: "disable"; forwardId: string; service: string }
+  | { kind: "enable-all"; services: string[] }
+  | null;
 
 export type ForwardRow = {
   id: string;
@@ -241,6 +247,9 @@ function RouterDirectAccess({
   const [resources, setResources] = useState<RouterResources | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState<AccessConfirmation>(null);
+  const confirmationTriggerRef = useRef<HTMLElement | null>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
   // Plan chosen per service before activating it — defaults to monthly.
   // Billing isn't enforced yet (see port-forward.ts), but the choice is
   // still recorded so the UI already reflects what a real subscription
@@ -275,11 +284,33 @@ function RouterDirectAccess({
     };
   }, [hasActiveAccess, router.id]);
 
-  function handleEnable(service: string) {
-    setPendingService(service);
-    setError(null);
+  function closeConfirmation() {
+    setConfirmation(null);
+    requestAnimationFrame(() => confirmationTriggerRef.current?.focus());
+  }
+
+  function requestEnable(service: string, trigger: HTMLElement) {
     const raw = defaultPlan(service);
     const plan: BillingPeriod = raw === "__unlimited__" || raw === "__quota__" ? "monthly" : raw;
+    confirmationTriggerRef.current = trigger;
+    setConfirmation({ kind: "enable", service, plan });
+  }
+
+  function requestDisable(forwardId: string, service: string, trigger: HTMLElement) {
+    confirmationTriggerRef.current = trigger;
+    setConfirmation({ kind: "disable", forwardId, service });
+  }
+
+  function requestEnableAll(trigger: HTMLElement) {
+    const inactive = ALL_SERVICES.filter((service) => !activeServices.has(service));
+    if (inactive.length === 0) return;
+    confirmationTriggerRef.current = trigger;
+    setConfirmation({ kind: "enable-all", services: inactive });
+  }
+
+  function runEnable(service: string, plan: BillingPeriod) {
+    setPendingService(service);
+    setError(null);
     startTransition(async () => {
       const res = await enablePortForward(router.id, service, plan);
       setPendingService(null);
@@ -293,9 +324,12 @@ function RouterDirectAccess({
     });
   }
 
-  function handleDisable(forwardId: string) {
+  function runDisable(forwardId: string, service: string) {
+    setPendingService(service);
+    setError(null);
     startTransition(async () => {
       const res = await disablePortForward(forwardId);
+      setPendingService(null);
       if (res?.error) setError(res.error);
       else navRouter.refresh();
     });
@@ -303,7 +337,7 @@ function RouterDirectAccess({
 
   const ALL_SERVICES = ["winbox", "webfig", "ssh", "mikhmon"] as const;
 
-  function handleEnableAll() {
+  function runEnableAll() {
     setError(null);
     setCardOpen(true);
     const inactive = ALL_SERVICES.filter((s) => !activeServices.has(s));
@@ -330,13 +364,42 @@ function RouterDirectAccess({
     });
   }
 
+  function confirmAccessChange() {
+    const action = confirmation;
+    if (!action) return;
+    setConfirmation(null);
+
+    if (action.kind === "enable") {
+      runEnable(action.service, action.plan);
+      return;
+    }
+    if (action.kind === "disable") {
+      runDisable(action.forwardId, action.service);
+      return;
+    }
+    runEnableAll();
+  }
+
+  useEffect(() => {
+    if (!confirmation) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeConfirmation();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    requestAnimationFrame(() => confirmButtonRef.current?.focus());
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [confirmation]);
+
   return (
     <div className="rounded-lg border border-line-soft p-3">
-      <button
-        type="button"
-        onClick={() => setCardOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 text-left"
-      >
+      <div className="flex w-full items-center justify-between gap-2 text-left">
+        <button
+          type="button"
+          onClick={() => setCardOpen((v) => !v)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          aria-expanded={cardOpen}
+        >
         <span className="flex items-center gap-2">
           <ChevronDown
             className={`h-3.5 w-3.5 shrink-0 text-ink-soft transition-transform ${cardOpen ? "rotate-180" : ""}`}
@@ -348,6 +411,7 @@ function RouterDirectAccess({
             </span>
           )}
         </span>
+        </button>
         <span className="flex items-center gap-2">
           {router.status !== "online" && (
             <span className="text-xs text-ink-soft">Routeur hors ligne</span>
@@ -356,7 +420,7 @@ function RouterDirectAccess({
             <button
               type="button"
               disabled={pending}
-              onClick={(e) => { e.stopPropagation(); handleEnableAll(); }}
+              onClick={(event) => requestEnableAll(event.currentTarget)}
               className="flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-[#1C1917] hover:bg-brand-deep disabled:opacity-60"
             >
               {pending && pendingService && (
@@ -370,7 +434,7 @@ function RouterDirectAccess({
             </button>
           )}
         </span>
-      </button>
+      </div>
 
       {cardOpen && (
         <>
@@ -380,7 +444,7 @@ function RouterDirectAccess({
         {(["winbox", "webfig", "ssh", "mikhmon"] as const).map((service) => {
           const forward = forwards.find((f) => f.service === service);
           const isPublic = Boolean(forward);
-          const busy = pending && (pendingService === service || (isPublic && pending));
+          const busy = pending && pendingService === service;
           const expiry = formatExpiry(forward?.expiresAt ?? null);
           const planLabel = forward
             ? forward.billingPeriod === "free_until"
@@ -434,8 +498,10 @@ function RouterDirectAccess({
                     role="switch"
                     aria-checked={isPublic}
                     disabled={busy || (!isPublic && router.status !== "online" && !unlimited)}
-                    onClick={() =>
-                      isPublic ? handleDisable(forward!.id) : handleEnable(service)
+                    onClick={(event) =>
+                      isPublic
+                        ? requestDisable(forward!.id, service, event.currentTarget)
+                        : requestEnable(service, event.currentTarget)
                     }
                     className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
                       isPublic ? "bg-red-500" : "bg-line-soft"
@@ -592,6 +658,58 @@ function RouterDirectAccess({
           latestStatus={null}
           onSubmitted={() => setPaywall(null)}
         />
+      )}
+
+      {confirmation && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-ink/45 p-4 sm:items-center sm:justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`access-confirmation-${router.id}`}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeConfirmation();
+          }}
+        >
+          <div className="w-full max-w-md rounded-xl border border-line-soft bg-paper p-5 shadow-xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-deep">
+              Confirmation requise
+            </p>
+            <h3 id={`access-confirmation-${router.id}`} className="mt-2 text-lg font-bold text-ink">
+              {confirmation.kind === "disable" ? "Révoquer un accès public ?" : "Activer un accès public ?"}
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-ink-soft">
+              {confirmation.kind === "disable"
+                ? `L’accès ${SERVICE_LABELS[confirmation.service] ?? confirmation.service} de ${router.name} ne sera plus joignable depuis Internet.`
+                : confirmation.kind === "enable-all"
+                  ? `${confirmation.services.length} accès de ${router.name} deviendront joignables depuis Internet.`
+                  : `L’accès ${SERVICE_LABELS[confirmation.service] ?? confirmation.service} de ${router.name} deviendra joignable depuis Internet.`}
+            </p>
+            {confirmation.kind !== "disable" && (
+              <p className="mt-2 rounded-md bg-clay px-3 py-2 text-xs leading-5 text-ink-soft">
+                Vérifiez le mot de passe du routeur avant de continuer. Cette action peut engager la durée de l’accès sélectionnée.
+              </p>
+            )}
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeConfirmation}
+                className="min-h-10 rounded-lg border border-line px-4 text-sm font-semibold text-ink hover:bg-clay"
+              >
+                Annuler
+              </button>
+              <button
+                ref={confirmButtonRef}
+                type="button"
+                onClick={confirmAccessChange}
+                className={`min-h-10 rounded-lg px-4 text-sm font-semibold text-paper ${
+                  confirmation.kind === "disable" ? "bg-red-600 hover:bg-red-700" : "bg-ink hover:bg-ink/90"
+                }`}
+              >
+                {confirmation.kind === "disable" ? "Confirmer la révocation" : "Confirmer l’activation"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
