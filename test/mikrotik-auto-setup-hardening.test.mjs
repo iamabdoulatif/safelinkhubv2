@@ -35,6 +35,31 @@ test("MikHmon container commands only use RouterOS 7.23 supported properties and
   assert.match(source, /if \(!tmpfsCreated\.ok\)/);
 });
 
+test("MikHmon install retries without envlist only on RouterOS envlist incompatibility", async () => {
+  const source = await containerSetupSource();
+
+  assert.match(source, /isUnsupportedEnvlistError/);
+  assert.match(source, /withoutEnvlist\(containerAddCommand\)/);
+  assert.match(source, /withoutEnvlist\(containerSetCommand\)/);
+  assert.match(source, /container image install \(sans envlist\)/);
+});
+
+test("auto-setup reconciles existing WAN/LAN interface lists before adding members", async () => {
+  const source = await containerSetupSource();
+  const interfaceListSection = source.slice(
+    source.indexOf("existingInterfaceLists"),
+    source.indexOf("// =numbers= only resolves"),
+  );
+
+  assert.match(source, /getMissingInterfaceListNames/);
+  assert.match(source, /getMissingInterfaceListMembers/);
+  assert.match(source, /\/interface\/list\/print/);
+  assert.match(source, /\/interface\/list\/member\/print/);
+  assert.match(interfaceListSection, /FAIL \(read interface lists\)/);
+  assert.match(interfaceListSection, /FAIL \(read interface list members\)/);
+  assert.doesNotMatch(interfaceListSection, /\.catch\(\(\) => \[\] as Sentence\[\]\)/);
+});
+
 test("auto-setup migrates legacy Docker bridge names before assigning the Docker gateway", async () => {
   const source = await containerSetupSource();
 
@@ -210,7 +235,10 @@ test("la veth MIKHMON est corrigée en place, jamais arrachée au conteneur", as
 
 test("le conteneur existant se voit RÉAFFIRMER son interface", async () => {
   const source = await containerSetupSource();
-  const setBlock = source.slice(source.indexOf("const baseSet = ["), source.indexOf("} else {", source.indexOf("const baseSet = [")));
+  const setBlock = source.slice(
+    source.indexOf("const containerSetCommand = ["),
+    source.indexOf("} else {", source.indexOf("const containerSetCommand = [")),
+  );
 
   // C'est ce qui répare un conteneur déjà orphelin : sans =interface=, le `set`
   // ne touchait que start-on-boot et l'orphelin le restait.

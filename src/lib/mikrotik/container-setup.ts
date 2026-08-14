@@ -37,6 +37,11 @@ import { getSafecoinAccount } from "@/lib/safecoin/ledger";
 import { autoSetupChargeScCents, chargeAutoSetup } from "@/lib/safecoin/service-charges";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
+import { isUnsupportedEnvlistError, withoutEnvlist } from "./container-envlist";
+import {
+  getMissingInterfaceListMembers,
+  getMissingInterfaceListNames,
+} from "./interface-list-reconciliation";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -557,34 +562,30 @@ async function provisionDockerStack(
       (container) =>
         container.name === CONTAINER_NAME || container["root-dir"] === containerRootDir,
     );
-    // Le paramètre =envlist= (pré-remplissage de la session MikHmon via l'envlist
-    // "mikhmon") est documenté sur /container/add|set, mais certains builds du
-    // paquet container (vu sur RouterOS 7.23.1, hAP ax lite) le REJETTENT avec
-    // « unknown parameter envlist » et font échouer toute l'install. On l'essaie
-    // donc puis, si RouterOS ne le connaît pas, on réinstalle SANS : le conteneur
-    // s'installe quand même, la session MikHmon se configure alors à la main
-    // (l'envlist reste posé, réutilisé par les routeurs dont le build le gère).
-    const ENVLIST_UNSUPPORTED = /envlist/i;
     if (existingContainer?.[".id"]) {
       // `=interface=` est RÉAFFIRMÉ à chaque passage — c'est ce qui répare les
       // routeurs dont le conteneur a perdu sa veth (voir le commentaire sur la
       // veth plus haut). Sans lui, un conteneur orphelin le restait
       // définitivement : `set` ne touchait que start-on-boot.
-      const baseSet = [
+      const containerSetCommand = [
         "/container/set",
         `=numbers=${existingContainer[".id"]}`,
         `=interface=${VETH_NAME}`,
         "=start-on-boot=yes",
+        ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
       ];
       let containerUpdated = await run(
-        mikhmonEnvlist ? [...baseSet, `=envlist=${mikhmonEnvlist}`] : baseSet,
+        containerSetCommand,
         "preserve existing MikHmon container download",
       );
-      if (!containerUpdated.ok && mikhmonEnvlist && ENVLIST_UNSUPPORTED.test(containerUpdated.error)) {
+      if (!containerUpdated.ok && mikhmonEnvlist && isUnsupportedEnvlistError(containerUpdated.error)) {
         log.push(
           "WARN: cette version de RouterOS ignore =envlist= sur /container/set — session MikHmon à configurer manuellement.",
         );
-        containerUpdated = await run(baseSet, "preserve existing MikHmon container download (sans envlist)");
+        containerUpdated = await run(
+          withoutEnvlist(containerSetCommand),
+          "preserve existing MikHmon container download (sans envlist)",
+        );
       }
       // Repli si ce build refuse `=interface=` sur /container/set, comme
       // certains refusent `=envlist=` : on retombe sur la mise à jour minimale
@@ -603,27 +604,29 @@ async function provisionDockerStack(
       if (!containerUpdated.ok) return { status: "failed", message: containerUpdated.error };
       log.push("OK: existing MikHmon container download preserved");
     } else {
-      const baseAdd = [
+      const containerAddCommand = [
         "/container/add",
         `=interface=${VETH_NAME}`,
         `=name=${CONTAINER_NAME}`,
         `=remote-image=${REMOTE_IMAGE}`,
         `=root-dir=${containerRootDir}`,
         "=start-on-boot=yes",
+        ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
       ];
       let containerAdded = await run(
-        mikhmonEnvlist ? [...baseAdd, `=envlist=${mikhmonEnvlist}`] : baseAdd,
+        containerAddCommand,
         "container image install (auto-start on boot enabled)",
       );
-      if (!containerAdded.ok && mikhmonEnvlist && ENVLIST_UNSUPPORTED.test(containerAdded.error)) {
+      if (!containerAdded.ok && mikhmonEnvlist && isUnsupportedEnvlistError(containerAdded.error)) {
         log.push(
           "WARN: cette version de RouterOS ignore =envlist= sur /container/add — installation sans pré-remplissage de la session MikHmon (à configurer manuellement).",
         );
-        containerAdded = await run(baseAdd, "container image install (sans envlist)");
+        containerAdded = await run(
+          withoutEnvlist(containerAddCommand),
+          "container image install (sans envlist)",
+        );
       }
-      if (!containerAdded.ok) {
-        return { status: "failed", message: containerAdded.error };
-      }
+      if (!containerAdded.ok) return { status: "failed", message: containerAdded.error };
     }
     const containerResult = await waitForImageAndStart(client, log);
     if (containerResult.status === "failed") return containerResult;
@@ -1380,17 +1383,68 @@ export async function provisionHotspotStack(
       await client.talk(["/interface/bridge/remove", `=numbers=${staleBridgeName}`]).catch(() => {});
     }
 
-    // Interface lists (WAN / LAN) used for NAT/firewall scoping.
-    await run(["/interface/list/add", "=name=WAN"], "WAN interface list");
-    await run(["/interface/list/add", "=name=LAN"], "LAN interface list");
-    await run(
-      ["/interface/list/member/add", `=interface=${WAN_INTERFACE_NAME}`, "=list=WAN"],
-      "WAN list member",
+    // Interface lists (WAN / LAN) used for NAT/firewall scoping. RouterOS
+    // keeps these entries between runs and refuses duplicate adds, so read
+    // the full state first and create only what is missing. A single
+    // interface can legitimately belong to several lists, hence membership
+    // is matched on the (list, interface) pair rather than interface alone.
+    let existingInterfaceLists: Sentence[];
+    try {
+      existingInterfaceLists = await client.talk(["/interface/list/print"]);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : "error";
+      log.push(`FAIL (read interface lists): ${error}`);
+      return {
+        error: `Impossible de lire les listes d'interfaces RouterOS : ${error}`,
+        log,
+      };
+    }
+
+    let existingInterfaceListMembers: Sentence[];
+    try {
+      existingInterfaceListMembers = await client.talk(["/interface/list/member/print"]);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : "error";
+      log.push(`FAIL (read interface list members): ${error}`);
+      return {
+        error: `Impossible de lire les membres des listes d'interfaces RouterOS : ${error}`,
+        log,
+      };
+    }
+    const requiredListNames = ["WAN", "LAN"];
+    const missingListNames = new Set(
+      getMissingInterfaceListNames(existingInterfaceLists, requiredListNames),
     );
-    await run(
-      ["/interface/list/member/add", `=interface=${bridgeName}`, "=list=LAN"],
-      "LAN list member",
+    for (const listName of requiredListNames) {
+      if (missingListNames.has(listName)) {
+        await run(["/interface/list/add", `=name=${listName}`], `${listName} interface list`);
+      } else {
+        log.push(`OK: ${listName} interface list already exists`);
+      }
+    }
+
+    const requiredListMembers = [
+      { list: "WAN", interface: WAN_INTERFACE_NAME },
+      { list: "LAN", interface: bridgeName },
+    ];
+    const missingListMembers = getMissingInterfaceListMembers(
+      existingInterfaceListMembers,
+      requiredListMembers,
     );
+    for (const member of requiredListMembers) {
+      const isMissing = missingListMembers.some(
+        (candidate) =>
+          candidate.list === member.list && candidate.interface === member.interface,
+      );
+      if (isMissing) {
+        await run(
+          ["/interface/list/member/add", `=interface=${member.interface}`, `=list=${member.list}`],
+          `${member.list} list member`,
+        );
+      } else {
+        log.push(`OK: ${member.list} list member already exists`);
+      }
+    }
 
     // =numbers= only resolves to a real .id for menus where RouterOS
     // exposes a unique "name"-like property (bridges, schedulers, ...) —
