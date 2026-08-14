@@ -12,7 +12,11 @@ import {
 
 type Sentence = Record<string, string>;
 
-export const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKER-SAFELINKHUB", "DOCKER"];
+// RouterOS conserve la casse des noms de bridge. Les installations historiques
+// ont utilisé à la fois `dockers` et `DOCKERS` : oublier la variante majuscule
+// laisse un bridge vide avec 11.11.11.1/28, donc une route ECMP qui peut voler
+// le trafic destiné au vrai conteneur MikHmon.
+export const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKERS", "DOCKER-SAFELINKHUB", "DOCKER"];
 
 async function cleanupLegacyDockerGateway(client: RouterOSClient, bridgeName: string, log?: string[]) {
   const commands = getDockerBridgeCleanupCommands(bridgeName);

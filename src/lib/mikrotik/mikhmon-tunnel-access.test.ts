@@ -65,6 +65,51 @@ describe("MikHmon tunnel access repair", () => {
     assert.ok(addGateway.includes("=interface=dockers"));
   });
 
+  it("retire un bridge Docker historique vide qui duplique la route du conteneur actif", async () => {
+    const calls: string[][] = [];
+    const client = {
+      async talk(words: string[]) {
+        calls.push(words);
+        if (words[0] === "/container/print") {
+          return [{ ".id": "*container", name: "mikhmon-sf-v1", status: "running", interface: "MIKHMON" }];
+        }
+        if (words[0] === "/interface/veth/print") {
+          return [{ ".id": "*veth", name: "MIKHMON", address: "11.11.11.11/28", gateway: "11.11.11.1" }];
+        }
+        if (words[0] === "/interface/bridge/port/print" && words.includes("?interface=MIKHMON")) {
+          return [{ ".id": "*port", bridge: "SAFELINKHUB-BRIDGE", interface: "MIKHMON" }];
+        }
+        if (words[0] === "/interface/bridge/port/print" && words.includes("?bridge=DOCKERS")) return [];
+        if (words[0] === "/ip/address/print" && words.includes("?interface=DOCKERS")) {
+          return [{ ".id": "*old-gateway", address: "11.11.11.1/28" }];
+        }
+        if (words[0] === "/interface/bridge/print" && words.includes("?name=DOCKERS")) {
+          return [{ ".id": "*old-bridge", name: "DOCKERS" }];
+        }
+        if (words[0] === "/ip/address/print" && words.includes("?interface=SAFELINKHUB-BRIDGE")) {
+          return [{ ".id": "*gateway", address: "11.11.11.1/28" }];
+        }
+        if (words[0] === "/ip/address/print") return [{ address: "10.66.0.23/32", interface: "safelinkhub-wg0" }];
+        if (words[0] === "/ip/firewall/nat/print") return [{ ".id": "*nat", "to-addresses": "11.11.11.11" }];
+        if (words[0] === "/interface/print") return [{ ".id": "*wg" }];
+        if (words[0] === "/ip/firewall/filter/print" && words.some((word) => word.startsWith("?comment="))) return [];
+        if (words[0] === "/ip/firewall/filter/print") return [{ ".id": "*first" }];
+        return [];
+      },
+    };
+
+    await ensureMikhmonTunnelAccess(client as never);
+
+    assert.ok(
+      calls.some((words) => words[0] === "/ip/address/remove" && words.includes("=numbers=*old-gateway")),
+      "la passerelle du bridge DOCKERS vide doit être retirée pour supprimer la route ECMP parasite",
+    );
+    assert.ok(
+      calls.some((words) => words[0] === "/interface/bridge/remove" && words.includes("=numbers=*old-bridge")),
+      "le bridge DOCKERS vide doit être supprimé après sa passerelle",
+    );
+  });
+
   it("skips tunnel firewall rules for tunnel interfaces that do not exist on the router", async () => {
     const calls: string[][] = [];
     const client = {
