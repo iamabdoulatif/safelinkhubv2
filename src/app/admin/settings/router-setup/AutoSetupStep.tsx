@@ -15,7 +15,7 @@
  *   écran après le lancement — plus d'étapes de test séparées.
  */
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft, Box, Check, Copy, Plus, Trash2 } from "lucide-react";
 import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
@@ -26,6 +26,8 @@ import AutoSetupPaywallModal from "./AutoSetupPaywallModal";
 import SerialUnlockRequestModal from "@/components/mikrotik/SerialUnlockRequestModal";
 import { getSerialUnlockStatus } from "@/lib/mikrotik/serial-unlock-actions";
 import FancyLoader from "@/components/FancyLoader";
+import { checkDomainTaken } from "@/lib/net/domain-availability";
+import { portalDomainSuggestions, ssidFromHotspotName } from "@/lib/net/portal-domain";
 import {
   classForPrefix,
   CLASS_DEFAULT_PREFIX,
@@ -76,16 +78,6 @@ const DURATION_UNIT_FROM_PACKAGE: Record<string, DurationUnit> = {
   Weeks: "w",
   Months: "mo",
 };
-
-function slugifyDomain(input: string) {
-  return input
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-}
 
 function UnlockCommandBlock() {
   const [copied, setCopied] = useState(false);
@@ -212,12 +204,28 @@ export default function AutoSetupStep({
   // n'est dérivé du nom du hotspot ni envoyé au routeur.
   const hasWifi = detected?.hasWifi ?? true;
 
+  const domainSuggestions = useMemo(() => portalDomainSuggestions(hotspotName), [hotspotName]);
+  // Dépistage internet du domaine saisi. null = pas encore vérifié.
+  const [domainCheck, setDomainCheck] = useState<{ domain: string; status: string } | null>(null);
+  const [domainChecking, setDomainChecking] = useState(false);
+
+  async function verifyDomain(value: string) {
+    const domain = value.trim();
+    if (!domain) {
+      setDomainCheck(null);
+      return;
+    }
+    setDomainChecking(true);
+    setDomainCheck(await checkDomainTaken(domain));
+    setDomainChecking(false);
+  }
+
   function onHotspotNameChange(value: string) {
     setHotspotName(value);
-    if (!ssidTouched && hasWifi) setSsid(value);
+    if (!ssidTouched && hasWifi) setSsid(ssidFromHotspotName(value));
     if (!dnsTouched) {
-      const slug = slugifyDomain(value);
-      setDnsName(slug ? `${slug}.wifi` : "");
+      setDnsName(portalDomainSuggestions(value)[0] ?? "");
+      setDomainCheck(null);
     }
   }
 
@@ -829,10 +837,48 @@ export default function AutoSetupStep({
               onChange={(e) => {
                 setDnsTouched(true);
                 setDnsName(e.target.value);
+                setDomainCheck(null);
               }}
-              placeholder="mirador.wifi"
+              onBlur={(e) => verifyDomain(e.target.value)}
+              placeholder="mirador.ci"
               className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
             />
+            {domainSuggestions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {domainSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => {
+                      setDnsTouched(true);
+                      setDnsName(suggestion);
+                      verifyDomain(suggestion);
+                    }}
+                    className={`rounded-full border px-2.5 py-1 font-mono text-xs transition-colors ${
+                      dnsName === suggestion
+                        ? "border-ok bg-ok/10 text-ink"
+                        : "border-line-soft text-ink-soft hover:bg-clay"
+                    }`}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+            {domainChecking && <p className="mt-1.5 text-xs text-ink-soft">Vérification sur internet…</p>}
+            {!domainChecking && domainCheck?.domain === dnsName.trim() && (
+              <p
+                className={`mt-1.5 text-xs leading-5 ${
+                  domainCheck.status === "taken" ? "text-warn" : "text-ok"
+                }`}
+              >
+                {domainCheck.status === "taken"
+                  ? "Ce domaine existe déjà sur internet : vos clients ne pourraient plus atteindre le vrai site depuis le hotspot. Utilisable seulement s’il vous appartient."
+                  : domainCheck.status === "free"
+                    ? "Libre : ce nom ne pointe nulle part, il ne masquera aucun site."
+                    : "Impossible de vérifier ce nom pour le moment."}
+              </p>
+            )}
           </div>
         </div>
         <p className="mt-2 text-sm text-ink-soft/80">
