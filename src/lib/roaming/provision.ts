@@ -37,6 +37,8 @@ import { effectiveRoamingPrice } from "./pricing";
 import { newRoamingRouterIds } from "./forms";
 import { appendRoamingSeenHook } from "./on-login-hook";
 import { deriveRouterKey } from "./webhook-secret";
+import { revokeRoamingTargets } from "./revocation";
+import { findHotspotUser } from "./hotspot-user";
 
 /**
  * Un compte à créer. `password` est distinct de `username` pour les comptes
@@ -361,14 +363,6 @@ async function prepareProfileOnRouter(
   await ensureMacAutoLogin(client).catch(() => {});
 }
 
-/** Retrouve un utilisateur hotspot par son nom, ou null. */
-async function findHotspotUser(client: RouterOSClient, name: string) {
-  const rows = await client
-    .talk(["/ip/hotspot/user/print", `?name=${name}`])
-    .catch(() => [] as Record<string, string>[]);
-  return rows[0] ?? null;
-}
-
 /**
  * Charge un compte nominatif et le groupe auquel il appartient.
  * Borné à l'organisation ET au useCase : on ne modifie ni ne supprime un
@@ -667,20 +661,18 @@ export async function deleteRoamingAccount(opts: {
   if (!account) return { error: "Compte introuvable." };
 
   const groupRouters = await loadGroupRouters(orgId, account.groupId);
-  const unreachable: string[] = [];
-  let removedOn = 0;
+  const { removedOn, unreachable } = await revokeRoamingTargets(
+    groupRouters.map(({ router }) => ({ name: router.name, router })),
+    async ({ router }) => {
+      // Une révocation est une action interactive : attendre trois tunnels de
+      // 20 s par zone bloquait l'interface pendant plusieurs minutes. Une zone
+      // saine ouvre son tunnel bien avant 10 s ; l'échec reste visible et la
+      // ligne SaaS n'est jamais supprimée avant une révocation complète.
+      const client = await connectToRouter(router, 10_000, 1);
+      try {
+        const user = await findHotspotUser(client, account.username);
+        if (!user?.[".id"]) return;
 
-  for (const { router } of groupRouters) {
-    let client: RouterOSClient;
-    try {
-      client = await connectToRouter(router);
-    } catch {
-      unreachable.push(router.name);
-      continue;
-    }
-    try {
-      const user = await findHotspotUser(client, account.username);
-      if (user?.[".id"]) {
         const active = await client
           .talk(["/ip/hotspot/active/print", `?user=${account.username}`])
           .catch(() => [] as Record<string, string>[]);
@@ -697,14 +689,11 @@ export async function deleteRoamingAccount(opts: {
             await client.talk(["/ip/hotspot/user/remove", `=.id=${companion[".id"]}`]).catch(() => {});
           }
         }
+      } finally {
+        client.close();
       }
-      removedOn += 1;
-    } catch {
-      unreachable.push(router.name);
-    } finally {
-      client.close();
-    }
-  }
+    },
+  );
 
   if (unreachable.length > 0) {
     return {
