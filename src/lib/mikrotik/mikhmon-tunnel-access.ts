@@ -16,15 +16,22 @@ export const LEGACY_DOCKER_BRIDGE_NAMES = ["CONTAINERS", "dockers", "DOCKER-SAFE
 
 async function cleanupLegacyDockerGateway(client: RouterOSClient, bridgeName: string, log?: string[]) {
   const commands = getDockerBridgeCleanupCommands(bridgeName);
+  const bridgePorts = await client.talk(commands.findBridgePorts).catch(() => [] as Sentence[]);
+  // Ce bridge peut appartenir à un MikHmon installé avant SafeLinkHub. Sa
+  // passerelle 11.11.11.1 est alors nécessaire au retour vers le tunnel : la
+  // retirer laisse le conteneur « running » mais le rend muet depuis le relais.
+  // Seul un bridge réellement vide est une ancienne ressource à nettoyer.
+  if (bridgePorts.length > 0) {
+    log?.push("SKIP: preserved active legacy Docker bridge " + bridgeName);
+    return;
+  }
+
   const addresses = await client.talk(commands.findGatewayAddress).catch(() => [] as Sentence[]);
   for (const address of addresses) {
     if (!address[".id"]) continue;
     await client.talk(commands.removeGatewayAddress(address[".id"])).catch(() => {});
     log?.push(`OK: removed duplicate MikHmon gateway from ${bridgeName}`);
   }
-
-  const bridgePorts = await client.talk(commands.findBridgePorts).catch(() => [] as Sentence[]);
-  if (bridgePorts.length > 0) return;
 
   const bridges = await client.talk(commands.findBridge).catch(() => [] as Sentence[]);
   for (const bridge of bridges) {
@@ -35,6 +42,48 @@ async function cleanupLegacyDockerGateway(client: RouterOSClient, bridgeName: st
 }
 
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/**
+ * Les anciens MikHmon utilisent souvent le bridge "dockers" et une veth
+ * préexistante. Tant que la passerelle déclarée par la veth n'est pas aussi
+ * portée par ce bridge, le conteneur reçoit le SYN mais ne peut jamais
+ * retourner sa réponse vers le tunnel OpenVPN/WireGuard.
+ */
+async function ensureExistingMikhmonGateway(client: RouterOSClient, log?: string[]) {
+  const containers = await client.talk(["/container/print"]).catch(() => [] as Sentence[]);
+  const candidates = containers.filter(looksLikeMikhmonContainer);
+  const container =
+    candidates.find((row) => /running/i.test(String(row.status ?? ""))) ?? candidates[0];
+  if (!container) return;
+
+  const vethName = String(container.interface ?? "").trim();
+  if (!vethName) return;
+  const [veth] = await client
+    .talk(["/interface/veth/print", "?name=" + vethName])
+    .catch(() => [] as Sentence[]);
+  const gateway = String(veth?.gateway ?? "").split("/")[0].trim();
+  const prefix = String(veth?.address ?? "").split("/")[1]?.trim();
+  if (!IPV4.test(gateway) || !prefix) return;
+
+  const bridgePorts = await client
+    .talk(["/interface/bridge/port/print", "?interface=" + vethName])
+    .catch(() => [] as Sentence[]);
+  const bridgeName = String(bridgePorts.find((row) => row.bridge)?.bridge ?? "").trim();
+  if (!bridgeName) return;
+
+  const addresses = await client
+    .talk(["/ip/address/print", "?interface=" + bridgeName])
+    .catch(() => [] as Sentence[]);
+  if (addresses.some((row) => String(row.address ?? "").split("/")[0] === gateway)) return;
+
+  await client.talk([
+    "/ip/address/add",
+    "=address=" + gateway + "/" + prefix,
+    "=interface=" + bridgeName,
+    "=comment=SafeLinkHub MikHmon gateway",
+  ]);
+  log?.push("OK: restored MikHmon gateway on " + bridgeName);
+}
 
 /**
  * Adresse RÉELLE du conteneur MikHmon sur cet appareil.
@@ -146,6 +195,7 @@ export async function ensureMikhmonTunnelAccess(client: RouterOSClient, log?: st
   for (const bridgeName of LEGACY_DOCKER_BRIDGE_NAMES) {
     await cleanupLegacyDockerGateway(client, bridgeName, log);
   }
+  await ensureExistingMikhmonGateway(client, log);
   const containerIp = await resolveMikhmonContainerAddress(client, log);
   await ensureMikhmonTunnelNat(client, containerIp, log);
   await ensureMikhmonTunnelFirewall(client, containerIp, log);
