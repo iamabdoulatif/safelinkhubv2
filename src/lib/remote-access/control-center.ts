@@ -32,6 +32,79 @@ export type ControlCenterFilters = {
   incidentOnly: boolean;
 };
 
+type RouterProjectionSource = {
+  id: string;
+  name: string;
+  status: string;
+  lastSyncAt: Date | null;
+  connectionMethod: string;
+  tunnelIp: string | null;
+  ipv6BypassEnabled: boolean;
+  relayShard: string | null;
+};
+
+type ForwardProjectionSource = {
+  id: string;
+  service: string;
+  publicPort: number;
+  status: string;
+  expiresAt: Date | null;
+};
+
+type AuditProjectionSource = {
+  id: string;
+  action: string;
+  createdAt: Date;
+};
+
+export function buildControlCenterRouters({
+  routers,
+  forwardsByRouter,
+  auditsByRouter,
+  replacementByRouter,
+  getRelayHost,
+}: {
+  routers: RouterProjectionSource[];
+  forwardsByRouter: Record<string, ForwardProjectionSource[]>;
+  auditsByRouter: Record<string, AuditProjectionSource[]>;
+  replacementByRouter: Record<string, string | null>;
+  getRelayHost: (relayShard: string | null) => string;
+}): RemoteAccessControlRouter[] {
+  return routers.map((router) => {
+    const relayHost = getRelayHost(router.relayShard);
+    return {
+      id: router.id,
+      name: router.name,
+      status: router.status,
+      lastSyncAt: router.lastSyncAt?.toISOString() ?? null,
+      connectionMethod: router.connectionMethod,
+      tunnelIp: router.tunnelIp,
+      ipv6BypassEnabled: router.ipv6BypassEnabled,
+      activeForwards: (forwardsByRouter[router.id] ?? [])
+        .filter((forward) => forward.status === "active")
+        .map((forward) => {
+          const address = relayHost ? `${relayHost}:${forward.publicPort}` : null;
+          return {
+            id: forward.id,
+            service: forward.service,
+            publicPort: forward.publicPort,
+            endpoint:
+              address && (forward.service === "webfig" || forward.service === "mikhmon")
+                ? `https://${address}`
+                : address,
+            expiresAt: forward.expiresAt?.toISOString() ?? null,
+          };
+        }),
+      auditEvents: (auditsByRouter[router.id] ?? []).slice(0, 3).map((event) => ({
+        id: event.id,
+        action: event.action,
+        createdAt: event.createdAt.toISOString(),
+      })),
+      replacementStatus: replacementByRouter[router.id] ?? null,
+    };
+  });
+}
+
 export function connectionMethodLabel(method: string) {
   if (method === "vpn") return "WireGuard";
   if (method === "openvpn") return "OpenVPN";
