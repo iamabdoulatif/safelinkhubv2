@@ -30,9 +30,12 @@ export function portalsToSeed(presentNames: string[]) {
  * qui existent déjà (leur contenu peut avoir été personnalisé — le bouton
  * « mettre à jour » de la page des modèles reste le seul à les réécrire).
  *
- * ponytail: pas de verrou — deux lectures simultanées sur un compte neuf
- * pourraient insérer un doublon. Poser un index unique (org_id, name) si le
- * cas se présente.
+ * Course concurrente : deux lectures simultanées sur un compte neuf peuvent
+ * tenter le même semis. L'index unique PARTIEL
+ * `captive_templates_default_portal_uniq` (scripts/add-default-portal-unique-index.sql)
+ * tranche côté base, et `onConflictDoNothing` fait de la perdante un no-op.
+ * L'index est partiel car la duplication de modèles produit des doublons
+ * légitimes de (org_id, name) — un index global la casserait.
  */
 export async function ensureDefaultPortals(orgId: string): Promise<void> {
   const db = getDb();
@@ -57,13 +60,18 @@ export async function ensureDefaultPortals(orgId: string): Promise<void> {
     .where(eq(captiveTemplates.orgId, orgId))
     .limit(1);
 
-  await db.insert(captiveTemplates).values(
-    missing.map((portal, index) => ({
-      orgId,
-      name: portal.name,
-      templateType: "package" as const,
-      packageFiles: portal.load(),
-      isDefault: !anyTemplate && index === 0,
-    })),
-  );
+  await db
+    .insert(captiveTemplates)
+    .values(
+      missing.map((portal, index) => ({
+        orgId,
+        name: portal.name,
+        templateType: "package" as const,
+        packageFiles: portal.load(),
+        isDefault: !anyTemplate && index === 0,
+      })),
+    )
+    // Sans cible : n'importe quelle violation d'unicité devient un no-op — la
+    // lecture concurrente a déjà semé, il n'y a rien à faire de plus.
+    .onConflictDoNothing();
 }
