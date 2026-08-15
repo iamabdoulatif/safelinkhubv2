@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
+import { ensureDefaultPortals } from "./default-portals";
 import { bridges, captiveTemplates, routers, organizations } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
@@ -58,6 +59,11 @@ function readInput(formData: FormData): CaptiveTemplateInput {
 export async function listCaptiveTemplates() {
   const session = await getSession();
   if (!session) return [];
+
+  // Les deux portails livrés d'office sont semés ici, au point de passage
+  // unique : cette liste alimente à la fois la page des modèles et l'assistant
+  // d'auto-setup. Idempotent, et sans migration pour les comptes existants.
+  await ensureDefaultPortals(session.orgId).catch(() => {});
 
   const db = getDb();
   const rows = await db
