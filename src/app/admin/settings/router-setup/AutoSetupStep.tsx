@@ -259,6 +259,8 @@ export default function AutoSetupStep({
   const [customAmount, setCustomAmount] = useState("2");
   const [customUnit, setCustomUnit] = useState<DurationUnit>("d");
   const [customPrice, setCustomPrice] = useState("");
+  // Variante facultative : « 01-MOIS » devient « 01-MOIS-TV-PC ».
+  const [customVariant, setCustomVariant] = useState("");
   // Débit personnalisé (Mbps) du profil en cours de saisie — vide = pas de
   // limite (débit du lien).
   const [customUpload, setCustomUpload] = useState("");
@@ -548,7 +550,7 @@ export default function AutoSetupStep({
       setCustomProfileError("Indiquez un prix entier (FCFA) supérieur ou égal à 0.");
       return;
     }
-    const name = buildCustomProfileName(amount, customUnit);
+    const name = buildCustomProfileName(amount, customUnit, customVariant);
     if (customProfiles.some((p) => p.name === name)) {
       setCustomProfileError(`Un profil "${name}" existe déjà.`);
       return;
@@ -566,7 +568,7 @@ export default function AutoSetupStep({
     }
     const hasBandwidth = up !== undefined && down !== undefined;
     setCustomProfileError(null);
-    const baseLabel = buildCustomProfileLabel(amount, customUnit);
+    const baseLabel = buildCustomProfileLabel(amount, customUnit, customVariant);
     setCustomProfiles((prev) => [
       ...prev,
       buildVoucherProfile({
@@ -589,6 +591,7 @@ export default function AutoSetupStep({
       },
     ]);
     setCustomPrice("");
+    setCustomVariant("");
     setCustomUpload("");
     setCustomDownload("");
   }
@@ -1019,6 +1022,17 @@ export default function AutoSetupStep({
             </div>
           </div>
           <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-soft">
+              Variante <span className="font-normal text-ink-soft/70">(facultatif)</span>
+            </label>
+            <input
+              value={customVariant}
+              onChange={(e) => setCustomVariant(e.target.value)}
+              placeholder="TV-PC"
+              className="w-28 rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft/60 focus:border-ok focus:outline-none"
+            />
+          </div>
+          <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-soft">Prix (FCFA)</label>
             <input
               type="number"
@@ -1068,6 +1082,15 @@ export default function AutoSetupStep({
           Débit facultatif : laissez vide pour un accès au débit du lien (illimité). Renseignez
           les deux pour limiter (ex. 5 / 10).
         </p>
+          {customVariant.trim() && Number(customAmount) > 0 && (
+            <p className="mt-1 text-xs text-ink-soft">
+              Profil créé sous le nom{" "}
+              <span className="font-mono text-ink">
+                {buildCustomProfileName(Number(customAmount), customUnit, customVariant)}
+              </span>
+              .
+            </p>
+          )}
         {customProfileError && <p className="mt-2 text-sm text-err">{customProfileError}</p>}
       </div>
 

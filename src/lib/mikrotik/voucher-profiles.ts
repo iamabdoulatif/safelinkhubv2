@@ -139,15 +139,43 @@ export const DURATION_UNIT_LABELS: Record<DurationUnit, { singular: string; plur
 };
 
 /** "02-JOURS", "12-HEURES", "30-MINUTES", "03-SEMAINES" — matches the bundled presets' naming convention. */
-export function buildCustomProfileName(amount: number, unit: DurationUnit): string {
-  const { singular, plural } = DURATION_UNIT_LABELS[unit];
-  const word = (amount === 1 ? singular : plural).toUpperCase();
-  return `${String(amount).padStart(2, "0")}-${word}`;
+/**
+ * Variante d'un profil : « 01-MOIS » + « TV-PC » → « 01-MOIS-TV-PC ».
+ *
+ * Sans elle, deux forfaits d'un mois destinés à des usages différents (TV/PC
+ * et téléphone) porteraient le même nom et l'assistant refuserait le second.
+ * Les majuscules et le tiret suivent la convention des profils existants ; le
+ * nom sert de clé au forfait synchronisé et voyage dans les scripts RouterOS.
+ */
+function profileVariantSuffix(variant?: string): string {
+  const slug = (variant ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 20);
+  return slug ? `-${slug}` : "";
 }
 
-export function buildCustomProfileLabel(amount: number, unit: DurationUnit): string {
+export function buildCustomProfileName(
+  amount: number,
+  unit: DurationUnit,
+  variant?: string,
+): string {
   const { singular, plural } = DURATION_UNIT_LABELS[unit];
-  return `${amount} ${amount === 1 ? singular : plural}`;
+  const word = (amount === 1 ? singular : plural).toUpperCase();
+  return `${String(amount).padStart(2, "0")}-${word}${profileVariantSuffix(variant)}`;
+}
+
+export function buildCustomProfileLabel(
+  amount: number,
+  unit: DurationUnit,
+  variant?: string,
+): string {
+  const { singular, plural } = DURATION_UNIT_LABELS[unit];
+  const suffix = profileVariantSuffix(variant).replace(/^-/, " ");
+  return `${amount} ${amount === 1 ? singular : plural}${suffix}`;
 }
 
 /**

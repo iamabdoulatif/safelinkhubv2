@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { VOUCHER_PROFILES, TV_PC_MONTH_PROFILE } from "./voucher-profiles";
+import {
+  VOUCHER_PROFILES,
+  TV_PC_MONTH_PROFILE,
+  buildCustomProfileName,
+  buildCustomProfileLabel,
+} from "./voucher-profiles";
 
 /** Prix et durée sont inscrits DANS le script du profil, pas à côté. */
 function embeddedPriceAndDuration(onLogin: string) {
@@ -65,5 +70,30 @@ describe("catalogue de profils posé par l'auto-setup", () => {
     // au même instant chargerait le routeur d'un coup.
     const intervals = VOUCHER_PROFILES.map((profile) => profile.monitorInterval);
     assert.equal(new Set(intervals).size, intervals.length, `intervalles en double : ${intervals}`);
+  });
+
+  it("laisse deux forfaits d'un mois cohabiter grâce à la variante", () => {
+    // Sans variante, « 1 mois TV/PC » et « 1 mois téléphone » porteraient le
+    // même nom : l'assistant refuse le second, et le forfait synchronisé — qui
+    // est justement identifié PAR SON NOM — écraserait le premier.
+    assert.equal(buildCustomProfileName(1, "mo", "TV-PC"), "01-MOIS-TV-PC");
+    assert.equal(buildCustomProfileName(1, "mo", "PHONE"), "01-MOIS-PHONE");
+    assert.equal(buildCustomProfileLabel(1, "mo", "TV-PC"), "1 mois TV-PC");
+
+    // Sans variante, rien ne change pour les profils existants.
+    assert.equal(buildCustomProfileName(1, "mo"), "01-MOIS");
+    assert.equal(buildCustomProfileName(1, "mo", "   "), "01-MOIS");
+    assert.equal(buildCustomProfileLabel(2, "d"), "2 jours");
+  });
+
+  it("normalise la variante pour RouterOS et MikHmon", () => {
+    // Le nom voyage dans les scripts du routeur et sert de clé au forfait :
+    // accents, espaces et barres obliques n'y ont pas leur place, et « -|- »
+    // découperait le journal de ventes.
+    for (const raw of ["tv/pc", "TV PC", "Télé & PC", "  tv-pc  "]) {
+      const name = buildCustomProfileName(1, "mo", raw);
+      assert.match(name, /^[A-Z0-9-]+$/, `${raw} → ${name}`);
+      assert.ok(!name.includes("-|-"));
+    }
   });
 });
