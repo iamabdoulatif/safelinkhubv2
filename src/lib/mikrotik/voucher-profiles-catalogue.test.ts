@@ -34,8 +34,8 @@ describe("catalogue de profils posé par l'auto-setup", () => {
     }
   });
 
-  it("ajoute MOIS-TV/PC : un mois, 5 000 FCFA, débit dédié", () => {
-    const profile = VOUCHER_PROFILES.find((entry) => entry.name === "MOIS-TV/PC");
+  it("ajoute MOIS-TV-PC : un mois, 5 000 FCFA, débit dédié", () => {
+    const profile = VOUCHER_PROFILES.find((entry) => entry.name === "MOIS-TV-PC");
     assert.ok(profile, "le profil doit être posé par l'auto-setup");
     assert.equal(profile, TV_PC_MONTH_PROFILE);
     assert.deepEqual(embeddedPriceAndDuration(profile.onLogin), { price: 5000, duration: "30d" });
@@ -52,9 +52,9 @@ describe("catalogue de profils posé par l'auto-setup", () => {
     assert.doesNotMatch(onLogin, /,200,1d,200,/);
     assert.doesNotMatch(onLogin, /interval="1d"/);
     assert.doesNotMatch(onLogin, /-\|-01-JOUR-\|-/);
-    assert.match(onLogin, /-\|-MOIS-TV\/PC-\|-/);
+    assert.match(onLogin, /-\|-MOIS-TV-PC-\|-/);
     assert.doesNotMatch(monitorOnEvent, /profile="01-JOUR"/);
-    assert.match(monitorOnEvent, /profile="MOIS-TV\/PC"/);
+    assert.match(monitorOnEvent, /profile="MOIS-TV-PC"/);
   });
 
   it("porte un nom que MikHmon saura relire", () => {

@@ -259,12 +259,15 @@ export function buildVoucherProfile(opts: {
  * l'exploitant veut pouvoir les vendre — et les reconnaître dans le journal
  * MikHmon — séparément.
  *
+ * Tirets et non barre oblique : le nom sert aussi de nom au planificateur de
+ * balayage sur RouterOS, et « / » y était un pari non vérifié sur matériel.
+ *
  * PRIX ET DÉBIT SONT INSCRITS DANS LE SCRIPT du profil : le tarif remonte tel
  * quel dans le journal de ventes MikHmon. Pour les changer, c'est ici et
  * nulle part ailleurs — puis relancer l'auto-setup sur les routeurs concernés.
  */
 export const TV_PC_MONTH_PROFILE = buildVoucherProfile({
-  name: "MOIS-TV/PC",
+  name: "MOIS-TV-PC",
   label: "1 mois TV/PC — 5 000 FCFA",
   durationCode: "30d",
   price: 5000,
