@@ -25,9 +25,12 @@ export type MikhmonFlashResult = {
 
 export async function migrateMikhmonToFlash(
   client: RouterOSClient,
-  opts: { timeoutMs?: number } = {},
+  // pollMs : cadence des attentes. Réglable pour que les tests ne paient pas
+  // les 25 s d'attentes réelles d'un vrai re-pull.
+  opts: { timeoutMs?: number; force?: boolean; pollMs?: number } = {},
 ): Promise<MikhmonFlashResult> {
   const t = opts.timeoutMs ?? 20000;
+  const poll = opts.pollMs ?? 6000;
 
   const conts = await client.talk(["/container/print", "=detail"], t).catch(() => []);
   const mk = conts.find(
@@ -36,7 +39,11 @@ export async function migrateMikhmonToFlash(
   if (!mk) return { status: "no-container", message: "Aucun conteneur MikHmon sur ce routeur." };
 
   const rootDir = String(mk["root-dir"] ?? "");
-  if (!/^\/?tmp\//.test(rootDir)) {
+  const persistent = !/^\/?tmp\//.test(rootDir);
+  // `force` = réinstallation demandée sur un conteneur cassé (arrêté, veth
+  // arrachée) déjà persistant : on refait le stop/remove/add sans exiger
+  // qu'il soit en RAM.
+  if (persistent && !opts.force) {
     return { status: "already-persistent", message: `Déjà persistant (root-dir=${rootDir}).` };
   }
   const iface = mk.interface || "MIKHMON";
@@ -56,7 +63,7 @@ export async function migrateMikhmonToFlash(
   await client.talk(["/container/stop", `=numbers=${mk[".id"]}`], t).catch(() => {});
   let stopped = false;
   for (let i = 0; i < 15; i++) {
-    await sleep(2000);
+    await sleep(Math.min(2000, poll));
     const cur = (await client.talk(["/container/print", "=detail"], t).catch(() => [])).find(
       (c) => c[".id"] === mk[".id"],
     );
@@ -93,19 +100,24 @@ export async function migrateMikhmonToFlash(
   }
   if (!removed) return { status: "failed", message: "Impossible de retirer l'ancien conteneur (réessayez)." };
 
-  // 3. Re-création sur la flash (déclenche le re-pull de l'image).
+  // Réinstallation SUR PLACE : un conteneur qui vit sur clé USB doit y rester.
+  // Le recréer sur la flash interne casserait les boards dont elle est trop
+  // petite (hAP ax³, Chateau PRO ax, L009 — cf. requiresUsbForContainer).
+  const targetRootDir = persistent && rootDir ? rootDir : "flash/mikhmon-app";
+
+  // 3. Re-création (déclenche le re-pull de l'image).
   await client.talk(
     [
       "/container/add",
       `=interface=${iface}`,
       `=name=${name}`,
       `=remote-image=${image}`,
-      "=root-dir=flash/mikhmon-app",
+      `=root-dir=${targetRootDir}`,
       "=start-on-boot=yes",
     ],
     60000,
   );
-  await sleep(2000);
+  await sleep(Math.min(2000, poll));
   let nc = (await client.talk(["/container/print", "=detail"], t).catch(() => [])).find((c) =>
     /mikhmon/i.test(String(c.name ?? "")),
   );
@@ -114,7 +126,7 @@ export async function migrateMikhmonToFlash(
   // 4. Attente running (le pull peut prendre 1–3 min) + relance si extracted/stopped.
   let running = false;
   for (let i = 0; i < 40; i++) {
-    await sleep(6000);
+    await sleep(poll);
     nc = (await client.talk(["/container/print", "=detail"], t).catch(() => [])).find((c) =>
       /mikhmon/i.test(String(c.name ?? "")),
     );

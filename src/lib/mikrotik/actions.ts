@@ -745,6 +745,47 @@ export async function optimizeRouterThroughput(routerId: string) {
  * d'erreur. RouterOS accepte /container/start sans broncher même quand le
  * démarrage échouera ensuite (image absente, veth arrachée).
  */
+/**
+ * Réinstalle le conteneur MikHmon : arrêt, suppression, recréation, démarrage.
+ *
+ * L'escalade au-dessus de « Démarrer MikHmon », pour un conteneur que le
+ * démarrage ne récupère plus (image corrompue, veth arrachée). Le conteneur
+ * est recréé AU MÊME EMPLACEMENT — une installation sur clé USB y reste, la
+ * remettre sur la flash interne casserait les boards dont elle est trop petite.
+ *
+ * En arrière-plan : le re-téléchargement de l'image prend 1 à 3 minutes, bien
+ * au-delà de ce qu'une action HTTP peut tenir.
+ */
+export async function reinstallMikhmonContainer(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  after(async () => {
+    let client: RouterOSClient | null = null;
+    try {
+      client = await connectToRouter(router, 30000);
+      await migrateMikhmonToFlash(client, { force: true });
+    } catch {
+      /* arrière-plan : l'état se constate en ré-analysant */
+    } finally {
+      client?.close();
+    }
+  });
+
+  return {
+    success: true,
+    summary:
+      "Réinstallation de MikHmon lancée (1 à 3 min : le routeur re-télécharge l'image). " +
+      "Ré-analysez ensuite pour confirmer que le conteneur tourne.",
+  };
+}
+
 export async function startMikhmonContainer(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };

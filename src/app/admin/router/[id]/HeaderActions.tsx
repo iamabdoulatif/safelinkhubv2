@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, RefreshCw, Trash2, Gauge, Lock, LockOpen, Zap, Activity } from "lucide-react";
+import { Loader2, Pencil, RefreshCw, Trash2, Gauge, Lock, LockOpen, Zap, Activity, PackageOpen } from "lucide-react";
 import {
   deleteRouter,
   optimizeRouterWifi,
@@ -12,6 +12,7 @@ import {
   unlockRouterPorts,
   optimizeRouterThroughput,
   speedTestRouter,
+  reinstallMikhmonContainer,
 } from "@/lib/mikrotik/actions";
 
 export default function HeaderActions({
@@ -24,6 +25,7 @@ export default function HeaderActions({
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
   const [isOptimizing, startOptimize] = useTransition();
+  const [isReinstalling, startReinstall] = useTransition();
   const [isTuning, startTune] = useTransition();
   const [isTesting, startTest] = useTransition();
   const [isLocking, startLock] = useTransition();
@@ -126,6 +128,29 @@ export default function HeaderActions({
       >
         <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
         {isRefreshing ? "Actualisation..." : "Actualiser"}
+      </button>
+      <button
+        type="button"
+        disabled={isReinstalling}
+        title="Arrête, supprime et recrée le conteneur MikHmon au même emplacement (1 à 3 min : re-téléchargement de l'image)"
+        onClick={() =>
+          startReinstall(async () => {
+            setError(null);
+            setOk(null);
+            const result = await reinstallMikhmonContainer(routerId);
+            if (result?.error) setError(result.error);
+            else setOk(result?.summary ?? "Réinstallation lancée.");
+            router.refresh();
+          })
+        }
+        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60"
+      >
+        {isReinstalling ? (
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+        ) : (
+          <PackageOpen aria-hidden="true" className="h-4 w-4" />
+        )}
+        {isReinstalling ? "Lancement…" : "Réinstaller MikHmon"}
       </button>
       <button
         type="button"
