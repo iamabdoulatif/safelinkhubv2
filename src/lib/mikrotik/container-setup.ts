@@ -415,6 +415,24 @@ async function provisionDockerStack(
         );
       }
 
+      // Après la tentative de formatage, VÉRIFIER. Sans ce contrôle, un
+      // formatage refusé (clé en lecture seule, table de partition exotique,
+      // clé retirée) était seulement journalisé, puis /container/add échouait
+      // sur « could not create root directory /usb1/mikhmon-app » — un message
+      // qui ne dit pas la cause. Mieux vaut s'arrêter ici en la nommant.
+      const disksAfter = await client.talk(["/disk/print"]).catch(() => disks);
+      const usbAfter = disksAfter.find((d) => String(d.slot ?? "") === usbSlot);
+      const usbFs = String(usbAfter?.["file-system"] ?? usbAfter?.fs ?? "");
+      if (usbAfter && usbFs && usbFs.toLowerCase() !== "ext4") {
+        return {
+          status: "failed",
+          message:
+            `La clé ${usbSlot} est en ${usbFs} : un conteneur exige ext4. Le formatage ` +
+            `automatique n'a pas abouti — formatez-la depuis WinBox (Disks → Format Drive, ` +
+            `ce qui EFFACE son contenu), puis relancez.`,
+        };
+      }
+
       containerRootDir = `${usbSlot}/mikhmon-app`;
       // layer-dir SUR LA CLÉ, explicitement. `/container/config` est un réglage
       // GLOBAL du routeur : ne pas l'écrire, c'est hériter de celui qu'un
@@ -2547,7 +2565,30 @@ export async function reinstallMikhmonContainer(routerId: string) {
         hasUsbStorage: false, // redétecté en direct sur l'appareil
       });
       if (installed.status === "failed") {
-        return { error: `Installation impossible : ${installed.message ?? log.slice(-1)[0] ?? "voir /log sur le routeur"}` };
+        // « could not create root directory /usb1/… » ne dit RIEN d'exploitable
+        // tant qu'on ignore l'état de la clé. On joint donc l'inventaire des
+        // disques : slot, système de fichiers, place libre. Un conteneur exige
+        // une clé formatée en ext4 — vfat ou exfat ne peuvent pas l'héberger.
+        const disks = await client
+          .talk(["/disk/print"], 15000)
+          .catch(() => [] as Record<string, string>[]);
+        const inventory = disks.length
+          ? disks
+              .map((d) => {
+                const fs = d["file-system"] ?? d.fs ?? "non formaté";
+                const free = d.free ? ` — ${Math.round(Number(d.free) / 1048576)} Mo libres` : "";
+                return `${d.slot ?? d.name ?? "?"} (${fs}${free})`;
+              })
+              .join(", ")
+          : "aucun disque détecté";
+        const hint = disks.some((d) => /^usb\d+$/i.test(String(d.slot ?? "")))
+          ? "La clé est vue mais inutilisable : formatez-la en ext4 (WinBox → Disks → Format Drive, ce qui EFFACE son contenu), puis relancez."
+          : "Aucune clé USB détectée : vérifiez qu'elle est bien insérée et reconnue (WinBox → Disks).";
+        return {
+          error:
+            `Installation impossible : ${installed.message ?? log.slice(-1)[0] ?? "voir /log sur le routeur"}. ` +
+            `Disques vus : ${inventory}. ${hint}`,
+        };
       }
       return {
         success: true,

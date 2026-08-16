@@ -296,3 +296,23 @@ test("« Réinstaller MikHmon » installe quand il n'y a plus de conteneur", asy
   assert.match(body, /Installation impossible/);
   assert.doesNotMatch(body, /catch \{\s*\/\* arrière-plan/);
 });
+
+test("une clé non formatée arrête l'installation en le disant", async () => {
+  const source = await readFile(
+    new URL("../src/lib/mikrotik/container-setup.ts", import.meta.url),
+    "utf8",
+  );
+  const scenario1 = source.slice(
+    source.indexOf("--- SCÉNARIO 1"),
+    source.indexOf("--- SCÉNARIO 3"),
+  );
+
+  // Un formatage refusé n'était que journalisé, puis /container/add échouait
+  // sur « could not create root directory » — message qui ne nomme pas la
+  // cause. La vérification doit précéder le choix du root-dir.
+  const check = scenario1.indexOf("exige ext4");
+  const rootDir = scenario1.indexOf("containerRootDir = `${usbSlot}");
+  assert.ok(check > 0, "l'état réel de la clé doit être vérifié");
+  assert.ok(rootDir > check, "et cette vérification doit précéder le root-dir");
+  assert.match(scenario1, /Format Drive/, "le remède doit être nommé");
+});
