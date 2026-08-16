@@ -12,8 +12,8 @@ import {
   unlockRouterPorts,
   optimizeRouterThroughput,
   speedTestRouter,
-  reinstallMikhmonContainer,
 } from "@/lib/mikrotik/actions";
+import { reinstallMikhmonContainer } from "@/lib/mikrotik/container-setup";
 
 export default function HeaderActions({
   routerId,

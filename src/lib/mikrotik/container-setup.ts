@@ -4,6 +4,8 @@ import { and, asc, eq, isNull, notInArray, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations, captiveTemplates, walletTransactions, packages, bridges } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { migrateMikhmonToFlash } from "./mikhmon-flash";
+import { connectToRouter } from "./router-sync";
 import { RouterOSClient } from "./client";
 import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
@@ -2489,6 +2491,82 @@ export async function provisionHotspotStack(
  * scratch. reboot is forced off — a quick repair shouldn't bounce the
  * router unless the admin explicitly re-runs the full wizard.
  */
+export async function reinstallMikhmonContainer(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  // SYNCHRONE, et bavarde. La première version lançait le travail en arrière-
+  // plan avec `catch {}` : elle répondait « Réinstallation lancée » même quand
+  // la connexion au routeur venait d'être JETÉE par le relais (sshd du relais
+  // limite les connexions simultanées — 4 perdues le 16/08 à 09:44). Vu de
+  // l'écran, « rien ne se passait » et rien ne le disait. On attend donc le
+  // résultat, borné à 45 s pour rester sous la coupure Cloudflare, et on
+  // renvoie ce que le routeur a réellement répondu.
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 20000);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}`
+          : "Routeur injoignable.",
+    };
+  }
+
+  try {
+    const result = await migrateMikhmonToFlash(client, { force: true, maxWaitMs: 45000 });
+
+    // Plus AUCUN conteneur : « réinstaller » doit alors INSTALLER, pas
+    // abandonner. C'est le cas qu'a produit une réinstallation interrompue
+    // entre le remove et le add — l'appareil se retrouve sans rien, et la
+    // migration seule ne sait pas repartir de zéro. On rejoue le
+    // provisionnement complet de l'auto-setup, qui redétecte la clé USB en
+    // direct et applique le bon scénario de stockage.
+    if (result.status === "no-container") {
+      const log: string[] = [];
+      const run = async (words: string[], label: string, timeoutMs?: number) => {
+        try {
+          await client.talk(words, timeoutMs);
+          log.push(`OK: ${label}`);
+          return { ok: true } as const;
+        } catch (err) {
+          const error = err instanceof Error ? err.message : "error";
+          log.push(`FAIL (${label}): ${error}`);
+          return { ok: false, error } as const;
+        }
+      };
+      const installed = await provisionDockerStack(client, log, run, {
+        supportsContainers: true,
+        hasUsbStorage: false, // redétecté en direct sur l'appareil
+      });
+      if (installed.status === "failed") {
+        return { error: `Installation impossible : ${installed.message ?? log.slice(-1)[0] ?? "voir /log sur le routeur"}` };
+      }
+      return {
+        success: true,
+        summary:
+          installed.status === "ready"
+            ? "MikHmon installé et démarré."
+            : "MikHmon installé, le routeur télécharge l'image (1 à 3 min). Ré-analysez pour confirmer.",
+      };
+    }
+
+    if (result.status === "failed") return { error: result.message };
+    return { success: true, summary: result.message };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Le routeur a refusé l'opération." };
+  } finally {
+    client.close();
+  }
+}
+
 export async function repairRouterConfig(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };

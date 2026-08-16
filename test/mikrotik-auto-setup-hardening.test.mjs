@@ -272,3 +272,27 @@ test("chaque scénario de stockage pose layer-dir sur SON stockage", async () =>
   assert.match(source, /`=layer-dir=\$\{usbSlot\}\/mikhmon-layers`/);
   assert.match(source, /`=layer-dir=\$\{root\}mikhmon-layers`/);
 });
+
+test("« Réinstaller MikHmon » installe quand il n'y a plus de conteneur", async () => {
+  // L'action vit auprès de la fonction privée qu'elle rejoue : provisionDockerStack
+  // ne doit PAS être exportée d'un module "use server" (ce serait un endpoint
+  // public sans session — la faille que server-action-guards verrouille).
+  const source = await readFile(
+    new URL("../src/lib/mikrotik/container-setup.ts", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(source, /export async function provisionDockerStack/);
+  const body = source.slice(
+    source.indexOf("export async function reinstallMikhmonContainer"),
+    source.indexOf("export async function repairRouterConfig"),
+  );
+
+  // Une réinstallation interrompue entre le remove et le add laisse l'appareil
+  // SANS conteneur. Répondre « aucun conteneur » et s'arrêter là abandonne
+  // l'exploitant dans un état pire qu'avant : le bouton doit repartir de zéro.
+  assert.match(body, /no-container/);
+  assert.match(body, /provisionDockerStack\(/);
+  // Et l'échec doit remonter, pas être avalé comme dans la première version.
+  assert.match(body, /Installation impossible/);
+  assert.doesNotMatch(body, /catch \{\s*\/\* arrière-plan/);
+});
