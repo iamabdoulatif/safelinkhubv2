@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { migrateMikhmonToFlash } from "./mikhmon-flash";
+import { migrateMikhmonToFlash, isBrokenMikhmonContainer } from "./mikhmon-flash";
 
 /** Routeur simulé : un seul conteneur MikHmon, qui démarre au premier essai. */
 function routerWithContainer(rootDir: string) {
@@ -109,5 +109,30 @@ describe("réinstallation du conteneur MikHmon", () => {
     });
     assert.equal(result.status, "pulling");
     assert.match(result.message, /télécharge l'image/);
+  });
+
+  it("ne juge cassé QUE ce qui l'est vraiment", () => {
+    const running = { name: "mikhmon", "root-dir": "usb1/mikhmon-app", running: "true" };
+    const stoppedOk = { name: "mikhmon", "root-dir": "usb1/mikhmon-app", status: "stopped" };
+    const failed = { name: "mikhmon", "root-dir": "usb1/mikhmon-app", status: "error: need repull" };
+    const mismatch = { name: "mikhmon", "root-dir": "usb1/mikhmon-app", status: "stopped" };
+
+    // Un conteneur qui tourne n'est JAMAIS touché, même mal rangé.
+    assert.equal(isBrokenMikhmonContainer(running, "flash/mikhmon-layers"), false);
+    // Arrêté mais cohérent : l'exploitant a pu l'arrêter exprès.
+    assert.equal(isBrokenMikhmonContainer(stoppedOk, "usb1/mikhmon-layers"), false);
+    // RouterOS annonce lui-même l'échec.
+    assert.equal(isBrokenMikhmonContainer(failed, "usb1/mikhmon-layers"), true);
+    // Couches ailleurs que le conteneur : le cas HSPT-TOFESSO.
+    assert.equal(isBrokenMikhmonContainer(mismatch, "flash/mikhmon-layers"), true);
+    // Sans information de config, on ne conclut pas.
+    assert.equal(isBrokenMikhmonContainer(stoppedOk, undefined), false);
+  });
+
+  it("la réparation cesse d'elle-même une fois le stockage aligné", () => {
+    // Après une réinstallation réussie, layer-dir suit le conteneur : la
+    // détection redevient fausse et le balayage ne boucle pas.
+    const after = { name: "mikhmon", "root-dir": "usb1/mikhmon-app", status: "stopped" };
+    assert.equal(isBrokenMikhmonContainer(after, "usb1/mikhmon-layers"), false);
   });
 });

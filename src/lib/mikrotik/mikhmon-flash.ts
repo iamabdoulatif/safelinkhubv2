@@ -161,3 +161,62 @@ export async function migrateMikhmonToFlash(
       "(1 à 3 min). Ré-analysez pour confirmer qu'il tourne.",
   };
 }
+
+/**
+ * Ce conteneur est-il cassé au point qu'une réinstallation soit justifiée ?
+ *
+ * Deux signes, et deux seulement :
+ *  • RouterOS annonce lui-même un échec de téléchargement/extraction — c'est
+ *    l'état « rebooted during download/extract, need repull », qui ne se
+ *    résout jamais tout seul ;
+ *  • les COUCHES sont sur un autre stockage que le conteneur. Sur un L009
+ *    (128 Mo de flash) dont le conteneur vit sur la clé, extraire les couches
+ *    sur la flash ne peut qu'échouer, indéfiniment.
+ *
+ * Un conteneur qui TOURNE n'est jamais touché, et un conteneur arrêté dont le
+ * stockage est cohérent non plus : l'exploitant a pu l'arrêter exprès.
+ */
+export function isBrokenMikhmonContainer(
+  row: Record<string, string>,
+  configLayerDir: string | undefined,
+): boolean {
+  const status = String(row.status ?? "").toLowerCase();
+  if (row.running === "true" || status === "running") return false;
+  if (/repull|error|fail/.test(status)) return true;
+
+  const storageOf = (p: string) => String(p ?? "").replace(/^\/+/, "").split("/")[0];
+  const rootStorage = storageOf(row["root-dir"] ?? "");
+  const layerStorage = storageOf(configLayerDir ?? "");
+  return Boolean(rootStorage && layerStorage && rootStorage !== layerStorage);
+}
+
+/**
+ * Répare un conteneur MikHmon cassé, sans intervention humaine.
+ *
+ * Appelé par la synchronisation périodique : une réinstallation ne devrait pas
+ * exiger qu'un exploitant tombe sur le bon bouton. On ne PATIENTE pas jusqu'au
+ * bout du téléchargement (1 à 3 min) — la recréation suffit, RouterOS poursuit
+ * le pull seul et le balayage suivant constatera.
+ */
+export async function repairBrokenMikhmonContainer(
+  client: RouterOSClient,
+  log?: string[],
+): Promise<{ repaired: boolean; reason: string }> {
+  const conts = await client.talk(["/container/print", "=detail"], 20000).catch(() => []);
+  const mk = conts.find(
+    (c) => /mikhmon/i.test(String(c.name ?? "")) || /mikhmon/i.test(String(c["root-dir"] ?? "")),
+  );
+  if (!mk) return { repaired: false, reason: "aucun conteneur MikHmon" };
+
+  const config = (await client.talk(["/container/config/print"], 20000).catch(() => []))[0] ?? {};
+  if (!isBrokenMikhmonContainer(mk, config["layer-dir"])) {
+    return { repaired: false, reason: "conteneur sain" };
+  }
+
+  const result = await migrateMikhmonToFlash(client, { force: true, maxWaitMs: 15000 });
+  log?.push(`AUTO-RÉPARATION MikHmon : ${result.status} — ${result.message}`);
+  return {
+    repaired: result.status === "migrated" || result.status === "pulling",
+    reason: result.message,
+  };
+}

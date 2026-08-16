@@ -17,6 +17,7 @@ import { enforceRouterSerialOnSync } from "./router-serial-lock";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
+import { repairBrokenMikhmonContainer } from "./mikhmon-flash";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { isWebAccessService } from "./remote-access-host";
 
@@ -223,6 +224,14 @@ export async function syncRouterStats(
     if (activeServices.has("mikhmon")) {
       try {
         await ensureMikhmonTunnelAccess(client);
+        // Un conteneur en échec d'extraction ne se répare jamais seul et
+        // laisse l'accès distant muet. Le constater à chaque synchronisation
+        // sans rien faire, c'est attendre qu'un exploitant tombe sur le bon
+        // bouton — ce qui n'arrive pas.
+        const repair = await repairBrokenMikhmonContainer(client);
+        if (repair.repaired) {
+          console.info("[mikhmon:auto-repair]", { router: router.name, reason: repair.reason });
+        }
       } catch {
         // Non-fatal — the port forward on the relay side is still valid,
         // and the NAT rule will be retried on the next successful sync.
