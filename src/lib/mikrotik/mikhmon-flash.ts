@@ -19,7 +19,7 @@ import type { RouterOSClient } from "./client";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type MikhmonFlashResult = {
-  status: "migrated" | "already-persistent" | "no-container" | "failed";
+  status: "migrated" | "pulling" | "already-persistent" | "no-container" | "failed";
   message: string;
 };
 
@@ -27,10 +27,12 @@ export async function migrateMikhmonToFlash(
   client: RouterOSClient,
   // pollMs : cadence des attentes. Réglable pour que les tests ne paient pas
   // les 25 s d'attentes réelles d'un vrai re-pull.
-  opts: { timeoutMs?: number; force?: boolean; pollMs?: number } = {},
+  opts: { timeoutMs?: number; force?: boolean; pollMs?: number; maxWaitMs?: number } = {},
 ): Promise<MikhmonFlashResult> {
   const t = opts.timeoutMs ?? 20000;
   const poll = opts.pollMs ?? 6000;
+  // Attente bornée : un appel HTTP ne peut pas tenir les 4 min d'un re-pull.
+  const rounds = Math.max(1, Math.ceil((opts.maxWaitMs ?? 240000) / poll));
 
   const conts = await client.talk(["/container/print", "=detail"], t).catch(() => []);
   const mk = conts.find(
@@ -133,7 +135,7 @@ export async function migrateMikhmonToFlash(
 
   // 4. Attente running (le pull peut prendre 1–3 min) + relance si extracted/stopped.
   let running = false;
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < rounds; i++) {
     await sleep(poll);
     nc = (await client.talk(["/container/print", "=detail"], t).catch(() => [])).find((c) =>
       /mikhmon/i.test(String(c.name ?? "")),
@@ -147,14 +149,15 @@ export async function migrateMikhmonToFlash(
     }
   }
 
-  return running
-    ? {
-        status: "migrated",
-        message:
-          "MikHmon déplacé sur la flash (persistant). La session est à recréer une dernière fois, puis elle survivra aux reboots.",
-      }
-    : {
-        status: "failed",
-        message: "Conteneur recréé sur la flash mais pas encore démarré — vérifiez dans ~1 min (pull long ou flash pleine).",
-      };
+  if (running) {
+    return { status: "migrated", message: `MikHmon recréé et démarré (root-dir=${targetRootDir}).` };
+  }
+  // Pas encore démarré ≠ échoué : le re-pull de l'image prend 1 à 3 min et se
+  // poursuit sur le routeur. Le dire, plutôt que d'annoncer une panne.
+  return {
+    status: "pulling",
+    message:
+      `Conteneur recréé sur ${targetRootDir}, le routeur télécharge l'image ` +
+      "(1 à 3 min). Ré-analysez pour confirmer qu'il tourne.",
+  };
 }

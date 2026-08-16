@@ -766,24 +766,36 @@ export async function reinstallMikhmonContainer(routerId: string) {
     return { error: "Routeur introuvable." };
   }
 
-  after(async () => {
-    let client: RouterOSClient | null = null;
-    try {
-      client = await connectToRouter(router, 30000);
-      await migrateMikhmonToFlash(client, { force: true });
-    } catch {
-      /* arrière-plan : l'état se constate en ré-analysant */
-    } finally {
-      client?.close();
-    }
-  });
+  // SYNCHRONE, et bavarde. La première version lançait le travail en arrière-
+  // plan avec `catch {}` : elle répondait « Réinstallation lancée » même quand
+  // la connexion au routeur venait d'être JETÉE par le relais (sshd du relais
+  // limite les connexions simultanées — 4 perdues le 16/08 à 09:44). Vu de
+  // l'écran, « rien ne se passait » et rien ne le disait. On attend donc le
+  // résultat, borné à 45 s pour rester sous la coupure Cloudflare, et on
+  // renvoie ce que le routeur a réellement répondu.
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 20000);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}`
+          : "Routeur injoignable.",
+    };
+  }
 
-  return {
-    success: true,
-    summary:
-      "Réinstallation de MikHmon lancée (1 à 3 min : le routeur re-télécharge l'image). " +
-      "Ré-analysez ensuite pour confirmer que le conteneur tourne.",
-  };
+  try {
+    const result = await migrateMikhmonToFlash(client, { force: true, maxWaitMs: 45000 });
+    if (result.status === "failed" || result.status === "no-container") {
+      return { error: result.message };
+    }
+    return { success: true, summary: result.message };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Le routeur a refusé l'opération." };
+  } finally {
+    client.close();
+  }
 }
 
 export async function startMikhmonContainer(routerId: string) {

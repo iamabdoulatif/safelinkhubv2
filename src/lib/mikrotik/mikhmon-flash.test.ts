@@ -87,4 +87,27 @@ describe("réinstallation du conteneur MikHmon", () => {
     const config = calls.find((w) => w[0] === "/container/config/set");
     assert.ok(config?.includes("=layer-dir=flash/mikhmon-layers"));
   });
+
+  it("dit « téléchargement en cours » au lieu d'annoncer un échec", async () => {
+    // Le re-pull dure 1 à 3 min ; l'action l'attend 45 s au plus. Ne pas être
+    // encore démarré n'est PAS une panne — l'annoncer comme telle enverrait
+    // l'exploitant chercher un problème inexistant.
+    const client = {
+      async talk(words: string[]) {
+        if (words[0] === "/container/print") {
+          return [
+            { ".id": "*1", name: "mikhmon", "root-dir": "usb1/mikhmon-app", "remote-image": "img:1", interface: "MIKHMON", status: "extracting" },
+          ];
+        }
+        return [] as Record<string, string>[];
+      },
+    };
+    const result = await migrateMikhmonToFlash(client as never, {
+      force: true,
+      pollMs: 1,
+      maxWaitMs: 5,
+    });
+    assert.equal(result.status, "pulling");
+    assert.match(result.message, /télécharge l'image/);
+  });
 });

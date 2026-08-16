@@ -397,7 +397,14 @@ export async function openRouterTunnelWithRetry(
     } catch (err) {
       lastErr = err;
       if (attempt < attempts) {
-        await new Promise((r) => setTimeout(r, delayMs));
+        // Écart CROISSANT et bruité, pas fixe. sshd du relais limite les
+        // connexions non authentifiées (MaxStartups) et en jette au hasard
+        // pendant la rafale : le 16/08 à 09:44, 4 connexions perdues en 4
+        // secondes — soit exactement l'ancien délai fixe, donc les trois
+        // essais retombaient dans la même rafale. Le bruit évite en plus que
+        // toutes les opérations parallèles ne réessaient à la même seconde.
+        const backoff = delayMs * attempt + Math.floor(Math.random() * delayMs);
+        await new Promise((r) => setTimeout(r, backoff));
       }
     }
   }
