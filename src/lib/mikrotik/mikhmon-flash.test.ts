@@ -63,4 +63,28 @@ describe("réinstallation du conteneur MikHmon", () => {
     const result = await migrateMikhmonToFlash(client as never, { force: true, pollMs: 1 });
     assert.equal(result.status, "no-container");
   });
+
+  it("pose les COUCHES sur le même stockage que le conteneur", async () => {
+    // Le défaut de HSPT-TOFESSO (L009, 128 Mo de flash) : conteneur sur la clé,
+    // couches sur la flash interne. L'extraction remplissait la flash et
+    // échouait — « DOWNLOAD/EXTRACT FAILED », puis « rebooted during
+    // download/extract, need repull » à chaque redémarrage.
+    const { calls, client } = routerWithContainer("usb1/mikhmon-app");
+    await migrateMikhmonToFlash(client as never, { force: true, pollMs: 1 });
+
+    const config = calls.find((w) => w[0] === "/container/config/set");
+    assert.ok(config, "la configuration du moteur doit être posée");
+    assert.ok(
+      config.includes("=layer-dir=usb1/mikhmon-layers"),
+      `couches sur la clé, vu : ${config.join(" ")}`,
+    );
+    assert.ok(!config.includes("=layer-dir=flash/mikhmon-layers"));
+  });
+
+  it("garde les couches sur la flash quand le conteneur y va", async () => {
+    const { calls, client } = routerWithContainer("tmp/mikhmon");
+    await migrateMikhmonToFlash(client as never, { pollMs: 1 });
+    const config = calls.find((w) => w[0] === "/container/config/set");
+    assert.ok(config?.includes("=layer-dir=flash/mikhmon-layers"));
+  });
 });

@@ -46,6 +46,11 @@ export async function migrateMikhmonToFlash(
   if (persistent && !opts.force) {
     return { status: "already-persistent", message: `Déjà persistant (root-dir=${rootDir}).` };
   }
+  // Emplacement cible (voir plus bas) : les couches vont sur le MÊME stockage.
+  const targetRootDir = persistent && rootDir ? rootDir : "flash/mikhmon-app";
+  const storagePrefix = targetRootDir.replace(/^\/+/, "").split("/")[0];
+  const layerDir = `${storagePrefix}/mikhmon-layers`;
+
   const iface = mk.interface || "MIKHMON";
   const image = mk["remote-image"];
   const name = mk.name;
@@ -55,7 +60,15 @@ export async function migrateMikhmonToFlash(
 
   // 1. Config : layers sur la flash (persistant), extraction du pull en RAM.
   await client.talk(
-    ["/container/config/set", "=registry-url=https://registry-1.docker.io", "=layer-dir=flash/mikhmon-layers", "=tmpdir=tmp/pull"],
+    [
+      "/container/config/set",
+      "=registry-url=https://registry-1.docker.io",
+      // Les couches suivent le conteneur. Les laisser sur la flash pendant que
+      // le conteneur vit sur la clé, c'est remplir une flash de 128 Mo avec la
+      // plus grosse partie de l'image — le défaut constaté sur HSPT-TOFESSO.
+      `=layer-dir=${layerDir}`,
+      "=tmpdir=tmp/pull",
+    ],
     t,
   );
 
@@ -99,11 +112,6 @@ export async function migrateMikhmonToFlash(
     await client.talk(["/container/stop", `=numbers=${mk[".id"]}`], t).catch(() => {});
   }
   if (!removed) return { status: "failed", message: "Impossible de retirer l'ancien conteneur (réessayez)." };
-
-  // Réinstallation SUR PLACE : un conteneur qui vit sur clé USB doit y rester.
-  // Le recréer sur la flash interne casserait les boards dont elle est trop
-  // petite (hAP ax³, Chateau PRO ax, L009 — cf. requiresUsbForContainer).
-  const targetRootDir = persistent && rootDir ? rootDir : "flash/mikhmon-app";
 
   // 3. Re-création (déclenche le re-pull de l'image).
   await client.talk(

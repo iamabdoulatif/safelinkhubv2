@@ -247,3 +247,28 @@ test("le conteneur existant se voit RÉAFFIRMER son interface", async () => {
   // Repli si le build refuse le paramètre, comme pour envlist.
   assert.match(source, /\/interface\/i\.test\(containerUpdated\.error\)/);
 });
+
+test("chaque scénario de stockage pose layer-dir sur SON stockage", async () => {
+  const source = await readFile(
+    new URL("../src/lib/mikrotik/container-setup.ts", import.meta.url),
+    "utf8",
+  );
+
+  // `/container/config` est un réglage GLOBAL du routeur. Ne pas écrire
+  // layer-dir, c'est hériter de celui qu'un passage antérieur a laissé : sur
+  // HSPT-TOFESSO (L009, 128 Mo de flash), le conteneur vivait sur la clé USB
+  // pendant que ses couches remplissaient la flash interne — extraction
+  // impossible, « rebooted during download/extract, need repull ».
+  const configCalls = source
+    .split('"/container/config/set"')
+    .slice(1)
+    .map((chunk) => chunk.slice(0, chunk.indexOf("]") + 1));
+  assert.ok(configCalls.length >= 3, `attendu ≥3 configurations, vu ${configCalls.length}`);
+  for (const call of configCalls) {
+    assert.match(call, /layer-dir/, `configuration sans layer-dir :\n${call}`);
+  }
+
+  // Et les couches doivent suivre le stockage du conteneur, pas partir ailleurs.
+  assert.match(source, /`=layer-dir=\$\{usbSlot\}\/mikhmon-layers`/);
+  assert.match(source, /`=layer-dir=\$\{root\}mikhmon-layers`/);
+});

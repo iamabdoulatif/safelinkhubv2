@@ -414,8 +414,21 @@ async function provisionDockerStack(
       }
 
       containerRootDir = `${usbSlot}/mikhmon-app`;
+      // layer-dir SUR LA CLÉ, explicitement. `/container/config` est un réglage
+      // GLOBAL du routeur : ne pas l'écrire, c'est hériter de celui qu'un
+      // passage antérieur a laissé. Sur HSPT-TOFESSO (L009, 128 Mo de flash),
+      // un ancien scénario 2 avait posé layer-dir=flash/mikhmon-layers ; le
+      // conteneur vivait donc sur la clé pendant que ses couches — la grosse
+      // partie de l'image — remplissaient la flash interne. Résultat :
+      // « DOWNLOAD/EXTRACT FAILED », puis « rebooted during download/extract,
+      // need repull » à chaque redémarrage.
       const configured = await run(
-        ["/container/config/set", "=registry-url=https://registry-1.docker.io", `=tmpdir=${usbSlot}/pull`],
+        [
+          "/container/config/set",
+          "=registry-url=https://registry-1.docker.io",
+          `=layer-dir=${usbSlot}/mikhmon-layers`,
+          `=tmpdir=${usbSlot}/pull`,
+        ],
         `container engine config (USB storage ${usbSlot})`,
       );
       if (!configured.ok) return { status: "failed", message: configured.error };
@@ -434,6 +447,8 @@ async function provisionDockerStack(
         [
           "/container/config/set",
           "=registry-url=https://registry-1.docker.io",
+          // Même raison qu'au scénario 1 : réglage global, à écrire toujours.
+          `=layer-dir=${root}mikhmon-layers`,
           `=tmpdir=${root}pull`,
         ],
         `container engine config (stockage interne${internalDisk?.slot ? ` ${internalDisk.slot}` : ""})`,
