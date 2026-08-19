@@ -128,6 +128,116 @@ export async function createPackage(_prevState: unknown, formData: FormData) {
   return { success: true };
 }
 
+/**
+ * Change le tarif d'un forfait — l'action qui manquait.
+ *
+ * L'application ne savait que CRÉER et DÉSACTIVER : modifier un prix imposait
+ * de passer par la base. D'où des tarifs corrigés à la main, sans que le
+ * routeur en sache rien.
+ *
+ * Le portail lit les prix en direct, donc la base suffit pour ce que paie le
+ * client. Mais le profil hotspot du routeur embarque le prix dans son script,
+ * et c'est lui qui écrit le journal de ventes MikHmon : on le resynchronise
+ * dans le même geste, sinon la comptabilité et l'encaissement divergent.
+ */
+export async function updatePackagePrice(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const packageId = String(formData.get("packageId") ?? "");
+  const raw = String(formData.get("priceCents") ?? "").replace(/\s/g, "");
+  const priceCents = Number(raw);
+  if (!packageId) return { error: "Forfait introuvable." };
+  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(priceCents)) {
+    return { error: "Indiquez un tarif entier en FCFA (0 ou plus)." };
+  }
+
+  const db = getDb();
+  const [pkg] = await db
+    .select()
+    .from(packages)
+    .where(and(eq(packages.id, packageId), eq(packages.orgId, session.orgId)))
+    .limit(1);
+  if (!pkg) return { error: "Forfait introuvable." };
+  if (pkg.priceCents === priceCents) {
+    return { success: true, summary: `Tarif déjà à ${priceCents.toLocaleString("fr-FR")} F.` };
+  }
+
+  await db.update(packages).set({ priceCents }).where(eq(packages.id, packageId));
+  revalidatePath("/admin/packages");
+  revalidatePath("/admin/settings/router-setup");
+
+  // Resynchronisation du routeur : best-effort et NOMMÉE. Un routeur
+  // injoignable ne doit pas annuler le changement de tarif — mais l'opérateur
+  // doit savoir que son journal MikHmon reste sur l'ancien prix.
+  if (!pkg.routerId) {
+    return {
+      success: true,
+      summary:
+        `Tarif porté à ${priceCents.toLocaleString("fr-FR")} F. Forfait non rattaché à un ` +
+        "routeur : aucun profil à resynchroniser.",
+    };
+  }
+
+  const [router] = await db
+    .select()
+    .from(routers)
+    .where(and(eq(routers.id, pkg.routerId), eq(routers.orgId, session.orgId)))
+    .limit(1);
+  if (!router) {
+    return { success: true, summary: `Tarif porté à ${priceCents.toLocaleString("fr-FR")} F.` };
+  }
+
+  const { connectToRouter } = await import("@/lib/mikrotik/router-sync");
+  const { syncProfilePriceOnRouter } = await import("./price-sync");
+  try {
+    const client = await connectToRouter(router, 20000);
+    try {
+      const sync = await syncProfilePriceOnRouter(client, {
+        profileName: pkg.name,
+        durationValue: pkg.durationValue,
+        durationUnit: pkg.durationUnit,
+        priceCents,
+        uploadMbps: pkg.uploadMbps,
+        downloadMbps: pkg.downloadMbps,
+        routerId: router.id,
+      });
+      const profilePart = sync.updated
+        ? `profil « ${pkg.name} » resynchronisé` + (sync.keptRoamingHook ? " (roaming préservé)" : "")
+        : `profil non resynchronisé (${sync.reason})`;
+
+      // La page du portail INSTALLÉE sur le routeur est un instantané. Celles
+      // posées avant l'arrivée des prix en direct affichent donc encore
+      // l'ancien tarif, même après correction en base — c'est ce qu'un client
+      // de HSPT-NAMOIN voyait : 2 000 F sur son téléphone, 2 500 F dans le
+      // SaaS. On la ré-envoie, elle repartira avec le script qui lit les prix
+      // en direct.
+      const portalPart = router.captiveTemplateId
+        ? await (async () => {
+            const { installTemplateOnRouter } = await import("@/lib/captive-templates/actions");
+            const res = await installTemplateOnRouter(router.id, router.captiveTemplateId!);
+            return "error" in res ? `portail NON réinstallé (${res.error})` : "portail réinstallé";
+          })()
+        : "aucun portail rattaché à ce routeur";
+
+      return {
+        success: true,
+        summary: `Tarif porté à ${priceCents.toLocaleString("fr-FR")} F — ${profilePart}, ${portalPart}.`,
+      };
+    } finally {
+      client.close();
+    }
+  } catch (err) {
+    return {
+      success: true,
+      summary:
+        `Tarif porté à ${priceCents.toLocaleString("fr-FR")} F, mais ${router.name} est ` +
+        `injoignable : son journal MikHmon gardera l'ancien prix jusqu'à une resynchronisation ` +
+        `(${err instanceof Error ? err.message : "erreur inconnue"}).`,
+    };
+  }
+}
+
 export async function togglePackageStatus(packageId: string) {
   const session = await requireAdminSession();
   if (!session) return;

@@ -4,6 +4,7 @@ import { packages, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import CreatePackageModal from "./CreatePackageModal";
 import StatusToggle from "./StatusToggle";
+import PriceEditor from "./PriceEditor";
 
 function formatUgx(value: number) {
   return `FCFA ${value.toLocaleString("en-US")}`;
@@ -124,7 +125,7 @@ export default async function PackagesPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-ink-soft">
-                    {formatUgx(p.priceCents)}
+                    <PriceEditor packageId={p.id} priceCents={p.priceCents} formatted={formatUgx(p.priceCents)} />
                   </td>
                   <td className="px-4 py-3 text-ink-soft">
                     {formatDuration(p.durationValue, p.durationUnit)}
