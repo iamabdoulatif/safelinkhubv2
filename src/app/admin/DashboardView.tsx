@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, Router as RouterIcon, Ticket, Wifi } from "lucide-react";
 import { type DailyPoint } from "@/lib/dashboard/queries";
+import { type CountryRow } from "@/lib/dashboard/geography";
 import { formatSc } from "@/lib/safecoin/pricing";
 import DateRangePicker from "./DateRangePicker";
 import LineChart from "@/components/charts/LineChart";
@@ -41,6 +42,8 @@ export type SafecoinSummary = {
 
 export type DashboardViewProps = {
   kpis: DashboardKpis | null;
+  /** Répartition des comptes par pays — superadmin seulement, vide sinon. */
+  countries: CountryRow[];
   daily: DailyPoint[];
   recentSales: DashboardSale[];
   safecoin: SafecoinSummary | null;
@@ -91,7 +94,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   return <div className={`rounded-xl border border-line bg-paper ${className}`}>{children}</div>;
 }
 
-export default function DashboardView({ kpis, daily, recentSales, safecoin, rangeLabel, picker }: DashboardViewProps) {
+export default function DashboardView({ kpis, daily, recentSales, safecoin, countries, rangeLabel, picker }: DashboardViewProps) {
   const data = kpis ? { kpis, daily, recentSales } : null;
   const hasSales = (kpis?.salesCount ?? 0) > 0;
   const hasAnyData = hasSales || (kpis?.expenseCents ?? 0) > 0;
@@ -273,6 +276,48 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, rang
               <p className="mt-4 text-sm text-ink-soft">Aucune vente sur cette période.</p>
             )}
           </Card>
+
+          {countries.length > 0 && (
+            <Card className="p-5">
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="font-semibold text-ink">Comptes par pays</h2>
+                <span className="text-xs text-ink-soft">
+                  {countries.reduce((n, c) => n + c.accounts, 0)} au total
+                </span>
+              </div>
+              <ul className="mt-3 space-y-2.5" role="list">
+                {countries.map((c) => (
+                  <li key={c.iso2 ?? "inconnu"}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        <span aria-hidden="true">{c.flag}</span>
+                        <span
+                          className={`truncate text-sm ${c.iso2 ? "text-ink" : "italic text-ink-soft"}`}
+                        >
+                          {c.label}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
+                        {c.accounts}
+                        <span className="ml-1.5 text-xs font-normal text-ink-soft">
+                          {Math.round(c.share * 100)}&nbsp;%
+                        </span>
+                      </span>
+                    </div>
+                    {/* La barre porte la même information que le pourcentage :
+                        elle sert à comparer d'un coup d'œil, pas à l'énoncer.
+                        D'où aria-hidden — la lire deux fois n'aide personne. */}
+                    <div aria-hidden="true" className="mt-1 h-1.5 rounded-full bg-clay">
+                      <div
+                        className={`h-full rounded-full ${c.iso2 ? "bg-brand" : "bg-line"}`}
+                        style={{ width: `${Math.max(c.share * 100, 2)}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           {/* Safecoin passe du bandeau pleine largeur au rail : c'est une
               information de superadmin, elle ne doit pas dominer les revenus.

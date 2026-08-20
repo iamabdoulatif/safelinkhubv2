@@ -1,6 +1,7 @@
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDashboardData } from "@/lib/dashboard/queries";
 import { getSafecoinReport } from "@/lib/safecoin/queries";
+import { getAccountsByCountry } from "@/lib/dashboard/geography";
 import DashboardView from "./DashboardView";
 
 /* Cette page ne fait plus que CHERCHER les données et résoudre la période.
@@ -54,8 +55,14 @@ export default async function DashboardPage({
             : null;
 
   const data = session ? await getDashboardData(session.orgId, { from, to: toEnd }) : null;
-  const safecoin =
-    session && isSuperAdmin(session.role) ? await getSafecoinReport({ from, to: toEnd }) : null;
+  // Réservé au superadmin : la répartition porte sur TOUS les comptes du SaaS,
+  // pas sur ceux d'une organisation. L'exposer à un admin ordinaire lui
+  // montrerait le portefeuille clients de la plateforme.
+  const superadmin = Boolean(session && isSuperAdmin(session.role));
+  const [safecoin, countries] = await Promise.all([
+    superadmin ? getSafecoinReport({ from, to: toEnd }) : null,
+    superadmin ? getAccountsByCountry() : [],
+  ]);
 
   const fmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" });
 
@@ -69,6 +76,7 @@ export default async function DashboardPage({
           ? { rateFcfaPerSc: safecoin.rateFcfaPerSc, kpis: safecoin.kpis }
           : null
       }
+      countries={countries}
       rangeLabel={`${fmt.format(from)} – ${fmt.format(to)}`}
       picker={{ from: fromParam, to: toParamStr, activePreset }}
     />

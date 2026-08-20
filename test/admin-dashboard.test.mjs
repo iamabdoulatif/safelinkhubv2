@@ -72,3 +72,21 @@ test("les sessions actives ne comptent pas les routeurs tombés", async () => {
   const bloc = queries.slice(queries.indexOf("const activeUsers"), queries.indexOf("const routersOffline"));
   assert.match(bloc, /\.filter\(\(r\) => r\.status === "online"\)/);
 });
+
+test("la répartition par pays montre aussi ce qu'on ignore", async () => {
+  // Masquer les comptes sans pays donnerait des pourcentages qui ont l'air
+  // complets alors qu'ils portent sur une partie seulement. En production,
+  // 4 comptes sur 35 datent d'avant l'ajout du champ.
+  const geo = await read("src/lib/dashboard/geography.ts");
+  assert.match(geo, /Non renseigné/);
+  assert.doesNotMatch(geo, /isNotNull\(users\.country\)/, "aucun filtre qui écarterait les comptes sans pays");
+  // Et cette lacune ferme la marche : ce n'est pas un marché.
+  assert.match(geo, /if \(a\.iso2 === null\) return 1;/);
+});
+
+test("la géographie est réservée au superadmin", async () => {
+  // Elle porte sur TOUS les comptes du SaaS : un admin d'organisation y verrait
+  // le portefeuille clients de la plateforme.
+  const page = await read("src/app/admin/page.tsx");
+  assert.match(page, /superadmin \? getAccountsByCountry\(\) : \[\]/);
+});
