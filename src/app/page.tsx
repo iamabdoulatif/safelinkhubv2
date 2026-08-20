@@ -11,12 +11,14 @@ import FeaturesGrid from "@/components/landing/FeaturesGrid";
 import PlatformDark from "@/components/landing/PlatformDark";
 import HardwareSection from "@/components/landing/HardwareSection";
 import Pricing from "@/components/landing/Pricing";
+import ResellerSection from "@/components/landing/ResellerSection";
 import SafecoinSection from "@/components/landing/SafecoinSection";
 import Testimonials from "@/components/landing/Testimonials";
 import BlogTeaser from "@/components/landing/BlogTeaser";
 import FaqSection from "@/components/landing/FaqSection";
 import FinalCta from "@/components/landing/FinalCta";
 import LandingFooter from "@/components/landing/LandingFooter";
+import { getPlatformStats } from "@/lib/landing/platform-stats";
 
 // ISR : la landing est majoritairement statique, mais les témoignages
 // approuvés et les derniers articles viennent de la base. On revalide
@@ -36,13 +38,17 @@ export const revalidate = 300;
  * ANIMATIONS : toutes retirées — scène isométrique du hero (7 boucles CSS),
  * section 3D pilotée au scroll (three.js + GSAP, ~180 ko) et écran de
  * démarrage. Les accordéons sont des <details> natifs, sans JavaScript. */
-export default function Home() {
+export default async function Home() {
+  // Chiffres réels, recalculés à chaque revalidation ISR (5 min). Aucun
+  // montant : voir lib/landing/platform-stats.ts pour la raison.
+  const stats = await getPlatformStats();
+
   return (
     <div className="theme-slate flex flex-1 flex-col">
       <AnnounceBar />
       <LandingNav />
       <main>
-        <Hero />
+        <Hero stats={stats} />
         <TrustStrip />
         <IntroSplit />
         <FeatureProvisioning />
@@ -53,6 +59,7 @@ export default function Home() {
         <PlatformDark />
         <HardwareSection />
         <Pricing />
+        <ResellerSection />
         <SafecoinSection />
         <Testimonials />
         <BlogTeaser />

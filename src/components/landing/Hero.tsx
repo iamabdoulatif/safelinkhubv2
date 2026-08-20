@@ -1,30 +1,24 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { vendors } from "./content";
+import { type PlatformStats } from "@/lib/landing/platform-stats";
+
+const nf = new Intl.NumberFormat("fr-FR");
 
 /* Hero Slate : titre centré avec un mot au surligneur, capture e-mail, et
  * cartes de statistiques flottantes de part et d'autre.
+ *
+ * LES CHIFFRES SONT RÉELS. Ces cartes ont affiché pendant plusieurs jours des
+ * montants de maquette — 18 742 000 FCFA sur trente jours, 486 500 le jour même
+ * — alors que la base en comptait 1 750 et zéro. Elles ne portent plus AUCUN
+ * montant : deux volumes mesurés (routeurs supervisés, sessions en cours) et
+ * deux faits produit vérifiables (constructeurs, opérateurs mobile money).
+ * Voir lib/landing/platform-stats.ts.
  *
  * Les cartes sont STATIQUES — la scène isométrique animée (IsoRouterScene,
  * sept animations CSS en boucle) a été retirée avec le reste des animations
  * de la landing. Elles sont masquées sous xl : superposées au titre sur un
  * écran étroit, elles le rendraient illisible. */
-
-const bars = [34, 52, 41, 68, 57, 79, 62, 88, 71, 94];
-
-function MiniChart() {
-  return (
-    <div aria-hidden="true" className="flex h-16 items-end gap-1">
-      {bars.map((h, i) => (
-        <span
-          key={i}
-          className={`w-2 rounded-sm ${i === bars.length - 1 ? "bg-slate-deep" : "bg-brand"}`}
-          style={{ height: `${h}%` }}
-        />
-      ))}
-    </div>
-  );
-}
 
 function FloatCard({
   label,
@@ -51,35 +45,40 @@ function FloatCard({
   );
 }
 
-export default function Hero() {
+export default function Hero({ stats }: { stats: PlatformStats }) {
   return (
     <section aria-label="Présentation" className="relative overflow-hidden border-b border-line bg-paper">
       <div className="mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-20">
         {/* Cartes flottantes — décoratives, hors du flux, jamais lues */}
         <div aria-hidden="true" className="pointer-events-none hidden xl:block">
+          {/* Les deux cartes mesurées ne s'affichent que si la base a répondu :
+              annoncer « 0 routeur supervisé » serait pire que ne rien dire. */}
+          {stats.routers > 0 && (
+            <FloatCard
+              label="Routeurs supervisés"
+              value={nf.format(stats.routers)}
+              sub="parc total sur la plateforme"
+              className="absolute left-2 top-28 2xl:left-16"
+            />
+          )}
           <FloatCard
-            label="Revenus 30 jours"
-            className="absolute left-2 top-28 2xl:left-16"
-          >
-            <MiniChart />
-            <p className="mt-2 font-mono text-base font-bold tabular-nums text-ink">18 742 000 FCFA</p>
-          </FloatCard>
-          <FloatCard
-            label="Uptime du parc"
-            value="99,2 %"
-            sub="11 routeurs en ligne sur 14"
+            label="Constructeurs pris en charge"
+            value={String(stats.vendors)}
+            sub="MikroTik, Ruijie, TP-Link, UniFi…"
             className="absolute bottom-16 left-6 2xl:left-24"
           />
+          {stats.sessions > 0 && (
+            <FloatCard
+              label="Sessions en cours"
+              value={nf.format(stats.sessions)}
+              sub="sur les routeurs joignables"
+              className="absolute right-2 top-28 2xl:right-16"
+            />
+          )}
           <FloatCard
-            label="Sessions actives"
-            value="1 842"
-            sub="pic à 2 106 vers 20 h"
-            className="absolute right-2 top-28 2xl:right-16"
-          />
-          <FloatCard
-            label="Encaissé aujourd'hui"
-            value="486 500"
-            sub="Orange Money · Wave · MTN · Moov"
+            label="Mobile money"
+            value={String(stats.mobileMoney.length)}
+            sub={stats.mobileMoney.join(" · ")}
             className="absolute bottom-16 right-6 2xl:right-24"
           />
         </div>
