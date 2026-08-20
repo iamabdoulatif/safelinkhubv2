@@ -2,12 +2,13 @@ import { redirect } from "next/navigation";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { listAllCategories } from "@/lib/blog/queries";
 import BlogPostForm from "../BlogPostForm";
+import { configuredChannels } from "@/lib/social/share";
 
 export default async function NewBlogPostPage() {
   const session = await getSession();
   if (!isSuperAdmin(session?.role)) redirect("/admin");
 
-  const categories = await listAllCategories();
+  const [categories, channels] = await Promise.all([listAllCategories(), configuredChannels()]);
 
   return (
     <div className="animate-fade-in-up">
@@ -17,7 +18,7 @@ export default async function NewBlogPostPage() {
         brouillon reste invisible sur le site public.
       </p>
       <div className="mt-4">
-        <BlogPostForm categories={categories} />
+        <BlogPostForm categories={categories} shareChannels={channels} />
       </div>
     </div>
   );

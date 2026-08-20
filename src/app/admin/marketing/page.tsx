@@ -7,15 +7,20 @@ import { Megaphone } from "lucide-react";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { readMarketingSettings } from "@/lib/marketing/queries";
 import MarketingForm from "./MarketingForm";
+import SocialSharingForm from "./SocialSharingForm";
+import { readShareSettingsForForm } from "@/lib/social/share";
 
 export default async function MarketingPage() {
   const session = await getSession();
   if (!isSuperAdmin(session?.role)) redirect("/admin");
 
-  const settings = await readMarketingSettings();
+  const [settings, share] = await Promise.all([
+    readMarketingSettings(),
+    readShareSettingsForForm(),
+  ]);
 
   return (
-    <div className="mx-auto max-w-2xl animate-fade-in-up">
+    <div className="mx-auto max-w-3xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <Megaphone className="h-5 w-5 text-ink" />
         <h1 className="text-2xl font-bold text-ink">Pixels &amp; Analytics</h1>
@@ -27,6 +32,10 @@ export default async function MarketingPage() {
       </p>
 
       <MarketingForm settings={settings} />
+
+      <div className="mt-8">
+        <SocialSharingForm {...share} />
+      </div>
     </div>
   );
 }

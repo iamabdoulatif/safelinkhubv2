@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { saveBlogPost } from "@/lib/blog/actions";
+import { CHANNEL_LABEL, type ShareChannel } from "@/lib/social/channels";
 
 type BlogPostFormProps = {
   post?: {
@@ -16,9 +17,18 @@ type BlogPostFormProps = {
     published: boolean;
   };
   categories?: string[];
+  /** Canaux réellement configurés en réglages. Vide = bloc masqué. */
+  shareChannels?: ShareChannel[];
+  /** Canaux déjà diffusés pour cet article — leur case part décochée. */
+  alreadyShared?: string[];
 };
 
-export default function BlogPostForm({ post, categories = [] }: BlogPostFormProps) {
+export default function BlogPostForm({
+  post,
+  categories = [],
+  shareChannels = [],
+  alreadyShared = [],
+}: BlogPostFormProps) {
   const [state, formAction, pending] = useActionState(saveBlogPost, undefined);
 
   return (
@@ -132,6 +142,45 @@ export default function BlogPostForm({ post, categories = [] }: BlogPostFormProp
           />
           Publier l&apos;article (visible sur /blog)
         </label>
+
+        {shareChannels.length > 0 && (
+          <fieldset className="rounded-xl border border-line bg-clay p-4">
+            <legend className="px-1 text-sm font-semibold text-ink">
+              Diffuser à la publication
+            </legend>
+            <p className="mb-3 text-xs text-ink-soft">
+              L&apos;envoi part une fois l&apos;article enregistré, sans bloquer
+              cette page. Un canal déjà diffusé n&apos;est jamais reposté.
+            </p>
+            <div className="space-y-2">
+              {shareChannels.map((channel) => {
+                const done = alreadyShared.includes(channel);
+                return (
+                  <label
+                    key={channel}
+                    className="flex items-center gap-2 text-sm font-medium text-ink"
+                  >
+                    <input
+                      type="checkbox"
+                      name={`share_${channel}`}
+                      defaultChecked={!done}
+                      className="h-4 w-4 accent-slate-deep"
+                    />
+                    {CHANNEL_LABEL[channel]}
+                    {done && (
+                      <span className="text-xs font-normal text-ink-soft">— déjà diffusé</span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs text-ink-soft">
+              WhatsApp n&apos;est pas proposé&nbsp;: l&apos;API Groupes de Meta
+              plafonne un groupe à 8 participants, ce qui exclut un groupe
+              communautaire.
+            </p>
+          </fieldset>
+        )}
       </div>
 
       <div className="mt-6 flex items-center gap-3">

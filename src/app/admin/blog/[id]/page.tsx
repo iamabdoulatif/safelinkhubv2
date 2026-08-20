@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getPostById, listAllCategories } from "@/lib/blog/queries";
 import BlogPostForm from "../BlogPostForm";
+import ShareStatusPanel from "../ShareStatusPanel";
+import { configuredChannels, listPostShares } from "@/lib/social/share";
 
 export default async function EditBlogPostPage({
   params,
@@ -12,7 +14,12 @@ export default async function EditBlogPostPage({
   if (!isSuperAdmin(session?.role)) redirect("/admin");
 
   const { id } = await params;
-  const [post, categories] = await Promise.all([getPostById(id), listAllCategories()]);
+  const [post, categories, channels, shares] = await Promise.all([
+    getPostById(id),
+    listAllCategories(),
+    configuredChannels(),
+    listPostShares(id),
+  ]);
   if (!post) notFound();
 
   return (
@@ -24,8 +31,14 @@ export default async function EditBlogPostPage({
           : "Brouillon — invisible sur le site public tant qu'il n'est pas publié."}
       </p>
       <div className="mt-4">
-        <BlogPostForm post={post} categories={categories} />
+        <BlogPostForm
+          post={post}
+          categories={categories}
+          shareChannels={channels}
+          alreadyShared={shares.filter((s) => s.status === "sent").map((s) => s.channel)}
+        />
       </div>
+      <ShareStatusPanel postId={id} shares={shares} channels={channels} />
     </div>
   );
 }

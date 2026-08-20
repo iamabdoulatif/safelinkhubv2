@@ -1103,8 +1103,55 @@ export const marketingSettings = pgTable("marketing_settings", {
   communityYoutubeUrl: text("community_youtube_url"),
   communityTelegramUrl: text("community_telegram_url"),
   communityWhatsappUrl: text("community_whatsapp_url"),
+  // Diffusion automatique d'un article de blog à sa publication.
+  //
+  // Les DEUX jetons sont chiffrés au repos (encryptSecret, AES-256-GCM dérivé
+  // d'AUTH_SECRET) — mêmes précautions que les mots de passe de routeur : un
+  // jeton de bot Telegram permet d'écrire dans le groupe, un jeton de page
+  // Facebook d'y publier. L'identifiant de salon et l'ID de page ne sont pas
+  // des secrets et restent en clair.
+  //
+  // Pas de WhatsApp : l'API Groupes de Meta plafonne un groupe à 8
+  // participants et impose un Official Business Account — inutilisable pour
+  // un groupe communautaire. La diffusion WhatsApp reste manuelle.
+  telegramBotToken: text("telegram_bot_token"),
+  telegramChatId: text("telegram_chat_id"),
+  facebookPageId: text("facebook_page_id"),
+  facebookPageToken: text("facebook_page_token"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+/**
+ * Trace des diffusions d'un article vers les réseaux, une ligne par canal.
+ *
+ * Sert à trois choses, dans cet ordre d'importance :
+ *  1. IDEMPOTENCE — republier un article déjà diffusé ne doit pas le reposter.
+ *     L'index unique (post_id, channel) l'empêche au niveau de la base, pas
+ *     seulement dans le code.
+ *  2. Rendre l'échec visible : sans trace, un jeton expiré fait échouer la
+ *     diffusion en silence et personne ne s'en aperçoit avant des semaines.
+ *  3. Permettre de relancer un seul canal depuis l'éditeur.
+ */
+export const blogPostShares = pgTable(
+  "blog_post_shares",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => blogPosts.id, { onDelete: "cascade" }),
+    // "telegram" | "facebook"
+    channel: text("channel").notNull(),
+    // "sent" | "failed"
+    status: text("status").notNull(),
+    /** Lien du message publié, quand le réseau le renvoie. */
+    externalUrl: text("external_url"),
+    /** Message d'erreur du réseau, tronqué — lu par l'exploitant. */
+    error: text("error"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("blog_post_shares_post_channel_uniq").on(t.postId, t.channel)],
+);
 
 // Boutique (products / product_categories) : la fonctionnalité e-commerce a été
 // extraite dans un PROJET SÉPARÉ (2026-07). Les tables restent en base (données
