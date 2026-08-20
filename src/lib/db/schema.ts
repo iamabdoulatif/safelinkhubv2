@@ -29,6 +29,18 @@ export const organizations = pgTable("organizations", {
   // re-adding a router doesn't burn it, same as the regular free-trial
   // flag above — it's date-bound, not a one-time-use flag.
   bonusFreeRouterUntil: timestamp("bonus_free_router_until"),
+  // Compte revendeur (voir lib/billing/reseller.ts). "user" par défaut :
+  // les comptes créés avant cette fonctionnalité restent des comptes simples.
+  //
+  // resellerActivatedAt reste NULL tant que les 40 000 FCFA du pack ne sont pas
+  // encaissés. C'est cette colonne — et non accountType — qui conditionne la
+  // remise : demander le statut à l'inscription ne suffit jamais à l'obtenir.
+  accountType: text("account_type").notNull().default("user"),
+  resellerActivatedAt: timestamp("reseller_activated_at"),
+  resellerExpiresAt: timestamp("reseller_expires_at"),
+  /** Installations déjà posées au tarif remisé sur le pack en cours. */
+  resellerQuotaUsed: integer("reseller_quota_used").notNull().default(0),
+
   // Superadmin-controlled VPN billing override for the SaaS org. "default"
   // keeps the normal trial/wallet behavior, "free_until" and "unlimited"
   // grant free direct-access VPN, and "paid" forces wallet billing even if

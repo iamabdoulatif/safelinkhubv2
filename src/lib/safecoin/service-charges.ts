@@ -1,7 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { safecoinFeeRules, safecoinSettings } from "@/lib/db/schema";
+import { organizations, safecoinFeeRules, safecoinSettings } from "@/lib/db/schema";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
+import { resellerState, setupFeeCentsFor, RESELLER_SETUP_FEE_CENTS } from "@/lib/billing/reseller";
 import { PERIOD_PRICE_CENTS, type BillingPeriod } from "@/lib/mikrotik/billing-plans";
 import { DEFAULT_SC_RATE_FCFA } from "./constants";
 import { fcfaToScCents } from "./pricing";
@@ -58,9 +59,43 @@ export async function vpnActivationChargeScCents(opts: {
   );
 }
 
-export async function autoSetupChargeScCents(opts: { supportsContainers: boolean }) {
+/**
+ * Tarif d'installation applicable à une organisation.
+ *
+ * Sans orgId on renvoie le tarif public : c'est le cas des affichages
+ * génériques (landing, grille tarifaire), qui ne parlent d'aucun compte.
+ *
+ * La lecture tolère l'absence des colonnes revendeur — l'image peut être
+ * déployée avant que scripts/add-reseller-accounts.sql soit passé. Dans ce cas
+ * personne n'est revendeur, donc tout le monde paie le tarif public : se
+ * tromper dans ce sens ne coûte rien à personne, l'inverse offrirait la remise
+ * à tout le monde.
+ */
+export async function setupFeeFcfaFor(opts: {
+  supportsContainers: boolean;
+  orgId?: string;
+}): Promise<number> {
+  if (!opts.orgId) return autoSetupFeeCentsFor(opts.supportsContainers);
+  const [row] = await getDb()
+    .select({
+      accountType: organizations.accountType,
+      resellerActivatedAt: organizations.resellerActivatedAt,
+      resellerExpiresAt: organizations.resellerExpiresAt,
+      resellerQuotaUsed: organizations.resellerQuotaUsed,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, opts.orgId))
+    .limit(1)
+    .catch(() => []);
+  return setupFeeCentsFor(resellerState(row ?? null), opts.supportsContainers, autoSetupFeeCentsFor);
+}
+
+export async function autoSetupChargeScCents(opts: {
+  supportsContainers: boolean;
+  orgId?: string;
+}) {
   const settings = await currentSettings();
-  const baseFcfa = autoSetupFeeCentsFor(opts.supportsContainers);
+  const baseFcfa = await setupFeeFcfaFor(opts);
   return (
     fcfaToScCents(baseFcfa, settings.rateFcfaPerSc) +
     settings.autoSetupFeeScCents +
@@ -97,9 +132,16 @@ export async function chargeAutoSetup(opts: {
   routerId: string;
   supportsContainers: boolean;
 }) {
-  const baseFcfa = autoSetupFeeCentsFor(opts.supportsContainers);
-  const amountScCents = await autoSetupChargeScCents({ supportsContainers: opts.supportsContainers });
-  return appendSafecoinDebit({
+  const baseFcfa = await setupFeeFcfaFor({
+    supportsContainers: opts.supportsContainers,
+    orgId: opts.orgId,
+  });
+  const usedResellerRate = baseFcfa === RESELLER_SETUP_FEE_CENTS;
+  const amountScCents = await autoSetupChargeScCents({
+    supportsContainers: opts.supportsContainers,
+    orgId: opts.orgId,
+  });
+  const result = await appendSafecoinDebit({
     orgId: opts.orgId,
     userId: opts.userId,
     entryType: "auto_setup_charge",
@@ -110,6 +152,20 @@ export async function chargeAutoSetup(opts: {
     referenceId: opts.routerId,
     note: supportsContainerLabel(opts.supportsContainers),
   });
+
+  // Le quota ne se décompte QUE si l'écriture a réellement été créée.
+  // appendSafecoinDebit est idempotent sur `auto-setup:<routerId>` : rejouer
+  // la même installation renvoie `created: false` sans débiter. Incrémenter
+  // sans cette garde brûlerait une pose du quota à chaque nouvel essai, et le
+  // revendeur perdrait des installations qu'il n'a jamais faites.
+  if (usedResellerRate && result.created) {
+    await getDb()
+      .update(organizations)
+      .set({ resellerQuotaUsed: sql`${organizations.resellerQuotaUsed} + 1` })
+      .where(eq(organizations.id, opts.orgId));
+  }
+
+  return result;
 }
 
 function supportsContainerLabel(supportsContainers: boolean) {

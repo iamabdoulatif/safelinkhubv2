@@ -27,7 +27,7 @@ import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { ensureWalledGarden } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { loadSafelinkBarakaPackage, type PackageFile } from "@/lib/captive-templates/package-files";
-import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
+import { setupFeeFcfaFor } from "@/lib/safecoin/service-charges";
 import { pickBalanceSource } from "@/lib/billing/balance-source";
 import { awardReferral } from "@/lib/referrals/service";
 import {
@@ -1009,7 +1009,7 @@ export async function getAutoSetupBillingStatus(routerId: string, supportsContai
     return { success: true, isFree: true, alreadyBilled: false, feeCents: 0, walletBalanceCents: 0, sufficientBalance: true };
   }
 
-  const feeCents = autoSetupFeeCentsFor(supportsContainers);
+  const feeCents = await setupFeeFcfaFor({ supportsContainers, orgId: org.id });
   const walletBalanceCents = await getWalletBalanceCents(org.id);
   return {
     success: true,
@@ -1114,7 +1114,7 @@ export async function provisionHotspotStack(
       : router.autoSetupBilled
         ? null
         : org.freeRouterSetupUsed
-          ? autoSetupFeeCentsFor(opts.supportsContainers)
+          ? await setupFeeFcfaFor({ supportsContainers: opts.supportsContainers, orgId: org.id })
           : 0;
 
   const safecoinAccount = billableCents && billableCents > 0
