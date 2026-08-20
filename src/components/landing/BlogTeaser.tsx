@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import SectionIntro from "./SectionIntro";
@@ -21,6 +22,24 @@ async function safePosts() {
 
 const dateFr = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 
+/** Repli quand un article n'a pas de couverture — plutôt qu'un aplat gris. */
+const FALLBACK_COVER = "/landing/photos/antennes-toit.jpg";
+
+/* Les couvertures d'articles sont des chemins locaux (/blog/xxx.svg) : elles
+ * passent par next/image sans configuration d'hôte distant. Une URL absolue
+ * saisie par le superadmin ne serait PAS optimisable sans l'ajouter à
+ * images.remotePatterns — d'où le repli sur une balise simple dans ce cas. */
+function Cover({ src, className }: { src: string | null; className: string }) {
+  const url = src || FALLBACK_COVER;
+  if (/^https?:\/\//.test(url)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={url} alt="" className={className} loading="lazy" />;
+  }
+  return (
+    <Image src={url} alt="" width={1400} height={900} sizes="(min-width: 1024px) 40rem, 100vw" className={className} />
+  );
+}
+
 export default async function BlogTeaser() {
   const posts = (await safePosts()).slice(0, 3);
   if (posts.length === 0) return null;
@@ -38,7 +57,7 @@ export default async function BlogTeaser() {
 
         <div className="mt-12 grid grid-cols-1 gap-5 lg:grid-cols-12">
           <article className="slate-card overflow-hidden bg-paper lg:col-span-7">
-            <div aria-hidden="true" className="h-52 bg-clay sm:h-64" />
+            <Cover src={lead.coverImageUrl} className="h-52 w-full object-cover sm:h-64" />
             <div className="p-6 sm:p-7">
               {lead.category ? (
                 <span className="slate-eyebrow">{lead.category}</span>
@@ -60,7 +79,7 @@ export default async function BlogTeaser() {
           <div className="grid grid-cols-1 gap-5 lg:col-span-5">
             {rest.map((p) => (
               <article key={p.id} className="slate-card flex gap-4 overflow-hidden bg-paper p-4">
-                <div aria-hidden="true" className="h-24 w-24 shrink-0 rounded-xl bg-clay" />
+                <Cover src={p.coverImageUrl} className="h-24 w-24 shrink-0 rounded-xl object-cover" />
                 <div className="min-w-0">
                   <h3 className="font-display text-base font-bold leading-snug text-ink">
                     <Link href={`/blog/${p.slug}`} className="hover:underline">

@@ -1,9 +1,20 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Check, Plus } from "lucide-react";
 
 /* Les deux sections alternées de Slate : texte + visuel, puis visuel + texte.
  * Regroupées dans un seul fichier parce qu'elles partagent la même grille et
- * ne servent qu'ici — deux composants exportés, un seul endroit à ouvrir. */
+ * ne servent qu'ici — deux composants exportés, un seul endroit à ouvrir.
+ *
+ * PHOTOS : Slate pose une photo par section, avec une carte de données qui la
+ * chevauche. Même dispositif ici. Les images viennent de Pexels (licence
+ * commerciale libre, sans attribution obligatoire) et sont AUTO-HÉBERGÉES dans
+ * public/landing/photos — pas de hotlink vers leur CDN, qui imposerait d'ouvrir
+ * images.remotePatterns et casserait le jour où l'URL change.
+ *
+ * `alt=""` est délibéré : ces photos illustrent, elles n'informent pas. Les
+ * annoncer à un lecteur d'écran ajouterait du bruit avant le texte qui, lui,
+ * porte le contenu. */
 
 const provisioning = [
   "Hotspot, PPPoE et profils de forfaits créés en une passe",
@@ -69,7 +80,17 @@ export function FeatureProvisioning() {
         </div>
 
         <div className="lg:col-span-6">
-          <div className="slate-card slate-card-raised overflow-hidden bg-paper">
+          <div className="overflow-hidden rounded-2xl">
+            <Image
+              src="/landing/photos/technicien-carte.jpg"
+              alt=""
+              width={1400}
+              height={1050}
+              sizes="(min-width: 1024px) 33rem, 100vw"
+              className="h-56 w-full object-cover sm:h-64"
+            />
+          </div>
+          <div className="slate-card slate-card-raised relative mx-4 -mt-10 overflow-hidden bg-paper">
             <div className="border-b border-line px-5 py-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                 Installation en cours
@@ -113,7 +134,17 @@ export function FeatureMobileMoney() {
     <section aria-label="Encaissement mobile money" className="border-b border-line bg-clay py-16 sm:py-24">
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 sm:px-6 lg:grid-cols-12 lg:gap-14">
         <div className="lg:col-span-6 lg:order-1">
-          <div className="slate-card slate-card-raised overflow-hidden bg-paper">
+          <div className="overflow-hidden rounded-2xl">
+            <Image
+              src="/landing/photos/antennes-toit.jpg"
+              alt=""
+              width={1400}
+              height={2489}
+              sizes="(min-width: 1024px) 33rem, 100vw"
+              className="h-44 w-full object-cover object-center sm:h-52"
+            />
+          </div>
+          <div className="slate-card slate-card-raised relative mx-4 -mt-10 overflow-hidden bg-paper">
             <div className="flex items-baseline justify-between border-b border-line px-5 py-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                 Encaissé aujourd&apos;hui
