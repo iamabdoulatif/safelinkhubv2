@@ -66,7 +66,7 @@ export async function getDashboardData(orgId: string, range: DashboardRange) {
       .from(walletTransactions)
       .where(and(eq(walletTransactions.orgId, orgId), eq(walletTransactions.status, "completed"))),
     db
-      .select({ status: routers.status, activeUsers: routers.activeUsers })
+      .select({ name: routers.name, status: routers.status, activeUsers: routers.activeUsers })
       .from(routers)
       .where(eq(routers.orgId, orgId)),
   ]);
@@ -101,6 +101,13 @@ export async function getDashboardData(orgId: string, range: DashboardRange) {
 
   const routersOnline = orgRouters.filter((r) => r.status === "online").length;
   const activeUsers = orgRouters.reduce((sum, r) => sum + (r.activeUsers ?? 0), 0);
+  // Nommer les routeurs tombés, pas seulement les compter : « 3 hors ligne »
+  // n'aide personne, « TOFESSO, MAMBA et SHIA sont tombés » envoie quelqu'un
+  // sur le bon site. Le nom vient de la requête déjà exécutée.
+  const routersOffline = orgRouters
+    .filter((r) => r.status !== "online")
+    .map((r) => r.name)
+    .sort((a, b) => a.localeCompare(b, "fr"));
 
   return {
     kpis: {
@@ -112,6 +119,7 @@ export async function getDashboardData(orgId: string, range: DashboardRange) {
       salesCount: paidSales.length,
       routersTotal: orgRouters.length,
       routersOnline,
+      routersOffline,
       activeUsers,
     },
     daily: [...byDay.values()],
