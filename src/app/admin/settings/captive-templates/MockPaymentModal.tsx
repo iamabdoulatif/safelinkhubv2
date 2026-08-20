@@ -66,7 +66,7 @@ export default function MockPaymentModal({
             </div>
             <button
               type="submit"
-              className="w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-[#3A362F]"
+              className="w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
             >
               {isCard ? "Continuer vers le paiement" : "Envoyer la demande de paiement"}
             </button>

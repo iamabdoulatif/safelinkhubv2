@@ -17,7 +17,7 @@ export default function NewTicketForm() {
   }, [state, router]);
 
   return (
-    <form ref={formRef} action={formAction} className="border-2 border-line bg-paper p-6">
+    <form ref={formRef} action={formAction} className="border border-line bg-paper p-6 rounded-xl">
       <h2 className="font-semibold text-ink">Envoyer une demande</h2>
       <p className="mt-1 text-sm text-ink-soft">
         Décrivez votre problème — votre demande est enregistrée et visible dans la liste
@@ -58,7 +58,7 @@ export default function NewTicketForm() {
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+        className="mt-4 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
       >
         {pending ? "Envoi..." : "Envoyer"}
       </button>

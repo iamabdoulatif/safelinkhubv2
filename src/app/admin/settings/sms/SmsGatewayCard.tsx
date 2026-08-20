@@ -38,7 +38,7 @@ export default function SmsGatewayCard({
   const [isEnabled, setIsEnabled] = useState(enabled);
 
   return (
-    <div className="border-2 border-line bg-paper p-5">
+    <div className="border border-line bg-paper p-5 rounded-xl">
     <form action={formAction}>
       <input type="hidden" name="provider" value={provider} />
 
@@ -111,7 +111,7 @@ export default function SmsGatewayCard({
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+        className="mt-4 w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
       >
         {pending ? "Enregistrement..." : "Enregistrer"}
       </button>

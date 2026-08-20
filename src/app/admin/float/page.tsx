@@ -44,7 +44,7 @@ export default async function FloatPage() {
         les opérations courantes.
       </p>
 
-      <div className="mt-6 border-2 border-line bg-paper p-6 hover-lift">
+      <div className="mt-6 border border-line bg-paper p-6 hover-lift rounded-xl">
         <p className="text-sm font-medium text-ink-soft">Solde actuel</p>
         <p
           className={`mt-1 text-3xl font-bold ${
@@ -60,7 +60,7 @@ export default async function FloatPage() {
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden border-2 border-line bg-paper">
+      <div className="mt-6 overflow-hidden border border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">

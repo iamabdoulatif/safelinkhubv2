@@ -43,14 +43,14 @@ export default function UserMenu({
   const initials = userName.slice(0, 2).toUpperCase();
 
   return (
-    <div ref={containerRef} className="relative border-t-2 border-line p-3">
+    <div ref={containerRef} className="relative border-t border-line p-3">
       {open && (
         <div
           role="menu"
           aria-label="Menu du compte"
-          className="absolute bottom-full left-3 right-3 mb-2 animate-fade-in-up overflow-hidden border-2 border-line bg-paper"
+          className="absolute bottom-full left-3 right-3 mb-2 animate-fade-in-up overflow-hidden border border-line bg-paper"
         >
-          <div className="flex items-center gap-3 border-b-2 border-line-soft px-3 py-3">
+          <div className="flex items-center gap-3 border-b border-line-soft px-3 py-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-ink font-display text-xs font-bold text-paper">
               {initials}
             </span>

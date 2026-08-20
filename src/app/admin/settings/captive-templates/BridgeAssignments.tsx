@@ -36,7 +36,7 @@ export default function BridgeAssignments({
         est utilisé.
       </p>
 
-      <div className="mt-3 overflow-hidden border-2 border-line bg-paper">
+      <div className="mt-3 overflow-hidden border border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line-soft text-xs font-medium text-ink-soft">

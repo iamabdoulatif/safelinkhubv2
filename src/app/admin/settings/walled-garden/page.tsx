@@ -10,9 +10,9 @@ export default async function WalledGardenPage() {
       <div className="flex items-center gap-3">
         <span
           aria-hidden="true"
-          className="flex h-10 w-10 items-center justify-center border-2 border-line bg-brand"
+          className="flex h-10 w-10 items-center justify-center border border-line bg-brand"
         >
-          <ShieldCheck className="h-5 w-5 text-[#1C1917]" />
+          <ShieldCheck className="h-5 w-5 text-slate-deep" />
         </span>
         <div>
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink">
@@ -25,7 +25,7 @@ export default async function WalledGardenPage() {
         </div>
       </div>
 
-      <p className="mt-6 border-2 border-line bg-clay px-4 py-3 text-xs leading-5 text-ink">
+      <p className="mt-6 border border-line bg-clay px-4 py-3 text-xs leading-5 text-ink rounded-xl">
         Chaque hôte coché est autorisé sur le hotspot pour un client{" "}
         <strong>non authentifié</strong> (le checkout doit pouvoir se charger avant
         le paiement). L&apos;app SafeLinkHub est toujours installée et n&apos;apparaît

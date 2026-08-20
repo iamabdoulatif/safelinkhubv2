@@ -22,7 +22,7 @@ export default function BlogPostForm({ post, categories = [] }: BlogPostFormProp
   const [state, formAction, pending] = useActionState(saveBlogPost, undefined);
 
   return (
-    <form action={formAction} className="max-w-3xl border-2 border-line bg-paper p-6">
+    <form action={formAction} className="max-w-3xl border border-line bg-paper p-6 rounded-xl">
       {post && <input type="hidden" name="id" value={post.id} />}
 
       {state?.error && (
@@ -128,7 +128,7 @@ export default function BlogPostForm({ post, categories = [] }: BlogPostFormProp
             type="checkbox"
             name="published"
             defaultChecked={post?.published}
-            className="h-4 w-4 accent-[#1C1917]"
+            className="h-4 w-4 accent-slate-deep"
           />
           Publier l&apos;article (visible sur /blog)
         </label>
@@ -138,13 +138,13 @@ export default function BlogPostForm({ post, categories = [] }: BlogPostFormProp
         <button
           type="submit"
           disabled={pending}
-          className="border-2 border-line bg-brand px-5 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper disabled:opacity-60"
+          className="border border-line bg-brand px-5 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
         >
           {pending ? "Enregistrement…" : "Enregistrer"}
         </button>
         <Link
           href="/admin/blog"
-          className="border-2 border-line px-5 py-2 text-sm font-bold text-ink hover:bg-clay"
+          className="border border-line px-5 py-2 text-sm font-bold text-ink hover:bg-clay rounded-xl"
         >
           Annuler
         </Link>

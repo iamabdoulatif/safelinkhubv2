@@ -33,8 +33,8 @@ function timeAgo(date: Date | null) {
 function Badge({ tone, children }: { tone: "ok" | "brand" | "muted"; children: React.ReactNode }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 border-2 border-line px-2.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wide ${
-        tone === "brand" ? "bg-brand text-[#1C1917]" : "bg-paper text-ink"
+      className={`inline-flex items-center gap-1.5 border border-line px-2.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wide ${
+        tone === "brand" ? "bg-brand text-slate-deep" : "bg-paper text-ink"
       }`}
     >
       {tone !== "brand" && (
@@ -117,7 +117,7 @@ export default async function RouterDetailPage({
 
   const overview = (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <section className="border-2 border-line bg-paper p-4">
+      <section className="border border-line bg-paper p-4 rounded-xl">
         <h3 className="font-display text-sm font-bold uppercase tracking-wide text-ink">
           Connexion
         </h3>
@@ -147,7 +147,7 @@ export default async function RouterDetailPage({
         </dl>
       </section>
 
-      <section className="border-2 border-line bg-paper p-4">
+      <section className="border border-line bg-paper p-4 rounded-xl">
         <h3 className="font-display text-sm font-bold uppercase tracking-wide text-ink">
           Bridges provisionnés
         </h3>
@@ -167,7 +167,7 @@ export default async function RouterDetailPage({
                   </span>
                   <span
                     className={`px-2 py-0.5 font-mono text-[11px] font-bold uppercase ${
-                      b.hotspotEnabled ? "bg-brand text-[#1C1917]" : "bg-clay text-ink-soft"
+                      b.hotspotEnabled ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"
                     }`}
                   >
                     {b.hotspotEnabled ? "Hotspot" : "LAN"}
@@ -188,9 +188,9 @@ export default async function RouterDetailPage({
         <div className="flex items-start gap-4">
           <span
             aria-hidden="true"
-            className="flex h-12 w-12 shrink-0 items-center justify-center border-2 border-line bg-brand"
+            className="flex h-12 w-12 shrink-0 items-center justify-center border border-line bg-brand"
           >
-            <RouterIcon className="h-6 w-6 text-[#1C1917]" />
+            <RouterIcon className="h-6 w-6 text-slate-deep" />
           </span>
           <div>
             <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
@@ -211,7 +211,7 @@ export default async function RouterDetailPage({
       {/* Cartes métriques */}
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map(({ label, value, hint, icon: Icon }) => (
-          <div key={label} className="border-2 border-line bg-paper p-4 hover-lift">
+          <div key={label} className="border border-line bg-paper p-4 hover-lift rounded-xl">
             <div className="flex items-center justify-between gap-2">
               <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
                 {label}

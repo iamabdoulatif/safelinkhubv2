@@ -34,7 +34,7 @@ export default function SerialLockPanel({ routerId }: { routerId: string }) {
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <section className="mt-6 border-2 border-line bg-paper p-5">
+    <section className="mt-6 border border-line bg-paper p-5 rounded-xl">
       <div className="flex items-center gap-2">
         <ScanLine className="h-4.5 w-4.5 text-ink" aria-hidden="true" />
         <h2 className="font-display text-base font-bold text-ink">Verrou de numéro de série</h2>
@@ -66,7 +66,7 @@ export default function SerialLockPanel({ routerId }: { routerId: string }) {
               setScan({ serial: result.serial, blocked: result.blocked, holder: result.holder });
             })
           }
-          className="flex items-center gap-2 border-2 border-line bg-paper px-4 py-2 text-sm font-bold text-ink hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center gap-2 border border-line bg-paper px-4 py-2 text-sm font-bold text-ink hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60 rounded-xl"
         >
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -85,7 +85,7 @@ export default function SerialLockPanel({ routerId }: { routerId: string }) {
       </div>
 
       {scan && !done && (
-        <div className="mt-4 border-2 border-line-soft bg-clay/40 p-3">
+        <div className="mt-4 border border-line-soft bg-clay/40 p-3 rounded-xl">
           <p className="text-sm text-ink">
             Numéro de série : <strong className="font-mono">{scan.serial}</strong>
           </p>
@@ -110,13 +110,13 @@ export default function SerialLockPanel({ routerId }: { routerId: string }) {
                   type="button"
                   disabled={pending}
                   onClick={() => setConfirming(true)}
-                  className="mt-3 flex items-center gap-2 border-2 border-line bg-brand px-3 py-1.5 text-xs font-bold text-[#1C1917] hover:opacity-90 disabled:opacity-60"
+                  className="mt-3 flex items-center gap-2 border border-line bg-brand px-3 py-1.5 text-xs font-bold text-slate-deep hover:opacity-90 disabled:opacity-60 rounded-full"
                 >
                   <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
                   Transférer le boîtier vers ce routeur
                 </button>
               ) : (
-                <div className="mt-3 border-2 border-warn bg-paper p-3">
+                <div className="mt-3 border border-warn bg-paper p-3">
                   <p className="text-sm font-bold text-ink">Confirmer le transfert</p>
                   <p className="mt-1 text-sm leading-6 text-ink-soft">
                     L&apos;appareil sera retiré du compte de{" "}
@@ -144,14 +144,14 @@ export default function SerialLockPanel({ routerId }: { routerId: string }) {
                           router.refresh();
                         })
                       }
-                      className="border-2 border-line bg-ink px-3 py-1.5 text-xs font-bold text-paper hover:opacity-90 disabled:opacity-60"
+                      className="border border-line bg-ink px-3 py-1.5 text-xs font-bold text-paper hover:opacity-90 disabled:opacity-60"
                     >
                       {pending ? "Transfert..." : "Oui, transférer"}
                     </button>
                     <button
                       type="button"
                       onClick={() => setConfirming(false)}
-                      className="border-2 border-line-soft px-3 py-1.5 text-xs font-bold text-ink-soft hover:bg-clay"
+                      className="border border-line-soft px-3 py-1.5 text-xs font-bold text-ink-soft hover:bg-clay rounded-xl"
                     >
                       Annuler
                     </button>

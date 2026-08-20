@@ -66,10 +66,10 @@ export default function WalledGardenManager({
   }
 
   return (
-    <section className="border-2 border-line bg-paper p-4 sm:p-6">
+    <section className="border border-line bg-paper p-4 sm:p-6 rounded-xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-lg font-bold text-ink">Hôtes autorisés</h2>
-        <span className="border-2 border-line bg-clay px-3 py-1 text-xs font-bold text-ink">
+        <span className="border border-line bg-clay px-3 py-1 text-xs font-bold text-ink rounded-xl">
           {enabledCount} / {PAYMENT_WALLED_GARDEN_HOSTS.length} installés
         </span>
       </div>
@@ -79,7 +79,7 @@ export default function WalledGardenManager({
           const allOn = group.hosts.every((h) => !disabled.has(h));
           const noneOn = group.hosts.every((h) => disabled.has(h));
           return (
-            <fieldset key={group.group} className="border-2 border-line bg-paper p-4">
+            <fieldset key={group.group} className="border border-line bg-paper p-4 rounded-xl">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <legend className="font-display text-sm font-extrabold text-ink">
                   {group.group}
@@ -87,7 +87,7 @@ export default function WalledGardenManager({
                 <button
                   type="button"
                   onClick={() => setGroup(group.hosts, !allOn)}
-                  className="border-2 border-line bg-paper px-2.5 py-1 text-xs font-bold text-ink-soft transition-colors duration-150 hover:bg-clay hover:text-ink"
+                  className="border border-line bg-paper px-2.5 py-1 text-xs font-bold text-ink-soft transition-colors duration-150 hover:bg-clay hover:text-ink rounded-xl"
                 >
                   {allOn ? "Tout décocher" : "Tout cocher"}
                 </button>
@@ -100,7 +100,7 @@ export default function WalledGardenManager({
                   return (
                     <label
                       key={host}
-                      className={`flex cursor-pointer items-center gap-2.5 border-2 px-3 py-2 text-sm transition-colors duration-150 ${
+                      className={`flex cursor-pointer items-center gap-2.5 border px-3 py-2 text-sm transition-colors duration-150 ${
                         on ? "border-line bg-clay text-ink" : "border-line bg-paper text-ink-soft"
                       }`}
                     >
@@ -132,7 +132,7 @@ export default function WalledGardenManager({
           type="button"
           onClick={save}
           disabled={pending || !dirty}
-          className="border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep transition-colors duration-150 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 rounded-full"
         >
           {pending ? "Enregistrement…" : "Enregistrer la sélection"}
         </button>

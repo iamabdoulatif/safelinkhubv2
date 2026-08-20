@@ -27,8 +27,8 @@ export function UsersDirectoryIndex({
   const resetDisabled = !query && activeFilter === "all";
 
   return (
-    <section aria-label="Index du registre" className="border-y-2 border-line py-4">
-      <label className="flex min-w-0 items-center gap-3 border-2 border-line bg-paper px-3.5 py-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink">
+    <section aria-label="Index du registre" className="border-y border-line py-4">
+      <label className="flex min-w-0 items-center gap-3 border border-line bg-paper px-3.5 py-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink rounded-xl">
         <Search className="h-4 w-4 shrink-0 text-ink-soft" aria-hidden="true" />
         <input
           type="search"
@@ -49,7 +49,7 @@ export function UsersDirectoryIndex({
           type="button"
           onClick={onReset}
           disabled={resetDisabled}
-          className="inline-flex items-center gap-1.5 self-start border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-clay disabled:cursor-not-allowed disabled:opacity-40 sm:self-auto"
+          className="inline-flex items-center gap-1.5 self-start border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-clay disabled:cursor-not-allowed disabled:opacity-40 sm:self-auto rounded-xl"
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Réinitialiser
         </button>

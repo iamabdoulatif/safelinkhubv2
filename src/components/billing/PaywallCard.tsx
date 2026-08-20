@@ -62,7 +62,7 @@ export default function PaywallCard({
         <>
           <Link
             href="/admin/billing"
-            className="group mt-4 flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#3A362F]"
+            className="group mt-4 flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-deep-line"
           >
             <Wallet className="h-4 w-4" />
             Recharger mon portefeuille

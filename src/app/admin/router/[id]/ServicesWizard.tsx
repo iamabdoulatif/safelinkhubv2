@@ -65,9 +65,9 @@ function Stepper({ current }: { current: 1 | 2 | 3 }) {
           <li key={label} className="flex items-center gap-2">
             <span
               aria-current={active ? "step" : undefined}
-              className={`flex h-7 w-7 items-center justify-center border-2 border-line font-display text-xs font-extrabold ${
+              className={`flex h-7 w-7 items-center justify-center border border-line font-display text-xs font-extrabold ${
                 active
-                  ? "bg-brand text-[#1C1917]"
+                  ? "bg-brand text-slate-deep"
                   : done
                     ? "bg-ink text-paper"
                     : "bg-paper text-ink-soft"
@@ -107,7 +107,7 @@ function InterfaceCard({
 }) {
   return (
     <label
-      className={`flex cursor-pointer items-center gap-3 border-2 p-3 transition-colors duration-150 ${
+      className={`flex cursor-pointer items-center gap-3 border p-3 transition-colors duration-150 ${
         selected
           ? "border-line bg-brand/15"
           : disabled
@@ -124,11 +124,11 @@ function InterfaceCard({
       />
       <span
         aria-hidden="true"
-        className={`flex h-5 w-5 shrink-0 items-center justify-center border-2 border-line ${
+        className={`flex h-5 w-5 shrink-0 items-center justify-center border border-line ${
           selected ? "bg-brand" : "bg-paper"
         }`}
       >
-        {selected && <Check className="h-3.5 w-3.5 text-[#1C1917]" />}
+        {selected && <Check className="h-3.5 w-3.5 text-slate-deep" />}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-mono text-sm font-bold text-ink">{port.name}</span>
@@ -154,7 +154,7 @@ function Toggle({
 }) {
   return (
     <label
-      className={`flex cursor-pointer items-start gap-3 border-2 p-4 transition-colors duration-150 ${
+      className={`flex cursor-pointer items-start gap-3 border p-4 transition-colors duration-150 ${
         checked ? "border-line bg-brand/15" : "border-line-soft bg-paper hover:bg-clay"
       }`}
     >
@@ -166,11 +166,11 @@ function Toggle({
       />
       <span
         aria-hidden="true"
-        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center border-2 border-line peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink ${
+        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center border border-line peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink ${
           checked ? "bg-brand" : "bg-paper"
         }`}
       >
-        {checked && <Check className="h-3.5 w-3.5 text-[#1C1917]" />}
+        {checked && <Check className="h-3.5 w-3.5 text-slate-deep" />}
       </span>
       <span className="min-w-0">
         <span className="flex items-center gap-2 font-display text-sm font-bold text-ink">
@@ -292,12 +292,12 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
 
   if (loadError) {
     return (
-      <div className="border-2 border-err bg-err-soft p-4">
+      <div className="border border-err bg-err-soft p-4">
         <p className="text-sm font-medium text-err">{loadError}</p>
         <button
           type="button"
           onClick={loadPorts}
-          className="mt-3 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink hover:bg-clay"
+          className="mt-3 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink hover:bg-clay rounded-xl"
         >
           Réessayer
         </button>
@@ -307,7 +307,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
 
   if (!ports) {
     return (
-      <div className="flex flex-col items-center gap-2 border-2 border-line bg-paper py-10 text-sm text-ink-soft">
+      <div className="flex flex-col items-center gap-2 border border-line bg-paper py-10 text-sm text-ink-soft rounded-xl">
         <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
         Lecture des interfaces du routeur...
       </div>
@@ -316,10 +316,10 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
 
   if (applied) {
     return (
-      <div className="border-2 border-line bg-paper p-5">
+      <div className="border border-line bg-paper p-5 rounded-xl">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center border-2 border-line bg-brand">
-            <Check aria-hidden="true" className="h-4 w-4 text-[#1C1917]" />
+          <span className="flex h-8 w-8 items-center justify-center border border-line bg-brand">
+            <Check aria-hidden="true" className="h-4 w-4 text-slate-deep" />
           </span>
           <h3 className="font-display text-lg font-bold text-ink">
             Topologie appliquée sur le routeur
@@ -345,7 +345,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     setTimeout(() => setCopied(false), 1800);
                   });
                 }}
-                className="flex items-center gap-1.5 border-2 border-line bg-paper px-2.5 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-brand"
+                className="flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-brand rounded-xl"
               >
                 {copied ? (
                   <Check aria-hidden="true" className="h-3.5 w-3.5" />
@@ -362,7 +362,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
             href="/admin/settings/router-setup"
-            className="flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper"
+            className="flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper rounded-full"
           >
             Lancer l&apos;auto-setup complet
             <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -374,7 +374,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
               setStep(1);
               loadPorts();
             }}
-            className="border-2 border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay"
+            className="border border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay rounded-xl"
           >
             Reconfigurer
           </button>
@@ -479,7 +479,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
             </section>
           )}
 
-          <div className="flex justify-end border-t-2 border-line pt-4">
+          <div className="flex justify-end border-t border-line pt-4">
             <button
               type="button"
               disabled={!step1Valid}
@@ -489,7 +489,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                   ? undefined
                   : "Choisissez une interface WAN, activez au moins un service et assignez-lui des interfaces"
               }
-              className="flex items-center gap-2 border-2 border-line bg-brand px-5 py-2.5 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50 rounded-full"
             >
               Suivant : configurer les services
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -501,7 +501,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
       {step === 2 && (
         <div className="animate-fade-in mt-6 space-y-6">
           {hotspotEnabled && (
-            <section className="border-2 border-line bg-paper p-4 sm:p-5">
+            <section className="border border-line bg-paper p-4 sm:p-5 rounded-xl">
               <h3 className="flex items-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-ink">
                 <Wifi aria-hidden="true" className="h-4 w-4" />
                 Configuration Hotspot
@@ -515,7 +515,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     id="sw-bridge-name"
                     value={bridgeName}
                     onChange={(e) => setBridgeName(e.target.value)}
-                    className="mt-1.5 w-full border-2 border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                    className="mt-1.5 w-full border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
                   />
                 </div>
                 <div>
@@ -527,7 +527,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     value={gatewayIp}
                     onChange={(e) => setGatewayIp(e.target.value)}
                     aria-invalid={!gatewayValid}
-                    className={`mt-1.5 w-full border-2 bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+                    className={`mt-1.5 w-full border bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
                       gatewayValid ? "border-line" : "border-err"
                     }`}
                   />
@@ -542,7 +542,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     onChange={(e) => {
                       if (e.target.value) setGatewayIp(e.target.value);
                     }}
-                    className="mt-2 w-full border-2 border-line-soft bg-paper px-3 py-1.5 font-mono text-xs text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                    className="mt-2 w-full border border-line-soft bg-paper px-3 py-1.5 font-mono text-xs text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
                   >
                     <option value="">Passerelles courantes…</option>
                     {GATEWAY_IP_PRESET_GROUPS.map((group) => (
@@ -564,7 +564,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     id="sw-subnet"
                     value={subnetBits}
                     onChange={(e) => setSubnetBits(Number(e.target.value))}
-                    className="mt-1.5 w-full border-2 border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                    className="mt-1.5 w-full border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
                   >
                     {/* Liste PARTAGÉE (lib/net/subnet), pas une copie locale :
                         celle-ci s'arrêtait à /19 alors que le helper couvre /8
@@ -602,7 +602,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
           )}
 
           {pppoeEnabled && (
-            <section className="border-2 border-line bg-paper p-4 sm:p-5">
+            <section className="border border-line bg-paper p-4 sm:p-5 rounded-xl">
               <h3 className="flex items-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-ink">
                 <Network aria-hidden="true" className="h-4 w-4" />
                 Configuration PPPoE
@@ -617,11 +617,11 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
             </section>
           )}
 
-          <div className="flex flex-wrap justify-between gap-3 border-t-2 border-line pt-4">
+          <div className="flex flex-wrap justify-between gap-3 border-t border-line pt-4">
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="flex items-center gap-2 border-2 border-line bg-paper px-4 py-2.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay"
+              className="flex items-center gap-2 border border-line bg-paper px-4 py-2.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay rounded-xl"
             >
               <ArrowLeft aria-hidden="true" className="h-4 w-4" />
               Retour
@@ -630,7 +630,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
               type="button"
               disabled={hotspotEnabled && !gatewayValid}
               onClick={() => setStep(3)}
-              className="flex items-center gap-2 border-2 border-line bg-brand px-5 py-2.5 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50 rounded-full"
             >
               Suivant : révision
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -641,8 +641,8 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
 
       {step === 3 && (
         <div className="animate-fade-in mt-6 space-y-6">
-          <section className="border-2 border-line bg-paper">
-            <h3 className="border-b-2 border-line bg-clay px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-ink">
+          <section className="border border-line bg-paper">
+            <h3 className="border-b border-line bg-clay px-4 py-2.5 font-display text-sm font-bold uppercase tracking-wide text-ink">
               Récapitulatif
             </h3>
             <dl className="divide-y divide-line-soft px-4 text-sm">
@@ -656,7 +656,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                   {hotspotEnabled ? (
                     <>
                       <span className="font-mono">{hotspotPorts.join(", ")}</span>
-                      <span className="ml-2 bg-brand px-1.5 py-0.5 font-mono text-[11px] font-bold text-[#1C1917]">
+                      <span className="ml-2 bg-brand px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-deep rounded-full">
                         {gatewayIp}/{subnetBits}
                       </span>
                     </>
@@ -684,7 +684,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
             </dl>
           </section>
 
-          <p className="border-2 border-line bg-clay px-4 py-3 text-xs leading-5 text-ink">
+          <p className="border border-line bg-clay px-4 py-3 text-xs leading-5 text-ink rounded-xl">
             L&apos;application crée les bridges, y attache les interfaces et pose
             les adresses IP sur le routeur — sans toucher au WAN. Le
             provisionnement complet (DHCP, serveur hotspot, portail) se lance
@@ -692,17 +692,17 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
           </p>
 
           {applyError && (
-            <p role="alert" className="border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-medium text-err">
+            <p role="alert" className="border border-err bg-err-soft px-3 py-2.5 text-sm font-medium text-err">
               {applyError}
             </p>
           )}
 
-          <div className="flex flex-wrap justify-between gap-3 border-t-2 border-line pt-4">
+          <div className="flex flex-wrap justify-between gap-3 border-t border-line pt-4">
             <button
               type="button"
               disabled={isApplying}
               onClick={() => setStep(2)}
-              className="flex items-center gap-2 border-2 border-line bg-paper px-4 py-2.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-50"
+              className="flex items-center gap-2 border border-line bg-paper px-4 py-2.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-50 rounded-xl"
             >
               <ArrowLeft aria-hidden="true" className="h-4 w-4" />
               Retour
@@ -711,7 +711,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
               type="button"
               disabled={isApplying}
               onClick={apply}
-              className="flex items-center gap-2 border-2 border-line bg-brand px-5 py-2.5 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60 rounded-full"
             >
               {isApplying ? (
                 <>

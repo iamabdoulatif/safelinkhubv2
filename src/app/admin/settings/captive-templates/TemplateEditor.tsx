@@ -244,7 +244,7 @@ export default function TemplateEditor({
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
               >
                 {pending ? "Enregistrement..." : "Enregistrer"}
               </button>

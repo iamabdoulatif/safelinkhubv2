@@ -167,7 +167,7 @@ function SellPackageModal({
             <button
               type="submit"
               disabled={pending}
-              className="flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
             >
               <Banknote className="h-4 w-4" />
               {pending ? "Enregistrement..." : "Encaisser & générer le voucher"}
@@ -202,7 +202,7 @@ export default function AgentList({
 
   return (
     <>
-      <div className="mt-6 overflow-hidden border-2 border-line bg-paper">
+      <div className="mt-6 overflow-hidden border border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">
@@ -233,7 +233,7 @@ export default function AgentList({
                     <button
                       type="button"
                       onClick={() => setSellingFor(agent)}
-                      className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A362F]"
+                      className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line"
                     >
                       <Banknote className="h-3.5 w-3.5" />
                       Vendre

@@ -22,7 +22,7 @@ export default function TargetProfileCard() {
   }
 
   return (
-    <div className="mt-6 border-2 border-line bg-paper p-5">
+    <div className="mt-6 border border-line bg-paper p-5 rounded-xl">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">

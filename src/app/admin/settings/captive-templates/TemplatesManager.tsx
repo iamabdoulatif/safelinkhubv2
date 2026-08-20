@@ -46,7 +46,7 @@ export default function TemplatesManager({
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3A362F]"
+            className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line"
           >
             <Plus className="h-4 w-4" />
             Nouveau modèle
@@ -66,7 +66,7 @@ export default function TemplatesManager({
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => (
-            <div key={t.id} className="border-2 border-line bg-paper p-3">
+            <div key={t.id} className="border border-line bg-paper p-3 rounded-xl">
               <div className="h-40 overflow-hidden rounded-lg bg-clay">
                 {t.templateType === "package" ? (
                   <PackagePreview files={t.packageFiles} />

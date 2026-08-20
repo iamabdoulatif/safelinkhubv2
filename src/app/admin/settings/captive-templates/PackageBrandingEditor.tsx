@@ -163,7 +163,7 @@ export default function PackageBrandingEditor({
             type="button"
             disabled={pending}
             onClick={save}
-            className="rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-50"
+            className="rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
           >
             {pending ? "Enregistrement..." : "Enregistrer"}
           </button>

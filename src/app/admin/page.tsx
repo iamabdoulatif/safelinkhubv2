@@ -151,7 +151,7 @@ export default async function DashboardPage({
         {kpiCards.map((k, i) => (
           <div
             key={k.label}
-            className={`border-2 border-line bg-paper p-4 hover-lift delay-${(i + 1) * 100}`}
+            className={`border border-line bg-paper p-4 hover-lift delay-${(i + 1) * 100}`}
           >
             <p className="text-sm text-ink-soft">{k.label}</p>
             <p className="mt-2 text-2xl font-semibold tabular-nums text-ink">{k.value}</p>
@@ -162,7 +162,7 @@ export default async function DashboardPage({
         {data && data.kpis.routersTotal > 0 ? (
           <Link
             href="/admin/router"
-            className="block border-2 border-line bg-paper p-4 hover-lift delay-400"
+            className="block border border-line bg-paper p-4 hover-lift delay-400 rounded-xl"
           >
             <p className="text-sm text-ink-soft">Routeurs</p>
             <p className="mt-2 text-2xl font-semibold tabular-nums text-ink">
@@ -175,7 +175,7 @@ export default async function DashboardPage({
             </p>
           </Link>
         ) : (
-          <div className="flex flex-col items-center justify-center border-2 border-line bg-paper p-4 text-center hover-lift delay-400">
+          <div className="flex flex-col items-center justify-center border border-line bg-paper p-4 text-center hover-lift delay-400 rounded-xl">
             <RouterIcon aria-hidden="true" className="h-5 w-5 text-ink-soft" />
             <p className="mt-2 text-sm font-medium text-ink-soft">Aucun routeur lié</p>
             <Link
@@ -189,7 +189,7 @@ export default async function DashboardPage({
       </div>
 
       {safecoin && (
-        <Link href="/admin/safecoin" className="mt-4 block border-2 border-line bg-[#1c1917] p-5 text-white transition-transform hover:-translate-y-0.5">
+        <Link href="/admin/safecoin" className="mt-4 block border border-line bg-[#1c1917] p-5 text-white transition-transform hover:-translate-y-0.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">Station de contrôle · Safecoin</p>
@@ -206,7 +206,7 @@ export default async function DashboardPage({
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="border-2 border-line bg-paper p-4 lg:col-span-2">
+        <div className="border border-line bg-paper p-4 lg:col-span-2 rounded-xl">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="font-semibold text-ink">Aperçu</h2>
@@ -252,7 +252,7 @@ export default async function DashboardPage({
           )}
         </div>
 
-        <div className="border-2 border-line bg-paper p-4">
+        <div className="border border-line bg-paper p-4 rounded-xl">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-semibold text-ink">Paiements récents</h2>
             {hasSales && (

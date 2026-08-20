@@ -118,7 +118,7 @@ export default function WalletTopupModal({
                     {WALLET_PAYMENT_METHODS.map((method) => (
                       <label key={method.id} className="cursor-pointer">
                         <input type="radio" name="paymentMethod" value={method.id} checked={selectedMethod === method.id} onChange={() => setSelectedMethod(method.id)} className="peer sr-only" />
-                        <span className="flex h-full flex-col rounded-md border-2 border-line-soft bg-paper px-3 py-2.5 text-left transition-colors peer-checked:border-brand-deep peer-checked:bg-brand/20 hover:bg-clay">
+                        <span className="flex h-full flex-col rounded-md border border-line-soft bg-paper px-3 py-2.5 text-left transition-colors peer-checked:border-brand-deep peer-checked:bg-brand/20 hover:bg-clay">
                           <span className="text-sm font-semibold text-ink">{method.label}</span>
                           <span className="mt-0.5 text-[11px] text-ink-soft">{method.hint}</span>
                         </span>
@@ -161,12 +161,12 @@ export default function WalletTopupModal({
                   </p>
                 </div>
 
-                <div className="border border-line-soft bg-clay p-3">
+                <div className="border border-line-soft bg-clay p-3 rounded-xl">
                   <div className="flex items-center gap-2 text-xs font-semibold text-ink"><CreditCard className="h-4 w-4" aria-hidden="true" /> Passerelle sélectionnée : Genius Pay</div>
                   <p className="mt-1 text-xs leading-5 text-ink-soft">Le checkout sécurisé affichera le rail choisi et confirme le dépôt uniquement après notification de paiement.</p>
                 </div>
 
-                <button type="submit" disabled={onlinePending} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3A362F] disabled:opacity-60">
+                <button type="submit" disabled={onlinePending} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60">
                   {onlinePending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="h-4 w-4" aria-hidden="true" />}
                   {onlinePending ? "Ouverture du paiement…" : "Continuer vers Genius Pay"}
                 </button>
@@ -185,7 +185,7 @@ export default function WalletTopupModal({
                   <label className="mb-1 block text-sm font-medium text-ink">Référence ou note</label>
                   <input name="note" placeholder="Ex : reçu Wave du 22/07" className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink" />
                 </div>
-                <button type="submit" disabled={manualPending} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3A362F] disabled:opacity-60">
+                <button type="submit" disabled={manualPending} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60">
                   {manualPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                   {manualPending ? "Enregistrement…" : "Enregistrer le dépôt confirmé"}
                 </button>

@@ -326,7 +326,7 @@ export default function BackupsManager({
 
   return (
     <div className="mt-6">
-      <div className="border-2 border-line bg-paper p-4">
+      <div className="border border-line bg-paper p-4 rounded-xl">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label className="mb-1 block text-sm font-medium text-ink">Routeur à sauvegarder</label>
@@ -373,7 +373,7 @@ export default function BackupsManager({
       ) : (
         <div className="mt-6 space-y-3">
           {backups.map((b) => (
-            <div key={b.id} className="border-2 border-line bg-paper p-4">
+            <div key={b.id} className="border border-line bg-paper p-4 rounded-xl">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div>
                   <span className="text-sm font-semibold text-ink">{b.routerName}</span>

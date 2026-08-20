@@ -102,7 +102,7 @@ function UnlockCommandBlock() {
             setTimeout(() => setCopied(false), 2000);
           }}
           title="Copier la commande"
-          className="absolute right-1.5 top-1.5 rounded-md bg-[#3A362F] p-1.5 text-white hover:bg-[#3A362F]"
+          className="absolute right-1.5 top-1.5 rounded-md bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
@@ -678,7 +678,7 @@ export default function AutoSetupStep({
   return (
     // L'animation d'entrée (slide/fondu) est portée par le wrapper d'étape
     // du RouterSetupWizard pour suivre la direction de navigation.
-    <div className="mt-6 sm:mt-8 border-2 border-line bg-paper p-4 sm:p-6">
+    <div className="mt-6 sm:mt-8 border border-line bg-paper p-4 sm:p-6 rounded-xl">
       <div className="flex flex-wrap items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <Box className="h-5 w-5 shrink-0 text-ink" />
@@ -1301,7 +1301,7 @@ export default function AutoSetupStep({
       </div>
 
       {pending && (
-        <div className="mt-6 flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-md border-2 border-line bg-paper p-8">
+        <div className="mt-6 flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-md border border-line bg-paper p-8">
           <FancyLoader variant="router-orbit" size="lg" color="brand" />
           <p className="text-center text-sm font-medium text-ink animate-pulse">
             Configuration en cours sur le routeur…
@@ -1393,7 +1393,7 @@ export default function AutoSetupStep({
           type="button"
           disabled={launchBlocked}
           onClick={run}
-          className="flex items-center justify-center sm:justify-start gap-2 rounded-md bg-ink px-5 py-3 sm:py-2.5 text-sm font-medium text-white hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+          className="flex items-center justify-center sm:justify-start gap-2 rounded-md bg-ink px-5 py-3 sm:py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
         >
           {pending && <FancyLoader variant="spinner-slice" size="sm" color="white" className="inline-flex" />}
           {pending ? "Configuration en cours…" : "Lancer l'auto-setup complet"}

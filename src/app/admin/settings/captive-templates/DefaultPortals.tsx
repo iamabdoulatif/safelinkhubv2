@@ -82,7 +82,7 @@ export default function DefaultPortals({ portals }: { portals: DefaultPortal[] }
         {portals.map((portal) => {
           const busy = isPending && pendingKey === portal.key;
           return (
-            <div key={portal.key} className="border-2 border-line bg-paper p-3">
+            <div key={portal.key} className="border border-line bg-paper p-3 rounded-xl">
               <div className="h-40 overflow-hidden rounded-lg bg-clay">
                 <PackagePreview files={portal.previewFiles} />
               </div>

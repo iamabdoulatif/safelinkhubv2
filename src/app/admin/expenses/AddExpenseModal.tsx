@@ -31,7 +31,7 @@ export default function AddExpenseModal() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F]"
+        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
       >
         + Ajouter une dépense
       </button>
@@ -124,7 +124,7 @@ export default function AddExpenseModal() {
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
               >
                 {pending ? "Enregistrement..." : "Ajouter"}
               </button>

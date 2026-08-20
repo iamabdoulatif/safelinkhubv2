@@ -16,7 +16,7 @@ function formatDate(date: Date) {
 }
 
 const STATUS: Record<string, { label: string; className: string }> = {
-  pending: { label: "En attente", className: "bg-brand text-[#1C1917]" },
+  pending: { label: "En attente", className: "bg-brand text-slate-deep" },
   approved: { label: "Publié", className: "bg-ok/15 text-ok" },
   hidden: { label: "Masqué", className: "bg-clay text-ink-soft line-through" },
 };
@@ -38,7 +38,7 @@ export default async function AdminTestimonialsPage() {
       </p>
 
       {items.length === 0 ? (
-        <div className="mt-6 border-2 border-line bg-paper p-8 text-center">
+        <div className="mt-6 border border-line bg-paper p-8 text-center rounded-xl">
           <p className="font-semibold text-ink">Aucun témoignage.</p>
           <p className="mt-1 text-sm text-ink-soft">
             Les témoignages envoyés depuis la landing apparaîtront ici.
@@ -49,7 +49,7 @@ export default async function AdminTestimonialsPage() {
           {items.map((t) => {
             const status = STATUS[t.status] ?? STATUS.pending;
             return (
-              <li key={t.id} className="border-2 border-line bg-paper p-4 sm:p-5">
+              <li key={t.id} className="border border-line bg-paper p-4 sm:p-5 rounded-xl">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium text-ink">
@@ -92,7 +92,7 @@ export default async function AdminTestimonialsPage() {
                       <input type="hidden" name="status" value="approved" />
                       <button
                         type="submit"
-                        className="border-2 border-line bg-brand px-3 py-1.5 text-xs font-bold text-[#1C1917] hover:bg-ink hover:text-paper"
+                        className="border border-line bg-brand px-3 py-1.5 text-xs font-bold text-slate-deep hover:bg-ink hover:text-paper rounded-full"
                       >
                         Publier
                       </button>
@@ -104,7 +104,7 @@ export default async function AdminTestimonialsPage() {
                       <input type="hidden" name="status" value="hidden" />
                       <button
                         type="submit"
-                        className="border-2 border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay"
+                        className="border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
                       >
                         Masquer
                       </button>
@@ -116,7 +116,7 @@ export default async function AdminTestimonialsPage() {
                       <input type="hidden" name="status" value="pending" />
                       <button
                         type="submit"
-                        className="border-2 border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay"
+                        className="border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
                       >
                         Remettre en attente
                       </button>

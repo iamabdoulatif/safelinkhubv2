@@ -92,7 +92,7 @@ export default function GatewayCard({
   return (
     <form
       action={formAction}
-      className={`border-2 border-line bg-paper p-5 ring-1 ring-transparent transition-shadow ${ACCENTS[provider]}`}
+      className={`border border-line bg-paper p-5 ring-1 ring-transparent transition-shadow ${ACCENTS[provider]}`}
     >
       <input type="hidden" name="provider" value={provider} />
 
@@ -181,7 +181,7 @@ export default function GatewayCard({
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3A362F] disabled:opacity-60"
+        className="mt-4 w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-deep-line disabled:opacity-60"
       >
         {pending ? "Enregistrement..." : "Enregistrer"}
       </button>

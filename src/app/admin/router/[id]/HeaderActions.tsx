@@ -79,7 +79,7 @@ export default function HeaderActions({
               router.refresh();
             })
           }
-          className="flex items-center gap-1.5 border-2 border-err bg-err px-3 py-1.5 text-sm font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-err disabled:opacity-60"
+          className="flex items-center gap-1.5 border border-err bg-err px-3 py-1.5 text-sm font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-err disabled:opacity-60"
         >
           {isDeleting ? (
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -92,7 +92,7 @@ export default function HeaderActions({
           type="button"
           disabled={isDeleting}
           onClick={() => setConfirmingDelete(false)}
-          className="border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay"
+          className="border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay rounded-xl"
         >
           Annuler
         </button>
@@ -124,7 +124,7 @@ export default function HeaderActions({
             router.refresh();
           })
         }
-        className="flex items-center gap-1.5 border-2 border-line bg-brand px-3 py-1.5 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60"
+        className="flex items-center gap-1.5 border border-line bg-brand px-3 py-1.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
       >
         <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
         {isRefreshing ? "Actualisation..." : "Actualiser"}
@@ -143,7 +143,7 @@ export default function HeaderActions({
             router.refresh();
           })
         }
-        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60"
+        className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-xl"
       >
         {isReinstalling ? (
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -166,7 +166,7 @@ export default function HeaderActions({
             router.refresh();
           })
         }
-        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60"
+        className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-xl"
       >
         {isOptimizing ? (
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -189,7 +189,7 @@ export default function HeaderActions({
             router.refresh();
           })
         }
-        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60"
+        className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-xl"
       >
         {isTuning ? (
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -211,7 +211,7 @@ export default function HeaderActions({
             else setOk(result?.summary ?? "Test de débit terminé.");
           })
         }
-        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60"
+        className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-xl"
       >
         {isTesting ? (
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -226,7 +226,7 @@ export default function HeaderActions({
           disabled={isLocking}
           title="Réactive tous les ports et le WiFi coupés par le verrouillage"
           onClick={runUnlock}
-          className="flex items-center gap-1.5 border-2 border-ok bg-ok px-3 py-1.5 text-sm font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-ok disabled:opacity-60"
+          className="flex items-center gap-1.5 border border-ok bg-ok px-3 py-1.5 text-sm font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-ok disabled:opacity-60"
         >
           {isLocking ? (
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -242,7 +242,7 @@ export default function HeaderActions({
             type="button"
             disabled={isLocking}
             onClick={runLock}
-            className="flex items-center gap-1.5 border-2 border-err bg-err px-3 py-1.5 text-sm font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-err disabled:opacity-60"
+            className="flex items-center gap-1.5 border border-err bg-err px-3 py-1.5 text-sm font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-err disabled:opacity-60"
           >
             {isLocking ? (
               <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -255,7 +255,7 @@ export default function HeaderActions({
             type="button"
             disabled={isLocking}
             onClick={() => setConfirmingLock(false)}
-            className="border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay"
+            className="border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay rounded-xl"
           >
             Annuler
           </button>
@@ -266,7 +266,7 @@ export default function HeaderActions({
           disabled={isLocking}
           title="Paralyse le routeur : coupe tous les ports et le WiFi sauf le port WAN (lien de gestion)"
           onClick={() => setConfirmingLock(true)}
-          className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-err transition-colors duration-150 hover:bg-err hover:text-white"
+          className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-err transition-colors duration-150 hover:bg-err hover:text-white rounded-xl"
         >
           <Lock aria-hidden="true" className="h-4 w-4" />
           Verrouiller
@@ -274,7 +274,7 @@ export default function HeaderActions({
       )}
       <Link
         href="/admin/settings/router-setup"
-        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay"
+        className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay rounded-xl"
       >
         <Pencil aria-hidden="true" className="h-4 w-4" />
         Modifier
@@ -282,7 +282,7 @@ export default function HeaderActions({
       <button
         type="button"
         onClick={() => setConfirmingDelete(true)}
-        className="flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-err transition-colors duration-150 hover:bg-err hover:text-white"
+        className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-err transition-colors duration-150 hover:bg-err hover:text-white rounded-xl"
       >
         <Trash2 aria-hidden="true" className="h-4 w-4" />
         Supprimer

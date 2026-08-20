@@ -33,7 +33,7 @@ export default function ChannelPicker({ enabledProviders }: { enabledProviders: 
   const hasGateway = enabledProviders.length > 0;
 
   return (
-    <section className="border-2 border-line bg-paper p-4 sm:p-6">
+    <section className="border border-line bg-paper p-4 sm:p-6 rounded-xl">
       <h2 className="font-display text-lg font-bold text-ink">Collecte des paiements</h2>
       <p className="mt-1 text-sm text-ink-soft">
         Où va l&apos;argent quand vos clients paient ? Sélectionnez un canal pour
@@ -53,9 +53,9 @@ export default function ChannelPicker({ enabledProviders }: { enabledProviders: 
               type="button"
               aria-pressed={active}
               onClick={() => setSelected(c.key)}
-              className={`border-2 border-line px-3 py-1.5 text-sm font-bold transition-colors duration-150 ${
+              className={`border border-line px-3 py-1.5 text-sm font-bold transition-colors duration-150 ${
                 active
-                  ? "bg-brand text-[#1C1917]"
+                  ? "bg-brand text-slate-deep"
                   : "bg-paper text-ink-soft hover:bg-clay hover:text-ink"
               }`}
             >
@@ -67,7 +67,7 @@ export default function ChannelPicker({ enabledProviders }: { enabledProviders: 
 
       <div
         aria-live="polite"
-        className={`mt-4 flex items-start gap-2.5 border-2 px-4 py-3 text-sm ${
+        className={`mt-4 flex items-start gap-2.5 border px-4 py-3 text-sm ${
           hasGateway ? "border-line bg-clay" : "border-warn bg-paper"
         }`}
       >

@@ -122,7 +122,7 @@ const accountLinks = [
 function navLinkClass(active: boolean) {
   return `flex items-center gap-3 px-2.5 py-2 text-sm transition-colors ${
     active
-      ? "bg-brand font-bold text-[#1C1917]"
+      ? "bg-brand font-bold text-slate-deep"
       : "font-medium text-ink-soft hover:bg-clay hover:text-ink"
   }`;
 }
@@ -225,10 +225,10 @@ export default function AdminSidebar({
   return (
     <>
       {/* Mobile top bar */}
-      <div className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b-2 border-line bg-paper px-4 lg:hidden">
+      <div className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-paper px-4 lg:hidden">
         <button
           onClick={() => setMobileOpen(true)}
-          className="flex items-center justify-center border-2 border-line p-1.5 text-ink hover:bg-clay"
+          className="flex items-center justify-center border border-line p-1.5 text-ink hover:bg-clay rounded-xl"
           aria-label="Ouvrir le menu"
         >
           <Menu className="h-4 w-4" />
@@ -256,12 +256,12 @@ export default function AdminSidebar({
       {/* Sidebar — desktop always visible, mobile drawer */}
       <aside
         ref={asideRef}
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-shrink-0 flex-col overscroll-contain border-r-2 border-line bg-paper transition-transform duration-300 ease-in-out lg:static lg:w-60 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-shrink-0 flex-col overscroll-contain border-r border-line bg-paper transition-transform duration-300 ease-in-out lg:static lg:w-60 lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Mobile close button inside sidebar */}
-        <div className="flex items-center justify-between border-b-2 border-line px-5 py-4">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <Link
             href="/"
             onClick={closeMobile}
@@ -271,14 +271,14 @@ export default function AdminSidebar({
           </Link>
           <button
             onClick={closeMobile}
-            className="border-2 border-line p-1 text-ink hover:bg-clay lg:hidden"
+            className="border border-line p-1 text-ink hover:bg-clay lg:hidden rounded-xl"
             aria-label="Fermer le menu"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="border-b-2 border-line-soft px-4 py-3">
+        <div className="border-b border-line-soft px-4 py-3">
           <Link
             href="/admin/profile#organisation"
             onClick={closeMobile}
@@ -345,7 +345,7 @@ export default function AdminSidebar({
                         <Icon className="h-4 w-4 flex-shrink-0" />
                         <span className="truncate">{label}</span>
                         {badge > 0 && (
-                          <span className="ml-auto rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-[#1C1917]">
+                          <span className="ml-auto rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-slate-deep">
                             {badge}
                           </span>
                         )}

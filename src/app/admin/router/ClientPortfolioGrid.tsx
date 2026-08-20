@@ -13,7 +13,7 @@ function pluralize(count: number, singular: string, plural: string) {
 export function ClientPortfolioGrid({ clients }: ClientPortfolioGridProps) {
   if (clients.length === 0) {
     return (
-      <section className="border-2 border-line bg-paper p-6 text-ink" aria-labelledby="client-portfolios-empty-title">
+      <section className="border border-line bg-paper p-6 text-ink rounded-xl" aria-labelledby="client-portfolios-empty-title">
         <CircleAlert className="h-6 w-6 text-brand-deep" aria-hidden="true" />
         <h2 id="client-portfolios-empty-title" className="mt-4 text-lg font-bold">
           Aucune organisation cliente disponible
@@ -32,9 +32,9 @@ export function ClientPortfolioGrid({ clients }: ClientPortfolioGridProps) {
         const organizationTitleId = `client-portfolio-${client.id}`;
 
         return (
-          <article key={client.id} className="flex h-full flex-col border-2 border-line bg-paper p-5" aria-labelledby={organizationTitleId}>
+          <article key={client.id} className="flex h-full flex-col border border-line bg-paper p-5 rounded-xl" aria-labelledby={organizationTitleId}>
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center border-2 border-line bg-brand text-[#1C1917]" aria-hidden="true">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-brand text-slate-deep" aria-hidden="true">
                 <Router className="h-5 w-5" />
               </span>
               <div className="min-w-0">
@@ -45,7 +45,7 @@ export function ClientPortfolioGrid({ clients }: ClientPortfolioGridProps) {
               </div>
             </div>
 
-            <dl className="mt-5 grid grid-cols-2 gap-3 border-y-2 border-line py-4 text-sm">
+            <dl className="mt-5 grid grid-cols-2 gap-3 border-y border-line py-4 text-sm">
               <div>
                 <dt className="flex items-center gap-1.5 font-medium text-ink-soft">
                   <Users className="h-4 w-4" aria-hidden="true" />
@@ -79,7 +79,7 @@ export function ClientPortfolioGrid({ clients }: ClientPortfolioGridProps) {
               <Link
                 href={`/admin/users?org=${client.id}`}
                 aria-label={`Ouvrir l’organisation ${client.name}`}
-                className="inline-flex items-center gap-1.5 border-2 border-line bg-paper px-3 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                className="inline-flex items-center gap-1.5 border border-line bg-paper px-3 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
               >
                 Ouvrir l’organisation
                 <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -87,7 +87,7 @@ export function ClientPortfolioGrid({ clients }: ClientPortfolioGridProps) {
               <Link
                 href={`/admin/router?scope=clients&org=${client.id}`}
                 aria-label={`Voir les routeurs de ${client.name}`}
-                className="inline-flex items-center gap-1.5 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                className="inline-flex items-center gap-1.5 border border-line bg-brand px-3 py-2 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-full"
               >
                 Voir les routeurs
                 <ArrowUpRight className="h-4 w-4" aria-hidden="true" />

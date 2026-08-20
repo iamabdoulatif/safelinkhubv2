@@ -68,7 +68,7 @@ export default async function GeneralSettingsPage() {
       </p>
 
       {org && (
-        <div className="mt-6 border-2 border-line bg-paper p-4 sm:p-6">
+        <div className="mt-6 border border-line bg-paper p-4 sm:p-6 rounded-xl">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-ink-soft" />
             <h2 className="text-sm font-semibold text-ink">Organisation</h2>
@@ -102,7 +102,7 @@ export default async function GeneralSettingsPage() {
           <Link
             key={href}
             href={href}
-            className="group flex items-start gap-3 border-2 border-line bg-paper p-4 transition-colors hover:border-ok hover:bg-clay/30"
+            className="group flex items-start gap-3 border border-line bg-paper p-4 transition-colors hover:border-ok hover:bg-clay/30 rounded-xl"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-clay text-ink-soft group-hover:bg-paper group-hover:text-ok">
               <Icon className="h-4.5 w-4.5" />

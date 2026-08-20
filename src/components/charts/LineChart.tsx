@@ -68,7 +68,7 @@ export default function LineChart({
   const total = series.reduce((sum, s) => sum + s.values.reduce((a, b) => a + b, 0), 0);
   if (points === 0 || total === 0) {
     return (
-      <p className="mt-4 border-2 border-dashed border-line-soft px-4 py-10 text-center text-sm text-ink-soft">
+      <p className="mt-4 border border-dashed border-line-soft px-4 py-10 text-center text-sm text-ink-soft">
         {emptyLabel}
       </p>
     );

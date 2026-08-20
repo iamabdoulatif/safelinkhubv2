@@ -24,7 +24,7 @@ export default function SettingsTabs() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Sections des paramètres" className="mb-8 border-b-2 border-line">
+    <nav aria-label="Sections des paramètres" className="mb-8 border-b border-line">
       <ul className="flex gap-2 overflow-x-auto pb-px">
         {TABS.map(({ href, label }) => {
           const active = pathname === href || pathname?.startsWith(`${href}/`);
@@ -33,9 +33,9 @@ export default function SettingsTabs() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`block border-2 border-b-0 border-line px-4 py-2 text-sm font-bold transition-colors duration-150 ${
+                className={`block border border-b-0 border-line px-4 py-2 text-sm font-bold transition-colors duration-150 ${
                   active
-                    ? "bg-brand text-[#1C1917]"
+                    ? "bg-brand text-slate-deep"
                     : "bg-paper text-ink-soft hover:bg-clay hover:text-ink"
                 }`}
               >

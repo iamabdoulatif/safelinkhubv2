@@ -201,7 +201,7 @@ export default function VoucherTable({
 
   return (
     <div className="space-y-5">
-      <section className="overflow-hidden border-2 border-line bg-paper">
+      <section className="overflow-hidden border border-line bg-paper">
         <div className="relative overflow-hidden bg-ink px-5 py-6 text-paper md:px-7">
           <div className="absolute right-0 top-0 h-full w-24 border-l border-paper/20 bg-brand/90 sm:w-36" />
           <div className="relative flex flex-wrap items-end justify-between gap-5">
@@ -220,14 +220,14 @@ export default function VoucherTable({
             <div className="relative flex flex-wrap items-center gap-2">{headerExtra}</div>
           </div>
         </div>
-        <div className="grid grid-cols-1 divide-y divide-line border-y-2 border-line md:grid-cols-3 md:divide-x md:divide-y-0">
+        <div className="grid grid-cols-1 divide-y divide-line border-y border-line md:grid-cols-3 md:divide-x md:divide-y-0">
           <Metric label="Tickets actifs" value={stats.active} tone="paper" />
           <Metric label="Importés" value={stats.imported} tone="brand" />
           <Metric label="Corbeille" value={stats.trashed} tone="clay" />
         </div>
       </section>
 
-      <section className="border-2 border-line bg-paper">
+      <section className="border border-line bg-paper">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft bg-clay px-4 py-3 md:px-5">
           <div className="flex items-center gap-2" role="tablist" aria-label="Vue des tickets">
             <button
@@ -283,7 +283,7 @@ export default function VoucherTable({
                 type="button"
                 onClick={() => setDeleteAsk({ mode: "selection", ids: [...selected] })}
                 disabled={pending}
-                className="inline-flex items-center gap-2 rounded-sm border-2 border-line bg-paper px-3 py-2 text-sm font-bold text-ink hover:bg-err-soft disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-sm border border-line bg-paper px-3 py-2 text-sm font-bold text-ink hover:bg-err-soft disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" />
                 Supprimer ({selected.size})
@@ -294,7 +294,7 @@ export default function VoucherTable({
                 type="button"
                 onClick={() => setDeleteAsk({ mode: "empty", ids: [] })}
                 disabled={pending}
-                className="inline-flex items-center gap-2 rounded-sm border-2 border-line-soft px-3 py-2 text-sm font-bold text-ink-soft hover:border-ink hover:text-ink disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-sm border border-line-soft px-3 py-2 text-sm font-bold text-ink-soft hover:border-ink hover:text-ink disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" />
                 Vider la corbeille

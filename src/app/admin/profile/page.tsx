@@ -67,7 +67,7 @@ export default async function ProfilePage() {
         Vos informations de compte sur SafeLinkHub.
       </p>
 
-      <div className="mt-6 flex items-center gap-4 border-2 border-line bg-paper p-4 sm:p-6">
+      <div className="mt-6 flex items-center gap-4 border border-line bg-paper p-4 sm:p-6 rounded-xl">
         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-ink text-lg font-semibold text-white">
           {user.name.slice(0, 2).toUpperCase()}
         </span>
@@ -80,7 +80,7 @@ export default async function ProfilePage() {
         </div>
       </div>
 
-      <div id="organisation" className="mt-4 scroll-mt-6 border-2 border-line bg-paper p-4 sm:p-6">
+      <div id="organisation" className="mt-4 scroll-mt-6 border border-line bg-paper p-4 sm:p-6 rounded-xl">
         <div className="flex items-center gap-2">
           <Building2 className="h-4 w-4 text-ink-soft" />
           <h2 className="text-sm font-semibold text-ink">Organisation</h2>
@@ -109,14 +109,14 @@ export default async function ProfilePage() {
         </dl>
       </div>
 
-      <div className="mt-4 border-2 border-line bg-paper p-4 sm:p-6">
+      <div className="mt-4 border border-line bg-paper p-4 sm:p-6 rounded-xl">
         <h2 className="text-sm font-semibold text-ink">Informations personnelles</h2>
         <div className="mt-3">
           <ProfileNameForm currentName={user.name} />
         </div>
       </div>
 
-      <div className="mt-4 border-2 border-line bg-paper p-4 sm:p-6">
+      <div className="mt-4 border border-line bg-paper p-4 sm:p-6 rounded-xl">
         <h2 className="text-sm font-semibold text-ink">Contact</h2>
         <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <div>
@@ -156,7 +156,7 @@ export default async function ProfilePage() {
         </dl>
       </div>
 
-      <div className="mt-4 border-2 border-line bg-paper p-4 sm:p-6">
+      <div className="mt-4 border border-line bg-paper p-4 sm:p-6 rounded-xl">
         <div className="flex items-center gap-2">
           <KeyRound className="h-4 w-4 text-ink-soft" />
           <h2 className="text-sm font-semibold text-ink">Sécurité</h2>

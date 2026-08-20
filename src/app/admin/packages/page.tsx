@@ -82,7 +82,7 @@ export default async function PackagesPage() {
         className="mt-4 w-full sm:w-64 rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
       />
 
-      <div className="mt-4 overflow-hidden border-2 border-line bg-paper">
+      <div className="mt-4 overflow-hidden border border-line bg-paper">
         <div className="table-mobile-wrapper">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line-soft bg-clay text-ink-soft">

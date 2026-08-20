@@ -158,7 +158,7 @@ export default function BootstrapModal({
               <button
                 type="button"
                 onClick={copyCommand}
-                className="absolute right-2 top-2 rounded-md bg-[#3A362F] p-1.5 text-white hover:bg-[#3A362F]"
+                className="absolute right-2 top-2 rounded-md bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
                 title="Copier la commande"
                 aria-label="Copier la commande"
               >

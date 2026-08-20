@@ -135,7 +135,7 @@ export default function ImportTicketsModal({
           />
           <form
             action={formAction}
-            className="relative max-h-[90dvh] w-full max-w-2xl overflow-y-auto border-2 border-line bg-paper"
+            className="relative max-h-[90dvh] w-full max-w-2xl overflow-y-auto border border-line bg-paper"
             role="dialog"
             aria-modal="true"
             aria-labelledby="import-tickets-title"
@@ -161,7 +161,7 @@ export default function ImportTicketsModal({
               </button>
             </header>
 
-            <div className="grid grid-cols-2 border-b-2 border-line">
+            <div className="grid grid-cols-2 border-b border-line">
               <button
                 type="button"
                 onClick={() => setMode("mikhmon")}
@@ -175,7 +175,7 @@ export default function ImportTicketsModal({
               <button
                 type="button"
                 onClick={() => setMode("csv")}
-                className={`flex items-center justify-center gap-2 border-l-2 border-line px-4 py-3 text-sm font-bold ${
+                className={`flex items-center justify-center gap-2 border-l border-line px-4 py-3 text-sm font-bold ${
                   mode === "csv" ? "bg-brand text-ink" : "bg-paper text-ink-soft hover:bg-clay"
                 }`}
               >
@@ -216,7 +216,7 @@ export default function ImportTicketsModal({
                     {routers.length === 0 ? (
                       <p className="border border-line-soft px-3 py-2 text-sm text-ink-soft">Aucun routeur disponible.</p>
                     ) : (
-                      <div className="max-h-48 space-y-1 overflow-y-auto border border-line-soft bg-clay p-2">
+                      <div className="max-h-48 space-y-1 overflow-y-auto border border-line-soft bg-clay p-2 rounded-xl">
                         {routers.map((router, index) => (
                           <label key={router.id} className="flex items-center gap-2 bg-paper px-3 py-2 text-sm hover:bg-brand/20">
                             <input type="checkbox" name="routerIds" value={router.id} defaultChecked={index === 0} />
@@ -234,7 +234,7 @@ export default function ImportTicketsModal({
                     <input
                       name="note"
                       placeholder="ex : import MikHmon juillet"
-                      className="w-full border border-line-soft bg-paper px-3 py-2 text-sm outline-none focus:border-ink focus:ring-2 focus:ring-brand"
+                      className="w-full border border-line-soft bg-paper px-3 py-2 text-sm outline-none focus:border-ink focus:ring-2 focus:ring-brand rounded-lg"
                     />
                   </div>
                 </div>
@@ -252,7 +252,7 @@ export default function ImportTicketsModal({
                         name="routerId"
                         required
                         defaultValue=""
-                        className="w-full border border-line-soft bg-paper px-3 py-2 text-sm outline-none focus:border-ink focus:ring-2 focus:ring-brand"
+                        className="w-full border border-line-soft bg-paper px-3 py-2 text-sm outline-none focus:border-ink focus:ring-2 focus:ring-brand rounded-lg"
                       >
                         <option value="" disabled>Choisir le routeur</option>
                         {routers.map((router) => (
@@ -263,7 +263,7 @@ export default function ImportTicketsModal({
                     </div>
                     <div>
                       <label className="mb-2 block text-sm font-bold text-ink">Fichier CSV</label>
-                      <label className="flex cursor-pointer items-center gap-3 border-2 border-dashed border-line-soft bg-clay px-3 py-3 text-sm text-ink hover:border-ink hover:bg-brand/20">
+                      <label className="flex cursor-pointer items-center gap-3 border border-dashed border-line-soft bg-clay px-3 py-3 text-sm text-ink hover:border-ink hover:bg-brand/20">
                         <FileSpreadsheet className="h-5 w-5 shrink-0 text-brand-deep" />
                         <span>Choisir un export (2 Mo maximum)</span>
                         <input
@@ -279,7 +279,7 @@ export default function ImportTicketsModal({
                   </div>
 
                   {csvPreview && (
-                    <section className="border-2 border-line bg-paper">
+                    <section className="border border-line bg-paper">
                       {"error" in csvPreview ? (
                         <div className="flex items-center gap-2 bg-err-soft px-4 py-3 text-sm text-err">
                           <AlertCircle className="h-4 w-4" />
@@ -314,7 +314,7 @@ export default function ImportTicketsModal({
               )}
 
               <footer className="mt-7 flex flex-wrap justify-end gap-2 border-t border-line-soft pt-5">
-                <button type="button" onClick={() => setOpen(false)} className="border border-line-soft px-4 py-2 text-sm font-bold text-ink hover:bg-clay">
+                <button type="button" onClick={() => setOpen(false)} className="border border-line-soft px-4 py-2 text-sm font-bold text-ink hover:bg-clay rounded-xl">
                   Fermer
                 </button>
                 <button

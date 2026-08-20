@@ -83,7 +83,7 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
         <MoreVertical className="h-4 w-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-8 z-10 w-56 rounded-md border-2 border-line bg-paper py-1">
+        <div className="absolute right-0 top-8 z-10 w-56 rounded-md border border-line bg-paper py-1">
           <button
             type="button"
             onClick={() => {

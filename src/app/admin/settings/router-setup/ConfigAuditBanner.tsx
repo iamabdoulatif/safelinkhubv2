@@ -159,7 +159,7 @@ export default function ConfigAuditBanner({
                 type="button"
                 onClick={repair}
                 disabled={repairing}
-                className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
               >
                 {repairing ? (
                   <ButtonLoader size="xs" color="white" />

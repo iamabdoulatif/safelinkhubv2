@@ -49,19 +49,19 @@ export default async function SalesPage() {
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="border-2 border-line bg-paper p-5 hover-lift">
+        <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
           <p className="text-sm font-medium text-ink-soft">Revenu total</p>
           <p className="mt-1 text-2xl font-bold text-ink">
             {formatFcfa(totalRevenueCents)}
           </p>
         </div>
-        <div className="border-2 border-line bg-paper p-5 hover-lift">
+        <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
           <p className="text-sm font-medium text-ink-soft">Revenu aujourd&apos;hui</p>
           <p className="mt-1 text-2xl font-bold text-ink">
             {formatFcfa(todayRevenueCents)}
           </p>
         </div>
-        <div className="border-2 border-line bg-paper p-5 hover-lift">
+        <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
           <p className="text-sm font-medium text-ink-soft">Ventes / Commissions</p>
           <p className="mt-1 text-2xl font-bold text-ink">
             {sales.length}{" "}
@@ -72,7 +72,7 @@ export default async function SalesPage() {
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden border-2 border-line bg-paper">
+      <div className="mt-6 overflow-hidden border border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">

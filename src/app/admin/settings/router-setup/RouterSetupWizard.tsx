@@ -85,7 +85,7 @@ export default function RouterSetupWizard({
       />
 
       {transitioning ? (
-        <div className="animate-fade-in mt-6 sm:mt-8 flex min-h-[200px] sm:min-h-[280px] flex-col items-center justify-center gap-4 border-2 border-line bg-paper p-4 sm:p-6">
+        <div className="animate-fade-in mt-6 sm:mt-8 flex min-h-[200px] sm:min-h-[280px] flex-col items-center justify-center gap-4 border border-line bg-paper p-4 sm:p-6 rounded-xl">
           <FancyLoader
             variant={direction === "forward" ? "wifi-signal" : "router-orbit"}
             size="lg"
@@ -100,7 +100,7 @@ export default function RouterSetupWizard({
       ) : step === 2 ? (
         <div
           key="step-2"
-          className={`${direction === "back" ? "animate-slide-in-left" : "animate-fade-slide-up"} mt-6 sm:mt-8 border-2 border-line bg-paper p-4 sm:p-6`}
+          className={`${direction === "back" ? "animate-slide-in-left" : "animate-fade-slide-up"} mt-6 sm:mt-8 border border-line bg-paper p-4 sm:p-6`}
         >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="font-display text-xl sm:text-2xl font-extrabold tracking-tight text-ink">
@@ -133,7 +133,7 @@ export default function RouterSetupWizard({
                   ? "Configurez au moins un bridge avant de continuer"
                   : undefined
               }
-              className="w-full sm:w-auto rounded-lg bg-ink px-5 py-3 sm:py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full sm:w-auto rounded-lg bg-ink px-5 py-3 sm:py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-deep-line disabled:cursor-not-allowed disabled:opacity-50"
             >
               Suivant : Configuration automatique
             </button>

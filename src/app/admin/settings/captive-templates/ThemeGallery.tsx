@@ -79,7 +79,7 @@ function ThemePreview({ theme }: { theme: Theme }) {
   return (
     <div
       aria-hidden="true"
-      className="flex h-28 flex-col items-center justify-center gap-1.5 border-2 border-line"
+      className="flex h-28 flex-col items-center justify-center gap-1.5 border border-line"
       style={{ backgroundColor: theme.backgroundColor }}
     >
       <span
@@ -144,7 +144,7 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
       </p>
 
       {error && (
-        <p role="alert" className="mt-3 border-2 border-err bg-err-soft px-3 py-2 text-sm font-medium text-err">
+        <p role="alert" className="mt-3 border border-err bg-err-soft px-3 py-2 text-sm font-medium text-err">
           {error}
         </p>
       )}
@@ -156,7 +156,7 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
           return (
             <article
               key={theme.key}
-              className={`border-2 bg-paper p-3 transition-transform duration-150 ${
+              className={`border bg-paper p-3 transition-transform duration-150 ${
                 created ? "border-line" : "border-line-soft hover:border-line"
               }`}
             >
@@ -165,7 +165,7 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
                 <h3 className="flex items-center gap-2 font-display text-sm font-bold text-ink">
                   {theme.name}
                   {created && (
-                    <span className="flex items-center gap-1 bg-brand px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase text-[#1C1917]">
+                    <span className="flex items-center gap-1 bg-brand px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase text-slate-deep rounded-full">
                       <Check aria-hidden="true" className="h-3 w-3" />
                       Créé
                     </span>
@@ -175,7 +175,7 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
                   <button
                     type="button"
                     onClick={() => setPreviewing(theme)}
-                    className="flex items-center gap-1 border-2 border-line bg-paper px-2 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-clay"
+                    className="flex items-center gap-1 border border-line bg-paper px-2 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-clay rounded-xl"
                   >
                     <Eye aria-hidden="true" className="h-3.5 w-3.5" />
                     Preview
@@ -184,7 +184,7 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
                     type="button"
                     disabled={isPending}
                     onClick={() => applyTheme(theme)}
-                    className="flex items-center gap-1 border-2 border-line bg-brand px-2 py-1 text-xs font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-50"
+                    className="flex items-center gap-1 border border-line bg-brand px-2 py-1 text-xs font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-50 rounded-full"
                   >
                     {busy ? (
                       <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
@@ -211,8 +211,8 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
             if (e.target === e.currentTarget) setPreviewing(null);
           }}
         >
-          <div className="max-h-[90dvh] overflow-y-auto w-full max-w-sm border-2 border-line bg-paper">
-            <div className="flex items-center justify-between border-b-2 border-line px-4 py-2.5">
+          <div className="max-h-[90dvh] overflow-y-auto w-full max-w-sm border border-line bg-paper">
+            <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
               <p className="font-display text-sm font-bold text-ink">Thème {previewing.name}</p>
               <button
                 type="button"
@@ -221,7 +221,7 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
                 onKeyDown={(e) => {
                   if (e.key === "Escape") setPreviewing(null);
                 }}
-                className="border-2 border-line px-2 py-0.5 text-xs font-bold text-ink hover:bg-clay"
+                className="border border-line px-2 py-0.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
               >
                 Fermer
               </button>

@@ -54,7 +54,7 @@ export default function ReferralCard({
   }
 
   return (
-    <div className="border-2 border-line bg-paper p-6">
+    <div className="border border-line bg-paper p-6 rounded-xl">
       <div className="flex items-center gap-2">
         <Gift className="h-5 w-5 text-brand-deep" aria-hidden="true" />
         <h2 className="font-display text-lg font-extrabold tracking-tight text-ink">Parrainage</h2>
@@ -71,7 +71,7 @@ export default function ReferralCard({
       {/* Barème — les trois étapes primées, dans l'ordre où elles arrivent. */}
       <ul className="mt-4 grid gap-2 sm:grid-cols-3">
         {(Object.keys(REFERRAL_REWARD_SC) as ReferralEvent[]).map((event) => (
-          <li key={event} className="border-2 border-line-soft bg-clay/40 px-3 py-2">
+          <li key={event} className="border border-line-soft bg-clay/40 px-3 py-2 rounded-xl">
             <p className="font-mono text-base font-bold text-ink">
               +{REFERRAL_REWARD_SC[event]} SC
             </p>
@@ -89,12 +89,12 @@ export default function ReferralCard({
           readOnly
           value={shareUrl}
           onFocus={(e) => e.currentTarget.select()}
-          className="w-full border-2 border-line bg-paper px-3 py-2.5 font-mono text-xs text-ink focus:outline-none focus:ring-4 focus:ring-brand/35"
+          className="w-full border border-line bg-paper px-3 py-2.5 font-mono text-xs text-ink focus:outline-none focus:ring-4 focus:ring-brand/35 rounded-lg"
         />
         <button
           type="button"
           onClick={copy}
-          className="inline-flex shrink-0 items-center gap-1.5 border-2 border-line bg-brand px-3 py-2.5 text-sm font-bold text-[#1C1917] hover:opacity-90"
+          className="inline-flex shrink-0 items-center gap-1.5 border border-line bg-brand px-3 py-2.5 text-sm font-bold text-slate-deep hover:opacity-90 rounded-full"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           {copied ? "Copié" : "Copier"}
@@ -111,13 +111,13 @@ export default function ReferralCard({
         )}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-3 inline-flex items-center gap-1.5 border-2 border-line px-3 py-2 text-sm font-bold text-ink hover:bg-clay"
+        className="mt-3 inline-flex items-center gap-1.5 border border-line px-3 py-2 text-sm font-bold text-ink hover:bg-clay rounded-xl"
       >
         <Share2 className="h-4 w-4" aria-hidden="true" />
         Partager sur WhatsApp
       </a>
 
-      <div className="mt-6 flex items-center gap-2 border-t-2 border-line-soft pt-4">
+      <div className="mt-6 flex items-center gap-2 border-t border-line-soft pt-4">
         <Users className="h-4 w-4 text-ink-soft" aria-hidden="true" />
         <p className="text-sm font-bold text-ink">
           {referredCount === 0

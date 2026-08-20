@@ -103,7 +103,7 @@ function MetricCard({
     red: "border-t-err",
   } as const;
   return (
-    <div className={`border-2 border-line border-t-4 bg-paper p-4 ${accents[accent]}`}>
+    <div className={`border border-line border-t-4 bg-paper p-4 ${accents[accent]}`}>
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">{label}</p>
         <Icon className="h-4 w-4 text-ink-soft" aria-hidden="true" />
@@ -155,7 +155,7 @@ export default function PlatformAnalyticsView({
             type="button"
             onClick={exportCsv}
             disabled={rows.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-ink px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-[#3A362F] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-ink px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-slate-deep-line disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-4 w-4" aria-hidden="true" /> Exporter le rapport
           </button>
@@ -209,7 +209,7 @@ export default function PlatformAnalyticsView({
         <div className="grid gap-3 sm:grid-cols-3">
           <Link
             href="/admin/authorizations"
-            className="group flex items-center gap-3 border-2 border-amber-200 bg-amber-50 p-3 hover:border-amber-300"
+            className="group flex items-center gap-3 border border-amber-200 bg-amber-50 p-3 hover:border-amber-300"
           >
             <Clock3 className="h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
             <span className="min-w-0 flex-1"><strong className="block text-sm text-amber-900">{report.kpis.pendingCount} en attente</strong><span className="text-xs text-amber-800">À valider ou refuser</span></span>
@@ -217,13 +217,13 @@ export default function PlatformAnalyticsView({
           </Link>
           <Link
             href="/admin/vpn-access"
-            className="group flex items-center gap-3 border-2 border-blue-200 bg-blue-50 p-3 hover:border-blue-300"
+            className="group flex items-center gap-3 border border-blue-200 bg-blue-50 p-3 hover:border-blue-300"
           >
             <CircleAlert className="h-5 w-5 shrink-0 text-blue-700" aria-hidden="true" />
             <span className="min-w-0 flex-1"><strong className="block text-sm text-blue-900">{report.kpis.unconsumedApprovedCount} non activée(s)</strong><span className="text-xs text-blue-800">Paiements validés à suivre</span></span>
             <ArrowUpRight className="h-4 w-4 text-blue-700 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
           </Link>
-          <div className="flex items-center gap-3 border-2 border-red-200 bg-red-50 p-3">
+          <div className="flex items-center gap-3 border border-red-200 bg-red-50 p-3">
             <CircleAlert className="h-5 w-5 shrink-0 text-red-700" aria-hidden="true" />
             <span><strong className="block text-sm text-red-900">{report.kpis.rejectedCount} refusée(s)</strong><span className="text-xs text-red-800">Demandes non encaissées</span></span>
           </div>
@@ -231,7 +231,7 @@ export default function PlatformAnalyticsView({
       )}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]">
-        <section className="border-2 border-line bg-paper p-4" aria-labelledby="sales-evolution-title">
+        <section className="border border-line bg-paper p-4 rounded-xl" aria-labelledby="sales-evolution-title">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 id="sales-evolution-title" className="font-semibold text-ink">Évolution des ventes</h2>
@@ -253,7 +253,7 @@ export default function PlatformAnalyticsView({
           )}
         </section>
 
-        <section className="border-2 border-line bg-paper p-4" aria-labelledby="conversion-title">
+        <section className="border border-line bg-paper p-4 rounded-xl" aria-labelledby="conversion-title">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 id="conversion-title" className="font-semibold text-ink">Qualité du tunnel</h2>
@@ -281,7 +281,7 @@ export default function PlatformAnalyticsView({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="border-2 border-line bg-paper p-4" aria-labelledby="payment-title">
+        <section className="border border-line bg-paper p-4 rounded-xl" aria-labelledby="payment-title">
           <div className="flex items-center justify-between gap-3"><div><h2 id="payment-title" className="font-semibold text-ink">Moyens de paiement</h2><p className="mt-1 text-xs text-ink-soft">Répartition du chiffre d’affaires validé</p></div><WalletCards className="h-4 w-4 text-ink-soft" aria-hidden="true" /></div>
           <div className="mt-5 space-y-4">
             {report.paymentMethods.length === 0 ? <p className="text-sm text-ink-soft">Aucun paiement validé.</p> : report.paymentMethods.map((item) => (
@@ -292,7 +292,7 @@ export default function PlatformAnalyticsView({
             ))}
           </div>
         </section>
-        <section className="border-2 border-line bg-paper p-4" aria-labelledby="service-title">
+        <section className="border border-line bg-paper p-4 rounded-xl" aria-labelledby="service-title">
           <div className="flex items-center justify-between gap-3"><div><h2 id="service-title" className="font-semibold text-ink">VPN les plus demandés</h2><p className="mt-1 text-xs text-ink-soft">Services activés sur la période</p></div><KeyRound className="h-4 w-4 text-ink-soft" aria-hidden="true" /></div>
           <div className="mt-5 space-y-4">
             {report.services.length === 0 ? <p className="text-sm text-ink-soft">Aucun VPN validé.</p> : report.services.map((item) => (
@@ -305,7 +305,7 @@ export default function PlatformAnalyticsView({
         </section>
       </div>
 
-      <section className="overflow-hidden border-2 border-line bg-paper" aria-labelledby="recent-sales-title">
+      <section className="overflow-hidden border border-line bg-paper" aria-labelledby="recent-sales-title">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-4 py-4">
           <div><h2 id="recent-sales-title" className="font-semibold text-ink">Journal des ventes</h2><p className="mt-1 text-xs text-ink-soft">Les demandes VPN et Auto-Setup de {rangeLabel}</p></div>
           <div className="flex items-center gap-3 text-xs text-ink-soft"><span>{rows.length} ligne(s)</span>{rows.length > 8 && <button type="button" onClick={() => setShowAll((value) => !value)} className="font-semibold text-brand-deep hover:underline">{showAll ? "Réduire" : "Tout afficher"}</button>}</div>

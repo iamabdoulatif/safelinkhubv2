@@ -46,7 +46,7 @@ export default function HotspotIpv6Button() {
             setScan(result);
           })
         }
-        className="flex items-center gap-2 border-2 border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex items-center gap-2 border border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60 rounded-xl"
       >
         {pending ? (
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -60,7 +60,7 @@ export default function HotspotIpv6Button() {
       {done && <span className="max-w-md text-xs text-ok">{done}</span>}
 
       {scan && !done && (
-        <div className="w-full border-2 border-line-soft bg-clay/50 p-3 text-xs">
+        <div className="w-full border border-line-soft bg-clay/50 p-3 text-xs rounded-lg">
           <p className="font-bold text-ink">
             {scan.leaking.length === 0
               ? `Aucune fuite sur les ${scan.scanned} routeur(s) joignables.`
@@ -108,7 +108,7 @@ export default function HotspotIpv6Button() {
                     router.refresh();
                   })
                 }
-                className="mt-2 border-2 border-line bg-brand px-3 py-1.5 text-xs font-bold text-[#1C1917] hover:opacity-90 disabled:opacity-60"
+                className="mt-2 border border-line bg-brand px-3 py-1.5 text-xs font-bold text-slate-deep hover:opacity-90 disabled:opacity-60 rounded-full"
               >
                 Fermer la fuite sur ces {scan.leaking.length} routeur(s)
               </button>

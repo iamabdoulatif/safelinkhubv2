@@ -66,7 +66,7 @@ export default function DeleteTicketsModal({
       onClick={() => !pending && onCancel()}
     >
       <div
-        className="w-full max-w-lg border-2 border-line bg-paper p-6"
+        className="w-full max-w-lg border border-line bg-paper p-6 rounded-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">
@@ -94,7 +94,7 @@ export default function DeleteTicketsModal({
           <legend className="sr-only">Portée de la suppression</legend>
 
           <label
-            className={`flex cursor-pointer gap-3 border-2 p-3 ${
+            className={`flex cursor-pointer gap-3 border p-3 ${
               scope === "platform" ? "border-line bg-clay" : "border-line-soft hover:bg-clay/50"
             }`}
           >
@@ -117,7 +117,7 @@ export default function DeleteTicketsModal({
           </label>
 
           <label
-            className={`flex cursor-pointer gap-3 border-2 p-3 ${
+            className={`flex cursor-pointer gap-3 border p-3 ${
               scope === "platform_and_router"
                 ? "border-err bg-err-soft"
                 : "border-line-soft hover:bg-clay/50"
@@ -145,7 +145,7 @@ export default function DeleteTicketsModal({
         </fieldset>
 
         {scope === "platform_and_router" && (
-          <p className="mt-3 flex items-start gap-2 border-2 border-err bg-err-soft px-3 py-2 text-xs text-ink">
+          <p className="mt-3 flex items-start gap-2 border border-err bg-err-soft px-3 py-2 text-xs text-ink">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-err" aria-hidden="true" />
             <span>
               Un routeur hors ligne ne peut pas être nettoyé : ses tickets sont alors{" "}
@@ -160,7 +160,7 @@ export default function DeleteTicketsModal({
             type="button"
             onClick={onCancel}
             disabled={pending}
-            className="border-2 border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay disabled:opacity-50"
+            className="border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay disabled:opacity-50 rounded-xl"
           >
             Annuler
           </button>
@@ -168,7 +168,7 @@ export default function DeleteTicketsModal({
             type="button"
             onClick={() => onConfirm(scope)}
             disabled={pending}
-            className="inline-flex items-center gap-2 border-2 border-line bg-ink px-4 py-2 text-sm font-bold text-paper hover:opacity-90 disabled:opacity-60"
+            className="inline-flex items-center gap-2 border border-line bg-ink px-4 py-2 text-sm font-bold text-paper hover:opacity-90 disabled:opacity-60"
           >
             {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             {scope === "platform_and_router"

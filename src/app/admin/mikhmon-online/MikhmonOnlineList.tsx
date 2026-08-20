@@ -40,7 +40,7 @@ function RouterMikhmonCard({ router }: { router: RouterRow }) {
           type="button"
           onClick={handleFetch}
           disabled={pending || router.status !== "online"}
-          className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A362F] disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
         >
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {pending ? "Recherche..." : "Obtenir le lien"}

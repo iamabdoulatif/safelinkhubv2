@@ -169,7 +169,7 @@ export default function RestoreTopology({
   const gap = 42;
 
   return (
-    <figure className="mt-3 border-2 border-line bg-paper p-2">
+    <figure className="mt-3 border border-line bg-paper p-2 rounded-xl">
       <svg
         viewBox="0 0 640 300"
         className="h-auto w-full"

@@ -35,7 +35,7 @@ export default function AdminError({
           <button
             type="button"
             onClick={reset}
-            className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-[#3A362F]"
+            className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-slate-deep-line"
           >
             <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
             Réessayer

@@ -44,7 +44,7 @@ function Node({
 }) {
   return (
     <div
-      className={`w-full max-w-xs border-2 bg-paper px-4 py-2.5 text-center ${
+      className={`w-full max-w-xs border bg-paper px-4 py-2.5 text-center ${
         hub ? "border-brand" : "border-line"
       }`}
     >
@@ -66,7 +66,7 @@ function Wire({ label }: { label?: string }) {
     <div className="flex flex-col items-center py-1">
       <ArrowDown aria-hidden="true" className="h-4 w-4 text-brand-deep" />
       {label && (
-        <span className="my-0.5 border border-line-soft bg-clay px-2 py-0.5 text-[10px] font-mono font-medium text-ink-soft">
+        <span className="my-0.5 border border-line-soft bg-clay px-2 py-0.5 text-[10px] font-mono font-medium text-ink-soft rounded-xl">
           {label}
         </span>
       )}
@@ -76,7 +76,7 @@ function Wire({ label }: { label?: string }) {
 
 export default function NetworkGuide() {
   return (
-    <details className="group border-t-2 border-line-soft bg-clay">
+    <details className="group border-t border-line-soft bg-clay">
       <summary className="flex cursor-pointer items-center justify-between px-4 py-2.5 text-sm font-bold text-ink">
         <span className="flex items-center gap-2">
           <Network aria-hidden="true" className="h-4 w-4 text-brand-deep" />
@@ -96,7 +96,7 @@ export default function NetworkGuide() {
           <h4 className="mb-3 font-display text-sm font-bold text-ink">
             Schéma : Box FAI → MikroTik → Switch
           </h4>
-          <div className="flex flex-col items-center border-2 border-line bg-clay px-3 py-4">
+          <div className="flex flex-col items-center border border-line bg-clay px-3 py-4 rounded-xl">
             <Node icon={Globe} role="Fournisseur d'accès" name="Box FAI" sub="Mode bridge de préférence" />
             <Wire label="① Cat5e/6 · 1 Gbps" />
             <Node
@@ -115,7 +115,7 @@ export default function NetworkGuide() {
                 { icon: Laptop, label: "Client filaire" },
                 { icon: Printer, label: "Autre appareil" },
               ].map((c) => (
-                <div key={c.label} className="border-2 border-line bg-paper px-2 py-2 text-center">
+                <div key={c.label} className="border border-line bg-paper px-2 py-2 text-center rounded-xl">
                   <c.icon aria-hidden="true" className="mx-auto h-4 w-4 text-ink-soft" />
                   <p className="mt-0.5 text-[11px] font-medium text-ink">{c.label}</p>
                 </div>
@@ -124,7 +124,7 @@ export default function NetworkGuide() {
           </div>
 
           {/* ── Règle d'or ── */}
-          <div className="mt-3 border-2 border-dashed border-brand bg-brand/10 px-3 py-2.5">
+          <div className="mt-3 border border-dashed border-brand bg-brand/10 px-3 py-2.5">
             <p className="text-[13px] text-ink">
               <span className="font-mono text-[11px] font-bold uppercase tracking-wide text-brand-deep">
                 Règle d&apos;or ·{" "}
@@ -143,7 +143,7 @@ export default function NetworkGuide() {
             {SWITCH_CATALOG.switches.map((s) => (
               <div
                 key={s.model}
-                className={`flex flex-col border-2 bg-paper p-3.5 ${
+                className={`flex flex-col border bg-paper p-3.5 ${
                   s.recommended ? "border-brand" : "border-line"
                 }`}
               >
@@ -153,7 +153,7 @@ export default function NetworkGuide() {
                   </span>
                   <span
                     className={`px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wide ${
-                      s.recommended ? "bg-brand text-[#1C1917]" : "border border-line-soft text-ink-soft"
+                      s.recommended ? "bg-brand text-slate-deep" : "border border-line-soft text-ink-soft"
                     }`}
                   >
                     {s.badge}
@@ -182,7 +182,7 @@ export default function NetworkGuide() {
         {/* ── Liens critiques ── */}
         <div>
           <h4 className="mb-3 font-display text-sm font-bold text-ink">Les 3 liens critiques</h4>
-          <div className="divide-y divide-line-soft border-2 border-line bg-paper">
+          <div className="divide-y divide-line-soft border border-line bg-paper">
             {CRITICAL_LINKS.map((l) => (
               <div key={l.link} className="px-3 py-2.5">
                 <p className="font-mono text-[12px] font-bold text-brand-deep">{l.link}</p>

@@ -120,7 +120,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
   // ── État initial : appel à l'action ──────────────────────────────────────
   if (!audit) {
     return (
-      <div className="border-2 border-line bg-paper px-6 py-12 text-center">
+      <div className="border border-line bg-paper px-6 py-12 text-center rounded-xl">
         <Stethoscope aria-hidden="true" className="mx-auto h-9 w-9 text-ink-soft" />
         <h2 className="mt-3 font-display text-lg font-bold text-ink">Diagnostic du routeur</h2>
         <p className="mx-auto mt-1 max-w-md text-sm text-ink-soft">
@@ -128,7 +128,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
           débit, WiFi, ports, MikHmon, réseau. Les défauts corrigeables se réparent en un clic.
         </p>
         {error && (
-          <p role="alert" className="mx-auto mt-4 max-w-md border-2 border-err bg-err/10 px-3 py-2 text-sm font-medium text-err">
+          <p role="alert" className="mx-auto mt-4 max-w-md border border-err bg-err/10 px-3 py-2 text-sm font-medium text-err">
             {error}
           </p>
         )}
@@ -136,7 +136,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
           type="button"
           disabled={isAnalyzing}
           onClick={analyze}
-          className="mt-5 inline-flex items-center gap-2 border-2 border-line bg-brand px-5 py-2.5 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60"
+          className="mt-5 inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
         >
           {isAnalyzing ? (
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -157,7 +157,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
   return (
     <div className="space-y-6">
       {/* ── En-tête : score de santé ── */}
-      <div className="flex flex-col gap-4 border-2 border-line bg-paper p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 border border-line bg-paper p-5 sm:flex-row sm:items-center sm:justify-between rounded-xl">
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-center">
             <span className={`font-display text-4xl font-extrabold tabular-nums ${tone.text}`}>{audit.score}</span>
@@ -179,7 +179,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
           type="button"
           disabled={isAnalyzing}
           onClick={analyze}
-          className="flex shrink-0 items-center gap-1.5 self-start border-2 border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60"
+          className="flex shrink-0 items-center gap-1.5 self-start border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-xl"
         >
           <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isAnalyzing ? "animate-spin" : ""}`} />
           {isAnalyzing ? "Analyse…" : "Ré-analyser"}
@@ -188,7 +188,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
 
       {/* ── Constats à traiter ── */}
       {actionable.length === 0 ? (
-        <div className="flex items-center gap-3 border-2 border-ok bg-ok/10 px-4 py-4">
+        <div className="flex items-center gap-3 border border-ok bg-ok/10 px-4 py-4">
           <CheckCircle2 aria-hidden="true" className="h-6 w-6 shrink-0 text-ok" />
           <p className="text-sm font-medium text-ink">
             Aucun défaut bloquant détecté — la configuration suit les bonnes pratiques.
@@ -205,7 +205,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
             const busy = isFixing && fixingId === f.id;
             const msg = fixMsg?.id === f.id ? fixMsg : null;
             return (
-              <div key={f.id} className={`border-2 ${s.border} bg-paper`}>
+              <div key={f.id} className={`border ${s.border} bg-paper`}>
                 <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex gap-3">
                     <Icon aria-hidden="true" className={`mt-0.5 h-5 w-5 shrink-0 ${s.text}`} />
@@ -214,7 +214,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                         <span className={`text-[11px] font-mono font-semibold uppercase tracking-wide ${s.text}`}>
                           {s.label}
                         </span>
-                        <span className="border border-line-soft bg-clay px-1.5 py-0.5 text-[11px] font-medium text-ink-soft">
+                        <span className="border border-line-soft bg-clay px-1.5 py-0.5 text-[11px] font-medium text-ink-soft rounded-xl">
                           {f.area}
                         </span>
                       </div>
@@ -227,7 +227,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                       type="button"
                       disabled={isFixing}
                       onClick={() => applyFix(f)}
-                      className="flex shrink-0 items-center gap-1.5 self-start border-2 border-line bg-brand px-3 py-1.5 text-sm font-bold text-[#1C1917] transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60"
+                      className="flex shrink-0 items-center gap-1.5 self-start border border-line bg-brand px-3 py-1.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
                     >
                       {busy ? (
                         <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -240,7 +240,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                 </div>
                 {msg && (
                   <p
-                    className={`border-t-2 px-4 py-2 text-sm font-medium ${
+                    className={`border-t px-4 py-2 text-sm font-medium ${
                       msg.ok ? "border-ok bg-ok/10 text-ok" : "border-err bg-err/10 text-err"
                     }`}
                   >
@@ -261,11 +261,11 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
 
       {/* ── Contrôles OK + infos ── */}
       {(passed.length > 0 || infos.length > 0) && (
-        <details className="border-2 border-line bg-paper">
+        <details className="border border-line bg-paper">
           <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-ink">
             Contrôles conformes &amp; informations ({passed.length + infos.length})
           </summary>
-          <ul className="divide-y divide-line-soft border-t-2 border-line">
+          <ul className="divide-y divide-line-soft border-t border-line">
             {[...passed, ...infos].map((f) => {
               const s = SEV[f.severity];
               const Icon = s.icon;

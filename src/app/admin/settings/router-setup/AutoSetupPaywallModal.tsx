@@ -329,7 +329,7 @@ export default function AutoSetupPaywallModal({
                   type="button"
                   onClick={payWithBalance}
                   disabled={pending || !canPayFromBalance || applicable === null}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-brand-deep bg-brand/10 px-4 py-2.5 text-sm font-semibold text-brand-deep hover:bg-brand/20 disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-brand-deep bg-brand/10 px-4 py-2.5 text-sm font-semibold text-brand-deep hover:bg-brand/20 disabled:opacity-50"
                 >
                   {pending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

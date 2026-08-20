@@ -17,7 +17,7 @@ function formatDate(date: Date) {
 }
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  new: { label: "Nouveau", className: "bg-brand text-[#1C1917]" },
+  new: { label: "Nouveau", className: "bg-brand text-slate-deep" },
   read: { label: "Lu", className: "bg-clay text-ink-soft" },
   archived: { label: "Archivé", className: "bg-clay text-ink-soft line-through" },
 };
@@ -43,7 +43,7 @@ export default async function AdminContactPage() {
       </p>
 
       {messages.length === 0 ? (
-        <div className="mt-6 border-2 border-line bg-paper p-8 text-center">
+        <div className="mt-6 border border-line bg-paper p-8 text-center rounded-xl">
           <p className="font-semibold text-ink">Aucun message.</p>
           <p className="mt-1 text-sm text-ink-soft">
             Les messages du formulaire de contact apparaîtront ici.
@@ -54,7 +54,7 @@ export default async function AdminContactPage() {
           {messages.map((msg) => {
             const status = STATUS_LABELS[msg.status] ?? STATUS_LABELS.new;
             return (
-              <li key={msg.id} className="border-2 border-line bg-paper p-4 sm:p-5">
+              <li key={msg.id} className="border border-line bg-paper p-4 sm:p-5 rounded-xl">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium text-ink">
@@ -93,7 +93,7 @@ export default async function AdminContactPage() {
                       <input type="hidden" name="status" value="read" />
                       <button
                         type="submit"
-                        className="border-2 border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay"
+                        className="border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
                       >
                         Marquer comme lu
                       </button>
@@ -105,7 +105,7 @@ export default async function AdminContactPage() {
                       <input type="hidden" name="status" value="archived" />
                       <button
                         type="submit"
-                        className="border-2 border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay"
+                        className="border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
                       >
                         Archiver
                       </button>
@@ -117,7 +117,7 @@ export default async function AdminContactPage() {
                       <input type="hidden" name="status" value="new" />
                       <button
                         type="submit"
-                        className="border-2 border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay"
+                        className="border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
                       >
                         Restaurer
                       </button>

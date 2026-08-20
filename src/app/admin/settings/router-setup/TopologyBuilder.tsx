@@ -182,7 +182,7 @@ function BridgeNode({
           ))}
         </div>
       ) : (
-        <div className="mt-4 rounded-md border-2 border-dashed border-ok bg-clay/40 py-4 text-center text-xs font-medium text-ok">
+        <div className="mt-4 rounded-md border border-dashed border-ok bg-clay/40 py-4 text-center text-xs font-medium text-ok">
           Déposez une interface ici
         </div>
       )}
@@ -357,7 +357,7 @@ function RouterDeviceCard({
   registerPortRef: (name: string, el: HTMLDivElement | null) => void;
 }) {
   return (
-    <div className="absolute left-1/2 top-7 w-[min(98%,1100px)] -translate-x-1/2 border-2 border-line bg-paper/95 p-5">
+    <div className="absolute left-1/2 top-7 w-[min(98%,1100px)] -translate-x-1/2 border border-line bg-paper/95 p-5 rounded-xl">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-line-soft pb-4">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-ink text-sm font-bold text-white">
@@ -500,7 +500,7 @@ function TopologyCanvas({
   }, []);
 
   return (
-    <div className="mt-5 overflow-hidden border-2 border-line bg-paper">
+    <div className="mt-5 overflow-hidden border border-line bg-paper">
       <div className="flex items-center justify-between border-b border-line-soft bg-clay px-4 py-3">
         <span className="text-sm font-medium text-ink-soft">Mode d&apos;édition</span>
         <button
@@ -529,7 +529,7 @@ function TopologyCanvas({
           <button
             type="button"
             onClick={onAddBridge}
-            className="mt-6 w-full rounded-md bg-ink px-4 py-3.5 text-sm font-semibold text-white hover:bg-[#3A362F]"
+            className="mt-6 w-full rounded-md bg-ink px-4 py-3.5 text-sm font-semibold text-white hover:bg-slate-deep-line"
           >
             + Ajouter un bridge
           </button>
@@ -639,7 +639,7 @@ function TopologyCanvas({
                         }}
                       />
                     ) : (
-                      <div className="flex h-40 w-80 items-center justify-center rounded-xl border-2 border-dashed border-ok bg-paper/80 text-sm font-medium text-ok">
+                      <div className="flex h-40 w-80 items-center justify-center rounded-xl border border-dashed border-ok bg-paper/80 text-sm font-medium text-ok">
                         Cliquez sur &quot;Ajouter un bridge&quot; pour commencer
                       </div>
                     )}
@@ -656,7 +656,7 @@ function TopologyCanvas({
                   </div>
                 </>
               ) : (
-                <div className="absolute left-1/2 top-[290px] flex h-40 w-80 -translate-x-1/2 items-center justify-center rounded-xl border-2 border-dashed border-ok bg-paper/80 text-sm font-medium text-ok">
+                <div className="absolute left-1/2 top-[290px] flex h-40 w-80 -translate-x-1/2 items-center justify-center rounded-xl border border-dashed border-ok bg-paper/80 text-sm font-medium text-ok">
                   Cliquez sur &quot;Ajouter un bridge&quot; pour commencer
                 </div>
               )}

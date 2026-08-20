@@ -176,24 +176,24 @@ describe("users register presentation", () => {
     const priorityCells = priorityCellClassTokens(markup);
     assert.equal(priorityCells.length, 4);
     const [first, second, third, fourth] = priorityCells;
-    assert.ok(first.has("border-b-2"));
-    assert.ok(second.has("border-b-2"));
-    assert.ok(third.has("border-b-2"));
-    assert.equal(fourth.has("border-b-2"), false);
-    assert.ok(first.has("sm:border-r-2"));
+    assert.ok(first.has("border-b"));
+    assert.ok(second.has("border-b"));
+    assert.ok(third.has("border-b"));
+    assert.equal(fourth.has("border-b"), false);
+    assert.ok(first.has("sm:border-r"));
     assert.equal(first.has("sm:border-b-0"), false);
-    assert.equal(second.has("sm:border-r-2"), false);
+    assert.equal(second.has("sm:border-r"), false);
     assert.equal(second.has("sm:border-b-0"), false);
-    assert.ok(third.has("sm:border-r-2"));
+    assert.ok(third.has("sm:border-r"));
     assert.ok(third.has("sm:border-b-0"));
-    assert.equal(fourth.has("sm:border-r-2"), false);
+    assert.equal(fourth.has("sm:border-r"), false);
     assert.equal(fourth.has("sm:border-b-0"), false);
-    assert.ok(second.has("xl:border-r-2"));
-    assert.ok(third.has("xl:border-r-2"));
+    assert.ok(second.has("xl:border-r"));
+    assert.ok(third.has("xl:border-r"));
     assert.ok(first.has("xl:border-b-0"));
     assert.ok(second.has("xl:border-b-0"));
     assert.ok(third.has("sm:border-b-0"));
-    assert.equal(fourth.has("xl:border-r-2"), false);
+    assert.equal(fourth.has("xl:border-r"), false);
   });
 
   it("renders organization-scoped priorities in order without global totals", () => {

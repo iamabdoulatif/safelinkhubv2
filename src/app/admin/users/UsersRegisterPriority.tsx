@@ -34,9 +34,9 @@ function PriorityCell({ label, value, hint, icon: Icon, urgent = false, highligh
 
 export function UsersRegisterPriority({ summary, focusedOrganization }: UsersRegisterPriorityProps) {
   const dividerClassNames = [
-    "border-b-2 border-line sm:border-r-2 xl:border-b-0",
-    "border-b-2 border-line xl:border-r-2 xl:border-b-0",
-    "border-b-2 border-line sm:border-r-2 sm:border-b-0 xl:border-r-2",
+    "border-b border-line sm:border-r xl:border-b-0",
+    "border-b border-line xl:border-r xl:border-b-0",
+    "border-b border-line sm:border-r sm:border-b-0 xl:border-r",
     "",
   ];
   const cells: PriorityCell[] = focusedOrganization
@@ -72,7 +72,7 @@ export function UsersRegisterPriority({ summary, focusedOrganization }: UsersReg
       ];
 
   return (
-    <section aria-label="Repères du registre" className="grid border-2 border-line bg-paper sm:grid-cols-2 xl:grid-cols-4">
+    <section aria-label="Repères du registre" className="grid border border-line bg-paper sm:grid-cols-2 xl:grid-cols-4">
       {cells.map((cell, index) => <PriorityCell key={cell.label} {...cell} dividerClassName={dividerClassNames[index] ?? ""} />)}
     </section>
   );

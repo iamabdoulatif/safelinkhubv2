@@ -13,7 +13,7 @@ export default function DeleteBlogPostButton({ id, title }: { id: string; title:
       <input type="hidden" name="id" value={id} />
       <button
         type="submit"
-        className="border-2 border-err px-3 py-1.5 text-xs font-bold text-err hover:bg-err hover:text-paper"
+        className="border border-err px-3 py-1.5 text-xs font-bold text-err hover:bg-err hover:text-paper"
       >
         Supprimer
       </button>

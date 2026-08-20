@@ -137,7 +137,7 @@ export default function UsersControlCenter({
 
   return (
     <div className="animate-fade-in-up space-y-8">
-      <section className="border-2 border-line bg-paper p-5 sm:p-6">
+      <section className="border border-line bg-paper p-5 sm:p-6 rounded-xl">
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div className="max-w-2xl">
             <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-ok">
@@ -157,7 +157,7 @@ export default function UsersControlCenter({
           <div className="flex shrink-0 flex-wrap gap-2">
             <Link
               href={superadmin ? "/admin/vpn-access" : "/admin/remote-access"}
-              className="inline-flex items-center gap-2 border-2 border-line bg-paper px-3.5 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-clay"
+              className="inline-flex items-center gap-2 border border-line bg-paper px-3.5 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-clay rounded-xl"
             >
               <Wifi className="h-4 w-4" aria-hidden="true" /> Accès VPN
             </Link>
@@ -165,7 +165,7 @@ export default function UsersControlCenter({
               type="button"
               onClick={exportCsv}
               disabled={filteredRows.length === 0}
-              className="inline-flex items-center gap-2 border-2 border-line bg-brand px-3.5 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 border border-line bg-brand px-3.5 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Download className="h-4 w-4" aria-hidden="true" /> Exporter la liste
             </button>
@@ -189,7 +189,7 @@ export default function UsersControlCenter({
       />
 
       {filteredRows.length === 0 ? (
-        <div className="border-2 border-dashed border-line bg-paper px-6 py-14 text-center">
+        <div className="border border-dashed border-line bg-paper px-6 py-14 text-center">
           <Search className="mx-auto h-8 w-8 text-ink-soft" aria-hidden="true" />
           <p className="mt-3 font-semibold text-ink">Aucun utilisateur trouvé</p>
           <p className="mt-1 text-sm text-ink-soft">Modifiez la recherche ou réinitialisez les filtres.</p>
@@ -201,7 +201,7 @@ export default function UsersControlCenter({
         <>
           <div className="space-y-4 md:hidden">
             {filteredRows.map((row) => (
-              <div key={row.id} className="border border-line-soft bg-paper p-5">
+              <div key={row.id} className="border border-line-soft bg-paper p-5 rounded-xl">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink" aria-hidden="true">
@@ -276,7 +276,7 @@ export default function UsersControlCenter({
       )}
 
       {superadmin && !organizationFocus && temporaryAccess && (
-        <details className="group overflow-hidden border-2 border-line bg-paper">
+        <details className="group overflow-hidden border border-line bg-paper">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-clay/55 marker:hidden md:px-6">
             <div className="flex min-w-0 items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-brand/20 text-brand-deep">

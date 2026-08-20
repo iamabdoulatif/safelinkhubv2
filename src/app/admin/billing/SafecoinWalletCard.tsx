@@ -132,7 +132,7 @@ export default function SafecoinWalletCard({
   ];
 
   return (
-    <section className="relative overflow-hidden border-2 border-line bg-paper shadow-[6px_6px_0_var(--line)]">
+    <section className="relative overflow-hidden border border-line bg-paper shadow-[6px_6px_0_var(--line)]">
       <div className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-brand/20 blur-3xl" aria-hidden="true" />
       <div className="relative border-b border-line-soft bg-[#1c1917] p-5 text-white sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -165,7 +165,7 @@ export default function SafecoinWalletCard({
 
       <div className="relative grid gap-3 p-5 sm:grid-cols-3 sm:p-6">
         {plans.map((plan) => (
-          <div key={plan.label} className="border border-line-soft bg-clay/50 p-3">
+          <div key={plan.label} className="border border-line-soft bg-clay/50 p-3 rounded-xl">
             <p className="text-xs text-ink-soft">{plan.label}</p>
             <p className="mt-1 text-lg font-bold text-ink">{plan.sc} SC</p>
             <p className="text-[11px] text-ink-soft">prix catalogue</p>
@@ -238,7 +238,7 @@ export default function SafecoinWalletCard({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto border-2 border-line bg-paper p-5 shadow-[8px_8px_0_rgba(28,25,23,.25)] sm:p-6">
+          <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto border border-line bg-paper p-5 shadow-[8px_8px_0_rgba(28,25,23,.25)] sm:p-6 rounded-lg">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-deep">Safecoin · recharge</p>
@@ -248,7 +248,7 @@ export default function SafecoinWalletCard({
               <button type="button" onClick={close} disabled={onlinePending || manualPending} aria-label="Fermer"><X className="h-5 w-5 text-ink-soft" /></button>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-2 border border-line-soft bg-clay p-1" role="tablist" aria-label="Mode de recharge Safecoin">
+            <div className="mt-5 grid grid-cols-2 gap-2 border border-line-soft bg-clay p-1 rounded-xl" role="tablist" aria-label="Mode de recharge Safecoin">
               <button type="button" role="tab" aria-selected={mode === "online"} disabled={!geniusPayEnabled} onClick={() => setMode("online")} className={`px-3 py-2 text-sm font-semibold ${mode === "online" ? "bg-paper text-ink shadow-sm" : "text-ink-soft"}`}>Paiement en ligne</button>
               <button type="button" role="tab" aria-selected={mode === "manual"} onClick={() => setMode("manual")} className={`px-3 py-2 text-sm font-semibold ${mode === "manual" ? "bg-paper text-ink shadow-sm" : "text-ink-soft"}`}>Dépôt manuel</button>
             </div>
@@ -258,17 +258,17 @@ export default function SafecoinWalletCard({
 
             {mode === "online" && geniusPayEnabled ? (
               <form action={onlineAction} className="mt-5 space-y-5">
-                <div><label className="mb-1 block text-sm font-medium text-ink">Montant à convertir (FCFA)</label><input name="amount" type="number" min={200} max={5000000} step={100} required placeholder="10000" className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none" /><p className="mt-1 text-xs text-ink-soft">Minimum 200 FCFA · le crédit sera calculé au taux actif.</p></div>
-                <fieldset><legend className="text-sm font-medium text-ink">Moyen de paiement</legend><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{WALLET_PAYMENT_METHODS.map((method) => <label key={method.id} className="cursor-pointer"><input type="radio" name="paymentMethod" value={method.id} checked={selectedMethod === method.id} onChange={() => setSelectedMethod(method.id)} className="peer sr-only" /><span className="flex h-full flex-col border-2 border-line-soft px-3 py-2.5 peer-checked:border-brand-deep peer-checked:bg-brand/20"><span className="text-sm font-semibold text-ink">{method.label}</span><span className="mt-0.5 text-[11px] text-ink-soft">{method.hint}</span></span></label>)}</div></fieldset>
-                <div><label className="mb-1 flex items-center gap-1.5 text-sm font-medium text-ink"><Globe2 className="h-4 w-4 text-ink-soft" aria-hidden="true" /> Pays de paiement</label><select name="countryIso2" value={countryIso2} onChange={(event) => setCountryIso2(event.target.value)} className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm">{countries.map((country) => <option key={country.iso2} value={country.iso2}>{countryFlag(country.iso2)} {country.name} ({country.dialCode})</option>)}</select></div>
-                <div><label className="mb-1 block text-sm font-medium text-ink" htmlFor="sc-phone">Numéro mobile money {needsPhone ? <span className="text-red-600">*</span> : <span className="text-ink-soft">(optionnel)</span>}</label><input id="sc-phone" name="phone" type="tel" inputMode="tel" required={needsPhone} placeholder="07 00 00 00 00" className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none" /><p className="mt-1 text-xs text-ink-soft">Requis pour Orange Money et MTN MoMo. L’indicatif du pays est ajouté automatiquement.</p></div>
+                <div><label className="mb-1 block text-sm font-medium text-ink">Montant à convertir (FCFA)</label><input name="amount" type="number" min={200} max={5000000} step={100} required placeholder="10000" className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none rounded-lg" /><p className="mt-1 text-xs text-ink-soft">Minimum 200 FCFA · le crédit sera calculé au taux actif.</p></div>
+                <fieldset><legend className="text-sm font-medium text-ink">Moyen de paiement</legend><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{WALLET_PAYMENT_METHODS.map((method) => <label key={method.id} className="cursor-pointer"><input type="radio" name="paymentMethod" value={method.id} checked={selectedMethod === method.id} onChange={() => setSelectedMethod(method.id)} className="peer sr-only" /><span className="flex h-full flex-col border border-line-soft px-3 py-2.5 peer-checked:border-brand-deep peer-checked:bg-brand/20"><span className="text-sm font-semibold text-ink">{method.label}</span><span className="mt-0.5 text-[11px] text-ink-soft">{method.hint}</span></span></label>)}</div></fieldset>
+                <div><label className="mb-1 flex items-center gap-1.5 text-sm font-medium text-ink"><Globe2 className="h-4 w-4 text-ink-soft" aria-hidden="true" /> Pays de paiement</label><select name="countryIso2" value={countryIso2} onChange={(event) => setCountryIso2(event.target.value)} className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm rounded-lg">{countries.map((country) => <option key={country.iso2} value={country.iso2}>{countryFlag(country.iso2)} {country.name} ({country.dialCode})</option>)}</select></div>
+                <div><label className="mb-1 block text-sm font-medium text-ink" htmlFor="sc-phone">Numéro mobile money {needsPhone ? <span className="text-red-600">*</span> : <span className="text-ink-soft">(optionnel)</span>}</label><input id="sc-phone" name="phone" type="tel" inputMode="tel" required={needsPhone} placeholder="07 00 00 00 00" className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none rounded-lg" /><p className="mt-1 text-xs text-ink-soft">Requis pour Orange Money et MTN MoMo. L’indicatif du pays est ajouté automatiquement.</p></div>
                 <button type="submit" disabled={onlinePending} className="inline-flex w-full items-center justify-center gap-2 bg-ink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{onlinePending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="h-4 w-4" aria-hidden="true" />}{onlinePending ? "Ouverture du paiement…" : "Continuer vers Genius Pay"}</button>
               </form>
             ) : (
               <form action={manualAction} className="mt-5 space-y-4">
-                <div className="flex gap-2 border border-line-soft bg-clay px-3 py-2.5 text-xs text-ink-soft"><Check className="h-4 w-4 shrink-0 text-ok" aria-hidden="true" /> Le dépôt manuel doit être confirmé par l&apos;équipe SafeLinkHub.</div>
-                <div><label className="mb-1 block text-sm font-medium text-ink">Montant confirmé (FCFA)</label><input name="amount" type="number" min={100} required placeholder="10000" className="w-full border border-line-soft px-3 py-2.5 text-sm" /></div>
-                <div><label className="mb-1 block text-sm font-medium text-ink">Référence ou note</label><input name="note" placeholder="Ex : reçu Wave du 22/07" className="w-full border border-line-soft px-3 py-2.5 text-sm" /></div>
+                <div className="flex gap-2 border border-line-soft bg-clay px-3 py-2.5 text-xs text-ink-soft rounded-xl"><Check className="h-4 w-4 shrink-0 text-ok" aria-hidden="true" /> Le dépôt manuel doit être confirmé par l&apos;équipe SafeLinkHub.</div>
+                <div><label className="mb-1 block text-sm font-medium text-ink">Montant confirmé (FCFA)</label><input name="amount" type="number" min={100} required placeholder="10000" className="w-full border border-line-soft px-3 py-2.5 text-sm rounded-lg" /></div>
+                <div><label className="mb-1 block text-sm font-medium text-ink">Référence ou note</label><input name="note" placeholder="Ex : reçu Wave du 22/07" className="w-full border border-line-soft px-3 py-2.5 text-sm rounded-lg" /></div>
                 <button type="submit" disabled={manualPending} className="inline-flex w-full items-center justify-center gap-2 bg-ink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{manualPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}{manualPending ? "Enregistrement…" : "Enregistrer le dépôt confirmé"}</button>
               </form>
             )}
@@ -291,7 +291,7 @@ function SafecoinEditModal({ entry, onClose }: { entry: Entry; onClose: () => vo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md border-2 border-line bg-paper p-5 shadow-[8px_8px_0_rgba(28,25,23,.25)] sm:p-6">
+      <div className="w-full max-w-md border border-line bg-paper p-5 shadow-[8px_8px_0_rgba(28,25,23,.25)] sm:p-6 rounded-lg">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-deep">
@@ -317,7 +317,7 @@ function SafecoinEditModal({ entry, onClose }: { entry: Entry; onClose: () => vo
               step="0.01"
               required
               defaultValue={entry.amountScCents / 100}
-              className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none"
+              className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none rounded-lg"
             />
             <p className="mt-1 text-xs text-ink-soft">Négatif = débit (frais, accès VPN…), positif = crédit.</p>
           </div>
@@ -327,7 +327,7 @@ function SafecoinEditModal({ entry, onClose }: { entry: Entry; onClose: () => vo
             <select
               name="status"
               defaultValue={entry.status}
-              className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink focus:outline-none"
+              className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink focus:outline-none rounded-lg"
             >
               {Object.entries(SC_STATUS_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -343,11 +343,11 @@ function SafecoinEditModal({ entry, onClose }: { entry: Entry; onClose: () => vo
               name="note"
               defaultValue={entry.note ?? ""}
               placeholder="Ex : correction du 24/07"
-              className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none"
+              className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none rounded-lg"
             />
           </div>
 
-          <p className="border border-line-soft bg-clay px-3 py-2 text-xs leading-5 text-ink-soft">
+          <p className="border border-line-soft bg-clay px-3 py-2 text-xs leading-5 text-ink-soft rounded-xl">
             Le solde Safecoin est <b>recalculé</b> depuis le journal après enregistrement (somme des
             écritures confirmées). Changer le montant ou le statut peut donc modifier le solde.
           </p>
@@ -357,7 +357,7 @@ function SafecoinEditModal({ entry, onClose }: { entry: Entry; onClose: () => vo
               type="button"
               onClick={onClose}
               disabled={pending}
-              className="flex-1 border border-line-soft bg-paper px-4 py-2.5 text-sm font-semibold text-ink hover:bg-clay disabled:opacity-60"
+              className="flex-1 border border-line-soft bg-paper px-4 py-2.5 text-sm font-semibold text-ink hover:bg-clay disabled:opacity-60 rounded-xl"
             >
               Annuler
             </button>

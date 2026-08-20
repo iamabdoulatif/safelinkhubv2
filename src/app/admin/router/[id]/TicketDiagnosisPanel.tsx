@@ -28,7 +28,7 @@ export default function TicketDiagnosisPanel({ routerId }: { routerId: string })
   const [result, setResult] = useState<Diagnosis | null>(null);
 
   return (
-    <section className="mt-6 border-2 border-line bg-paper p-5">
+    <section className="mt-6 border border-line bg-paper p-5 rounded-xl">
       <div className="flex items-center gap-2">
         <Stethoscope className="h-4.5 w-4.5 text-ink" aria-hidden="true" />
         <h2 className="font-display text-base font-bold text-ink">
@@ -61,12 +61,12 @@ export default function TicketDiagnosisPanel({ routerId }: { routerId: string })
           onChange={(e) => setCode(e.target.value.trim())}
           placeholder="code du ticket (facultatif)"
           aria-label="Code du ticket à diagnostiquer"
-          className="w-56 border-2 border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className="w-56 border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
         />
         <button
           type="submit"
           disabled={pending}
-          className="flex items-center gap-2 border-2 border-line bg-paper px-4 py-2 text-sm font-bold text-ink hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center gap-2 border border-line bg-paper px-4 py-2 text-sm font-bold text-ink hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60 rounded-xl"
         >
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -124,7 +124,7 @@ export default function TicketDiagnosisPanel({ routerId }: { routerId: string })
           {result.recentLog.length > 0 && (
             <div>
               <p className="text-xs font-bold text-ink">Journal hotspot du routeur</p>
-              <pre className="mt-1 max-h-48 overflow-auto border-2 border-line-soft bg-clay/40 p-2 font-mono text-[11px] leading-5 text-ink-soft">
+              <pre className="mt-1 max-h-48 overflow-auto border border-line-soft bg-clay/40 p-2 font-mono text-[11px] leading-5 text-ink-soft rounded-xl">
                 {result.recentLog.join("\n")}
               </pre>
             </div>

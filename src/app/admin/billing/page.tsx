@@ -122,7 +122,7 @@ export default async function BillingPage({
         Informations sur votre organisation SafeLinkHub.
       </p>
 
-      <div className="mt-6 border-2 border-line bg-paper p-6">
+      <div className="mt-6 border border-line bg-paper p-6 rounded-xl">
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-sm text-ink-soft">Organisation</dt>
@@ -145,7 +145,7 @@ export default async function BillingPage({
         </dl>
       </div>
 
-      <div className="mt-6 border-2 border-line bg-paper p-4 sm:p-6 hover-lift">
+      <div className="mt-6 border border-line bg-paper p-4 sm:p-6 hover-lift rounded-xl">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-ink" />
           <h2 className="font-semibold text-ink">Portefeuille</h2>
@@ -236,7 +236,7 @@ export default async function BillingPage({
         </div>
       )}
 
-      <div className="mt-6 border-2 border-line bg-paper p-6">
+      <div className="mt-6 border border-line bg-paper p-6 rounded-xl">
         <h2 className="font-semibold text-ink">Gérer votre abonnement</h2>
         <p className="mt-2 text-sm text-ink-soft">
           Les dépôts en ligne sont confirmés automatiquement par la passerelle. Les

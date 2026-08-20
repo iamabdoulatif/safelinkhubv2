@@ -96,7 +96,7 @@ export default function GenerateOpenvpnScriptForm() {
           </pre>
           <button
             onClick={copyCommand}
-            className="absolute right-2 top-2 rounded-md bg-[#3A362F] p-1.5 text-white hover:bg-[#3A362F]"
+            className="absolute right-2 top-2 rounded-md bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
             title="Copier la commande"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -162,7 +162,7 @@ export default function GenerateOpenvpnScriptForm() {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+          className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
         >
           {pending ? "Génération..." : "Générer le script d'installation"}
         </button>

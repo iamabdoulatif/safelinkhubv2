@@ -42,7 +42,7 @@ test("le panneau d’organisation ciblée expose les résumés et les parcours d
 test("le panneau d’organisation ciblée conserve les éléments essentiels en mode compact", () => {
   const markup = renderToStaticMarkup(<OrganizationFocusPanel compact focus={focus} />);
 
-  assert.match(markup, /class="border-2 border-line bg-brand\/10 p-4 md:p-5"/);
+  assert.match(markup, /class="border border-line bg-brand\/10 p-4 md:p-5"/);
   assert.match(markup, /class="mt-4 grid gap-3 border-y border-line py-3 sm:grid-cols-2 xl:grid-cols-5"/);
   assert.match(markup, /Organisation ciblée/);
   assert.match(markup, /Vue limitée aux utilisateurs et routeurs de cette organisation/);

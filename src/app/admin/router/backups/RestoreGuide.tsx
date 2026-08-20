@@ -40,7 +40,7 @@ export default function RestoreGuide() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="mt-6 border-2 border-line bg-paper">
+    <div className="mt-6 border border-line bg-paper">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

@@ -274,7 +274,7 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
           type="button"
           onClick={copyCommand}
           title="Copier la commande"
-          className="absolute right-1.5 top-1.5 rounded-md bg-[#3A362F] p-1.5 text-white hover:bg-[#3A362F]"
+          className="absolute right-1.5 top-1.5 rounded-md bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>

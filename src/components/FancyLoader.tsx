@@ -65,7 +65,7 @@ export default function FancyLoader({
           />
           <span
             className={cn(
-              "relative inline-flex rounded-full border-2",
+              "relative inline-flex rounded-full border",
               s.ring,
               c,
             )}
@@ -147,7 +147,7 @@ export default function FancyLoader({
     return (
       <div className={cn("flex flex-col items-center gap-3", className)}>
         <div className={cn("relative", s.container)}>
-          <div className={cn("absolute inset-0 rounded-full border-2 opacity-20", c)} />
+          <div className={cn("absolute inset-0 rounded-full border opacity-20", c)} />
           <div className={cn("absolute inset-2 rounded-full border opacity-10", c)} />
           <div className="absolute inset-0 animate-orbit">
             <div className={cn("absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full", s.dot, bg)} />
@@ -210,8 +210,8 @@ export function ButtonLoader({
 }) {
   const s = {
     xs: "h-3.5 w-3.5 border-[1.5px]",
-    sm: "h-4 w-4 border-2",
-    md: "h-5 w-5 border-2",
+    sm: "h-4 w-4 border",
+    md: "h-5 w-5 border",
   };
 
   return (

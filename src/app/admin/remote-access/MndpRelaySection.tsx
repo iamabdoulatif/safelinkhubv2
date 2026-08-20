@@ -40,7 +40,7 @@ export default function MndpRelaySection() {
   }
 
   return (
-    <div className="mt-10 border-2 border-line bg-paper p-6">
+    <div className="mt-10 border border-line bg-paper p-6 rounded-xl">
       <div className="flex items-center gap-2">
         <Radar className="h-5 w-5 text-ink" />
         <h2 className="font-semibold text-ink">
@@ -72,7 +72,7 @@ export default function MndpRelaySection() {
         type="button"
         onClick={handleActivate}
         disabled={pending}
-        className="mt-4 flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+        className="mt-4 flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
       >
         {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         {pending ? "Activation..." : "Activer / Actualiser la découverte"}

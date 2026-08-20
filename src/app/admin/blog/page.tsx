@@ -32,7 +32,7 @@ export default async function AdminBlogPage() {
         </div>
         <Link
           href="/admin/blog/new"
-          className="flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper"
+          className="flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper rounded-full"
         >
           <Plus className="h-4 w-4" />
           Nouvel article
@@ -40,7 +40,7 @@ export default async function AdminBlogPage() {
       </div>
 
       {posts.length === 0 ? (
-        <div className="mt-6 border-2 border-line bg-paper p-8 text-center">
+        <div className="mt-6 border border-line bg-paper p-8 text-center rounded-xl">
           <p className="font-semibold text-ink">Aucun article.</p>
           <p className="mt-1 text-sm text-ink-soft">
             Créez votre premier article avec le bouton « Nouvel article ».
@@ -51,7 +51,7 @@ export default async function AdminBlogPage() {
           {/* Mobile : cartes empilées */}
           <div className="mt-4 space-y-3 md:hidden">
             {posts.map((post) => (
-              <div key={post.id} className="border-2 border-line bg-paper p-4">
+              <div key={post.id} className="border border-line bg-paper p-4 rounded-xl">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-ink">{post.title}</p>
@@ -59,7 +59,7 @@ export default async function AdminBlogPage() {
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                      post.published ? "bg-brand text-[#1C1917]" : "bg-clay text-ink-soft"
+                      post.published ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"
                     }`}
                   >
                     {post.published ? "Publié" : "Brouillon"}
@@ -71,7 +71,7 @@ export default async function AdminBlogPage() {
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line-soft pt-3">
                   <Link
                     href={`/admin/blog/${post.id}`}
-                    className="border-2 border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay"
+                    className="border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
                   >
                     Modifier
                   </Link>
@@ -79,7 +79,7 @@ export default async function AdminBlogPage() {
                     <input type="hidden" name="id" value={post.id} />
                     <button
                       type="submit"
-                      className="border-2 border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay"
+                      className="border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
                     >
                       {post.published ? "Dépublier" : "Publier"}
                     </button>
@@ -91,7 +91,7 @@ export default async function AdminBlogPage() {
           </div>
 
           {/* Desktop : tableau */}
-          <div className="mt-4 hidden overflow-x-auto border-2 border-line bg-paper md:block">
+          <div className="mt-4 hidden overflow-x-auto border border-line bg-paper md:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line-soft bg-clay text-ink-soft">
                 <tr>
@@ -122,7 +122,7 @@ export default async function AdminBlogPage() {
                     <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          post.published ? "bg-brand text-[#1C1917]" : "bg-clay text-ink-soft"
+                          post.published ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"
                         }`}
                       >
                         {post.published ? "Publié" : "Brouillon"}
@@ -133,7 +133,7 @@ export default async function AdminBlogPage() {
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/admin/blog/${post.id}`}
-                          className="border-2 border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay"
+                          className="border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
                         >
                           Modifier
                         </Link>
@@ -141,7 +141,7 @@ export default async function AdminBlogPage() {
                           <input type="hidden" name="id" value={post.id} />
                           <button
                             type="submit"
-                            className="border-2 border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay"
+                            className="border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-clay rounded-xl"
                           >
                             {post.published ? "Dépublier" : "Publier"}
                           </button>

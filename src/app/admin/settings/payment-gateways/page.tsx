@@ -14,9 +14,9 @@ export default async function PaymentGatewaysPage() {
       <div className="flex items-center gap-3">
         <span
           aria-hidden="true"
-          className="flex h-10 w-10 items-center justify-center border-2 border-line bg-brand"
+          className="flex h-10 w-10 items-center justify-center border border-line bg-brand"
         >
-          <CreditCard className="h-5 w-5 text-[#1C1917]" />
+          <CreditCard className="h-5 w-5 text-slate-deep" />
         </span>
         <div>
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink">
@@ -54,7 +54,7 @@ export default async function PaymentGatewaysPage() {
         })}
       </div>
 
-      <p className="mt-6 border-2 border-line bg-clay px-4 py-3 text-xs leading-5 text-ink">
+      <p className="mt-6 border border-line bg-clay px-4 py-3 text-xs leading-5 text-ink rounded-xl">
         Les clés sont chiffrées au repos. <strong>Genius Pay</strong> est branché
         au portail captif : une fois activé avec vos clés, l&apos;achat d&apos;un
         forfait déclenche un vrai paiement, puis le code d&apos;accès est créé sur

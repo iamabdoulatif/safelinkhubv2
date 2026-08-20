@@ -164,7 +164,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
           ["Services activés", activeServices, "WinBox · WebFig · SSH · MikHmon"],
           ["À vérifier", expiredServices, expiredServices ? "Accès arrivés à échéance" : "Aucune échéance dépassée"],
         ].map(([label, value, hint]) => (
-          <div key={String(label)} className="border-2 border-line bg-paper p-4">
+          <div key={String(label)} className="border border-line bg-paper p-4 rounded-xl">
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-soft">{label}</p>
             <p className="mt-2 text-2xl font-bold tabular-nums text-ink">{value}</p>
             <p className="mt-1 text-xs text-ink-soft">{hint}</p>
@@ -172,7 +172,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
         ))}
       </div>
 
-      <div className="flex items-center gap-3 border-2 border-line bg-paper px-4 py-3">
+      <div className="flex items-center gap-3 border border-line bg-paper px-4 py-3 rounded-xl">
         <Search className="h-4 w-4 shrink-0 text-ink-soft" aria-hidden="true" />
         <input
           value={query}
@@ -186,7 +186,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
       {notice && <div className="border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">{notice}</div>}
 
       {groups.length === 0 ? (
-        <div className="border-2 border-dashed border-line bg-paper px-6 py-14 text-center">
+        <div className="border border-dashed border-line bg-paper px-6 py-14 text-center">
           <Wifi className="mx-auto h-8 w-8 text-ink-soft" aria-hidden="true" />
           <p className="mt-3 font-semibold text-ink">Aucun accès VPN actif trouvé</p>
           <p className="mt-1 text-sm text-ink-soft">Les achats apparaîtront ici dès qu’un accès distant sera activé.</p>
@@ -198,7 +198,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
             const current = credentials[row.routerId];
             const open = expanded === row.routerId;
             return (
-              <article key={row.routerId} className="overflow-hidden border-2 border-line bg-paper">
+              <article key={row.routerId} className="overflow-hidden border border-line bg-paper">
                 <button
                   type="button"
                   onClick={() => setExpanded(open ? null : row.routerId)}

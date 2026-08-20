@@ -63,7 +63,7 @@ export default function UnbindMacTicketsButton() {
             router.refresh();
           })
         }
-        className="flex items-center gap-2 border-2 border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex items-center gap-2 border border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60 rounded-xl"
       >
         {pending ? (
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />

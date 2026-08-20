@@ -48,7 +48,7 @@ export default function RouterReplacementSection({ rows }: { rows: RecoveryRow[]
 
   if (rows.length === 0) {
     return (
-      <div className="border-2 border-line bg-paper p-5">
+      <div className="border border-line bg-paper p-5 rounded-xl">
         <div className="flex items-start gap-3">
           <CheckCircle2 className="mt-0.5 h-5 w-5 text-ok" aria-hidden="true" />
           <div>
@@ -62,7 +62,7 @@ export default function RouterReplacementSection({ rows }: { rows: RecoveryRow[]
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-3 border-2 border-line bg-paper p-5">
+      <div className="flex items-start gap-3 border border-line bg-paper p-5 rounded-xl">
         <RotateCcw className="mt-0.5 h-5 w-5 text-ok" aria-hidden="true" />
         <div>
           <h2 className="font-semibold text-ink">Reprise d’un routeur</h2>
@@ -75,7 +75,7 @@ export default function RouterReplacementSection({ rows }: { rows: RecoveryRow[]
         const isInProgress = replacement?.status === "installing";
         const needsAction = !replacement || replacement.status === "pending" || replacement.status === "failed";
         return (
-          <article key={source.id} className="overflow-hidden border-2 border-line bg-paper">
+          <article key={source.id} className="overflow-hidden border border-line bg-paper">
             <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">

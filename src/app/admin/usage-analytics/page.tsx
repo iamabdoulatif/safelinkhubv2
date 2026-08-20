@@ -92,23 +92,23 @@ export default async function UsageAnalyticsPage() {
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="border-2 border-line bg-paper p-4 hover-lift">
+        <div className="border border-line bg-paper p-4 hover-lift rounded-xl">
           <p className="text-sm text-ink-soft">Utilisateurs actifs</p>
           <p className="mt-2 text-2xl font-semibold text-ink">
             {totalActiveUsers}
           </p>
         </div>
-        <div className="border-2 border-line bg-paper p-4 hover-lift">
+        <div className="border border-line bg-paper p-4 hover-lift rounded-xl">
           <p className="text-sm text-ink-soft">Routeurs en ligne</p>
           <p className="mt-2 text-2xl font-semibold text-ink">
             {onlineRouters} / {allRouters.length}
           </p>
         </div>
-        <div className="border-2 border-line bg-paper p-4 hover-lift">
+        <div className="border border-line bg-paper p-4 hover-lift rounded-xl">
           <p className="text-sm text-ink-soft">Charge CPU moyenne</p>
           <p className="mt-2 text-2xl font-semibold text-ink">{avgCpu}%</p>
         </div>
-        <div className="border-2 border-line bg-paper p-4 hover-lift">
+        <div className="border border-line bg-paper p-4 hover-lift rounded-xl">
           <p className="text-sm text-ink-soft">Mémoire moyenne</p>
           <p className="mt-2 text-2xl font-semibold text-ink">
             {avgMemory}%
@@ -116,7 +116,7 @@ export default async function UsageAnalyticsPage() {
         </div>
       </div>
 
-      <div className="mt-6 border-2 border-line bg-paper p-6">
+      <div className="mt-6 border border-line bg-paper p-6 rounded-xl">
         <h2 className="font-semibold text-ink">
           Activations de tickets (14 derniers jours)
         </h2>
@@ -135,7 +135,7 @@ export default async function UsageAnalyticsPage() {
         />
       </div>
 
-      <div className="mt-6 overflow-hidden border-2 border-line bg-paper">
+      <div className="mt-6 overflow-hidden border border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">

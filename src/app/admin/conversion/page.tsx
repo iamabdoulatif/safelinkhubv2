@@ -137,7 +137,7 @@ export default async function ConversionPage() {
           { label: "Abandonné avant", value: sum.abandoned, tone: "text-err", sub: "sans checkout" },
           { label: "Revenu payé", value: fcfa(sum.revenue), tone: "text-ink", sub: `${sum.total} commandes` },
         ].map((c) => (
-          <div key={c.label} className="border-2 border-line bg-paper p-4">
+          <div key={c.label} className="border border-line bg-paper p-4 rounded-xl">
             <p className="font-mono text-[11px] font-semibold uppercase tracking-wide text-ink-soft">{c.label}</p>
             <p className={`mt-1 font-display text-2xl font-extrabold tabular-nums ${c.tone}`}>{c.value}</p>
             <p className="mt-0.5 text-xs text-ink-soft">{c.sub}</p>
@@ -159,9 +159,9 @@ export default async function ConversionPage() {
       </div>
 
       {/* Table par jour */}
-      <div className="mt-3 overflow-x-auto border-2 border-line bg-paper">
+      <div className="mt-3 overflow-x-auto border border-line bg-paper">
         <table className="w-full text-left text-sm">
-          <thead className="border-b-2 border-line bg-clay">
+          <thead className="border-b border-line bg-clay">
             <tr className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
               <th className="px-4 py-3">Jour</th>
               <th className="px-4 py-3">Répartition</th>
@@ -210,9 +210,9 @@ export default async function ConversionPage() {
           <p className="mt-1 text-sm text-ink-soft">
             Références GeniusPay non encore confirmées — elles ne sont pas comptées dans le revenu.
           </p>
-          <div className="mt-3 overflow-x-auto border-2 border-warn bg-paper">
+          <div className="mt-3 overflow-x-auto border border-warn bg-paper">
             <table className="w-full text-left text-sm">
-              <thead className="border-b-2 border-warn bg-amber-50">
+              <thead className="border-b border-warn bg-amber-50">
                 <tr className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
                   <th className="px-4 py-3">Client</th>
                   <th className="px-4 py-3">Forfait</th>

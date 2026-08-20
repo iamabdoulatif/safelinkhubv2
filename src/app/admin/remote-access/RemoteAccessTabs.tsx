@@ -37,7 +37,7 @@ export default function RemoteAccessTabs() {
         </button>
       </div>
 
-      <div className="mt-6 border-2 border-line bg-paper p-6">
+      <div className="mt-6 border border-line bg-paper p-6 rounded-xl">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5 text-ok" />
           <h2 className="font-semibold text-ink">

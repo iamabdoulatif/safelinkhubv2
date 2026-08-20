@@ -64,7 +64,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
             onDone();
             router.refresh();
           }}
-          className="mt-4 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F]"
+          className="mt-4 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
         >
           J&apos;ai sauvegardé mes codes
         </button>
@@ -120,7 +120,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
           <button
             type="submit"
             disabled={confirmPending}
-            className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+            className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
           >
             {confirmPending ? "Vérification..." : "Activer"}
           </button>
@@ -214,7 +214,7 @@ export default function MfaSection({ mfaEnabled }: { mfaEnabled: boolean }) {
         <button
           type="button"
           onClick={() => setMode("enrolling")}
-          className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3A362F]"
+          className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line"
         >
           <Check className="h-3.5 w-3.5" />
           Activer la double authentification

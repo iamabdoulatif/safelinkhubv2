@@ -81,7 +81,7 @@ export default function InstallOnRouter({
           Aucun routeur dans votre organisation — ajoutez-en un d&apos;abord.
         </p>
       ) : (
-        <div className="mt-3 border-2 border-line bg-paper p-4">
+        <div className="mt-3 border border-line bg-paper p-4 rounded-xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
               <label className="mb-1 block text-sm font-medium text-ink">Routeur MikroTik</label>

@@ -21,7 +21,7 @@ function routerStatusLabel(status: string) {
 export function OrganizationFocusPanel({ focus, compact = false }: OrganizationFocusPanelProps) {
   return (
     <section
-      className={compact ? "border-2 border-line bg-brand/10 p-4 md:p-5" : "border-2 border-line bg-paper p-5 md:p-6"}
+      className={compact ? "border border-line bg-brand/10 p-4 md:p-5" : "border border-line bg-paper p-5 md:p-6"}
       aria-labelledby={`organization-focus-${focus.id}`}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -37,14 +37,14 @@ export function OrganizationFocusPanel({ focus, compact = false }: OrganizationF
         <div className="flex flex-wrap gap-2">
           <Link
             href="/admin/router?scope=clients"
-            className="inline-flex items-center gap-2 border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink transition-colors hover:bg-clay"
+            className="inline-flex items-center gap-2 border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink transition-colors hover:bg-clay rounded-xl"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Retour aux parcs clients
           </Link>
           {focus.routerTableHref && (
             <Link
               href={focus.routerTableHref}
-              className="inline-flex items-center gap-2 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-ink transition-colors hover:bg-ink hover:text-paper"
+              className="inline-flex items-center gap-2 border border-line bg-brand px-3 py-2 text-sm font-bold text-ink transition-colors hover:bg-ink hover:text-paper"
             >
               Voir la table technique <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
             </Link>
@@ -102,7 +102,7 @@ export function OrganizationFocusPanel({ focus, compact = false }: OrganizationF
                   <span>{router.activeUsers ?? 0} {pluralize(router.activeUsers ?? 0, "utilisateur actif", "utilisateurs actifs")}</span>
                   <Link
                     href={`/admin/router/${router.id}`}
-                    className="inline-flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1.5 font-semibold text-ink hover:bg-clay"
+                    className="inline-flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1.5 font-semibold text-ink hover:bg-clay rounded-xl"
                   >
                     Détail <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>

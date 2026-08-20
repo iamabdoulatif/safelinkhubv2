@@ -47,7 +47,7 @@ export default async function SupportPage() {
       </p>
 
       {community.length > 0 && (
-        <div className="mt-6 border-2 border-line bg-paper p-4">
+        <div className="mt-6 border border-line bg-paper p-4 rounded-xl">
           <h2 className="text-sm font-semibold text-ink">Rejoignez la communauté</h2>
           <p className="mt-1 text-xs text-ink-soft">
             Actualités, entraide et astuces avec les autres opérateurs SafeLinkHub.
@@ -73,7 +73,7 @@ export default async function SupportPage() {
         <NewTicketForm />
       </div>
 
-      <div className="mt-6 overflow-hidden border-2 border-line bg-paper">
+      <div className="mt-6 overflow-hidden border border-line bg-paper">
         <div className="border-b border-line-soft bg-clay px-4 py-3">
           <h2 className="text-sm font-medium text-ink-soft">Vos demandes</h2>
         </div>

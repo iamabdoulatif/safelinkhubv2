@@ -97,7 +97,7 @@ function RouterBypass({
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
               enabled
                 ? "border border-line text-ink hover:bg-clay"
-                : "bg-ink text-white hover:bg-[#3A362F]"
+                : "bg-ink text-white hover:bg-slate-deep-line"
             }`}
           >
             {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -155,7 +155,7 @@ export default function Ipv6BypassSection({
   if (routers.length === 0) return null;
 
   return (
-    <div className="border-2 border-line bg-paper p-6">
+    <div className="border border-line bg-paper p-6 rounded-xl">
       <div className="flex items-center gap-2">
         <Globe className="h-5 w-5 text-ink" />
         <h2 className="font-semibold text-ink">Bypass IPv6</h2>

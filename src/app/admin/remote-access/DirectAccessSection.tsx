@@ -421,7 +421,7 @@ function RouterDirectAccess({
               type="button"
               disabled={pending}
               onClick={(event) => requestEnableAll(event.currentTarget)}
-              className="flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-[#1C1917] hover:bg-brand-deep disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-slate-deep hover:bg-brand-deep disabled:opacity-60"
             >
               {pending && pendingService && (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -476,7 +476,7 @@ function RouterDirectAccess({
                       }
                       disabled={busy}
                       title="Plan de facturation (paiement non encore activé)"
-                      className="rounded-md border-2 border-line bg-paper px-1.5 py-1 text-[11px] text-ink-soft focus:border-line-soft focus:outline-none disabled:opacity-50"
+                      className="rounded-md border border-line bg-paper px-1.5 py-1 text-[11px] text-ink-soft focus:border-line-soft focus:outline-none disabled:opacity-50"
                     >
                       {quotaExpiresAt ? (
                         <option value="__quota__">Accès gratuit jusqu&apos;au {formatExpiry(quotaExpiresAt)}</option>
@@ -739,7 +739,7 @@ export default function DirectAccessSection({
   if (eligible.length === 0) return null;
 
   return (
-    <div className="mt-10 border-2 border-line bg-paper p-4 sm:p-6">
+    <div className="mt-10 border border-line bg-paper p-4 sm:p-6 rounded-xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Globe2 className="h-5 w-5 text-ink" />

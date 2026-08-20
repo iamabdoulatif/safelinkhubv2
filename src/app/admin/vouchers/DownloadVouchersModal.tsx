@@ -76,7 +76,7 @@ export default function DownloadVouchersModal({
       <button
         onClick={() => setOpen(true)}
         disabled={count === 0}
-        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-40"
+        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-40"
       >
         Télécharger la sélection
       </button>
@@ -146,7 +146,7 @@ export default function DownloadVouchersModal({
               <button
                 onClick={handleDownload}
                 disabled={busy}
-                className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-[#3A362F] disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                 {busy ? "Préparation…" : "Télécharger"}

@@ -21,9 +21,9 @@ export function RouterPortfolioTabs({ activeScope }: RouterPortfolioTabsProps) {
             key={scope}
             href={href}
             aria-current={isActive ? "page" : undefined}
-            className={`inline-flex border-2 border-line px-4 py-2 text-sm font-bold transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+            className={`inline-flex border border-line px-4 py-2 text-sm font-bold transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
               isActive
-                ? "bg-brand text-[#1C1917]"
+                ? "bg-brand text-slate-deep"
                 : "bg-paper text-ink hover:bg-clay"
             }`}
           >

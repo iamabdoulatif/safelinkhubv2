@@ -15,7 +15,7 @@ export default function VpnQuotaForm({ userId, userEmail }: { userId: string; us
         <select
           name="grant"
           disabled={pending}
-          className="h-9 rounded-md border-2 border-line bg-paper px-2 text-xs text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-60"
+          className="h-9 rounded-md border border-line bg-paper px-2 text-xs text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-60"
           aria-label={`Quota VPN pour ${userEmail}`}
         >
           <optgroup label="Promo · parrainage · récompense">
@@ -36,7 +36,7 @@ export default function VpnQuotaForm({ userId, userEmail }: { userId: string; us
         <button
           type="submit"
           disabled={pending}
-          className="flex h-9 items-center gap-1.5 rounded-md bg-ink px-3 text-xs font-semibold text-white hover:bg-[#3A362F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex h-9 items-center gap-1.5 rounded-md bg-ink px-3 text-xs font-semibold text-white hover:bg-slate-deep-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending && <Loader2 className="h-3 w-3 animate-spin" />}
           {pending ? "Application..." : "Appliquer"}

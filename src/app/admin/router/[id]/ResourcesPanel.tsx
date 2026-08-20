@@ -37,7 +37,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-2 border-line bg-paper p-4">
+    <section className="border border-line bg-paper p-4 rounded-xl">
       <div className="flex items-center gap-2">
         <Icon aria-hidden="true" className="h-4 w-4 text-ink-soft" />
         <h3 className="font-display text-sm font-bold uppercase tracking-wide text-ink">{title}</h3>
@@ -70,7 +70,7 @@ export default function ResourcesPanel({ routerId }: { routerId: string }) {
 
   if (state.loading) {
     return (
-      <div className="flex flex-col items-center gap-2 border-2 border-line bg-paper py-10 text-sm text-ink-soft">
+      <div className="flex flex-col items-center gap-2 border border-line bg-paper py-10 text-sm text-ink-soft rounded-xl">
         <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
         Lecture des informations en direct...
       </div>
@@ -81,7 +81,7 @@ export default function ResourcesPanel({ routerId }: { routerId: string }) {
     return (
       <p
         role="alert"
-        className="flex items-center gap-2 border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-medium text-err"
+        className="flex items-center gap-2 border border-err bg-err-soft px-3 py-2.5 text-sm font-medium text-err"
       >
         <AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0" />
         {state.error}

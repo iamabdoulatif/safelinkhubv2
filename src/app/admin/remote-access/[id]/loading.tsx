@@ -4,7 +4,7 @@ export default function RouterRemoteAccessWorkspaceLoading() {
       <div className="h-5 w-56 bg-clay" />
       <div className="h-9 w-72 bg-clay" />
       {[0, 1, 2, 3].map((item) => (
-        <div key={item} className="h-48 border-2 border-line bg-paper" />
+        <div key={item} className="h-48 border border-line bg-paper" />
       ))}
     </div>
   );

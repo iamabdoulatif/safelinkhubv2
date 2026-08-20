@@ -102,7 +102,7 @@ export default function UploadedBackupsCard({
       </p>
 
       {/* Upload */}
-      <div className="mt-4 border-2 border-line bg-paper p-4">
+      <div className="mt-4 border border-line bg-paper p-4 rounded-xl">
         <label className="flex cursor-pointer items-center gap-2 text-sm font-bold text-ink">
           <input
             ref={fileRef}
@@ -112,13 +112,13 @@ export default function UploadedBackupsCard({
             disabled={uploading}
             className="hidden"
           />
-          <span className="inline-flex items-center gap-2 border-2 border-line bg-brand px-4 py-2 text-[#1C1917] transition hover:bg-ink hover:text-paper">
+          <span className="inline-flex items-center gap-2 border border-line bg-brand px-4 py-2 text-slate-deep transition hover:bg-ink hover:text-paper rounded-full">
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
             {uploading ? "Upload en cours…" : "Choisir un fichier .backup"}
           </span>
         </label>
         {uploadErr && (
-          <p role="alert" className="mt-3 border-2 border-err bg-err/10 px-3 py-2 text-sm font-medium text-err">
+          <p role="alert" className="mt-3 border border-err bg-err/10 px-3 py-2 text-sm font-medium text-err">
             {uploadErr}
           </p>
         )}
@@ -200,7 +200,7 @@ function UploadedRow({
   }
 
   return (
-    <div className="border-2 border-line bg-paper">
+    <div className="border border-line bg-paper">
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="font-bold text-ink">
@@ -221,13 +221,13 @@ function UploadedRow({
           onClick={doDelete}
           disabled={busy}
           aria-label="Supprimer"
-          className="self-start border-2 border-line-soft p-1.5 text-ink-soft transition hover:border-err hover:text-err disabled:opacity-50"
+          className="self-start border border-line-soft p-1.5 text-ink-soft transition hover:border-err hover:text-err disabled:opacity-50"
         >
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="flex flex-col gap-2 border-t-2 border-line-soft p-4 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 border-t border-line-soft p-4 sm:flex-row sm:items-center">
         <select
           value={targetId}
           onChange={(e) => {
@@ -236,7 +236,7 @@ function UploadedRow({
             setScan(null);
             setMsg(null);
           }}
-          className="w-full border-2 border-line bg-paper px-3 py-2 text-sm text-ink sm:flex-1"
+          className="w-full border border-line bg-paper px-3 py-2 text-sm text-ink sm:flex-1 rounded-lg"
         >
           <option value="">Restaurer vers… (routeur cible en ligne)</option>
           {online.map((r) => (
@@ -252,14 +252,14 @@ function UploadedRow({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Mot de passe du backup"
-            className="w-full border-2 border-line bg-paper px-3 py-2 text-sm text-ink sm:w-56"
+            className="w-full border border-line bg-paper px-3 py-2 text-sm text-ink sm:w-56 rounded-lg"
           />
         )}
         <button
           type="button"
           onClick={doScan}
           disabled={busy || !targetId}
-          className="flex items-center justify-center gap-1.5 border-2 border-line bg-paper px-3 py-2 text-sm font-bold text-ink transition hover:bg-clay disabled:opacity-50"
+          className="flex items-center justify-center gap-1.5 border border-line bg-paper px-3 py-2 text-sm font-bold text-ink transition hover:bg-clay disabled:opacity-50 rounded-xl"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
           Simuler
@@ -271,7 +271,7 @@ function UploadedRow({
             setConfirming(true);
           }}
           disabled={busy || !targetId}
-          className="flex items-center justify-center gap-1.5 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:opacity-50"
+          className="flex items-center justify-center gap-1.5 border border-line bg-brand px-3 py-2 text-sm font-bold text-slate-deep transition hover:bg-ink hover:text-paper disabled:opacity-50 rounded-full"
         >
           <RotateCcw className="h-4 w-4" />
           Restaurer (cloner)
@@ -279,7 +279,7 @@ function UploadedRow({
       </div>
 
       {scan && (
-        <div className="border-t-2 border-line-soft bg-clay px-4 py-3">
+        <div className="border-t border-line-soft bg-clay px-4 py-3">
           <p className="text-sm font-bold text-ink">
             Cible : {scan.plan.targetName} — {scan.plan.targetBoard} · RouterOS {scan.plan.targetVersion}
           </p>
@@ -295,7 +295,7 @@ function UploadedRow({
       )}
 
       {confirming && (
-        <div className="border-t-2 border-warn bg-warn/10 px-4 py-3">
+        <div className="border-t border-warn bg-warn/10 px-4 py-3">
           <p className="text-sm font-bold text-ink">
             Confirmer la restauration binaire sur ce routeur ? Toute sa configuration sera remplacée et il
             redémarrera.
@@ -318,7 +318,7 @@ function UploadedRow({
               type="button"
               onClick={doRestore}
               disabled={busy || !sameDeviceAndRouterOsConfirmed}
-              className="flex items-center gap-1.5 border-2 border-line bg-brand px-3 py-1.5 text-sm font-bold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:opacity-50"
+              className="flex items-center gap-1.5 border border-line bg-brand px-3 py-1.5 text-sm font-bold text-slate-deep transition hover:bg-ink hover:text-paper disabled:opacity-50 rounded-full"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               Oui, restaurer
@@ -327,7 +327,7 @@ function UploadedRow({
               type="button"
               onClick={resetConfirmation}
               disabled={busy}
-              className="border-2 border-line-soft px-3 py-1.5 text-sm font-bold text-ink transition hover:bg-clay"
+              className="border border-line-soft px-3 py-1.5 text-sm font-bold text-ink transition hover:bg-clay rounded-xl"
             >
               Annuler
             </button>
@@ -337,7 +337,7 @@ function UploadedRow({
 
       {msg && (
         <div
-          className={`border-t-2 px-4 py-3 text-sm ${
+          className={`border-t px-4 py-3 text-sm ${
             msg.ok ? "border-ok bg-ok/10 text-ink" : "border-err bg-err/10 text-err"
           }`}
         >

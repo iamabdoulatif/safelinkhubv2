@@ -7,7 +7,7 @@ import type { MarketingSettings } from "@/lib/marketing/queries";
 import { updateMarketingSettings } from "@/lib/marketing/actions";
 
 const INPUT_CLS =
-  "w-full border-2 border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ok focus:outline-none";
+  "w-full border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ok focus:outline-none";
 
 export default function MarketingForm({ settings }: { settings: MarketingSettings }) {
   const router = useRouter();
@@ -35,7 +35,7 @@ export default function MarketingForm({ settings }: { settings: MarketingSetting
 
   return (
     <form onSubmit={onSubmit} className="mt-6 space-y-6">
-      <section className="border-2 border-line bg-paper p-4 sm:p-6">
+      <section className="border border-line bg-paper p-4 sm:p-6 rounded-xl">
         <h2 className="text-sm font-semibold text-ink">Analytics &amp; pixels</h2>
         <div className="mt-4 space-y-4">
           <Field
@@ -67,7 +67,7 @@ export default function MarketingForm({ settings }: { settings: MarketingSetting
         </div>
       </section>
 
-      <section className="border-2 border-line bg-paper p-4 sm:p-6">
+      <section className="border border-line bg-paper p-4 sm:p-6 rounded-xl">
         <h2 className="text-sm font-semibold text-ink">Google AdSense (blog)</h2>
         <p className="mt-1 text-xs text-ink-soft">
           Affiche des publicités sur les articles et la liste du blog.
@@ -98,7 +98,7 @@ export default function MarketingForm({ settings }: { settings: MarketingSetting
         </div>
       </section>
 
-      <section className="border-2 border-line bg-paper p-4 sm:p-6">
+      <section className="border border-line bg-paper p-4 sm:p-6 rounded-xl">
         <h2 className="text-sm font-semibold text-ink">Communauté</h2>
         <p className="mt-1 text-xs text-ink-soft">
           Liens affichés aux organisations sur la page Support pour rejoindre la
@@ -130,7 +130,7 @@ export default function MarketingForm({ settings }: { settings: MarketingSetting
       </section>
 
       {error && (
-        <p className="border-2 border-err bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
+        <p className="border border-err bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
       )}
 
       <div className="flex items-center gap-3">

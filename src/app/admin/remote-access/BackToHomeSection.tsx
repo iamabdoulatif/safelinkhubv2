@@ -84,7 +84,7 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
           type="button"
           onClick={handleEnable}
           disabled={pending || router.status !== "online"}
-          className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A362F] disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
         >
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {pending ? "Activation..." : "Activer Back To Home"}
@@ -134,7 +134,7 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 1500);
                   }}
-                  className="absolute right-1 top-1 rounded bg-[#3A362F] p-1 text-white hover:bg-[#3A362F]"
+                  className="absolute right-1 top-1 rounded bg-slate-deep-line p-1 text-white hover:bg-slate-deep-line"
                 >
                   {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                 </button>
@@ -151,7 +151,7 @@ export default function BackToHomeSection({ routers }: { routers: RouterRow[] })
   if (routers.length === 0) return null;
 
   return (
-    <div className="mt-10 border-2 border-line bg-paper p-6">
+    <div className="mt-10 border border-line bg-paper p-6 rounded-xl">
       <div className="flex items-center gap-2">
         <Smartphone className="h-5 w-5 text-ink" />
         <h2 className="font-semibold text-ink">MikroTik Back To Home</h2>
