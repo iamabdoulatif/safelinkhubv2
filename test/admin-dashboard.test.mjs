@@ -63,3 +63,12 @@ test("le bandeau Safecoin n'écrase plus les revenus", async () => {
   assert.doesNotMatch(view, /bg-\[#1c1917\]/i, "plus de couleur en dur");
   assert.match(view, /bg-slate-deep/);
 });
+
+test("les sessions actives ne comptent pas les routeurs tombés", async () => {
+  // Constaté en production : HSPT-TOFESSO est hors ligne et conserve en base
+  // les 29 sessions de sa dernière synchronisation. Les additionner ferait
+  // annoncer 499 sessions « actives » dont 29 n'existent plus.
+  const queries = await read("src/lib/dashboard/queries.ts");
+  const bloc = queries.slice(queries.indexOf("const activeUsers"), queries.indexOf("const routersOffline"));
+  assert.match(bloc, /\.filter\(\(r\) => r\.status === "online"\)/);
+});

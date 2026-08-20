@@ -100,7 +100,15 @@ export async function getDashboardData(orgId: string, range: DashboardRange) {
   }
 
   const routersOnline = orgRouters.filter((r) => r.status === "online").length;
-  const activeUsers = orgRouters.reduce((sum, r) => sum + (r.activeUsers ?? 0), 0);
+  // Sessions comptées sur les routeurs EN LIGNE seulement. Un routeur tombé
+  // conserve en base le nombre relevé à sa dernière synchronisation : en
+  // production, HSPT-TOFESSO est hors ligne depuis des heures et pèse encore
+  // 29 sessions dans le total. Les additionner ferait annoncer « 499 sessions
+  // actives » alors que 29 d'entre elles n'existent plus — un dashboard qui
+  // prétend dire l'état courant ne peut pas compter des sessions mortes.
+  const activeUsers = orgRouters
+    .filter((r) => r.status === "online")
+    .reduce((sum, r) => sum + (r.activeUsers ?? 0), 0);
   // Nommer les routeurs tombés, pas seulement les compter : « 3 hors ligne »
   // n'aide personne, « TOFESSO, MAMBA et SHIA sont tombés » envoie quelqu'un
   // sur le bon site. Le nom vient de la requête déjà exécutée.
