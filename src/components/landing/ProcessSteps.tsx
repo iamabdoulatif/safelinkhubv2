@@ -15,9 +15,9 @@ export default function ProcessSteps() {
           title="Du carton au premier encaissement."
           marker="premier encaissement"
         />
-        <ol className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="stagger mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {processSteps.map((step, i) => (
-            <li key={step.title} className="slate-card bg-paper p-6">
+            <li key={step.title} className="reveal slate-card bg-paper p-6">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand font-mono text-xs font-bold text-slate-deep">
                 {String(i + 1).padStart(2, "0")}
               </span>

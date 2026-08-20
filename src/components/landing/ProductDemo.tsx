@@ -54,7 +54,7 @@ export default function ProductDemo() {
 
         <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Aperçu du tableau de bord */}
-          <div className="slate-card slate-card-raised flex flex-col overflow-hidden bg-paper lg:col-span-7">
+          <div className="reveal reveal-left slate-card slate-card-raised flex flex-col overflow-hidden bg-paper lg:col-span-7">
             <div className="flex items-center gap-2 border-b border-line bg-clay px-4 py-3">
               <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#F87171]" />
               <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#FBBF24]" />
@@ -94,7 +94,7 @@ export default function ProductDemo() {
           </div>
 
           {/* Vidéo de présentation */}
-          <figure className="lg:col-span-5">
+          <figure className="reveal reveal-right lg:col-span-5">
             <div className="slate-card slate-card-raised overflow-hidden bg-paper">
               <YouTubeEmbed
                 videoId={DEMO_VIDEO_ID}

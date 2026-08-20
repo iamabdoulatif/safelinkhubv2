@@ -13,9 +13,9 @@ export default function FaqSection() {
           title="Questions fréquentes."
           lead="Ce qu'on nous demande avant de connecter un premier routeur."
         />
-        <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="stagger mt-12 grid grid-cols-1 gap-4 md:grid-cols-2">
           {faqs.map((f) => (
-            <details key={f.q} className="slate-card group bg-paper p-5 sm:p-6">
+            <details key={f.q} className="reveal slate-card group bg-paper p-5 sm:p-6">
               <summary className="flex cursor-pointer list-none items-start justify-between gap-4 font-display text-base font-bold text-ink">
                 {f.q}
                 <Plus

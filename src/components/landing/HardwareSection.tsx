@@ -12,7 +12,7 @@ export default function HardwareSection() {
       className="border-b border-line bg-paper py-16 sm:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="slate-card overflow-hidden bg-clay">
+        <div className="reveal slate-card overflow-hidden bg-clay">
           {/* Photo décorative (Pexels, auto-hébergée) : alt vide, elle
               n'apporte rien qu'un lecteur d'écran doive entendre. */}
           <Image
@@ -47,9 +47,9 @@ export default function HardwareSection() {
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div className="stagger mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
           {hardware.map((h, i) => (
-            <article key={h.name} className="slate-card flex gap-5 bg-paper p-6 sm:p-7">
+            <article key={h.name} className="reveal slate-card flex gap-5 bg-paper p-6 sm:p-7">
               <div aria-hidden="true" className="shrink-0 text-ink">
                 <GeoIcon name={h.icon} className="h-10 w-10" accent="#3F6212" />
               </div>

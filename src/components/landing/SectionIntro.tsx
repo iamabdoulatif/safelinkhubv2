@@ -23,7 +23,7 @@ export default function SectionIntro({
   const parts = marker ? title.split(marker) : [title];
   const centered = align === "center";
   return (
-    <div className={centered ? "mx-auto max-w-2xl text-center" : "max-w-2xl"}>
+    <div className={`reveal ${centered ? "mx-auto max-w-2xl text-center" : "max-w-2xl"}`}>
       <span
         className={`slate-eyebrow ${dark ? "border-slate-deep-line bg-transparent text-slate-deep-soft" : ""}`}
       >

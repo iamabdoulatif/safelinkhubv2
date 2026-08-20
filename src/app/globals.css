@@ -510,3 +510,91 @@ html {
   border-radius: 4px;
   padding: 0 0.14em;
 }
+
+/* ════════════════════════════════════════════════════════════
+   RÉVÉLATION AU DÉFILEMENT
+   Les classes .animate-* ci-dessus se déclenchent au MONTAGE : sur une page
+   longue, tout ce qui est sous la ligne de flottaison a fini d'apparaître
+   avant qu'on y arrive. .reveal attend d'entrer dans le champ.
+
+   DÉGRADATION : l'état masqué vit sous @media (scripting: enabled). Un
+   navigateur sans JavaScript — ou trop ancien pour cette requête — ignore le
+   bloc et affiche le contenu normalement. Jamais de page blanche parce qu'un
+   observateur n'a pas démarré.
+   ════════════════════════════════════════════════════════════ */
+
+@media (scripting: enabled) {
+  .reveal { opacity: 0; }
+  .reveal[data-shown="true"] {
+    animation: reveal-rise 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+  /* Variante latérale, pour les blocs alternés gauche/droite. */
+  .reveal-left[data-shown="true"]  { animation-name: reveal-left; }
+  .reveal-right[data-shown="true"] { animation-name: reveal-right; }
+  .reveal-scale[data-shown="true"] { animation-name: reveal-scale; }
+}
+
+@keyframes reveal-rise  { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes reveal-left  { from { opacity: 0; transform: translateX(-26px); } to { opacity: 1; transform: none; } }
+@keyframes reveal-right { from { opacity: 0; transform: translateX(26px); }  to { opacity: 1; transform: none; } }
+@keyframes reveal-scale { from { opacity: 0; transform: scale(0.965); }      to { opacity: 1; transform: none; } }
+
+/* Cascade : chaque enfant direct part un cran après le précédent. Le pas est
+   court exprès — au-delà de ~90 ms par élément, une grille de six cartes met
+   plus d'une demi-seconde à se poser et l'attente devient perceptible. */
+.stagger > *  { --reveal-delay: calc(var(--stagger-step, 70ms) * var(--i, 0)); }
+.stagger > *:nth-child(1) { --i: 0; } .stagger > *:nth-child(2) { --i: 1; }
+.stagger > *:nth-child(3) { --i: 2; } .stagger > *:nth-child(4) { --i: 3; }
+.stagger > *:nth-child(5) { --i: 4; } .stagger > *:nth-child(6) { --i: 5; }
+.stagger > *:nth-child(7) { --i: 6; } .stagger > *:nth-child(8) { --i: 7; }
+
+/* ── Séquence d'ouverture du hero ─────────────────────────────
+   Au-dessus de la ligne de flottaison : pas d'observateur, ça part au
+   chargement. L'ordre raconte la lecture — étiquette, titre, promesse,
+   action — et les cartes flottantes arrivent en dernier, doucement. */
+@media (scripting: enabled) {
+  .hero-seq > * { animation: reveal-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .hero-seq > *:nth-child(1) { animation-delay: 60ms; }
+  .hero-seq > *:nth-child(2) { animation-delay: 140ms; }
+  .hero-seq > *:nth-child(3) { animation-delay: 240ms; }
+  .hero-seq > *:nth-child(4) { animation-delay: 340ms; }
+  .hero-seq > *:nth-child(5) { animation-delay: 420ms; }
+  .hero-seq > *:nth-child(6) { animation-delay: 480ms; }
+
+  .hero-float { animation: hero-float-in 1.1s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: 620ms; }
+}
+@keyframes hero-float-in { from { opacity: 0; transform: translateY(18px) scale(0.97); } to { opacity: 1; transform: none; } }
+
+/* Le surligneur se remplit de gauche à droite, une seule fois, après le titre.
+   C'est le seul geste vraiment « cinématique » de la page : il souligne le mot
+   sur lequel repose la promesse. */
+@media (scripting: enabled) {
+  .marker-sweep {
+    background-image: linear-gradient(var(--brand), var(--brand));
+    background-repeat: no-repeat;
+    background-size: 0% 100%;
+    animation: marker-fill 0.62s cubic-bezier(0.65, 0, 0.35, 1) both;
+    animation-delay: 560ms;
+  }
+}
+@keyframes marker-fill { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
+
+/* ── Compteur chiffré ──────────────────────────────────────────
+   Le serveur rend DÉJÀ la valeur finale formatée : sans JavaScript, dans les
+   moteurs d'indexation et en lecture d'écran, c'est le bon nombre qui est là.
+   Le script se contente de compter jusqu'à cette valeur, puis restitue
+   exactement la chaîne d'origine. */
+.countup { font-variant-numeric: tabular-nums; }
+
+/* Le mouvement réduit court-circuite tout : contenu visible, sans exception.
+   Le bloc générique plus haut ramène les durées à 0,01 ms, mais .reveal
+   resterait à opacity 0 si son observateur ne se déclenchait jamais. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .hero-seq > *, .hero-float {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+  .marker-sweep { background-size: 100% 100% !important; animation: none !important; }
+}

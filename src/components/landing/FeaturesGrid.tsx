@@ -16,11 +16,11 @@ export default function FeaturesGrid() {
           lead="Tout ce qu'un opérateur hotspot fait à la main, la plateforme le fait à sa place — et le facture."
         />
 
-        <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-12">
+        <div className="stagger mt-12 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-12">
           {quickFeatures.map((f) => (
             <article
               key={f.title}
-              className={`slate-card p-6 sm:p-7 ${f.span} ${
+              className={`reveal slate-card p-6 sm:p-7 ${f.span} ${
                 f.featured ? "border-transparent bg-brand" : "bg-paper hover:bg-clay"
               }`}
             >

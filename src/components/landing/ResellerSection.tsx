@@ -63,11 +63,11 @@ export default function ResellerSection() {
           lead="Le compte revendeur ramène l'installation d'un MikroTik à un prix d'intégrateur. Le pack se paie une fois par an et revient intégralement en crédit."
         />
 
-        <div className="mt-12 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div className="stagger mt-12 grid grid-cols-1 gap-5 lg:grid-cols-2">
           {plans.map((plan) => (
             <article
               key={plan.name}
-              className={`slate-card flex flex-col p-6 sm:p-8 ${
+              className={`reveal slate-card flex flex-col p-6 sm:p-8 ${
                 plan.featured ? "border-brand-deep bg-brand/15" : "bg-paper"
               }`}
             >

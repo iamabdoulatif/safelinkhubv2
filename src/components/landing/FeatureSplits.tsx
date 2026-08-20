@@ -51,7 +51,7 @@ export function FeatureProvisioning() {
   return (
     <section aria-label="Provisionnement automatique" className="border-b border-line bg-paper py-16 sm:py-24">
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 sm:px-6 lg:grid-cols-12 lg:gap-14">
-        <div className="lg:col-span-6">
+        <div className="reveal reveal-left lg:col-span-6">
           <span className="slate-eyebrow">Provisionnement</span>
           <h2 className="mt-5 font-display text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
             <span className="marker">Provisionnez</span> sans y penser.
@@ -79,7 +79,7 @@ export function FeatureProvisioning() {
           </Link>
         </div>
 
-        <div className="lg:col-span-6">
+        <div className="reveal reveal-right lg:col-span-6">
           <div className="overflow-hidden rounded-2xl">
             <Image
               src="/landing/photos/technicien-carte.jpg"
@@ -133,7 +133,7 @@ export function FeatureMobileMoney() {
   return (
     <section aria-label="Encaissement mobile money" className="border-b border-line bg-clay py-16 sm:py-24">
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 sm:px-6 lg:grid-cols-12 lg:gap-14">
-        <div className="lg:col-span-6 lg:order-1">
+        <div className="reveal reveal-left lg:col-span-6 lg:order-1">
           <div className="overflow-hidden rounded-2xl">
             <Image
               src="/landing/photos/antennes-toit.jpg"
@@ -189,7 +189,7 @@ export function FeatureMobileMoney() {
           </div>
         </div>
 
-        <div className="lg:col-span-6 lg:order-2">
+        <div className="reveal reveal-right lg:col-span-6 lg:order-2">
           <span className="slate-eyebrow">Paiements</span>
           <h2 className="mt-5 font-display text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
             Les quatre opérateurs, <span className="marker">un seul flux</span>.

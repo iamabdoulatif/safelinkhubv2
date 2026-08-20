@@ -8,7 +8,7 @@ export default function FinalCta() {
   return (
     <section aria-label="Créer un compte" className="bg-paper px-4 py-16 sm:px-6 sm:py-24">
       <div className="mx-auto max-w-6xl">
-        <div className="rounded-3xl bg-brand px-6 py-14 text-center sm:px-12 sm:py-20">
+        <div className="reveal reveal-scale rounded-3xl bg-brand px-6 py-14 text-center sm:px-12 sm:py-20">
           <h2 className="mx-auto max-w-2xl font-display text-3xl font-bold leading-[1.1] tracking-tight text-slate-deep sm:text-4xl md:text-5xl">
             Prêt à automatiser votre réseau&nbsp;?
           </h2>

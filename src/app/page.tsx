@@ -1,4 +1,5 @@
 import BackToTop from "@/components/BackToTop";
+import Reveal from "@/components/motion/Reveal";
 import AnnounceBar from "@/components/landing/AnnounceBar";
 import LandingNav from "@/components/landing/LandingNav";
 import Hero from "@/components/landing/Hero";
@@ -68,6 +69,8 @@ export default async function Home() {
       </main>
       <LandingFooter />
       <BackToTop />
+      {/* Un seul observateur pour toutes les sections marquées `reveal`. */}
+      <Reveal />
     </div>
   );
 }

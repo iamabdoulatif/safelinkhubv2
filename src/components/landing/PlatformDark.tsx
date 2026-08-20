@@ -20,11 +20,11 @@ export default function PlatformDark() {
           lead="Facturation, RADIUS, agents, analytique : les briques d'un FAI, sans en assembler aucune."
           dark
         />
-        <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="stagger mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {platformFeatures.map((f) => (
             <article
               key={f.title}
-              className="rounded-2xl border border-slate-deep-line bg-[#0E2618] p-6 sm:p-7"
+              className="reveal rounded-2xl border border-slate-deep-line bg-[#0E2618] p-6 sm:p-7"
             >
               <div aria-hidden="true" className="text-white">
                 <GeoIcon name={f.icon} className="h-8 w-8" accent="#C8F24E" />

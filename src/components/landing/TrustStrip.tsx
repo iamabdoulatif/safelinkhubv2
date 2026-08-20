@@ -9,11 +9,11 @@ const icons = [Zap, Wallet, Radar];
 export default function TrustStrip() {
   return (
     <section aria-label="Ce que SafeLinkHub supprime" className="border-b border-line bg-paper">
-      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-px bg-line sm:grid-cols-3">
+      <div className="stagger mx-auto grid max-w-6xl grid-cols-1 gap-px bg-line sm:grid-cols-3">
         {painPoints.map((item, i) => {
           const Icon = icons[i] ?? Zap;
           return (
-            <div key={item.fix} className="flex gap-4 bg-paper px-6 py-8 sm:px-7">
+            <div key={item.fix} className="reveal flex gap-4 bg-paper px-6 py-8 sm:px-7">
               <span
                 aria-hidden="true"
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-slate-deep"

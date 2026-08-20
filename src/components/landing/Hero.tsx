@@ -24,20 +24,28 @@ function FloatCard({
   label,
   value,
   sub,
+  countTo,
   children,
   className = "",
 }: {
   label: string;
   value?: string;
   sub?: string;
+  /** Cible du compteur. Absent = le chiffre s'affiche tel quel. */
+  countTo?: number;
   children?: React.ReactNode;
   className?: string;
 }) {
   return (
-    <div className={`slate-card slate-card-raised w-56 bg-paper p-4 ${className}`}>
+    <div className={`slate-card slate-card-raised hero-float w-56 bg-paper p-4 ${className}`}>
       <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">{label}</p>
       {value ? (
-        <p className="mt-1.5 font-mono text-xl font-bold tabular-nums text-ink">{value}</p>
+        <p
+          className={`mt-1.5 font-mono text-xl font-bold tabular-nums text-ink${countTo ? " countup reveal" : ""}`}
+          {...(countTo ? { "data-countup": String(countTo) } : {})}
+        >
+          {value}
+        </p>
       ) : null}
       {children}
       {sub ? <p className="mt-1.5 text-xs text-ink-soft">{sub}</p> : null}
@@ -57,6 +65,7 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
             <FloatCard
               label="Routeurs supervisés"
               value={nf.format(stats.routers)}
+              countTo={stats.routers}
               sub="parc total sur la plateforme"
               className="absolute left-2 top-28 2xl:left-16"
             />
@@ -71,6 +80,7 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
             <FloatCard
               label="Sessions en cours"
               value={nf.format(stats.sessions)}
+              countTo={stats.sessions}
               sub="sur les routeurs joignables"
               className="absolute right-2 top-28 2xl:right-16"
             />
@@ -84,12 +94,12 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
         </div>
 
         {/* Bloc central */}
-        <div className="relative mx-auto max-w-3xl text-center">
+        <div className="hero-seq relative mx-auto max-w-3xl text-center">
           <span className="slate-eyebrow">Facturation hotspot · Automatisation FAI</span>
 
           <h1 className="mt-6 font-display text-[2.25rem] font-bold leading-[1.06] tracking-tight text-ink sm:text-5xl md:text-6xl">
             Votre réseau. Vos revenus.{" "}
-            <span className="marker">Automatisés.</span>
+            <span className="marker marker-sweep">Automatisés.</span>
           </h1>
 
           <p className="mx-auto mt-6 max-w-xl text-base leading-7 text-ink-soft sm:text-lg">
@@ -138,7 +148,7 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
       </div>
 
       {/* Bande de compatibilité constructeurs */}
-      <div className="border-t border-line bg-clay">
+      <div className="reveal border-t border-line bg-clay">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 py-4 sm:px-6">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
             Compatible avec

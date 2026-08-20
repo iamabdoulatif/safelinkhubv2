@@ -166,9 +166,13 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
         </p>
       )}
 
-      {/* Un chiffre domine, les autres le qualifient. */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="p-6 lg:col-span-2">
+      {/* Un chiffre domine, les autres le qualifient.
+          Le pas de cascade est réduit à 45 ms — un tableau de bord se lit en
+          urgence. Sur trois colonnes la séquence entière tient sous 150 ms,
+          soit à peine plus qu'un rendu instantané. Le bandeau d'alerte, lui,
+          n'est PAS retardé : il est au-dessus et sans classe de révélation. */}
+      <div className="stagger mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3" style={{ "--stagger-step": "45ms" } as React.CSSProperties}>
+        <Card className="reveal p-6 lg:col-span-2">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
             Encaissé · {rangeLabel}
           </p>
@@ -199,7 +203,7 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
           </div>
         </Card>
 
-        <Card className="flex flex-col p-6">
+        <Card className="reveal flex flex-col p-6">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">Parc</p>
           {total > 0 ? (
             <>
@@ -245,8 +249,8 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
         </Card>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="p-5 lg:col-span-2">
+      <div className="stagger mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3" style={{ "--stagger-step": "45ms" } as React.CSSProperties}>
+        <Card className="reveal p-5 lg:col-span-2">
           {/* Pas de légende ajoutée ici : LineChart en rend déjà une, avec les
               bonnes couleurs, et qui bascule sur les valeurs du jour au survol.
               En poser une seconde ferait doublon et perdrait ce comportement. */}
@@ -284,7 +288,7 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
           )}
         </Card>
 
-        <div className="space-y-4">
+        <div className="reveal space-y-4">
           <Card className="p-5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-semibold text-ink">Paiements récents</h2>
