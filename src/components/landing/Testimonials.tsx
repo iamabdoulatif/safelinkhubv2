@@ -1,5 +1,5 @@
 import { Star } from "lucide-react";
-import SectionHeading from "./SectionHeading";
+import SectionIntro from "./SectionIntro";
 import TestimonialForm from "./TestimonialForm";
 import { getApprovedTestimonials } from "@/lib/testimonials/queries";
 
@@ -12,7 +12,7 @@ function Initials({ name }: { name: string }) {
   return (
     <span
       aria-hidden="true"
-      className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-line bg-brand font-display text-sm font-extrabold text-[#1C1917]"
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand font-display text-sm font-bold text-slate-deep"
     >
       {initials}
     </span>
@@ -40,21 +40,22 @@ export default async function Testimonials() {
     <section
       id="temoignages"
       aria-label="Témoignages"
-      className="border-b-2 border-line bg-clay py-16 sm:py-24"
+      className="border-b border-line bg-clay py-16 sm:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <SectionHeading
-          index="07"
+        <SectionIntro
+          eyebrow="Témoignages"
           title="Ce que disent nos utilisateurs."
           marker="utilisateurs"
+          lead="Des avis réels, soumis depuis cette page et publiés après validation."
         />
 
         {items.length > 0 ? (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+          <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-3">
             {items.map((t) => (
               <figure
                 key={t.id}
-                className="flex flex-col justify-between border-2 border-line bg-paper p-6 sm:p-7"
+                className="slate-card flex flex-col justify-between bg-paper p-6 sm:p-7"
               >
                 <div>
                   {t.rating ? <Stars rating={t.rating} /> : null}
@@ -62,11 +63,11 @@ export default async function Testimonials() {
                     «&nbsp;{t.quote}&nbsp;»
                   </blockquote>
                 </div>
-                <figcaption className="mt-6 flex items-center gap-3 border-t-2 border-line-soft pt-4">
+                <figcaption className="mt-6 flex items-center gap-3 border-t border-line pt-4">
                   <Initials name={t.name} />
                   <span>
                     <span className="block text-sm font-bold text-ink">{t.name}</span>
-                    <span className="block font-mono text-xs text-ink-soft">
+                    <span className="block text-xs text-ink-soft">
                       {[t.role, t.company].filter(Boolean).join(" · ") || "Utilisateur SafeLinkHub"}
                     </span>
                   </span>
@@ -75,7 +76,7 @@ export default async function Testimonials() {
             ))}
           </div>
         ) : (
-          <div className="border-2 border-dashed border-line bg-paper p-8 text-center">
+          <div className="mt-12 rounded-2xl border border-dashed border-line bg-paper p-8 text-center">
             <p className="font-display text-lg font-semibold text-ink">
               Soyez le premier à partager votre expérience.
             </p>

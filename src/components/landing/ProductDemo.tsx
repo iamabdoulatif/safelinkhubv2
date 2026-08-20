@@ -1,4 +1,4 @@
-import SectionHeading from "./SectionHeading";
+import YouTubeEmbed from "./YouTubeEmbed";
 import { vendors } from "./content";
 import { remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
 import { AUTO_SETUP_FEE_CENTS, VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
@@ -8,10 +8,14 @@ import { fcfaToScCents, formatSc } from "@/lib/safecoin/pricing";
 const fcfa = new Intl.NumberFormat("fr-FR");
 const safecoin = (n: number) => formatSc(fcfaToScCents(n, DEFAULT_SC_RATE_FCFA));
 
+/** Identifiant de la vidéo de présentation (https://youtu.be/uR-7Z_AVhvE). */
+const DEMO_VIDEO_ID = "uR-7Z_AVhvE";
+
 /*
- * Section démo : aperçu produit avec de VRAIS chiffres (prix réels importés de
- * la config de facturation), pas de données inventées. Emplacement vidéo pour
- * un futur rendu 3D (public/landing/demo-3d.mp4).
+ * Section démo : aperçu du tableau de bord avec de VRAIS chiffres (prix
+ * importés de la config de facturation, jamais saisis en dur) et la vidéo de
+ * présentation. L'emplacement vidéo local (demo-3d.mp4, jamais tourné) est
+ * remplacé par le lecteur YouTube en façade.
  */
 export default function ProductDemo() {
   const stats = [
@@ -35,72 +39,80 @@ export default function ProductDemo() {
   ];
 
   return (
-    <section id="demo" aria-label="Démonstration produit" className="border-b-2 border-line bg-clay py-16 sm:py-24">
+    <section id="demo" aria-label="Démonstration produit" className="border-b border-line bg-clay py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <SectionHeading index="02" title="Le tableau de bord qui pilote tout." marker="tout" />
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="slate-eyebrow">Le produit</span>
+          <h2 className="mt-5 font-display text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl md:text-[2.75rem]">
+            Le tableau de bord qui pilote <span className="marker">tout</span>.
+          </h2>
+          <p className="mt-4 text-base leading-7 text-ink-soft">
+            Une console unique pour vos routeurs, vos forfaits et vos encaissements —
+            et soixante secondes pour comprendre comment elle s&apos;installe.
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-          {/* Aperçu dashboard encadré */}
-          <div className="frame-double bg-paper lg:col-span-7">
-            {/* Barre de navigateur */}
-            <div className="flex items-center gap-2 border-b-2 border-line bg-ink px-4 py-3">
-              <span aria-hidden="true" className="h-2.5 w-2.5 bg-err" />
-              <span aria-hidden="true" className="h-2.5 w-2.5 bg-brand" />
-              <span aria-hidden="true" className="h-2.5 w-2.5 bg-ok" />
-              <span className="ml-3 truncate font-mono text-xs text-clay">
+        <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {/* Aperçu du tableau de bord */}
+          <div className="slate-card slate-card-raised flex flex-col overflow-hidden bg-paper lg:col-span-7">
+            <div className="flex items-center gap-2 border-b border-line bg-clay px-4 py-3">
+              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#F87171]" />
+              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#FBBF24]" />
+              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[#34D399]" />
+              <span className="ml-3 truncate font-mono text-xs text-ink-soft">
                 safelinkhub.io/admin
               </span>
             </div>
-            {/* Chiffres réels */}
-            <div className="grid grid-cols-1 sm:grid-cols-3">
+
+            <div className="grid flex-1 grid-cols-1 sm:grid-cols-3">
               {stats.map((s, i) => (
                 <div
                   key={s.label}
-                  className={`p-5 ${i > 0 ? "border-t-2 border-line sm:border-l-2 sm:border-t-0" : ""}`}
+                  className={`p-5 ${i > 0 ? "border-t border-line sm:border-l sm:border-t-0" : ""}`}
                 >
-                  <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                     {s.label}
                   </p>
-                  {/* Pas de nowrap : une valeur longue (fourchette de prix)
-                      se replie dans SA carte au lieu de déborder sur la
-                      voisine ; les nombres fr-FR restent insécables. */}
-                  <p className="mt-2 font-mono text-lg font-bold tabular-nums text-ink sm:text-xl">
+                  {/* Pas de nowrap : une valeur longue (fourchette de prix) se
+                      replie dans SA carte au lieu de déborder sur la voisine ;
+                      les nombres fr-FR restent insécables. */}
+                  <p className="mt-2 font-mono text-lg font-bold tabular-nums text-ink">
                     {s.value}
                   </p>
-                  <p className="mt-1 font-mono text-xs font-medium text-ink-soft">{s.sub}</p>
+                  <p className="mt-1 text-xs text-ink-soft">{s.sub}</p>
                 </div>
               ))}
             </div>
-            {/* Barre de statut — faits produit réels */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t-2 border-line bg-ink px-4 py-2.5">
-              <span className="flex items-center gap-1.5 font-mono text-xs text-clay">
-                <span aria-hidden="true" className="iso-led h-1.5 w-1.5 bg-brand" />
+
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-line bg-clay px-4 py-3">
+              <span className="flex items-center gap-2 text-xs font-medium text-ink-soft">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-brand-deep" />
                 {vendors.length} constructeurs pris en charge
               </span>
-              <span className="font-mono text-xs text-clay">Noyau RADIUS cloud inclus</span>
+              <span className="text-xs font-medium text-ink-soft">Noyau RADIUS cloud inclus</span>
             </div>
           </div>
 
-          {/* Emplacement vidéo 3D */}
+          {/* Vidéo de présentation */}
           <figure className="lg:col-span-5">
-            <div className="border-2 border-line bg-ink">
-              <video
-                className="aspect-video w-full object-cover"
-                controls
-                preload="none"
-                poster="/landing/demo-poster.svg"
-              >
-                <source src="/landing/demo-3d.mp4" type="video/mp4" />
-                Votre navigateur ne prend pas en charge la vidéo.
-              </video>
+            <div className="slate-card slate-card-raised overflow-hidden bg-paper">
+              <YouTubeEmbed
+                videoId={DEMO_VIDEO_ID}
+                title="SafeLinkHub × MikroTik en 60 secondes"
+              />
             </div>
             <figcaption className="mt-3 flex items-baseline justify-between gap-4">
               <span className="text-sm font-semibold text-ink">
                 SafeLinkHub × MikroTik en 60 secondes
               </span>
-              <span className="font-mono text-[11px] uppercase tracking-widest text-ink-soft">
-                Vidéo
-              </span>
+              <a
+                href="https://youtu.be/uR-7Z_AVhvE"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-xs font-semibold text-brand-deep underline-offset-2 hover:underline"
+              >
+                Ouvrir sur YouTube
+              </a>
             </figcaption>
           </figure>
         </div>

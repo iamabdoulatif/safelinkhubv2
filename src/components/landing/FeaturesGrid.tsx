@@ -1,61 +1,46 @@
 import GeoIcon from "./GeoIcon";
-import SectionHeading from "./SectionHeading";
-import { painPoints, quickFeatures } from "./content";
+import SectionIntro from "./SectionIntro";
+import { quickFeatures } from "./content";
 
+/* Grille de fonctionnalités, motif Slate : cartes arrondies à trait fin, une
+ * carte mise en avant en aplat lime. La grille asymétrique 12 colonnes de la
+ * version Bitume est conservée — c'est elle qui donne son rythme à la section. */
 export default function FeaturesGrid() {
   return (
-    <section id="features" aria-label="Fonctionnalités" className="border-b-2 border-line bg-paper py-16 sm:py-24">
+    <section id="features" aria-label="Fonctionnalités" className="border-b border-line bg-paper py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <SectionHeading
-          index="01"
+        <SectionIntro
+          eyebrow="Fonctionnalités"
           title="Arrêtez de jongler. Faites grandir votre réseau."
           marker="grandir"
+          lead="Tout ce qu'un opérateur hotspot fait à la main, la plateforme le fait à sa place — et le facture."
         />
 
-        {/* Trois promesses — bande éditoriale */}
-        <ul role="list" className="mb-14 grid grid-cols-1 border-2 border-line sm:grid-cols-3">
-          {painPoints.map((item, i) => (
-            <li
-              key={item.fix}
-              className={`p-5 ${i > 0 ? "border-t-2 border-line sm:border-l-2 sm:border-t-0" : ""}`}
-            >
-              <p className="font-display text-sm font-bold uppercase tracking-wide text-brand-deep">
-                {item.fix}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">{item.pain}</p>
-            </li>
-          ))}
-        </ul>
-
-        {/* Grille asymétrique 12 colonnes */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-12">
+        <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-12">
           {quickFeatures.map((f) => (
             <article
               key={f.title}
-              className={`group border-2 border-line p-6 transition-colors sm:p-7 ${f.span} ${
-                f.featured ? "bg-brand" : "bg-paper hover:bg-clay"
+              className={`slate-card p-6 sm:p-7 ${f.span} ${
+                f.featured ? "border-transparent bg-brand" : "bg-paper hover:bg-clay"
               }`}
             >
-              <div
-                aria-hidden="true"
-                className={f.featured ? "text-[#1C1917]" : "text-ink"}
-              >
+              <div aria-hidden="true" className={f.featured ? "text-slate-deep" : "text-ink"}>
                 <GeoIcon
                   name={f.icon}
                   className="h-9 w-9"
-                  accent={f.featured ? "#1C1917" : "#EAB308"}
+                  accent={f.featured ? "#12301D" : "#3F6212"}
                 />
               </div>
               <h3
                 className={`mt-4 font-display text-xl font-bold ${
-                  f.featured ? "text-[#1C1917]" : "text-ink"
+                  f.featured ? "text-slate-deep" : "text-ink"
                 }`}
               >
                 {f.title}
               </h3>
               <p
                 className={`mt-2 max-w-xl text-sm leading-6 ${
-                  f.featured ? "text-[#44403C]" : "text-ink-soft"
+                  f.featured ? "text-[#2C4A34]" : "text-ink-soft"
                 }`}
               >
                 {f.description}

@@ -1,32 +1,52 @@
 import GeoIcon from "./GeoIcon";
-import SectionHeading from "./SectionHeading";
-import { hardware } from "./content";
+import { hardware, vendors } from "./content";
 
+/* Section intégrations, motif Slate : grande carte claire avec la liste des
+ * constructeurs, puis les fiches matériel détaillées en dessous. */
 export default function HardwareSection() {
   return (
     <section
       id="materiel"
       aria-label="Compatibilité matérielle"
-      className="border-b-2 border-line bg-paper py-16 sm:py-24"
+      className="border-b border-line bg-paper py-16 sm:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <SectionHeading index="04" title="Une seule plateforme. Tout votre matériel." marker="Tout" />
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div className="slate-card overflow-hidden bg-clay">
+          <div className="grid grid-cols-1 items-center gap-8 p-8 sm:p-10 lg:grid-cols-12">
+            <div className="lg:col-span-5">
+              <h2 className="font-display text-2xl font-bold leading-tight tracking-tight text-ink sm:text-3xl">
+                Une seule plateforme. <span className="marker">Tout</span> votre matériel.
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-ink-soft">
+                SafeLinkHub est indépendant du constructeur&nbsp;: le noyau RADIUS
+                cloud parle à ce que vous avez déjà en rack.
+              </p>
+            </div>
+            <ul role="list" className="flex flex-wrap gap-2.5 lg:col-span-7 lg:justify-end">
+              {vendors.map((v) => (
+                <li
+                  key={v}
+                  translate="no"
+                  className="rounded-full border border-line bg-paper px-4 py-2 text-sm font-medium text-ink"
+                >
+                  {v}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
           {hardware.map((h, i) => (
-            <article
-              key={h.name}
-              className={`flex gap-5 border-2 border-line p-6 sm:p-7 ${
-                i === 0 ? "bg-clay" : "bg-paper hover:bg-clay"
-              }`}
-            >
+            <article key={h.name} className="slate-card flex gap-5 bg-paper p-6 sm:p-7">
               <div aria-hidden="true" className="shrink-0 text-ink">
-                <GeoIcon name={h.icon} className="h-10 w-10" />
+                <GeoIcon name={h.icon} className="h-10 w-10" accent="#3F6212" />
               </div>
               <div>
                 <h3 className="font-display text-xl font-bold text-ink" translate="no">
                   {h.name}
                   {i === 0 && (
-                    <span className="ml-3 align-middle font-mono text-[10px] font-semibold uppercase tracking-widest text-brand-deep">
+                    <span className="ml-3 align-middle rounded-full bg-brand px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-deep">
                       Intégration native
                     </span>
                   )}

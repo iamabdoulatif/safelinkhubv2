@@ -37,6 +37,12 @@
   --chart-1: #A16207;
   --chart-2: #1D4ED8;
 
+  /* Verts profonds des bandeaux Slate. Déclarés ici pour que les utilitaires
+     Tailwind résolvent partout ; seule la landing (.theme-slate) les emploie. */
+  --slate-deep:      #12301D;
+  --slate-deep-line: #24462F;
+  --slate-deep-soft: #A9BFB0;
+
   --background: var(--paper);
   --foreground: var(--ink);
   --font-syne: "Arial Black", "Trebuchet MS", system-ui, sans-serif;
@@ -79,6 +85,10 @@
   --color-warn:       var(--warn);
   --color-err:        var(--err);
   --color-err-soft:   var(--err-soft);
+
+  --color-slate-deep:      var(--slate-deep);
+  --color-slate-deep-line: var(--slate-deep-line);
+  --color-slate-deep-soft: var(--slate-deep-soft);
 
   --font-display: var(--font-syne);
   --font-sans:    var(--font-instrument-sans);
@@ -158,130 +168,11 @@ body {
   animation: iso-led 1.6s steps(2, jump-none) infinite;
 }
 
-/* Onde de signal concentrique */
-@keyframes iso-wave {
-  0%   { transform: scale(0.4); opacity: 0.9; }
-  100% { transform: scale(1.15); opacity: 0; }
-}
-.iso-wave {
-  transform-origin: center;
-  transform-box: fill-box;
-  animation: iso-wave 2.4s ease-out infinite;
-}
-
-/* Flottement lent d'un bloc isométrique */
-@keyframes iso-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-6px); }
-}
-.iso-float {
-  animation: iso-float 5s ease-in-out infinite;
-}
-
-/* Flux discret le long des câbles */
-@keyframes iso-link-flow {
-  to { stroke-dashoffset: -20; }
-}
-.iso-link {
-  stroke-dasharray: 10 10;
-  animation: iso-link-flow 1.8s linear infinite;
-}
-
-/* Pulsation des arrivées Internet et des routeurs distribués */
-@keyframes iso-node-pulse {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.045); }
-}
-.iso-node {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: iso-node-pulse 2.6s ease-in-out infinite;
-}
-
-/* Petit flottement indépendant pour les routeurs périphériques */
-@keyframes iso-drift {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-4px); }
-}
-.iso-drift {
-  animation: iso-drift 4.2s ease-in-out infinite;
-}
-
-/* ── Splash Bitume (landing page) ──────────────────────────────────
-   Wordmark Syne + balayage marqueur moutarde + barre crantée,
-   sortie en rideau vertical net. Aplats opaques uniquement. */
-#slh-splash {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 30px;
-  background: #141210;
-  transition: transform 0.65s cubic-bezier(0.76, 0, 0.24, 1);
-}
-#slh-splash.slh-exit {
-  transform: translateY(-100%);
-  pointer-events: none;
-}
-
-.slh-wordmark {
-  font-family: var(--font-syne), sans-serif;
-  font-weight: 800;
-  font-size: clamp(2.2rem, 7vw, 3.8rem);
-  letter-spacing: -0.02em;
-  color: #faf9f7;
-}
-.slh-mark {
-  position: relative;
-  z-index: 0;
-  padding: 0 0.1em;
-  animation: slh-ink 0.01s 0.5s forwards;
-}
-.slh-mark::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: #eab308;
-  transform: scaleX(0);
-  transform-origin: left;
-  animation: slh-sweep 0.45s 0.25s steps(6) forwards;
-}
-@keyframes slh-sweep {
-  to { transform: scaleX(1); }
-}
-@keyframes slh-ink {
-  to { color: #1c1917; }
-}
-
-.slh-bar {
-  width: min(280px, 60vw);
-  height: 16px;
-  border: 2px solid #faf9f7;
-  padding: 2px;
-}
-.slh-bar-fill {
-  display: block;
-  height: 100%;
-  background: #eab308;
-  transform: scaleX(0);
-  transform-origin: left;
-  animation: slh-load 1.1s 0.2s steps(8, jump-none) forwards;
-}
-@keyframes slh-load {
-  to { transform: scaleX(1); }
-}
-
-.slh-caption {
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #a8a29e;
-}
+/* iso-wave, iso-float, iso-link, iso-node, iso-drift et tout le bloc du
+   splash (#slh-splash, .slh-*) ont été retirés avec la refonte de la landing :
+   ils n'animaient que IsoRouterScene et SplashLoader, tous deux supprimés.
+   iso-packet et iso-led restent au-dessus — ils servent encore à
+   /admin/router/backups (RestoreTopology). */
 
 /* ============================================
    ANIMATIONS ENTRANCE / UI
@@ -615,3 +506,119 @@ html {
     animation-delay: 0ms !important;
   }
 }
+
+/* ════════════════════════════════════════════════════════════
+   SLATE — peau de la landing publique
+   Portée : la classe .theme-slate, posée sur le seul wrapper de
+   src/app/page.tsx. Elle REDÉFINIT les jetons Bitume localement,
+   elle ne les remplace pas : /admin, /blog, /contact et le portail
+   captif continuent de lire les valeurs de :root et gardent
+   moutarde/anthracite. Aucune régression possible hors de la landing.
+
+   Écart assumé avec Bitume : Slate autorise coins arrondis et ombres
+   douces, que la charte Bitume interdit. Les deux cohabitent parce
+   qu'elles ne se croisent jamais dans le DOM.
+   ════════════════════════════════════════════════════════════ */
+
+.theme-slate {
+  /* Neutres froids : blanc pur, bande alternée vert-gris très clair */
+  --paper:      #FFFFFF;
+  --clay:       #F3F6EF;
+  --ink:        #10160F;
+  --ink-soft:   #5A625A;
+  /* Bordures FINES et claires : en Slate le trait sépare, il ne cadre pas.
+     Les composants passent donc de border-2 à border. */
+  --line:       #E2E7DC;
+  --line-soft:  #EDF0E8;
+
+  /* Marque : le surligneur lime de Slate. --brand est l'aplat (texte noir
+     dessus, jamais blanc) ; --brand-deep est le vert ENCRE, seul utilisable
+     en texte sur fond clair — #C8F24E ne tient que 1,3:1 sur blanc. */
+  --brand:      #C8F24E;
+  --brand-deep: #3F6212;
+
+  /* Vert profond des bandeaux et du pied de page */
+  --slate-deep:      #12301D;
+  --slate-deep-line: #24462F;
+  --slate-deep-soft: #A9BFB0;
+
+  /* Display : Slate a des titres nets et géométriques, pas la graisse
+     brutaliste d'Arial Black qu'utilise Bitume. */
+  --font-syne: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Carte Slate : trait fin, coin arrondi, ombre portée basse et large. */
+.theme-slate .slate-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+/* Volontairement SANS `background` : la classe battait sinon les utilitaires
+   Tailwind de fond (bg-brand, bg-clay) en spécificité, et la carte mise en
+   avant de la grille de fonctionnalités ressortait blanche au lieu de lime.
+   Chaque carte déclare son fond dans le balisage. */
+.theme-slate .slate-card-raised {
+  box-shadow: 0 1px 2px rgba(16, 22, 15, 0.04), 0 12px 32px -14px rgba(16, 22, 15, 0.18);
+}
+
+/* Bouton pilule — la forme signature de Slate. */
+.theme-slate .slate-btn {
+  border-radius: 999px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+/* Volontairement SANS `display`, `align-items` ni `gap` : la règle battait les
+   utilitaires Tailwind (0,2,0 contre 0,1,0), et `display:inline-flex` rendait
+   `hidden` inopérant — le bouton « Connexion » restait affiché en mobile. La
+   mise en page est déclarée dans le balisage. */
+.theme-slate .slate-btn-primary {
+  background: var(--brand);
+  color: #10160F;
+  border: 1px solid #B6E03A;
+}
+.theme-slate .slate-btn-primary:hover { background: #BCE93C; }
+.theme-slate .slate-btn-dark {
+  background: var(--slate-deep);
+  color: #FFFFFF;
+  border: 1px solid var(--slate-deep);
+}
+.theme-slate .slate-btn-dark:hover { background: #0C2415; }
+.theme-slate .slate-btn-ghost {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.theme-slate .slate-btn-ghost:hover { background: var(--clay); }
+
+/* Étiquette de section : petite pilule claire au-dessus des titres. */
+.theme-slate .slate-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--paper);
+}
+
+/* Le surligneur : même procédé que .marker Bitume, mais lime et arrondi. */
+.theme-slate .marker {
+  background: var(--brand);
+  color: #10160F;
+  border-radius: 4px;
+  padding: 0 0.14em;
+}
+
+/* Bitume impose une double bordure et un index encadré ; sur la landing
+   Slate, ces deux motifs sont neutralisés plutôt que traqués composant
+   par composant. */
+.theme-slate .frame-double { outline: none; border: 1px solid var(--line); border-radius: 16px; }
+.theme-slate .section-index { border: 1px solid var(--line); border-radius: 999px; font-weight: 600; }

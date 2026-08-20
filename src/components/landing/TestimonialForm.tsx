@@ -10,7 +10,7 @@ export default function TestimonialForm() {
 
   if (state?.success) {
     return (
-      <div className="mx-auto max-w-xl border-2 border-line bg-paper p-6 text-center">
+      <div className="slate-card mx-auto max-w-xl bg-paper p-6 text-center">
         <CheckCircle2 aria-hidden="true" className="mx-auto h-8 w-8 text-ok" />
         <p className="mt-3 font-display text-lg font-semibold text-ink">Merci !</p>
         <p className="mt-1 text-sm text-ink-soft">
@@ -23,7 +23,7 @@ export default function TestimonialForm() {
   return (
     <form
       action={formAction}
-      className="mx-auto max-w-xl border-2 border-line bg-paper p-6 sm:p-7"
+      className="slate-card mx-auto max-w-xl bg-paper p-6 sm:p-7"
     >
       <h3 className="font-display text-xl font-bold text-ink">Partagez votre témoignage</h3>
       <p className="mt-1 text-sm text-ink-soft">
@@ -31,7 +31,7 @@ export default function TestimonialForm() {
       </p>
 
       {state?.error && (
-        <p className="mt-4 flex items-center gap-2 border-2 border-err/40 bg-err/5 px-3 py-2 text-sm text-err">
+        <p className="mt-4 flex items-center gap-2 rounded-lg border border-err/40 bg-err/5 px-3 py-2 text-sm text-err">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {state.error}
         </p>
@@ -54,7 +54,7 @@ export default function TestimonialForm() {
             name="name"
             required
             maxLength={120}
-            className="w-full border-2 border-line-soft px-3 py-2 text-sm focus:border-ink focus:outline-none"
+            className="w-full rounded-lg border border-line px-3 py-2 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
           />
         </label>
         <label className="block">
@@ -63,7 +63,7 @@ export default function TestimonialForm() {
             name="role"
             maxLength={120}
             placeholder="Opérateur FAI, gérant de hotspot…"
-            className="w-full border-2 border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink focus:outline-none"
+            className="w-full rounded-lg border border-line px-3 py-2 text-sm placeholder:text-ink-soft focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
           />
         </label>
       </div>
@@ -73,7 +73,7 @@ export default function TestimonialForm() {
         <input
           name="company"
           maxLength={160}
-          className="w-full border-2 border-line-soft px-3 py-2 text-sm focus:border-ink focus:outline-none"
+          className="w-full rounded-lg border border-line px-3 py-2 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
         />
       </label>
 
@@ -107,14 +107,14 @@ export default function TestimonialForm() {
           required
           maxLength={600}
           rows={4}
-          className="w-full resize-y border-2 border-line-soft px-3 py-2 text-sm focus:border-ink focus:outline-none"
+          className="w-full resize-y rounded-lg border border-line px-3 py-2 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
         />
       </label>
 
       <button
         type="submit"
         disabled={pending}
-        className="mt-5 w-full border-2 border-line bg-brand px-5 py-3 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper disabled:opacity-60 sm:w-auto"
+        className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary mt-5 w-full px-6 py-3 text-sm disabled:opacity-60 sm:w-auto"
       >
         {pending ? "Envoi…" : "Envoyer mon témoignage"}
       </button>

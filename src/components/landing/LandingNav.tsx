@@ -11,8 +11,7 @@ import Logo from "./Logo";
 //
 // Matériel, Tarifs, Safecoin et FAQ n'y figurent plus : leurs sections restent
 // en place sur la landing (on y arrive en faisant défiler), Tarifs et FAQ sont
-// repris dans le pied de page. Une FAQ, en particulier, se cherche en bas de
-// page une fois le reste lu — pas en haut avant d'avoir rien vu.
+// repris dans le pied de page.
 const links = [
   { href: "#features", label: "Fonctionnalités" },
   { href: "#plateforme", label: "Plateforme" },
@@ -21,18 +20,50 @@ const links = [
   { href: "/contact", label: "Contact" },
 ] as const;
 
-const desktopLinkClass = "nav-scanner-link px-1 text-ink";
-const mobileLinkClass = "block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay";
+/* Deux habillages, un seul composant.
+ *
+ * La landing (/) est en peau Slate — traits fins, boutons pilule. /blog,
+ * /blog/[slug] et /contact restent en Bitume — traits de 2 px, boutons
+ * rectangulaires. Un composant par peau aurait dupliqué la logique de session
+ * et le menu mobile ; une variante ne duplique que des classes. */
+type Variant = "bitume" | "slate";
 
+const skin = {
+  bitume: {
+    header: "border-b-2 border-line bg-paper",
+    ghost: "border-2 border-line px-4 py-2 text-sm font-bold text-ink hover:bg-clay",
+    primary: "border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper sm:px-4",
+    dashboard: "flex items-center gap-2 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper sm:px-4",
+    burger: "border-2 border-line p-2 text-ink md:hidden",
+    panel: "nav-mobile-panel border-t-2 border-line bg-paper md:hidden",
+    link: "nav-scanner-link px-1 text-ink",
+  },
+  slate: {
+    header: "border-b border-line bg-paper",
+    ghost: "items-center justify-center gap-2 slate-btn slate-btn-ghost px-4 py-2 text-sm",
+    primary: "inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-4 py-2 text-sm",
+    dashboard: "inline-flex items-center justify-center gap-2 slate-btn slate-btn-dark px-4 py-2 text-sm",
+    burger: "rounded-full border border-line p-2 text-ink md:hidden",
+    panel: "border-t border-line bg-paper md:hidden",
+    link: "px-1 text-ink hover:text-brand-deep",
+  },
+} satisfies Record<Variant, Record<string, string>>;
+
+const mobileLinkClass = "block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay";
 const mobileItemStyle = (index: number) => ({ "--nav-index": index }) as CSSProperties;
 
-export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: string }) {
+export default function LandingNav({
+  anchorPrefix = "",
+  variant = "bitume",
+}: {
+  anchorPrefix?: string;
+  variant?: Variant;
+}) {
+  const s = skin[variant];
   const [open, setOpen] = useState(false);
   // Le cookie de session est httpOnly : on interroge /api/session côté
   // client plutôt que de lire cookies() dans les pages, ce qui rendrait
   // dynamiques des pages aujourd'hui statiques (/, /blog, /contact).
-  // Tant que la réponse n'est pas arrivée, on affiche les boutons
-  // Connexion/Commencer par défaut.
   const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
@@ -47,14 +78,14 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
       cancelled = true;
     };
   }, []);
+
   // Seules les ancres ont besoin du préfixe (retour vers la landing depuis
   // /auth, /blog, /contact…) — les vraies routes restent telles quelles.
-  const getHref = (href: string) =>
-    href.startsWith("#") ? `${anchorPrefix}${href}` : href;
+  const getHref = (href: string) => (href.startsWith("#") ? `${anchorPrefix}${href}` : href);
 
   return (
-    <header className="sticky top-0 z-30 border-b-2 border-line bg-paper">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6">
+    <header className={`sticky top-0 z-30 ${s.header}`}>
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <Link href="/" aria-label="SafeLinkHub — accueil">
           <Logo />
         </Link>
@@ -65,19 +96,11 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
         >
           {links.map((l) =>
             l.href.startsWith("#") ? (
-              <a
-                key={l.href}
-                href={getHref(l.href)}
-                className={desktopLinkClass}
-              >
+              <a key={l.href} href={getHref(l.href)} className={s.link}>
                 <span>{l.label}</span>
               </a>
             ) : (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={desktopLinkClass}
-              >
+              <Link key={l.href} href={l.href} className={s.link}>
                 <span>{l.label}</span>
               </Link>
             ),
@@ -86,25 +109,16 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
 
         <div className="flex items-center gap-3">
           {authenticated ? (
-            <Link
-              href="/admin"
-              className="flex items-center gap-2 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper sm:px-4"
-            >
+            <Link href="/admin" className={s.dashboard}>
               <LayoutDashboard className="h-4 w-4" />
               Dashboard
             </Link>
           ) : (
             <>
-              <Link
-                href="/auth/login"
-                className="hidden border-2 border-line px-4 py-2 text-sm font-bold text-ink hover:bg-clay sm:inline-block"
-              >
+              <Link href="/auth/login" className={`hidden sm:inline-flex ${s.ghost}`}>
                 Connexion
               </Link>
-              <Link
-                href="/auth/register"
-                className="border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper sm:px-4"
-              >
+              <Link href="/auth/register" className={s.primary}>
                 Commencer
               </Link>
             </>
@@ -115,58 +129,43 @@ export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: strin
             aria-controls="mobile-menu"
             aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
             onClick={() => setOpen((v) => !v)}
-            className="border-2 border-line p-2 text-ink md:hidden"
+            className={s.burger}
           >
             {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
         </div>
       </div>
 
-      {/* Menu mobile — panneau plein, aplat opaque */}
       {open && (
-        <nav
-          id="mobile-menu"
-          aria-label="Navigation mobile"
-          className="nav-mobile-panel border-t-2 border-line bg-paper md:hidden"
-        >
+        <nav id="mobile-menu" aria-label="Navigation mobile" className={s.panel}>
           <ul role="list" className="divide-y divide-line-soft">
             {links.map((l, index) => (
-              <li key={l.href} className="nav-mobile-item" style={mobileItemStyle(index)}>
+              <li
+                key={l.href}
+                className={variant === "bitume" ? "nav-mobile-item" : undefined}
+                style={variant === "bitume" ? mobileItemStyle(index) : undefined}
+              >
                 {l.href.startsWith("#") ? (
-                  <a
-                    href={getHref(l.href)}
-                    onClick={() => setOpen(false)}
-                    className={mobileLinkClass}
-                  >
+                  <a href={getHref(l.href)} onClick={() => setOpen(false)} className={mobileLinkClass}>
                     {l.label}
                   </a>
                 ) : (
-                  <Link
-                    href={l.href}
-                    onClick={() => setOpen(false)}
-                    className={mobileLinkClass}
-                  >
+                  <Link href={l.href} onClick={() => setOpen(false)} className={mobileLinkClass}>
                     {l.label}
                   </Link>
                 )}
               </li>
             ))}
-            <li className="nav-mobile-item" style={mobileItemStyle(links.length)}>
-              {authenticated ? (
-                <Link
-                  href="/admin"
-                  className="block px-6 py-4 font-display text-lg font-bold text-brand-deep hover:bg-clay"
-                >
-                  Dashboard
-                </Link>
-              ) : (
-                <Link
-                  href="/auth/login"
-                  className="block px-6 py-4 font-display text-lg font-bold text-brand-deep hover:bg-clay"
-                >
-                  Connexion
-                </Link>
-              )}
+            <li
+              className={variant === "bitume" ? "nav-mobile-item" : undefined}
+              style={variant === "bitume" ? mobileItemStyle(links.length) : undefined}
+            >
+              <Link
+                href={authenticated ? "/admin" : "/auth/login"}
+                className="block px-6 py-4 font-display text-lg font-bold text-brand-deep hover:bg-clay"
+              >
+                {authenticated ? "Dashboard" : "Connexion"}
+              </Link>
             </li>
           </ul>
         </nav>
