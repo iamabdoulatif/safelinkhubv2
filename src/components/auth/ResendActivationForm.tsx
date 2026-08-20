@@ -3,12 +3,9 @@
 import { useActionState } from "react";
 import { CheckCircle2, Mail, Send } from "lucide-react";
 import { resendActivation } from "@/lib/auth/actions";
+import { fieldClass, buttonClass, noticeClass } from "@/components/auth/form-classes";
 
-const fieldClass =
-  "w-full border-2 border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35";
 
-const buttonClass =
-  "w-full border-2 border-line bg-brand px-5 py-3 text-sm font-extrabold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60";
 
 export default function ResendActivationForm({
   defaultEmail = "",
@@ -21,7 +18,7 @@ export default function ResendActivationForm({
 
   if (state?.success) {
     return (
-      <div className="flex items-start gap-2 border-2 border-line-soft bg-clay px-3 py-2.5 text-sm text-ink-soft">
+      <div className={noticeClass}>
         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
         <p>Si un compte non activé correspond à cet email, un nouveau lien d&apos;activation vient d&apos;être envoyé.</p>
       </div>

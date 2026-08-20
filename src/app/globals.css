@@ -112,23 +112,9 @@ body {
   -webkit-box-decoration-break: clone;
 }
 
-/* Carte à double bordure éditoriale */
-.frame-double {
-  border: 2px solid var(--line);
-  outline: 1px solid var(--line);
-  outline-offset: 4px;
-}
-
-/* Numérotation éditoriale de section : 01, 02, 03… */
-.section-index {
-  font-family: var(--font-syne);
-  font-weight: 800;
-  font-size: 0.75rem;
-  letter-spacing: 0.15em;
-  border: 2px solid var(--line);
-  padding: 0.25rem 0.5rem;
-  display: inline-block;
-}
+/* .frame-double et .section-index, motifs éditoriaux Bitume, ont été retirés
+   ici : leurs dernières occurrences (AuthShell, BlogExperience) sont passées en
+   .slate-card avec la refonte du site public. */
 
 /* Bloc de code / script (WireGuard, RouterOS…) — le contenu passe
    à la ligne au lieu de déborder horizontalement */
@@ -335,87 +321,9 @@ html {
   scroll-behavior: smooth;
 }
 
-/* ── Navigation publique : cadre scanner ────────────────────────
-   Le menu reprend le langage Bitume : un cadre moutarde net, sans
-   fond progressif ni ombre diffuse. Le label est isolé au-dessus du
-   pseudo-élément pour garder le texte lisible à chaque étape. */
-.nav-scanner-link {
-  position: relative;
-  display: inline-block;
-  isolation: isolate;
-  transition: color 160ms steps(2, end), transform 160ms steps(2, end);
-}
-
-.nav-scanner-link span {
-  position: relative;
-  z-index: 1;
-}
-
-.nav-scanner-link::before {
-  content: "";
-  position: absolute;
-  inset: -0.35rem -0.45rem;
-  z-index: 0;
-  border: 2px solid var(--brand);
-  opacity: 0;
-  pointer-events: none;
-  transform: scale(0.84);
-  transform-origin: center;
-  transition: opacity 80ms steps(2, end), transform 160ms steps(2, end);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .nav-scanner-link:hover {
-    color: var(--ink);
-    transform: translateY(-2px);
-  }
-
-  .nav-scanner-link:hover::before {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.nav-scanner-link:focus-visible {
-  transform: translateY(-2px);
-}
-
-.nav-scanner-link:focus-visible::before {
-  opacity: 1;
-  transform: scale(1);
-}
-
-@keyframes nav-mobile-panel-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes nav-mobile-item-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.nav-mobile-panel {
-  animation: nav-mobile-panel-enter 140ms steps(2, end) both;
-  transform-origin: top;
-}
-
-.nav-mobile-item {
-  animation: nav-mobile-item-enter 160ms steps(2, end) both;
-  animation-delay: calc(35ms + (var(--nav-index) * 35ms));
-}
+/* Le cadre « scanner » du menu et les animations d'entrée du panneau mobile
+   (.nav-scanner-link, .nav-mobile-panel, .nav-mobile-item) ont disparu avec la
+   nav en peau unique : plus aucun appelant, et la landing est sans animation. */
 
 /* Mobile table overflow wrapper */
 .table-mobile-wrapper {
@@ -490,20 +398,6 @@ html {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .nav-scanner-link,
-  .nav-scanner-link:focus-visible {
-    transform: none;
-  }
-
-  .nav-scanner-link:hover::before,
-  .nav-scanner-link:focus-visible::before {
-    transform: scale(1);
-  }
-
-  .nav-mobile-item {
-    animation-delay: 0ms !important;
   }
 }
 
@@ -616,9 +510,3 @@ html {
   border-radius: 4px;
   padding: 0 0.14em;
 }
-
-/* Bitume impose une double bordure et un index encadré ; sur la landing
-   Slate, ces deux motifs sont neutralisés plutôt que traqués composant
-   par composant. */
-.theme-slate .frame-double { outline: none; border: 1px solid var(--line); border-radius: 16px; }
-.theme-slate .section-index { border: 1px solid var(--line); border-radius: 999px; font-weight: 600; }

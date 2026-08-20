@@ -18,11 +18,7 @@ import { register } from "@/lib/auth/actions";
 import { COUNTRIES, countryFlag } from "@/lib/intl/countries";
 import { generateStrongPasswordExample } from "@/lib/auth/password-strength";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
-
-const inputClass =
-  "w-full border-2 border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35";
-
-const labelClass = "mb-1.5 block text-sm font-bold text-ink";
+import { fieldClass, labelClass, buttonClass, errorClass } from "@/components/auth/form-classes";
 
 const iconClass = "absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft";
 
@@ -62,7 +58,7 @@ export default function RegisterForm({
           de validation (le formulaire est re-rendu, la query string non). */}
       {referralCode && <input type="hidden" name="referralCode" value={referralCode} />}
       {referralCode && (
-        <div className="border-2 border-line bg-brand/10 px-3 py-2.5 text-sm font-semibold text-ink">
+        <div className="rounded-lg border border-brand bg-brand/25 px-3 py-2.5 text-sm font-semibold text-ink">
           {referrerName ? (
             <>
               Vous avez été invité par <span className="marker">{referrerName}</span>.
@@ -77,7 +73,7 @@ export default function RegisterForm({
       )}
 
       {state?.error && (
-        <div className="flex items-center gap-2 border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-semibold text-err">
+        <div className={errorClass}>
           <AlertCircle className="h-4 w-4 shrink-0" />
           <p>{state.error}</p>
         </div>
@@ -93,7 +89,7 @@ export default function RegisterForm({
             required
             autoComplete="name"
             placeholder="Jean Dupont"
-            className={inputClass}
+            className={fieldClass}
           />
         </div>
       </div>
@@ -109,7 +105,7 @@ export default function RegisterForm({
             autoComplete="email"
             spellCheck={false}
             placeholder="jean.dupont@exemple.com"
-            className={inputClass}
+            className={fieldClass}
           />
         </div>
       </div>
@@ -128,13 +124,13 @@ export default function RegisterForm({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={passwordExample}
-              className={`${inputClass} pr-10`}
+              className={`${fieldClass} pr-10`}
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:bg-brand hover:text-[#1C1917]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -155,13 +151,13 @@ export default function RegisterForm({
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className={`${inputClass} pr-10`}
+              className={`${fieldClass} pr-10`}
             />
             <button
               type="button"
               onClick={() => setShowConfirmPassword((v) => !v)}
               aria-label={showConfirmPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:bg-brand hover:text-[#1C1917]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink"
             >
               {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -194,7 +190,7 @@ export default function RegisterForm({
               const country = COUNTRIES.find((c) => c.iso2 === e.target.value);
               if (country) setDialCode(country.dialCode);
             }}
-            className={`${inputClass} appearance-none pl-10 pr-10`}
+            className={`${fieldClass} appearance-none pl-10 pr-10`}
           >
             {COUNTRIES.map((c) => (
               <option key={c.iso2} value={c.iso2}>
@@ -216,7 +212,7 @@ export default function RegisterForm({
             value={dialCode}
             onChange={(e) => setDialCode(e.target.value)}
             aria-label="Indicatif téléphonique"
-            className="w-24 shrink-0 border-2 border-line bg-paper px-2 py-3 text-sm text-ink focus:outline-none focus:ring-4 focus:ring-brand/35"
+            className="w-24 shrink-0 rounded-lg border border-line bg-paper px-2 py-3 text-sm text-ink focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
           >
             {COUNTRIES.map((c) => (
               <option key={`${c.iso2}-${c.dialCode}`} value={c.dialCode}>
@@ -232,7 +228,7 @@ export default function RegisterForm({
               required
               autoComplete="tel-national"
               placeholder="07 00 00 00 00"
-              className={inputClass}
+              className={fieldClass}
             />
           </div>
         </div>
@@ -255,7 +251,7 @@ export default function RegisterForm({
               type="tel"
               name="whatsapp"
               placeholder="Numéro WhatsApp (avec indicatif)"
-              className={inputClass}
+              className={fieldClass}
             />
           </div>
         )}
@@ -278,7 +274,7 @@ export default function RegisterForm({
               type="tel"
               name="telegram"
               placeholder="Numéro Telegram (avec indicatif)"
-              className={inputClass}
+              className={fieldClass}
             />
           </div>
         )}
@@ -287,7 +283,7 @@ export default function RegisterForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full border-2 border-line bg-brand px-5 py-3 text-sm font-extrabold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
+        className={buttonClass}
       >
         {pending ? "Création du compte..." : "S'inscrire"}
       </button>

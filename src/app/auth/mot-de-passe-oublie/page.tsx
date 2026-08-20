@@ -23,7 +23,7 @@ export default async function ForgotPasswordPage() {
           Vous vous souvenez de votre mot de passe ?{" "}
           <Link
             href="/auth/login"
-            className="font-bold text-brand-deep underline decoration-2 underline-offset-4 hover:bg-brand hover:text-[#1C1917]"
+            className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
             Connexion
           </Link>
@@ -34,7 +34,7 @@ export default async function ForgotPasswordPage() {
         <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
           Mot de passe oublié
         </p>
-        <h2 className="mt-2 font-display text-3xl font-extrabold text-ink">
+        <h2 className="mt-2 font-display text-3xl font-bold text-ink">
           Réinitialiser le mot de passe
         </h2>
         <p className="mt-2 text-sm leading-6 text-ink-soft">

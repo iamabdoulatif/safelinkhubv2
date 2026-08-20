@@ -23,7 +23,7 @@ export default async function ActivationPage({
           Besoin d&apos;aide ?{" "}
           <Link
             href="/contact"
-            className="font-bold text-brand-deep underline decoration-2 underline-offset-4 hover:bg-brand hover:text-[#1C1917]"
+            className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
             Contactez-nous
           </Link>
@@ -34,7 +34,7 @@ export default async function ActivationPage({
         <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
           Dernière étape
         </p>
-        <h2 className="mt-2 font-display text-3xl font-extrabold text-ink">
+        <h2 className="mt-2 font-display text-3xl font-bold text-ink">
           Confirmer mon email
         </h2>
         <div className="mt-6">

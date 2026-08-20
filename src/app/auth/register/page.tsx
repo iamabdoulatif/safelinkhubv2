@@ -38,7 +38,7 @@ export default async function RegisterPage({
           Vous avez déjà un compte ?{" "}
           <Link
             href="/auth/login"
-            className="font-bold text-brand-deep underline decoration-2 underline-offset-4 hover:bg-brand hover:text-[#1C1917]"
+            className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
             Connexion
           </Link>
@@ -49,7 +49,7 @@ export default async function RegisterPage({
         <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
           Inscription
         </p>
-        <h2 className="mt-2 font-display text-3xl font-extrabold text-ink">
+        <h2 className="mt-2 font-display text-3xl font-bold text-ink">
           Créer un compte SafeLinkHub
         </h2>
         <p className="mt-2 text-sm leading-6 text-ink-soft">

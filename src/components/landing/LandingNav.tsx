@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LayoutDashboard, Menu, X } from "lucide-react";
 import Logo from "./Logo";
@@ -20,46 +20,9 @@ const links = [
   { href: "/contact", label: "Contact" },
 ] as const;
 
-/* Deux habillages, un seul composant.
- *
- * La landing (/) est en peau Slate — traits fins, boutons pilule. /blog,
- * /blog/[slug] et /contact restent en Bitume — traits de 2 px, boutons
- * rectangulaires. Un composant par peau aurait dupliqué la logique de session
- * et le menu mobile ; une variante ne duplique que des classes. */
-type Variant = "bitume" | "slate";
-
-const skin = {
-  bitume: {
-    header: "border-b-2 border-line bg-paper",
-    ghost: "border-2 border-line px-4 py-2 text-sm font-bold text-ink hover:bg-clay",
-    primary: "border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper sm:px-4",
-    dashboard: "flex items-center gap-2 border-2 border-line bg-brand px-3 py-2 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper sm:px-4",
-    burger: "border-2 border-line p-2 text-ink md:hidden",
-    panel: "nav-mobile-panel border-t-2 border-line bg-paper md:hidden",
-    link: "nav-scanner-link px-1 text-ink",
-  },
-  slate: {
-    header: "border-b border-line bg-paper",
-    ghost: "items-center justify-center gap-2 slate-btn slate-btn-ghost px-4 py-2 text-sm",
-    primary: "inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-4 py-2 text-sm",
-    dashboard: "inline-flex items-center justify-center gap-2 slate-btn slate-btn-dark px-4 py-2 text-sm",
-    burger: "rounded-full border border-line p-2 text-ink md:hidden",
-    panel: "border-t border-line bg-paper md:hidden",
-    link: "px-1 text-ink hover:text-brand-deep",
-  },
-} satisfies Record<Variant, Record<string, string>>;
-
 const mobileLinkClass = "block px-6 py-4 font-display text-lg font-bold text-ink hover:bg-clay";
-const mobileItemStyle = (index: number) => ({ "--nav-index": index }) as CSSProperties;
 
-export default function LandingNav({
-  anchorPrefix = "",
-  variant = "bitume",
-}: {
-  anchorPrefix?: string;
-  variant?: Variant;
-}) {
-  const s = skin[variant];
+export default function LandingNav({ anchorPrefix = "" }: { anchorPrefix?: string }) {
   const [open, setOpen] = useState(false);
   // Le cookie de session est httpOnly : on interroge /api/session côté
   // client plutôt que de lire cookies() dans les pages, ce qui rendrait
@@ -84,7 +47,7 @@ export default function LandingNav({
   const getHref = (href: string) => (href.startsWith("#") ? `${anchorPrefix}${href}` : href);
 
   return (
-    <header className={`sticky top-0 z-30 ${s.header}`}>
+    <header className="sticky top-0 z-30 border-b border-line bg-paper">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <Link href="/" aria-label="SafeLinkHub — accueil">
           <Logo />
@@ -96,11 +59,11 @@ export default function LandingNav({
         >
           {links.map((l) =>
             l.href.startsWith("#") ? (
-              <a key={l.href} href={getHref(l.href)} className={s.link}>
+              <a key={l.href} href={getHref(l.href)} className="px-1 text-ink hover:text-brand-deep">
                 <span>{l.label}</span>
               </a>
             ) : (
-              <Link key={l.href} href={l.href} className={s.link}>
+              <Link key={l.href} href={l.href} className="px-1 text-ink hover:text-brand-deep">
                 <span>{l.label}</span>
               </Link>
             ),
@@ -109,16 +72,16 @@ export default function LandingNav({
 
         <div className="flex items-center gap-3">
           {authenticated ? (
-            <Link href="/admin" className={s.dashboard}>
+            <Link href="/admin" className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-dark px-4 py-2 text-sm">
               <LayoutDashboard className="h-4 w-4" />
               Dashboard
             </Link>
           ) : (
             <>
-              <Link href="/auth/login" className={`hidden sm:inline-flex ${s.ghost}`}>
+              <Link href="/auth/login" className="hidden items-center justify-center gap-2 slate-btn slate-btn-ghost px-4 py-2 text-sm sm:inline-flex">
                 Connexion
               </Link>
-              <Link href="/auth/register" className={s.primary}>
+              <Link href="/auth/register" className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-4 py-2 text-sm">
                 Commencer
               </Link>
             </>
@@ -129,7 +92,7 @@ export default function LandingNav({
             aria-controls="mobile-menu"
             aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
             onClick={() => setOpen((v) => !v)}
-            className={s.burger}
+            className="rounded-full border border-line p-2 text-ink md:hidden"
           >
             {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
@@ -137,14 +100,10 @@ export default function LandingNav({
       </div>
 
       {open && (
-        <nav id="mobile-menu" aria-label="Navigation mobile" className={s.panel}>
+        <nav id="mobile-menu" aria-label="Navigation mobile" className="border-t border-line bg-paper md:hidden">
           <ul role="list" className="divide-y divide-line-soft">
-            {links.map((l, index) => (
-              <li
-                key={l.href}
-                className={variant === "bitume" ? "nav-mobile-item" : undefined}
-                style={variant === "bitume" ? mobileItemStyle(index) : undefined}
-              >
+            {links.map((l) => (
+              <li key={l.href}>
                 {l.href.startsWith("#") ? (
                   <a href={getHref(l.href)} onClick={() => setOpen(false)} className={mobileLinkClass}>
                     {l.label}
@@ -156,10 +115,7 @@ export default function LandingNav({
                 )}
               </li>
             ))}
-            <li
-              className={variant === "bitume" ? "nav-mobile-item" : undefined}
-              style={variant === "bitume" ? mobileItemStyle(links.length) : undefined}
-            >
+            <li>
               <Link
                 href={authenticated ? "/admin" : "/auth/login"}
                 className="block px-6 py-4 font-display text-lg font-bold text-brand-deep hover:bg-clay"

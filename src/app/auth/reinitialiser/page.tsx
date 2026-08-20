@@ -23,7 +23,7 @@ export default async function ResetPasswordPage({
           Retour à la{" "}
           <Link
             href="/auth/login"
-            className="font-bold text-brand-deep underline decoration-2 underline-offset-4 hover:bg-brand hover:text-[#1C1917]"
+            className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
             connexion
           </Link>
@@ -34,7 +34,7 @@ export default async function ResetPasswordPage({
         <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
           Réinitialisation
         </p>
-        <h2 className="mt-2 font-display text-3xl font-extrabold text-ink">
+        <h2 className="mt-2 font-display text-3xl font-bold text-ink">
           Nouveau mot de passe
         </h2>
         <p className="mt-2 text-sm leading-6 text-ink-soft">

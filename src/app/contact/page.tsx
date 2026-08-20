@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="theme-slate flex flex-1 flex-col">
       <LandingNav anchorPrefix="/" />
       <main className="flex-1 bg-paper">
         <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-brand-deep">
-            Entreprise
-          </p>
-          <h1 className="mt-2 font-display text-4xl font-bold text-ink">Contactez-nous</h1>
+          <span className="slate-eyebrow">Entreprise</span>
+          <h1 className="mt-5 font-display text-4xl font-bold tracking-tight text-ink sm:text-5xl">
+            Contactez-nous
+          </h1>
           <p className="mt-3 max-w-xl text-ink-soft">
             Une question sur le produit, un partenariat ou un déploiement à
             grande échelle ? Écrivez-nous, nous répondons rapidement.
@@ -30,7 +30,7 @@ export default function ContactPage() {
             </div>
 
             <aside className="space-y-4 lg:col-span-5">
-              <div className="border-2 border-line bg-clay p-6">
+              <div className="slate-card bg-clay p-6">
                 <h2 className="font-display text-lg font-bold text-ink">
                   Déjà client ?
                 </h2>
@@ -41,12 +41,12 @@ export default function ContactPage() {
                 </p>
                 <a
                   href="/admin/support"
-                  className="mt-4 inline-block border-2 border-line bg-paper px-4 py-2 text-sm font-bold text-ink hover:bg-brand hover:text-[#1C1917]"
+                  className="slate-btn slate-btn-ghost mt-4 inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm"
                 >
                   Ouvrir le support
                 </a>
               </div>
-              <div className="border-2 border-line bg-paper p-6">
+              <div className="slate-card bg-paper p-6">
                 <h2 className="font-display text-lg font-bold text-ink">
                   Délai de réponse
                 </h2>

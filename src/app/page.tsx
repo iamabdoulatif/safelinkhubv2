@@ -40,7 +40,7 @@ export default function Home() {
   return (
     <div className="theme-slate flex flex-1 flex-col">
       <AnnounceBar />
-      <LandingNav variant="slate" />
+      <LandingNav />
       <main>
         <Hero />
         <TrustStrip />
@@ -59,7 +59,7 @@ export default function Home() {
         <FaqSection />
         <FinalCta />
       </main>
-      <LandingFooter variant="slate" />
+      <LandingFooter />
       <BackToTop />
     </div>
   );

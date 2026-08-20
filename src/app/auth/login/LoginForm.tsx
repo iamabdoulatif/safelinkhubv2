@@ -6,25 +6,22 @@ import { useSearchParams } from "next/navigation";
 import { Mail, Lock, AlertCircle, ShieldCheck } from "lucide-react";
 import { login, verifyMfaLogin } from "@/lib/auth/actions";
 import ResendActivationForm from "@/components/auth/ResendActivationForm";
+import { fieldClass, buttonClass, noticeClass, errorClass } from "@/components/auth/form-classes";
 
-const fieldClass =
-  "w-full border-2 border-line bg-paper py-3 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35";
 
-const primaryButtonClass =
-  "w-full border-2 border-line bg-brand px-5 py-3 text-sm font-extrabold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60";
 
 function MfaStep() {
   const [state, formAction, pending] = useActionState(verifyMfaLogin, undefined);
 
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
-      <div className="flex items-start gap-2 border-2 border-line-soft bg-clay px-3 py-2.5 text-sm text-ink-soft">
+      <div className={noticeClass}>
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
         <p>Entrez le code à 6 chiffres de votre application d&apos;authentification.</p>
       </div>
 
       {state?.error && (
-        <div className="flex items-center gap-2 border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-semibold text-err">
+        <div className={errorClass}>
           <AlertCircle className="h-4 w-4 shrink-0" />
           <p>{state.error}</p>
         </div>
@@ -42,14 +39,14 @@ function MfaStep() {
           inputMode="numeric"
           autoComplete="one-time-code"
           placeholder="123456 ou un code de récupération"
-          className="w-full border-2 border-line bg-paper px-3 py-3 text-center text-lg tracking-widest text-ink placeholder:text-sm placeholder:tracking-normal placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35"
+          className="w-full border border-line bg-paper px-3 py-3 text-center text-lg tracking-widest text-ink placeholder:text-sm placeholder:tracking-normal placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35"
         />
       </div>
 
       <button
         type="submit"
         disabled={pending}
-        className={primaryButtonClass}
+        className={buttonClass}
       >
         {pending ? "Vérification..." : "Vérifier"}
       </button>
@@ -72,14 +69,14 @@ export default function LoginForm() {
       <input type="hidden" name="callback" value={callback} />
 
       {state?.error && (
-        <div className="flex items-center gap-2 border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-semibold text-err">
+        <div className={errorClass}>
           <AlertCircle className="h-4 w-4 shrink-0" />
           <p>{state.error}</p>
         </div>
       )}
 
       {state?.needsVerification && (
-        <div className="space-y-3 border-2 border-line-soft bg-clay px-3 py-3">
+        <div className="space-y-3 border border-line bg-clay px-3 py-3">
           <p className="text-sm text-ink-soft">
             Renvoyer le lien d&apos;activation à <span className="font-bold text-ink">{email}</span> ?
           </p>
@@ -126,7 +123,7 @@ export default function LoginForm() {
         <div className="mt-1.5 text-right">
           <Link
             href="/auth/mot-de-passe-oublie"
-            className="text-sm font-medium text-brand-deep underline decoration-2 underline-offset-4 hover:bg-brand hover:text-[#1C1917]"
+            className="text-sm font-medium text-brand-deep underline underline-offset-4 hover:text-ink"
           >
             Mot de passe oublié ?
           </Link>
@@ -136,7 +133,7 @@ export default function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className={primaryButtonClass}
+        className={buttonClass}
       >
         {pending ? "Connexion en cours..." : "Connexion"}
       </button>

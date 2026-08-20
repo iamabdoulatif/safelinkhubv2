@@ -29,7 +29,7 @@ export default async function BlogPage({
       : null;
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="theme-slate flex flex-1 flex-col">
       <LandingNav anchorPrefix="/" />
       <main className="flex-1 bg-paper">
         <BlogExperience

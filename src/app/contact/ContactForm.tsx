@@ -12,7 +12,7 @@ export default function ContactForm() {
   }, [state]);
 
   return (
-    <form ref={formRef} action={formAction} className="border-2 border-line bg-paper p-6">
+    <form ref={formRef} action={formAction} className="border border-line bg-paper p-6">
       {state?.error && (
         <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
           {state.error}
@@ -44,7 +44,7 @@ export default function ContactForm() {
             name="name"
             required
             placeholder="Votre nom"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+            className="w-full rounded-lg border border-line px-3 py-2.5 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
         <div>
@@ -57,7 +57,7 @@ export default function ContactForm() {
             type="email"
             required
             placeholder="vous@exemple.com"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+            className="w-full rounded-lg border border-line px-3 py-2.5 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
       </div>
@@ -70,7 +70,7 @@ export default function ContactForm() {
           id="contact-subject"
           name="subject"
           placeholder="Ex : Déploiement multi-sites"
-          className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+          className="w-full rounded-lg border border-line px-3 py-2.5 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
 
@@ -85,14 +85,14 @@ export default function ContactForm() {
           rows={6}
           maxLength={5000}
           placeholder="Décrivez votre besoin…"
-          className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+          className="w-full rounded-lg border border-line px-3 py-2.5 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
 
       <button
         type="submit"
         disabled={pending}
-        className="mt-5 border-2 border-line bg-brand px-5 py-2.5 text-sm font-bold text-[#1C1917] hover:bg-ink hover:text-paper disabled:opacity-60"
+        className="slate-btn slate-btn-primary mt-5 inline-flex items-center justify-center gap-2 px-6 py-3 text-sm disabled:opacity-60"
       >
         {pending ? "Envoi…" : "Envoyer le message"}
       </button>

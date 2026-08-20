@@ -41,35 +41,18 @@ const socials = [
   { href: "https://tiktok.com/@safelinkhub", label: "TikTok" },
 ] as const;
 
-/* Deux habillages, comme LandingNav : la landing (/) est en peau Slate — vert
- * profond, coins arrondis, bloc de capture à droite ; /blog et /contact
- * gardent le pied de page Bitume anthracite. */
-type Variant = "bitume" | "slate";
-
-export default function LandingFooter({
-  anchorPrefix = "",
-  variant = "bitume",
-}: {
-  anchorPrefix?: string;
-  variant?: Variant;
-}) {
-  const slate = variant === "slate";
+export default function LandingFooter({ anchorPrefix = "" }: { anchorPrefix?: string }) {
   const getHref = (href: string) => (href.startsWith("#") ? `${anchorPrefix}${href}` : href);
-
-  const shell = slate ? "bg-slate-deep py-16 text-white" : "bg-ink py-14 text-paper";
-  const muted = slate ? "text-slate-deep-soft" : "text-[#A8A29E]";
-  const rule = slate ? "border-t border-slate-deep-line" : "border-t-2 border-[#3A362F]";
-  const linkClass = slate
-    ? "text-sm text-white/85 hover:text-brand"
-    : "text-sm text-paper hover:bg-brand hover:text-[#1C1917]";
+  const muted = "text-slate-deep-soft";
+  const linkClass = "text-sm text-white/85 hover:text-brand";
 
   return (
-    <footer className={shell}>
+    <footer className="bg-slate-deep py-16 text-white">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         {/* Capture e-mail — elle mène à la création de compte, pas à une
             newsletter : aucune liste de diffusion n'existe côté produit, et
             promettre un abonnement qui n'arriverait jamais serait un mensonge. */}
-        {slate ? (
+        {/* Capture e-mail */}
           <div className="mb-14 grid grid-cols-1 gap-8 rounded-2xl border border-slate-deep-line bg-[#0E2618] p-8 lg:grid-cols-12 lg:items-center sm:p-10">
             <div className="lg:col-span-6">
               <h2 className="font-display text-2xl font-bold leading-snug text-white sm:text-3xl">
@@ -101,21 +84,14 @@ export default function LandingFooter({
               </button>
             </form>
           </div>
-        ) : null}
 
         {/* Grille asymétrique : marque large + colonnes serrées */}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
           <div className="lg:col-span-5">
             <Logo dark />
-            {!slate ? (
-              <p className="mt-4 max-w-xs font-display text-2xl font-bold leading-snug">
-                Le réseau commence ici.
-              </p>
-            ) : (
-              <p className={`mt-4 max-w-xs text-sm leading-6 ${muted}`}>
-                Plateforme d&apos;automatisation Hotspot et FAI. Abidjan, Côte d&apos;Ivoire.
-              </p>
-            )}
+            <p className={`mt-4 max-w-xs text-sm leading-6 ${muted}`}>
+              Plateforme d&apos;automatisation Hotspot et FAI. Abidjan, Côte d&apos;Ivoire.
+            </p>
           </div>
           {columns.map((col) => (
             <nav key={col.title} aria-label={col.title} className="lg:col-span-2">
@@ -141,7 +117,7 @@ export default function LandingFooter({
           ))}
         </div>
 
-        <div className={`mt-12 flex flex-col items-start justify-between gap-4 pt-6 sm:flex-row sm:items-center ${rule}`}>
+        <div className="mt-12 flex flex-col items-start justify-between gap-4 border-t border-slate-deep-line pt-6 sm:flex-row sm:items-center">
           <p className={`text-xs ${muted}`}>
             © {new Date().getFullYear()} SafeLinkHub. Tous droits réservés.
           </p>
@@ -152,7 +128,7 @@ export default function LandingFooter({
                 href={s.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`text-xs ${slate ? "text-slate-deep-soft hover:text-brand" : "text-[#A8A29E] hover:bg-brand hover:text-[#1C1917]"}`}
+                className="text-xs text-slate-deep-soft hover:text-brand"
               >
                 {s.label}
               </a>

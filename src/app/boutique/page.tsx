@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function BoutiquePage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-paper px-4 text-center">
+    <main className="theme-slate flex min-h-screen flex-col items-center justify-center bg-paper px-4 text-center">
       <div className="mx-auto max-w-lg">
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-clay">
           <ShoppingBag className="h-8 w-8 text-ink" />
@@ -32,7 +32,7 @@ export default function BoutiquePage() {
 
         <Link
           href="/"
-          className="mt-8 inline-flex items-center gap-2 border-2 border-line bg-brand px-5 py-3 text-sm font-bold text-[#1C1917] hover:opacity-90"
+          className="slate-btn slate-btn-primary mt-8 inline-flex items-center justify-center gap-2 px-6 py-3 text-sm"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Retour à l&apos;accueil

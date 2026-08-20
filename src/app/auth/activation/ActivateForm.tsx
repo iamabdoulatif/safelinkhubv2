@@ -4,9 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, Loader2, ShieldCheck } from "lucide-react";
 import ResendActivationForm from "@/components/auth/ResendActivationForm";
+import { buttonClass, noticeClass, errorClass } from "@/components/auth/form-classes";
 
-const buttonClass =
-  "w-full border-2 border-line bg-brand px-5 py-3 text-sm font-extrabold text-[#1C1917] transition hover:bg-ink hover:text-paper disabled:cursor-default disabled:opacity-70 disabled:hover:bg-brand disabled:hover:text-[#1C1917]";
 
 /**
  * Formulaire d'activation = POST HTML pur vers la Route Handler stable
@@ -47,7 +46,7 @@ export default function ActivateForm({
   if (!token || error) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2 border-2 border-err bg-err-soft px-3 py-2.5 text-sm font-semibold text-err">
+        <div className={errorClass}>
           <AlertCircle className="h-4 w-4 shrink-0" />
           <p>
             {token
@@ -60,7 +59,7 @@ export default function ActivateForm({
         <p className="text-center text-sm text-ink-soft">
           <Link
             href="/auth/login"
-            className="font-bold text-brand-deep underline decoration-2 underline-offset-4 hover:bg-brand hover:text-[#1C1917]"
+            className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
             Retour à la connexion
           </Link>
@@ -78,7 +77,7 @@ export default function ActivateForm({
       className="space-y-5"
     >
       <input type="hidden" name="token" value={token} />
-      <div className="flex items-start gap-2 border-2 border-line-soft bg-clay px-3 py-2.5 text-sm text-ink-soft">
+      <div className={noticeClass}>
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
         <p>
           {submitting

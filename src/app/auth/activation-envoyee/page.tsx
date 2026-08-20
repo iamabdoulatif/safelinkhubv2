@@ -24,7 +24,7 @@ export default async function ActivationSentPage({
           Déjà activé ?{" "}
           <Link
             href="/auth/login"
-            className="font-bold text-brand-deep underline decoration-2 underline-offset-4 hover:bg-brand hover:text-[#1C1917]"
+            className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
             Connexion
           </Link>
@@ -32,13 +32,13 @@ export default async function ActivationSentPage({
       }
     >
       <div>
-        <div className="mb-4 flex h-12 w-12 items-center justify-center border-2 border-line bg-brand text-[#1C1917]">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-brand text-slate-deep">
           <MailCheck className="h-6 w-6" />
         </div>
         <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
           Email envoyé
         </p>
-        <h2 className="mt-2 font-display text-3xl font-extrabold text-ink">
+        <h2 className="mt-2 font-display text-3xl font-bold text-ink">
           Vérifiez votre boîte mail
         </h2>
         <p className="mt-3 text-sm leading-6 text-ink-soft">
