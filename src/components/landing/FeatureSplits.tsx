@@ -145,6 +145,19 @@ export function FeatureMobileMoney() {
             />
           </div>
           <div className="slate-card slate-card-raised relative mx-4 -mt-10 overflow-hidden bg-paper">
+            {/* APERÇU D'INTERFACE, pas un chiffre de plateforme. La distinction
+                compte : les mêmes montants affichés en cartes flottantes dans le
+                hero laissaient croire à des recettes réelles — ils ont été
+                retirés. Ici ils illustrent une console, et l'étiquette le dit
+                pour qu'aucun visiteur n'ait à le deviner. */}
+            <div className="flex items-center justify-between gap-3 border-b border-line bg-clay px-5 py-2.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
+                Aperçu de la console
+              </span>
+              <span className="rounded-full bg-paper px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
+                Exemple
+              </span>
+            </div>
             <div className="flex items-baseline justify-between border-b border-line px-5 py-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                 Encaissé aujourd&apos;hui
