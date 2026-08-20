@@ -15,6 +15,7 @@ import {
 } from "./tokens";
 import { sendActivationEmail, sendPasswordResetEmail } from "./email";
 import { computeVpnQuotaGrant } from "@/lib/billing/vpn-quota";
+import { type AccountType } from "@/lib/billing/reseller";
 import { attachReferrer, awardReferral } from "@/lib/referrals/service";
 import {
   clearMfaPendingToken,
@@ -202,6 +203,11 @@ export async function register(_prevState: unknown, formData: FormData) {
   // Code de parrainage, porté par le lien /auth/register?ref=… (champ caché) ou
   // saisi à la main. Facultatif : une inscription sans code reste normale.
   const referralCode = String(formData.get("referralCode") ?? "").trim();
+  // Type de compte demandé à l'inscription. Ce n'est qu'une DEMANDE : le tarif
+  // revendeur reste fermé tant que le pack n'est pas payé (voir
+  // lib/billing/reseller.ts — c'est reseller_activated_at qui l'ouvre).
+  const accountType: AccountType =
+    formData.get("accountType") === "reseller" ? "reseller" : "user";
 
   if (!name || !email || !password || !confirmPassword || !country || !phoneDialCode || !phone) {
     return { error: "Tous les champs sont requis." };
@@ -243,6 +249,7 @@ export async function register(_prevState: unknown, formData: FormData) {
       slug,
       vpnQuotaMode: vpnTrial.mode,
       vpnQuotaExpiresAt: vpnTrial.expiresAt,
+      accountType,
     })
     .returning();
 

@@ -16,9 +16,16 @@ import {
 } from "lucide-react";
 import { register } from "@/lib/auth/actions";
 import { COUNTRIES, countryFlag } from "@/lib/intl/countries";
+import {
+  RESELLER_PACK_FCFA,
+  RESELLER_QUOTA,
+  RESELLER_SETUP_FEE_CENTS,
+} from "@/lib/billing/reseller";
 import { generateStrongPasswordExample } from "@/lib/auth/password-strength";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 import { fieldClass, labelClass, buttonClass, errorClass } from "@/components/auth/form-classes";
+
+const fmtFcfa = (cents: number) => `${new Intl.NumberFormat("fr-FR").format(cents)} FCFA`;
 
 const iconClass = "absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft";
 
@@ -175,6 +182,55 @@ export default function RegisterForm({
           )}
         </div>
       </div>
+
+      {/* Type de compte. C'est une DEMANDE : cocher « revendeur » n'ouvre pas
+          le tarif remisé, le pack doit être payé (voir lib/billing/reseller.ts).
+          Le prix est importé, jamais recopié — il ne peut pas diverger du
+          montant réellement débité. */}
+      <fieldset>
+        <legend className={labelClass}>Type de compte</legend>
+        <div className="mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex cursor-pointer gap-3 rounded-xl border border-line p-4 has-[:checked]:border-brand-deep has-[:checked]:bg-brand/15">
+            <input
+              type="radio"
+              name="accountType"
+              value="user"
+              defaultChecked
+              className="mt-0.5 h-4 w-4 shrink-0 accent-slate-deep"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-ink">Utilisateur</span>
+              <span className="mt-1 block text-xs leading-5 text-ink-soft">
+                Un ou deux MikroTik par an. Tarif d&apos;installation public,
+                rien à payer à l&apos;inscription.
+              </span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer gap-3 rounded-xl border border-line p-4 has-[:checked]:border-brand-deep has-[:checked]:bg-brand/15">
+            <input
+              type="radio"
+              name="accountType"
+              value="reseller"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-slate-deep"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-ink">
+                Technicien ou revendeur
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-ink-soft">
+                {/* Un SEUL nœud texte par montant : ce Next avale l'espace
+                    entre {expr} et le texte adjacent au rendu serveur — d'où
+                    « 40 000FCFA » sinon. Même contournement que Pricing.tsx. */}
+                {`Plusieurs MikroTik par mois. Pack de ${fmtFcfa(RESELLER_PACK_FCFA)} par an : ${RESELLER_QUOTA} installations à ${fmtFcfa(RESELLER_SETUP_FEE_CENTS)} au lieu de ${fmtFcfa(10000)}, et le montant revient en crédit sur votre portefeuille.`}
+              </span>
+              <span className="mt-1.5 block text-xs font-semibold text-brand-deep">
+                Le paiement est demandé juste après la création du compte.
+              </span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
 
       <div>
         <label className={labelClass}>

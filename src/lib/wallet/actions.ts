@@ -18,6 +18,7 @@ import {
   isWalletEligibleCountry,
   isWalletPaymentMethod,
 } from "./payment-options";
+import { RESELLER_PACK_FCFA, RESELLER_QUOTA } from "@/lib/billing/reseller";
 
 // Moyens mobile money via PawaPay : GeniusPay v3 EXIGE un numéro (phone_number).
 // Sans lui, l'API renvoie « PawaPay: Missing required field: phone_number ».
@@ -151,7 +152,15 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
     return { error: "Le paiement en ligne du portefeuille n'est pas encore activé." };
   }
 
-  const amountCents = Math.round(Number(formData.get("amount") ?? 0));
+  // Le pack revendeur emprunte la MÊME mécanique qu'une recharge : c'en est
+  // une, à montant imposé, qui déclenche en plus l'ouverture du tarif remisé à
+  // la confirmation (voir wallet/topup-confirmation.ts). Dupliquer soixante
+  // lignes de création de paiement pour cela n'aurait servi à rien.
+  const purpose = formData.get("purpose") === "reseller_pack" ? "reseller_pack" : "topup";
+  const amountCents =
+    purpose === "reseller_pack"
+      ? RESELLER_PACK_FCFA
+      : Math.round(Number(formData.get("amount") ?? 0));
   const paymentMethod = String(formData.get("paymentMethod") ?? "");
   const countryIso2 = String(formData.get("countryIso2") ?? "").toUpperCase();
   // Minimum GeniusPay v3 = 200 FCFA (l'API rejette 422 en dessous).
@@ -177,8 +186,12 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
     .values({
       orgId: session.orgId,
       type: "topup",
+      purpose,
       amountCents,
-      note: `Dépôt portefeuille — ${getWalletPaymentMethodLabel(paymentMethod)}`,
+      note:
+        purpose === "reseller_pack"
+          ? `Pack revendeur — ${getWalletPaymentMethodLabel(paymentMethod)}`
+          : `Dépôt portefeuille — ${getWalletPaymentMethodLabel(paymentMethod)}`,
       status: "pending",
       paymentMethod,
       countryIso2,
@@ -195,7 +208,10 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
     : undefined;
   const payment = await createPlatformV3Payment({
     amountFcfa: amountCents,
-    description: `Recharge portefeuille SafeLinkHub — ${amountCents.toLocaleString("fr-FR")} FCFA`,
+    description:
+      purpose === "reseller_pack"
+        ? `Pack revendeur SafeLinkHub — ${RESELLER_QUOTA} installations`
+        : `Recharge portefeuille SafeLinkHub — ${amountCents.toLocaleString("fr-FR")} FCFA`,
     customer: {
       name: session.name,
       email: session.email,
@@ -205,7 +221,7 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
     method: paymentMethod,
     countryIso2,
     metadata: {
-      kind: "wallet_topup",
+      kind: purpose === "reseller_pack" ? "reseller_pack" : "wallet_topup",
       walletTransactionId: pending.id,
       orgId: session.orgId,
       countryIso2,

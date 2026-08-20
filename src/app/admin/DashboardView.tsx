@@ -2,6 +2,12 @@ import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, Router as RouterIcon, Ticket, Wifi } from "lucide-react";
 import { type DailyPoint } from "@/lib/dashboard/queries";
 import { type CountryRow } from "@/lib/dashboard/geography";
+import {
+  type ResellerState,
+  RESELLER_PACK_FCFA,
+  RESELLER_QUOTA,
+  RESELLER_SETUP_FEE_CENTS,
+} from "@/lib/billing/reseller";
 import { formatSc } from "@/lib/safecoin/pricing";
 import DateRangePicker from "./DateRangePicker";
 import LineChart from "@/components/charts/LineChart";
@@ -44,6 +50,7 @@ export type DashboardViewProps = {
   kpis: DashboardKpis | null;
   /** Répartition des comptes par pays — superadmin seulement, vide sinon. */
   countries: CountryRow[];
+  reseller: ResellerState | null;
   daily: DailyPoint[];
   recentSales: DashboardSale[];
   safecoin: SafecoinSummary | null;
@@ -94,7 +101,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   return <div className={`rounded-xl border border-line bg-paper ${className}`}>{children}</div>;
 }
 
-export default function DashboardView({ kpis, daily, recentSales, safecoin, countries, rangeLabel, picker }: DashboardViewProps) {
+export default function DashboardView({ kpis, daily, recentSales, safecoin, countries, reseller, rangeLabel, picker }: DashboardViewProps) {
   const data = kpis ? { kpis, daily, recentSales } : null;
   const hasSales = (kpis?.salesCount ?? 0) > 0;
   const hasAnyData = hasSales || (kpis?.expenseCents ?? 0) > 0;
@@ -126,6 +133,37 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
           </p>
           <span className="text-xs font-semibold text-err">Diagnostiquer →</span>
         </Link>
+      )}
+
+      {reseller?.pendingPayment && (
+        <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-brand-deep bg-brand/15 px-4 py-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-ink">
+              Votre compte revendeur attend son paiement
+            </p>
+            <p className="mt-1 text-xs leading-5 text-ink-soft">
+              {`Tant que le pack de ${new Intl.NumberFormat("fr-FR").format(RESELLER_PACK_FCFA)} FCFA n'est pas réglé, vos installations restent au tarif public. Une fois payé : ${RESELLER_QUOTA} poses à ${new Intl.NumberFormat("fr-FR").format(RESELLER_SETUP_FEE_CENTS)} FCFA, et le montant revient en crédit sur votre portefeuille.`}
+            </p>
+          </div>
+          <Link
+            href="/admin/billing?pack=revendeur"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper"
+          >
+            Régler le pack
+          </Link>
+        </div>
+      )}
+
+      {reseller?.active && (
+        <p className="mt-4 text-xs text-ink-soft">
+          Compte revendeur actif — {reseller.quotaLeft} installation
+          {reseller.quotaLeft > 1 ? "s" : ""} remisée{reseller.quotaLeft > 1 ? "s" : ""} sur{" "}
+          {reseller.quotaTotal}
+          {reseller.expiresAt
+            ? `, jusqu'au ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(reseller.expiresAt)}`
+            : ""}
+          .
+        </p>
       )}
 
       {/* Un chiffre domine, les autres le qualifient. */}

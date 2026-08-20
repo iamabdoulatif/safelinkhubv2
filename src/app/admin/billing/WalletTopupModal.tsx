@@ -9,16 +9,29 @@ import {
   WALLET_PAYMENT_METHODS,
 } from "@/lib/wallet/payment-options";
 import { countryFlag } from "@/lib/intl/countries";
+import { RESELLER_PACK_FCFA, RESELLER_QUOTA, RESELLER_SETUP_FEE_CENTS } from "@/lib/billing/reseller";
+
+const fcfa = (n: number) => `${new Intl.NumberFormat("fr-FR").format(n)} FCFA`;
 
 type TopupMode = "online" | "manual";
 
+/* `purpose` bascule la modale en achat du PACK REVENDEUR : montant imposé,
+ * saisie libre retirée, et le dépôt marqué pour que sa confirmation ouvre le
+ * tarif remisé (voir wallet/topup-confirmation.ts). Le reste — moyens de
+ * paiement, pays, numéro mobile money — est rigoureusement le même : c'est une
+ * recharge, à montant fixe. */
 export default function WalletTopupModal({
   geniusPayEnabled,
   defaultCountry,
+  purpose = "topup",
+  trigger,
 }: {
   geniusPayEnabled: boolean;
   defaultCountry: string;
+  purpose?: "topup" | "reseller_pack";
+  trigger?: React.ReactNode;
 }) {
+  const isPack = purpose === "reseller_pack";
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<TopupMode>(geniusPayEnabled ? "online" : "manual");
   const [onlineState, onlineAction, onlinePending] = useActionState(startWalletTopupPayment, undefined);
@@ -47,11 +60,12 @@ export default function WalletTopupModal({
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-md bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep"
-      >
-        + Ajouter des fonds
+      <button onClick={() => setOpen(true)} className="contents">
+        {trigger ?? (
+          <span className="inline-flex items-center gap-2 rounded-full bg-brand-deep px-4 py-2 text-sm font-medium text-white">
+            + Ajouter des fonds
+          </span>
+        )}
       </button>
 
       {open && (
@@ -106,11 +120,30 @@ export default function WalletTopupModal({
 
             {mode === "online" && geniusPayEnabled ? (
               <form action={onlineAction} className="mt-5 space-y-5">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-ink">Montant à ajouter (FCFA)</label>
-                  <input name="amount" type="number" min={200} max={5000000} step={100} required placeholder="15000" className="w-full rounded-md border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink" />
-                  <p className="mt-1 text-xs text-ink-soft">Minimum 200 FCFA · maximum 5 000 000 FCFA</p>
-                </div>
+                {isPack ? (
+                  <div className="rounded-xl border border-brand-deep bg-brand/15 p-4">
+                    {/* Le montant n'est PAS saisissable : il est imposé côté
+                        serveur (RESELLER_PACK_FCFA), pas lu du formulaire —
+                        un champ modifié dans le navigateur n'achèterait pas
+                        le pack à un autre prix. */}
+                    <input type="hidden" name="purpose" value="reseller_pack" />
+                    <p className="text-sm font-semibold text-ink">Pack revendeur — un an</p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
+                      {fcfa(RESELLER_PACK_FCFA)}
+                    </p>
+                    <ul className="mt-3 space-y-1 text-xs leading-5 text-ink-soft" role="list">
+                      <li>{`${RESELLER_QUOTA} installations à ${fcfa(RESELLER_SETUP_FEE_CENTS)} au lieu de ${fcfa(10000)}`}</li>
+                      <li>{`Le montant revient intégralement en crédit sur votre portefeuille`}</li>
+                      <li>Quota remis à zéro à chaque renouvellement annuel</li>
+                    </ul>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-ink">Montant à ajouter (FCFA)</label>
+                    <input name="amount" type="number" min={200} max={5000000} step={100} required placeholder="15000" className="w-full rounded-md border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink" />
+                    <p className="mt-1 text-xs text-ink-soft">Minimum 200 FCFA · maximum 5 000 000 FCFA</p>
+                  </div>
+                )}
 
                 <fieldset>
                   <legend className="text-sm font-medium text-ink">Moyen de paiement</legend>

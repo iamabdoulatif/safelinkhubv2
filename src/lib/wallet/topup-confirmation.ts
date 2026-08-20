@@ -11,7 +11,8 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
-import { walletTransactions } from "@/lib/db/schema";
+import { organizations, walletTransactions } from "@/lib/db/schema";
+import { resellerExpiryFrom } from "@/lib/billing/reseller";
 
 /**
  * Crédite un dépôt UNE SEULE FOIS, après validation du webhook GeniusPay.
@@ -32,8 +33,31 @@ export async function completeWalletTopupByReference(paymentReference: string): 
         eq(walletTransactions.paymentReference, paymentReference),
       ),
     )
-    .returning({ orgId: walletTransactions.orgId });
+    .returning({ orgId: walletTransactions.orgId, purpose: walletTransactions.purpose });
   if (!row) return false;
+
+  // Le pack revendeur est un dépôt comme un autre — le crédit vient d'être
+  // porté au portefeuille par la ligne ci-dessus. Ce qu'il ajoute, c'est
+  // l'OUVERTURE du tarif remisé, qui n'a lieu qu'ici : c'est le seul endroit du
+  // code où un paiement est réellement constaté.
+  //
+  // Le quota repart de zéro à chaque activation : payer un nouveau pack rouvre
+  // 50 installations, sans reporter le reliquat du précédent. C'est la règle
+  // « 50 par an, renouvelé au paiement ».
+  if (row.purpose === "reseller_pack") {
+    const activatedAt = new Date();
+    await db
+      .update(organizations)
+      .set({
+        accountType: "reseller",
+        resellerActivatedAt: activatedAt,
+        resellerExpiresAt: resellerExpiryFrom(activatedAt),
+        resellerQuotaUsed: 0,
+      })
+      .where(eq(organizations.id, row.orgId));
+    revalidatePath("/admin");
+  }
+
   revalidatePath("/admin/billing");
   return true;
 }

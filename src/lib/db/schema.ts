@@ -794,6 +794,13 @@ export const walletTransactions = pgTable("wallet_transactions", {
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
   type: text("type").notNull(), // "topup" | "charge"
+  // À quoi sert ce dépôt. "topup" = recharge ordinaire, "reseller_pack" = les
+  // 40 000 FCFA qui activent le statut revendeur.
+  //
+  // Colonne EXPLICITE plutôt que déduction sur le montant : un client qui
+  // recharge 40 000 FCFA par hasard ne doit pas devenir revendeur. Et plutôt
+  // que sur la note, que la confirmation réécrit.
+  purpose: text("purpose").notNull().default("topup"),
   amountCents: integer("amount_cents").notNull(),
   note: text("note"),
   // "completed" est le défaut historique. Un dépôt GeniusPay reste

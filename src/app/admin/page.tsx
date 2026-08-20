@@ -2,6 +2,10 @@ import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDashboardData } from "@/lib/dashboard/queries";
 import { getSafecoinReport } from "@/lib/safecoin/queries";
 import { getAccountsByCountry } from "@/lib/dashboard/geography";
+import { eq } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { organizations } from "@/lib/db/schema";
+import { resellerState } from "@/lib/billing/reseller";
 import DashboardView from "./DashboardView";
 
 /* Cette page ne fait plus que CHERCHER les données et résoudre la période.
@@ -64,6 +68,22 @@ export default async function DashboardPage({
     superadmin ? getAccountsByCountry() : [],
   ]);
 
+  // Tolérant au schéma en retard : sans les colonnes, personne n'est revendeur
+  // et le bandeau ne s'affiche pas — jamais l'inverse.
+  const [orgRow] = session
+    ? await getDb()
+        .select({
+          accountType: organizations.accountType,
+          resellerActivatedAt: organizations.resellerActivatedAt,
+          resellerExpiresAt: organizations.resellerExpiresAt,
+          resellerQuotaUsed: organizations.resellerQuotaUsed,
+        })
+        .from(organizations)
+        .where(eq(organizations.id, session.orgId))
+        .limit(1)
+        .catch(() => [])
+    : [];
+
   const fmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" });
 
   return (
@@ -77,6 +97,7 @@ export default async function DashboardPage({
           : null
       }
       countries={countries}
+      reseller={orgRow ? resellerState(orgRow) : null}
       rangeLabel={`${fmt.format(from)} – ${fmt.format(to)}`}
       picker={{ from: fromParam, to: toParamStr, activePreset }}
     />

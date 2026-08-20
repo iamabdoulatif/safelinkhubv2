@@ -126,3 +126,40 @@ test("sans organisation, c'est le tarif public — jamais la remise", async () =
   // Et un schéma en retard ne doit pas non plus ouvrir la remise.
   assert.match(src, /\.catch\(\(\) => \[\]\)/);
 });
+
+test("le statut revendeur s'ouvre au SEUL endroit où un paiement est constaté", async () => {
+  const confirm = await read("src/lib/wallet/topup-confirmation.ts");
+  assert.match(confirm, /if \(row\.purpose === "reseller_pack"\)/);
+  assert.match(confirm, /resellerActivatedAt: activatedAt/);
+  // Le quota repart de zéro : « 50 par an, renouvelé au paiement » — le
+  // reliquat de l'année précédente ne se reporte pas.
+  assert.match(confirm, /resellerQuotaUsed: 0/);
+
+  // Et cette fonction reste idempotente : le filtre status='pending' fait
+  // qu'un rejeu du webhook ne réactive rien et ne recrédite rien.
+  assert.match(confirm, /eq\(walletTransactions\.status, "pending"\)/);
+});
+
+test("le pack se reconnaît à une colonne, jamais à son montant", async () => {
+  // Un client qui recharge 40 000 FCFA par hasard ne doit pas devenir
+  // revendeur ; et la note est réécrite par la confirmation, donc inutilisable.
+  const schema = await read("src/lib/db/schema.ts");
+  assert.match(schema, /purpose: text\("purpose"\)\.notNull\(\)\.default\("topup"\)/);
+  const confirm = await read("src/lib/wallet/topup-confirmation.ts");
+  assert.doesNotMatch(confirm, /amountCents === RESELLER_PACK_FCFA/);
+});
+
+test("le montant du pack est imposé côté serveur, pas lu du formulaire", async () => {
+  // Un champ « amount » modifié dans le navigateur ne doit pas acheter le pack
+  // à un autre prix.
+  const actions = await read("src/lib/wallet/actions.ts");
+  assert.match(actions, /purpose === "reseller_pack"\s*\n?\s*\? RESELLER_PACK_FCFA/);
+});
+
+test("demander le statut à l'inscription ne l'accorde pas", async () => {
+  const auth = await read("src/lib/auth/actions.ts");
+  // L'inscription pose account_type, et RIEN d'autre : ni date d'activation,
+  // ni échéance. Sans quoi le tarif remisé s'ouvrirait sans paiement.
+  assert.match(auth, /accountType,/);
+  assert.doesNotMatch(auth, /resellerActivatedAt/);
+});

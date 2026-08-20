@@ -14,6 +14,12 @@ import { isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
 import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
 import { PERIOD_PRICE_CENTS } from "@/lib/mikrotik/billing-plans";
 import WalletTopupModal from "./WalletTopupModal";
+import {
+  resellerState,
+  RESELLER_PACK_FCFA,
+  RESELLER_QUOTA,
+  RESELLER_SETUP_FEE_CENTS,
+} from "@/lib/billing/reseller";
 import WalletTopupReturn from "./WalletTopupReturn";
 import WalletTransactions from "./WalletTransactions";
 import SafecoinWalletCard from "./SafecoinWalletCard";
@@ -70,6 +76,23 @@ export default async function BillingPage({
         .where(eq(users.id, session.userId))
         .limit(1)
     : [];
+
+  // État revendeur — tolérant au schéma en retard : sans les colonnes, aucune
+  // carte de pack ne s'affiche, jamais l'inverse.
+  const [orgRow] = session
+    ? await db
+        .select({
+          accountType: organizations.accountType,
+          resellerActivatedAt: organizations.resellerActivatedAt,
+          resellerExpiresAt: organizations.resellerExpiresAt,
+          resellerQuotaUsed: organizations.resellerQuotaUsed,
+        })
+        .from(organizations)
+        .where(eq(organizations.id, session.orgId))
+        .limit(1)
+        .catch(() => [])
+    : [];
+  const reseller = orgRow ? resellerState(orgRow) : null;
 
   const transactions = session
     ? await db
@@ -185,6 +208,38 @@ export default async function BillingPage({
             geniusPayEnabled={isGeniusPayCheckoutEnabled()}
           />
         </div>
+
+        {/* Pack revendeur — n'apparaît qu'aux comptes qui l'ont demandé et pas
+            encore réglé, ou dont le pack a expiré. Un compte simple ne le voit
+            pas : le statut se demande à l'inscription. */}
+        {reseller && (reseller.pendingPayment || reseller.expired) && (
+          <div className="mt-6 rounded-xl border border-brand-deep bg-brand/15 p-5">
+            <p className="text-sm font-semibold text-ink">
+              {reseller.expired ? "Votre pack revendeur a expiré" : "Pack revendeur — à régler"}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-ink-soft">
+              {`${new Intl.NumberFormat("fr-FR").format(RESELLER_PACK_FCFA)} FCFA par an : ${RESELLER_QUOTA} installations à ${new Intl.NumberFormat("fr-FR").format(RESELLER_SETUP_FEE_CENTS)} FCFA au lieu de ${new Intl.NumberFormat("fr-FR").format(10000)} FCFA. Le montant revient intégralement en crédit sur ce portefeuille.`}
+            </p>
+            <div className="mt-4">
+              <WalletTopupModal
+                purpose="reseller_pack"
+                defaultCountry={currentUser?.country ?? "CI"}
+                geniusPayEnabled={isGeniusPayCheckoutEnabled()}
+                trigger={
+                  <span className="inline-flex items-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper">
+                    {reseller.expired ? "Renouveler le pack" : "Régler le pack"}
+                  </span>
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        {reseller?.active && (
+          <p className="mt-4 rounded-lg border border-line bg-clay px-4 py-3 text-xs text-ink-soft">
+            {`Compte revendeur actif — ${reseller.quotaLeft} installation${reseller.quotaLeft > 1 ? "s" : ""} remisée${reseller.quotaLeft > 1 ? "s" : ""} sur ${reseller.quotaTotal}.`}
+          </p>
+        )}
 
         <WalletTransactions
           transactions={transactions.map((t) => ({
