@@ -76,11 +76,41 @@ describe("ensureHotspotLoginByCode", () => {
     assert.ok(set.includes("=add-mac-cookie=yes"));
   });
 
+  it("prolonge les cookies HTTP et MAC sans retirer les méthodes de connexion", async () => {
+    const { client, recorded } = mockClient({
+      "/ip/hotspot/print": [{ ".id": "*1", profile: "NEUF", disabled: "false" }],
+      "/ip/hotspot/profile/print": [
+        {
+          ".id": "*P1",
+          name: "NEUF",
+          "login-by": "mac,cookie,http-chap,http-pap,mac-cookie",
+          "http-cookie-lifetime": "3d",
+        },
+      ],
+      "/ip/hotspot/user/profile/print": [
+        { ".id": "*U1", name: "01-JOUR", "add-mac-cookie": "yes", "mac-cookie-timeout": "3d" },
+      ],
+    });
+
+    await ensureHotspotLoginByCode(client as never);
+
+    const serverSet = recorded.find((sentence) => sentence[0] === "/ip/hotspot/profile/set");
+    assert.ok(serverSet?.includes("=http-cookie-lifetime=52w1d"));
+    assert.ok(serverSet?.includes("=login-by=mac,cookie,http-chap,http-pap,mac-cookie"));
+    const userSet = recorded.find((sentence) => sentence[0] === "/ip/hotspot/user/profile/set");
+    assert.ok(userSet?.includes("=mac-cookie-timeout=52w1d"));
+  });
+
   it("ne touche à rien quand login-by couvre déjà les trois méthodes (cas MAMBA/RUE-NICOLAS réel)", async () => {
     const { client, recorded } = mockClient({
       "/ip/hotspot/print": [{ ".id": "*1", profile: "RUE-NICOLAS", disabled: "false" }],
       "/ip/hotspot/profile/print": [
-        { ".id": "*P1", name: "RUE-NICOLAS", "login-by": "mac,cookie,http-chap,http-pap,mac-cookie" },
+        {
+          ".id": "*P1",
+          name: "RUE-NICOLAS",
+          "login-by": "mac,cookie,http-chap,http-pap,mac-cookie",
+          "http-cookie-lifetime": "52w1d",
+        },
       ],
     });
 

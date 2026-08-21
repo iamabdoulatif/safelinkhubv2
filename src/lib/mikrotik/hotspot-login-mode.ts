@@ -19,6 +19,11 @@
 
 import type { RouterOSClient } from "./client";
 
+// Le cookie navigateur n'est qu'un confort : l'autorisation durable roaming
+// repose sur la liaison MAC en base. Un an reste toutefois assez long pour que
+// le portail ne réapparaisse pas pendant l'usage normal d'un appareil.
+export const ROAMING_COOKIE_LIFETIME = "52w1d";
+
 // Méthodes de login exigées pour le paiement par code du portail captif :
 //   cookie    → le même navigateur ne re-saisit pas le code (session persistée)
 //   http-chap → saisie du code chiffrée (page de login standard RouterOS)
@@ -94,13 +99,19 @@ export async function ensureHotspotLoginByCode(
     const current = parseLoginBy(profile["login-by"]);
     const present = new Set(current);
     const missing = REQUIRED_LOGIN_METHODS.filter((m) => !present.has(m));
-    if (missing.length === 0) continue; // déjà couvert → on ne touche à rien
+    const needsLongHttpCookie = profile["http-cookie-lifetime"] !== ROAMING_COOKIE_LIFETIME;
+    if (missing.length === 0 && !needsLongHttpCookie) continue;
 
     // Additif : méthodes existantes (ordre préservé) + celles qui manquent.
     const merged = [...current, ...missing].join(",");
     try {
       await client.talk(
-        ["/ip/hotspot/profile/set", `=numbers=${id}`, `=login-by=${merged}`],
+        [
+          "/ip/hotspot/profile/set",
+          `=numbers=${id}`,
+          `=login-by=${merged}`,
+          `=http-cookie-lifetime=${ROAMING_COOKIE_LIFETIME}`,
+        ],
         timeoutMs,
       );
       fixed.push(name);
@@ -119,11 +130,18 @@ export async function ensureHotspotLoginByCode(
     .catch(() => [] as Record<string, string>[]);
   for (const voucherProfile of voucherProfiles) {
     const id = voucherProfile[".id"];
-    if (!id || isRouterOsEnabled(voucherProfile["add-mac-cookie"])) continue;
+    const needsMacCookie = !isRouterOsEnabled(voucherProfile["add-mac-cookie"]);
+    const needsLongMacCookie = voucherProfile["mac-cookie-timeout"] !== ROAMING_COOKIE_LIFETIME;
+    if (!id || (!needsMacCookie && !needsLongMacCookie)) continue;
 
     try {
       await client.talk(
-        ["/ip/hotspot/user/profile/set", `=numbers=${id}`, "=add-mac-cookie=yes"],
+        [
+          "/ip/hotspot/user/profile/set",
+          `=numbers=${id}`,
+          "=add-mac-cookie=yes",
+          `=mac-cookie-timeout=${ROAMING_COOKIE_LIFETIME}`,
+        ],
         timeoutMs,
       );
     } catch {
@@ -176,12 +194,18 @@ export async function ensureMacAutoLogin(
     const current = parseLoginBy(profile["login-by"]);
     const present = new Set(current);
     const missing = MAC_LOGIN_METHODS.filter((m) => !present.has(m));
-    if (missing.length === 0) continue;
+    const needsLongHttpCookie = profile["http-cookie-lifetime"] !== ROAMING_COOKIE_LIFETIME;
+    if (missing.length === 0 && !needsLongHttpCookie) continue;
 
     const merged = [...current, ...missing].join(",");
     try {
       await client.talk(
-        ["/ip/hotspot/profile/set", `=numbers=${id}`, `=login-by=${merged}`],
+        [
+          "/ip/hotspot/profile/set",
+          `=numbers=${id}`,
+          `=login-by=${merged}`,
+          `=http-cookie-lifetime=${ROAMING_COOKIE_LIFETIME}`,
+        ],
         timeoutMs,
       );
       fixed.push(name);
