@@ -10,10 +10,12 @@ l'identique.
 
 ## Direction retenue
 
-**Orbites éditoriales.** Le texte principal, la capture e-mail et les actions
-restent dans la première moitié du hero. La seconde moitié accueille la scène
-MikroTik, afin que la promesse commerciale et l'objet réel se répondent sans
-se masquer.
+**Orbites éditoriales.** Le texte principal, la capture e-mail, les CTA, le
+lien de démonstration et la bande de compatibilité conservent exactement leur
+emplacement, leur contenu et leur comportement actuels. Seul le décor déjà
+prévu autour de ces éléments est remplacé par la scène MikroTik, afin que la
+promesse commerciale et l'objet réel se répondent sans modifier le parcours
+existant.
 
 L'image utilisée est `public/mikrotik/chato.webp`. Elle reste une photo réelle
 du routeur : l'impression 3D est obtenue par le cadrage, une rotation CSS très
@@ -62,7 +64,8 @@ jamais par une image synthétique ou une déformation de l'équipement.
 ## Portée et validation
 
 - Modification ciblée : `Hero.tsx`, styles de la landing et ajout de
-  `public/mikrotik/chato.webp` au dépôt suivi.
+  `public/mikrotik/chato.webp` au dépôt suivi. Tous les autres éléments du
+  hero restent intacts.
 - Aucune donnée, route API, authentification ou logique de facturation ne
   change.
 - Tests : contrat de rendu du hero, build Next.js, contrôle visuel desktop et
