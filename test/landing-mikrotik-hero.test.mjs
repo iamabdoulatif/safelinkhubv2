@@ -6,21 +6,29 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("le hero emploie la photo réelle Chateau Pro et conserve ses faits produit", async () => {
   await access(new URL("../public/mikrotik/chato.webp", import.meta.url));
-  const hero = await read("src/components/landing/Hero.tsx");
+  const [hero, scene] = await Promise.all([
+    read("src/components/landing/Hero.tsx"),
+    read("src/components/landing/MikrotikOrbitScene.tsx"),
+  ]);
 
-  assert.match(hero, /import Image from "next\/image"/);
-  assert.match(hero, /src="\/mikrotik\/chato\.webp"/);
-  assert.match(hero, /alt="Routeur MikroTik Chateau Pro géré dans SafeLinkHub"/);
-  assert.match(hero, /width=\{1200\}/);
-  assert.match(hero, /height=\{1200\}/);
-  assert.match(hero, /preload/);
+  assert.match(hero, /import \{ MikrotikOrbitScene \} from "\.\/MikrotikOrbitScene"/);
+  assert.match(hero, /<MikrotikOrbitScene stats=\{stats\} \/>/);
+  assert.match(scene, /"use client"/);
+  assert.match(scene, /src="\/mikrotik\/chato\.webp"/);
+  assert.match(scene, /alt="Routeur MikroTik Chateau Pro géré dans SafeLinkHub"/);
+  assert.match(scene, /width=\{1200\}/);
+  assert.match(scene, /height=\{1200\}/);
+  assert.match(scene, /preload/);
+  assert.match(scene, /<canvas[^>]*aria-hidden/);
+  assert.match(scene, /<dl className="hero-orbit-metrics">/);
+  assert.match(scene, /prefers-reduced-motion: reduce/);
   for (const label of ["Routeurs supervisés", "Sessions en cours", "Essai offert", "Mobile money"]) {
-    assert.ok(hero.includes(label), `plaque manquante : ${label}`);
+    assert.ok(scene.includes(label), `plaque manquante : ${label}`);
   }
-  assert.match(hero, /stats\.routers > 0 \? nf\.format\(stats\.routers\) : undefined/);
-  assert.match(hero, /stats\.sessions > 0 \? nf\.format\(stats\.sessions\) : undefined/);
-  assert.match(hero, /stats\.mobileMoney\.length/);
-  assert.match(hero, /stats\.mobileMoney\.join/);
+  assert.match(scene, /stats\.routers > 0 \? nf\.format\(stats\.routers\) : undefined/);
+  assert.match(scene, /stats\.sessions > 0 \? nf\.format\(stats\.sessions\) : undefined/);
+  assert.match(scene, /stats\.mobileMoney\.length/);
+  assert.match(scene, /stats\.mobileMoney\.join/);
   assert.match(hero, /action="\/auth\/register"/);
   assert.match(hero, /<VendorMarquee \/>/);
 });
@@ -51,14 +59,16 @@ test("la scène desktop ne recouvre pas la colonne commerciale", async () => {
 });
 
 test("la scène adopte une orbite circulaire transparente à gauche du contenu", async () => {
-  const [hero, styles] = await Promise.all([
+  const [hero, scene, styles] = await Promise.all([
     read("src/components/landing/Hero.tsx"),
+    read("src/components/landing/MikrotikOrbitScene.tsx"),
     read("src/app/globals.css"),
   ]);
 
   assert.match(hero, /hero-layout/);
-  assert.match(hero, /hero-orbit-orbiter/);
-  assert.match(hero, /hero-orbit-track/);
+  assert.match(hero, /<MikrotikOrbitScene stats=\{stats\} \/>/);
+  assert.match(scene, /hero-orbit-orbiter/);
+  assert.match(scene, /hero-orbit-track/);
   assert.match(hero, /lg:text-left/);
   assert.match(styles, /@keyframes hero-orbit-turn/);
   assert.match(styles, /@keyframes hero-orbit-counterturn/);
