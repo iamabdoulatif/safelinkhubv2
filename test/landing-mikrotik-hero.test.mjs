@@ -12,7 +12,7 @@ test("le hero emploie la photo réelle Chateau Pro et conserve ses faits produit
   ]);
 
   assert.match(hero, /import \{ MikrotikOrbitScene \} from "\.\/MikrotikOrbitScene"/);
-  assert.match(hero, /<MikrotikOrbitScene stats=\{stats\} \/>/);
+  assert.match(hero, /<MikrotikOrbitScene[\s\S]*routerValue=\{stats\.routers > 0 \? nf\.format\(stats\.routers\) : undefined\}/);
   assert.match(scene, /"use client"/);
   assert.match(scene, /src="\/mikrotik\/chato\.webp"/);
   assert.match(scene, /alt="Routeur MikroTik Chateau Pro géré dans SafeLinkHub"/);
@@ -25,10 +25,11 @@ test("le hero emploie la photo réelle Chateau Pro et conserve ses faits produit
   for (const label of ["Routeurs supervisés", "Sessions en cours", "Essai offert", "Mobile money"]) {
     assert.ok(scene.includes(label), `plaque manquante : ${label}`);
   }
-  assert.match(scene, /stats\.routers > 0 \? nf\.format\(stats\.routers\) : undefined/);
-  assert.match(scene, /stats\.sessions > 0 \? nf\.format\(stats\.sessions\) : undefined/);
-  assert.match(scene, /stats\.mobileMoney\.length/);
-  assert.match(scene, /stats\.mobileMoney\.join/);
+  assert.doesNotMatch(scene, /platform-stats/, "la scène client ne doit pas toucher aux statistiques serveur");
+  assert.match(hero, /stats\.routers > 0 \? nf\.format\(stats\.routers\) : undefined/);
+  assert.match(hero, /stats\.sessions > 0 \? nf\.format\(stats\.sessions\) : undefined/);
+  assert.match(hero, /stats\.mobileMoney\.length/);
+  assert.match(hero, /stats\.mobileMoney\.join/);
   assert.match(hero, /action="\/auth\/register"/);
   assert.match(hero, /<VendorMarquee \/>/);
 });
@@ -66,7 +67,7 @@ test("la scène adopte une orbite circulaire transparente à gauche du contenu",
   ]);
 
   assert.match(hero, /hero-layout/);
-  assert.match(hero, /<MikrotikOrbitScene stats=\{stats\} \/>/);
+  assert.match(hero, /<MikrotikOrbitScene[\s\S]*mobileMoneySub=\{stats\.mobileMoney\.join/);
   assert.match(scene, /hero-orbit-orbiter/);
   assert.match(scene, /hero-orbit-track/);
   assert.match(hero, /lg:text-left/);

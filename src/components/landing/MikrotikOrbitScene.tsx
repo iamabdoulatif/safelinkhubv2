@@ -3,10 +3,6 @@
 import Image from "next/image";
 import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { type PlatformStats } from "@/lib/landing/platform-stats";
-import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
-
-const nf = new Intl.NumberFormat("fr-FR");
 
 type ParticleField = {
   compression: number;
@@ -67,7 +63,23 @@ function OrbitMetric({
   );
 }
 
-export function MikrotikOrbitScene({ stats }: { stats: PlatformStats }) {
+export function MikrotikOrbitScene({
+  mobileMoneySub,
+  mobileMoneyValue,
+  routerCountTo,
+  routerValue,
+  sessionCountTo,
+  sessionValue,
+  trialValue,
+}: {
+  mobileMoneySub: string;
+  mobileMoneyValue: string;
+  routerCountTo?: number;
+  routerValue?: string;
+  sessionCountTo?: number;
+  sessionValue?: string;
+  trialValue: string;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
   const pointerRef = useRef(new THREE.Vector2());
@@ -362,28 +374,28 @@ export function MikrotikOrbitScene({ stats }: { stats: PlatformStats }) {
       <dl className="hero-orbit-metrics">
         <OrbitMetric
           label="Routeurs supervisés"
-          value={stats.routers > 0 ? nf.format(stats.routers) : undefined}
-          countTo={stats.routers > 0 ? stats.routers : undefined}
+          value={routerValue}
+          countTo={routerCountTo}
           sub="parc total sur la plateforme"
           className="hero-orbit-metric-routers"
         />
         <OrbitMetric
           label="Sessions en cours"
-          value={stats.sessions > 0 ? nf.format(stats.sessions) : undefined}
-          countTo={stats.sessions > 0 ? stats.sessions : undefined}
+          value={sessionValue}
+          countTo={sessionCountTo}
           sub="sur les routeurs joignables"
           className="hero-orbit-metric-sessions"
         />
         <OrbitMetric
           label="Essai offert"
-          value={`${VPN_TRIAL_DAYS} jours`}
+          value={trialValue}
           sub="accès distant, sans carte bancaire"
           className="hero-orbit-metric-trial"
         />
         <OrbitMetric
           label="Mobile money"
-          value={String(stats.mobileMoney.length)}
-          sub={stats.mobileMoney.join(" · ")}
+          value={mobileMoneyValue}
+          sub={mobileMoneySub}
           className="hero-orbit-metric-money"
         />
       </dl>

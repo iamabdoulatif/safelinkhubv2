@@ -5,6 +5,8 @@ import { MikrotikOrbitScene } from "./MikrotikOrbitScene";
 import { type PlatformStats } from "@/lib/landing/platform-stats";
 import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 
+const nf = new Intl.NumberFormat("fr-FR");
+
 /* Hero Slate : titre centré avec un mot au surligneur, capture e-mail, et
  * scène MikroTik réelle qui répond aux faits produit de part et d'autre.
  *
@@ -80,7 +82,15 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
             </div>
           </div>
 
-          <MikrotikOrbitScene stats={stats} />
+          <MikrotikOrbitScene
+            routerValue={stats.routers > 0 ? nf.format(stats.routers) : undefined}
+            routerCountTo={stats.routers > 0 ? stats.routers : undefined}
+            sessionValue={stats.sessions > 0 ? nf.format(stats.sessions) : undefined}
+            sessionCountTo={stats.sessions > 0 ? stats.sessions : undefined}
+            trialValue={`${VPN_TRIAL_DAYS} jours`}
+            mobileMoneyValue={String(stats.mobileMoney.length)}
+            mobileMoneySub={stats.mobileMoney.join(" · ")}
+          />
         </div>
       </div>
 
