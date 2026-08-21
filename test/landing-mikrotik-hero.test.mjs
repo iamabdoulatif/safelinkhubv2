@@ -77,3 +77,20 @@ test("la scène adopte une orbite circulaire transparente à gauche du contenu",
   assert.match(styles, /@media \(min-width: 1024px\)[\s\S]*\.hero-layout/);
   assert.match(styles, /\.hero-orbit-track \{[\s\S]*background: transparent/);
 });
+
+test("le canvas Three.js apporte une profondeur réseau lumineuse sans capter l'interface", async () => {
+  const [scene, styles] = await Promise.all([
+    read("src/components/landing/MikrotikOrbitScene.tsx"),
+    read("src/app/globals.css"),
+  ]);
+
+  assert.match(scene, /import \* as THREE from "three"/);
+  assert.match(scene, /new THREE\.WebGLRenderer\(\{ canvas, alpha: true, antialias: true \}\)/);
+  assert.match(scene, /THREE\.TorusGeometry/);
+  assert.match(scene, /new THREE\.Points/);
+  assert.match(scene, /renderer\.setPixelRatio\(Math\.min\(window\.devicePixelRatio, 1\.5\)\)/);
+  assert.match(scene, /cancelAnimationFrame/);
+  assert.match(scene, /IntersectionObserver/);
+  assert.match(styles, /\.hero-orbit-three-canvas \{[\s\S]*pointer-events: none/);
+  assert.match(styles, /\.hero-orbit-scene--webgl-ready .hero-orbit-router \{[\s\S]*opacity: 0/);
+});
