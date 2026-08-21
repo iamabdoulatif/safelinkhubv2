@@ -662,21 +662,17 @@ html {
 @media (min-width: 1280px) {
   .hero-orbit-scene {
     pointer-events: none;
-    position: absolute;
-    top: -0.5rem;
-    right: -8.5rem;
-    z-index: 1;
-    width: 39rem;
-    min-height: 32rem;
-    margin: 0;
+    width: 42rem;
+    min-height: 39rem;
+    margin: 2.75rem auto 0;
   }
-  .hero-orbit-router { width: 31rem; animation: hero-orbit-router-drift 26s ease-in-out infinite; }
-  .hero-orbit-metrics { display: block; width: auto; margin: 0; }
+  .hero-orbit-router { width: 33rem; animation: hero-orbit-router-drift 26s ease-in-out infinite; }
+  .hero-orbit-metrics { position: absolute; inset: 0; display: block; width: auto; margin: 0; }
   .hero-orbit-metric { pointer-events: auto; position: absolute; width: 12.5rem; }
-  .hero-orbit-metric-routers { top: 3%; left: -5%; animation: hero-orbit-routers 28s ease-in-out infinite; }
-  .hero-orbit-metric-sessions { top: 22%; right: -7%; animation: hero-orbit-sessions 32s ease-in-out infinite; }
-  .hero-orbit-metric-trial { bottom: 10%; left: 1%; animation: hero-orbit-trial 26s ease-in-out infinite; }
-  .hero-orbit-metric-money { right: -3%; bottom: 3%; animation: hero-orbit-money 30s ease-in-out infinite; }
+  .hero-orbit-metric-routers { top: 4%; left: 0; animation: hero-orbit-routers 28s ease-in-out infinite; }
+  .hero-orbit-metric-sessions { top: 17%; right: 0; animation: hero-orbit-sessions 32s ease-in-out infinite; }
+  .hero-orbit-metric-trial { bottom: 11%; left: 2%; animation: hero-orbit-trial 26s ease-in-out infinite; }
+  .hero-orbit-metric-money { right: 1%; bottom: 4%; animation: hero-orbit-money 30s ease-in-out infinite; }
 }
 
 /* Le surligneur se remplit de gauche à droite, une seule fois, après le titre.

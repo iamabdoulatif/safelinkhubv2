@@ -36,3 +36,15 @@ test("la scène ralentit ses orbites et respecte le mouvement réduit", async ()
   assert.match(styles, /@media \(min-width: 1280px\)/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.hero-orbit-router/);
 });
+
+test("la scène desktop ne recouvre pas la colonne commerciale", async () => {
+  const styles = await read("src/app/globals.css");
+  const desktop = styles.slice(styles.indexOf("@media (min-width: 1280px)"));
+
+  assert.match(desktop, /\.hero-orbit-metrics \{ position: absolute; inset: 0; display: block;/);
+  assert.doesNotMatch(
+    desktop,
+    /\.hero-orbit-scene \{\s*pointer-events: none;\s*position: absolute;/,
+    "la scène doit rester après le CTA dans le flux desktop",
+  );
+});
