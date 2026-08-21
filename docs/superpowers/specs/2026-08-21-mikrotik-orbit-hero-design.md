@@ -42,7 +42,7 @@ jamais par une image synthétique ou une déformation de l'équipement.
 ## Mouvement et interaction
 
 - Les quatre plaques suivent une dérive orbitale lente et décalée (environ
-  16–22 secondes), plutôt qu'une rotation mécanique constante.
+  24–32 secondes), plutôt qu'une rotation mécanique constante.
 - Le routeur avance de quelques pixels puis revient, avec une micro-variation
   de perspective ; la scène reste calme et ne détourne pas la lecture.
 - Le survol d'une plaque suspend son mouvement et augmente légèrement son
