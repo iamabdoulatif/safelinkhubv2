@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import VendorMarquee from "./VendorMarquee";
@@ -7,7 +8,7 @@ import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 const nf = new Intl.NumberFormat("fr-FR");
 
 /* Hero Slate : titre centré avec un mot au surligneur, capture e-mail, et
- * cartes de statistiques flottantes de part et d'autre.
+ * scène MikroTik réelle qui répond aux faits produit de part et d'autre.
  *
  * LES CHIFFRES SONT RÉELS. Ces cartes ont affiché pendant plusieurs jours des
  * montants de maquette — 18 742 000 FCFA sur trente jours, 486 500 le jour même
@@ -16,40 +17,84 @@ const nf = new Intl.NumberFormat("fr-FR");
  * deux faits produit vérifiables (constructeurs, opérateurs mobile money).
  * Voir lib/landing/platform-stats.ts.
  *
- * Les cartes sont STATIQUES — la scène isométrique animée (IsoRouterScene,
- * sept animations CSS en boucle) a été retirée avec le reste des animations
- * de la landing. Elles sont masquées sous xl : superposées au titre sur un
- * écran étroit, elles le rendraient illisible. */
+ * La scène reste CSS-only : sous xl elle revient dans le flux après le CTA,
+ * ce qui évite tout recouvrement du message commercial. */
 
-function FloatCard({
+function OrbitMetric({
   label,
   value,
   sub,
   countTo,
-  children,
-  className = "",
+  className,
 }: {
   label: string;
   value?: string;
-  sub?: string;
+  sub: string;
   /** Cible du compteur. Absent = le chiffre s'affiche tel quel. */
   countTo?: number;
-  children?: React.ReactNode;
-  className?: string;
+  className: string;
 }) {
   return (
-    <div className={`slate-card slate-card-raised hero-float w-56 bg-paper p-4 ${className}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">{label}</p>
+    <div className={`hero-orbit-metric ${className}`}>
+      <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{label}</dt>
       {value ? (
-        <p
-          className={`mt-1.5 font-mono text-xl font-bold tabular-nums text-ink${countTo ? " countup reveal" : ""}`}
+        <dd
+          className={`mt-1 font-mono text-xl font-bold tabular-nums text-ink${countTo ? " countup" : ""}`}
           {...(countTo ? { "data-countup": String(countTo) } : {})}
         >
           {value}
-        </p>
+        </dd>
       ) : null}
-      {children}
-      {sub ? <p className="mt-1.5 text-xs text-ink-soft">{sub}</p> : null}
+      <p className="mt-1 text-xs leading-5 text-ink-soft">{sub}</p>
+    </div>
+  );
+}
+
+function OrbitScene({ stats }: { stats: PlatformStats }) {
+  return (
+    <div className="hero-orbit-scene">
+      <div aria-hidden="true" className="hero-orbit-grid" />
+      <div className="hero-orbit-router">
+        <div aria-hidden="true" className="hero-orbit-router-shadow" />
+        <Image
+          src="/mikrotik/chato.webp"
+          alt="Routeur MikroTik Chateau Pro géré dans SafeLinkHub"
+          width={1200}
+          height={1200}
+          preload
+          sizes="(min-width: 1280px) 34rem, (min-width: 640px) 30rem, 92vw"
+          className="hero-orbit-image"
+        />
+      </div>
+
+      <dl className="hero-orbit-metrics">
+        <OrbitMetric
+          label="Routeurs supervisés"
+          value={stats.routers > 0 ? nf.format(stats.routers) : undefined}
+          countTo={stats.routers > 0 ? stats.routers : undefined}
+          sub="parc total sur la plateforme"
+          className="hero-orbit-metric-routers"
+        />
+        <OrbitMetric
+          label="Sessions en cours"
+          value={stats.sessions > 0 ? nf.format(stats.sessions) : undefined}
+          countTo={stats.sessions > 0 ? stats.sessions : undefined}
+          sub="sur les routeurs joignables"
+          className="hero-orbit-metric-sessions"
+        />
+        <OrbitMetric
+          label="Essai offert"
+          value={`${VPN_TRIAL_DAYS} jours`}
+          sub="accès distant, sans carte bancaire"
+          className="hero-orbit-metric-trial"
+        />
+        <OrbitMetric
+          label="Mobile money"
+          value={String(stats.mobileMoney.length)}
+          sub={stats.mobileMoney.join(" · ")}
+          className="hero-orbit-metric-money"
+        />
+      </dl>
     </div>
   );
 }
@@ -57,49 +102,9 @@ function FloatCard({
 export default function Hero({ stats }: { stats: PlatformStats }) {
   return (
     <section aria-label="Présentation" className="relative overflow-hidden border-b border-line bg-paper">
-      <div className="mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-20">
-        {/* Cartes flottantes — décoratives, hors du flux, jamais lues */}
-        <div aria-hidden="true" className="pointer-events-none hidden xl:block">
-          {/* Les deux cartes mesurées ne s'affichent que si la base a répondu :
-              annoncer « 0 routeur supervisé » serait pire que ne rien dire. */}
-          {stats.routers > 0 && (
-            <FloatCard
-              label="Routeurs supervisés"
-              value={nf.format(stats.routers)}
-              countTo={stats.routers}
-              sub="parc total sur la plateforme"
-              className="absolute left-2 top-28 2xl:left-16"
-            />
-          )}
-          {/* Le bandeau de logos juste en dessous énonce déjà les constructeurs :
-              une carte qui répète « 8 · MikroTik, Ruijie, TP-Link… » ferait
-              doublon. Elle porte donc l'essai, qui n'est annoncé nulle part
-              ailleurs dans le champ de vision. */}
-          <FloatCard
-            label="Essai offert"
-            value={`${VPN_TRIAL_DAYS} jours`}
-            sub="accès distant, sans carte bancaire"
-            className="absolute bottom-16 left-6 2xl:left-24"
-          />
-          {stats.sessions > 0 && (
-            <FloatCard
-              label="Sessions en cours"
-              value={nf.format(stats.sessions)}
-              countTo={stats.sessions}
-              sub="sur les routeurs joignables"
-              className="absolute right-2 top-28 2xl:right-16"
-            />
-          )}
-          <FloatCard
-            label="Mobile money"
-            value={String(stats.mobileMoney.length)}
-            sub={stats.mobileMoney.join(" · ")}
-            className="absolute bottom-16 right-6 2xl:right-24"
-          />
-        </div>
-
+      <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-20">
         {/* Bloc central */}
-        <div className="hero-seq relative mx-auto max-w-3xl text-center">
+        <div className="hero-seq relative z-10 mx-auto max-w-3xl text-center">
           <span className="slate-eyebrow">Facturation hotspot · Automatisation FAI</span>
 
           <h1 className="mt-6 font-display text-[2.25rem] font-bold leading-[1.06] tracking-tight text-ink sm:text-5xl md:text-6xl">
@@ -152,6 +157,8 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
             </Link>
           </div>
         </div>
+
+        <OrbitScene stats={stats} />
       </div>
 
       {/* Bande de compatibilité constructeurs — logos défilants */}
