@@ -15,13 +15,19 @@ Ajouter une scène Three.js légère, isolée dans un composant client
 reste le sujet central et les cartes de métriques restent du HTML accessible.
 
 Le composant charge la même image publiée sous `/mikrotik/chato.webp` sur un
-plan avec alpha. Il crée trois couches transparentes :
+plan avec alpha. Il crée un éclairage bleu-cyan chaud et crédible, inspiré de
+la télémétrie réseau plutôt que d'un effet néon uniforme, dans quatre couches
+transparentes :
 
 1. une inclinaison lente, accentuée avec parcimonie par le mouvement du
-   pointeur ;
-2. deux anneaux de réseau en profondeur, avec vitesses et perspectives
-   distinctes ;
-3. des points lumineux qui parcourent les anneaux, sans texte ni interaction.
+   pointeur, avec une légère variation d'intensité sur le routeur ;
+2. deux anneaux de réseau elliptiques, placés à des profondeurs distinctes et
+   partiellement masqués par le routeur pour rendre l'avant et l'arrière de la
+   scène perceptibles ;
+3. un nuage peu dense de particules réseau, de tailles et vitesses variées,
+   qui circule le long des anneaux en laissant une courte traînée lumineuse ;
+4. un halo volumétrique doux derrière le routeur, ponctué de brefs signaux de
+   liaison, sans grille, texte, ni décor opaque.
 
 Le canvas est transparent, ne reçoit pas les interactions, et ne change ni les
 liens, ni le formulaire, ni les statistiques rendues par le serveur.
@@ -51,8 +57,9 @@ Git, donc récupérable dans l'historique si nécessaire.
 ## Performance et robustesse
 
 Three.js est chargé dans un composant client uniquement. Le canvas limite son
-ratio de pixels à 1,5, ne rend que pendant qu'il est visible, arrête sa boucle
-et libère géométries, matériaux, texture et renderer au démontage. En cas
+ratio de pixels à 1,5 et sa densité de particules est bornée, ne rend que
+pendant qu'il est visible, arrête sa boucle et libère géométries, matériaux,
+texture et renderer au démontage. En cas
 d'absence de WebGL, l'image détourée et l'animation CSS existante suffisent :
 la landing conserve exactement son contenu utile.
 
