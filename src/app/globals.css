@@ -567,9 +567,8 @@ html {
 @keyframes hero-float-in { from { opacity: 0; transform: translateY(18px) scale(0.97); } to { opacity: 1; transform: none; } }
 
 /* ── Scène MikroTik du hero ───────────────────────────────────
-   La photo fournie garde son aspect réel : seule la mise en profondeur CSS
-   lui donne du relief. Sous desktop, la scène reste dans le flux après le CTA
-   afin de ne jamais superposer un visuel au parcours d'inscription. */
+   La photo fournie garde son aspect réel : la profondeur vient de l'orbite
+   circulaire des faits produit. Aucun fond ne s'ajoute derrière le routeur. */
 .hero-orbit-scene {
   position: relative;
   isolation: isolate;
@@ -577,14 +576,21 @@ html {
   min-height: 31rem;
   margin: 2.5rem auto 0;
   padding: 1rem 0 0;
+  background: transparent;
 }
-.hero-orbit-grid {
+.hero-orbit-track {
   position: absolute;
-  inset: 1.5rem 8% 6.5rem;
+  top: 50%;
+  left: 50%;
+  display: none;
+  width: min(75%, 23rem);
+  aspect-ratio: 1;
   z-index: -2;
-  border: 1px solid var(--line-soft);
-  border-radius: 50% 50% 18% 18%;
-  opacity: 0.72;
+  border: 1px dashed rgba(18, 48, 29, 0.26);
+  border-radius: 50%;
+  background: transparent;
+  opacity: 0.82;
+  transform: translate(-50%, -50%);
 }
 .hero-orbit-router {
   position: relative;
@@ -622,6 +628,7 @@ html {
   width: min(100%, 34rem);
   margin: -4.5rem auto 0;
 }
+.hero-orbit-orbiter { min-width: 0; }
 .hero-orbit-metric {
   min-height: 6.5rem;
   padding: 0.85rem 0.9rem;
@@ -635,44 +642,75 @@ html {
   .hero-orbit-metric:hover {
     background: rgba(255, 255, 255, 0.92);
     border-color: rgba(18, 48, 29, 0.42);
-    animation-play-state: paused;
   }
 }
 
 @keyframes hero-orbit-router-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) rotateY(-3deg); }
-  50% { transform: translate3d(0, -8px, 0) rotateY(3deg); }
+  0%, 100% { transform: translate(-50%, -50%) rotateY(-3deg); }
+  50% { transform: translate(-50%, calc(-50% - 8px)) rotateY(3deg); }
 }
-@keyframes hero-orbit-routers {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg); }
-  50% { transform: translate3d(10px, -9px, 0) rotate(1deg); }
+@keyframes hero-orbit-turn {
+  0% { transform: rotate(0deg) translateX(var(--hero-orbit-radius)); z-index: 0; }
+  25%, 74% { z-index: 3; }
+  75%, 100% { z-index: 0; }
+  100% { transform: rotate(360deg) translateX(var(--hero-orbit-radius)); }
 }
-@keyframes hero-orbit-sessions {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(1deg); }
-  50% { transform: translate3d(-10px, 8px, 0) rotate(-1deg); }
+@keyframes hero-orbit-counterturn {
+  0%, 100% { transform: translate(-50%, -50%) rotate(0deg) scale(0.78); opacity: 0.58; }
+  25% { transform: translate(-50%, -50%) rotate(-90deg) scale(0.9); opacity: 0.78; }
+  50% { transform: translate(-50%, -50%) rotate(-180deg) scale(1); opacity: 1; }
+  75% { transform: translate(-50%, -50%) rotate(-270deg) scale(0.9); opacity: 0.78; }
+  100% { transform: translate(-50%, -50%) rotate(-360deg) scale(0.78); opacity: 0.58; }
 }
-@keyframes hero-orbit-trial {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg); }
-  50% { transform: translate3d(-8px, 9px, 0) rotate(1deg); }
-}
-@keyframes hero-orbit-money {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(1deg); }
-  50% { transform: translate3d(9px, -8px, 0) rotate(-1deg); }
-}
-@media (min-width: 1280px) {
-  .hero-orbit-scene {
-    pointer-events: none;
-    width: 42rem;
-    min-height: 39rem;
-    margin: 2.75rem auto 0;
+@media (min-width: 1024px) {
+  .hero-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: clamp(1.5rem, 4vw, 4rem);
   }
-  .hero-orbit-router { width: 33rem; animation: hero-orbit-router-drift 26s ease-in-out infinite; }
-  .hero-orbit-metrics { position: absolute; inset: 0; display: block; width: auto; margin: 0; }
-  .hero-orbit-metric { pointer-events: auto; position: absolute; width: 12.5rem; }
-  .hero-orbit-metric-routers { top: 4%; left: 0; animation: hero-orbit-routers 28s ease-in-out infinite; }
-  .hero-orbit-metric-sessions { top: 17%; right: 0; animation: hero-orbit-sessions 32s ease-in-out infinite; }
-  .hero-orbit-metric-trial { bottom: 11%; left: 2%; animation: hero-orbit-trial 26s ease-in-out infinite; }
-  .hero-orbit-metric-money { right: 1%; bottom: 4%; animation: hero-orbit-money 30s ease-in-out infinite; }
+  .hero-layout > .hero-seq { order: 2; }
+  .hero-layout > .hero-orbit-scene { order: 1; }
+  .hero-orbit-scene {
+    --hero-orbit-radius: clamp(8rem, 13vw, 11.5rem);
+    width: min(100%, 36rem);
+    min-height: clamp(27rem, 41vw, 35rem);
+    margin: 0;
+    padding: 0;
+  }
+  .hero-orbit-track { display: block; }
+  .hero-orbit-router {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: min(76%, 26rem);
+    margin: 0;
+    animation: hero-orbit-router-drift 26s ease-in-out infinite;
+  }
+  .hero-orbit-metrics { position: absolute; inset: 0; z-index: auto; display: block; width: auto; margin: 0; }
+  .hero-orbit-orbiter {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    animation: hero-orbit-turn 38s linear infinite;
+    animation-delay: var(--hero-orbit-delay);
+  }
+  .hero-orbit-metric {
+    position: absolute;
+    width: clamp(8.7rem, 13vw, 11.5rem);
+    min-height: 0;
+    pointer-events: auto;
+    animation: hero-orbit-counterturn 38s linear infinite;
+    animation-delay: var(--hero-orbit-delay);
+  }
+  .hero-orbit-metric-routers { --hero-orbit-delay: 0s; }
+  .hero-orbit-metric-sessions { --hero-orbit-delay: -9.5s; }
+  .hero-orbit-metric-trial { --hero-orbit-delay: -19s; }
+  .hero-orbit-metric-money { --hero-orbit-delay: -28.5s; }
+  .hero-orbit-orbiter:hover,
+  .hero-orbit-orbiter:hover .hero-orbit-metric { animation-play-state: paused; }
 }
 
 /* Le surligneur se remplit de gauche à droite, une seule fois, après le titre.
@@ -700,7 +738,7 @@ html {
    Le bloc générique plus haut ramène les durées à 0,01 ms, mais .reveal
    resterait à opacity 0 si son observateur ne se déclenchait jamais. */
 @media (prefers-reduced-motion: reduce) {
-  .reveal, .hero-seq > *, .hero-float, .hero-orbit-router, .hero-orbit-metric {
+  .reveal, .hero-seq > *, .hero-float, .hero-orbit-router, .hero-orbit-metric, .hero-orbit-orbiter {
     opacity: 1 !important;
     transform: none !important;
     animation: none !important;
