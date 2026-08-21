@@ -1,17 +1,21 @@
 import { Zap, Wallet, Radar } from "lucide-react";
 import { painPoints } from "./content";
+import type { Dictionary } from "@/lib/i18n/fr";
 
 /* Bande de trois promesses juste sous le hero — le motif d'assurance de Slate.
- * Le texte vient de `painPoints` (déjà rédigé), pas d'une nouvelle copie à
- * maintenir en double. */
+ *
+ * La STRUCTURE vient de `painPoints` (content.ts), le TEXTE du dictionnaire, et
+ * les deux sont appariés par index. Un test vérifie que les longueurs
+ * concordent : un décalage collerait la mauvaise icône à la bonne promesse. */
 const icons = [Zap, Wallet, Radar];
 
-export default function TrustStrip() {
+export default function TrustStrip({ dict }: { dict: Dictionary }) {
   return (
-    <section aria-label="Ce que SafeLinkHub supprime" className="border-b border-line bg-paper">
+    <section aria-label={dict.trust.heading} className="border-b border-line bg-paper">
       <div className="stagger mx-auto grid max-w-6xl grid-cols-1 gap-px bg-line sm:grid-cols-3">
-        {painPoints.map((item, i) => {
+        {painPoints.map((_, i) => {
           const Icon = icons[i] ?? Zap;
+          const item = dict.content.painPoints[i];
           return (
             <div key={item.fix} className="reveal flex gap-4 bg-paper px-6 py-8 sm:px-7">
               <span

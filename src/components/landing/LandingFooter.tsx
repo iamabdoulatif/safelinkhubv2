@@ -1,39 +1,40 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import Logo from "./Logo";
+import type { Dictionary } from "@/lib/i18n/fr";
+import { type Locale, localeHref } from "@/lib/i18n/config";
 
-const columns = [
-  {
-    title: "Produit",
-    links: [
-      { href: "/", label: "Accueil" },
-      { href: "#features", label: "Fonctionnalités" },
-      { href: "#plateforme", label: "Plateforme" },
-      // Repris ici depuis la navigation principale, qu'ils saturaient : le prix
-      // et la FAQ sont ce qu'un visiteur cherche en bas de page.
-      { href: "#tarifs", label: "Tarifs" },
-      { href: "#faq", label: "FAQ" },
-      { href: "/boutique", label: "Boutique" },
-      { href: "/auth/register", label: "Commencer" },
-    ],
-  },
-  {
-    title: "Entreprise",
-    links: [
-      { href: "/contact", label: "Contact" },
-      { href: "/careers", label: "Carrières" },
-    ],
-  },
-  {
-    title: "Ressources",
-    links: [
-      { href: "/blog", label: "Blog" },
-      { href: "/legal/terms", label: "Conditions d'utilisation" },
-      { href: "/legal/privacy", label: "Politique de confidentialité" },
-      { href: "/support", label: "Support" },
-    ],
-  },
-] as const;
+const footerColumns = (dict: Dictionary) =>
+  [
+    {
+      title: dict.footer.columns.product,
+      links: [
+        { href: "/", label: dict.footer.links.home },
+        { href: "#features", label: dict.footer.links.features },
+        { href: "#plateforme", label: dict.footer.links.platform },
+        { href: "#tarifs", label: dict.footer.links.pricing },
+        { href: "#faq", label: dict.footer.links.faq },
+        { href: "/boutique", label: dict.footer.links.shop },
+        { href: "/auth/register", label: dict.footer.links.getStarted },
+      ],
+    },
+    {
+      title: dict.footer.columns.company,
+      links: [
+        { href: "/contact", label: dict.footer.links.contact },
+        { href: "/careers", label: dict.footer.links.careers },
+      ],
+    },
+    {
+      title: dict.footer.columns.resources,
+      links: [
+        { href: "/blog", label: dict.footer.links.blog },
+        { href: "/legal/terms", label: dict.footer.links.terms },
+        { href: "/legal/privacy", label: dict.footer.links.privacy },
+        { href: "/support", label: dict.footer.links.support },
+      ],
+    },
+  ] as const;
 
 const socials = [
   { href: "https://x.com/safelinkhub", label: "Twitter / X" },
@@ -41,7 +42,16 @@ const socials = [
   { href: "https://tiktok.com/@safelinkhub", label: "TikTok" },
 ] as const;
 
-export default function LandingFooter({ anchorPrefix = "" }: { anchorPrefix?: string }) {
+export default function LandingFooter({
+  anchorPrefix = "",
+  dict,
+  locale,
+}: {
+  anchorPrefix?: string;
+  dict: Dictionary;
+  locale: Locale;
+}) {
+  const columns = footerColumns(dict);
   const getHref = (href: string) => (href.startsWith("#") ? `${anchorPrefix}${href}` : href);
   const muted = "text-slate-deep-soft";
   const linkClass = "text-sm text-white/85 hover:text-brand";
@@ -56,19 +66,19 @@ export default function LandingFooter({ anchorPrefix = "" }: { anchorPrefix?: st
           <div className="mb-14 grid grid-cols-1 gap-8 rounded-2xl border border-slate-deep-line bg-[#0E2618] p-8 lg:grid-cols-12 lg:items-center sm:p-10">
             <div className="lg:col-span-6">
               <h2 className="font-display text-2xl font-bold leading-snug text-white sm:text-3xl">
-                Le réseau commence ici.
+                {dict.footer.tagline}
               </h2>
               <p className="mt-2 text-sm text-slate-deep-soft">
-                Créez votre compte en deux minutes et connectez votre premier routeur aujourd&apos;hui.
+                {dict.footer.subtitle}
               </p>
             </div>
             <form
-              action="/auth/register"
+              action={localeHref("/auth/register", locale)}
               method="get"
               className="flex w-full flex-col gap-2 sm:flex-row lg:col-span-6"
             >
               <label htmlFor="footer-email" className="sr-only">
-                Adresse e-mail
+                {dict.footer.emailLabel}
               </label>
               <input
                 id="footer-email"
@@ -79,7 +89,7 @@ export default function LandingFooter({ anchorPrefix = "" }: { anchorPrefix?: st
                 className="min-w-0 flex-1 rounded-full border border-slate-deep-line bg-slate-deep px-5 py-3 text-sm text-white placeholder:text-slate-deep-soft focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
               />
               <button type="submit" className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-6 py-3 text-sm">
-                Créer un compte
+                {dict.footer.submit}
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </button>
             </form>
@@ -90,7 +100,7 @@ export default function LandingFooter({ anchorPrefix = "" }: { anchorPrefix?: st
           <div className="lg:col-span-5">
             <Logo dark />
             <p className={`mt-4 max-w-xs text-sm leading-6 ${muted}`}>
-              Plateforme d&apos;automatisation Hotspot et FAI. Abidjan, Côte d&apos;Ivoire.
+              {dict.footer.address}
             </p>
           </div>
           {columns.map((col) => (
@@ -119,9 +129,9 @@ export default function LandingFooter({ anchorPrefix = "" }: { anchorPrefix?: st
 
         <div className="mt-12 flex flex-col items-start justify-between gap-4 border-t border-slate-deep-line pt-6 sm:flex-row sm:items-center">
           <p className={`text-xs ${muted}`}>
-            © {new Date().getFullYear()} SafeLinkHub. Tous droits réservés.
+            {dict.footer.rights(new Date().getFullYear())}
           </p>
-          <nav aria-label="Réseaux sociaux" className="flex gap-5">
+          <nav aria-label={dict.footer.socials} className="flex gap-5">
             {socials.map((s) => (
               <a
                 key={s.label}

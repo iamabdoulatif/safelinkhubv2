@@ -1,4 +1,5 @@
 import YouTubeEmbed from "./YouTubeEmbed";
+import type { Dictionary } from "@/lib/i18n/fr";
 import { vendors } from "./content";
 import { remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
 import { AUTO_SETUP_FEE_CENTS, VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
@@ -17,38 +18,38 @@ const DEMO_VIDEO_ID = "uR-7Z_AVhvE";
  * présentation. L'emplacement vidéo local (demo-3d.mp4, jamais tourné) est
  * remplacé par le lecteur YouTube en façade.
  */
-export default function ProductDemo() {
+export default function ProductDemo({ dict }: { dict: Dictionary }) {
   const stats = [
     {
-      label: "Accès distant",
+      label: dict.demo.remoteAccess,
       value: `dès ${fcfa.format(remoteAccessPriceFcfa("monthly"))} FCFA`,
-      sub: `${safecoin(remoteAccessPriceFcfa("monthly"))} · par service / mois`,
+      sub: `${safecoin(remoteAccessPriceFcfa("monthly"))} · ${dict.demo.remoteAccessSub}`,
     },
     {
-      label: "Auto-setup routeur",
+      label: dict.demo.autoSetup,
       // Fourchette réelle : hotspot seul (matériel léger) → stack complète
       // Hotspot + MikHmon (cartes compatibles conteneur).
       value: `${fcfa.format(AUTO_SETUP_FEE_CENTS.hotspotOnly)} – ${fcfa.format(AUTO_SETUP_FEE_CENTS.containerCapable)} FCFA`,
-      sub: `${safecoin(AUTO_SETUP_FEE_CENTS.hotspotOnly)} – ${safecoin(AUTO_SETUP_FEE_CENTS.containerCapable)} · selon le matériel`,
+      sub: `${safecoin(AUTO_SETUP_FEE_CENTS.hotspotOnly)} – ${safecoin(AUTO_SETUP_FEE_CENTS.containerCapable)} · ${dict.demo.autoSetupSub}`,
     },
     {
-      label: "Essai offert",
+      label: dict.demo.trial,
       value: `${VPN_TRIAL_DAYS} jours`,
-      sub: "accès distant gratuit dès la création du compte",
+      sub: dict.demo.trialSub,
     },
   ];
 
   return (
-    <section id="demo" aria-label="Démonstration produit" className="border-b border-line bg-clay py-16 sm:py-24">
+    <section id="demo" aria-label={dict.demo.aria} className="border-b border-line bg-clay py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mx-auto max-w-2xl text-center">
-          <span className="slate-eyebrow">Le produit</span>
+          <span className="slate-eyebrow">{dict.demo.eyebrow}</span>
           <h2 className="mt-5 font-display text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl md:text-[2.75rem]">
-            Le tableau de bord qui pilote <span className="marker">tout</span>.
+            {dict.demo.titleA}
+            <span className="marker">{dict.demo.titleMark}</span>.
           </h2>
           <p className="mt-4 text-base leading-7 text-ink-soft">
-            Une console unique pour vos routeurs, vos forfaits et vos encaissements —
-            et soixante secondes pour comprendre comment elle s&apos;installe.
+            {dict.demo.lead}
           </p>
         </div>
 
@@ -87,9 +88,9 @@ export default function ProductDemo() {
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-line bg-clay px-4 py-3">
               <span className="flex items-center gap-2 text-xs font-medium text-ink-soft">
                 <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-brand-deep" />
-                {vendors.length} constructeurs pris en charge
+                {dict.demo.vendorsSupported(vendors.length)}
               </span>
-              <span className="text-xs font-medium text-ink-soft">Noyau RADIUS cloud inclus</span>
+              <span className="text-xs font-medium text-ink-soft">{dict.demo.radius}</span>
             </div>
           </div>
 
@@ -98,12 +99,14 @@ export default function ProductDemo() {
             <div className="slate-card slate-card-raised overflow-hidden bg-paper">
               <YouTubeEmbed
                 videoId={DEMO_VIDEO_ID}
-                title="SafeLinkHub × MikroTik en 60 secondes"
+                title={dict.demo.videoTitle}
+                playLabel={dict.demo.playLabel(dict.demo.videoTitle)}
+                hint={dict.demo.playHint}
               />
             </div>
             <figcaption className="mt-3 flex items-baseline justify-between gap-4">
               <span className="text-sm font-semibold text-ink">
-                SafeLinkHub × MikroTik en 60 secondes
+                {dict.demo.videoTitle}
               </span>
               <a
                 href="https://youtu.be/uR-7Z_AVhvE"
@@ -111,7 +114,7 @@ export default function ProductDemo() {
                 rel="noopener noreferrer"
                 className="shrink-0 text-xs font-semibold text-brand-deep underline-offset-2 hover:underline"
               >
-                Ouvrir sur YouTube
+                {dict.demo.openYoutube}
               </a>
             </figcaption>
           </figure>

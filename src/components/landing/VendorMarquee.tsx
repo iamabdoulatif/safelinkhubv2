@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { vendors } from "./content";
+import type { Dictionary } from "@/lib/i18n/fr";
 
 /* Bandeau « Compatible avec » — logos qui défilent de la gauche vers la droite,
  * en boucle sans couture.
@@ -82,11 +83,11 @@ function Row({ hidden = false }: { hidden?: boolean }) {
   );
 }
 
-export default function VendorMarquee() {
+export default function VendorMarquee({ dict }: { dict: Dictionary }) {
   return (
     <div className="border-t border-line bg-clay py-5">
       <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
-        Compatible avec
+        {dict.hero.compatible}
       </p>
       <div className="marquee">
         <div className="marquee-track">

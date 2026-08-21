@@ -3,6 +3,7 @@ import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
 import ContactForm from "./ContactForm";
 import MapEmbed from "@/components/landing/MapEmbed";
+import { fr } from "@/lib/i18n/fr";
 
 export const metadata: Metadata = {
   title: "Contact | SafeLinkHub",
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <div className="theme-slate flex flex-1 flex-col">
-      <LandingNav anchorPrefix="/" />
+      <LandingNav anchorPrefix="/" nav={fr.nav} locale="fr" />
       <main className="flex-1 bg-paper">
         <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
           <span className="slate-eyebrow">Entreprise</span>
@@ -67,7 +68,7 @@ export default function ContactPage() {
           </div>
         </section>
       </main>
-      <LandingFooter anchorPrefix="/" />
+      <LandingFooter anchorPrefix="/" dict={fr} locale="fr" />
     </div>
   );
 }

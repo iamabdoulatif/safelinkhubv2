@@ -1,5 +1,6 @@
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
+import { fr } from "@/lib/i18n/fr";
 
 type AuthShellProps = {
   eyebrow: string;
@@ -26,7 +27,7 @@ export default function AuthShell({
 }: AuthShellProps) {
   return (
     <div className="theme-slate flex flex-1 flex-col bg-paper text-ink">
-      <LandingNav anchorPrefix="/" />
+      <LandingNav anchorPrefix="/" nav={fr.nav} locale="fr" />
       <main className="flex flex-1">
         <div className="mx-auto grid min-h-[calc(100dvh-70px)] w-full max-w-6xl grid-cols-1 bg-paper lg:grid-cols-12">
           {/* Sur mobile le panneau promo est compacté (titre réduit,
@@ -70,7 +71,7 @@ export default function AuthShell({
           </section>
         </div>
       </main>
-      <LandingFooter anchorPrefix="/" />
+      <LandingFooter anchorPrefix="/" dict={fr} locale="fr" />
     </div>
   );
 }

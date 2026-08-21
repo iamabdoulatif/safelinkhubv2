@@ -7,6 +7,8 @@ import {
   RESELLER_SETUP_FEE_CENTS,
 } from "@/lib/billing/reseller";
 import { AUTO_SETUP_FEE_CENTS } from "@/lib/billing/auto-setup-pricing";
+import type { Dictionary } from "@/lib/i18n/fr";
+import { type Locale, localeHref } from "@/lib/i18n/config";
 
 /* Comptes utilisateur et revendeur, présentés côte à côte.
  *
@@ -17,50 +19,55 @@ import { AUTO_SETUP_FEE_CENTS } from "@/lib/billing/auto-setup-pricing";
 const fcfa = (n: number) => `${new Intl.NumberFormat("fr-FR").format(n)} FCFA`;
 const economie = RESELLER_QUOTA * (AUTO_SETUP_FEE_CENTS.hotspotOnly - RESELLER_SETUP_FEE_CENTS);
 
-const plans = [
-  {
-    name: "Utilisateur",
-    tagline: "Un ou deux MikroTik par an",
-    price: "Gratuit",
-    priceNote: "Rien à payer à l'inscription",
-    featured: false,
-    cta: "Créer un compte",
-    points: [
-      `Installation à ${fcfa(AUTO_SETUP_FEE_CENTS.hotspotOnly)} — ${fcfa(AUTO_SETUP_FEE_CENTS.containerCapable)} avec conteneur`,
-      "Premier routeur installé gratuitement",
-      "10 jours d'accès distant offerts",
-      "Facturation mobile money et vouchers illimités",
-    ],
-  },
-  {
-    name: "Technicien ou revendeur",
-    tagline: "Plusieurs MikroTik par mois",
-    price: fcfa(RESELLER_PACK_FCFA),
-    priceNote: "par an — reversés en crédit sur votre portefeuille",
-    featured: true,
-    cta: "Devenir revendeur",
-    points: [
-      `${RESELLER_QUOTA} installations à ${fcfa(RESELLER_SETUP_FEE_CENTS)} au lieu de ${fcfa(AUTO_SETUP_FEE_CENTS.hotspotOnly)}`,
-      "Tarif unique, que la carte accepte les conteneurs ou non",
-      `Le montant du pack revient en totalité sur votre portefeuille`,
-      "Quota remis à zéro à chaque renouvellement annuel",
-    ],
-  },
-] as const;
+const buildPlans = (dict: Dictionary) =>
+  [
+    {
+      name: dict.reseller.user.name,
+      tagline: dict.reseller.user.tagline,
+      price: dict.reseller.user.price,
+      priceNote: dict.reseller.user.priceNote,
+      featured: false,
+      cta: dict.reseller.user.cta,
+      points: dict.reseller.user.points(
+        fcfa(AUTO_SETUP_FEE_CENTS.hotspotOnly),
+        fcfa(AUTO_SETUP_FEE_CENTS.containerCapable),
+      ),
+    },
+    {
+      name: dict.reseller.pro.name,
+      tagline: dict.reseller.pro.tagline,
+      price: fcfa(RESELLER_PACK_FCFA),
+      priceNote: dict.reseller.pro.priceNote,
+      featured: true,
+      cta: dict.reseller.pro.cta,
+      points: dict.reseller.pro.points(
+        RESELLER_QUOTA,
+        fcfa(RESELLER_SETUP_FEE_CENTS),
+        fcfa(AUTO_SETUP_FEE_CENTS.hotspotOnly),
+      ),
+    },
+  ] as const;
 
-export default function ResellerSection() {
+export default function ResellerSection({
+  dict,
+  locale,
+}: {
+  dict: Dictionary;
+  locale: Locale;
+}) {
+  const plans = buildPlans(dict);
   return (
     <section
       id="revendeurs"
-      aria-label="Comptes utilisateur et revendeur"
+      aria-label={dict.reseller.aria}
       className="border-b border-line bg-clay py-16 sm:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionIntro
-          eyebrow="Techniciens & revendeurs"
-          title={"Vous en posez plusieurs par mois\u202F?"}
-          marker="plusieurs par mois"
-          lead="Le compte revendeur ramène l'installation d'un MikroTik à un prix d'intégrateur. Le pack se paie une fois par an et revient intégralement en crédit."
+          eyebrow={dict.reseller.eyebrow}
+          title={dict.reseller.title}
+          marker={dict.reseller.mark}
+          lead={dict.reseller.lead}
         />
 
         <div className="stagger mt-12 grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -75,7 +82,7 @@ export default function ResellerSection() {
                 <h3 className="font-display text-xl font-bold text-ink">{plan.name}</h3>
                 {plan.featured && (
                   <span className="shrink-0 rounded-full bg-slate-deep px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
-                    Remise {Math.round((1 - RESELLER_SETUP_FEE_CENTS / AUTO_SETUP_FEE_CENTS.hotspotOnly) * 100)} %
+                    {dict.reseller.pro.discount(Math.round((1 - RESELLER_SETUP_FEE_CENTS / AUTO_SETUP_FEE_CENTS.hotspotOnly) * 100))}
                   </span>
                 )}
               </div>
@@ -101,7 +108,7 @@ export default function ResellerSection() {
               </ul>
 
               <Link
-                href="/auth/register"
+                href={localeHref("/auth/register", locale)}
                 className={`mt-8 inline-flex items-center justify-center gap-2 slate-btn px-6 py-3 text-sm ${
                   plan.featured ? "slate-btn-dark" : "slate-btn-ghost"
                 }`}
@@ -114,7 +121,7 @@ export default function ResellerSection() {
         </div>
 
         <p className="mt-6 text-center text-sm text-ink-soft">
-          {`Sur ${RESELLER_QUOTA} installations, le pack revendeur représente ${fcfa(economie)} d'économie. Le statut se demande à l'inscription et s'active au paiement du pack.`}
+          {dict.reseller.footnote(RESELLER_QUOTA, fcfa(economie))}
         </p>
       </div>
     </section>

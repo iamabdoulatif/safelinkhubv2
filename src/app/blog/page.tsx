@@ -4,6 +4,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { listPublishedPosts, listPublishedCategories } from "@/lib/blog/queries";
 import { getMarketingSettings } from "@/lib/marketing/queries";
 import BlogExperience from "./BlogExperience";
+import { fr } from "@/lib/i18n/fr";
 
 export const metadata: Metadata = {
   title: "Blog | SafeLinkHub",
@@ -30,7 +31,7 @@ export default async function BlogPage({
 
   return (
     <div className="theme-slate flex flex-1 flex-col">
-      <LandingNav anchorPrefix="/" />
+      <LandingNav anchorPrefix="/" nav={fr.nav} locale="fr" />
       <main className="flex-1 bg-paper">
         <BlogExperience
           posts={posts}
@@ -39,7 +40,7 @@ export default async function BlogPage({
           initialCategory={sujet ?? null}
         />
       </main>
-      <LandingFooter anchorPrefix="/" />
+      <LandingFooter anchorPrefix="/" dict={fr} locale="fr" />
     </div>
   );
 }

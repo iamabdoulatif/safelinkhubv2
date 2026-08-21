@@ -15,9 +15,14 @@ import { Play } from "lucide-react";
 export default function YouTubeEmbed({
   videoId,
   title,
+  playLabel,
+  hint,
 }: {
   videoId: string;
   title: string;
+  /** Libellés fournis par l'appelant : ce composant ne connaît pas la langue. */
+  playLabel: string;
+  hint: string;
 }) {
   const [playing, setPlaying] = useState(false);
 
@@ -38,7 +43,7 @@ export default function YouTubeEmbed({
     <button
       type="button"
       onClick={() => setPlaying(true)}
-      aria-label={`Lire la vidéo : ${title}`}
+      aria-label={playLabel}
       className="group relative flex aspect-video w-full items-center justify-center overflow-hidden bg-slate-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
     >
       {/* Affiche dessinée localement — aucune ressource distante */}
@@ -57,6 +62,9 @@ export default function YouTubeEmbed({
         </span>
         <span className="max-w-xs px-4 text-center text-sm font-semibold text-white">
           {title}
+        </span>
+        <span className="max-w-xs px-4 text-center text-xs leading-5 text-slate-deep-soft">
+          {hint}
         </span>
       </span>
       <span className="absolute bottom-3 right-4 text-[11px] font-medium uppercase tracking-wider text-slate-deep-soft">

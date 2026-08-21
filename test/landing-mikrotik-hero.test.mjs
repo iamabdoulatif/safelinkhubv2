@@ -14,15 +14,21 @@ test("le hero emploie la photo réelle Chateau Pro et conserve ses faits produit
   assert.match(hero, /width=\{1200\}/);
   assert.match(hero, /height=\{1200\}/);
   assert.match(hero, /preload/);
-  for (const label of ["Routeurs supervisés", "Sessions en cours", "Essai offert", "Mobile money"]) {
-    assert.ok(hero.includes(label), `plaque manquante : ${label}`);
+  // Les libellés ont quitté le composant pour le dictionnaire lors du passage
+  // bilingue ; l'intention du test est inchangée — les quatre plaques doivent
+  // toujours être là — mais elle se vérifie maintenant en deux temps : le hero
+  // référence la clé, le dictionnaire porte le mot.
+  const { fr } = await import("../src/lib/i18n/fr.ts");
+  for (const cle of ["routers", "sessions", "trial", "mobileMoney"]) {
+    assert.match(hero, new RegExp(`dict\\.hero\\.cards\\.${cle}\\b`), `plaque manquante : ${cle}`);
+    assert.ok(fr.hero.cards[cle].length > 0, `libellé français vide : ${cle}`);
   }
   assert.match(hero, /stats\.routers > 0 \? nf\.format\(stats\.routers\) : undefined/);
   assert.match(hero, /stats\.sessions > 0 \? nf\.format\(stats\.sessions\) : undefined/);
   assert.match(hero, /stats\.mobileMoney\.length/);
   assert.match(hero, /stats\.mobileMoney\.join/);
-  assert.match(hero, /action="\/auth\/register"/);
-  assert.match(hero, /<VendorMarquee \/>/);
+  assert.match(hero, /action=\{localeHref\("\/auth\/register", locale\)\}/);
+  assert.match(hero, /<VendorMarquee dict=\{dict\} \/>/);
 });
 
 test("la scène ralentit ses orbites et respecte le mouvement réduit", async () => {

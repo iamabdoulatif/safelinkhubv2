@@ -7,6 +7,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import BlogAd from "@/components/analytics/BlogAd";
 import { getPublishedPost } from "@/lib/blog/queries";
 import { getMarketingSettings } from "@/lib/marketing/queries";
+import { fr } from "@/lib/i18n/fr";
 
 export async function generateMetadata({
   params,
@@ -66,7 +67,7 @@ export default async function BlogPostPage({
 
   return (
     <div className="theme-slate flex flex-1 flex-col">
-      <LandingNav anchorPrefix="/" />
+      <LandingNav anchorPrefix="/" nav={fr.nav} locale="fr" />
       <main className="flex-1 bg-paper">
         {/* Hero article (bande anthracite) */}
         <div className="border-b border-line bg-slate-deep">
@@ -129,7 +130,7 @@ export default async function BlogPostPage({
           )}
         </article>
       </main>
-      <LandingFooter anchorPrefix="/" />
+      <LandingFooter anchorPrefix="/" dict={fr} locale="fr" />
     </div>
   );
 }

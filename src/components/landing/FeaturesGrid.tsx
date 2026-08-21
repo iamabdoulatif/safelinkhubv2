@@ -1,25 +1,28 @@
 import GeoIcon from "./GeoIcon";
 import SectionIntro from "./SectionIntro";
 import { quickFeatures } from "./content";
+import type { Dictionary } from "@/lib/i18n/fr";
 
 /* Grille de fonctionnalités, motif Slate : cartes arrondies à trait fin, une
  * carte mise en avant en aplat lime. La grille asymétrique 12 colonnes de la
  * version Bitume est conservée — c'est elle qui donne son rythme à la section. */
-export default function FeaturesGrid() {
+export default function FeaturesGrid({ dict }: { dict: Dictionary }) {
   return (
-    <section id="features" aria-label="Fonctionnalités" className="border-b border-line bg-paper py-16 sm:py-24">
+    <section id="features" aria-label={dict.features.aria} className="border-b border-line bg-paper py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionIntro
-          eyebrow="Fonctionnalités"
-          title="Arrêtez de jongler. Faites grandir votre réseau."
-          marker="grandir"
-          lead="Tout ce qu'un opérateur hotspot fait à la main, la plateforme le fait à sa place — et le facture."
+          eyebrow={dict.features.eyebrow}
+          title={dict.features.title}
+          marker={dict.features.mark}
+          lead={dict.features.lead}
         />
 
         <div className="stagger mt-12 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-12">
-          {quickFeatures.map((f) => (
+          {quickFeatures.map((f, i) => {
+            const t = dict.content.quickFeatures[i];
+            return (
             <article
-              key={f.title}
+              key={t.title}
               className={`reveal slate-card p-6 sm:p-7 ${f.span} ${
                 f.featured ? "border-transparent bg-brand" : "bg-paper hover:bg-clay"
               }`}
@@ -36,17 +39,18 @@ export default function FeaturesGrid() {
                   f.featured ? "text-slate-deep" : "text-ink"
                 }`}
               >
-                {f.title}
+                {t.title}
               </h3>
               <p
                 className={`mt-2 max-w-xl text-sm leading-6 ${
                   f.featured ? "text-[#2C4A34]" : "text-ink-soft"
                 }`}
               >
-                {f.description}
+                {t.description}
               </p>
             </article>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

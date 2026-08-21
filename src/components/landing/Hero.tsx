@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import VendorMarquee from "./VendorMarquee";
 import { type PlatformStats } from "@/lib/landing/platform-stats";
+import type { Dictionary } from "@/lib/i18n/fr";
+import { type Locale, localeHref } from "@/lib/i18n/config";
 import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 
 const nf = new Intl.NumberFormat("fr-FR");
@@ -53,7 +55,7 @@ function OrbitMetric({
   );
 }
 
-function OrbitScene({ stats }: { stats: PlatformStats }) {
+function OrbitScene({ dict, stats }: { dict: Dictionary; stats: PlatformStats }) {
   return (
     <div className="hero-orbit-scene">
       <div aria-hidden="true" className="hero-orbit-track" />
@@ -72,27 +74,27 @@ function OrbitScene({ stats }: { stats: PlatformStats }) {
 
       <dl className="hero-orbit-metrics">
         <OrbitMetric
-          label="Routeurs supervisés"
+          label={dict.hero.cards.routers}
           value={stats.routers > 0 ? nf.format(stats.routers) : undefined}
           countTo={stats.routers > 0 ? stats.routers : undefined}
-          sub="parc total sur la plateforme"
+          sub={dict.hero.cards.routersSub}
           className="hero-orbit-metric-routers"
         />
         <OrbitMetric
-          label="Sessions en cours"
+          label={dict.hero.cards.sessions}
           value={stats.sessions > 0 ? nf.format(stats.sessions) : undefined}
           countTo={stats.sessions > 0 ? stats.sessions : undefined}
-          sub="sur les routeurs joignables"
+          sub={dict.hero.cards.sessionsSub}
           className="hero-orbit-metric-sessions"
         />
         <OrbitMetric
-          label="Essai offert"
-          value={`${VPN_TRIAL_DAYS} jours`}
-          sub="accès distant, sans carte bancaire"
+          label={dict.hero.cards.trial}
+          value={dict.hero.cards.trialValue(VPN_TRIAL_DAYS)}
+          sub={dict.hero.cards.trialSub}
           className="hero-orbit-metric-trial"
         />
         <OrbitMetric
-          label="Mobile money"
+          label={dict.hero.cards.mobileMoney}
           value={String(stats.mobileMoney.length)}
           sub={stats.mobileMoney.join(" · ")}
           className="hero-orbit-metric-money"
@@ -102,47 +104,53 @@ function OrbitScene({ stats }: { stats: PlatformStats }) {
   );
 }
 
-export default function Hero({ stats }: { stats: PlatformStats }) {
+export default function Hero({
+  dict,
+  locale,
+  stats,
+}: {
+  dict: Dictionary;
+  locale: Locale;
+  stats: PlatformStats;
+}) {
   return (
-    <section aria-label="Présentation" className="relative overflow-hidden border-b border-line bg-paper">
+    <section aria-label={dict.hero.eyebrow} className="relative overflow-hidden border-b border-line bg-paper">
       <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-20">
         <div className="hero-layout">
           {/* Le message reste premier dans le DOM : mobile et lecteurs d'écran
               le rencontrent avant l'animation. */}
           <div className="hero-seq relative z-10 mx-auto max-w-3xl text-center lg:mx-0 lg:max-w-xl lg:text-left">
-            <span className="slate-eyebrow">Facturation hotspot · Automatisation FAI</span>
+            <span className="slate-eyebrow">{dict.hero.eyebrow}</span>
 
             <h1 className="mt-6 font-display text-[2.25rem] font-bold leading-[1.06] tracking-tight text-ink sm:text-5xl md:text-6xl">
-              Votre réseau. Vos revenus.{" "}
-              <span className="marker marker-sweep">Automatisés.</span>
+              {dict.hero.titleA}
+              <span className="marker marker-sweep">{dict.hero.titleMark}</span>
             </h1>
 
             <p className="mx-auto mt-6 max-w-xl text-base leading-7 text-ink-soft sm:text-lg lg:mx-0">
-              La plateforme d&apos;automatisation Hotspot et FAI la plus avancée&nbsp;:
-              facturation mobile money, provisionnement MikroTik et surveillance
-              temps réel, depuis un seul tableau de bord.
+            {dict.hero.lead}
             </p>
 
             {/* Capture e-mail — l'inscription se termine sur /auth/register, qui
                 pré-remplit le champ à partir du paramètre d'URL. */}
             <form
-              action="/auth/register"
+              action={localeHref("/auth/register", locale)}
               method="get"
               className="mx-auto mt-8 flex w-full max-w-md flex-col gap-2 sm:flex-row lg:mx-0"
             >
               <label htmlFor="hero-email" className="sr-only">
-                Adresse e-mail professionnelle
+              {dict.hero.emailLabel}
               </label>
               <input
                 id="hero-email"
                 name="email"
                 type="email"
                 autoComplete="email"
-                placeholder="vous@votre-reseau.ci"
+                placeholder={dict.hero.emailPlaceholder}
                 className="min-w-0 flex-1 rounded-full border border-line bg-paper px-5 py-3 text-sm text-ink placeholder:text-ink-soft focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
               />
               <button type="submit" className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-6 py-3 text-sm">
-                Démarrer gratuitement
+              {dict.hero.submit}
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </button>
             </form>
@@ -150,7 +158,7 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
             <p className="mt-3 text-xs text-ink-soft">
               {/* Un SEUL nœud texte : ce Next avale l'espace entre {expr} et le
                   texte adjacent au rendu serveur. Même contournement qu'ailleurs. */}
-              {`Plan gratuit · ${VPN_TRIAL_DAYS} jours d'accès distant offerts · sans carte bancaire`}
+              {dict.hero.microcopy(VPN_TRIAL_DAYS)}
             </p>
 
             <div className="mt-6 flex justify-center lg:justify-start">
@@ -158,17 +166,17 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
                 href="#demo"
                 className="text-sm font-semibold text-brand-deep underline-offset-4 hover:underline"
               >
-                Voir le tableau de bord en 60 secondes
+              {dict.hero.watch}
               </Link>
             </div>
           </div>
 
-          <OrbitScene stats={stats} />
+          <OrbitScene dict={dict} stats={stats} />
         </div>
       </div>
 
       {/* Bande de compatibilité constructeurs — logos défilants */}
-      <VendorMarquee />
+      <VendorMarquee dict={dict} />
 
     </section>
   );

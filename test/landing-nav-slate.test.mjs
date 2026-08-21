@@ -56,8 +56,11 @@ test("les classes .slate-* ne déclarent ni fond ni mise en page", async () => {
 test("tout le site public partage la même peau Slate", async () => {
   // La peau ne s'applique que sous un wrapper portant `theme-slate` : une page
   // publique qui l'oublie repart en Bitume sans que rien ne le signale.
+  // `/` et `/en` ne portent plus la classe directement : leur composition est
+  // partagée dans LandingPage, qui la porte pour les deux. C'est LUI qu'il faut
+  // vérifier — l'assertion resterait vraie sur les pages sans rien garantir.
   const pages = [
-    "src/app/page.tsx",
+    "src/components/landing/LandingPage.tsx",
     "src/app/blog/page.tsx",
     "src/app/blog/[slug]/page.tsx",
     "src/app/contact/page.tsx",
@@ -66,6 +69,12 @@ test("tout le site public partage la même peau Slate", async () => {
   ];
   for (const page of pages) {
     assert.match(await read(page), /theme-slate/, `${page} doit porter la peau Slate`);
+  }
+
+  // Et les deux routes de la landing passent bien par cette composition —
+  // sinon l'une d'elles pourrait perdre la peau sans que le test le voie.
+  for (const route of ["src/app/page.tsx", "src/app/en/page.tsx"]) {
+    assert.match(await read(route), /<LandingPage\b/, `${route} doit rendre LandingPage`);
   }
 });
 

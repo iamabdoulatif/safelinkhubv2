@@ -1,20 +1,23 @@
 import { Plus } from "lucide-react";
 import SectionIntro from "./SectionIntro";
 import { faqs } from "./content";
+import type { Dictionary } from "@/lib/i18n/fr";
 
 /* FAQ en grille de deux colonnes — le motif Slate. Chaque question est un
  * <details> natif : ouverture au clavier, aucun JavaScript, aucune animation. */
-export default function FaqSection() {
+export default function FaqSection({ dict }: { dict: Dictionary }) {
   return (
-    <section id="faq" aria-label="Questions fréquentes" className="border-b border-line bg-paper py-16 sm:py-24">
+    <section id="faq" aria-label={dict.faq.aria} className="border-b border-line bg-paper py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionIntro
-          eyebrow="FAQ"
-          title="Questions fréquentes."
-          lead="Ce qu'on nous demande avant de connecter un premier routeur."
+          eyebrow={dict.faq.eyebrow}
+          title={dict.faq.title}
+          lead={dict.faq.lead}
         />
         <div className="stagger mt-12 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {faqs.map((f) => (
+          {faqs.map((_, i) => {
+            const f = dict.content.faqs[i];
+            return (
             <details key={f.q} className="reveal slate-card group bg-paper p-5 sm:p-6">
               <summary className="flex cursor-pointer list-none items-start justify-between gap-4 font-display text-base font-bold text-ink">
                 {f.q}
@@ -25,7 +28,8 @@ export default function FaqSection() {
               </summary>
               <p className="mt-3 text-sm leading-6 text-ink-soft">{f.a}</p>
             </details>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
