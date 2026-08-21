@@ -27,6 +27,7 @@ import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { getPortForwardTargetPort } from "./port-forward-rules";
 import { PERIOD_PRICE_CENTS, BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
 import { ensureCloudMikhmonInstance, removeCloudMikhmonInstance } from "./mikhmon-cloud";
+import { supportsContainersFor } from "./device-catalog";
 
 export type { BillingPeriod } from "./billing-plans";
 
@@ -98,7 +99,12 @@ async function enablePortForwardForRouter(
       error: "Le routeur doit être connecté via WireGuard ou OpenVPN pour activer l'accès direct.",
     };
   }
-  const isCloudMikhmon = service === "mikhmon" && router.supportsContainers === false;
+  /* Même déduction que l'écran MikHmon : sans elle, la page classait un
+     RB951 « sans conteneur » d'après son modèle pendant que cette voie, qui
+     ne lisait que la colonne, refusait de lui créer son instance. */
+  const isCloudMikhmon =
+    service === "mikhmon" &&
+    supportsContainersFor(router.supportsContainers, router.model) === false;
 
   const existing = await db
     .select()

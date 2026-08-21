@@ -243,7 +243,17 @@ function normalize(s: string) {
   // "hAP ax³" se normalisent tous deux en "hapax" et le premier de la
   // liste gagne : un vrai ax³ matchait l'entrée ax² et perdait son flag
   // requiresUsbForContainer.
-  return s.toLowerCase().replace(/²/g, "2").replace(/³/g, "3").replace(/[\s-]/g, "");
+  //
+  // L'accent circonflexe compte autant que l'exposant : RouterOS renvoie
+  // « hAP ax^3 », pas « hAP ax³ », et c'est cette forme-là qui dort en base.
+  // Sans cette règle, seize routeurs du parc de production ne trouvaient
+  // AUCUNE entrée de catalogue — donc ni architecture, ni capacité conteneur.
+  return s
+    .toLowerCase()
+    .replace(/²/g, "2")
+    .replace(/³/g, "3")
+    .replace(/\^(\d)/g, "$1")
+    .replace(/[\s-]/g, "");
 }
 
 /**
@@ -281,4 +291,31 @@ export function findMikrotikModel(boardName: string | null | undefined): Mikroti
     ) ??
     null
   );
+}
+
+/**
+ * Capacité conteneur d'un routeur, en préférant TOUJOURS ce qui a été mesuré.
+ *
+ * La colonne `routers.supports_containers` n'est écrite qu'à l'issue d'un
+ * auto-setup réussi, qui lit la vraie architecture sur l'équipement. Tout
+ * routeur lié avant cet auto-setup y reste donc à NULL — c'était le cas des
+ * 35 routeurs de production — et rien ne pouvait les classer : ni MikHmon
+ * cloud, ni écran de station.
+ *
+ * À défaut de mesure, on déduit du modèle déjà connu via le catalogue. La
+ * déduction ne SUPPLANTE jamais une valeur mesurée : un `false` enregistré
+ * l'emporte sur un catalogue optimiste, sinon on reposerait un conteneur sur
+ * une carte qui l'a refusé.
+ *
+ * Renvoie null quand le modèle est inconnu du catalogue — un « je ne sais
+ * pas » explicite, que l'appelant doit traiter comme tel plutôt que de
+ * choisir une famille par défaut.
+ */
+export function supportsContainersFor(
+  stored: boolean | null | undefined,
+  model: string | null | undefined,
+): boolean | null {
+  if (typeof stored === "boolean") return stored;
+  const board = findMikrotikModel(model);
+  return board ? architectureSupportsContainers(board.architecture) : null;
 }

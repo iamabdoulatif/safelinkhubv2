@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { routerMikhmonCloudInstances, routerPortForwards, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { getRelayPublicHost } from "@/lib/mikrotik/relay";
+import { supportsContainersFor } from "@/lib/mikrotik/device-catalog";
 import MikhmonOnlineConsole, { type MikhmonRouter } from "./MikhmonOnlineList";
 
 /* Station MikHmon Online.
@@ -71,12 +72,10 @@ export default async function MikhmonOnlinePage() {
       name: r.name,
       status: r.status,
       model: r.model,
-      kind:
-        r.supportsContainers === false
-          ? "cloud"
-          : r.supportsContainers === true
-            ? "container"
-            : "unknown",
+      kind: (() => {
+        const capable = supportsContainersFor(r.supportsContainers, r.model);
+        return capable === false ? "cloud" : capable === true ? "container" : "unknown";
+      })(),
       cloudDomain: instance?.status === "active" ? instance.domain : null,
       // Le lien tunnel se calcule sans joindre le routeur : le shard et le
       // port suffisent. Aucune raison de le cacher derrière un clic.
