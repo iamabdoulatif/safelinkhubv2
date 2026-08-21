@@ -30,21 +30,40 @@ test("la scène ralentit ses orbites et respecte le mouvement réduit", async ()
   for (const selector of [".hero-orbit-scene", ".hero-orbit-router", ".hero-orbit-metric"]) {
     assert.ok(styles.includes(selector), `${selector} doit exister`);
   }
-  for (const duration of ["26s", "28s", "30s", "32s"]) {
+  for (const duration of ["26s", "38s"]) {
     assert.match(styles, new RegExp(`animation:[^;]*${duration}`), `durée manquante : ${duration}`);
   }
-  assert.match(styles, /@media \(min-width: 1280px\)/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.hero-orbit-router/);
+  assert.match(styles, /@media \(min-width: 1024px\)/);
+  assert.match(styles, /\.hero-orbit-router, .hero-orbit-metric, .hero-orbit-orbiter \{/);
 });
 
 test("la scène desktop ne recouvre pas la colonne commerciale", async () => {
   const styles = await read("src/app/globals.css");
-  const desktop = styles.slice(styles.indexOf("@media (min-width: 1280px)"));
+  const desktop = styles.slice(styles.indexOf("@media (min-width: 1024px)"));
 
-  assert.match(desktop, /\.hero-orbit-metrics \{ position: absolute; inset: 0; display: block;/);
+  assert.match(desktop, /\.hero-layout \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\);/);
+  assert.match(desktop, /\.hero-orbit-metrics \{ position: absolute; inset: 0; z-index: auto; display: block;/);
   assert.doesNotMatch(
     desktop,
     /\.hero-orbit-scene \{\s*pointer-events: none;\s*position: absolute;/,
     "la scène doit rester après le CTA dans le flux desktop",
   );
+});
+
+test("la scène adopte une orbite circulaire transparente à gauche du contenu", async () => {
+  const [hero, styles] = await Promise.all([
+    read("src/components/landing/Hero.tsx"),
+    read("src/app/globals.css"),
+  ]);
+
+  assert.match(hero, /hero-layout/);
+  assert.match(hero, /hero-orbit-orbiter/);
+  assert.match(hero, /hero-orbit-track/);
+  assert.match(hero, /lg:text-left/);
+  assert.match(styles, /@keyframes hero-orbit-turn/);
+  assert.match(styles, /@keyframes hero-orbit-counterturn/);
+  assert.match(styles, /hero-orbit-turn 38s linear infinite/);
+  assert.match(styles, /hero-orbit-counterturn 38s linear infinite/);
+  assert.match(styles, /@media \(min-width: 1024px\)[\s\S]*\.hero-layout/);
+  assert.match(styles, /\.hero-orbit-track \{[\s\S]*background: transparent/);
 });
