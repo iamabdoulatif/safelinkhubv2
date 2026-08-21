@@ -18,6 +18,8 @@ import {
   roamingGroupOffers,
   roamingGroupRouters,
   roamingGroups,
+  roamingDeviceBindingRouters,
+  roamingDeviceBindings,
   roamingProfiles,
   routers,
   voucherRouters,
@@ -39,6 +41,11 @@ import { appendRoamingSeenHook } from "./on-login-hook";
 import { deriveRouterKey } from "./webhook-secret";
 import { revokeRoamingTargets } from "./revocation";
 import { findHotspotUser } from "./hotspot-user";
+import {
+  clearRoamingDeviceBinding,
+  resyncRoamingDeviceBinding,
+  syncRoamingDeviceBinding,
+} from "./mac-propagate";
 
 /**
  * Un compte à créer. `password` est distinct de `username` pour les comptes
@@ -309,6 +316,35 @@ export async function extendRoamingGroup(opts: {
         ),
       );
     });
+
+    // Un compte déjà utilisé possède une MAC canonique : après avoir copié son
+    // code, on pose immédiatement son compagnon MAC sur les nouvelles zones.
+    // Les erreurs restent visibles dans l'état PENDING/ERROR et la reprise
+    // automatique les rejouera ; l'ajout de zone ne perd pas pour autant les
+    // comptes déjà provisionnés avec succès.
+    const bindings = await db
+      .select({ id: roamingDeviceBindings.id })
+      .from(roamingDeviceBindings)
+      .where(inArray(roamingDeviceBindings.voucherId, accounts.map((account) => account.id)));
+    if (bindings.length > 0) {
+      await db
+        .insert(roamingDeviceBindingRouters)
+        .values(
+          bindings.flatMap((binding) =>
+            additions.map((router) => ({ bindingId: binding.id, routerId: router.id, status: "PENDING" as const })),
+          ),
+        )
+        .onConflictDoNothing();
+      for (const binding of bindings) {
+        for (const { router, client } of targets) {
+          await syncRoamingDeviceBinding({
+            bindingId: binding.id,
+            onlyRouterId: router.id,
+            currentRouterClient: client,
+          });
+        }
+      }
+    }
     return { success: true, added: additions.length, synchronizedAccounts: accounts.length };
   } catch (error) {
     await cleanupAddedUsers();
@@ -617,6 +653,17 @@ export async function updateRoamingAccount(opts: {
         .where(eq(voucherRouters.voucherId, voucherId));
     }
 
+    // Le compagnon MAC est un second utilisateur HotSpot ; il doit suivre le
+    // profil, le commentaire et le nom effectif du compte. La liaison reste
+    // durable : les zones qui ne répondent pas sont marquées à reprendre par
+    // syncRoamingDeviceBinding, sans annuler la modification déjà réussie.
+    const [binding] = await db
+      .select({ id: roamingDeviceBindings.id })
+      .from(roamingDeviceBindings)
+      .where(eq(roamingDeviceBindings.voucherId, voucherId))
+      .limit(1);
+    if (binding) await syncRoamingDeviceBinding({ bindingId: binding.id });
+
     return { success: true, updatedOn, skipped };
   } catch (error) {
     // Remise de l'ancien nom là où il avait déjà changé.
@@ -659,6 +706,12 @@ export async function deleteRoamingAccount(opts: {
 
   const account = await loadNamedAccount(orgId, voucherId);
   if (!account) return { error: "Compte introuvable." };
+
+  // Retire d'abord le cookie et la MAC mémorisée. Si une zone ne répond pas,
+  // cette garde refuse aussi la suppression du compte : aucune rémanence ne
+  // doit survivre à une révocation annoncée comme complète.
+  const deviceCleared = await clearRoamingDeviceBinding({ orgId, voucherId });
+  if ("error" in deviceCleared) return deviceCleared;
 
   const groupRouters = await loadGroupRouters(orgId, account.groupId);
   const { removedOn, unreachable } = await revokeRoamingTargets(
@@ -706,4 +759,27 @@ export async function deleteRoamingAccount(opts: {
   // Les liens voucher_routers partent en cascade avec la ligne.
   await db.delete(vouchers).where(and(eq(vouchers.id, voucherId), eq(vouchers.orgId, orgId)));
   return { success: true, removedOn, unreachable };
+}
+
+/** Relance la synchronisation d'un appareil d'un compte nominatif. */
+export async function resyncNamedRoamingDevice(opts: {
+  orgId: string;
+  voucherId: string;
+}) {
+  const account = await loadNamedAccount(opts.orgId, opts.voucherId);
+  if (!account) return { error: "Compte introuvable." };
+  return resyncRoamingDeviceBinding(opts);
+}
+
+/** Autorise explicitement un nouveau téléphone en supprimant l'ancien lien. */
+export async function replaceNamedRoamingDevice(opts: {
+  orgId: string;
+  voucherId: string;
+}) {
+  const account = await loadNamedAccount(opts.orgId, opts.voucherId);
+  if (!account) return { error: "Compte introuvable." };
+  const result = await clearRoamingDeviceBinding(opts);
+  if ("error" in result) return result;
+  if (!result.hadBinding) return { error: "Aucun appareil n'est encore mémorisé pour ce compte." };
+  return { success: true, removedOn: result.removedOn };
 }

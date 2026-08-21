@@ -156,6 +156,11 @@ test("modifier n'efface rien par omission", async () => {
   assert.ok(check > 0 && write > check, "la vérification doit précéder l'écriture");
   assert.match(body, /renamed\.map/);
   assert.match(body, /=name=\$\{account\.username\}/);
+
+  // Le compagnon MAC se connecte avec son propre profil RouterOS : après un
+  // changement d'offre (ou de nom), il doit être re-matérialisé depuis la
+  // liaison durable, sinon le téléphone garderait l'ancien débit/durée.
+  assert.match(body, /syncRoamingDeviceBinding/);
 });
 
 test("modifier et supprimer ne touchent que les comptes nominatifs", async () => {
@@ -249,6 +254,33 @@ test("la création de compte a son propre groupe, indépendant de l'émission", 
   // Et le groupe par défaut doit être ACTIF : le sélecteur ne liste que ceux-là,
   // en pointer un en pause affichait un champ vide tout en le soumettant.
   assert.match(console_, /groups\.find\(\(group\) => group\.active\)\?\.id/);
+});
+
+test("les comptes roaming exposent une resynchronisation et un changement d'appareil protégés", async () => {
+  const [actions, provision, console_] = await Promise.all([
+    read("src/lib/roaming/actions.ts"),
+    read("src/lib/roaming/provision.ts"),
+    read("src/app/admin/roaming/RoamingConsole.tsx"),
+  ]);
+  assert.match(actions, /export async function resyncRoamingDevice/);
+  assert.match(actions, /export async function replaceRoamingDevice/);
+  for (const fn of ["resyncRoamingDevice", "replaceRoamingDevice"]) {
+    const start = actions.indexOf(`export async function ${fn}`);
+    const body = actions.slice(start, actions.indexOf("export async function", start + 10));
+    assert.match(body, /requireAdminSession/);
+    assert.match(body, /refreshRoamingPages/);
+  }
+
+  // Une zone ajoutée après la première connexion reçoit immédiatement la
+  // liaison déjà mémorisée, pas seulement le compte et son profil.
+  assert.match(provision, /roamingDeviceBindingRouters/);
+  assert.match(provision, /syncRoamingDeviceBinding/);
+
+  // L'opérateur peut voir la couverture et déclencher ces deux actions depuis
+  // la fiche du compte, sans API ou manipulation RouterOS à côté.
+  assert.match(console_, /Appareil mémorisé/);
+  assert.match(console_, /resyncRoamingDevice/);
+  assert.match(console_, /replaceRoamingDevice/);
 });
 
 test("mettre en pause ne touche à RIEN sur les MikroTik", async () => {

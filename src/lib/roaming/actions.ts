@@ -33,6 +33,8 @@ import {
   deleteRoamingAccount,
   extendRoamingGroup,
   provisionRoamingAccounts,
+  replaceNamedRoamingDevice,
+  resyncNamedRoamingDevice,
   updateRoamingAccount,
 } from "./provision";
 
@@ -561,4 +563,30 @@ export async function deleteRoamingUser(_prevState: unknown, formData: FormData)
   if ("error" in result) return result;
   refreshRoamingPages();
   return { success: true, removedOn: result.removedOn };
+}
+
+/** Force une reprise de la MAC mémorisée sur toutes les zones du groupe. */
+export async function resyncRoamingDevice(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const voucherId = String(formData.get("voucherId") ?? "");
+  if (!voucherId) return { error: "Compte introuvable." };
+  const result = await resyncNamedRoamingDevice({ orgId: session.orgId, voucherId });
+  if ("error" in result) return result;
+  refreshRoamingPages();
+  return result;
+}
+
+/** Oublie l'appareil actuel pour permettre la première connexion d'un autre. */
+export async function replaceRoamingDevice(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const voucherId = String(formData.get("voucherId") ?? "");
+  if (!voucherId) return { error: "Compte introuvable." };
+  const result = await replaceNamedRoamingDevice({ orgId: session.orgId, voucherId });
+  if ("error" in result) return result;
+  refreshRoamingPages();
+  return result;
 }

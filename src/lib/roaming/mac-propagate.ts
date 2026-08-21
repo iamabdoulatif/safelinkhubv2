@@ -18,6 +18,8 @@ import {
 import { durationToMs, type PackageDuration } from "@/lib/vouchers/expiry";
 import { isUnlimitedUnit } from "@/lib/mikrotik/package-voucher-profile";
 import { normalizeRoamingMac } from "./device-binding";
+import { findHotspotUser } from "./hotspot-user";
+import { revokeRoamingTargets } from "./revocation";
 
 export type PropagateResult = { ok: boolean; reason?: string; boundOn?: number; bindingId?: string };
 
@@ -281,6 +283,117 @@ export async function confirmAndSyncRoamingDevice(input: {
 // Compatibilité du webhook existant : il appelle le chemin qui vérifie la
 // session avant d'autoriser le premier appareil.
 export const propagateRoamingMac = confirmAndSyncRoamingDevice;
+
+/** Relance explicitement la matérialisation d'un appareil mémorisé. */
+export async function resyncRoamingDeviceBinding(input: {
+  orgId: string;
+  voucherId: string;
+}): Promise<{ error: string } | { success: true; synchronizedOn: number }> {
+  const db = getDb();
+  const [binding] = await db
+    .select({ id: roamingDeviceBindings.id })
+    .from(roamingDeviceBindings)
+    .innerJoin(vouchers, eq(roamingDeviceBindings.voucherId, vouchers.id))
+    .where(
+      and(
+        eq(roamingDeviceBindings.orgId, input.orgId),
+        eq(roamingDeviceBindings.voucherId, input.voucherId),
+        isNull(vouchers.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!binding) return { error: "Aucun appareil n'est encore mémorisé pour ce compte." };
+
+  const result = await syncRoamingDeviceBinding({ bindingId: binding.id });
+  if (!result.ok) return { error: "La liaison mémorisée est introuvable ou son groupe ne contient aucune zone." };
+  return { success: true, synchronizedOn: result.boundOn ?? 0 };
+}
+
+async function removeActiveSessions(client: RouterOSClient, username: string) {
+  const sessions = await client.talk(["/ip/hotspot/active/print", `?user=${username}`]);
+  for (const session of sessions) {
+    if (session[".id"]) await client.talk(["/ip/hotspot/active/remove", `=.id=${session[".id"]}`]);
+  }
+}
+
+async function removeHotspotCookies(client: RouterOSClient, username: string) {
+  const cookies = await client.talk(["/ip/hotspot/cookie/print", `?user=${username}`]);
+  for (const cookie of cookies) {
+    if (cookie[".id"]) await client.talk(["/ip/hotspot/cookie/remove", `=.id=${cookie[".id"]}`]);
+  }
+}
+
+/**
+ * Retire l'appareil mémorisé de toutes les zones, puis seulement de la base.
+ * La suppression des cookies force une nouvelle authentification : c'est ce
+ * qui rend le bouton « changer d'appareil » effectif sans attendre un an.
+ */
+export async function clearRoamingDeviceBinding(input: {
+  orgId: string;
+  voucherId: string;
+}): Promise<{ error: string } | { success: true; removedOn: number; hadBinding: boolean }> {
+  const db = getDb();
+  const [binding] = await db
+    .select({
+      id: roamingDeviceBindings.id,
+      macAddress: roamingDeviceBindings.macAddress,
+      username: vouchers.username,
+      groupId: vouchers.roamingGroupId,
+    })
+    .from(roamingDeviceBindings)
+    .innerJoin(vouchers, eq(roamingDeviceBindings.voucherId, vouchers.id))
+    .where(
+      and(
+        eq(roamingDeviceBindings.orgId, input.orgId),
+        eq(roamingDeviceBindings.voucherId, input.voucherId),
+        isNull(vouchers.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!binding) return { success: true, removedOn: 0, hadBinding: false };
+  if (!binding.groupId) return { error: "Le groupe de ce compte est introuvable." };
+
+  const targets = await loadGroupRouters(input.orgId, binding.groupId);
+  if (targets.length === 0) return { error: "Ce groupe ne contient aucune zone à révoquer." };
+
+  const { removedOn, unreachable } = await revokeRoamingTargets(
+    targets.map(({ router }) => ({ name: router.name, router })),
+    async ({ router }) => {
+      const client = await connectToRouter(router, 10_000, 1);
+      try {
+        await removeActiveSessions(client, binding.username);
+        await removeActiveSessions(client, binding.macAddress);
+        await removeHotspotCookies(client, binding.username);
+        await removeHotspotCookies(client, binding.macAddress);
+
+        const codeUser = await findHotspotUser(client, binding.username);
+        if (codeUser?.[".id"]) {
+          await client.talk([
+            "/ip/hotspot/user/set",
+            `=.id=${codeUser[".id"]}`,
+            "=mac-address=00:00:00:00:00:00",
+          ]);
+        }
+        const companion = await findHotspotUser(client, binding.macAddress);
+        if (companion?.[".id"]) {
+          await client.talk(["/ip/hotspot/user/remove", `=.id=${companion[".id"]}`]);
+        }
+      } finally {
+        client.close();
+      }
+    },
+  );
+  if (unreachable.length > 0) {
+    return {
+      error:
+        `L'appareil a été retiré de ${removedOn} zone(s), mais ${unreachable.join(", ")} n'a pas répondu. ` +
+        "La liaison est conservée : relancez quand toutes les zones seront joignables.",
+    };
+  }
+
+  await db.delete(roamingDeviceBindings).where(eq(roamingDeviceBindings.id, binding.id));
+  return { success: true, removedOn, hadBinding: true };
+}
 
 export async function loadPendingRoamingBindings(routerId: string, limit = 50) {
   const db = getDb();
