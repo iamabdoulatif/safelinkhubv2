@@ -50,6 +50,7 @@ import DetectedModelBadge from "./DetectedModelBadge";
 import ConfigAuditBanner from "./ConfigAuditBanner";
 import TrialBadge from "@/components/billing/TrialBadge";
 import PaywallCard from "@/components/billing/PaywallCard";
+import MikhmonCloudOutcome from "./MikhmonCloudOutcome";
 
 const UNLOCK_COMMAND =
   "/system/device-mode/update mode=advanced container=yes hotspot=yes scheduler=yes fetch=yes activation-timeout=10m";
@@ -1372,6 +1373,12 @@ export default function AutoSetupStep({
             </ul>
           )}
         </div>
+      )}
+
+      {/* Sur une carte sans conteneur, le parcours ne se termine pas à
+          l'auto-setup : son MikHmon reste à créer, sur le relais. */}
+      {result?.success && !archSupportsContainers && (
+        <MikhmonCloudOutcome routerId={routerId} />
       )}
 
       {result?.success && (
