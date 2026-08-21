@@ -40,7 +40,7 @@ import { newRoamingRouterIds } from "./forms";
 import { appendRoamingSeenHook } from "./on-login-hook";
 import { deriveRouterKey } from "./webhook-secret";
 import { revokeRoamingTargets } from "./revocation";
-import { findHotspotUser } from "./hotspot-user";
+import { findHotspotUser, purgeHotspotAccount } from "./hotspot-user";
 import {
   clearRoamingDeviceBinding,
   resyncRoamingDeviceBinding,
@@ -723,25 +723,7 @@ export async function deleteRoamingAccount(opts: {
       // ligne SaaS n'est jamais supprimée avant une révocation complète.
       const client = await connectToRouter(router, 10_000, 1);
       try {
-        const user = await findHotspotUser(client, account.username);
-        if (!user?.[".id"]) return;
-
-        const active = await client
-          .talk(["/ip/hotspot/active/print", `?user=${account.username}`])
-          .catch(() => [] as Record<string, string>[]);
-        for (const session of active) {
-          if (session[".id"]) {
-            await client.talk(["/ip/hotspot/active/remove", `=.id=${session[".id"]}`]).catch(() => {});
-          }
-        }
-        const boundMac = (user["mac-address"] ?? "").trim();
-        await client.talk(["/ip/hotspot/user/remove", `=.id=${user[".id"]}`]);
-        if (boundMac && boundMac !== "00:00:00:00:00:00") {
-          const companion = await findHotspotUser(client, boundMac);
-          if (companion?.[".id"]) {
-            await client.talk(["/ip/hotspot/user/remove", `=.id=${companion[".id"]}`]).catch(() => {});
-          }
-        }
+        await purgeHotspotAccount(client, account.username);
       } finally {
         client.close();
       }
@@ -759,6 +741,136 @@ export async function deleteRoamingAccount(opts: {
   // Les liens voucher_routers partent en cascade avec la ligne.
   await db.delete(vouchers).where(and(eq(vouchers.id, voucherId), eq(vouchers.orgId, orgId)));
   return { success: true, removedOn, unreachable };
+}
+
+/**
+ * Retire UNE zone d'un groupe roaming.
+ *
+ * Symétrique de extendRoamingGroup, et soumis à la même exigence : l'ajout
+ * recopie les comptes du groupe sur la nouvelle zone, donc le retrait doit les
+ * en effacer. Sans cela, la ligne disparaît de SafeLinkHub pendant que les
+ * comptes restent actifs sur le MikroTik, sans plus aucun bouton pour les
+ * couper — c'est précisément le risque qui avait fait écarter cette
+ * fonctionnalité au départ.
+ *
+ * Deux refus, dans cet ordre :
+ *
+ *  1. La DERNIÈRE zone d'un groupe qui porte encore des comptes. SafeLinkHub
+ *     ne conserve pas les mots de passe : ils ne sont relisibles que sur une
+ *     zone vivante. Retirer la dernière les rendrait irrécupérables et les
+ *     comptes ne pourraient plus jamais être reposés ailleurs.
+ *  2. Une zone qui ne répond pas. On ne supprime jamais la ligne en base sur
+ *     la foi d'un routeur muet : la relance sera sûre quand il reviendra.
+ */
+export async function shrinkRoamingGroup(opts: {
+  orgId: string;
+  groupId: string;
+  routerId: string;
+}): Promise<
+  { error: string } | { success: true; routerName: string; removedAccounts: number }
+> {
+  const { orgId, groupId, routerId } = opts;
+  const db = getDb();
+
+  const [group] = await db
+    .select({ id: roamingGroups.id, name: roamingGroups.name })
+    .from(roamingGroups)
+    .where(and(eq(roamingGroups.id, groupId), eq(roamingGroups.orgId, orgId)))
+    .limit(1);
+  if (!group) return { error: "Ce groupe roaming est introuvable." };
+
+  const members = await loadGroupRouters(orgId, groupId);
+  const target = members.find(({ router }) => router.id === routerId);
+  if (!target) return { error: "Cette zone ne couvre pas ce groupe." };
+
+  const accounts = await db
+    .select({ username: vouchers.username })
+    .from(vouchers)
+    .where(
+      and(
+        eq(vouchers.orgId, orgId),
+        eq(vouchers.roamingGroupId, groupId),
+        isNull(vouchers.deletedAt),
+      ),
+    );
+
+  if (members.length === 1 && accounts.length > 0) {
+    return {
+      error:
+        `« ${target.router.name} » est la dernière zone de ce groupe et ${accounts.length} compte(s) y vivent. ` +
+        `Les mots de passe ne sont lisibles que sur une zone active : retirer celle-ci les perdrait ` +
+        `définitivement. Ajoutez une autre zone d'abord, ou supprimez les comptes.`,
+    };
+  }
+
+  // Révocation AVANT l'écriture en base, comme pour la suppression d'un compte.
+  let removedAccounts = 0;
+  if (accounts.length > 0) {
+    let client;
+    try {
+      client = await connectToRouter(target.router, 10_000, 1);
+    } catch {
+      return {
+        error:
+          `« ${target.router.name} » ne répond pas. La zone est conservée : la retirer maintenant ` +
+          `laisserait ${accounts.length} compte(s) actifs dessus sans moyen de les couper. ` +
+          `Relancez quand la zone sera revenue.`,
+      };
+    }
+    try {
+      for (const account of accounts) {
+        if (await purgeHotspotAccount(client, account.username)) removedAccounts += 1;
+      }
+    } catch {
+      return {
+        error:
+          `« ${target.router.name} » a cessé de répondre pendant le retrait ` +
+          `(${removedAccounts} compte(s) déjà effacés). La zone est conservée : relancez pour finir.`,
+      };
+    } finally {
+      client.close();
+    }
+  }
+
+  /* L'état de matérialisation des appareils sur CETTE zone perd son objet.
+     La ligne roaming_group_routers ne le référence pas, donc rien ne
+     l'emporterait en cascade : sans ce nettoyage, la zone reviendrait avec des
+     lignes « en attente » héritées d'une adhésion révolue.
+
+     Restreint aux liaisons DE CE GROUPE : l'index unique porte sur
+     (group_id, router_id), donc un même routeur peut couvrir plusieurs
+     groupes. Effacer toutes les lignes du routeur emporterait l'état des
+     autres groupes qui s'en servent encore. */
+  const liaisonsDuGroupe = db
+    .select({ id: roamingDeviceBindings.id })
+    .from(roamingDeviceBindings)
+    .innerJoin(vouchers, eq(vouchers.id, roamingDeviceBindings.voucherId))
+    .where(
+      and(
+        eq(roamingDeviceBindings.orgId, orgId),
+        eq(vouchers.roamingGroupId, groupId),
+      ),
+    );
+  await db
+    .delete(roamingDeviceBindingRouters)
+    .where(
+      and(
+        eq(roamingDeviceBindingRouters.routerId, routerId),
+        inArray(roamingDeviceBindingRouters.bindingId, liaisonsDuGroupe),
+      ),
+    );
+
+  await db
+    .delete(roamingGroupRouters)
+    .where(
+      and(
+        eq(roamingGroupRouters.groupId, groupId),
+        eq(roamingGroupRouters.routerId, routerId),
+        eq(roamingGroupRouters.orgId, orgId),
+      ),
+    );
+
+  return { success: true, routerName: target.router.name, removedAccounts };
 }
 
 /** Relance la synchronisation d'un appareil d'un compte nominatif. */

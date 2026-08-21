@@ -34,6 +34,7 @@ import {
   extendRoamingGroup,
   provisionRoamingAccounts,
   replaceNamedRoamingDevice,
+  shrinkRoamingGroup,
   resyncNamedRoamingDevice,
   updateRoamingAccount,
 } from "./provision";
@@ -100,6 +101,32 @@ export async function addRoamingGroupRouters(_prevState: unknown, formData: Form
   if ("error" in result) return result;
   refreshRoamingPages();
   return result;
+}
+
+/**
+ * Retire une zone d'un groupe. Le dé-provisionnement est fait par
+ * shrinkRoamingGroup, qui refuse plutôt que de laisser un accès derrière lui.
+ */
+export async function removeRoamingGroupRouter(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const groupId = String(formData.get("groupId") ?? "");
+  const routerId = String(formData.get("routerId") ?? "");
+  if (!groupId || !routerId) return { error: "Sélectionnez la zone à retirer." };
+
+  const result = await shrinkRoamingGroup({ orgId: session.orgId, groupId, routerId });
+  if ("error" in result) return result;
+  refreshRoamingPages();
+  return {
+    success: true as const,
+    summary:
+      `Zone « ${result.routerName} » retirée du groupe` +
+      (result.removedAccounts > 0
+        ? ` — ${result.removedAccounts} compte(s) effacés du MikroTik.`
+        : ".") +
+      " Les profils posés sur le routeur ne sont pas retirés.",
+  };
 }
 
 export async function createRoamingProfile(_prevState: unknown, formData: FormData) {

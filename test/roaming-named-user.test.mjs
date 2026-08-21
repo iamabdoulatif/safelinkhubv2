@@ -115,20 +115,61 @@ test("la suppression révoque vraiment : session, compte, et compagnon MAC", asy
   const provision = await read("src/lib/roaming/provision.ts");
   const body = provision.slice(provision.indexOf("export async function deleteRoamingAccount"));
 
-  // 1. La session en cours est coupée — sinon le compte reste connecté.
-  assert.match(body, /\/ip\/hotspot\/active\/remove/);
-  // 2. Le compte lui-même part.
-  assert.match(body, /\/ip\/hotspot\/user\/remove/);
-  // 3. Le compagnon `name=<MAC>` posé par la propagation inter-zones part aussi,
-  //    sans quoi l'appareil continuerait de s'auto-loguer après révocation.
-  assert.match(body, /mac-address/);
-  assert.match(body, /findHotspotUser\(client, boundMac\)/);
+  /* Les trois gestes de la révocation — couper la session, retirer le compte,
+     retirer le compagnon mac-cookie — vivent maintenant dans
+     purgeHotspotAccount, partagé avec le retrait d'une ZONE. Deux copies de
+     cette séquence auraient fini par diverger, et la divergence se serait
+     payée en accès laissés ouverts.
+
+     Ils sont vérifiés PAR EXÉCUTION dans hotspot-user.test.ts, qui inspecte
+     les commandes réellement émises — plus solide que la recherche de texte
+     que ce test faisait ici. Il ne reste donc qu'à garantir la délégation :
+     sans elle, deleteRoamingAccount cesserait de révoquer en silence. */
+  assert.match(body, /purgeHotspotAccount\(client, account\.username\)/);
 
   // Une zone muette interdit de retirer la ligne : on ne déclare pas révoqué un
   // compte qui fonctionne peut-être encore ailleurs.
   const guard = body.indexOf("if (unreachable.length > 0)");
   const del = body.indexOf("db.delete(vouchers)");
   assert.ok(guard > 0 && del > guard, "la garde doit précéder la suppression en base");
+});
+
+test("retirer une zone révoque avant d'écrire, et refuse les cas qui laisseraient un accès", async () => {
+  const provision = await read("src/lib/roaming/provision.ts");
+  const body = provision.slice(
+    provision.indexOf("export async function shrinkRoamingGroup"),
+    provision.indexOf("/** Relance la synchronisation"),
+  );
+  assert.ok(body.length > 0, "shrinkRoamingGroup introuvable");
+
+  /* La symétrie avec l'ajout est le cœur du sujet : extendRoamingGroup recopie
+     les comptes du groupe sur la nouvelle zone, donc le retrait doit les en
+     effacer. Sans cela la ligne disparaît du SaaS pendant que les comptes
+     restent actifs sur le MikroTik, sans plus aucun bouton pour les couper. */
+  assert.match(body, /purgeHotspotAccount\(client, account\.username\)/);
+
+  const purge = body.indexOf("purgeHotspotAccount");
+  const suppression = body.indexOf("delete(roamingGroupRouters)");
+  assert.ok(purge > 0 && suppression > purge, "la révocation doit précéder l'écriture en base");
+
+  // Une zone muette ne doit jamais être détachée : les comptes y survivraient.
+  const injoignable = body.indexOf("ne répond pas");
+  assert.ok(injoignable > 0 && injoignable < suppression, "le refus doit précéder l'écriture");
+
+  // Dernière zone + comptes = mots de passe irrécupérables (ils ne sont
+  // lisibles que sur une zone vivante, cf. extendRoamingGroup).
+  assert.match(body, /members\.length === 1 && accounts\.length > 0/);
+
+  // L'état de matérialisation des appareils sur cette zone perd son objet ;
+  // rien ne l'emporte en cascade, il faut le nettoyer explicitement.
+  assert.match(body, /delete\(roamingDeviceBindingRouters\)/);
+
+  /* Et ce nettoyage est RESTREINT au groupe retiré. L'index unique de
+     roaming_group_routers porte sur (group_id, router_id) : un même routeur
+     peut donc couvrir plusieurs groupes, et effacer toutes ses lignes
+     emporterait l'état des autres. Le premier jet faisait exactement cela. */
+  assert.match(body, /inArray\(roamingDeviceBindingRouters\.bindingId/);
+  assert.match(body, /eq\(vouchers\.roamingGroupId, groupId\)/);
 });
 
 test("modifier n'efface rien par omission", async () => {
