@@ -4,10 +4,12 @@ import { useActionState } from "react";
 import { AlertCircle, CheckCircle2, Mail } from "lucide-react";
 import { requestPasswordReset } from "@/lib/auth/actions";
 import { fieldClass, buttonClass, noticeClass, errorClass } from "@/components/auth/form-classes";
+import type { Locale } from "@/lib/i18n/config";
+import type { AuthDictionary } from "@/lib/i18n/auth";
 
 
 
-export default function ForgotPasswordForm() {
+export default function ForgotPasswordForm({ locale, t }: { locale: Locale; t: AuthDictionary["forgot"] }) {
   const [state, formAction, pending] = useActionState(requestPasswordReset, undefined);
 
   if (state?.success) {
@@ -15,8 +17,7 @@ export default function ForgotPasswordForm() {
       <div className={noticeClass}>
         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
         <p>
-          Si un compte est associé à cet email, un lien de réinitialisation vient d&apos;y être
-          envoyé. Vérifiez votre boîte mail (et vos spams). Le lien expire dans 1&nbsp;heure.
+          {t.success}
         </p>
       </div>
     );
@@ -24,6 +25,7 @@ export default function ForgotPasswordForm() {
 
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
+      <input type="hidden" name="locale" value={locale} />
       {state?.success === false && (
         <div className={errorClass}>
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -32,7 +34,7 @@ export default function ForgotPasswordForm() {
       )}
 
       <div>
-        <label className="mb-1.5 block text-sm font-bold text-ink">Email</label>
+        <label className="mb-1.5 block text-sm font-bold text-ink">{t.email}</label>
         <div className="relative">
           <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
           <input
@@ -41,14 +43,14 @@ export default function ForgotPasswordForm() {
             required
             autoComplete="email"
             spellCheck={false}
-            placeholder="jean.dupont@exemple.com"
+            placeholder={t.placeholder}
             className={fieldClass}
           />
         </div>
       </div>
 
       <button type="submit" disabled={pending} className={buttonClass}>
-        {pending ? "Envoi..." : "Envoyer le lien de réinitialisation"}
+        {pending ? t.pending : t.submit}
       </button>
     </form>
   );

@@ -52,7 +52,8 @@ export default function LandingFooter({
   locale: Locale;
 }) {
   const columns = footerColumns(dict);
-  const getHref = (href: string) => (href.startsWith("#") ? `${anchorPrefix}${href}` : href);
+  const getHref = (href: string) =>
+    href.startsWith("#") ? `${anchorPrefix}${href}` : localeHref(href, locale);
   const muted = "text-slate-deep-soft";
   const linkClass = "text-sm text-white/85 hover:text-brand";
 
@@ -112,7 +113,7 @@ export default function LandingFooter({
                 {col.links.map((l) => (
                   <li key={l.label}>
                     {l.href.startsWith("/auth") ? (
-                      <Link href={l.href} className={linkClass}>
+                      <Link href={getHref(l.href)} className={linkClass}>
                         {l.label}
                       </Link>
                     ) : (

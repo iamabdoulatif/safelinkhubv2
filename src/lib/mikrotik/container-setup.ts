@@ -875,6 +875,10 @@ export type HotspotStackOptions = {
   // boards (RB951, hEX, hEX S, plain wAP, ...) skip the DOCKERS/MikHmon
   // step entirely rather than failing partway through.
   supportsContainers: boolean;
+  // Hardware capability from the live device detection. This differs from
+  // `supportsContainers` when an operator voluntarily skips MikHmon on a
+  // compatible board; the persisted value drives cloud MikHmon eligibility.
+  routerSupportsContainers?: boolean;
   reboot: boolean;
   // Full voucher profile definitions to create on this router — lets each
   // operator sell only the voucher durations they actually use, including
@@ -2423,6 +2427,9 @@ export async function provisionHotspotStack(
       .set({
         hotspotBridgeName: bridgeName,
         hotspotServerName: serverName,
+        ...(typeof opts.routerSupportsContainers === "boolean"
+          ? { supportsContainers: opts.routerSupportsContainers }
+          : {}),
         ...portalBranding,
         // Snapshot of this run's options (minus reboot, re-decided fresh
         // each time) — see lastAutoSetupConfig's schema comment. Lets a

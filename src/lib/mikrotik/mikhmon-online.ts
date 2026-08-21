@@ -2,11 +2,12 @@
 
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers, routerPortForwards } from "@/lib/db/schema";
+import { routers, routerMikhmonCloudInstances, routerPortForwards } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
 import { REMOTE_ACCESS_PORT, DOCKER_WEB_PORT, HOTSPOT_BRIDGE_NAME } from "./constants";
 import { getRelayPublicHost } from "./relay";
+import { resolveMikhmonAccess } from "./mikhmon-online-access";
 
 /**
  * MikHmon is exposed through two dst-nat rules provisionHotspotStack
@@ -54,6 +55,43 @@ export async function getMikhmonLink(routerId: string) {
     .limit(1);
   if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
     return { error: "Router not found." };
+  }
+
+  const [cloudInstance] = await db
+    .select({ domain: routerMikhmonCloudInstances.domain, status: routerMikhmonCloudInstances.status })
+    .from(routerMikhmonCloudInstances)
+    .where(eq(routerMikhmonCloudInstances.routerId, routerId))
+    .limit(1);
+  const cloudAccess = resolveMikhmonAccess({
+    supportsContainers: router.supportsContainers,
+    cloudDomain: cloudInstance?.status === "active" ? cloudInstance.domain : null,
+  });
+  if (cloudAccess) {
+    const reachable = router.status === "online";
+    return {
+      success: true,
+      ready: true,
+      cloud: true as const,
+      reachable,
+      link: cloudAccess.url,
+      ddnsName: null,
+      localLink: null,
+      tunnelLink: null,
+      message: reachable
+        ? undefined
+        : "L'instance MikHmon Online est prête, mais le routeur est actuellement hors ligne : reconnectez son tunnel VPN avant de gérer les vouchers.",
+    };
+  }
+  if (router.supportsContainers === false) {
+    return {
+      success: true,
+      ready: false,
+      cloud: true as const,
+      localLink: null,
+      tunnelLink: null,
+      message:
+        "Ce routeur ne supporte pas les conteneurs. Activez « MikHmon (vouchers) » dans Accès distant pour créer son instance MikHmon Online dédiée.",
+    };
   }
 
   let client;

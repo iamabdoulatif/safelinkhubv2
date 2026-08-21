@@ -1,13 +1,15 @@
 import { TrendingUp } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
 import { getPaidSales } from "@/lib/sales/paid-orders";
+import { getAdminDict } from "@/lib/i18n/admin";
+import { getLocale } from "@/lib/i18n/server";
 
-function formatFcfa(cents: number) {
-  return `FCFA ${cents.toLocaleString("en-US")}`;
+function formatFcfa(cents: number, locale: string) {
+  return `FCFA ${cents.toLocaleString(locale)}`;
 }
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("fr-FR", {
+function formatDate(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
@@ -22,7 +24,8 @@ function isSameDay(a: Date, b: Date) {
 }
 
 export default async function SalesPage() {
-  const session = await getSession();
+  const [session, locale, dict] = await Promise.all([getSession(), getLocale(), getAdminDict()]);
+  const t = dict.finance.sales;
 
   // Uniquement l'argent encaissé par la passerelle : les tickets créés en lot,
   // importés du MikroTik ou vendus par un agent ne sont pas du revenu en ligne.
@@ -42,31 +45,31 @@ export default async function SalesPage() {
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <TrendingUp className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">Ventes</h1>
+        <h1 className="text-2xl font-bold text-ink">{t.title}</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
-        Revenu réellement encaissé par la passerelle GeniusPay au portail captif.
+        {t.description}
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">Revenu total</p>
+          <p className="text-sm font-medium text-ink-soft">{t.totalRevenue}</p>
           <p className="mt-1 text-2xl font-bold text-ink">
-            {formatFcfa(totalRevenueCents)}
+            {formatFcfa(totalRevenueCents, locale)}
           </p>
         </div>
         <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">Revenu aujourd&apos;hui</p>
+          <p className="text-sm font-medium text-ink-soft">{t.todayRevenue}</p>
           <p className="mt-1 text-2xl font-bold text-ink">
-            {formatFcfa(todayRevenueCents)}
+            {formatFcfa(todayRevenueCents, locale)}
           </p>
         </div>
         <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">Ventes / Commissions</p>
+          <p className="text-sm font-medium text-ink-soft">{t.salesCommission}</p>
           <p className="mt-1 text-2xl font-bold text-ink">
             {sales.length}{" "}
             <span className="text-sm font-normal text-ink-soft">
-              ({formatFcfa(totalCommissionCents)} en commissions)
+              {t.commission(formatFcfa(totalCommissionCents, locale))}
             </span>
           </p>
         </div>
@@ -77,18 +80,18 @@ export default async function SalesPage() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
-              <th className="px-4 py-3 font-medium">Voucher</th>
-              <th className="px-4 py-3 font-medium">Forfait</th>
-              <th className="px-4 py-3 font-medium">Prix</th>
-              <th className="px-4 py-3 font-medium">Statut</th>
-              <th className="px-4 py-3 font-medium">Date</th>
+              <th className="px-4 py-3 font-medium">{t.voucher}</th>
+              <th className="px-4 py-3 font-medium">{t.package}</th>
+              <th className="px-4 py-3 font-medium">{t.price}</th>
+              <th className="px-4 py-3 font-medium">{t.status}</th>
+              <th className="px-4 py-3 font-medium">{t.date}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
             {sales.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-ink-soft">
-                  Aucune vente pour le moment.
+                  {t.empty}
                 </td>
               </tr>
             )}
@@ -99,7 +102,7 @@ export default async function SalesPage() {
                 </td>
                 <td className="px-4 py-3 text-ink-soft">{s.packageName}</td>
                 <td className="px-4 py-3 font-medium text-ok">
-                  {formatFcfa(s.priceCents)}
+                  {formatFcfa(s.priceCents, locale)}
                 </td>
                 <td className="px-4 py-3">
                   <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ink-soft">
@@ -107,7 +110,7 @@ export default async function SalesPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-ink-soft">
-                  {formatDate(s.createdAt)}
+                  {formatDate(s.createdAt, locale)}
                 </td>
               </tr>
             ))}

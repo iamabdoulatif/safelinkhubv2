@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import {
   organizations,
+  routerMikhmonCloudInstances,
   routerPortForwards,
   routerReplacements,
   routers,
@@ -77,6 +78,23 @@ export async function finalizeRouterReplacement(
   ]).then(([sourceRows, newRows]) => [sourceRows[0], newRows[0]] as const);
   if (!sourceRouter || !newRouter?.tunnelIp) {
     const error = "Le routeur source ou le tunnel de remplacement est introuvable.";
+    await db.update(routerReplacements).set({ status: "failed", error }).where(eq(routerReplacements.id, replacement.id));
+    return { status: "installing", replacementId: replacement.id, error };
+  }
+
+  // A cloud instance owns an HTTPS domain and encrypted RouterOS session on
+  // the relay. Rebinding the generic port-forward alone would point its
+  // loopback port at the replacement router and silently expose a dead link.
+  // Stop before any partial transfer until the dedicated cloud migration flow
+  // can recreate the instance against the replacement's verified credentials.
+  const [cloudMikhmon] = await db
+    .select({ id: routerMikhmonCloudInstances.id })
+    .from(routerMikhmonCloudInstances)
+    .where(eq(routerMikhmonCloudInstances.routerId, sourceRouter.id))
+    .limit(1);
+  if (cloudMikhmon) {
+    const error =
+      "Ce routeur utilise MikHmon Online. Désactivez puis réactivez MikHmon après la reprise afin de recréer son domaine et sa session cloud en sécurité.";
     await db.update(routerReplacements).set({ status: "failed", error }).where(eq(routerReplacements.id, replacement.id));
     return { status: "installing", replacementId: replacement.id, error };
   }

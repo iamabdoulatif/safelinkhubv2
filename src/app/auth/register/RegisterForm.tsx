@@ -24,6 +24,8 @@ import {
 import { generateStrongPasswordExample } from "@/lib/auth/password-strength";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 import { fieldClass, labelClass, buttonClass, errorClass } from "@/components/auth/form-classes";
+import type { Locale } from "@/lib/i18n/config";
+import type { AuthDictionary } from "@/lib/i18n/auth";
 
 const fmtFcfa = (cents: number) => `${new Intl.NumberFormat("fr-FR").format(cents)} FCFA`;
 
@@ -33,14 +35,18 @@ const choiceClass =
   "h-4 w-4 accent-brand focus:outline-none focus:ring-4 focus:ring-brand/35";
 
 export default function RegisterForm({
+  locale,
+  t,
   referralCode = "",
   referrerName = null,
 }: {
+  locale: Locale;
+  t: AuthDictionary["register"];
   /** Code porté par le lien /auth/register?ref=… (déjà normalisé). */
   referralCode?: string;
   /** Nom du parrain si le code correspond à une org, sinon null. */
   referrerName?: string | null;
-} = {}) {
+}) {
   const [state, formAction, pending] = useActionState(register, undefined);
   const [dialCode, setDialCode] = useState(COUNTRIES[0].dialCode);
   const [whatsappSame, setWhatsappSame] = useState(true);
@@ -49,7 +55,7 @@ export default function RegisterForm({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [passwordExample, setPasswordExample] = useState("Au moins 8 caractères, varié");
+  const [passwordExample, setPasswordExample] = useState(t.passwordExample);
 
   // Generated client-side only (crypto.getRandomValues) so the SSR markup
   // and the first client render match — it then swaps in a real mixed-
@@ -61,6 +67,7 @@ export default function RegisterForm({
 
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
+      <input type="hidden" name="locale" value={locale} />
       {/* Parrainage : le code voyage en champ caché pour survivre à une erreur
           de validation (le formulaire est re-rendu, la query string non). */}
       {referralCode && <input type="hidden" name="referralCode" value={referralCode} />}
@@ -68,12 +75,11 @@ export default function RegisterForm({
         <div className="rounded-lg border border-brand bg-brand/25 px-3 py-2.5 text-sm font-semibold text-ink">
           {referrerName ? (
             <>
-              Vous avez été invité par <span className="marker">{referrerName}</span>.
+              {t.invitedByStart} <span className="marker">{referrerName}</span>{t.invitedByEnd}
             </>
           ) : (
             <>
-              Code de parrainage <span className="font-mono">{referralCode}</span> — il sera vérifié
-              à la création du compte.
+              {t.referralStart} <span className="font-mono">{referralCode}</span> {t.referralEnd}
             </>
           )}
         </div>
@@ -87,7 +93,7 @@ export default function RegisterForm({
       )}
 
       <div>
-        <label className={labelClass}>Nom complet</label>
+        <label className={labelClass}>{t.name}</label>
         <div className="relative">
           <User className={iconClass} />
           <input
@@ -95,14 +101,14 @@ export default function RegisterForm({
             name="name"
             required
             autoComplete="name"
-            placeholder="Jean Dupont"
+            placeholder={t.namePlaceholder}
             className={fieldClass}
           />
         </div>
       </div>
 
       <div>
-        <label className={labelClass}>Email</label>
+        <label className={labelClass}>{t.email}</label>
         <div className="relative">
           <Mail className={iconClass} />
           <input
@@ -111,7 +117,7 @@ export default function RegisterForm({
             required
             autoComplete="email"
             spellCheck={false}
-            placeholder="jean.dupont@exemple.com"
+            placeholder={t.emailPlaceholder}
             className={fieldClass}
           />
         </div>
@@ -119,7 +125,7 @@ export default function RegisterForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className={labelClass}>Mot de passe</label>
+          <label className={labelClass}>{t.password}</label>
           <div className="relative">
             <Lock className={iconClass} />
             <input
@@ -136,7 +142,7 @@ export default function RegisterForm({
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              aria-label={showPassword ? t.hidePassword : t.showPassword}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -146,7 +152,7 @@ export default function RegisterForm({
         </div>
         <div>
           <label className={labelClass}>
-            Confirmez le mot de passe
+            {t.confirmPassword}
           </label>
           <div className="relative">
             <Lock className={iconClass} />
@@ -163,7 +169,7 @@ export default function RegisterForm({
             <button
               type="button"
               onClick={() => setShowConfirmPassword((v) => !v)}
-              aria-label={showConfirmPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              aria-label={showConfirmPassword ? t.hidePassword : t.showPassword}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink"
             >
               {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -176,8 +182,8 @@ export default function RegisterForm({
               }`}
             >
               {confirmPassword === password
-                ? "Les mots de passe correspondent."
-                : "Les mots de passe ne correspondent pas."}
+                ? t.passwordsMatch
+                : t.passwordsMismatch}
             </p>
           )}
         </div>
@@ -188,7 +194,7 @@ export default function RegisterForm({
           Le prix est importé, jamais recopié — il ne peut pas diverger du
           montant réellement débité. */}
       <fieldset>
-        <legend className={labelClass}>Type de compte</legend>
+        <legend className={labelClass}>{t.accountType}</legend>
         <div className="mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="flex cursor-pointer gap-3 rounded-xl border border-line p-4 has-[:checked]:border-brand-deep has-[:checked]:bg-brand/15">
             <input
@@ -199,10 +205,9 @@ export default function RegisterForm({
               className="mt-0.5 h-4 w-4 shrink-0 accent-slate-deep"
             />
             <span>
-              <span className="block text-sm font-semibold text-ink">Utilisateur</span>
+              <span className="block text-sm font-semibold text-ink">{t.user}</span>
               <span className="mt-1 block text-xs leading-5 text-ink-soft">
-                Un ou deux MikroTik par an. Tarif d&apos;installation public,
-                rien à payer à l&apos;inscription.
+                {t.userDetail}
               </span>
             </span>
           </label>
@@ -216,16 +221,16 @@ export default function RegisterForm({
             />
             <span>
               <span className="block text-sm font-semibold text-ink">
-                Technicien ou revendeur
+                {t.reseller}
               </span>
               <span className="mt-1 block text-xs leading-5 text-ink-soft">
                 {/* Un SEUL nœud texte par montant : ce Next avale l'espace
                     entre {expr} et le texte adjacent au rendu serveur — d'où
                     « 40 000FCFA » sinon. Même contournement que Pricing.tsx. */}
-                {`Plusieurs MikroTik par mois. Pack de ${fmtFcfa(RESELLER_PACK_FCFA)} par an : ${RESELLER_QUOTA} installations à ${fmtFcfa(RESELLER_SETUP_FEE_CENTS)} au lieu de ${fmtFcfa(10000)}, et le montant revient en crédit sur votre portefeuille.`}
+                {`${t.resellerDetail} Pack ${fmtFcfa(RESELLER_PACK_FCFA)} / an: ${RESELLER_QUOTA} installations at ${fmtFcfa(RESELLER_SETUP_FEE_CENTS)} instead of ${fmtFcfa(10000)}.`}
               </span>
               <span className="mt-1.5 block text-xs font-semibold text-brand-deep">
-                Le paiement est demandé juste après la création du compte.
+                {t.resellerPayment}
               </span>
             </span>
           </label>
@@ -234,7 +239,7 @@ export default function RegisterForm({
 
       <div>
         <label className={labelClass}>
-          Pays de résidence
+          {t.country}
         </label>
         <div className="relative">
           <Globe2 className={iconClass} />
@@ -260,14 +265,14 @@ export default function RegisterForm({
 
       <div>
         <label className={labelClass}>
-          Numéro de téléphone
+          {t.phone}
         </label>
         <div className="flex gap-2">
           <select
             name="phoneDialCode"
             value={dialCode}
             onChange={(e) => setDialCode(e.target.value)}
-            aria-label="Indicatif téléphonique"
+            aria-label={t.phoneCode}
             className="w-24 shrink-0 rounded-lg border border-line bg-paper px-2 py-3 text-sm text-ink focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
           >
             {COUNTRIES.map((c) => (
@@ -283,7 +288,7 @@ export default function RegisterForm({
               name="phone"
               required
               autoComplete="tel-national"
-              placeholder="07 00 00 00 00"
+              placeholder={t.phonePlaceholder}
               className={fieldClass}
             />
           </div>
@@ -298,7 +303,7 @@ export default function RegisterForm({
             onChange={(e) => setWhatsappSame(e.target.checked)}
             className={choiceClass}
           />
-          Mon numéro WhatsApp est le même que ci-dessus
+          {t.whatsappSame}
         </label>
         {!whatsappSame && (
           <div className="relative mt-2">
@@ -306,7 +311,7 @@ export default function RegisterForm({
             <input
               type="tel"
               name="whatsapp"
-              placeholder="Numéro WhatsApp (avec indicatif)"
+              placeholder={t.whatsappPlaceholder}
               className={fieldClass}
             />
           </div>
@@ -321,7 +326,7 @@ export default function RegisterForm({
             onChange={(e) => setTelegramSame(e.target.checked)}
             className={choiceClass}
           />
-          Mon numéro Telegram est le même que ci-dessus
+          {t.telegramSame}
         </label>
         {!telegramSame && (
           <div className="relative mt-2">
@@ -329,7 +334,7 @@ export default function RegisterForm({
             <input
               type="tel"
               name="telegram"
-              placeholder="Numéro Telegram (avec indicatif)"
+              placeholder={t.telegramPlaceholder}
               className={fieldClass}
             />
           </div>
@@ -341,7 +346,7 @@ export default function RegisterForm({
         disabled={pending}
         className={buttonClass}
       >
-        {pending ? "Création du compte..." : "S'inscrire"}
+        {pending ? t.pending : t.submit}
       </button>
     </form>
   );

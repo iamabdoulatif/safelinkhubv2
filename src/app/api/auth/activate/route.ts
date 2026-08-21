@@ -8,6 +8,8 @@ import {
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
 } from "@/lib/auth/session";
+import { isLocale } from "@/lib/i18n/config";
+import { LOCALE_COOKIE, LOCALE_COOKIE_OPTIONS } from "@/lib/i18n/server";
 
 /**
  * Activation du compte via un FORMULAIRE HTML classique (pas un Server Action).
@@ -33,8 +35,10 @@ function seeOther(location: string): NextResponse {
 export async function POST(request: NextRequest) {
   const form = await request.formData().catch(() => null);
   const token = String(form?.get("token") ?? "").trim();
+  const locale = String(form?.get("locale") ?? "");
+  const prefix = locale === "en" ? "/en" : "";
 
-  if (!token) return seeOther("/auth/activation?error=invalid");
+  if (!token) return seeOther(`${prefix}/auth/activation?error=invalid`);
 
   const db = getDb();
   const [user] = await db
@@ -51,7 +55,7 @@ export async function POST(request: NextRequest) {
   if (!user) {
     // Token invalide OU déjà consommé (compte peut-être déjà activé, p. ex. un
     // scanner de lien) → page qui propose renvoi + connexion.
-    return seeOther("/auth/activation?error=invalid");
+    return seeOther(`${prefix}/auth/activation?error=invalid`);
   }
 
   await db
@@ -73,6 +77,7 @@ export async function POST(request: NextRequest) {
 
   const res = seeOther("/admin");
   res.cookies.set(SESSION_COOKIE_NAME, jwt, sessionCookieOptions());
+  if (isLocale(locale)) res.cookies.set(LOCALE_COOKIE, locale, LOCALE_COOKIE_OPTIONS);
   return res;
 }
 
@@ -80,7 +85,8 @@ export async function POST(request: NextRequest) {
 // simplement vers la page d'activation qui affichera le bouton de confirmation.
 export function GET(request: NextRequest) {
   const token = new URL(request.url).searchParams.get("token") ?? "";
+  const prefix = new URL(request.url).pathname.startsWith("/en/") ? "/en" : "";
   return seeOther(
-    token ? `/auth/activation?token=${encodeURIComponent(token)}` : "/auth/activation",
+    token ? `${prefix}/auth/activation?token=${encodeURIComponent(token)}` : `${prefix}/auth/activation`,
   );
 }

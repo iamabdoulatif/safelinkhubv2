@@ -10,6 +10,8 @@ import UnbindMacTicketsButton from "./UnbindMacTicketsButton";
 import HotspotIpv6Button from "./HotspotIpv6Button";
 import { isConfiguringRouter } from "./router-portfolio";
 import { buildRouterTableQuery, type RouterTableStatusFilter } from "./router-table-query";
+import type { AdminDictionary } from "@/lib/i18n/admin/fr";
+import type { Locale } from "@/lib/i18n/config";
 
 type StatusFilter = RouterTableStatusFilter;
 
@@ -33,16 +35,18 @@ export type RouterRow = {
   locked?: boolean;
 };
 
-export function timeAgo(ms: number | null) {
-  if (!ms) return "jamais";
+export type RouterDictionary = AdminDictionary["network"]["routers"];
+
+export function timeAgo(ms: number | null, t: RouterDictionary["table"]) {
+  if (!ms) return t.never;
   const seconds = Math.floor((Date.now() - ms) / 1000);
-  if (seconds < 60) return "à l'instant";
-  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)} min`;
-  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)} h`;
-  return `il y a ${Math.floor(seconds / 86400)} j`;
+  if (seconds < 60) return t.justNow;
+  if (seconds < 3600) return t.minuteAgo.replace("{count}", String(Math.floor(seconds / 60)));
+  if (seconds < 86400) return t.hourAgo.replace("{count}", String(Math.floor(seconds / 3600)));
+  return t.dayAgo.replace("{count}", String(Math.floor(seconds / 86400)));
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, t }: { status: string; t: RouterDictionary["table"] }) {
   const config = isConfiguringRouter(status);
   const online = status === "online";
   return (
@@ -53,17 +57,17 @@ function StatusBadge({ status }: { status: string }) {
           online ? "bg-ok" : config ? "bg-warn" : "bg-err"
         }`}
       />
-      {online ? "En ligne" : config ? "Configuration" : "Hors ligne"}
+      {online ? t.online : config ? t.configuring : t.offline}
     </span>
   );
 }
 
 /** Chip « Verrouillé » : routeur paralysé par le kill-switch (ports coupés sauf ether1). */
-function LockedBadge() {
+function LockedBadge({ t }: { t: RouterDictionary["table"] }) {
   return (
     <span className="inline-flex items-center gap-1 border border-err bg-err px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-white">
       <Lock aria-hidden="true" className="h-3 w-3" />
-      Verrouillé
+      {t.locked}
     </span>
   );
 }
@@ -89,16 +93,19 @@ type RoutersTableProps = {
   backHref?: string;
   backLabel?: string;
   showFleetActions?: boolean;
+  t: RouterDictionary;
+  locale: Locale;
 };
 
 export default function RoutersTable({
   routers,
-  title = "Routeurs MikroTik",
-  description = "Gestion, synchronisation et provisionnement de vos MikroTik.",
+  title,
+  description,
   headingLevel = "h1",
   backHref,
   backLabel,
   showFleetActions = true,
+  t,
 }: RoutersTableProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -112,6 +119,14 @@ export default function RoutersTable({
   const [filter, setFilter] = useState<StatusFilter>(initialFilter);
   const [query, setQuery] = useState(initialQuery);
   const Heading = headingLevel;
+  const table = t.table;
+  const actions = t.actions;
+  const statusLabels: Record<StatusFilter, string> = {
+    all: table.all,
+    online: table.online,
+    offline: table.offline,
+    config: table.configuring,
+  };
 
   // Keep the URL in sync with the active filter/search so the view is
   // shareable and survives a refresh or browser back/forward. Debounced:
@@ -161,45 +176,45 @@ export default function RoutersTable({
               className="mb-3 inline-flex items-center gap-1.5 text-sm font-bold text-ink-soft transition-colors duration-150 hover:text-ink"
             >
               <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-              {backLabel ?? "Retour"}
+              {backLabel ?? table.back}
             </Link>
           )}
           <Heading className="font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
-            {title}
+            {title ?? table.title}
           </Heading>
-          <p className="mt-1 text-sm text-ink-soft">{description}</p>
+          <p className="mt-1 text-sm text-ink-soft">{description ?? table.description}</p>
         </div>
         {showFleetActions && (
           <div className="flex flex-wrap items-center gap-3">
-            <SyncAllButton />
-            <UnbindMacTicketsButton />
-            <HotspotIpv6Button />
+            <SyncAllButton t={actions} />
+            <UnbindMacTicketsButton t={actions} />
+            <HotspotIpv6Button t={actions} />
             <Link
               href="/admin/router/backups"
               className="flex items-center gap-2 border border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-ink hover:text-paper rounded-xl"
             >
               <Save aria-hidden="true" className="h-4 w-4" />
-              Sauvegardes
+              {table.backups}
             </Link>
             <Link
               href="/admin/settings/router-setup?new=1"
               className="flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper rounded-full"
             >
               <Link2 aria-hidden="true" className="h-4 w-4" />
-              Lier un MikroTik
+              {table.linkMikrotik}
             </Link>
           </div>
         )}
       </div>
 
       {/* Filtres en chips */}
-      <div className="mt-6 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrer par statut">
+      <div className="mt-6 flex flex-wrap items-center gap-2" role="group" aria-label={table.filterByStatus}>
         {(
           [
-            ["all", "Tous"],
-            ["online", "En ligne"],
-            ["offline", "Hors ligne"],
-            ["config", "Configuration"],
+            ["all", statusLabels.all],
+            ["online", statusLabels.online],
+            ["offline", statusLabels.offline],
+            ["config", statusLabels.config],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -234,8 +249,8 @@ export default function RoutersTable({
             name="router-search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher par nom, IP ou identité…"
-            aria-label="Rechercher par nom, IP ou identité…"
+            placeholder={table.search}
+            aria-label={table.search}
             className="w-full border border-line bg-paper py-2.5 pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
           />
         </div>
@@ -245,12 +260,12 @@ export default function RoutersTable({
         <div className="mt-4 border border-line bg-paper px-4 py-14 text-center rounded-xl">
           <RouterIcon aria-hidden="true" className="mx-auto h-8 w-8 text-ink-soft" />
           <p className="mt-3 font-display text-lg font-bold text-ink">
-            {routers.length === 0 ? "Aucun routeur lié" : "Aucun résultat"}
+            {routers.length === 0 ? table.emptyFleet : table.emptySearch}
           </p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-ink-soft">
             {routers.length === 0
-              ? "Commencez par lier un MikroTik : le provisionnement et la supervision se font ensuite automatiquement."
-              : "Aucun routeur ne correspond à ce filtre ou à cette recherche."}
+              ? table.emptyFleetText
+              : table.emptySearchText}
           </p>
           {routers.length === 0 && (
             <Link
@@ -258,7 +273,7 @@ export default function RoutersTable({
               className="mt-5 inline-flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper rounded-full"
             >
               <Link2 aria-hidden="true" className="h-4 w-4" />
-              Lier un MikroTik
+              {table.linkMikrotik}
             </Link>
           )}
         </div>
@@ -279,34 +294,34 @@ export default function RoutersTable({
                     </span>
                   </Link>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <StatusBadge status={r.status} />
-                    {r.locked && <LockedBadge />}
+                    <StatusBadge status={r.status} t={table} />
+                    {r.locked && <LockedBadge t={table} />}
                   </div>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-line-soft pt-3 text-xs">
                   <div className="flex justify-between gap-2">
-                    <dt className="text-ink-soft">Identité</dt>
+                    <dt className="text-ink-soft">{table.identity}</dt>
                     <dd className="truncate font-medium text-ink">{r.model ?? "—"}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-ink-soft">Utilisateurs</dt>
+                    <dt className="text-ink-soft">{table.users}</dt>
                     <dd className="tabular-nums font-medium text-ink">{r.activeUsers ?? 0}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-ink-soft">CPU</dt>
+                    <dt className="text-ink-soft">{table.cpu}</dt>
                     <dd className="tabular-nums font-medium text-ink">{r.cpuLoad ?? 0}%</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-ink-soft">RAM</dt>
+                    <dt className="text-ink-soft">{table.ram}</dt>
                     <dd className="tabular-nums font-medium text-ink">{Math.round(Number(r.memoryUsage ?? 0))}%</dd>
                   </div>
                   <div className="col-span-2 flex justify-between gap-2">
-                    <dt className="text-ink-soft">Dernière synchro</dt>
+                    <dt className="text-ink-soft">{table.lastSync}</dt>
                     {/* timeAgo dépend de Date.now() : le texte serveur peut
                         différer d'une poignée de secondes au moment de
                         l'hydratation — écart attendu, pas un bug. */}
                     <dd suppressHydrationWarning className="font-medium text-ink">
-                      {timeAgo(r.lastSyncAtMs)}
+                      {timeAgo(r.lastSyncAtMs, table)}
                     </dd>
                   </div>
                 </dl>
@@ -315,10 +330,10 @@ export default function RoutersTable({
                     href={`/admin/router/${r.id}`}
                     className="flex items-center gap-1 border border-line px-2.5 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-clay rounded-xl"
                   >
-                    Détails
+                    {table.details}
                     <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
                   </Link>
-                  <RouterRowActions routerId={r.id} />
+                  <RouterRowActions routerId={r.id} t={actions} />
                 </div>
               </li>
             ))}
@@ -329,15 +344,15 @@ export default function RoutersTable({
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line bg-clay">
                 <tr className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
-                  <th scope="col" className="px-4 py-3">Routeur</th>
-                  <th scope="col" className="px-4 py-3">Identité</th>
-                  <th scope="col" className="px-4 py-3">Statut</th>
-                  <th scope="col" className="px-4 py-3">CPU</th>
-                  <th scope="col" className="px-4 py-3">RAM</th>
-                  <th scope="col" className="px-4 py-3">Utilisateurs</th>
-                  <th scope="col" className="px-4 py-3">Dernière synchro</th>
+                  <th scope="col" className="px-4 py-3">{table.router}</th>
+                  <th scope="col" className="px-4 py-3">{table.identity}</th>
+                  <th scope="col" className="px-4 py-3">{table.status}</th>
+                  <th scope="col" className="px-4 py-3">{table.cpu}</th>
+                  <th scope="col" className="px-4 py-3">{table.ram}</th>
+                  <th scope="col" className="px-4 py-3">{table.users}</th>
+                  <th scope="col" className="px-4 py-3">{table.lastSync}</th>
                   <th scope="col" className="px-4 py-3">
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{table.actions}</span>
                   </th>
                 </tr>
               </thead>
@@ -358,8 +373,8 @@ export default function RoutersTable({
                     <td className="px-4 py-3 font-mono text-xs text-ink">{r.model ?? "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <StatusBadge status={r.status} />
-                        {r.locked && <LockedBadge />}
+                        <StatusBadge status={r.status} t={table} />
+                        {r.locked && <LockedBadge t={table} />}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -370,7 +385,7 @@ export default function RoutersTable({
                     </td>
                     <td className="px-4 py-3 tabular-nums text-ink">{r.activeUsers ?? 0}</td>
                     <td suppressHydrationWarning className="px-4 py-3 text-ink-soft">
-                      {timeAgo(r.lastSyncAtMs)}
+                      {timeAgo(r.lastSyncAtMs, table)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
@@ -378,10 +393,10 @@ export default function RoutersTable({
                           href={`/admin/router/${r.id}`}
                           className="flex items-center gap-1 border border-line px-2.5 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-brand"
                         >
-                          Détails
+                          {table.details}
                           <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
                         </Link>
-                        <RouterRowActions routerId={r.id} />
+                        <RouterRowActions routerId={r.id} t={actions} />
                       </div>
                     </td>
                   </tr>
@@ -391,7 +406,10 @@ export default function RoutersTable({
           </div>
 
           <p className="mt-2 font-mono text-xs text-ink-soft">
-            {filtered.length} routeur{filtered.length > 1 ? "s" : ""} affiché{filtered.length > 1 ? "s" : ""}
+            {table.displayed
+              .replace("{count}", String(filtered.length))
+              .replace("{router}", filtered.length > 1 ? t.clients.routerPlural : t.clients.router)
+              .replace("{plural}", filtered.length > 1 ? "s" : "")}
           </p>
         </>
       )}

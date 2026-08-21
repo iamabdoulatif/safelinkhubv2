@@ -9,6 +9,8 @@ import { countPendingFeatureAccess } from "@/lib/billing/feature-access-service"
 import { listAuthorizations } from "@/lib/billing/auto-setup-authorization-service";
 import { listRemoteAccessAuthorizations } from "@/lib/billing/remote-access-authorization-service";
 import Reveal from "@/components/motion/Reveal";
+import { getAdminDict } from "@/lib/i18n/admin";
+import { getLocale } from "@/lib/i18n/server";
 
 export default async function AdminLayout({
   children,
@@ -16,6 +18,12 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   await connection();
+  const [locale, dict] = await Promise.all([getLocale(), getAdminDict()]);
+  /* `pendingBadge` est une fonction : elle ne peut pas traverser la frontière
+     serveur/client. On la déroule ici et on n'envoie que des chaînes.
+     TypeScript ne voit PAS ce problème — `dict.nav` n'étant pas un littéral,
+     le contrôle des propriétés excédentaires ne s'applique pas. */
+  const { pendingBadge, ...nav } = dict.nav;
   const session = await getSession();
   if (!session || !isAdminRole(session.role)) {
     redirect("/auth/login?callback=/admin");
@@ -45,13 +53,22 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="theme-slate flex min-h-screen flex-1 overflow-x-hidden bg-clay">
+    /* `lang` sur le sous-arbre : le layout racine est au-dessus des routes et
+       code lang="fr" en dur. Sans cela, un lecteur d'écran lirait le tableau
+       de bord anglais avec la prononciation française. */
+    <div lang={locale} className="theme-slate flex min-h-screen flex-1 overflow-x-hidden bg-clay">
       <AdminSidebar
         orgName={org?.name ?? "Organisation"}
         userName={session.name}
         userEmail={session.email}
         superadmin={superadmin}
         pendingAuthorizations={pendingAuthorizations}
+        pendingLabel={
+          pendingAuthorizations > 0 ? pendingBadge(pendingAuthorizations) : undefined
+        }
+        nav={nav}
+        language={dict.language}
+        locale={locale}
       />
       {/* La top bar mobile fixe (h-14, visible < lg) impose un pt de
           dégagement jusqu'au breakpoint lg inclus — md:p-6 seul l'écrasait

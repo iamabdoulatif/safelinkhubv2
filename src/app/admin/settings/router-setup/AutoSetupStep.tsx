@@ -630,6 +630,10 @@ export default function AutoSetupStep({
         hasUsbStorage,
         hasLargeOnboardStorage: detected?.hasLargeOnboardStorage ?? false,
         hasEmmcStorage: detected?.hasEmmcStorage ?? false,
+        // La capacité physique est mémorisée indépendamment du choix « Ignorer
+        // MikHmon », afin que seuls les modèles réellement incompatibles
+        // puissent recevoir l'instance cloud à l'avenir.
+        routerSupportsContainers: detected?.supportsContainers,
         supportsContainers: mikhmonIncluded,
         reboot: true,
         voucherProfiles: customProfiles,

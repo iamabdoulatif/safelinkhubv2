@@ -10,6 +10,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search, X, ArrowUpRight, Newspaper } from "lucide-react";
 import BlogAd from "@/components/analytics/BlogAd";
+import type { Locale } from "@/lib/i18n/config";
+import type { Dictionary } from "@/lib/i18n/fr";
 
 export type BlogListItem = {
   id: string;
@@ -22,8 +24,8 @@ export type BlogListItem = {
   createdAt: Date;
 };
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("fr-FR", {
+function formatDate(date: Date, locale: Locale) {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -34,11 +36,15 @@ export default function BlogExperience({
   posts,
   categories,
   ad,
+  locale,
+  t,
   initialCategory = null,
 }: {
   posts: BlogListItem[];
   categories: string[];
   ad: { client: string; slot: string } | null;
+  locale: Locale;
+  t: Dictionary["blog"];
   initialCategory?: string | null;
 }) {
   const [category, setCategory] = useState<string | null>(
@@ -67,14 +73,13 @@ export default function BlogExperience({
         <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
           <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand">
             <span className="inline-block h-2 w-2 rounded-full bg-brand" />
-            Journal SafeLinkHub
+            {t.journal}
           </p>
           <h1 className="mt-4 font-display text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-6xl">
-            Le blog <span className="marker">techno</span>
+            {t.title} <span className="marker">{t.titleMark}</span>
           </h1>
           <p className="mt-5 max-w-xl text-base text-slate-deep-soft">
-            Guides MikroTik, mobile money, automatisation FAI et coulisses produit —
-            pour gérer et monétiser votre réseau Wi-Fi.
+            {t.lead}
           </p>
 
           {/* Recherche façon ligne de commande */}
@@ -85,14 +90,14 @@ export default function BlogExperience({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="rechercher un article, un sujet…"
-              aria-label="Rechercher dans le blog"
+              placeholder={t.searchPlaceholder}
+              aria-label={t.searchLabel}
               className="w-full bg-transparent text-sm text-white placeholder:text-slate-deep-soft focus:outline-none"
             />
             {query && (
               <button
                 onClick={() => setQuery("")}
-                aria-label="Effacer la recherche"
+                aria-label={t.clearSearch}
                 className="shrink-0 text-slate-deep-soft hover:text-white"
               >
                 <X className="h-4 w-4" />
@@ -101,8 +106,8 @@ export default function BlogExperience({
           </div>
 
           <p className="mt-4 text-xs text-slate-deep-soft">
-            {posts.length} article{posts.length > 1 ? "s" : ""} · {categories.length} sujet
-            {categories.length > 1 ? "s" : ""}
+            {posts.length} {posts.length > 1 ? t.articleMany : t.articleOne} · {categories.length}{" "}
+            {categories.length > 1 ? t.topicMany : t.topicOne}
           </p>
         </div>
       </div>
@@ -111,12 +116,12 @@ export default function BlogExperience({
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:grid lg:grid-cols-[220px_1fr] lg:gap-10">
         {/* Sidebar sujets */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <p className="mb-3 hidden text-[11px] font-semibold uppercase tracking-wider text-ink-soft lg:block">Sujets</p>
+          <p className="mb-3 hidden text-[11px] font-semibold uppercase tracking-wider text-ink-soft lg:block">{t.topics}</p>
           <nav className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:gap-1.5 lg:overflow-visible lg:px-0">
             <SidebarItem
               active={category === null}
               onClick={() => setCategory(null)}
-              label="Tous"
+              label={t.allTopics}
               count={posts.length}
             />
             {categories.map((c) => (
@@ -138,13 +143,13 @@ export default function BlogExperience({
               <Newspaper className="mx-auto h-8 w-8 text-ink-soft/40" />
               <p className="mt-3 font-semibold text-ink">
                 {q || category
-                  ? "Aucun article ne correspond à ce filtre."
-                  : "Aucun article pour le moment."}
+                  ? t.noMatches
+                  : t.noPosts}
               </p>
               <p className="mt-1 text-sm text-ink-soft">
                 {q || category
-                  ? "Essayez un autre sujet ou effacez la recherche."
-                  : "Revenez bientôt — les premiers articles arrivent."}
+                  ? t.tryAgain
+                  : t.checkBack}
               </p>
             </div>
           ) : (
@@ -155,12 +160,14 @@ export default function BlogExperience({
                   post={post}
                   index={i}
                   featured={unfiltered && i === 0}
+                  locale={locale}
+                  t={t}
                 />
               ))}
               {ad && (
                 <div className="slate-card bg-clay p-4 sm:col-span-2">
                   <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-ink-soft">
-                    Publicité
+                    {t.advertising}
                   </p>
                   <BlogAd client={ad.client} slot={ad.slot} />
                 </div>
@@ -205,16 +212,20 @@ function PostCard({
   post,
   index,
   featured,
+  locale,
+  t,
 }: {
   post: BlogListItem;
   index: number;
   featured: boolean;
+  locale: Locale;
+  t: Dictionary["blog"];
 }) {
   const date = post.publishedAt ?? post.createdAt;
 
   return (
     <Link
-      href={`/blog/${post.slug}`}
+      href={`${locale === "en" ? "/en" : ""}/blog/${post.slug}`}
       className={`slate-card group flex flex-col overflow-hidden bg-paper transition-shadow hover:shadow-[0_12px_32px_-14px_rgba(16,22,15,0.18)] ${
         featured ? "sm:col-span-2 sm:flex-row" : ""
       }`}
@@ -252,7 +263,7 @@ function PostCard({
       {/* Contenu */}
       <div className={`flex flex-1 flex-col p-5 ${featured ? "sm:justify-center sm:p-8" : ""}`}>
         <div className="flex items-center gap-2 font-mono text-[11px] text-ink-soft">
-          <time>{formatDate(date)}</time>
+          <time>{formatDate(date, locale)}</time>
           {post.category && (
             <>
               <span aria-hidden>·</span>
@@ -279,7 +290,7 @@ function PostCard({
           </p>
         )}
         <span className="mt-auto flex items-center gap-1 pt-4 text-sm font-bold text-brand-deep">
-          Lire l&apos;article
+          {t.readArticle}
           <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </span>
       </div>

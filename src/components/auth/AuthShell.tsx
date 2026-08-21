@@ -1,6 +1,8 @@
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { fr } from "@/lib/i18n/fr";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { localePrefix, type Locale } from "@/lib/i18n/config";
+import { getAuthDictionary } from "@/lib/i18n/auth";
 
 type AuthShellProps = {
   eyebrow: string;
@@ -8,26 +10,29 @@ type AuthShellProps = {
   description: string;
   children: React.ReactNode;
   footer: React.ReactNode;
+  locale: Locale;
   wide?: boolean;
 };
 
-const metrics = [
-  { value: "4", label: "accès distants" },
-  { value: "24/7", label: "supervision" },
-  { value: "0", label: "carte requise" },
-] as const;
-
-export default function AuthShell({
+export default async function AuthShell({
   eyebrow,
   title,
   description,
   children,
   footer,
+  locale,
   wide = false,
 }: AuthShellProps) {
+  const [dict, auth] = await Promise.all([getDictionary(locale), getAuthDictionary(locale)]);
+  const metrics = [
+    { value: "4", label: auth.shell.metrics[0] },
+    { value: "24/7", label: auth.shell.metrics[1] },
+    { value: "0", label: auth.shell.metrics[2] },
+  ];
+
   return (
     <div className="theme-slate flex flex-1 flex-col bg-paper text-ink">
-      <LandingNav anchorPrefix="/" nav={fr.nav} locale="fr" />
+      <LandingNav anchorPrefix={localePrefix(locale) || "/"} nav={dict.nav} locale={locale} />
       <main className="flex flex-1">
         <div className="mx-auto grid min-h-[calc(100dvh-70px)] w-full max-w-6xl grid-cols-1 bg-paper lg:grid-cols-12">
           {/* Sur mobile le panneau promo est compacté (titre réduit,
@@ -71,7 +76,7 @@ export default function AuthShell({
           </section>
         </div>
       </main>
-      <LandingFooter anchorPrefix="/" dict={fr} locale="fr" />
+      <LandingFooter anchorPrefix={localePrefix(locale) || "/"} dict={dict} locale={locale} />
     </div>
   );
 }

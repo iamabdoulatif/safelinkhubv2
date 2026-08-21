@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import {
   organizations,
   remoteAccessAuthorizations,
+  routerMikhmonCloudInstances,
   routerPortForwards,
   routers,
   vpnAccessAuditEvents,
@@ -26,6 +27,7 @@ export type VpnAccessInventoryRow = {
   username: string | null;
   service: string;
   publicPort: number;
+  cloudDomain: string | null;
   publicHost: string | null;
   publicAddress: string | null;
   accessUrl: string | null;
@@ -43,7 +45,16 @@ function requireSuperadmin() {
   });
 }
 
-function buildAccessLink(service: string, host: string | null, port: number, username: string | null) {
+function buildAccessLink(
+  service: string,
+  host: string | null,
+  port: number,
+  username: string | null,
+  cloudDomain: string | null,
+) {
+  if (service === "mikhmon" && cloudDomain) {
+    return { publicAddress: cloudDomain, accessUrl: `https://${cloudDomain}` };
+  }
   if (!host) return { publicAddress: null, accessUrl: null };
   const publicAddress = `${host}:${port}`;
   if (service === "webfig" || service === "mikhmon") {
@@ -64,10 +75,16 @@ export async function listVpnAccessInventory(): Promise<VpnAccessInventoryRow[]>
   const db = getDb();
   const [forwards, authorizations] = await Promise.all([
     db
-      .select({ forward: routerPortForwards, router: routers, org: organizations })
+      .select({
+        forward: routerPortForwards,
+        router: routers,
+        org: organizations,
+        cloud: routerMikhmonCloudInstances,
+      })
       .from(routerPortForwards)
       .innerJoin(routers, eq(routerPortForwards.routerId, routers.id))
       .innerJoin(organizations, eq(routers.orgId, organizations.id))
+      .leftJoin(routerMikhmonCloudInstances, eq(routerMikhmonCloudInstances.routerId, routers.id))
       .where(eq(routerPortForwards.status, "active"))
       .orderBy(desc(routerPortForwards.createdAt)),
     db
@@ -83,10 +100,18 @@ export async function listVpnAccessInventory(): Promise<VpnAccessInventoryRow[]>
     if (!latestPayment.has(key)) latestPayment.set(key, authorization);
   }
 
-  return forwards.map(({ forward, router, org }) => {
+  return forwards.map(({ forward, router, org, cloud }) => {
     const payment = latestPayment.get(`${router.id}:${forward.service}`);
-    const publicHost = getRelayPublicHost(router.relayShard) || null;
-    const links = buildAccessLink(forward.service, publicHost, forward.publicPort, router.username);
+    const cloudDomain =
+      forward.service === "mikhmon" && cloud?.status === "active" ? cloud.domain : null;
+    const publicHost = cloudDomain ?? (getRelayPublicHost(router.relayShard) || null);
+    const links = buildAccessLink(
+      forward.service,
+      publicHost,
+      forward.publicPort,
+      router.username,
+      cloudDomain,
+    );
     return {
       id: forward.id,
       orgId: org.id,
@@ -100,6 +125,7 @@ export async function listVpnAccessInventory(): Promise<VpnAccessInventoryRow[]>
       username: router.username,
       service: forward.service,
       publicPort: forward.publicPort,
+      cloudDomain,
       publicHost,
       ...links,
       billingPeriod: forward.billingPeriod,

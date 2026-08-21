@@ -38,6 +38,7 @@ export type ForwardRow = {
   publicPort: number;
   billingPeriod: string;
   expiresAt: Date | null;
+  cloudDomain?: string | null;
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -94,6 +95,19 @@ function serviceUrl(service: string, address: string, username: string | null) {
     return `sftp://${username ? `${encodeURIComponent(username)}@` : ""}${host}:${port}`;
   }
   return address;
+}
+
+function forwardAddress(
+  forward: ForwardRow,
+  relayHost: string,
+  relayBaseDomain: string | null,
+) {
+  if (forward.service === "mikhmon" && forward.cloudDomain) {
+    return `https://${forward.cloudDomain}`;
+  }
+  return relayBaseDomain && isWebAccessService(forward.service)
+    ? `https://${relayHost}:${forward.publicPort}`
+    : `${relayHost}:${forward.publicPort}`;
 }
 
 type Os = "mac" | "windows" | "other";
@@ -458,11 +472,7 @@ function RouterDirectAccess({
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   {forward && (
                     <CopyableAddress
-                      value={
-                        relayBaseDomain && isWebAccessService(service)
-                          ? `https://${relayHost}:${forward.publicPort}`
-                          : `${relayHost}:${forward.publicPort}`
-                      }
+                      value={forwardAddress(forward, relayHost, relayBaseDomain)}
                     />
                   )}
                   {!isPublic && (
@@ -559,11 +569,10 @@ function RouterDirectAccess({
               // Browser services are served over HTTPS on their public port by
               // the relay's nginx (wildcard *.<base> cert) so they work under
               // browsers' HTTPS-First mode; WinBox/SSH keep their raw host:port.
+              const isCloudMikhmon = forward.service === "mikhmon" && Boolean(forward.cloudDomain);
               const isWebHttps = Boolean(relayBaseDomain) && isWebAccessService(forward.service);
-              const address = isWebHttps
-                ? `https://${relayHost}:${forward.publicPort}`
-                : `${relayHost}:${forward.publicPort}`;
-              const url = isWebHttps
+              const address = forwardAddress(forward, relayHost, relayBaseDomain);
+              const url = isCloudMikhmon || isWebHttps
                 ? address
                 : serviceUrl(forward.service, address, router.username);
               return (

@@ -6,11 +6,21 @@ import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock } from "lucide-react";
 import { resetPassword } from "@/lib/auth/actions";
 import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 import { fieldClassWithToggle, labelClass, buttonClass, noticeClass, errorClass } from "@/components/auth/form-classes";
+import type { Locale } from "@/lib/i18n/config";
+import type { AuthDictionary } from "@/lib/i18n/auth";
 
 
 
 
-export default function ResetPasswordForm({ token }: { token: string }) {
+export default function ResetPasswordForm({
+  locale,
+  t,
+  token,
+}: {
+  locale: Locale;
+  t: AuthDictionary["reset"];
+  token: string;
+}) {
   const [state, formAction, pending] = useActionState(resetPassword, undefined);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -22,10 +32,10 @@ export default function ResetPasswordForm({ token }: { token: string }) {
       <div className="space-y-5">
         <div className={noticeClass}>
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
-          <p>Votre mot de passe a été réinitialisé. Vous pouvez maintenant vous connecter.</p>
+          <p>{t.success}</p>
         </div>
-        <Link href="/auth/login" className={`${buttonClass} block text-center`}>
-          Aller à la connexion
+        <Link href={locale === "en" ? "/en/auth/login" : "/auth/login"} className={`${buttonClass} block text-center`}>
+          {t.goLogin}
         </Link>
       </div>
     );
@@ -36,13 +46,13 @@ export default function ResetPasswordForm({ token }: { token: string }) {
       <div className="space-y-4">
         <div className={errorClass}>
           <AlertCircle className="h-4 w-4 shrink-0" />
-          <p>Lien de réinitialisation invalide.</p>
+          <p>{t.invalid}</p>
         </div>
         <Link
-          href="/auth/mot-de-passe-oublie"
+          href={locale === "en" ? "/en/auth/mot-de-passe-oublie" : "/auth/mot-de-passe-oublie"}
           className="block text-center text-sm font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
         >
-          Refaire une demande
+          {t.retry}
         </Link>
       </div>
     );
@@ -51,6 +61,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
       <input type="hidden" name="token" value={token} />
+      <input type="hidden" name="locale" value={locale} />
 
       {state?.success === false && (
         <div className={errorClass}>
@@ -60,7 +71,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
       )}
 
       <div>
-        <label className={labelClass}>Nouveau mot de passe</label>
+        <label className={labelClass}>{t.password}</label>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
           <input
@@ -76,7 +87,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            aria-label={showPassword ? t.hidePassword : t.showPassword}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink"
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -86,7 +97,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
       </div>
 
       <div>
-        <label className={labelClass}>Confirmez le mot de passe</label>
+        <label className={labelClass}>{t.confirmPassword}</label>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
           <input
@@ -102,7 +113,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
           <button
             type="button"
             onClick={() => setShowConfirm((v) => !v)}
-            aria-label={showConfirm ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            aria-label={showConfirm ? t.hidePassword : t.showPassword}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink"
           >
             {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -115,14 +126,14 @@ export default function ResetPasswordForm({ token }: { token: string }) {
             }`}
           >
             {confirmPassword === password
-              ? "Les mots de passe correspondent."
-              : "Les mots de passe ne correspondent pas."}
+              ? t.passwordsMatch
+              : t.passwordsMismatch}
           </p>
         )}
       </div>
 
       <button type="submit" disabled={pending} className={buttonClass}>
-        {pending ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
+        {pending ? t.pending : t.submit}
       </button>
     </form>
   );

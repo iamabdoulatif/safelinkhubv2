@@ -5,10 +5,14 @@ import { getSession } from "@/lib/auth/session";
 import { findOrgByReferralCode } from "@/lib/referrals/service";
 import { normalizeReferralCode } from "@/lib/referrals/rewards";
 import RegisterForm from "./RegisterForm";
+import { getAuthDictionary } from "@/lib/i18n/auth";
+import { localeHref, type Locale } from "@/lib/i18n/config";
 
-export default async function RegisterPage({
+export async function RegisterPageContent({
+  locale,
   searchParams,
 }: {
+  locale: Locale;
   searchParams: Promise<{ ref?: string }>;
 }) {
   // Un utilisateur déjà connecté n'a rien à faire sur l'inscription.
@@ -23,40 +27,50 @@ export default async function RegisterPage({
   const referralCode = ref ? normalizeReferralCode(ref) : "";
   const referrer = referralCode ? await findOrgByReferralCode(referralCode) : null;
 
+  const t = getAuthDictionary(locale).register;
   return (
     <AuthShell
-      eyebrow="Création gratuite"
+      locale={locale}
+      eyebrow={t.eyebrow}
       title={
         <>
-          Lancer votre portail <span className="marker">hotspot.</span>
+          {t.titleStart}<span className="marker">{t.titleMark}</span>
         </>
       }
-      description="Créez un compte pour gérer les ventes, routeurs MikroTik, accès directs et abonnements depuis une interface unifiée."
+      description={t.description}
       wide
       footer={
         <>
-          Vous avez déjà un compte ?{" "}
+          {t.footerStart}{" "}
           <Link
-            href="/auth/login"
+            href={localeHref("/auth/login", locale)}
             className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
-            Connexion
+            {t.footerLink}
           </Link>
         </>
       }
     >
       <div>
         <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
-          Inscription
+          {t.section}
         </p>
         <h2 className="mt-2 font-display text-3xl font-bold text-ink">
-          Créer un compte SafeLinkHub
+          {t.heading}
         </h2>
         <p className="mt-2 text-sm leading-6 text-ink-soft">
-          Le compte démarre gratuitement, sans carte bancaire.
+          {t.lead}
         </p>
-        <RegisterForm referralCode={referralCode} referrerName={referrer?.name ?? null} />
+        <RegisterForm locale={locale} t={t} referralCode={referralCode} referrerName={referrer?.name ?? null} />
       </div>
     </AuthShell>
   );
+}
+
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string }>;
+}) {
+  return <RegisterPageContent locale="fr" searchParams={searchParams} />;
 }

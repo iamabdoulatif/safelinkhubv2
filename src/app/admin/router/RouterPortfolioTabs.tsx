@@ -1,18 +1,20 @@
 import Link from "next/link";
 import type { RouterPortfolioScope } from "./router-portfolio";
+import type { RouterDictionary } from "./RoutersTable";
 
 type RouterPortfolioTabsProps = {
   activeScope: RouterPortfolioScope;
+  t: RouterDictionary["tabs"];
 };
 
-const scopes: Array<{ scope: RouterPortfolioScope; href: string; label: string }> = [
-  { scope: "mine", href: "/admin/router?scope=mine", label: "Mon parc" },
-  { scope: "clients", href: "/admin/router?scope=clients", label: "Parcs clients" },
+const scopes: Array<{ scope: RouterPortfolioScope; href: string; label: keyof RouterDictionary["tabs"] }> = [
+  { scope: "mine", href: "/admin/router?scope=mine", label: "mine" },
+  { scope: "clients", href: "/admin/router?scope=clients", label: "clients" },
 ];
 
-export function RouterPortfolioTabs({ activeScope }: RouterPortfolioTabsProps) {
+export function RouterPortfolioTabs({ activeScope, t }: RouterPortfolioTabsProps) {
   return (
-    <nav aria-label="Portefeuille de routeurs" className="flex flex-wrap gap-2">
+    <nav aria-label={t.label} className="flex flex-wrap gap-2">
       {scopes.map(({ scope, href, label }) => {
         const isActive = scope === activeScope;
 
@@ -27,7 +29,7 @@ export function RouterPortfolioTabs({ activeScope }: RouterPortfolioTabsProps) {
                 : "bg-paper text-ink hover:bg-clay"
             }`}
           >
-            {label}
+            {t[label]}
           </Link>
         );
       })}

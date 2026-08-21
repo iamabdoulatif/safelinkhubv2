@@ -5,21 +5,43 @@ import { expenses } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import AddExpenseModal from "./AddExpenseModal";
 import DeleteExpenseButton from "./DeleteExpenseButton";
+import { getAdminDict } from "@/lib/i18n/admin";
+import { getLocale } from "@/lib/i18n/server";
+import type { AdminDictionary } from "@/lib/i18n/admin";
 
-function formatFcfa(cents: number) {
-  return `FCFA ${cents.toLocaleString("en-US")}`;
+const expenseCategoryKeys = {
+  "Internet / Bande passante": "bandwidth",
+  Électricité: "electricity",
+  Équipement: "equipment",
+  Loyer: "rent",
+  Salaires: "salaries",
+  Maintenance: "maintenance",
+  Autre: "other",
+} as const;
+
+function formatFcfa(cents: number, locale: string) {
+  return `FCFA ${cents.toLocaleString(locale)}`;
 }
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(date);
+function formatDate(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(date);
 }
 
 function isSameMonth(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 }
 
+function displayExpenseCategory(
+  category: string,
+  labels: AdminDictionary["finance"]["expenses"]["categories"],
+) {
+  const key = expenseCategoryKeys[category as keyof typeof expenseCategoryKeys];
+  return key ? labels[key] : category;
+}
+
 export default async function ExpensesPage() {
-  const session = await getSession();
+  const [session, locale, dict] = await Promise.all([getSession(), getLocale(), getAdminDict()]);
+  const t = dict.finance.expenses;
   const db = getDb();
 
   const orgExpenses = session
@@ -41,26 +63,25 @@ export default async function ExpensesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Receipt className="h-5 w-5 text-ink" />
-          <h1 className="text-2xl font-bold text-ink">Dépenses</h1>
+          <h1 className="text-2xl font-bold text-ink">{t.title}</h1>
         </div>
-        <AddExpenseModal />
+        <AddExpenseModal t={{ ...t.modal, categories: t.categories }} />
       </div>
       <p className="mt-1 text-sm text-ink-soft">
-        Suivez les coûts d&apos;exploitation (bande passante, électricité,
-        équipement, etc.).
+        {t.description}
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">Total des dépenses</p>
+          <p className="text-sm font-medium text-ink-soft">{t.total}</p>
           <p className="mt-1 text-2xl font-bold text-ink">
-            {formatFcfa(totalCents)}
+            {formatFcfa(totalCents, locale)}
           </p>
         </div>
         <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">Ce mois-ci</p>
+          <p className="text-sm font-medium text-ink-soft">{t.thisMonth}</p>
           <p className="mt-1 text-2xl font-bold text-ink">
-            {formatFcfa(monthCents)}
+            {formatFcfa(monthCents, locale)}
           </p>
         </div>
       </div>
@@ -70,10 +91,10 @@ export default async function ExpensesPage() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Catégorie</th>
-              <th className="px-4 py-3 font-medium">Montant</th>
-              <th className="px-4 py-3 font-medium">Note</th>
+              <th className="px-4 py-3 font-medium">{t.date}</th>
+              <th className="px-4 py-3 font-medium">{t.category}</th>
+              <th className="px-4 py-3 font-medium">{t.amount}</th>
+              <th className="px-4 py-3 font-medium">{t.note}</th>
               <th className="w-10 px-4 py-3" />
             </tr>
           </thead>
@@ -81,22 +102,22 @@ export default async function ExpensesPage() {
             {orgExpenses.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-ink-soft">
-                  Aucune dépense pour le moment.
+                  {t.empty}
                 </td>
               </tr>
             )}
             {orgExpenses.map((e) => (
               <tr key={e.id}>
                 <td className="px-4 py-3 text-ink-soft">
-                  {formatDate(e.expenseDate)}
+                  {formatDate(e.expenseDate, locale)}
                 </td>
-                <td className="px-4 py-3 text-ink">{e.category}</td>
+                <td className="px-4 py-3 text-ink">{displayExpenseCategory(e.category, t.categories)}</td>
                 <td className="px-4 py-3 font-medium text-red-600">
-                  -{formatFcfa(e.amountCents)}
+                  -{formatFcfa(e.amountCents, locale)}
                 </td>
-                <td className="px-4 py-3 text-ink-soft">{e.note ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-soft">{e.note ?? t.noNote}</td>
                 <td className="px-4 py-3">
-                  <DeleteExpenseButton expenseId={e.id} />
+                  <DeleteExpenseButton expenseId={e.id} title={t.modal.delete} />
                 </td>
               </tr>
             ))}

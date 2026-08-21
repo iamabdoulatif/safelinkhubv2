@@ -8,13 +8,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ShoppingBag, ArrowLeft } from "lucide-react";
 import HomeRedirect from "./HomeRedirect";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { localePrefix, type Locale } from "@/lib/i18n/config";
 
 export const metadata: Metadata = {
   title: "Site en construction | SafeLinkHub",
   description: "La boutique d'équipement SafeLinkHub arrive bientôt.",
 };
 
-export default function BoutiquePage() {
+export async function BoutiquePageContent({ locale }: { locale: Locale }) {
+  const dict = await getDictionary(locale);
+  const t = dict.boutique;
+  const homeHref = localePrefix(locale) || "/";
+
   return (
     <main className="theme-slate flex min-h-screen flex-col items-center justify-center bg-paper px-4 text-center">
       <div className="mx-auto max-w-lg">
@@ -22,28 +28,30 @@ export default function BoutiquePage() {
           <ShoppingBag className="h-8 w-8 text-ink" />
         </div>
         <h1 className="font-display text-3xl font-bold text-ink sm:text-4xl">
-          Site en construction
+          {t.title}
         </h1>
         <p className="mt-3 text-base text-ink-soft">
-          Notre boutique d&apos;équipement (routeurs MikroTik, antennes, switchs PoE et
-          accessoires) arrive très bientôt, avec son propre espace dédié. Revenez la
-          découvrir prochainement.
+          {t.lead}
         </p>
 
         <Link
-          href="/"
+          href={homeHref}
           className="slate-btn slate-btn-primary mt-8 inline-flex items-center justify-center gap-2 px-6 py-3 text-sm"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Retour à l&apos;accueil
+          {t.backHome}
         </Link>
 
-        <HomeRedirect seconds={8} />
+        <HomeRedirect seconds={8} href={homeHref} t={t} />
 
         <p className="mt-8 text-xs font-medium uppercase tracking-wide text-ink-soft/70">
-          SafeLinkHub · Boutique
+          {t.footer}
         </p>
       </div>
     </main>
   );
+}
+
+export default async function BoutiquePage() {
+  return <BoutiquePageContent locale="fr" />;
 }

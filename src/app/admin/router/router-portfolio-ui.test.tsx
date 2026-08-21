@@ -3,10 +3,15 @@ import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ClientPortfolioGrid } from "./ClientPortfolioGrid";
 import { RouterPortfolioTabs } from "./RouterPortfolioTabs";
+import { adminFr } from "@/lib/i18n/admin/fr";
 
 test("les onglets de portefeuille exposent les deux portées et la portée active", () => {
-  const mineMarkup = renderToStaticMarkup(<RouterPortfolioTabs activeScope="mine" />);
-  const clientsMarkup = renderToStaticMarkup(<RouterPortfolioTabs activeScope="clients" />);
+  const mineMarkup = renderToStaticMarkup(
+    <RouterPortfolioTabs activeScope="mine" t={adminFr.network.routers.tabs} />,
+  );
+  const clientsMarkup = renderToStaticMarkup(
+    <RouterPortfolioTabs activeScope="clients" t={adminFr.network.routers.tabs} />,
+  );
 
   assert.match(mineMarkup, /href="\/admin\/router\?scope=mine"/);
   assert.match(mineMarkup, /href="\/admin\/router\?scope=clients"/);
@@ -21,6 +26,7 @@ test("une organisation cliente affiche chaque compteur d’état et ses deux act
   const clientId = "d303c049-2675-4d53-a972-c4be95e9d61e";
   const markup = renderToStaticMarkup(
     <ClientPortfolioGrid
+      t={adminFr.network.routers.clients}
       clients={[
         {
           id: clientId,
@@ -53,6 +59,7 @@ test("une organisation cliente sans routeur conserve un total nul et ses actions
   const clientId = "9b922f5e-eb10-4b63-8460-00d5799cb965";
   const markup = renderToStaticMarkup(
     <ClientPortfolioGrid
+      t={adminFr.network.routers.clients}
       clients={[
         {
           id: clientId,
@@ -70,7 +77,9 @@ test("une organisation cliente sans routeur conserve un total nul et ses actions
 });
 
 test("une liste cliente vide explique qu’aucune organisation cliente n’est disponible", () => {
-  const markup = renderToStaticMarkup(<ClientPortfolioGrid clients={[]} />);
+  const markup = renderToStaticMarkup(
+    <ClientPortfolioGrid clients={[]} t={adminFr.network.routers.clients} />,
+  );
 
   assert.match(markup, /Aucune organisation cliente disponible/);
 });

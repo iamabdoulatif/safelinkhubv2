@@ -9,8 +9,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { Dictionary } from "@/lib/i18n/fr";
 
-export default function HomeRedirect({ seconds = 8 }: { seconds?: number }) {
+export default function HomeRedirect({
+  seconds = 8,
+  href = "/",
+  t,
+}: {
+  seconds?: number;
+  href?: string;
+  t: Dictionary["boutique"];
+}) {
   const router = useRouter();
   const [left, setLeft] = useState(seconds);
 
@@ -22,24 +31,24 @@ export default function HomeRedirect({ seconds = 8 }: { seconds?: number }) {
       setLeft((n) => {
         if (n <= 1) {
           clearInterval(id);
-          router.push("/");
+          router.push(href);
           return 0;
         }
         return n - 1;
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [router]);
+  }, [href, router]);
 
   return (
     <p aria-live="polite" className="mt-4 text-sm text-ink-soft">
       {left > 0 ? (
         <>
-          Retour à l&apos;accueil dans <span className="font-mono font-bold text-ink">{left}</span>{" "}
-          seconde{left > 1 ? "s" : ""}…
+          {t.countdown} <span className="font-mono font-bold text-ink">{left}</span>{" "}
+          {left > 1 ? t.secondMany : t.secondOne}…
         </>
       ) : (
-        <>Redirection en cours…</>
+        <>{t.redirecting}</>
       )}
     </p>
   );

@@ -2,8 +2,15 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { submitContactMessage } from "@/lib/contact/actions";
+import type { Dictionary } from "@/lib/i18n/fr";
 
-export default function ContactForm() {
+export default function ContactForm({
+  locale,
+  t,
+}: {
+  locale: "fr" | "en";
+  t: Dictionary["contact"]["form"];
+}) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(submitContactMessage, undefined);
 
@@ -13,6 +20,7 @@ export default function ContactForm() {
 
   return (
     <form ref={formRef} action={formAction} className="border border-line bg-paper p-6">
+      <input type="hidden" name="locale" value={locale} />
       {state?.error && (
         <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
           {state.error}
@@ -20,7 +28,7 @@ export default function ContactForm() {
       )}
       {state?.success && (
         <p className="mb-4 rounded-md bg-clay px-3 py-2 text-sm text-ok">
-          Message envoyé — merci, nous revenons vers vous rapidement.
+          {t.success}
         </p>
       )}
 
@@ -37,26 +45,26 @@ export default function ContactForm() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="contact-name" className="mb-1 block text-sm font-medium text-ink">
-            Nom
+            {t.name}
           </label>
           <input
             id="contact-name"
             name="name"
             required
-            placeholder="Votre nom"
+            placeholder={t.namePlaceholder}
             className="w-full rounded-lg border border-line px-3 py-2.5 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
         <div>
           <label htmlFor="contact-email" className="mb-1 block text-sm font-medium text-ink">
-            Email
+            {t.email}
           </label>
           <input
             id="contact-email"
             name="email"
             type="email"
             required
-            placeholder="vous@exemple.com"
+            placeholder={t.emailPlaceholder}
             className="w-full rounded-lg border border-line px-3 py-2.5 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
@@ -64,19 +72,19 @@ export default function ContactForm() {
 
       <div className="mt-4">
         <label htmlFor="contact-subject" className="mb-1 block text-sm font-medium text-ink">
-          Sujet <span className="font-normal text-ink-soft">(optionnel)</span>
+          {t.subject} <span className="font-normal text-ink-soft">({t.optional})</span>
         </label>
         <input
           id="contact-subject"
           name="subject"
-          placeholder="Ex : Déploiement multi-sites"
+          placeholder={t.subjectPlaceholder}
           className="w-full rounded-lg border border-line px-3 py-2.5 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
 
       <div className="mt-4">
         <label htmlFor="contact-message" className="mb-1 block text-sm font-medium text-ink">
-          Message
+          {t.message}
         </label>
         <textarea
           id="contact-message"
@@ -84,7 +92,7 @@ export default function ContactForm() {
           required
           rows={6}
           maxLength={5000}
-          placeholder="Décrivez votre besoin…"
+          placeholder={t.messagePlaceholder}
           className="w-full rounded-lg border border-line px-3 py-2.5 text-sm focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
@@ -94,7 +102,7 @@ export default function ContactForm() {
         disabled={pending}
         className="slate-btn slate-btn-primary mt-5 inline-flex items-center justify-center gap-2 px-6 py-3 text-sm disabled:opacity-60"
       >
-        {pending ? "Envoi…" : "Envoyer le message"}
+        {pending ? t.sending : t.submit}
       </button>
     </form>
   );

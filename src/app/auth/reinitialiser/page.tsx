@@ -1,47 +1,61 @@
 import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
 import ResetPasswordForm from "./ResetPasswordForm";
+import { getAuthDictionary } from "@/lib/i18n/auth";
+import { localeHref, type Locale } from "@/lib/i18n/config";
 
-export default async function ResetPasswordPage({
+export async function ResetPasswordPageContent({
+  locale,
   searchParams,
 }: {
+  locale: Locale;
   searchParams: Promise<{ token?: string }>;
 }) {
   const { token } = await searchParams;
 
+  const t = getAuthDictionary(locale).reset;
   return (
     <AuthShell
-      eyebrow="Espace sécurisé"
+      locale={locale}
+      eyebrow={t.eyebrow}
       title={
         <>
-          Choisissez un nouveau <span className="marker">mot de passe.</span>
+          {t.titleStart}<span className="marker">{t.titleMark}</span>
         </>
       }
-      description="Définissez un mot de passe fort pour sécuriser votre compte SafeLinkHub."
+      description={t.description}
       footer={
         <>
-          Retour à la{" "}
+          {t.footerStart}{" "}
           <Link
-            href="/auth/login"
+            href={localeHref("/auth/login", locale)}
             className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
-            connexion
+            {t.footerLink}
           </Link>
         </>
       }
     >
       <div>
         <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
-          Réinitialisation
+          {t.section}
         </p>
         <h2 className="mt-2 font-display text-3xl font-bold text-ink">
-          Nouveau mot de passe
+          {t.heading}
         </h2>
         <p className="mt-2 text-sm leading-6 text-ink-soft">
-          Au moins 8 caractères. Choisissez-en un que vous n&apos;utilisez pas ailleurs.
+          {t.lead}
         </p>
-        <ResetPasswordForm token={token ?? ""} />
+        <ResetPasswordForm locale={locale} t={t} token={token ?? ""} />
       </div>
     </AuthShell>
   );
+}
+
+export default async function ResetPasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string }>;
+}) {
+  return <ResetPasswordPageContent locale="fr" searchParams={searchParams} />;
 }

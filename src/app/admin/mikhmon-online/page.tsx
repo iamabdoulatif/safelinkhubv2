@@ -24,10 +24,10 @@ export default async function MikhmonOnlinePage() {
         <h1 className="text-2xl font-bold text-ink">Mikhmon Online</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
-        MikHmon est exposé directement depuis chaque routeur via son nom DDNS MikroTik
-        Cloud (configuré par l&apos;auto-setup) — pas via le relais SafeLinkHub. Cliquez
-        sur « Obtenir le lien » pour récupérer l&apos;adresse actuelle et ouvrir
-        l&apos;interface de gestion des vouchers.
+        Les routeurs compatibles Container exposent MikHmon depuis leur propre
+        équipement. Les RB951 et autres modèles incompatibles reçoivent une instance
+        MikHmon Online dédiée, hébergée via le relais SafeLinkHub et accessible en HTTPS
+        sans installer de conteneur sur le routeur.
       </p>
 
       <MikhmonOnlineList

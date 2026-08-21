@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routerPortForwards, routers, organizations, walletTransactions } from "@/lib/db/schema";
+import {
+  routerMikhmonCloudInstances,
+  routerPortForwards,
+  routers,
+  organizations,
+  walletTransactions,
+} from "@/lib/db/schema";
 import { capVpnAccessExpiry, getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getSafecoinAccount } from "@/lib/safecoin/ledger";
@@ -20,6 +26,7 @@ import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { getPortForwardTargetPort } from "./port-forward-rules";
 import { PERIOD_PRICE_CENTS, BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
+import { ensureCloudMikhmonInstance, removeCloudMikhmonInstance } from "./mikhmon-cloud";
 
 export type { BillingPeriod } from "./billing-plans";
 
@@ -91,6 +98,7 @@ async function enablePortForwardForRouter(
       error: "Le routeur doit être connecté via WireGuard ou OpenVPN pour activer l'accès direct.",
     };
   }
+  const isCloudMikhmon = service === "mikhmon" && router.supportsContainers === false;
 
   const existing = await db
     .select()
@@ -104,11 +112,59 @@ async function enablePortForwardForRouter(
     )
     .limit(1);
   if (existing.length > 0) {
+    const [cloud] = isCloudMikhmon
+      ? await db
+          .select({ domain: routerMikhmonCloudInstances.domain })
+          .from(routerMikhmonCloudInstances)
+          .where(eq(routerMikhmonCloudInstances.routerId, routerId))
+          .limit(1)
+      : [undefined];
     return {
       success: true,
       publicPort: existing[0].publicPort,
       relayHost: getRelayPublicHost(router.relayShard),
+      cloudDomain: cloud?.domain ?? null,
       created: false as const,
+    };
+  }
+
+  if (isCloudMikhmon) {
+    let cloud;
+    try {
+      cloud = await ensureCloudMikhmonInstance(router);
+    } catch (err) {
+      return {
+        error:
+          err instanceof Error
+            ? `Cloud MikHmon could not be provisioned: ${err.message}`
+            : "Cloud MikHmon could not be provisioned.",
+      };
+    }
+
+    const [forward] = await db
+      .insert(routerPortForwards)
+      .values({
+        routerId,
+        service,
+        // These values preserve the existing billing/access-record contract.
+        // The port is loopback-only on the VPS and is never passed to the
+        // public relay DNAT allocator.
+        targetPort: cloud.localPort,
+        publicPort: cloud.localPort,
+        tunnelIp: router.tunnelIp,
+        status: "active",
+        billingPeriod: billingPeriodLabel ?? billingPeriod,
+        expiresAt: expiresAtOverride ?? expiresAtFor(billingPeriod),
+      })
+      .returning();
+
+    return {
+      success: true,
+      publicPort: forward.publicPort,
+      relayHost: getRelayPublicHost(router.relayShard),
+      cloudDomain: cloud.domain,
+      created: true as const,
+      forwardId: forward.id,
     };
   }
 
@@ -360,13 +416,25 @@ export async function disablePortForward(forwardId: string) {
     return { error: "Forward not found." };
   }
 
+  const [cloud] =
+    forward.service === "mikhmon"
+      ? await db
+          .select({ id: routerMikhmonCloudInstances.id })
+          .from(routerMikhmonCloudInstances)
+          .where(eq(routerMikhmonCloudInstances.routerId, forward.routerId))
+          .limit(1)
+      : [undefined];
   try {
-    await revokePortForward(
-      forward.tunnelIp,
-      forward.targetPort,
-      forward.publicPort,
-      isWebAccessService(forward.service),
-    );
+    if (cloud) {
+      await removeCloudMikhmonInstance(forward.routerId);
+    } else {
+      await revokePortForward(
+        forward.tunnelIp,
+        forward.targetPort,
+        forward.publicPort,
+        isWebAccessService(forward.service),
+      );
+    }
   } catch (err) {
     return {
       error: err instanceof Error ? `Could not revoke: ${err.message}` : "Could not revoke.",

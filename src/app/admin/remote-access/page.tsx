@@ -1,8 +1,13 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { after } from "next/server";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
-import { routerPortForwards, routers, vpnAccessAuditEvents } from "@/lib/db/schema";
+import {
+  routerMikhmonCloudInstances,
+  routerPortForwards,
+  routers,
+  vpnAccessAuditEvents,
+} from "@/lib/db/schema";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { getActiveRouterReplacement } from "@/lib/mikrotik/router-recovery-service";
 import { getRelayPublicHost } from "@/lib/mikrotik/relay";
@@ -41,13 +46,23 @@ export default async function RemoteAccessPage() {
 
   const routerIds = allRouters.map((router) => router.id);
   let forwards: ForwardRow[] = [];
+  let cloudInstances: { routerId: string; domain: string }[] = [];
   let auditRows: AuditRow[] = [];
   if (routerIds.length) {
-    [forwards, auditRows] = await Promise.all([
+    [forwards, cloudInstances, auditRows] = await Promise.all([
       db
         .select()
         .from(routerPortForwards)
         .where(inArray(routerPortForwards.routerId, routerIds)),
+      db
+        .select({ routerId: routerMikhmonCloudInstances.routerId, domain: routerMikhmonCloudInstances.domain })
+        .from(routerMikhmonCloudInstances)
+        .where(
+          and(
+            inArray(routerMikhmonCloudInstances.routerId, routerIds),
+            eq(routerMikhmonCloudInstances.status, "active"),
+          ),
+        ),
       db
         .select({
           id: vpnAccessAuditEvents.id,
@@ -80,12 +95,16 @@ export default async function RemoteAccessPage() {
     ] as const),
   );
   const replacementByRouter = Object.fromEntries(replacementEntries);
+  const cloudDomainsByRouter = Object.fromEntries(
+    cloudInstances.map((instance) => [instance.routerId, instance.domain]),
+  );
   const controlRouters = buildControlCenterRouters({
     routers: allRouters,
     forwardsByRouter,
     auditsByRouter: auditByRouter,
     replacementByRouter,
     getRelayHost: getRelayPublicHost,
+    cloudDomainsByRouter,
   });
   const temporaryPassExpiresAt = activeGrants.length
     ? activeGrants.reduce((earliest, grant) => grant.expiresAt < earliest ? grant.expiresAt : earliest, activeGrants[0].expiresAt).toISOString()

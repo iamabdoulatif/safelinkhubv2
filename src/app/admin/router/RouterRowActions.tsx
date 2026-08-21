@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, MoreVertical } from "lucide-react";
 import { deleteRouter, resetRouterDevice } from "@/lib/mikrotik/actions";
+import type { RouterDictionary } from "./RoutersTable";
 
 type PendingAction = null | "reset" | "delete";
 
-export default function RouterRowActions({ routerId }: { routerId: string }) {
+export default function RouterRowActions({ routerId, t }: { routerId: string; t: RouterDictionary["actions"] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState<PendingAction>(null);
@@ -46,8 +47,8 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
   if (confirming) {
     const label =
       confirming === "reset"
-        ? "Réinitialiser ce processus de configuration"
-        : "Supprimer définitivement ce routeur";
+        ? t.resetConfirm
+        : t.removeConfirm;
     return (
       <div className="flex items-center justify-end gap-2 whitespace-nowrap">
         <span className="text-xs text-ink-soft">{label} ?</span>
@@ -57,7 +58,7 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
           disabled={pending}
           className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
         >
-          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Confirmer"}
+          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t.confirm}
         </button>
         <button
           type="button"
@@ -65,7 +66,7 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
           disabled={pending}
           className="rounded-md border border-line-soft px-2.5 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
         >
-          Annuler
+          {t.cancel}
         </button>
       </div>
     );
@@ -78,7 +79,7 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="rounded-md p-1.5 text-ink-soft hover:bg-clay hover:text-ink-soft"
-        title="Actions"
+        title={t.more}
       >
         <MoreVertical className="h-4 w-4" />
       </button>
@@ -92,7 +93,7 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
             }}
             className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-clay"
           >
-            Réinitialiser le processus
+            {t.reset}
           </button>
           <button
             type="button"
@@ -102,7 +103,7 @@ export default function RouterRowActions({ routerId }: { routerId: string }) {
             }}
             className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
           >
-            Supprimer le routeur
+            {t.remove}
           </button>
         </div>
       )}

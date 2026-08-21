@@ -7,7 +7,8 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import BlogAd from "@/components/analytics/BlogAd";
 import { getPublishedPost } from "@/lib/blog/queries";
 import { getMarketingSettings } from "@/lib/marketing/queries";
-import { fr } from "@/lib/i18n/fr";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { localePrefix, type Locale } from "@/lib/i18n/config";
 
 export async function generateMetadata({
   params,
@@ -23,8 +24,8 @@ export async function generateMetadata({
   };
 }
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("fr-FR", {
+function formatDate(date: Date, locale: Locale) {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -51,40 +52,42 @@ function ContentBlocks({ content }: { content: string }) {
   );
 }
 
-export default async function BlogPostPage({
+export async function BlogPostPageContent({
+  locale,
   params,
 }: {
+  locale: Locale;
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
   const post = await getPublishedPost(slug);
   if (!post) notFound();
 
-  const marketing = await getMarketingSettings();
+  const [marketing, dict] = await Promise.all([getMarketingSettings(), getDictionary(locale)]);
   const showAd = Boolean(
     marketing.adsenseEnabled && marketing.adsenseClientId && marketing.adsenseSlotId,
   );
 
   return (
     <div className="theme-slate flex flex-1 flex-col">
-      <LandingNav anchorPrefix="/" nav={fr.nav} locale="fr" />
+      <LandingNav anchorPrefix={localePrefix(locale) || "/"} nav={dict.nav} locale={locale} />
       <main className="flex-1 bg-paper">
         {/* Hero article (bande anthracite) */}
         <div className="border-b border-line bg-slate-deep">
           <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
             <Link
-              href="/blog"
+              href={`${locale === "en" ? "/en" : ""}/blog`}
               className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand hover:text-white"
             >
-              ← Tous les articles
+              ← {dict.blog.allArticles}
             </Link>
             <div className="mt-6 flex flex-wrap items-center gap-2 text-xs text-slate-deep-soft">
-              <time>{formatDate(post.publishedAt ?? post.createdAt)}</time>
+              <time>{formatDate(post.publishedAt ?? post.createdAt, locale)}</time>
               {post.category && (
                 <>
                   <span aria-hidden>·</span>
                   <Link
-                    href={`/blog?sujet=${encodeURIComponent(post.category)}`}
+                    href={`${locale === "en" ? "/en" : ""}/blog?sujet=${encodeURIComponent(post.category)}`}
                     className="rounded bg-brand px-2 py-0.5 font-semibold uppercase tracking-wide text-slate-deep"
                   >
                     {post.category}
@@ -123,14 +126,22 @@ export default async function BlogPostPage({
           {showAd && (
             <div className="mt-10 border-t-2 border-line pt-6">
               <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-ink-soft">
-                Publicité
+                {dict.blog.advertising}
               </p>
               <BlogAd client={marketing.adsenseClientId!} slot={marketing.adsenseSlotId!} />
             </div>
           )}
         </article>
       </main>
-      <LandingFooter anchorPrefix="/" dict={fr} locale="fr" />
+      <LandingFooter anchorPrefix={localePrefix(locale) || "/"} dict={dict} locale={locale} />
     </div>
   );
+}
+
+export default async function BlogPostPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  return <BlogPostPageContent locale="fr" params={params} />;
 }

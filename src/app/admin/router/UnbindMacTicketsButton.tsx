@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Unlink } from "lucide-react";
 import { fixAllRoutersMacBoundTickets } from "@/lib/mikrotik/actions";
+import type { RouterDictionary } from "./RoutersTable";
 
 /**
  * Répare, sur tout le parc, les tickets épinglés à une adresse MAC.
@@ -14,7 +15,7 @@ import { fixAllRoutersMacBoundTickets } from "@/lib/mikrotik/actions";
  * relancer, et c'est voulu : on peut le rejouer après le retour d'un routeur
  * hors ligne.
  */
-export default function UnbindMacTicketsButton() {
+export default function UnbindMacTicketsButton({ t }: { t: RouterDictionary["actions"] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
@@ -33,7 +34,7 @@ export default function UnbindMacTicketsButton() {
       <button
         type="button"
         disabled={pending}
-        title="Les tickets vendus au portail étaient liés au MAC du client, qui change avec la MAC privée aléatoire des téléphones. Ce bouton les délie."
+        title={t.unbindHelp}
         onClick={() =>
           startTransition(async () => {
             setMessage(null);
@@ -45,15 +46,17 @@ export default function UnbindMacTicketsButton() {
             const parts: string[] = [];
             parts.push(
               result.unbound > 0
-                ? `${result.unbound} ticket(s) délié(s) sur ${result.repaired.join(", ")}.`
-                : `Aucun ticket épinglé sur les ${result.routersScanned} routeur(s) joignables.`,
+                ? t.unbindDone
+                    .replace("{count}", String(result.unbound))
+                    .replace("{routers}", result.repaired.join(", "))
+                : t.unbindNone.replace("{count}", String(result.routersScanned)),
             );
             if (result.skippedRoaming > 0) {
-              parts.push(`${result.skippedRoaming} compte(s) de roaming épargné(s).`);
+              parts.push(t.unbindRoamingSkipped.replace("{count}", String(result.skippedRoaming)));
             }
             if (result.unreachable.length > 0) {
               parts.push(
-                `Hors ligne, à relancer plus tard : ${result.unreachable.join(", ")}.`,
+                t.retryLater.replace("{routers}", result.unreachable.join(", ")),
               );
             }
             setMessage({
@@ -70,7 +73,7 @@ export default function UnbindMacTicketsButton() {
         ) : (
           <Unlink aria-hidden="true" className="h-4 w-4" />
         )}
-        {pending ? "Déliage..." : "Délier les tickets MAC"}
+        {pending ? t.unbinding : t.unbind}
       </button>
     </div>
   );

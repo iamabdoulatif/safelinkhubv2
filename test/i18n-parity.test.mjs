@@ -143,13 +143,70 @@ test("le sélecteur renvoie vers l'équivalent de la page, pas vers l'accueil", 
   assert.equal(switchLocalePath("/english", "fr"), "/english");
 });
 
-test("aucun lien ne pointe vers une page anglaise qui n'existe pas", async () => {
-  // Tant qu'une page n'est pas traduite, le lien doit rester sur la version
-  // française : au pire dans la mauvaise langue, jamais un 404.
+test("le sélecteur de langue ne peut pas produire de 404", async () => {
+  /* Le bug qui a atteint la production : `localeHref` vérifiait qu'une page
+     existait en anglais, `switchLocalePath` ne le faisait pas. Depuis
+     /contact, le sélecteur pointait vers /en/contact — page inexistante.
+     Les tests d'alors ne couvraient que `localeHref` ; l'un affirmait même
+     l'URL cassée comme résultat attendu.
+
+     Ici la vérité vient du DISQUE : on liste les pages réelles, et pour
+     chacune la cible du sélecteur doit exister. Ajouter une page sans la
+     traduire ne peut donc plus fabriquer de lien mort. */
+  const { readdir } = await import("node:fs/promises");
+  const { switchLocalePath } = await import("../src/lib/i18n/config.ts");
+  const appDir = new URL("../src/app/", import.meta.url);
+
+  const pages = async (base, prefixe = "") => {
+    const out = [];
+    for (const e of await readdir(base, { withFileTypes: true })) {
+      if (e.name === "page.tsx") out.push(prefixe || "/");
+      else if (e.isDirectory() && !e.name.startsWith("_") && !e.name.startsWith("(")) {
+        out.push(...(await pages(new URL(`${e.name}/`, base), `${prefixe}/${e.name}`)));
+      }
+    }
+    return out;
+  };
+
+  const toutes = await pages(appDir);
+  /* Pages PUBLIQUES seulement : /admin et /portal ne sont pas préfixés par
+     langue (le tableau de bord suit un cookie), et les segments dynamiques
+     ne se vérifient pas par présence de dossier. */
+  const publiques = toutes.filter(
+    (p) =>
+      !p.startsWith("/admin") &&
+      !p.startsWith("/portal") &&
+      !p.startsWith("/api") &&
+      !p.startsWith("/en") &&
+      !p.includes("["),
+  );
+  assert.ok(publiques.length >= 4, `trop peu de pages publiques trouvées : ${publiques.length}`);
+
+  const anglaises = new Set(toutes.filter((p) => p.startsWith("/en")));
+
+  const morts = [];
+  for (const page of publiques) {
+    const cible = switchLocalePath(page, "en");
+    if (cible === "/en") continue; // repli assumé vers l'accueil anglais
+    if (!anglaises.has(cible)) morts.push(`${page} → ${cible}`);
+  }
+  assert.deepEqual(morts, [], "le sélecteur pointe vers des pages inexistantes :\n" + morts.join("\n"));
+
+  // Sens inverse : le retour au français existe toujours, c'est la référence.
+  for (const page of anglaises) {
+    const retour = switchLocalePath(page, "fr");
+    assert.ok(toutes.includes(retour), `retour au français cassé : ${page} → ${retour}`);
+  }
+});
+
+test("les liens pointent seulement vers des pages anglaises publiées", async () => {
+  // Une route n'est préfixée que lorsqu'un wrapper anglais existe réellement.
   const { localeHref } = await import("../src/lib/i18n/config.ts");
   assert.equal(localeHref("/", "en"), "/en");
-  assert.equal(localeHref("/auth/register", "en"), "/auth/register");
-  assert.equal(localeHref("/contact", "en"), "/contact");
+  assert.equal(localeHref("/auth/register", "en"), "/en/auth/register");
+  assert.equal(localeHref("/contact", "en"), "/en/contact");
+  assert.equal(localeHref("/blog", "en"), "/en/blog");
+  assert.equal(localeHref("/support", "en"), "/support");
   // En français, rien ne bouge.
   assert.equal(localeHref("/auth/register", "fr"), "/auth/register");
 });

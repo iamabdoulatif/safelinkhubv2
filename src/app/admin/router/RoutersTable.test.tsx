@@ -7,6 +7,8 @@ import {
   SearchParamsContext,
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import RoutersTable from "./RoutersTable";
+import { adminEn } from "@/lib/i18n/admin/en";
+import { adminFr } from "@/lib/i18n/admin/fr";
 
 const router = {
   back() {},
@@ -23,7 +25,7 @@ test("la vue ciblée conserve son CTA de liaison lorsque les actions de parc son
     <AppRouterContext.Provider value={router}>
       <PathnameContext.Provider value="/admin/router">
         <SearchParamsContext.Provider value={new URLSearchParams()}>
-          <RoutersTable routers={[]} showFleetActions={false} />
+          <RoutersTable routers={[]} showFleetActions={false} t={adminFr.network.routers} locale="fr" />
         </SearchParamsContext.Provider>
       </PathnameContext.Provider>
     </AppRouterContext.Provider>,
@@ -39,7 +41,13 @@ test("la table peut utiliser un titre de second niveau sous le titre de page", (
     <AppRouterContext.Provider value={router}>
       <PathnameContext.Provider value="/admin/router">
         <SearchParamsContext.Provider value={new URLSearchParams()}>
-          <RoutersTable routers={[]} title="Mon parc SafeLinkHub" headingLevel="h2" />
+          <RoutersTable
+            routers={[]}
+            title="Mon parc SafeLinkHub"
+            headingLevel="h2"
+            t={adminFr.network.routers}
+            locale="fr"
+          />
         </SearchParamsContext.Provider>
       </PathnameContext.Provider>
     </AppRouterContext.Provider>,
@@ -47,4 +55,37 @@ test("la table peut utiliser un titre de second niveau sous le titre de page", (
 
   assert.match(markup, /<h2[^>]*>Mon parc SafeLinkHub<\/h2>/);
   assert.doesNotMatch(markup, /<h1[^>]*>Mon parc SafeLinkHub<\/h1>/);
+});
+
+test("the router table renders English controls without changing router identities", () => {
+  const markup = renderToStaticMarkup(
+    <AppRouterContext.Provider value={router}>
+      <PathnameContext.Provider value="/admin/router">
+        <SearchParamsContext.Provider value={new URLSearchParams()}>
+          <RoutersTable
+            routers={[{
+              id: "router-1",
+              name: "ABIDJAN-GUEST-01",
+              model: "hAP ax2",
+              host: "10.0.0.1",
+              apiPort: 8728,
+              status: "online",
+              cpuLoad: 18,
+              memoryUsage: "42",
+              activeUsers: 4,
+              lastSyncAtMs: Date.now(),
+              connectionMethod: "wireguard",
+            }]}
+            t={adminEn.network.routers}
+            locale="en"
+          />
+        </SearchParamsContext.Provider>
+      </PathnameContext.Provider>
+    </AppRouterContext.Provider>,
+  );
+
+  assert.match(markup, />MikroTik routers</);
+  assert.match(markup, /Search by name, IP, or identity/);
+  assert.match(markup, />Online</);
+  assert.match(markup, /ABIDJAN-GUEST-01/);
 });

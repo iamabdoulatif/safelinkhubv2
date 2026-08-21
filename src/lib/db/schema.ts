@@ -203,6 +203,10 @@ export const routers = pgTable("routers", {
   // takes visible effect once sharding is enabled (RELAY_BASE_DOMAIN set,
   // Phase 3 cutover). See lib/mikrotik/shards.ts + the relay-sharding spec.
   relayShard: text("relay_shard"),
+  // Capability read from the physical router during auto-setup. `null` is an
+  // older router that has not been detected yet; it is intentionally distinct
+  // from `false`, which means RouterOS Container is impossible on this board.
+  supportsContainers: boolean("supports_containers"),
   // "Bypass IPv6": when true, the router routes its hotspot clients' Internet
   // traffic into the existing SafeLinkHub WireGuard tunnel so it exits via the
   // VPS-relay's public IPv4 (exit-node / full-tunnel mode for FAI IPv6/CGNAT/
@@ -778,6 +782,26 @@ export const routerPortForwards = pgTable("router_port_forwards", {
   billingPeriod: text("billing_period").notNull().default("monthly"), // "monthly" | "quarterly" | "semiannual" | "yearly" (1/3/6/12 months — see BillingPeriod in port-forward.ts)
   expiresAt: timestamp("expires_at"),
 });
+
+/** A MikHmon instance hosted by the SafeLinkHub relay for a router that
+ * cannot run RouterOS Container locally (RB951, hEX, wAP legacy, ...). */
+export const routerMikhmonCloudInstances = pgTable(
+  "router_mikhmon_cloud_instances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    routerId: uuid("router_id")
+      .notNull()
+      .unique()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull().unique(),
+    containerName: text("container_name").notNull().unique(),
+    localPort: integer("local_port").notNull().unique(),
+    status: text("status").notNull().default("active"), // active | stopped | failed
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("router_mikhmon_cloud_instances_status_idx").on(t.status)],
+);
 
 // Remplacement contrôlé d'un routeur endommagé : le nouveau tunnel reçoit une
 // clé distincte, puis les accès déjà payés sont déplacés après connexion.

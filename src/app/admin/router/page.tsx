@@ -12,6 +12,9 @@ import {
   parseRouterPortfolioScope,
   resolveRouterPortfolioView,
 } from "./router-portfolio";
+import { getAdminDict } from "@/lib/i18n/admin";
+import { getLocale } from "@/lib/i18n/server";
+import type { RouterDictionary } from "./RoutersTable";
 
 type RouterPageProps = {
   searchParams: Promise<{ scope?: string; org?: string }>;
@@ -40,22 +43,27 @@ function toRouterRows(rows: RouterTableSource[]): RouterRow[] {
   }));
 }
 
-function RouterPageHeader() {
+function RouterPageHeader({ t }: { t: RouterDictionary["page"] }) {
   return (
     <header>
       <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
-        Routeurs MikroTik
+        {t.title}
       </h1>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">
-        Supervisez l’état et la synchronisation de vos parcs MikroTik.
+        {t.description}
       </p>
     </header>
   );
 }
 
 export default async function RouterDashboardPage({ searchParams }: RouterPageProps) {
-  const params = await searchParams;
-  const session = await getSession();
+  const [params, session, locale, dict] = await Promise.all([
+    searchParams,
+    getSession(),
+    getLocale(),
+    getAdminDict(),
+  ]);
+  const t = dict.network.routers;
   const db = getDb();
 
   if (session) {
@@ -75,13 +83,15 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
 
     return (
       <div className="animate-fade-in-up">
-        <RouterPageHeader />
+        <RouterPageHeader t={t.page} />
         <div className="mt-8">
           <RoutersTable
             routers={toRouterRows(ownRouterRows)}
-            title="Mon parc SafeLinkHub"
-            description="Gestion, synchronisation et provisionnement de vos MikroTik."
+            title={t.page.ownFleet}
+            description={t.page.fleetDescription}
             headingLevel="h2"
+            t={t}
+            locale={locale}
           />
         </div>
       </div>
@@ -126,30 +136,34 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
 
   return (
     <div className="animate-fade-in-up">
-      <RouterPageHeader />
+      <RouterPageHeader t={t.page} />
       <div className="mt-6">
-        <RouterPortfolioTabs activeScope={scope} />
+        <RouterPortfolioTabs activeScope={scope} t={t.tabs} />
       </div>
 
       <div className="mt-8">
         {view.kind === "own-fleet" ? (
           <RoutersTable
             routers={toRouterRows(routerRows.filter((router) => router.orgId === session.orgId))}
-            title="Mon parc SafeLinkHub"
-            description="Gestion, synchronisation et provisionnement de vos MikroTik."
+            title={t.page.ownFleet}
+            description={t.page.fleetDescription}
             headingLevel="h2"
+            t={t}
+            locale={locale}
           />
         ) : view.kind === "client-cards" ? (
-          <ClientPortfolioGrid clients={clients} />
+          <ClientPortfolioGrid clients={clients} t={t.clients} />
         ) : (
           <RoutersTable
             routers={toRouterRows(routerRows.filter((router) => router.orgId === view.client.id))}
-            title={`Routeurs de ${view.client.name}`}
-            description={`Parc MikroTik de ${view.client.name}.`}
+            title={t.page.clientFleet.replace("{name}", view.client.name)}
+            description={t.page.clientFleetDescription.replace("{name}", view.client.name)}
             headingLevel="h2"
             backHref="/admin/router?scope=clients"
-            backLabel="Retour aux parcs clients"
+            backLabel={t.page.backToClientFleets}
             showFleetActions={false}
+            t={t}
+            locale={locale}
           />
         )}
       </div>

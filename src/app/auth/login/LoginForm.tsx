@@ -7,17 +7,20 @@ import { Mail, Lock, AlertCircle, ShieldCheck } from "lucide-react";
 import { login, verifyMfaLogin } from "@/lib/auth/actions";
 import ResendActivationForm from "@/components/auth/ResendActivationForm";
 import { fieldClass, buttonClass, noticeClass, errorClass } from "@/components/auth/form-classes";
+import type { Locale } from "@/lib/i18n/config";
+import type { AuthDictionary } from "@/lib/i18n/auth";
 
 
 
-function MfaStep() {
+function MfaStep({ locale, t }: { locale: Locale; t: AuthDictionary["login"] }) {
   const [state, formAction, pending] = useActionState(verifyMfaLogin, undefined);
 
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
+      <input type="hidden" name="locale" value={locale} />
       <div className={noticeClass}>
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
-        <p>Entrez le code à 6 chiffres de votre application d&apos;authentification.</p>
+        <p>{t.mfaNotice}</p>
       </div>
 
       {state?.error && (
@@ -29,7 +32,7 @@ function MfaStep() {
 
       <div>
         <label className="mb-1.5 block text-sm font-bold text-ink">
-          Code de vérification
+          {t.mfaLabel}
         </label>
         <input
           type="text"
@@ -38,7 +41,7 @@ function MfaStep() {
           autoFocus
           inputMode="numeric"
           autoComplete="one-time-code"
-          placeholder="123456 ou un code de récupération"
+          placeholder={t.mfaPlaceholder}
           className="w-full border border-line bg-paper px-3 py-3 text-center text-lg tracking-widest text-ink placeholder:text-sm placeholder:tracking-normal placeholder:text-ink-soft/60 focus:outline-none focus:ring-4 focus:ring-brand/35"
         />
       </div>
@@ -48,25 +51,34 @@ function MfaStep() {
         disabled={pending}
         className={buttonClass}
       >
-        {pending ? "Vérification..." : "Vérifier"}
+        {pending ? t.mfaPending : t.mfaSubmit}
       </button>
     </form>
   );
 }
 
-export default function LoginForm() {
+export default function LoginForm({
+  locale,
+  t,
+  resend,
+}: {
+  locale: Locale;
+  t: AuthDictionary["login"];
+  resend: AuthDictionary["resend"];
+}) {
   const searchParams = useSearchParams();
   const callback = searchParams.get("callback") ?? "/admin";
   const [state, formAction, pending] = useActionState(login, undefined);
   const [email, setEmail] = useState("");
 
   if (state?.mfaRequired) {
-    return <MfaStep />;
+    return <MfaStep locale={locale} t={t} />;
   }
 
   return (
     <form action={formAction} className="mt-8 animate-fade-in-up space-y-5">
       <input type="hidden" name="callback" value={callback} />
+      <input type="hidden" name="locale" value={locale} />
 
       {state?.error && (
         <div className={errorClass}>
@@ -78,15 +90,15 @@ export default function LoginForm() {
       {state?.needsVerification && (
         <div className="space-y-3 border border-line bg-clay px-3 py-3">
           <p className="text-sm text-ink-soft">
-            Renvoyer le lien d&apos;activation à <span className="font-bold text-ink">{email}</span> ?
+            {t.resendPromptStart} <span className="font-bold text-ink">{email}</span>{t.resendPromptEnd}
           </p>
-          <ResendActivationForm defaultEmail={email} compact />
+          <ResendActivationForm locale={locale} t={resend} defaultEmail={email} compact />
         </div>
       )}
 
       <div>
         <label className="mb-1.5 block text-sm font-bold text-ink">
-          Email
+          {t.email}
         </label>
         <div className="relative">
           <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
@@ -98,7 +110,7 @@ export default function LoginForm() {
             spellCheck={false}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="jean.dupont@exemple.com"
+            placeholder={t.emailPlaceholder}
             className={fieldClass}
           />
         </div>
@@ -107,7 +119,7 @@ export default function LoginForm() {
       <div>
         <div className="mb-1.5 flex items-center justify-between">
           <label className="block text-sm font-bold text-ink">
-            Mot de passe
+            {t.password}
           </label>
         </div>
         <div className="relative">
@@ -122,10 +134,10 @@ export default function LoginForm() {
         </div>
         <div className="mt-1.5 text-right">
           <Link
-            href="/auth/mot-de-passe-oublie"
+            href={locale === "en" ? "/en/auth/mot-de-passe-oublie" : "/auth/mot-de-passe-oublie"}
             className="text-sm font-medium text-brand-deep underline underline-offset-4 hover:text-ink"
           >
-            Mot de passe oublié ?
+            {t.forgot}
           </Link>
         </div>
       </div>
@@ -135,7 +147,7 @@ export default function LoginForm() {
         disabled={pending}
         className={buttonClass}
       >
-        {pending ? "Connexion en cours..." : "Connexion"}
+        {pending ? t.pending : t.submit}
       </button>
     </form>
   );

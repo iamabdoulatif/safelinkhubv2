@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { and, eq, gt } from "drizzle-orm";
 import { getDb } from "@/lib/db";
@@ -14,6 +15,8 @@ import {
   tokenExpiry,
 } from "./tokens";
 import { sendActivationEmail, sendPasswordResetEmail } from "./email";
+import { isLocale, type Locale } from "@/lib/i18n/config";
+import { LOCALE_COOKIE, LOCALE_COOKIE_OPTIONS } from "@/lib/i18n/server";
 import { computeVpnQuotaGrant } from "@/lib/billing/vpn-quota";
 import { type AccountType } from "@/lib/billing/reseller";
 import { attachReferrer, awardReferral } from "@/lib/referrals/service";
@@ -44,12 +47,60 @@ function safeCallbackPath(callback: string) {
   return "/admin";
 }
 
+function submittedLocale(formData: FormData): Locale {
+  const value = String(formData.get("locale") ?? "");
+  return isLocale(value) ? value : "fr";
+}
+
+async function persistLocale(locale: Locale) {
+  (await cookies()).set(LOCALE_COOKIE, locale, LOCALE_COOKIE_OPTIONS);
+}
+
+function authError(locale: Locale, key: string, minutes = 0): string {
+  const fr = {
+    loginRequired: "L'email et le mot de passe sont requis.",
+    attempts: `Trop de tentatives. Réessayez dans ${minutes} minute${minutes > 1 ? "s" : ""}.`,
+    invalidCredentials: "Email ou mot de passe invalide.",
+    inactive: "Votre compte n'est pas encore activé. Vérifiez votre boîte mail ou renvoyez l'email d'activation.",
+    mfaExpired: "Session de connexion expirée, recommencez.",
+    codeRequired: "Code requis.",
+    mfaConfig: "Configuration MFA invalide, recommencez la connexion.",
+    invalidCode: "Code invalide.",
+    registerRequired: "Tous les champs sont requis.",
+    passwordShort: "Le mot de passe doit contenir au moins 8 caractères.",
+    passwordMismatch: "Les mots de passe ne correspondent pas.",
+    existing: "Un compte avec cet email existe déjà.",
+    emailRequired: "Email requis.",
+    resetInvalid: "Lien de réinitialisation invalide.",
+    resetExpired: "Ce lien de réinitialisation est invalide ou expiré. Refaites une demande.",
+  } as const;
+  const en: Record<keyof typeof fr, string> = {
+    loginRequired: "Email and password are required.",
+    attempts: `Too many attempts. Try again in ${minutes} minute${minutes > 1 ? "s" : ""}.`,
+    invalidCredentials: "Invalid email or password.",
+    inactive: "Your account is not active yet. Check your inbox or resend the activation email.",
+    mfaExpired: "Your sign-in session has expired. Please start again.",
+    codeRequired: "A verification code is required.",
+    mfaConfig: "Invalid MFA configuration. Please sign in again.",
+    invalidCode: "Invalid verification code.",
+    registerRequired: "All fields are required.",
+    passwordShort: "Your password must be at least 8 characters long.",
+    passwordMismatch: "Passwords do not match.",
+    existing: "An account already exists for this email.",
+    emailRequired: "Email is required.",
+    resetInvalid: "Invalid password reset link.",
+    resetExpired: "This password reset link is invalid or has expired. Please make another request.",
+  };
+  return (locale === "en" ? en : fr)[key as keyof typeof fr];
+}
+
 export type LoginState =
   | { error: string; mfaRequired?: undefined; needsVerification?: boolean }
   | { mfaRequired: true; error?: undefined; needsVerification?: undefined }
   | undefined;
 
 export async function login(_prevState: LoginState, formData: FormData): Promise<LoginState> {
+  const locale = submittedLocale(formData);
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
@@ -57,14 +108,14 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
   const callback = String(formData.get("callback") ?? "/admin");
 
   if (!email || !password) {
-    return { error: "L'email et le mot de passe sont requis." };
+    return { error: authError(locale, "loginRequired") };
   }
 
   const ip = await getClientIp();
   const rateLimit = await checkLoginRateLimit(email, ip);
   if (!rateLimit.allowed) {
     const minutes = Math.ceil(rateLimit.retryAfterSeconds / 60);
-    return { error: `Trop de tentatives. Réessayez dans ${minutes} minute${minutes > 1 ? "s" : ""}.` };
+    return { error: authError(locale, "attempts", minutes) };
   }
 
   const db = getDb();
@@ -76,13 +127,13 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
 
   if (!user) {
     await recordLoginAttempt(email, ip, false);
-    return { error: "Email ou mot de passe invalide." };
+    return { error: authError(locale, "invalidCredentials") };
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     await recordLoginAttempt(email, ip, false);
-    return { error: "Email ou mot de passe invalide." };
+    return { error: authError(locale, "invalidCredentials") };
   }
 
   // Password is correct — but an unverified account can't get a session yet.
@@ -91,7 +142,7 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
   if (!user.emailVerified) {
     await recordLoginAttempt(email, ip, true);
     return {
-      error: "Votre compte n'est pas encore activé. Vérifiez votre boîte mail ou renvoyez l'email d'activation.",
+      error: authError(locale, "inactive"),
       needsVerification: true,
     };
   }
@@ -112,6 +163,7 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
   }
 
   await recordLoginAttempt(email, ip, true);
+  await persistLocale(locale);
   await createSession({
     userId: user.id,
     orgId: user.orgId,
@@ -129,19 +181,20 @@ export async function verifyMfaLogin(
   _prevState: VerifyMfaState,
   formData: FormData,
 ): Promise<VerifyMfaState> {
+  const locale = submittedLocale(formData);
   const pending = await getMfaPendingToken();
   if (!pending) {
-    return { error: "Session de connexion expirée, recommencez." };
+    return { error: authError(locale, "mfaExpired") };
   }
 
   const code = String(formData.get("code") ?? "").trim();
-  if (!code) return { error: "Code requis." };
+  if (!code) return { error: authError(locale, "codeRequired") };
 
   const ip = await getClientIp();
   const rateLimit = await checkLoginRateLimit(pending.email, ip);
   if (!rateLimit.allowed) {
     const minutes = Math.ceil(rateLimit.retryAfterSeconds / 60);
-    return { error: `Trop de tentatives. Réessayez dans ${minutes} minute${minutes > 1 ? "s" : ""}.` };
+    return { error: authError(locale, "attempts", minutes) };
   }
 
   const db = getDb();
@@ -155,7 +208,7 @@ export async function verifyMfaLogin(
     .limit(1);
 
   if (!user?.mfaSecretEncrypted) {
-    return { error: "Configuration MFA invalide, recommencez la connexion." };
+    return { error: authError(locale, "mfaConfig") };
   }
 
   const totpValid = verifyTotpCode(user.mfaSecretEncrypted, code);
@@ -164,7 +217,7 @@ export async function verifyMfaLogin(
     const backupResult = await consumeBackupCode(user.mfaBackupCodesHash, code);
     if (!backupResult) {
       await recordLoginAttempt(pending.email, ip, false);
-      return { error: "Code invalide." };
+      return { error: authError(locale, "invalidCode") };
     }
     await db
       .update(users)
@@ -174,6 +227,7 @@ export async function verifyMfaLogin(
 
   await recordLoginAttempt(pending.email, ip, true);
   await clearMfaPendingToken();
+  await persistLocale(locale);
   await createSession({
     userId: pending.userId,
     orgId: pending.orgId,
@@ -186,6 +240,7 @@ export async function verifyMfaLogin(
 }
 
 export async function register(_prevState: unknown, formData: FormData) {
+  const locale = submittedLocale(formData);
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "")
     .trim()
@@ -210,13 +265,13 @@ export async function register(_prevState: unknown, formData: FormData) {
     formData.get("accountType") === "reseller" ? "reseller" : "user";
 
   if (!name || !email || !password || !confirmPassword || !country || !phoneDialCode || !phone) {
-    return { error: "Tous les champs sont requis." };
+    return { error: authError(locale, "registerRequired") };
   }
   if (password.length < 8) {
-    return { error: "Le mot de passe doit contenir au moins 8 caractères." };
+    return { error: authError(locale, "passwordShort") };
   }
   if (password !== confirmPassword) {
-    return { error: "Les mots de passe ne correspondent pas." };
+    return { error: authError(locale, "passwordMismatch") };
   }
 
   const db = getDb();
@@ -228,7 +283,7 @@ export async function register(_prevState: unknown, formData: FormData) {
     .limit(1);
 
   if (existing) {
-    return { error: "Un compte avec cet email existe déjà." };
+    return { error: authError(locale, "existing") };
   }
 
   const slugBase = name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "org";
@@ -285,10 +340,12 @@ export async function register(_prevState: unknown, formData: FormData) {
 
   // Best-effort — if the mail fails to send, the account still exists and the
   // user can trigger a resend from the activation-sent page or the login form.
-  await sendActivationEmail(user.email, user.name, token);
+  await sendActivationEmail(user.email, user.name, token, locale);
 
   // No session yet: the user must click the activation link first.
-  redirect(`/auth/activation-envoyee?email=${encodeURIComponent(user.email)}`);
+  await persistLocale(locale);
+  const prefix = locale === "en" ? "/en" : "";
+  redirect(`${prefix}/auth/activation-envoyee?email=${encodeURIComponent(user.email)}`);
 }
 
 export type ActivateAccountState = { error: string } | undefined;
@@ -362,10 +419,11 @@ export async function resendActivation(
   _prevState: ResendActivationState,
   formData: FormData,
 ): Promise<ResendActivationState> {
+  const locale = submittedLocale(formData);
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
-  if (!email) return { success: false, error: "Email requis." };
+  if (!email) return { success: false, error: authError(locale, "emailRequired") };
 
   const db = getDb();
   const [user] = await db
@@ -383,7 +441,7 @@ export async function resendActivation(
         activationTokenExpiresAt: tokenExpiry(ACTIVATION_TOKEN_TTL_MS),
       })
       .where(eq(users.id, user.id));
-    await sendActivationEmail(user.email, user.name, token);
+    await sendActivationEmail(user.email, user.name, token, locale);
   }
 
   return { success: true };
@@ -403,10 +461,11 @@ export async function requestPasswordReset(
   _prevState: RequestPasswordResetState,
   formData: FormData,
 ): Promise<RequestPasswordResetState> {
+  const locale = submittedLocale(formData);
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
-  if (!email) return { success: false, error: "Email requis." };
+  if (!email) return { success: false, error: authError(locale, "emailRequired") };
 
   const db = getDb();
   const [user] = await db
@@ -424,7 +483,7 @@ export async function requestPasswordReset(
         passwordResetTokenExpiresAt: tokenExpiry(PASSWORD_RESET_TOKEN_TTL_MS),
       })
       .where(eq(users.id, user.id));
-    await sendPasswordResetEmail(user.email, user.name, token);
+    await sendPasswordResetEmail(user.email, user.name, token, locale);
   }
 
   return { success: true };
@@ -444,16 +503,17 @@ export async function resetPassword(
   _prevState: ResetPasswordState,
   formData: FormData,
 ): Promise<ResetPasswordState> {
+  const locale = submittedLocale(formData);
   const token = String(formData.get("token") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
-  if (!token) return { success: false, error: "Lien de réinitialisation invalide." };
+  if (!token) return { success: false, error: authError(locale, "resetInvalid") };
   if (password.length < 8) {
-    return { success: false, error: "Le mot de passe doit contenir au moins 8 caractères." };
+    return { success: false, error: authError(locale, "passwordShort") };
   }
   if (password !== confirmPassword) {
-    return { success: false, error: "Les mots de passe ne correspondent pas." };
+    return { success: false, error: authError(locale, "passwordMismatch") };
   }
 
   const db = getDb();
@@ -471,7 +531,7 @@ export async function resetPassword(
   if (!user) {
     return {
       success: false,
-      error: "Ce lien de réinitialisation est invalide ou expiré. Refaites une demande.",
+      error: authError(locale, "resetExpired"),
     };
   }
 
@@ -486,6 +546,7 @@ export async function resetPassword(
     })
     .where(eq(users.id, user.id));
 
+  await persistLocale(locale);
   return { success: true };
 }
 

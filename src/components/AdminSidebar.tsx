@@ -32,10 +32,19 @@ import {
   Filter,
   Menu,
   X,
+  Languages,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import UserMenu from "./UserMenu";
 import Logo from "./landing/Logo";
+import { setLocale } from "@/lib/i18n/actions";
+import type { Locale } from "@/lib/i18n/config";
+import type { AdminDictionary } from "@/lib/i18n/admin/fr";
+
+/* La tranche `nav` traverse la frontière serveur/client : elle ne doit donc
+ * porter que des chaînes. `pendingBadge` est une fonction d'interpolation —
+ * le layout la déroule côté serveur et n'envoie que le texte fini. */
+type NavDict = Omit<AdminDictionary["nav"], "pendingBadge">;
 
 /**
  * Navigation d'administration, GROUPÉE PAR MÉTIER.
@@ -56,64 +65,68 @@ import Logo from "./landing/Logo";
  * Configuration routeur, Passerelles…) appartient aux onglets SettingsTabs —
  * pas de deuxième système de navigation concurrent dans la sidebar.
  */
-type NavLink = { href: string; label: string; icon: typeof LayoutDashboard };
-type NavSection = { title: string | null; links: NavLink[] };
+/* Les libellés ne vivent plus ici : la structure porte une CLÉ stable, le
+ * texte vient du dictionnaire. Renommer une route ne peut donc plus faire
+ * perdre sa traduction à une entrée. */
+type NavKey = keyof NavDict["links"];
+type NavLink = { href: string; key: NavKey; icon: typeof LayoutDashboard };
+type NavSection = { title: keyof NavDict["sections"] | null; links: NavLink[] };
 
 const mainSections: NavSection[] = [
   {
     title: null,
-    links: [{ href: "/admin", label: "Tableau de bord", icon: LayoutDashboard }],
+    links: [{ href: "/admin", key: "dashboard", icon: LayoutDashboard }],
   },
   {
-    title: "Réseau",
+    title: "network",
     links: [
       // Pluriel : la page liste le parc, elle n'en configure pas un seul.
-      { href: "/admin/router", label: "Routeurs", icon: Router },
-      { href: "/admin/remote-access", label: "Accès distant", icon: Wifi },
-      { href: "/admin/roaming", label: "Roaming", icon: RadioTower },
+      { href: "/admin/router", key: "routers", icon: Router },
+      { href: "/admin/remote-access", key: "remoteAccess", icon: Wifi },
+      { href: "/admin/roaming", key: "roaming", icon: RadioTower },
       // Casse officielle du produit : MikHmon.
-      { href: "/admin/mikhmon-online", label: "MikHmon Online", icon: Globe },
+      { href: "/admin/mikhmon-online", key: "mikhmon", icon: Globe },
       // Utilisateurs actifs + routeurs en ligne : de la supervision réseau,
       // pas de l'analyse commerciale (à ne pas confondre avec « Analyse
       // commerciale », côté superadmin — d'où le renommage).
-      { href: "/admin/usage-analytics", label: "Supervision", icon: BarChart2 },
+      { href: "/admin/usage-analytics", key: "supervision", icon: BarChart2 },
     ],
   },
   {
-    title: "Vente",
+    title: "sales",
     links: [
-      { href: "/admin/packages", label: "Forfaits", icon: Package },
+      { href: "/admin/packages", key: "packages", icon: Package },
       // « Vouchers » était le seul libellé anglais de la sidebar, alors que la
       // page elle-même s'intitule « Station Tickets » et compte des « tickets ».
-      { href: "/admin/vouchers", label: "Tickets", icon: Ticket },
-      { href: "/admin/agent", label: "Agents", icon: UserCog },
-      { href: "/admin/sales", label: "Ventes", icon: TrendingUp },
+      { href: "/admin/vouchers", key: "tickets", icon: Ticket },
+      { href: "/admin/agent", key: "agents", icon: UserCog },
+      { href: "/admin/sales", key: "sales", icon: TrendingUp },
       // La page est l'entonnoir des commandes du portail captif (combien
       // atteignent le checkout, combien paient). « Conversion paiement »
       // laissait croire à un réglage de moyens de paiement.
-      { href: "/admin/conversion", label: "Tunnel de conversion", icon: Filter },
+      { href: "/admin/conversion", key: "conversion", icon: Filter },
     ],
   },
   {
-    title: "Finances",
+    title: "finance",
     links: [
-      { href: "/admin/transactions", label: "Transactions", icon: ArrowLeftRight },
-      { href: "/admin/float", label: "Solde flottant", icon: Droplet },
-      { href: "/admin/expenses", label: "Dépenses", icon: Receipt },
+      { href: "/admin/transactions", key: "transactions", icon: ArrowLeftRight },
+      { href: "/admin/float", key: "float", icon: Droplet },
+      { href: "/admin/expenses", key: "expenses", icon: Receipt },
     ],
   },
   {
-    title: "Organisation",
+    title: "org",
     links: [
-      { href: "/admin/users", label: "Utilisateurs", icon: Users },
-      { href: "/admin/settings/general", label: "Paramètres", icon: Settings },
+      { href: "/admin/users", key: "users", icon: Users },
+      { href: "/admin/settings/general", key: "settings", icon: Settings },
     ],
   },
 ];
 
-const accountLinks = [
-  { href: "/admin/billing", label: "Facturation", icon: CreditCard },
-  { href: "/admin/support", label: "Support", icon: LifeBuoy },
+const accountLinks: NavLink[] = [
+  { href: "/admin/billing", key: "billing", icon: CreditCard },
+  { href: "/admin/support", key: "support", icon: LifeBuoy },
 ];
 
 /** Style d'un lien de navigation — extrait pour que les trois blocs (métier,
@@ -142,15 +155,15 @@ function SectionTitle({ children, className = "" }: { children: string; classNam
 // Réordonné : ce sur quoi on AGIT d'abord (Autorisations porte un badge de
 // demandes en attente — il était en septième position), le contenu éditorial
 // ensuite, puisqu'on s'y rend par intention et non par urgence.
-const superadminLinks = [
-  { href: "/admin/authorizations", label: "Autorisations", icon: ShieldCheck },
-  { href: "/admin/vpn-access", label: "Accès VPN clients", icon: KeyRound },
-  { href: "/admin/analytics", label: "Analyse commerciale", icon: BarChart3 },
-  { href: "/admin/safecoin", label: "Safecoin", icon: Coins },
-  { href: "/admin/contact", label: "Messages de contact", icon: Mail },
-  { href: "/admin/testimonials", label: "Témoignages", icon: Quote },
-  { href: "/admin/blog", label: "Blog", icon: Newspaper },
-  { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
+const superadminLinks: NavLink[] = [
+  { href: "/admin/authorizations", key: "authorizations", icon: ShieldCheck },
+  { href: "/admin/vpn-access", key: "vpnAccess", icon: KeyRound },
+  { href: "/admin/analytics", key: "analytics", icon: BarChart3 },
+  { href: "/admin/safecoin", key: "safecoin", icon: Coins },
+  { href: "/admin/contact", key: "contact", icon: Mail },
+  { href: "/admin/testimonials", key: "testimonials", icon: Quote },
+  { href: "/admin/blog", key: "blog", icon: Newspaper },
+  { href: "/admin/marketing", key: "marketing", icon: Megaphone },
 ];
 
 export default function AdminSidebar({
@@ -159,6 +172,10 @@ export default function AdminSidebar({
   userEmail,
   superadmin,
   pendingAuthorizations = 0,
+  pendingLabel,
+  nav,
+  language,
+  locale,
 }: {
   orgName: string;
   userName: string;
@@ -166,6 +183,11 @@ export default function AdminSidebar({
   superadmin: boolean;
   /** Nombre de demandes d'autorisation en attente (badge in-app). */
   pendingAuthorizations?: number;
+  /** Texte du badge, déjà interpolé côté serveur. */
+  pendingLabel?: string;
+  nav: NavDict;
+  language: AdminDictionary["language"];
+  locale: Locale;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -229,11 +251,11 @@ export default function AdminSidebar({
         <button
           onClick={() => setMobileOpen(true)}
           className="flex items-center justify-center border border-line p-1.5 text-ink hover:bg-clay rounded-xl"
-          aria-label="Ouvrir le menu"
+          aria-label={nav.openMenu}
         >
           <Menu className="h-4 w-4" />
         </button>
-        <Link href="/" aria-label="SafeLinkHub — retour à la landing page">
+        <Link href="/" aria-label={nav.backToLanding}>
           <Logo />
         </Link>
         <div className="w-9" />
@@ -245,7 +267,7 @@ export default function AdminSidebar({
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={closeMobile}
           role="button"
-          aria-label="Fermer le menu"
+          aria-label={nav.closeMenu}
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === "Escape") closeMobile();
@@ -265,14 +287,14 @@ export default function AdminSidebar({
           <Link
             href="/"
             onClick={closeMobile}
-            aria-label="SafeLinkHub — retour à la landing page"
+            aria-label={nav.backToLanding}
           >
             <Logo />
           </Link>
           <button
             onClick={closeMobile}
             className="border border-line p-1 text-ink hover:bg-clay lg:hidden rounded-xl"
-            aria-label="Fermer le menu"
+            aria-label={nav.closeMenu}
           >
             <X className="h-4 w-4" />
           </button>
@@ -282,7 +304,7 @@ export default function AdminSidebar({
           <Link
             href="/admin/profile#organisation"
             onClick={closeMobile}
-            title={`Voir les informations de ${orgName}`}
+            title={orgName}
             className="flex w-full items-center gap-2 px-1 py-1.5 text-sm font-semibold text-ink hover:bg-clay"
           >
             <span className="flex h-6 w-6 shrink-0 items-center justify-center bg-ink font-display text-[10px] font-bold text-paper">
@@ -296,9 +318,9 @@ export default function AdminSidebar({
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           {mainSections.map((section, index) => (
             <div key={section.title ?? "principal"} className={index > 0 ? "mt-5" : undefined}>
-              {section.title && <SectionTitle>{section.title}</SectionTitle>}
+              {section.title && <SectionTitle>{nav.sections[section.title]}</SectionTitle>}
               <ul className={section.title ? "mt-1 space-y-0.5" : "space-y-0.5"}>
-                {section.links.map(({ href, label, icon: Icon }) => (
+                {section.links.map(({ href, key, icon: Icon }) => (
                   <li key={href}>
                     <Link
                       href={href}
@@ -306,7 +328,7 @@ export default function AdminSidebar({
                       className={navLinkClass(isActive(href))}
                     >
                       <Icon className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{label}</span>
+                      <span className="truncate">{nav.links[key]}</span>
                     </Link>
                   </li>
                 ))}
@@ -314,13 +336,13 @@ export default function AdminSidebar({
             </div>
           ))}
 
-          <SectionTitle className="mt-5">Compte</SectionTitle>
+          <SectionTitle className="mt-5">{nav.sections.account}</SectionTitle>
           <ul className="mt-1 space-y-0.5">
-            {accountLinks.map(({ href, label, icon: Icon }) => (
+            {accountLinks.map(({ href, key, icon: Icon }) => (
               <li key={href}>
                 <Link href={href} onClick={closeMobile} className={navLinkClass(isActive(href))}>
                   <Icon className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{label}</span>
+                  <span className="truncate">{nav.links[key]}</span>
                 </Link>
               </li>
             ))}
@@ -328,9 +350,9 @@ export default function AdminSidebar({
 
           {superadmin && (
             <>
-              <SectionTitle className="mt-5">Superadmin</SectionTitle>
+              <SectionTitle className="mt-5">{nav.sections.superadmin}</SectionTitle>
               <ul className="mt-1 space-y-0.5">
-                {superadminLinks.map(({ href, label, icon: Icon }) => {
+                {superadminLinks.map(({ href, key, icon: Icon }) => {
                   const badge =
                     href === "/admin/authorizations" && pendingAuthorizations > 0
                       ? pendingAuthorizations
@@ -343,10 +365,14 @@ export default function AdminSidebar({
                         className={navLinkClass(isActive(href))}
                       >
                         <Icon className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate">{label}</span>
+                        <span className="truncate">{nav.links[key]}</span>
                         {badge > 0 && (
-                          <span className="ml-auto rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-slate-deep">
+                          <span
+                            title={pendingLabel}
+                            className="ml-auto rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-slate-deep"
+                          >
                             {badge}
+                            <span className="sr-only"> — {pendingLabel}</span>
                           </span>
                         )}
                       </Link>
@@ -357,6 +383,20 @@ export default function AdminSidebar({
             </>
           )}
         </nav>
+
+        {/* Sélecteur de langue — action serveur : un cookie ne peut pas être
+            posé pendant le rendu, les en-têtes sont déjà partis. */}
+        <form action={setLocale} className="border-t border-line-soft px-3 py-2">
+          <input type="hidden" name="locale" value={locale === "fr" ? "en" : "fr"} />
+          <button
+            type="submit"
+            className="flex w-full items-center gap-3 px-2.5 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-clay hover:text-ink"
+          >
+            <Languages className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{language.label}</span>
+            <span className="ml-auto font-semibold text-ink">{language.switchTo}</span>
+          </button>
+        </form>
 
         <UserMenu
           userName={userName}

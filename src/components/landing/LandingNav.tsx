@@ -71,7 +71,8 @@ export default function LandingNav({
 
   // Seules les ancres ont besoin du préfixe (retour vers la landing depuis
   // /auth, /blog, /contact…) — les vraies routes restent telles quelles.
-  const getHref = (href: string) => (href.startsWith("#") ? `${anchorPrefix}${href}` : href);
+  const getHref = (href: string) =>
+    href.startsWith("#") ? `${anchorPrefix}${href}` : localeHref(href, locale);
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper">
@@ -90,7 +91,7 @@ export default function LandingNav({
                 <span>{l.label}</span>
               </a>
             ) : (
-              <Link key={l.href} href={l.href} className="px-1 text-ink hover:text-brand-deep">
+              <Link key={l.href} href={getHref(l.href)} className="px-1 text-ink hover:text-brand-deep">
                 <span>{l.label}</span>
               </Link>
             ),
@@ -149,7 +150,7 @@ export default function LandingNav({
                     {l.label}
                   </a>
                 ) : (
-                  <Link href={l.href} onClick={() => setOpen(false)} className={mobileLinkClass}>
+                  <Link href={getHref(l.href)} onClick={() => setOpen(false)} className={mobileLinkClass}>
                     {l.label}
                   </Link>
                 )}

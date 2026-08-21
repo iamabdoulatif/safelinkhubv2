@@ -5,6 +5,8 @@ import Link from "next/link";
 import { AlertCircle, Loader2, ShieldCheck } from "lucide-react";
 import ResendActivationForm from "@/components/auth/ResendActivationForm";
 import { buttonClass, noticeClass, errorClass } from "@/components/auth/form-classes";
+import type { Locale } from "@/lib/i18n/config";
+import type { AuthDictionary } from "@/lib/i18n/auth";
 
 
 /**
@@ -23,9 +25,15 @@ import { buttonClass, noticeClass, errorClass } from "@/components/auth/form-cla
  * d'hydratation ; l'effet passe ensuite en état « en cours ».
  */
 export default function ActivateForm({
+  locale,
+  t,
+  resend,
   token,
   error,
 }: {
+  locale: Locale;
+  t: AuthDictionary["activation"];
+  resend: AuthDictionary["resend"];
   token: string;
   error?: boolean;
 }) {
@@ -50,18 +58,18 @@ export default function ActivateForm({
           <AlertCircle className="h-4 w-4 shrink-0" />
           <p>
             {token
-              ? "Ce lien d'activation est invalide ou expiré."
-              : "Lien d'activation invalide."}
+              ? t.invalidExpired
+              : t.invalid}
           </p>
         </div>
-        <p className="text-sm text-ink-soft">Renvoyez-vous un lien d&apos;activation&nbsp;:</p>
-        <ResendActivationForm />
+        <p className="text-sm text-ink-soft">{t.resendPrompt}</p>
+        <ResendActivationForm locale={locale} t={resend} />
         <p className="text-center text-sm text-ink-soft">
           <Link
-            href="/auth/login"
+            href={locale === "en" ? "/en/auth/login" : "/auth/login"}
             className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
-            Retour à la connexion
+            {t.backLogin}
           </Link>
         </p>
       </div>
@@ -77,22 +85,23 @@ export default function ActivateForm({
       className="space-y-5"
     >
       <input type="hidden" name="token" value={token} />
+      <input type="hidden" name="locale" value={locale} />
       <div className={noticeClass}>
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
         <p>
           {submitting
-            ? "Activation de votre compte en cours, merci de patienter…"
-            : "Cliquez ci-dessous pour confirmer votre adresse et activer votre compte."}
+            ? t.pending
+            : t.ready}
         </p>
       </div>
       <button type="submit" disabled={submitting} className={buttonClass}>
         {submitting ? (
           <span className="inline-flex items-center justify-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Activation en cours…
+            {t.pendingButton}
           </span>
         ) : (
-          "Activer mon compte"
+          t.submit
         )}
       </button>
     </form>

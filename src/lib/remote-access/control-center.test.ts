@@ -133,3 +133,30 @@ test("construit une projection sans identifiant ni secret et sécurise les URLs 
     },
   ]);
 });
+
+test("utilise le domaine HTTPS dédié pour MikHmon cloud", () => {
+  const [router] = buildControlCenterRouters({
+    routers: [{
+      id: "rb951",
+      name: "RB951 Korhogo",
+      status: "online",
+      lastSyncAt: null,
+      connectionMethod: "vpn",
+      tunnelIp: "10.66.0.23",
+      ipv6BypassEnabled: false,
+      relayShard: "s1",
+    }],
+    forwardsByRouter: {
+      rb951: [{ id: "cloud", service: "mikhmon", publicPort: 20_000, status: "active", expiresAt: null }],
+    },
+    cloudDomainsByRouter: { rb951: "rb951-korhogo-14174000.mikhmon.safelinkhub.io" },
+    auditsByRouter: {},
+    replacementByRouter: { rb951: null },
+    getRelayHost: () => "s1.safelinkhub.io",
+  });
+
+  assert.equal(
+    router.activeForwards[0].endpoint,
+    "https://rb951-korhogo-14174000.mikhmon.safelinkhub.io",
+  );
+});

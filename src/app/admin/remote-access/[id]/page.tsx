@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getVpnTrialStatus } from "@/lib/billing/actions";
 import { getDb } from "@/lib/db";
-import { routerPortForwards, routers } from "@/lib/db/schema";
+import { routerMikhmonCloudInstances, routerPortForwards, routers } from "@/lib/db/schema";
 import { getRelayPublicHost } from "@/lib/mikrotik/relay";
 import { getActiveRouterReplacement } from "@/lib/mikrotik/router-recovery-service";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
@@ -31,11 +31,17 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
 
   after(() => refreshStaleRouters(session.orgId));
 
-  const [forwards, vpnTrial, replacement] = await Promise.all([
+  const [forwards, cloudInstance, vpnTrial, replacement] = await Promise.all([
     db
       .select()
       .from(routerPortForwards)
       .where(and(eq(routerPortForwards.routerId, router.id), eq(routerPortForwards.status, "active"))),
+    db
+      .select({ domain: routerMikhmonCloudInstances.domain })
+      .from(routerMikhmonCloudInstances)
+      .where(and(eq(routerMikhmonCloudInstances.routerId, router.id), eq(routerMikhmonCloudInstances.status, "active")))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
     getVpnTrialStatus(),
     getActiveRouterReplacement(router.id),
   ]);
@@ -75,7 +81,12 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
             relayHost,
           },
         ]}
-        forwardsByRouter={{ [router.id]: forwards }}
+        forwardsByRouter={{
+          [router.id]: forwards.map((forward) => ({
+            ...forward,
+            cloudDomain: forward.service === "mikhmon" ? cloudInstance?.domain ?? null : null,
+          })),
+        }}
         relayHost={relayHost}
         relayBaseDomain={process.env.RELAY_BASE_DOMAIN ?? null}
         vpnTrial={vpnTrial}

@@ -59,7 +59,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
     const normalized = query.trim().toLowerCase();
     const filtered = normalized
       ? inventory.filter((row) =>
-          [row.orgName, row.orgSlug, row.routerName, row.payerName, row.payerEmail, row.publicAddress, row.accessUrl, SERVICE_LABELS[row.service]]
+          [row.orgName, row.orgSlug, row.routerName, row.payerName, row.payerEmail, row.cloudDomain, row.publicAddress, row.accessUrl, SERVICE_LABELS[row.service]]
             .filter(Boolean)
             .join(" ")
             .toLowerCase()
@@ -227,7 +227,9 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
                           <div key={service.id} className="rounded-lg border border-line bg-paper px-3 py-3">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-semibold text-ink">{SERVICE_LABELS[service.service] ?? service.service}</span>
-                              <span className="font-mono text-xs text-ink-soft">:{service.publicPort}</span>
+                              <span className="font-mono text-xs text-ink-soft">
+                                {service.cloudDomain ? "Domaine cloud" : `:${service.publicPort}`}
+                              </span>
                             </div>
                             <p className="mt-1 text-xs text-ink-soft">{PERIOD_LABELS[service.billingPeriod] ?? service.billingPeriod} · expire le {dateLabel(service.expiresAt)}</p>
                             <div className="mt-3 rounded-md bg-clay/60 px-2.5 py-2">

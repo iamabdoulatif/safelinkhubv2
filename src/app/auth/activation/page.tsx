@@ -1,46 +1,61 @@
 import Link from "next/link";
 import AuthShell from "@/components/auth/AuthShell";
 import ActivateForm from "./ActivateForm";
+import { getAuthDictionary } from "@/lib/i18n/auth";
+import { localeHref, type Locale } from "@/lib/i18n/config";
 
-export default async function ActivationPage({
+export async function ActivationPageContent({
+  locale,
   searchParams,
 }: {
+  locale: Locale;
   searchParams: Promise<{ token?: string; error?: string }>;
 }) {
   const { token, error } = await searchParams;
 
+  const auth = getAuthDictionary(locale);
+  const t = auth.activation;
   return (
     <AuthShell
-      eyebrow="Activation du compte"
+      locale={locale}
+      eyebrow={t.eyebrow}
       title={
         <>
-          Activez votre <span className="marker">compte.</span>
+          {t.titleStart}<span className="marker">{t.titleMark}</span>
         </>
       }
-      description="Confirmez votre adresse email pour débloquer l'accès à votre tableau de bord SafeLinkHub."
+      description={t.description}
       footer={
         <>
-          Besoin d&apos;aide ?{" "}
+          {t.footerStart}{" "}
           <Link
-            href="/contact"
+            href={localeHref("/contact", locale)}
             className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
-            Contactez-nous
+            {t.footerLink}
           </Link>
         </>
       }
     >
       <div>
         <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
-          Dernière étape
+          {t.section}
         </p>
         <h2 className="mt-2 font-display text-3xl font-bold text-ink">
-          Confirmer mon email
+          {t.heading}
         </h2>
         <div className="mt-6">
-          <ActivateForm token={token ?? ""} error={error === "invalid"} />
+          <ActivateForm locale={locale} t={t} resend={auth.resend} token={token ?? ""} error={error === "invalid"} />
         </div>
       </div>
     </AuthShell>
   );
+}
+
+export default async function ActivationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string; error?: string }>;
+}) {
+  return <ActivationPageContent locale="fr" searchParams={searchParams} />;
 }

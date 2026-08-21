@@ -4,8 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { refreshAllRouters } from "@/lib/mikrotik/actions";
+import type { RouterDictionary } from "./RoutersTable";
 
-export default function SyncAllButton() {
+export default function SyncAllButton({ t }: { t: RouterDictionary["actions"] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export default function SyncAllButton() {
         className="flex items-center gap-2 border border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60 rounded-xl"
       >
         <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
-        {isPending ? "Synchronisation..." : "Synchroniser"}
+        {isPending ? t.syncing : t.sync}
       </button>
     </div>
   );

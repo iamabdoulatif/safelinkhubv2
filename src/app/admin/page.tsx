@@ -7,6 +7,9 @@ import { getDb } from "@/lib/db";
 import { organizations } from "@/lib/db/schema";
 import { resellerState } from "@/lib/billing/reseller";
 import DashboardView from "./DashboardView";
+import { getAdminDict } from "@/lib/i18n/admin";
+import { getLocale } from "@/lib/i18n/server";
+import { HTML_LANG } from "@/lib/i18n/config";
 
 /* Cette page ne fait plus que CHERCHER les données et résoudre la période.
  * Tout le rendu vit dans DashboardView, qui ne connaît ni base ni session —
@@ -84,7 +87,8 @@ export default async function DashboardPage({
         .catch(() => [])
     : [];
 
-  const fmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" });
+  const [locale, adminDict] = await Promise.all([getLocale(), getAdminDict()]);
+  const fmt = new Intl.DateTimeFormat(HTML_LANG[locale], { dateStyle: "medium" });
 
   return (
     <DashboardView
@@ -100,6 +104,8 @@ export default async function DashboardPage({
       reseller={orgRow ? resellerState(orgRow) : null}
       rangeLabel={`${fmt.format(from)} – ${fmt.format(to)}`}
       picker={{ from: fromParam, to: toParamStr, activePreset }}
+      t={adminDict.dashboard}
+      locale={locale}
     />
   );
 }

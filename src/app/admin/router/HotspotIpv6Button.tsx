@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { fixFleetHotspotIpv6, scanFleetHotspotIpv6 } from "@/lib/mikrotik/actions";
+import type { RouterDictionary } from "./RoutersTable";
 
 type Scan = {
   scanned: number;
@@ -20,7 +21,7 @@ type Scan = {
  * que lire — c'est délibéré : on ne modifie pas le réseau de clients en
  * production sans avoir vu qui est réellement concerné.
  */
-export default function HotspotIpv6Button() {
+export default function HotspotIpv6Button({ t }: { t: RouterDictionary["actions"] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [scan, setScan] = useState<Scan | null>(null);
@@ -32,7 +33,7 @@ export default function HotspotIpv6Button() {
       <button
         type="button"
         disabled={pending}
-        title="Lecture seule : vérifie si des clients hotspot peuvent sortir en IPv6 sans passer par le portail."
+        title={t.ipv6ReadOnly}
         onClick={() =>
           startTransition(async () => {
             setError(null);
@@ -53,7 +54,7 @@ export default function HotspotIpv6Button() {
         ) : (
           <ShieldAlert aria-hidden="true" className="h-4 w-4" />
         )}
-        {pending ? "Analyse..." : "Vérifier la fuite IPv6"}
+        {pending ? t.ipv6Checking : t.ipv6Check}
       </button>
 
       {error && <span className="text-xs text-err">{error}</span>}
@@ -63,8 +64,10 @@ export default function HotspotIpv6Button() {
         <div className="w-full border border-line-soft bg-clay/50 p-3 text-xs rounded-lg">
           <p className="font-bold text-ink">
             {scan.leaking.length === 0
-              ? `Aucune fuite sur les ${scan.scanned} routeur(s) joignables.`
-              : `${scan.leaking.length} routeur(s) en fuite sur ${scan.scanned} analysés.`}
+              ? t.ipv6None.replace("{count}", String(scan.scanned))
+              : t.ipv6Found
+                  .replace("{count}", String(scan.leaking.length))
+                  .replace("{scanned}", String(scan.scanned))}
           </p>
           {scan.leaking.length > 0 && (
             <ul className="mt-1.5 space-y-0.5">
@@ -76,14 +79,14 @@ export default function HotspotIpv6Button() {
             </ul>
           )}
           {scan.unreachable.length > 0 && (
-            <p className="mt-1.5 text-warn">Hors ligne : {scan.unreachable.join(", ")}.</p>
+            <p className="mt-1.5 text-warn">
+              {t.ipv6Offline.replace("{routers}", scan.unreachable.join(", "))}
+            </p>
           )}
           {scan.leaking.length > 0 && (
             <>
               <p className="mt-2 text-ink-soft">
-                La correction coupe les annonces IPv6 vers les clients et jette leur trafic IPv6.
-                L&apos;IPv6 propre au routeur (management, tunnel) n&apos;est pas touchée, et les deux
-                réglages sont marqués pour être retirés d&apos;un geste.
+                {t.ipv6Explain}
               </p>
               <button
                 type="button"
@@ -98,10 +101,10 @@ export default function HotspotIpv6Button() {
                     }
                     setDone(
                       result.fixed.length === 0
-                        ? "Rien à corriger."
-                        : `Fuite fermée sur ${result.fixed.map((f) => f.router).join(", ")}.` +
+                        ? t.ipv6NothingToFix
+                        : t.ipv6Fixed.replace("{routers}", result.fixed.map((f) => f.router).join(", ")) +
                             (result.unreachable.length > 0
-                              ? ` Hors ligne, à relancer : ${result.unreachable.join(", ")}.`
+                              ? ` ${t.ipv6Retry.replace("{routers}", result.unreachable.join(", "))}`
                               : ""),
                     );
                     setScan(null);
@@ -110,7 +113,7 @@ export default function HotspotIpv6Button() {
                 }
                 className="mt-2 border border-line bg-brand px-3 py-1.5 text-xs font-bold text-slate-deep hover:opacity-90 disabled:opacity-60 rounded-full"
               >
-                Fermer la fuite sur ces {scan.leaking.length} routeur(s)
+                {t.ipv6Fix.replace("{count}", String(scan.leaking.length))}
               </button>
             </>
           )}

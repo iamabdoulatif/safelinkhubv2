@@ -63,12 +63,14 @@ export function buildControlCenterRouters({
   auditsByRouter,
   replacementByRouter,
   getRelayHost,
+  cloudDomainsByRouter = {},
 }: {
   routers: RouterProjectionSource[];
   forwardsByRouter: Record<string, ForwardProjectionSource[]>;
   auditsByRouter: Record<string, AuditProjectionSource[]>;
   replacementByRouter: Record<string, string | null>;
   getRelayHost: (relayShard: string | null) => string;
+  cloudDomainsByRouter?: Record<string, string>;
 }): RemoteAccessControlRouter[] {
   return routers.map((router) => {
     const relayHost = getRelayHost(router.relayShard);
@@ -83,13 +85,15 @@ export function buildControlCenterRouters({
       activeForwards: (forwardsByRouter[router.id] ?? [])
         .filter((forward) => forward.status === "active")
         .map((forward) => {
-          const address = relayHost ? `${relayHost}:${forward.publicPort}` : null;
+          const cloudDomain =
+            forward.service === "mikhmon" ? cloudDomainsByRouter[router.id] ?? null : null;
+          const address = cloudDomain ? cloudDomain : relayHost ? `${relayHost}:${forward.publicPort}` : null;
           return {
             id: forward.id,
             service: forward.service,
             publicPort: forward.publicPort,
             endpoint:
-              address && (forward.service === "webfig" || forward.service === "mikhmon")
+              address && (cloudDomain || forward.service === "webfig" || forward.service === "mikhmon")
                 ? `https://${address}`
                 : address,
             expiresAt: forward.expiresAt?.toISOString() ?? null,

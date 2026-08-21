@@ -4,11 +4,11 @@ import assert from "node:assert/strict";
 
 const read = (p) => readFile(new URL(`../${p}`, import.meta.url), "utf8");
 
-test("le montant s'écrit à la française : nombre puis devise", async () => {
-  // L'ancien formateur rendait « FCFA 486 500 », en désaccord avec le site
-  // public qui écrit « 486 500 FCFA ».
+test("the amount keeps number-before-currency formatting in every dashboard locale", async () => {
+  // The English dashboard shares the same FCFA currency convention: only the
+  // grouping changes with the locale; the amount remains before the currency.
   const view = await read("src/app/admin/DashboardView.tsx");
-  assert.match(view, /return `\$\{fcfa\.format\(cents\)\} FCFA`/);
+  assert.match(view, /formatFcfa: \(cents: number\) => `\$\{fcfa\.format\(cents\)\} FCFA`/);
 });
 
 test("aucune fausse légende sous le graphique", async () => {
@@ -40,8 +40,8 @@ test("les routeurs tombés sont NOMMÉS, pas seulement comptés", async () => {
   const view = await read("src/app/admin/DashboardView.tsx");
   assert.match(view, /offline\.join\(" · "\)/, "les noms doivent être affichés");
   // Et l'alerte passe AVANT les chiffres : ce qui exige une action se lit d'abord.
-  const alerte = view.indexOf("routeur{offline.length > 1");
-  const chiffre = view.indexOf("Encaissé ·");
+  const alerte = view.indexOf("{offline.length > 0 && (");
+  const chiffre = view.indexOf("{t.cashed.label(rangeLabel)}");
   assert.ok(alerte > 0 && alerte < chiffre, "l'alerte doit précéder le chiffre d'affaires");
 });
 

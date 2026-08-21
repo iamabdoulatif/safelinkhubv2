@@ -8,13 +8,14 @@ type RouterRow = { id: string; name: string; status: string };
 
 type LinkResult =
   | { error: string }
-  | { success: true; ready: false; message: string; localLink: string | null; tunnelLink: string | null }
+  | { success: true; ready: false; cloud?: boolean; message: string; localLink: string | null; tunnelLink: string | null }
   | {
       success: true;
       ready: true;
+      cloud?: boolean;
       reachable: boolean;
       link: string;
-      ddnsName: string;
+      ddnsName: string | null;
       localLink: string | null;
       tunnelLink: string | null;
       message?: string;
@@ -64,7 +65,11 @@ function RouterMikhmonCard({ router }: { router: RouterRow }) {
       {result && "success" in result && result.ready && (
         <div className="mt-2 space-y-1">
           <div>
-            <p className="text-[11px] text-ink-soft">Accès distant (Internet — ACCES DISTANT, port 8088)</p>
+            <p className="text-[11px] text-ink-soft">
+              {result.cloud
+                ? "MikHmon Online dédié (hébergé dans le cloud, sans conteneur sur le routeur)"
+                : "Accès distant (Internet — ACCES DISTANT, port 8088)"}
+            </p>
             <a
               href={result.link}
               target="_blank"

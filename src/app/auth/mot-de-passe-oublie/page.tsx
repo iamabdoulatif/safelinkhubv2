@@ -3,45 +3,53 @@ import { redirect } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
 import { getSession } from "@/lib/auth/session";
 import ForgotPasswordForm from "./ForgotPasswordForm";
+import { getAuthDictionary } from "@/lib/i18n/auth";
+import { localeHref, type Locale } from "@/lib/i18n/config";
 
-export default async function ForgotPasswordPage() {
+export async function ForgotPasswordPageContent({ locale }: { locale: Locale }) {
   // Déjà connecté → rien à réinitialiser.
   const session = await getSession();
   if (session) redirect("/admin");
 
+  const t = getAuthDictionary(locale).forgot;
   return (
     <AuthShell
-      eyebrow="Espace sécurisé"
+      locale={locale}
+      eyebrow={t.eyebrow}
       title={
         <>
-          Récupérez votre <span className="marker">accès.</span>
+          {t.titleStart}<span className="marker">{t.titleMark}</span>
         </>
       }
-      description="Saisissez l'email de votre compte : nous vous enverrons un lien pour définir un nouveau mot de passe."
+      description={t.description}
       footer={
         <>
-          Vous vous souvenez de votre mot de passe ?{" "}
+          {t.footerStart}{" "}
           <Link
-            href="/auth/login"
+            href={localeHref("/auth/login", locale)}
             className="font-bold text-brand-deep underline underline-offset-4 hover:text-ink"
           >
-            Connexion
+            {t.footerLink}
           </Link>
         </>
       }
     >
       <div>
         <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
-          Mot de passe oublié
+          {t.section}
         </p>
         <h2 className="mt-2 font-display text-3xl font-bold text-ink">
-          Réinitialiser le mot de passe
+          {t.heading}
         </h2>
         <p className="mt-2 text-sm leading-6 text-ink-soft">
-          Un lien sécurisé, valable 1&nbsp;heure, sera envoyé à votre adresse email.
+          {t.lead}
         </p>
-        <ForgotPasswordForm />
+        <ForgotPasswordForm locale={locale} t={t} />
       </div>
     </AuthShell>
   );
+}
+
+export default async function ForgotPasswordPage() {
+  return <ForgotPasswordPageContent locale="fr" />;
 }

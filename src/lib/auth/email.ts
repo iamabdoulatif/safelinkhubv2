@@ -3,6 +3,7 @@
 // must be a Resend-verified domain: mail.safelinkhub.io has sending enabled,
 // so the default From uses it. Override with RESEND_FROM.
 import { Resend } from "resend";
+import type { Locale } from "@/lib/i18n/config";
 
 const DEFAULT_FROM = "SafeLinkHub <noreply@mail.safelinkhub.io>";
 
@@ -26,59 +27,82 @@ function getFrom(): string {
 // Shared, brand-light HTML shell. Kept deliberately simple (inline styles,
 // table-free) — enough to render cleanly across mail clients without pulling
 // in a templating dependency.
-function layout(title: string, bodyHtml: string, ctaLabel: string, ctaUrl: string): string {
+function layout(
+  title: string,
+  bodyHtml: string,
+  ctaLabel: string,
+  ctaUrl: string,
+  english = false,
+): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1C1917">
     <h1 style="font-size:20px;margin:0 0 16px">${title}</h1>
     ${bodyHtml}
     <p style="margin:24px 0">
       <a href="${ctaUrl}" style="display:inline-block;background:#E0A82E;color:#1C1917;font-weight:bold;text-decoration:none;padding:12px 24px;border:2px solid #1C1917">${ctaLabel}</a>
     </p>
-    <p style="font-size:13px;color:#57534E;margin:16px 0 0">Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur&nbsp;:<br>
+    <p style="font-size:13px;color:#57534E;margin:16px 0 0">${english ? "If the button does not work, copy and paste this link into your browser:" : "Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur&nbsp;:"}<br>
       <a href="${ctaUrl}" style="color:#1C1917">${ctaUrl}</a>
     </p>
     <hr style="border:none;border-top:1px solid #E7E5E4;margin:24px 0">
-    <p style="font-size:12px;color:#78716C;margin:0">SafeLinkHub — pilotez vos routeurs, ventes et accès distants.</p>
+    <p style="font-size:12px;color:#78716C;margin:0">${english ? "SafeLinkHub — run your routers, sales and remote access." : "SafeLinkHub — pilotez vos routeurs, ventes et accès distants."}</p>
   </div>`;
 }
 
 /** Best-effort; returns false if Resend isn't configured or the send fails. */
-export async function sendActivationEmail(to: string, name: string, token: string): Promise<boolean> {
+export async function sendActivationEmail(
+  to: string,
+  name: string,
+  token: string,
+  locale: Locale = "fr",
+): Promise<boolean> {
   const resend = getResend();
   if (!resend) return false;
-  const url = `${appBaseUrl()}/auth/activation?token=${encodeURIComponent(token)}`;
+  const prefix = locale === "en" ? "/en" : "";
+  const url = `${appBaseUrl()}${prefix}/auth/activation?token=${encodeURIComponent(token)}`;
+  const english = locale === "en";
   const html = layout(
-    "Activez votre compte SafeLinkHub",
-    `<p style="font-size:15px;line-height:1.6">Bonjour ${escapeHtml(name)},</p>
-     <p style="font-size:15px;line-height:1.6">Bienvenue&nbsp;! Confirmez votre adresse email pour activer votre compte et accéder à votre tableau de bord. Ce lien expire dans 24&nbsp;heures.</p>`,
-    "Activer mon compte",
+    english ? "Activate your SafeLinkHub account" : "Activez votre compte SafeLinkHub",
+    english
+      ? `<p style="font-size:15px;line-height:1.6">Hello ${escapeHtml(name)},</p><p style="font-size:15px;line-height:1.6">Welcome! Confirm your email address to activate your account and access your dashboard. This link expires in 24 hours.</p>`
+      : `<p style="font-size:15px;line-height:1.6">Bonjour ${escapeHtml(name)},</p><p style="font-size:15px;line-height:1.6">Bienvenue&nbsp;! Confirmez votre adresse email pour activer votre compte et accéder à votre tableau de bord. Ce lien expire dans 24&nbsp;heures.</p>`,
+    english ? "Activate my account" : "Activer mon compte",
     url,
+    english,
   );
   const { error } = await resend.emails.send({
     from: getFrom(),
     to,
-    subject: "Activez votre compte SafeLinkHub",
+    subject: english ? "Activate your SafeLinkHub account" : "Activez votre compte SafeLinkHub",
     html,
   });
   return !error;
 }
 
 /** Best-effort; returns false if Resend isn't configured or the send fails. */
-export async function sendPasswordResetEmail(to: string, name: string, token: string): Promise<boolean> {
+export async function sendPasswordResetEmail(
+  to: string,
+  name: string,
+  token: string,
+  locale: Locale = "fr",
+): Promise<boolean> {
   const resend = getResend();
   if (!resend) return false;
-  const url = `${appBaseUrl()}/auth/reinitialiser?token=${encodeURIComponent(token)}`;
+  const prefix = locale === "en" ? "/en" : "";
+  const url = `${appBaseUrl()}${prefix}/auth/reinitialiser?token=${encodeURIComponent(token)}`;
+  const english = locale === "en";
   const html = layout(
-    "Réinitialisez votre mot de passe",
-    `<p style="font-size:15px;line-height:1.6">Bonjour ${escapeHtml(name)},</p>
-     <p style="font-size:15px;line-height:1.6">Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le bouton ci-dessous pour en choisir un nouveau. Ce lien expire dans 1&nbsp;heure.</p>
-     <p style="font-size:15px;line-height:1.6">Si vous n'êtes pas à l'origine de cette demande, ignorez cet email&nbsp;: votre mot de passe reste inchangé.</p>`,
-    "Choisir un nouveau mot de passe",
+    english ? "Reset your password" : "Réinitialisez votre mot de passe",
+    english
+      ? `<p style="font-size:15px;line-height:1.6">Hello ${escapeHtml(name)},</p><p style="font-size:15px;line-height:1.6">You asked to reset your password. Click below to choose a new one. This link expires in 1 hour.</p><p style="font-size:15px;line-height:1.6">If you did not make this request, ignore this email: your password remains unchanged.</p>`
+      : `<p style="font-size:15px;line-height:1.6">Bonjour ${escapeHtml(name)},</p><p style="font-size:15px;line-height:1.6">Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le bouton ci-dessous pour en choisir un nouveau. Ce lien expire dans 1&nbsp;heure.</p><p style="font-size:15px;line-height:1.6">Si vous n'êtes pas à l'origine de cette demande, ignorez cet email&nbsp;: votre mot de passe reste inchangé.</p>`,
+    english ? "Choose a new password" : "Choisir un nouveau mot de passe",
     url,
+    english,
   );
   const { error } = await resend.emails.send({
     from: getFrom(),
     to,
-    subject: "Réinitialisation de votre mot de passe SafeLinkHub",
+    subject: english ? "Reset your SafeLinkHub password" : "Réinitialisation de votre mot de passe SafeLinkHub",
     html,
   });
   return !error;

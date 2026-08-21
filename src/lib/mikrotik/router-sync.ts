@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers, routerPortForwards } from "@/lib/db/schema";
+import { routerMikhmonCloudInstances, routers, routerPortForwards } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import {
   openRouterTunnelWithRetry,
@@ -20,6 +20,7 @@ import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { repairBrokenMikhmonContainer } from "./mikhmon-flash";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { isWebAccessService } from "./remote-access-host";
+import { shouldRepairRouterMikhmon } from "./mikhmon-online-access";
 
 type RouterRow = typeof routers.$inferSelect;
 
@@ -221,21 +222,34 @@ export async function syncRouterStats(
     // skipped when a forward was first enabled because the router was
     // offline at that time. Repairs are idempotent, so they are safe to call
     // on every successful sync.
-    const activeManagedForwards = await db
-      .select({
-        service: routerPortForwards.service,
-        targetPort: routerPortForwards.targetPort,
-        publicPort: routerPortForwards.publicPort,
-      })
-      .from(routerPortForwards)
-      .where(
-        and(
-          eq(routerPortForwards.routerId, routerId),
-          eq(routerPortForwards.status, "active"),
+    const [activeManagedForwards, cloudInstances] = await Promise.all([
+      db
+        .select({
+          service: routerPortForwards.service,
+          targetPort: routerPortForwards.targetPort,
+          publicPort: routerPortForwards.publicPort,
+        })
+        .from(routerPortForwards)
+        .where(
+          and(
+            eq(routerPortForwards.routerId, routerId),
+            eq(routerPortForwards.status, "active"),
+          ),
         ),
-      )
+      db
+        .select({ id: routerMikhmonCloudInstances.id })
+        .from(routerMikhmonCloudInstances)
+        .where(
+          and(
+            eq(routerMikhmonCloudInstances.routerId, routerId),
+            eq(routerMikhmonCloudInstances.status, "active"),
+          ),
+        )
+        .limit(1),
+    ]);
+    const hasCloudMikhmon = cloudInstances.length > 0;
     const activeServices = new Set(activeManagedForwards.map((forward) => forward.service));
-    if (activeServices.has("mikhmon")) {
+    if (shouldRepairRouterMikhmon("mikhmon", hasCloudMikhmon) && activeServices.has("mikhmon")) {
       try {
         await ensureMikhmonTunnelAccess(client);
         // Un conteneur en échec d'extraction ne se répare jamais seul et
@@ -268,11 +282,14 @@ export async function syncRouterStats(
     // recorded ports (idempotent, so a no-op when still present). Gated on
     // wasOffline so an already-online router's routine refreshes don't fire an
     // SSH round-trip to the relay every time.
-    if (wasOffline && router.tunnelIp && activeManagedForwards.length > 0) {
+    const relayManagedForwards = hasCloudMikhmon
+      ? activeManagedForwards.filter((forward) => forward.service !== "mikhmon")
+      : activeManagedForwards;
+    if (wasOffline && router.tunnelIp && relayManagedForwards.length > 0) {
       try {
         await ensureRouterPortForwards(
           router.tunnelIp,
-          activeManagedForwards.map((forward) => ({
+          relayManagedForwards.map((forward) => ({
             targetPort: forward.targetPort,
             publicPort: forward.publicPort,
             tlsTerminated: isWebAccessService(forward.service),
