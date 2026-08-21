@@ -19,6 +19,7 @@ describe("vpn quota grants", () => {
         ["free_2_hours", "Gratuit 2 heures"],
         ["free_7_days", "Gratuit 7 jours"],
         ["free_10_days", "Gratuit 10 jours"],
+        ["free_30_days", "Gratuit 30 jours"],
         ["free_1_month", "Gratuit 1 mois"],
         ["free_3_months", "Gratuit 3 mois"],
         ["free_6_months", "Gratuit 6 mois"],
@@ -35,6 +36,12 @@ describe("vpn quota grants", () => {
     assert.deepEqual(computeVpnQuotaGrant("free_2_hours", NOW), {
       mode: "free_until",
       expiresAt: new Date("2026-06-28T14:00:00.000Z"),
+    });
+    // Offre d'inscription depuis le 21/08/2026 — 30 jours pleins, pas un mois
+    // calendaire : l'écart se voit en février.
+    assert.deepEqual(computeVpnQuotaGrant("free_30_days", NOW), {
+      mode: "free_until",
+      expiresAt: new Date("2026-07-28T12:00:00.000Z"),
     });
     assert.deepEqual(computeVpnQuotaGrant("free_7_days", NOW), {
       mode: "free_until",
@@ -160,8 +167,9 @@ describe("vpn quota grants", () => {
       true,
     );
 
-    // Essai de 10 jours (VPN_TRIAL_DAYS) depuis l'inscription : org créée il y
-    // a 3 jours → encore en essai, aucun débit.
+    // Org créée le 25/06/2026, donc AVANT la bascule du 21/08 : elle a droit à
+    // 10 jours (LEGACY_VPN_TRIAL_DAYS), pas 30. Créée il y a 3 jours → encore
+    // en essai, aucun débit.
     assert.equal(
       shouldChargeVpnActivation({
         isSuperAdmin: false,

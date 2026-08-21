@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import { organizations, users } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { isWithinVpnTrial, vpnTrialDaysRemaining, vpnTrialEndsAt } from "./auto-setup-pricing";
+import { isWithinVpnTrial, vpnTrialDaysFor, vpnTrialDaysRemaining, vpnTrialEndsAt } from "./auto-setup-pricing";
 import {
   computeVpnQuotaGrant,
   getVpnQuotaStatus,
@@ -44,6 +44,10 @@ export async function getVpnTrialStatus() {
       unlimited: quota.unlimited,
       quotaMode: quota.mode,
       paidOverride: quota.paidOverride,
+      // Durée de l'essai DUE à cette organisation — 30 jours depuis la bascule
+      // du 21/08/2026, 10 avant. Annoncer la durée courante à tout le monde
+      // promettrait 30 jours à des comptes qui n'en ont eu que 10.
+      totalDays: vpnTrialDaysFor(org.createdAt),
     };
   }
 
@@ -54,6 +58,7 @@ export async function getVpnTrialStatus() {
     unlimited: false as const,
     quotaMode: "default" as const,
     paidOverride: false,
+    totalDays: vpnTrialDaysFor(org.createdAt),
   };
 }
 

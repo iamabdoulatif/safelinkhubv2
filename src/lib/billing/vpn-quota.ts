@@ -1,4 +1,4 @@
-import { VPN_TRIAL_DAYS } from "./auto-setup-pricing";
+import { vpnTrialDaysFor } from "./auto-setup-pricing";
 
 export const VPN_QUOTA_MODES = ["default", "free_until", "unlimited", "paid"] as const;
 export type VpnQuotaMode = (typeof VPN_QUOTA_MODES)[number];
@@ -8,6 +8,10 @@ export const VPN_QUOTA_GRANT_OPTIONS = [
   { value: "free_2_hours", label: "Gratuit 2 heures", months: null, durationMs: 2 * 60 * 60 * 1000 },
   { value: "free_7_days", label: "Gratuit 7 jours", months: null, durationMs: 7 * 24 * 60 * 60 * 1000 },
   { value: "free_10_days", label: "Gratuit 10 jours", months: null, durationMs: 10 * 24 * 60 * 60 * 1000 },
+  // Offre d'inscription depuis le 21/08/2026. free_10_days reste dans la liste :
+  // c'est le quota déjà stocké sur les comptes antérieurs, et le superadmin doit
+  // pouvoir continuer à l'accorder à la main.
+  { value: "free_30_days", label: "Gratuit 30 jours", months: null, durationMs: 30 * 24 * 60 * 60 * 1000 },
   { value: "free_1_month", label: "Gratuit 1 mois", months: 1, durationMs: null },
   { value: "free_3_months", label: "Gratuit 3 mois", months: 3, durationMs: null },
   { value: "free_6_months", label: "Gratuit 6 mois", months: 6, durationMs: null },
@@ -142,9 +146,11 @@ export function shouldChargeVpnActivation(input: VpnChargeDecisionInput): boolea
   if (quota.paidOverride) return true;
   if (!input.orgCreatedAt) return true;
 
-  // Essai gratuit depuis l'inscription (VPN_TRIAL_DAYS = source unique,
-  // partagée avec vpnTrialEndsAt / la landing) — après, tout devient payant.
+  // Essai gratuit depuis l'inscription — la durée dépend de la DATE de
+  // création : 30 jours depuis la bascule du 21/08/2026, 10 avant. Utiliser la
+  // durée courante pour tout le monde rendrait l'accès distant gratuit, à
+  // rebours, aux organisations inscrites juste avant.
   const trialEndsAt = new Date(input.orgCreatedAt);
-  trialEndsAt.setDate(trialEndsAt.getDate() + VPN_TRIAL_DAYS);
+  trialEndsAt.setDate(trialEndsAt.getDate() + vpnTrialDaysFor(input.orgCreatedAt));
   return (input.now ?? new Date()).getTime() >= trialEndsAt.getTime();
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { vendors } from "./content";
 import { type PlatformStats } from "@/lib/landing/platform-stats";
+import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 
 const nf = new Intl.NumberFormat("fr-FR");
 
@@ -133,7 +134,9 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
           </form>
 
           <p className="mt-3 text-xs text-ink-soft">
-            Plan gratuit · Aucune carte bancaire requise
+            {/* Un SEUL nœud texte : ce Next avale l'espace entre {expr} et le
+                texte adjacent au rendu serveur. Même contournement qu'ailleurs. */}
+            {`Plan gratuit · ${VPN_TRIAL_DAYS} jours d'accès distant offerts · sans carte bancaire`}
           </p>
 
           <div className="mt-6 flex justify-center">

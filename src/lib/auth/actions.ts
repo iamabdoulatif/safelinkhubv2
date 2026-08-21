@@ -241,7 +241,7 @@ export async function register(_prevState: unknown, formData: FormData) {
   // l'accès est plafonnée à la fin de l'essai, et aucun débit n'est fait
   // (shouldChargeVpnActivation renvoie false tant que le quota est gratuit).
   // Après 10 jours, le quota expire → l'accès distant redevient payant.
-  const vpnTrial = computeVpnQuotaGrant("free_10_days");
+  const vpnTrial = computeVpnQuotaGrant("free_30_days");
   const [org] = await db
     .insert(organizations)
     .values({

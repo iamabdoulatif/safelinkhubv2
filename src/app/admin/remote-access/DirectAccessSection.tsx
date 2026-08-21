@@ -733,6 +733,8 @@ export default function DirectAccessSection({
     quotaMode?: string;
     endsAt?: Date | null;
     paidOverride?: boolean;
+    /** Durée d'essai due à CETTE organisation, selon sa date d'inscription. */
+    totalDays?: number;
   } | null;
 }) {
   const eligible = routers.filter((r) => r.connectionMethod !== "direct" && r.tunnelIp);
@@ -789,8 +791,8 @@ export default function DirectAccessSection({
           : vpnTrial?.active
             ? vpnTrial.quotaMode === "free_until"
               ? "Quota superadmin actif : aucun débit pendant cette période."
-              : `${VPN_TRIAL_DAYS} premiers jours offerts dès l'inscription (essai en cours) : aucun débit pendant cette période.`
-            : `Le débit du portefeuille est actif (essai de ${VPN_TRIAL_DAYS} jours écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant.`}{" "}
+              : `${vpnTrial.totalDays ?? VPN_TRIAL_DAYS} premiers jours offerts dès l'inscription (essai en cours) : aucun débit pendant cette période.`
+            : `Le débit du portefeuille est actif (essai de ${vpnTrial?.totalDays ?? VPN_TRIAL_DAYS} jours écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant.`}{" "}
         La date de renouvellement est affichée à titre indicatif.
       </p>
 
