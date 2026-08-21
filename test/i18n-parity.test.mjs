@@ -111,7 +111,7 @@ test("les noms de marque ne sont pas traduits", async () => {
 });
 
 test("le sélecteur renvoie vers l'équivalent de la page, pas vers l'accueil", async () => {
-  const { switchLocalePath, localeHref } = await import("../src/lib/i18n/config.ts");
+  const { switchLocalePath } = await import("../src/lib/i18n/config.ts");
   assert.equal(switchLocalePath("/", "en"), "/en");
   assert.equal(switchLocalePath("/en", "fr"), "/");
   // Depuis une page interne : on reste sur la même page.

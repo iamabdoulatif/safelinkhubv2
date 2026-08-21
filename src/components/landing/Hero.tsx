@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import VendorMarquee from "./VendorMarquee";
+import { MikrotikOrbitScene } from "./MikrotikOrbitScene";
 import { type PlatformStats } from "@/lib/landing/platform-stats";
 import type { Dictionary } from "@/lib/i18n/fr";
 import { type Locale, localeHref } from "@/lib/i18n/config";
@@ -19,90 +19,9 @@ const nf = new Intl.NumberFormat("fr-FR");
  * deux faits produit vérifiables (constructeurs, opérateurs mobile money).
  * Voir lib/landing/platform-stats.ts.
  *
- * La scène reste CSS-only : sur grand écran elle présente ses faits autour du
- * routeur à gauche du contenu commercial, puis revient dans le flux sous le
- * CTA sur mobile. */
-
-function OrbitMetric({
-  label,
-  value,
-  sub,
-  countTo,
-  className,
-}: {
-  label: string;
-  value?: string;
-  sub: string;
-  /** Cible du compteur. Absent = le chiffre s'affiche tel quel. */
-  countTo?: number;
-  className: string;
-}) {
-  return (
-    <div className={`hero-orbit-orbiter ${className}`}>
-      <div className="hero-orbit-metric">
-        <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{label}</dt>
-        {value ? (
-          <dd
-            className={`mt-1 font-mono text-xl font-bold tabular-nums text-ink${countTo ? " countup" : ""}`}
-            {...(countTo ? { "data-countup": String(countTo) } : {})}
-          >
-            {value}
-          </dd>
-        ) : null}
-        <p className="mt-1 text-xs leading-5 text-ink-soft">{sub}</p>
-      </div>
-    </div>
-  );
-}
-
-function OrbitScene({ dict, stats }: { dict: Dictionary; stats: PlatformStats }) {
-  return (
-    <div className="hero-orbit-scene">
-      <div aria-hidden="true" className="hero-orbit-track" />
-      <div className="hero-orbit-router">
-        <div aria-hidden="true" className="hero-orbit-router-shadow" />
-        <Image
-          src="/mikrotik/chato.webp"
-          alt="Routeur MikroTik Chateau Pro géré dans SafeLinkHub"
-          width={1200}
-          height={1200}
-          preload
-          sizes="(min-width: 1024px) 40vw, (min-width: 640px) 30rem, 92vw"
-          className="hero-orbit-image"
-        />
-      </div>
-
-      <dl className="hero-orbit-metrics">
-        <OrbitMetric
-          label={dict.hero.cards.routers}
-          value={stats.routers > 0 ? nf.format(stats.routers) : undefined}
-          countTo={stats.routers > 0 ? stats.routers : undefined}
-          sub={dict.hero.cards.routersSub}
-          className="hero-orbit-metric-routers"
-        />
-        <OrbitMetric
-          label={dict.hero.cards.sessions}
-          value={stats.sessions > 0 ? nf.format(stats.sessions) : undefined}
-          countTo={stats.sessions > 0 ? stats.sessions : undefined}
-          sub={dict.hero.cards.sessionsSub}
-          className="hero-orbit-metric-sessions"
-        />
-        <OrbitMetric
-          label={dict.hero.cards.trial}
-          value={dict.hero.cards.trialValue(VPN_TRIAL_DAYS)}
-          sub={dict.hero.cards.trialSub}
-          className="hero-orbit-metric-trial"
-        />
-        <OrbitMetric
-          label={dict.hero.cards.mobileMoney}
-          value={String(stats.mobileMoney.length)}
-          sub={stats.mobileMoney.join(" · ")}
-          className="hero-orbit-metric-money"
-        />
-      </dl>
-    </div>
-  );
-}
+ * La scène devient un canvas Three.js décoratif et transparent sur desktop,
+ * puis revient dans le flux sous le CTA sur mobile. Les faits restent du HTML
+ * lisible au-dessus de la scène. */
 
 export default function Hero({
   dict,
@@ -171,7 +90,22 @@ export default function Hero({
             </div>
           </div>
 
-          <OrbitScene dict={dict} stats={stats} />
+          <MikrotikOrbitScene
+            routerLabel={dict.hero.cards.routers}
+            routerValue={stats.routers > 0 ? nf.format(stats.routers) : undefined}
+            routerCountTo={stats.routers > 0 ? stats.routers : undefined}
+            routerSub={dict.hero.cards.routersSub}
+            sessionLabel={dict.hero.cards.sessions}
+            sessionValue={stats.sessions > 0 ? nf.format(stats.sessions) : undefined}
+            sessionCountTo={stats.sessions > 0 ? stats.sessions : undefined}
+            sessionSub={dict.hero.cards.sessionsSub}
+            trialLabel={dict.hero.cards.trial}
+            trialValue={dict.hero.cards.trialValue(VPN_TRIAL_DAYS)}
+            trialSub={dict.hero.cards.trialSub}
+            mobileMoneyLabel={dict.hero.cards.mobileMoney}
+            mobileMoneyValue={String(stats.mobileMoney.length)}
+            mobileMoneySub={stats.mobileMoney.join(" · ")}
+          />
         </div>
       </div>
 
