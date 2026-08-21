@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { reconcileVoucherExpiries } from "@/lib/vouchers/reconcile";
 import { reconcilePortalOrders } from "@/lib/portal/reconcile";
+import { retryAllPendingRoamingBindings } from "@/lib/roaming/pending-binding-retry";
 
 export const maxDuration = 300;
 
@@ -23,11 +24,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [vouchers, portalOrders] = await Promise.all([
+    const [vouchers, portalOrders, roamingBindings] = await Promise.all([
       reconcileVoucherExpiries(),
       reconcilePortalOrders(),
+      retryAllPendingRoamingBindings(),
     ]);
-    return Response.json({ vouchers, portalOrders });
+    return Response.json({ vouchers, portalOrders, roamingBindings });
   } catch (e) {
     return Response.json(
       { error: e instanceof Error ? e.message : "reconcile failed" },
