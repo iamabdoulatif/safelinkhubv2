@@ -4,6 +4,8 @@ import {
   roamingGroupOffers,
   roamingGroupRouters,
   roamingGroups,
+  roamingDeviceBindingRouters,
+  roamingDeviceBindings,
   roamingProfiles,
   routers,
   vouchers,
@@ -20,7 +22,7 @@ export default async function RoamingPage() {
     return <p className="text-sm text-ink-soft">Connectez-vous pour gérer vos groupes roaming.</p>;
   }
 
-  const [groupRows, profileRows, offerRows, orgRouters, namedUsers] = await Promise.all([
+  const [groupRows, profileRows, offerRows, orgRouters, namedUsers, bindingRows] = await Promise.all([
     db
       .select({
         id: roamingGroups.id,
@@ -113,6 +115,24 @@ export default async function RoamingPage() {
         ),
       )
       .orderBy(asc(vouchers.username)),
+    // L'état est détaillé par zone : il reste lisible pour l'administrateur
+    // quand une liaison attend le retour d'un MikroTik.
+    db
+      .select({
+        voucherId: roamingDeviceBindings.voucherId,
+        macAddress: roamingDeviceBindings.macAddress,
+        routerId: roamingDeviceBindingRouters.routerId,
+        status: roamingDeviceBindingRouters.status,
+        lastError: roamingDeviceBindingRouters.lastError,
+        routerName: routers.name,
+      })
+      .from(roamingDeviceBindings)
+      .innerJoin(
+        roamingDeviceBindingRouters,
+        eq(roamingDeviceBindingRouters.bindingId, roamingDeviceBindings.id),
+      )
+      .leftJoin(routers, eq(roamingDeviceBindingRouters.routerId, routers.id))
+      .where(eq(roamingDeviceBindings.orgId, session.orgId)),
   ]);
 
   const groupById = new Map<
@@ -139,6 +159,34 @@ export default async function RoamingPage() {
     groupById.set(row.id, group);
   }
 
+  const deviceByVoucher = new Map<
+    string,
+    {
+      macAddress: string;
+      syncedZones: number;
+      totalZones: number;
+      pendingZones: { name: string; status: "PENDING" | "SYNCED" | "ERROR"; error: string | null }[];
+    }
+  >();
+  for (const row of bindingRows) {
+    const device = deviceByVoucher.get(row.voucherId) ?? {
+      macAddress: row.macAddress,
+      syncedZones: 0,
+      totalZones: 0,
+      pendingZones: [],
+    };
+    device.totalZones += 1;
+    if (row.status === "SYNCED") device.syncedZones += 1;
+    else {
+      device.pendingZones.push({
+        name: row.routerName ?? "Zone supprimée",
+        status: row.status,
+        error: row.lastError,
+      });
+    }
+    deviceByVoucher.set(row.voucherId, device);
+  }
+
   return (
     <RoamingConsole
       groups={[...groupById.values()]}
@@ -151,6 +199,7 @@ export default async function RoamingPage() {
       namedUsers={namedUsers.map((user) => ({
         ...user,
         createdAt: user.createdAt.toISOString(),
+        device: deviceByVoucher.get(user.id) ?? null,
       }))}
     />
   );

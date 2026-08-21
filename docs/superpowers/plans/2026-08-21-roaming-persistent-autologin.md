@@ -34,7 +34,7 @@
 - Create: `src/lib/roaming/device-binding.ts`
 - Create: `src/lib/roaming/device-binding.test.ts`
 
-- [ ] **Step 1: Write the failing helper tests**
+- [x] **Step 1: Write the failing helper tests**
 
 ```ts
 import assert from "node:assert/strict";
@@ -60,13 +60,13 @@ describe("liaison d'appareil roaming", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run: `npm test -- --test-name-pattern='liaison d.appareil roaming'`
 
 Expected: FAIL because `device-binding.ts` does not exist.
 
-- [ ] **Step 3: Add the minimal typed helpers**
+- [x] **Step 3: Add the minimal typed helpers**
 
 ```ts
 export type DeviceBindingRouterState = {
@@ -86,13 +86,13 @@ export function summarizeBindingRouters(rows: DeviceBindingRouterState[]) {
 }
 ```
 
-- [ ] **Step 4: Run the focused test and verify GREEN**
+- [x] **Step 4: Run the focused test and verify GREEN**
 
 Run: `npm test -- --test-name-pattern='liaison d.appareil roaming'`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the contract**
+- [x] **Step 5: Commit the contract**
 
 ```bash
 git add src/lib/roaming/device-binding.ts src/lib/roaming/device-binding.test.ts
@@ -105,7 +105,7 @@ git commit -m "test(roaming): define device binding contract"
 - Create: `scripts/add-roaming-device-bindings.sql`
 - Modify: `src/lib/db/schema.ts`
 
-- [ ] **Step 1: Write the migration before schema code**
+- [x] **Step 1: Write the migration before schema code**
 
 ```sql
 CREATE TABLE IF NOT EXISTS roaming_device_bindings (
@@ -136,7 +136,7 @@ CREATE INDEX IF NOT EXISTS roaming_device_bindings_org_voucher_idx ON roaming_de
 CREATE INDEX IF NOT EXISTS roaming_device_binding_routers_router_status_idx ON roaming_device_binding_routers(router_id, status);
 ```
 
-- [ ] **Step 2: Add the matching Drizzle schema**
+- [x] **Step 2: Add the matching Drizzle schema**
 
 ```ts
 export const roamingDeviceBindings = pgTable("roaming_device_bindings", {
@@ -152,13 +152,13 @@ export const roamingDeviceBindings = pgTable("roaming_device_bindings", {
 
 Define `roamingDeviceBindingRouters` with `bindingId`, `routerId`, `status`, `attempts`, `lastError`, `lastAttemptAt` and `syncedAt`, plus the same unique `(bindingId, routerId)` index as the migration.
 
-- [ ] **Step 3: Verify the migration is safe to re-run**
+- [x] **Step 3: Verify the migration is safe to re-run**
 
 Run: `rg -n "CREATE TABLE IF NOT EXISTS|CREATE INDEX IF NOT EXISTS|roaming_device_bindings" scripts/add-roaming-device-bindings.sql src/lib/db/schema.ts`
 
 Expected: every created table and index is additive, and the schema includes both tables.
 
-- [ ] **Step 4: Commit the persistence model**
+- [x] **Step 4: Commit the persistence model**
 
 ```bash
 git add scripts/add-roaming-device-bindings.sql src/lib/db/schema.ts
@@ -171,11 +171,11 @@ git commit -m "feat(roaming): persist device bindings by zone"
 - Modify: `src/lib/roaming/mac-propagate.ts`
 - Create: `src/lib/roaming/mac-propagate.test.ts`
 
-- [ ] **Step 1: Write failing propagation tests through injected seams**
+- [x] **Step 1: Write failing propagation tests through injected seams**
 
 ```ts
 test("keeps the first verified MAC and marks an unreachable zone pending", async () => {
-  const result = await reconcileRoamingDeviceBinding({ reporterRouterId: "nord", username: "latif", mac: "AA-BB-CC-DD-EE-FF" }, fakes);
+  const result = await confirmAndSyncRoamingDevice({ reporterRouterId: "nord", username: "latif", mac: "AA-BB-CC-DD-EE-FF" }, fakes);
   assert.equal(result.ok, true);
   assert.deepEqual(fakes.binding, { voucherId: "voucher-1", macAddress: "AA:BB:CC:DD:EE:FF" });
   assert.equal(fakes.zoneStates.get("nord")?.status, "SYNCED");
@@ -184,46 +184,53 @@ test("keeps the first verified MAC and marks an unreachable zone pending", async
 
 test("does not replace a remembered device after a second MAC login", async () => {
   fakes.binding = { voucherId: "voucher-1", macAddress: "AA:BB:CC:DD:EE:FF" };
-  const result = await reconcileRoamingDeviceBinding({ reporterRouterId: "nord", username: "latif", mac: "11:22:33:44:55:66" }, fakes);
+  const result = await confirmAndSyncRoamingDevice({ reporterRouterId: "nord", username: "latif", mac: "11:22:33:44:55:66" }, fakes);
   assert.deepEqual(result, { ok: false, reason: "bound-elsewhere" });
   assert.equal(fakes.routerWrites.length, 0);
 });
 ```
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run: `npm test -- --test-name-pattern='first verified MAC|second MAC login'`
 
 Expected: FAIL because the new reconciler and injected repository/client seams do not exist.
 
-- [ ] **Step 3: Extract a reusable reconciler and retain the webhook wrapper**
+- [x] **Step 3: Split first-login proof from reusable materialisation and retain the webhook wrapper**
 
 ```ts
-export async function reconcileRoamingDeviceBinding(input: {
+export async function confirmAndSyncRoamingDevice(input: {
   reporterRouterId: string;
   username: string;
   mac: string;
-  onlyRouterId?: string;
 }): Promise<PropagateResult> {
   // Verify the active RouterOS session before binding.
   // Atomically insert/read one canonical binding per voucher.
+  // Delegate the RouterOS writes to syncRoamingDeviceBinding.
+}
+
+export async function syncRoamingDeviceBinding(input: {
+  bindingId: string;
+  onlyRouterId?: string;
+}): Promise<PropagateResult> {
+  // Read the durable username, MAC, profile and expiry from the binding/voucher.
   // Upsert PENDING state for each group router.
   // Materialize each reachable zone; write SYNCED only after all RouterOS commands succeed.
   // Persist ERROR/PENDING and preserve the successful zones when one router is unavailable.
 }
 
-export const propagateRoamingMac = reconcileRoamingDeviceBinding;
+export const propagateRoamingMac = confirmAndSyncRoamingDevice;
 ```
 
-Use `onConflictDoNothing` followed by a constrained read for the binding insert. Never overwrite an existing distinct `macAddress`. Increment `attempts` and write `lastAttemptAt` for every attempted zone. Only the successfully created/updated MAC companion user may set `status: "SYNCED"` and `syncedAt`.
+Use `onConflictDoNothing` followed by a constrained read for the binding insert. Never overwrite an existing distinct `macAddress`. `confirmAndSyncRoamingDevice` is the only entry point allowed to inspect `/ip/hotspot/active`; retries call `syncRoamingDeviceBinding` from persisted data and therefore remain valid even after the client has left the original zone. Increment `attempts` and write `lastAttemptAt` for every attempted zone. Only the successfully created/updated MAC companion user may set `status: "SYNCED"` and `syncedAt`.
 
-- [ ] **Step 4: Run the propagation tests and verify GREEN**
+- [x] **Step 4: Run the propagation tests and verify GREEN**
 
 Run: `npm test -- --test-name-pattern='first verified MAC|second MAC login'`
 
 Expected: PASS. The existing `src/app/api/roaming/seen/route.ts` remains an immediate `202` response and continues to call the exported wrapper inside `after()`.
 
-- [ ] **Step 5: Commit the retryable propagation**
+- [x] **Step 5: Commit the retryable propagation**
 
 ```bash
 git add src/lib/roaming/mac-propagate.ts src/lib/roaming/mac-propagate.test.ts src/app/api/roaming/seen/route.ts
@@ -237,7 +244,7 @@ git commit -m "feat(roaming): reconcile remembered devices across zones"
 - Modify: `src/app/api/cron/voucher-expiry-sync/route.ts`
 - Create: `src/lib/roaming/pending-binding-retry.test.ts`
 
-- [ ] **Step 1: Write the failing recovery test**
+- [x] **Step 1: Write the failing recovery test**
 
 ```ts
 test("retries pending roaming bindings when a router recovers", async () => {
@@ -250,22 +257,20 @@ test("retries pending roaming bindings when a router recovers", async () => {
 });
 ```
 
-- [ ] **Step 2: Run the recovery test and verify RED**
+- [x] **Step 2: Run the recovery test and verify RED**
 
 Run: `npm test -- --test-name-pattern='router recovers'`
 
 Expected: FAIL because no pending-binding retry service exists.
 
-- [ ] **Step 3: Add the bounded retry service and call it on successful sync**
+- [x] **Step 3: Add the bounded retry service and call it on successful sync**
 
 ```ts
 export async function retryPendingRoamingBindingsForRouter(routerId: string, limit = 50) {
   const pending = await loadPendingRoamingBindings(routerId, limit);
   for (const binding of pending) {
-    await reconcileRoamingDeviceBinding({
-      reporterRouterId: routerId,
-      username: binding.username,
-      mac: binding.macAddress,
+    await syncRoamingDeviceBinding({
+      bindingId: binding.id,
       onlyRouterId: routerId,
     });
   }
@@ -274,13 +279,13 @@ export async function retryPendingRoamingBindingsForRouter(routerId: string, lim
 
 After `syncRouterStats` writes `status: "online"`, call the service only when `wasOffline` is true. Keep it best-effort so router health itself cannot fail because a single roaming account is inconsistent. In `/api/cron/voucher-expiry-sync`, invoke a bounded cross-router retry after voucher expiry reconciliation; return its count in the JSON response.
 
-- [ ] **Step 4: Run recovery and existing health-related tests**
+- [x] **Step 4: Run recovery and existing health-related tests**
 
 Run: `npm test -- --test-name-pattern='router recovers|roaming|hotspot'`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit recovery behavior**
+- [x] **Step 5: Commit recovery behavior**
 
 ```bash
 git add src/lib/roaming/pending-binding-retry.ts src/lib/roaming/pending-binding-retry.test.ts src/lib/mikrotik/router-sync.ts src/app/api/cron/voucher-expiry-sync/route.ts
@@ -295,7 +300,7 @@ git commit -m "feat(roaming): retry pending device bindings on recovery"
 - Modify: `src/lib/mikrotik/voucher-profile-provision.ts`
 - Modify: `src/lib/mikrotik/voucher-profile-provision.test.ts`
 
-- [ ] **Step 1: Write the failing RouterOS setting tests**
+- [x] **Step 1: Write the failing RouterOS setting tests**
 
 ```ts
 it("sets one-year HTTP and MAC cookies without removing login methods", async () => {
@@ -310,13 +315,13 @@ it("sets one-year HTTP and MAC cookies without removing login methods", async ()
 });
 ```
 
-- [ ] **Step 2: Run the focused RouterOS tests and verify RED**
+- [x] **Step 2: Run the focused RouterOS tests and verify RED**
 
 Run: `npm test -- --test-name-pattern='one-year HTTP and MAC cookies'`
 
 Expected: FAIL because the long lifetimes are not reconciled in this helper.
 
-- [ ] **Step 3: Implement additive profile convergence**
+- [x] **Step 3: Implement additive profile convergence**
 
 ```ts
 export const ROAMING_COOKIE_LIFETIME = "52w1d";
@@ -338,13 +343,13 @@ await client.talk([
 
 Preserve every existing `login-by` mechanism. Keep expiry scripts and expiry comments untouched: cookie lifespan must not extend a paid voucher beyond its own rule.
 
-- [ ] **Step 4: Run RouterOS setting regressions and verify GREEN**
+- [x] **Step 4: Run RouterOS setting regressions and verify GREEN**
 
 Run: `npm test -- --test-name-pattern='login-by|mac-cookie|profil.*voucher|expiration'`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the HotSpot configuration convergence**
+- [x] **Step 5: Commit the HotSpot configuration convergence**
 
 ```bash
 git add src/lib/mikrotik/hotspot-login-mode.ts src/lib/mikrotik/hotspot-login-mode.test.ts src/lib/mikrotik/voucher-profile-provision.ts src/lib/mikrotik/voucher-profile-provision.test.ts
@@ -359,7 +364,7 @@ git commit -m "fix(roaming): retain hotspot login memory for a year"
 - Modify: `src/lib/roaming/mac-propagate.test.ts`
 - Modify: `test/roaming-named-user.test.mjs`
 
-- [ ] **Step 1: Write failing action and zone tests**
+- [x] **Step 1: Write failing action and zone tests**
 
 ```js
 test("les comptes roaming proposent resynchronisation et changement d'appareil", async () => {
@@ -370,18 +375,18 @@ test("les comptes roaming proposent resynchronisation et changement d'appareil",
 
 test("une zone ajoutée reçoit la liaison MAC déjà mémorisée", async () => {
   const provision = await read("src/lib/roaming/provision.ts");
-  assert.match(provision, /reconcileRoamingDeviceBinding/);
+  assert.match(provision, /syncRoamingDeviceBinding/);
   assert.match(provision, /roamingDeviceBindingRouters/);
 });
 ```
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run: `npm test -- --test-name-pattern='resynchronisation|zone ajoutée reçoit'`
 
 Expected: FAIL because the protected actions and group-extension reconciliation do not exist.
 
-- [ ] **Step 3: Implement the protected server actions**
+- [x] **Step 3: Implement the protected server actions**
 
 ```ts
 export async function resyncRoamingDevice(_prev: unknown, formData: FormData) {
@@ -405,15 +410,15 @@ export async function replaceRoamingDevice(_prev: unknown, formData: FormData) {
 }
 ```
 
-`clearRoamingDeviceBinding` removes active sessions, companion MAC user, code MAC association and RouterOS mac-cookie entries on every reachable group zone; it only clears the database binding when every target has acknowledged removal. `extendRoamingGroup` inserts a pending per-router row for every active binding and uses the shared reconciler against the newly added router before returning success.
+`clearRoamingDeviceBinding` removes active sessions, companion MAC user, code MAC association and RouterOS mac-cookie entries on every reachable group zone; it only clears the database binding when every target has acknowledged removal. `extendRoamingGroup` inserts a pending per-router row for every active binding and uses `syncRoamingDeviceBinding` against the newly added router before returning success.
 
-- [ ] **Step 4: Run focused actions and current deletion tests**
+- [x] **Step 4: Run focused actions and current deletion tests**
 
 Run: `npm test -- --test-name-pattern='resynchronisation|zone ajoutée reçoit|suppression révoque|modifier et supprimer'`
 
 Expected: PASS; deletion still refuses to hide an account if a router has not accepted revocation.
 
-- [ ] **Step 5: Commit the account-control behavior**
+- [x] **Step 5: Commit the account-control behavior**
 
 ```bash
 git add src/lib/roaming/provision.ts src/lib/roaming/actions.ts src/lib/roaming/mac-propagate.test.ts test/roaming-named-user.test.mjs
@@ -427,7 +432,7 @@ git commit -m "feat(roaming): add device resync and replacement controls"
 - Modify: `src/app/admin/roaming/RoamingConsole.tsx`
 - Modify: `test/roaming-named-user.test.mjs`
 
-- [ ] **Step 1: Write the failing UI contract test**
+- [x] **Step 1: Write the failing UI contract test**
 
 ```js
 test("la liste de comptes affiche la mémoire et la couverture de synchronisation", async () => {
@@ -443,13 +448,13 @@ test("la liste de comptes affiche la mémoire et la couverture de synchronisatio
 });
 ```
 
-- [ ] **Step 2: Run the UI test and verify RED**
+- [x] **Step 2: Run the UI test and verify RED**
 
 Run: `npm test -- --test-name-pattern='mémoire et la couverture'`
 
 Expected: FAIL because no binding summary is loaded or rendered.
 
-- [ ] **Step 3: Load serializable per-account summaries**
+- [x] **Step 3: Load serializable per-account summaries**
 
 ```ts
 const namedUsers = await db
@@ -469,7 +474,7 @@ const namedUsers = await db
 
 Group the rows by voucher in `page.tsx`, pass `{ macAddress, syncedZones, totalZones, pendingZones }` to the client console, and keep `createdAt` serialized as an ISO string.
 
-- [ ] **Step 4: Render accessible actions beside each account**
+- [x] **Step 4: Render accessible actions beside each account**
 
 ```tsx
 <p className="text-xs text-ink-soft">
@@ -482,13 +487,13 @@ Group the rows by voucher in `page.tsx`, pass `{ macAddress, syncedZones, totalZ
 
 Put the zone names and last errors in a text list next to the count. Disable no action merely because a router is offline; the result must explain pending retry. Keep delete confirmation separate and retain `aria-live` notices for each action.
 
-- [ ] **Step 5: Run the UI contract test and verify GREEN**
+- [x] **Step 5: Run the UI contract test and verify GREEN**
 
 Run: `npm test -- --test-name-pattern='mémoire et la couverture|résultat de modifier ou supprimer'`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the operations UI**
+- [x] **Step 6: Commit the operations UI**
 
 ```bash
 git add src/app/admin/roaming/page.tsx src/app/admin/roaming/RoamingConsole.tsx test/roaming-named-user.test.mjs
@@ -501,13 +506,13 @@ git commit -m "feat(roaming): show device sync status per account"
 - Modify: `docs/superpowers/specs/2026-08-21-roaming-persistent-autologin-design.md`
 - Create: `docs/superpowers/plans/2026-08-21-roaming-persistent-autologin.md`
 
-- [ ] **Step 1: Run every repository quality gate**
+- [x] **Step 1: Run every repository quality gate**
 
 Run: `git diff --check && npm test && npm run typecheck && npm run lint && npm run build`
 
 Expected: zero failures. If a pre-existing unrelated failure occurs, report it distinctly and do not change unrelated code.
 
-- [ ] **Step 2: Inspect only the intended release files**
+- [x] **Step 2: Inspect only the intended release files**
 
 Run: `git status --short && git diff --stat HEAD && git diff --check`
 
@@ -538,4 +543,4 @@ git commit -m "feat(roaming): persist automatic inter-zone login"
 
 - **Spec coverage:** tasks 1–3 implement a unique durable binding; task 4 handles automatic recovery; task 5 aligns browser/MAC cookies while preserving expiry; task 6 covers new zones, resync and device replacement; task 7 supplies the required account-level UI; task 8 covers gates, migration and real two-zone validation.
 - **Placeholder scan:** no task relies on an unspecified function contract; all new helper names, statuses, actions and migration columns are named in the plan.
-- **Type consistency:** all paths use `PENDING | SYNCED | ERROR`, `voucherId`, `routerId`, `macAddress`, `resyncRoamingDevice`, `replaceRoamingDevice`, `reconcileRoamingDeviceBinding` and `retryPendingRoamingBindingsForRouter` consistently.
+- **Type consistency:** all paths use `PENDING | SYNCED | ERROR`, `voucherId`, `routerId`, `macAddress`, `confirmAndSyncRoamingDevice`, `syncRoamingDeviceBinding`, `resyncRoamingDevice`, `replaceRoamingDevice` and `retryPendingRoamingBindingsForRouter` consistently.

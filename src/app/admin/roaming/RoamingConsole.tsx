@@ -12,6 +12,8 @@ import {
   deleteRoamingUser,
   generateRoamingVouchers,
   revealRoamingUserPassword,
+  replaceRoamingDevice,
+  resyncRoamingDevice,
   saveRoamingOffer,
   setRoamingGroupActive,
   setRoamingOfferActive,
@@ -34,6 +36,12 @@ type NamedUser = {
   groupName: string | null;
   note: string | null;
   createdAt: string;
+  device: {
+    macAddress: string;
+    syncedZones: number;
+    totalZones: number;
+    pendingZones: { name: string; status: "PENDING" | "SYNCED" | "ERROR"; error: string | null }[];
+  } | null;
 };
 type Profile = {
   id: string;
@@ -71,6 +79,7 @@ type ActionState =
       removedOn?: number;
       added?: number;
       synchronizedAccounts?: number;
+      synchronizedOn?: number;
       skipped?: string[];
     }
   | undefined;
@@ -140,6 +149,8 @@ export default function RoamingConsole({
   const [userState, userAction, userPending] = useActionState(createRoamingUser, undefined);
   const [editState, editAction, editPending] = useActionState(updateRoamingUser, undefined);
   const [deleteState, deleteAction, deletePending] = useActionState(deleteRoamingUser, undefined);
+  const [resyncState, resyncAction, resyncPending] = useActionState(resyncRoamingDevice, undefined);
+  const [replaceDeviceState, replaceDeviceAction, replaceDevicePending] = useActionState(replaceRoamingDevice, undefined);
 
   const firstActiveGroupId = groups.find((group) => group.active)?.id ?? "";
   const [activeView, setActiveView] = useState<View>("operations");
@@ -153,6 +164,8 @@ export default function RoamingConsole({
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [replacingDeviceId, setReplacingDeviceId] = useState<string | null>(null);
+  const [deviceNoticeId, setDeviceNoticeId] = useState<string | null>(null);
   const [accountSearch, setAccountSearch] = useState("");
 
   const groupsWithHealth = useMemo(
@@ -358,7 +371,26 @@ export default function RoamingConsole({
             {visibleNamedUsers.map((user) => {
               const userOffers = offers.filter((offer) => offer.groupId === user.groupId && offer.active && offer.groupActive && offer.profileActive);
               return <li key={user.id} className="py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-mono text-sm font-bold text-ink">{user.username}</p><p className="mt-1 text-xs text-ink-soft">{[user.groupName, user.profileName, user.note].filter(Boolean).join(" · ") || "—"}</p></div><div className="flex flex-wrap items-center gap-1.5">{revealed[user.id] ? <code className="rounded bg-clay px-2 py-1.5 font-mono text-xs text-ink">{revealed[user.id]}</code> : <button type="button" onClick={async () => { const response = await revealRoamingUserPassword(user.id); const shown = ("password" in response ? response.password : response.error) ?? "indisponible"; setRevealed((previous) => ({ ...previous, [user.id]: shown })); }} className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:bg-clay"><Eye className="h-3.5 w-3.5" /> Mot de passe</button>}<button type="button" onClick={() => { setEditingId(editingId === user.id ? null : user.id); setConfirmingId(null); setRevealed((previous) => { const next = { ...previous }; delete next[user.id]; return next; }); }} aria-expanded={editingId === user.id} className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-clay"><Pencil className="h-3.5 w-3.5" /> Modifier</button>{confirmingId === user.id ? <form action={deleteAction} className="flex items-center gap-1.5"><input type="hidden" name="voucherId" value={user.id} /><button disabled={deletePending} className="rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white disabled:opacity-60">{deletePending ? "Suppression…" : "Confirmer"}</button><button type="button" onClick={() => setConfirmingId(null)} className="rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft">Annuler</button></form> : <button type="button" onClick={() => { setConfirmingId(user.id); setEditingId(null); }} className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button>}</div></div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><p className="font-mono text-sm font-bold text-ink">{user.username}</p><p className="mt-1 text-xs text-ink-soft">{[user.groupName, user.profileName, user.note].filter(Boolean).join(" · ") || "—"}</p></div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {revealed[user.id] ? <code className="rounded bg-clay px-2 py-1.5 font-mono text-xs text-ink">{revealed[user.id]}</code> : <button type="button" onClick={async () => { const response = await revealRoamingUserPassword(user.id); const shown = ("password" in response ? response.password : response.error) ?? "indisponible"; setRevealed((previous) => ({ ...previous, [user.id]: shown })); }} className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:bg-clay"><Eye className="h-3.5 w-3.5" /> Mot de passe</button>}
+                    <button type="button" onClick={() => { setEditingId(editingId === user.id ? null : user.id); setConfirmingId(null); setReplacingDeviceId(null); setRevealed((previous) => { const next = { ...previous }; delete next[user.id]; return next; }); }} aria-expanded={editingId === user.id} className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-clay"><Pencil className="h-3.5 w-3.5" /> Modifier</button>
+                    {confirmingId === user.id ? <form action={deleteAction} className="flex items-center gap-1.5"><input type="hidden" name="voucherId" value={user.id} /><button disabled={deletePending} className="rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white disabled:opacity-60">{deletePending ? "Suppression…" : "Confirmer"}</button><button type="button" onClick={() => setConfirmingId(null)} className="rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft">Annuler</button></form> : <button type="button" onClick={() => { setConfirmingId(user.id); setEditingId(null); setReplacingDeviceId(null); }} className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Supprimer</button>}
+                  </div>
+                </div>
+                <div className="mt-3 border-l border-brand bg-clay/30 px-3 py-2 text-xs leading-5 text-ink-soft">
+                  {user.device ? <>
+                    <p><strong className="text-ink">Appareil mémorisé</strong> · <code className="font-mono">{user.device.macAddress}</code> · {user.device.syncedZones}/{user.device.totalZones} zones synchronisées</p>
+                    {user.device.pendingZones.length > 0 && <p className="mt-1 text-warn">À reprendre : {user.device.pendingZones.map((zone) => zone.name).join(", ")}</p>}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <form action={resyncAction} onSubmit={() => setDeviceNoticeId(user.id)}><input type="hidden" name="voucherId" value={user.id} /><button disabled={resyncPending} className="rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-clay disabled:opacity-60">{resyncPending ? "Resynchronisation…" : "Resynchroniser"}</button></form>
+                      {replacingDeviceId === user.id ? <form action={replaceDeviceAction} onSubmit={() => setDeviceNoticeId(user.id)} className="flex flex-wrap items-center gap-1.5"><input type="hidden" name="voucherId" value={user.id} /><button disabled={replaceDevicePending} className="rounded-md bg-warn px-2.5 py-1.5 text-xs font-bold text-ink disabled:opacity-60">{replaceDevicePending ? "Réinitialisation…" : "Confirmer le changement"}</button><button type="button" onClick={() => setReplacingDeviceId(null)} className="rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs font-semibold text-ink-soft">Annuler</button></form> : <button type="button" onClick={() => { setReplacingDeviceId(user.id); setConfirmingId(null); }} className="rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-clay">Changer d’appareil</button>}
+                    </div>
+                    {replacingDeviceId === user.id && <p className="mt-2 text-ink">Les sessions et cookies de l’ancien appareil seront retirés de toutes les zones avant qu’un nouvel appareil puisse être mémorisé.</p>}
+                  </> : <p><strong className="text-ink">Aucun appareil mémorisé.</strong> La première connexion réussie l’enregistrera pour toutes les zones du groupe.</p>}
+                  {deviceNoticeId === user.id && <><Notice state={resyncState} /><Notice state={replaceDeviceState} /></>}
+                </div>
                 {confirmingId === user.id && <><p className="mt-3 border-l border-red-600 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">Le compte sera retiré de toutes les zones du groupe, la session en cours sera coupée et l’appareil auto-connecté associé sera retiré. Si une zone ne répond pas, le compte reste dans la liste jusqu’à une révocation complète.</p><Notice state={deleteState} /></>}
                 {editingId === user.id && <><form action={editAction} className="mt-3 border-l border-brand bg-clay/30 p-3"><input type="hidden" name="voucherId" value={user.id} /><div className="grid gap-3 sm:grid-cols-2"><label className={labelClass}>Identifiant<input name="username" defaultValue={user.username} maxLength={32} pattern={ROAMING_USERNAME_PATTERN} title="Lettres, chiffres, point, tiret, souligné ou arobase — 2 à 32 caractères." className={`${inputClass} font-mono`} /></label><label className={labelClass}>Mot de passe <span className="normal-case tracking-normal">(vide = inchangé)</span><input name="password" maxLength={64} placeholder="inchangé" autoComplete="off" className={`${inputClass} font-mono`} /></label></div><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className={labelClass}>Offre <span className="normal-case tracking-normal">(vide = inchangée)</span><select name="offerId" disabled={userOffers.length === 0} className={inputClass}><option value="">Inchangée — {user.profileName ?? "—"}</option>{userOffers.map((offer) => <option key={offer.id} value={offer.id}>{offer.profileName} — {money(offer.effectivePriceCents)}</option>)}</select></label><label className={labelClass}>Rôle ou note<input name="note" defaultValue={user.note ?? ""} maxLength={180} className={inputClass} /></label></div><button disabled={editPending} className="mt-3 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-paper hover:bg-brand disabled:opacity-60">{editPending ? "Modification…" : "Enregistrer"}</button>{userOffers.length === 0 && <p className="mt-2 text-xs text-ink-soft">Aucune offre active n’est disponible pour le groupe de ce compte.</p>}</form><Notice state={editState} />{editState && "skipped" in editState && (editState.skipped?.length ?? 0) > 0 && <p className="mt-2 border-l border-warn bg-clay/50 px-3 py-2 text-xs leading-5 text-ink-soft">Zones non mises à jour : <strong className="text-ink">{editState.skipped?.join(", ")}</strong> — relancez quand elles seront revenues.</p>}</>}
               </li>;

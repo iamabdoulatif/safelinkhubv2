@@ -6,6 +6,7 @@
 
 import type { RouterOSClient } from "./client";
 import { HOTSPOT_POOL_NAME } from "./constants";
+import { ROAMING_COOKIE_LIFETIME } from "./hotspot-login-mode";
 import type { VoucherProfile } from "./voucher-profiles";
 
 /**
@@ -30,6 +31,7 @@ export async function ensureVoucherProfileOnRouter(
     `=address-pool=${HOTSPOT_POOL_NAME}`,
     "=parent-queue=none",
     "=add-mac-cookie=yes",
+    `=mac-cookie-timeout=${ROAMING_COOKIE_LIFETIME}`,
   ];
   // Un profil ILLIMITÉ n'a pas d'`on-login` : c'est ce script qui planifie la
   // suppression du compte à l'échéance. Sans lui, rien n'expire — ce qui est

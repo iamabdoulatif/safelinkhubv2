@@ -202,6 +202,20 @@ export async function syncRouterStats(
       })
       .where(eq(routers.id, routerId));
 
+    // Retour en ligne : les comptes roaming qui avaient mémorisé un appareil
+    // pendant cette indisponibilité sont posés maintenant, sur la connexion API
+    // déjà ouverte. L'import dynamique évite un cycle de chargement avec le
+    // module roaming, qui utilise lui-même connectToRouter hors health-check.
+    if (wasOffline) {
+      try {
+        const { retryPendingRoamingBindingsForRouter } = await import("@/lib/roaming/pending-binding-retry");
+        await retryPendingRoamingBindingsForRouter(routerId, { currentRouterClient: client });
+      } catch {
+        // Une liaison roaming défaillante ne doit jamais rendre le health-check
+        // du routeur défaillant : elle restera en attente pour la prochaine sonde.
+      }
+    }
+
     // Re-apply tunnel-only service repairs if active forwards exist — NAT,
     // firewall allow rules, or legacy Docker bridge cleanup may have been
     // skipped when a forward was first enabled because the router was

@@ -598,6 +598,54 @@ export const voucherRouters = pgTable(
   (t) => [uniqueIndex("voucher_routers_voucher_router_idx").on(t.voucherId, t.routerId)],
 );
 
+// Liaison durable entre un compte roaming et l'UNIQUE appareil qui peut le
+// reprendre automatiquement. La base est la source de vérité inter-zones ; le
+// HotSpot ne garde que la matérialisation par routeur (voir lib/roaming).
+export const roamingDeviceBindings = pgTable(
+  "roaming_device_bindings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    voucherId: uuid("voucher_id")
+      .notNull()
+      .references(() => vouchers.id, { onDelete: "cascade" }),
+    macAddress: text("mac_address").notNull(),
+    boundAt: timestamp("bound_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (t) => [
+    uniqueIndex("roaming_device_bindings_voucher_idx").on(t.voucherId),
+    index("roaming_device_bindings_org_voucher_idx").on(t.orgId, t.voucherId),
+  ],
+);
+
+// État de matérialisation du même appareil sur chaque MikroTik. Une zone est
+// en attente après une indisponibilité et repassera à SYNCED lors de sa reprise.
+export const roamingDeviceBindingRouters = pgTable(
+  "roaming_device_binding_routers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    bindingId: uuid("binding_id")
+      .notNull()
+      .references(() => roamingDeviceBindings.id, { onDelete: "cascade" }),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("PENDING").$type<"PENDING" | "SYNCED" | "ERROR">(),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    syncedAt: timestamp("synced_at"),
+  },
+  (t) => [
+    uniqueIndex("roaming_device_binding_routers_binding_router_idx").on(t.bindingId, t.routerId),
+    index("roaming_device_binding_routers_router_status_idx").on(t.routerId, t.status),
+  ],
+);
+
 // Commande passée depuis le PORTAIL CAPTIF public (client final) : achat d'un
 // forfait WiFi payé via la passerelle GeniusPay PROPRE à l'org. À la réussite
 // du paiement, la commande est « honorée » : un vrai user hotspot lié au MAC du

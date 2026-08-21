@@ -30,9 +30,10 @@ test("les chiffres du hero viennent de la base, pas du fichier", async () => {
   assert.match(hero, /stats\.routers/);
   assert.match(hero, /stats\.sessions/);
   // Les deux volumes mesurés sont masqués si la base n'a pas répondu :
-  // « 0 routeur supervisé » serait pire que ne rien dire.
-  assert.match(hero, /stats\.routers > 0 &&/);
-  assert.match(hero, /stats\.sessions > 0 &&/);
+  // « 0 routeur supervisé » serait pire que ne rien dire, même si la plaque
+  // conserve son intitulé dans la scène MikroTik.
+  assert.match(hero, /stats\.routers > 0 \? nf\.format\(stats\.routers\) : undefined/);
+  assert.match(hero, /stats\.sessions > 0 \? nf\.format\(stats\.sessions\) : undefined/);
 });
 
 test("la requête de la landing ne touche à aucune recette", async () => {
