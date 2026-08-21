@@ -141,6 +141,7 @@ async function markBindingRouter(
 export async function syncRoamingDeviceBinding(input: {
   bindingId: string;
   onlyRouterId?: string;
+  currentRouterClient?: RouterOSClient;
 }): Promise<PropagateResult> {
   const db = getDb();
   const [binding] = await db
@@ -178,8 +179,9 @@ export async function syncRoamingDeviceBinding(input: {
   let boundOn = 0;
   for (const { router } of targets) {
     let client: RouterOSClient;
+    const usesCurrentRouterClient = Boolean(input.currentRouterClient && router.id === input.onlyRouterId);
     try {
-      client = await connectToRouter(router);
+      client = usesCurrentRouterClient ? input.currentRouterClient! : await connectToRouter(router);
     } catch (error) {
       await markBindingRouter(binding.id, router.id, "PENDING", { lastError: errorMessage(error) });
       continue;
@@ -197,7 +199,7 @@ export async function syncRoamingDeviceBinding(input: {
     } catch (error) {
       await markBindingRouter(binding.id, router.id, "ERROR", { lastError: errorMessage(error) });
     } finally {
-      client.close();
+      if (!usesCurrentRouterClient) client.close();
     }
   }
 
