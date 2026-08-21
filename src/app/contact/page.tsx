@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
 import ContactForm from "./ContactForm";
+import MapEmbed from "@/components/landing/MapEmbed";
 
 export const metadata: Metadata = {
   title: "Contact | SafeLinkHub",
@@ -57,6 +58,12 @@ export default function ContactPage() {
                 </p>
               </div>
             </aside>
+          </div>
+
+          {/* Pleine largeur : dans la colonne latérale (5/12, ~400 px) la carte
+              aurait été trop petite pour situer quoi que ce soit. */}
+          <div className="mt-8">
+            <MapEmbed />
           </div>
         </section>
       </main>
