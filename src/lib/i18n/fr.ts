@@ -45,6 +45,7 @@ export const fr = {
     microcopy: (days: number) =>
       `Plan gratuit · ${days} jours d'accès distant offerts · sans carte bancaire`,
     watch: "Voir le tableau de bord en 60 secondes",
+    routerAlt: "Routeur MikroTik Chateau Pro géré dans SafeLinkHub",
     cards: {
       routers: "Routeurs supervisés",
       routersSub: "parc total sur la plateforme",
@@ -129,6 +130,8 @@ export const fr = {
     mark: "premier encaissement",
   },
   demo: {
+    fromPrice: (amount: string) => `dès ${amount} FCFA`,
+    trialValue: (days: number) => `${days} jours`,
     aria: "Démonstration produit",
     eyebrow: "Le produit",
     titleA: "Le tableau de bord qui pilote ",
@@ -222,6 +225,7 @@ export const fr = {
     subtitle:
       "Créez votre compte en deux minutes et connectez votre premier routeur aujourd'hui.",
     emailLabel: "Adresse e-mail",
+    emailPlaceholder: "vous@votre-reseau.ci",
     submit: "Créer un compte",
     address:
       "Plateforme d'automatisation Hotspot et FAI. Abidjan, Côte d'Ivoire.",
@@ -385,6 +389,123 @@ export const fr = {
         a: "Tous les accès distants passent par un tunnel de gestion chiffré, et vos données sont isolées par organisation.",
       },
     ],
+  },
+  pricing: {
+    periods: { monthly: "1 mois", quarterly: "3 mois", semiannual: "6 mois", yearly: "12 mois" },
+    services: {
+      mikhmon: "MikHmon (vouchers)",
+      webfig: "WebFig (navigateur)",
+      winbox: "WinBox",
+      ssh: "SSH / SFTP",
+    },
+    aria: "Tarifs",
+    eyebrow: "Tarifs",
+    title: "Des tarifs clairs, sans surprise.",
+    marker: "clairs",
+    lead: "Chiffres réels, importés de la configuration de facturation — pas d'astérisque, pas de « à partir de » masqué.",
+    remote: {
+      title: "Accès distant sécurisé",
+      sub: "Tunnel chiffré vers votre MikroTik, par service et par durée.",
+      note: (rate: string) =>
+        `Même tarif pour chaque service. Conversion affichée au taux 1 SC = ${rate} FCFA.`,
+    },
+    autoSetup: {
+      title: "Installation auto-setup",
+      sub: "Configuration complète du routeur en un clic.",
+      containerLabel: "Routeur Hotspot + MikHmon",
+      containerSub: "Cartes compatibles conteneur",
+      hotspotLabel: "Hotspot seul",
+      hotspotSub: "Matériel plus léger (RB951…)",
+      note: "Frais unique · liage et tunnel gratuits.",
+    },
+    trial: {
+      eyebrow: "Offert au démarrage",
+      headline: (days: number) => `${days} jours d'accès distant gratuits`,
+      perks: [
+        "WinBox, WebFig, SSH/SFTP & MikHmon inclus",
+        "Vouchers WiFi illimités",
+        "Aucune carte requise",
+      ],
+      cta: "Commencer gratuitement",
+    },
+  },
+  safecoin: {
+    aria: "Safecoin",
+    eyebrow: "Safecoin",
+    title: "Le réseau avance avec Safecoin.",
+    marker: "Safecoin",
+    lead: "Un crédit prépayé unique : vous rechargez une fois, puis vous activez accès distant et auto-setup sans repasser par un paiement.",
+    card: {
+      badge: "SFC / crédit opérateur",
+      tagline: "La monnaie interne de votre réseau.",
+      rateLabel: "Taux de référence",
+      rateNote: "Un solde prépayé, lisible et maîtrisé pour activer vos services sans jongler entre plusieurs paiements.",
+    },
+    flow: {
+      eyebrow: "Le circuit en trois gestes",
+      title: "Rechargez une fois. Gardez la main sur chaque dépense.",
+      steps: [
+        { number: "01", title: "Recharge", text: "Ajoutez des FCFA par votre passerelle de paiement." },
+        { number: "02", title: "Crédit", text: "Votre compte reçoit automatiquement ses SC." },
+        { number: "03", title: "Activation", text: "VPN et Auto-Setup débitent le bon montant." },
+      ],
+      perks: [
+        "Historique de chaque mouvement",
+        "Frais visibles avant activation",
+        "Promos gratuites hors débit",
+      ],
+    },
+    usage: {
+      title: "Repères de consommation",
+      sub: "Accès distant · par service et par période",
+      badge: "base actuelle",
+      note: "Tarif de base par service. Les frais Safecoin configurés par l’administrateur sont affichés avant chaque débit.",
+    },
+    setup: {
+      eyebrow: "Auto-Setup",
+      title: "Un budget clair pour chaque installation.",
+      hotspotOnly: "Hotspot seul",
+      withContainer: "Avec conteneur",
+      cta: "Ouvrir mon compte Safecoin",
+    },
+    disclaimer: "Safecoin est un crédit interne de SafeLinkHub, pas une cryptomonnaie. Le taux et les frais sont pilotés depuis la station de contrôle ; les quotas offerts, parrainages et récompenses restent gratuits.",
+  },
+  testimonials: {
+    aria: "Témoignages",
+    eyebrow: "Témoignages",
+    title: "Ce que disent nos utilisateurs.",
+    marker: "utilisateurs",
+    lead: "Des avis réels, soumis depuis cette page et publiés après validation.",
+    ratingLabel: (n: number) => `${n} sur 5`,
+    fallbackRole: "Utilisateur SafeLinkHub",
+    empty: {
+      title: "Soyez le premier à partager votre expérience.",
+      text: "Vous utilisez SafeLinkHub ? Racontez-nous — votre témoignage apparaîtra ici après validation.",
+    },
+    form: {
+      title: "Partagez votre témoignage",
+      lead: "Vous utilisez SafeLinkHub ? Dites-nous ce que vous en pensez.",
+      name: "Nom *",
+      role: "Rôle",
+      rolePlaceholder: "Opérateur FAI, gérant de hotspot…",
+      company: "Entreprise",
+      rating: "Note",
+      // Tableau et non fonction : ce bloc traverse la frontière serveur/client
+      // (TestimonialForm est "use client"), qui refuse les fonctions.
+      starLabels: ["1 étoile", "2 étoiles", "3 étoiles", "4 étoiles", "5 étoiles"],
+      quote: "Votre témoignage *",
+      submit: "Envoyer mon témoignage",
+      sending: "Envoi…",
+      thanksTitle: "Merci !",
+      thanksText: "Votre témoignage a bien été envoyé. Il apparaîtra ici après validation.",
+    },
+  },
+  blogTeaser: {
+    aria: "Derniers articles",
+    eyebrow: "Le blog",
+    title: "Ce que nos opérateurs apprennent sur le terrain.",
+    marker: "sur le terrain",
+    all: "Tous les articles",
   },
   backToTop: "Retour en haut",
 } as const;

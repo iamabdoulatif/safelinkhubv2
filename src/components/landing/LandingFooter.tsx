@@ -85,7 +85,7 @@ export default function LandingFooter({
                 name="email"
                 type="email"
                 autoComplete="email"
-                placeholder="vous@votre-reseau.ci"
+                placeholder={dict.footer.emailPlaceholder}
                 className="min-w-0 flex-1 rounded-full border border-slate-deep-line bg-slate-deep px-5 py-3 text-sm text-white placeholder:text-slate-deep-soft focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
               />
               <button type="submit" className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-6 py-3 text-sm">

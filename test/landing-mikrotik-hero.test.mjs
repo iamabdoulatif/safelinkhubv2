@@ -15,7 +15,10 @@ test("le hero emploie la photo réelle Chateau Pro et conserve ses faits produit
   assert.match(hero, /<MikrotikOrbitScene[\s\S]*routerValue=\{stats\.routers > 0 \? nf\.format\(stats\.routers\) : undefined\}/);
   assert.match(scene, /"use client"/);
   assert.match(scene, /src="\/mikrotik\/chato\.webp"/);
-  assert.match(scene, /alt="Routeur MikroTik Chateau Pro géré dans SafeLinkHub"/);
+  // L'alt traverse le dictionnaire : en dur, un lecteur d'écran anglophone
+  // entendrait la description en français sur /en.
+  assert.match(scene, /alt=\{routerAlt\}/);
+  assert.match(hero, /routerAlt=\{dict\.hero\.routerAlt\}/);
   assert.match(scene, /width=\{1200\}/);
   assert.match(scene, /height=\{1200\}/);
   assert.match(scene, /preload/);
@@ -24,7 +27,14 @@ test("le hero emploie la photo réelle Chateau Pro et conserve ses faits produit
   assert.match(scene, /prefers-reduced-motion: reduce/);
   // Les libellés restent côté serveur, dans les dictionnaires ; cela évite
   // d'expédier des fonctions d'interpolation dans le composant client.
-  const { fr } = await import("../src/lib/i18n/fr.ts");
+  const [{ fr }, { en }] = await Promise.all([
+    import("../src/lib/i18n/fr.ts"),
+    import("../src/lib/i18n/en.ts"),
+  ]);
+  for (const [lang, d] of [["fr", fr], ["en", en]]) {
+    assert.ok(d.hero.routerAlt.length > 0, `alt de la photo manquant : ${lang}`);
+  }
+  assert.notEqual(fr.hero.routerAlt, en.hero.routerAlt, "l'alt anglais n'est pas traduit");
   const cardProps = {
     routers: "routerLabel",
     sessions: "sessionLabel",

@@ -12,48 +12,53 @@ import {
 } from "@/lib/billing/auto-setup-pricing";
 import { DEFAULT_SC_RATE_FCFA } from "@/lib/safecoin/constants";
 import { fcfaToScCents, formatSc } from "@/lib/safecoin/pricing";
+import type { Dictionary } from "@/lib/i18n/fr";
+import { type Locale, localeHref, HTML_LANG } from "@/lib/i18n/config";
 
-const fcfa = new Intl.NumberFormat("fr-FR");
-const price = (n: number) => `${fcfa.format(n)} FCFA`;
 const safecoinPrice = (n: number) => formatSc(fcfaToScCents(n, DEFAULT_SC_RATE_FCFA));
 
 /*
  * Section Tarifs — 100 % données réelles (importées de la config de
  * facturation : remote-access-gate-config.ts + auto-setup-pricing.ts). Aucun
  * chiffre en dur : si la grille change dans le code, la landing suit.
+ *
+ * Les libellés de période et de service passent par le dictionnaire, indexés
+ * par IDENTIFIANT et non par position : réordonner la grille de facturation ne
+ * peut donc pas décaler les traductions. La config reste la source des ids et
+ * des prix ; elle ne porte plus le texte affiché, qui existe en deux langues.
  */
-export default function Pricing() {
+export default function Pricing({ dict, locale }: { dict: Dictionary; locale: Locale }) {
+  const t = dict.pricing;
+  // Le groupement des milliers suit la langue : « 4 000 » en français,
+  // « 4,000 » en anglais.
+  const fcfa = new Intl.NumberFormat(HTML_LANG[locale]);
+  const price = (n: number) => `${fcfa.format(n)} FCFA`;
+
   return (
     <section
       id="tarifs"
-      aria-label="Tarifs"
+      aria-label={t.aria}
       className="border-b border-line bg-paper py-16 sm:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <SectionIntro
-          eyebrow="Tarifs"
-          title="Des tarifs clairs, sans surprise."
-          marker="clairs"
-          lead="Chiffres réels, importés de la configuration de facturation — pas d'astérisque, pas de « à partir de » masqué."
-        />
+        <SectionIntro eyebrow={t.eyebrow} title={t.title} marker={t.marker} lead={t.lead} />
 
         <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Accès distant — grille de prix (identique pour les 4 services) */}
           <div className="slate-card slate-card-raised flex flex-col overflow-hidden bg-paper lg:col-span-7">
             <div className="border-b border-line bg-slate-deep px-5 py-4">
-              <h3 className="font-display text-xl font-bold text-white">Accès distant sécurisé</h3>
-              <p className="mt-1 text-xs text-slate-deep-soft">
-                Tunnel chiffré vers votre MikroTik, par service et par durée.
-              </p>
+              <h3 className="font-display text-xl font-bold text-white">{t.remote.title}</h3>
+              <p className="mt-1 text-xs text-slate-deep-soft">{t.remote.sub}</p>
             </div>
 
             <ul className="flex flex-wrap gap-2 border-b border-line px-5 py-4">
               {REMOTE_ACCESS_SERVICES.map((s) => (
                 <li
                   key={s.id}
+                  translate="no"
                   className="rounded-full border border-line bg-clay px-3 py-1 font-mono text-xs font-semibold text-ink"
                 >
-                  {s.label}
+                  {t.services[s.id]}
                 </li>
               ))}
             </ul>
@@ -67,7 +72,7 @@ export default function Pricing() {
                   } ${i >= 2 ? "border-t sm:border-t-0" : ""}`}
                 >
                   <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
-                    {p.label}
+                    {t.periods[p.id]}
                   </p>
                   <p className="mt-2 whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink">
                     {price(remoteAccessPriceFcfa(p.id))}
@@ -80,7 +85,7 @@ export default function Pricing() {
             </div>
 
             <p className="border-t border-line bg-clay px-5 py-3 text-xs text-ink-soft">
-              Même tarif pour chaque service. Conversion affichée au taux 1 SC = {fcfa.format(DEFAULT_SC_RATE_FCFA)} FCFA.
+              {t.remote.note(fcfa.format(DEFAULT_SC_RATE_FCFA))}
             </p>
           </div>
 
@@ -89,17 +94,15 @@ export default function Pricing() {
             <div className="slate-card slate-card-raised overflow-hidden bg-paper">
               <div className="border-b border-line bg-brand px-5 py-4">
                 <h3 className="font-display text-xl font-bold text-slate-deep">
-                  Installation auto-setup
+                  {t.autoSetup.title}
                 </h3>
-                <p className="mt-1 text-xs text-[#2C4A34]">
-                  Configuration complète du routeur en un clic.
-                </p>
+                <p className="mt-1 text-xs text-[#2C4A34]">{t.autoSetup.sub}</p>
               </div>
               <div className="grid grid-cols-1 divide-y divide-line">
                 <div className="flex items-baseline justify-between gap-3 px-5 py-4">
                   <div>
-                    <p className="text-sm font-semibold text-ink">Routeur Hotspot + MikHmon</p>
-                    <p className="text-xs text-ink-soft">Cartes compatibles conteneur</p>
+                    <p className="text-sm font-semibold text-ink">{t.autoSetup.containerLabel}</p>
+                    <p className="text-xs text-ink-soft">{t.autoSetup.containerSub}</p>
                   </div>
                   <span className="text-right">
                     <span className="block whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink">
@@ -112,8 +115,8 @@ export default function Pricing() {
                 </div>
                 <div className="flex items-baseline justify-between gap-3 px-5 py-4">
                   <div>
-                    <p className="text-sm font-semibold text-ink">Hotspot seul</p>
-                    <p className="text-xs text-ink-soft">Matériel plus léger (RB951…)</p>
+                    <p className="text-sm font-semibold text-ink">{t.autoSetup.hotspotLabel}</p>
+                    <p className="text-xs text-ink-soft">{t.autoSetup.hotspotSub}</p>
                   </div>
                   <span className="text-right">
                     <span className="block whitespace-nowrap font-mono text-lg font-bold tabular-nums text-ink">
@@ -126,35 +129,32 @@ export default function Pricing() {
                 </div>
               </div>
               <p className="border-t border-line bg-clay px-5 py-3 text-xs text-ink-soft">
-                Frais unique · liage et tunnel gratuits.
+                {t.autoSetup.note}
               </p>
             </div>
 
             <div className="rounded-2xl bg-slate-deep p-6 text-white">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-brand">
-                Offert au démarrage
+                {t.trial.eyebrow}
               </p>
-              {/* Template literal en un seul nœud texte : ce Next avale
-                  l'espace entre {expr} et le texte adjacent au SSR
-                  (« 10<!-- -->jours »), d'où « 10jours » à l'écran sinon. */}
+              {/* Un SEUL nœud texte : ce Next avale l'espace entre {expr} et le
+                  texte adjacent au SSR (« 10<!-- -->jours »). */}
               <p className="mt-2 font-display text-2xl font-bold">
-                {`${VPN_TRIAL_DAYS} jours d'accès distant gratuits`}
+                {t.trial.headline(VPN_TRIAL_DAYS)}
               </p>
               <ul className="mt-4 space-y-2 text-sm text-slate-deep-soft">
-                {["WinBox, WebFig, SSH/SFTP & MikHmon inclus", "Vouchers WiFi illimités", "Aucune carte requise"].map(
-                  (line) => (
-                    <li key={line} className="flex items-start gap-2">
-                      <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-                      {line}
-                    </li>
-                  ),
-                )}
+                {t.trial.perks.map((line) => (
+                  <li key={line} className="flex items-start gap-2">
+                    <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+                    {line}
+                  </li>
+                ))}
               </ul>
               <Link
-                href="/auth/register"
+                href={localeHref("/auth/register", locale)}
                 className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary mt-6 px-6 py-3 text-sm"
               >
-                Commencer gratuitement
+                {t.trial.cta}
               </Link>
             </div>
           </div>

@@ -67,6 +67,7 @@ export function MikrotikOrbitScene({
   mobileMoneyLabel,
   mobileMoneySub,
   mobileMoneyValue,
+  routerAlt,
   routerLabel,
   routerCountTo,
   routerSub,
@@ -82,6 +83,7 @@ export function MikrotikOrbitScene({
   mobileMoneyLabel: string;
   mobileMoneySub: string;
   mobileMoneyValue: string;
+  routerAlt: string;
   routerLabel: string;
   routerCountTo?: number;
   routerSub: string;
@@ -376,7 +378,7 @@ export function MikrotikOrbitScene({
         <div aria-hidden="true" className="hero-orbit-router-shadow" />
         <Image
           src="/mikrotik/chato.webp"
-          alt="Routeur MikroTik Chateau Pro géré dans SafeLinkHub"
+          alt={routerAlt}
           width={1200}
           height={1200}
           preload

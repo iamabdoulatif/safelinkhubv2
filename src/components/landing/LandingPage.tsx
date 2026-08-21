@@ -38,7 +38,12 @@ export default function LandingPage({
   stats: PlatformStats;
 }) {
   return (
-    <div className="theme-slate flex flex-1 flex-col">
+    /* `lang` sur le sous-arbre : le layout racine est au-dessus des routes et
+       code <html lang="fr"> en dur. C'est un attribut global, honoré par les
+       lecteurs d'écran pour tout ce qu'il contient — sans quoi la page
+       anglaise serait lue avec la prononciation française. Le correctif
+       complet (<html lang>) suppose de déplacer les routes sous app/[lang]. */
+    <div lang={locale} className="theme-slate flex flex-1 flex-col">
       <AnnounceBar dict={dict} locale={locale} />
       <LandingNav nav={dict.nav} locale={locale} />
       <main>
@@ -48,15 +53,15 @@ export default function LandingPage({
         <FeatureProvisioning dict={dict} locale={locale} />
         <FeatureMobileMoney dict={dict} />
         <ProcessSteps dict={dict} />
-        <ProductDemo dict={dict} />
+        <ProductDemo dict={dict} locale={locale} />
         <FeaturesGrid dict={dict} />
         <PlatformDark dict={dict} />
         <HardwareSection dict={dict} />
-        <Pricing />
+        <Pricing dict={dict} locale={locale} />
         <ResellerSection dict={dict} locale={locale} />
-        <SafecoinSection />
-        <Testimonials />
-        <BlogTeaser />
+        <SafecoinSection dict={dict} locale={locale} />
+        <Testimonials dict={dict} locale={locale} />
+        <BlogTeaser dict={dict} locale={locale} />
         <FaqSection dict={dict} />
         <FinalCta dict={dict} locale={locale} />
       </main>

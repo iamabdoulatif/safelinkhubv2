@@ -91,6 +91,7 @@ export default function Hero({
           </div>
 
           <MikrotikOrbitScene
+            routerAlt={dict.hero.routerAlt}
             routerLabel={dict.hero.cards.routers}
             routerValue={stats.routers > 0 ? nf.format(stats.routers) : undefined}
             routerCountTo={stats.routers > 0 ? stats.routers : undefined}

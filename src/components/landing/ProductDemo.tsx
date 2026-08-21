@@ -1,12 +1,12 @@
 import YouTubeEmbed from "./YouTubeEmbed";
 import type { Dictionary } from "@/lib/i18n/fr";
+import { type Locale, HTML_LANG } from "@/lib/i18n/config";
 import { vendors } from "./content";
 import { remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
 import { AUTO_SETUP_FEE_CENTS, VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 import { DEFAULT_SC_RATE_FCFA } from "@/lib/safecoin/constants";
 import { fcfaToScCents, formatSc } from "@/lib/safecoin/pricing";
 
-const fcfa = new Intl.NumberFormat("fr-FR");
 const safecoin = (n: number) => formatSc(fcfaToScCents(n, DEFAULT_SC_RATE_FCFA));
 
 /** Identifiant de la vidéo de présentation (https://youtu.be/uR-7Z_AVhvE). */
@@ -18,11 +18,13 @@ const DEMO_VIDEO_ID = "uR-7Z_AVhvE";
  * présentation. L'emplacement vidéo local (demo-3d.mp4, jamais tourné) est
  * remplacé par le lecteur YouTube en façade.
  */
-export default function ProductDemo({ dict }: { dict: Dictionary }) {
+export default function ProductDemo({ dict, locale }: { dict: Dictionary; locale: Locale }) {
+  // Groupement des milliers selon la langue : « 4 000 » / « 4,000 ».
+  const fcfa = new Intl.NumberFormat(HTML_LANG[locale]);
   const stats = [
     {
       label: dict.demo.remoteAccess,
-      value: `dès ${fcfa.format(remoteAccessPriceFcfa("monthly"))} FCFA`,
+      value: dict.demo.fromPrice(fcfa.format(remoteAccessPriceFcfa("monthly"))),
       sub: `${safecoin(remoteAccessPriceFcfa("monthly"))} · ${dict.demo.remoteAccessSub}`,
     },
     {
@@ -34,7 +36,7 @@ export default function ProductDemo({ dict }: { dict: Dictionary }) {
     },
     {
       label: dict.demo.trial,
-      value: `${VPN_TRIAL_DAYS} jours`,
+      value: dict.demo.trialValue(VPN_TRIAL_DAYS),
       sub: dict.demo.trialSub,
     },
   ];

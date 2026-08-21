@@ -9,6 +9,24 @@ import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 
 const MAX_QUOTE = 600;
 
+/* Les messages d'erreur remontent à un formulaire qui existe en deux langues.
+ * Le formulaire poste sa langue dans un champ caché ; sans lui on reste en
+ * français, la langue par défaut du site. Le message de limitation est
+ * réécrit ici plutôt que dans public-rate-limit.ts, que d'autres formulaires
+ * partagent. */
+const ERRORS = {
+  fr: {
+    required: "Votre nom et votre témoignage sont requis.",
+    tooLong: `Le témoignage ne peut pas dépasser ${MAX_QUOTE} caractères.`,
+    rateLimited: "Trop de soumissions récentes. Réessayez plus tard.",
+  },
+  en: {
+    required: "Your name and your testimonial are required.",
+    tooLong: `A testimonial cannot exceed ${MAX_QUOTE} characters.`,
+    rateLimited: "Too many recent submissions. Please try again later.",
+  },
+} as const;
+
 /**
  * Action PUBLIQUE — le formulaire de témoignage sur la landing est ouvert aux
  * visiteurs anonymes. Champ caché "website" = honeypot anti-spam (rempli par
@@ -20,6 +38,7 @@ export async function submitTestimonial(_prevState: unknown, formData: FormData)
     return { success: true };
   }
 
+  const e = ERRORS[formData.get("locale") === "en" ? "en" : "fr"];
   const name = String(formData.get("name") ?? "").trim();
   const company = String(formData.get("company") ?? "").trim();
   const role = String(formData.get("role") ?? "").trim();
@@ -27,15 +46,15 @@ export async function submitTestimonial(_prevState: unknown, formData: FormData)
   const ratingRaw = Number(formData.get("rating") ?? 0);
 
   if (!name || !quote) {
-    return { error: "Votre nom et votre témoignage sont requis." };
+    return { error: e.required };
   }
   if (quote.length > MAX_QUOTE) {
-    return { error: `Le témoignage ne peut pas dépasser ${MAX_QUOTE} caractères.` };
+    return { error: e.tooLong };
   }
   const rating =
     Number.isInteger(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5 ? ratingRaw : null;
   const rateLimit = await enforcePublicSubmissionRateLimit("testimonial");
-  if (!rateLimit.allowed) return { error: rateLimit.error };
+  if (!rateLimit.allowed) return { error: e.rateLimited };
 
   const db = getDb();
   await db.insert(testimonials).values({
@@ -70,6 +89,7 @@ export async function moderateTestimonial(formData: FormData) {
 
   revalidatePath("/admin/testimonials");
   revalidatePath("/");
+  revalidatePath("/en");
 }
 
 export async function deleteTestimonial(formData: FormData) {
@@ -84,4 +104,5 @@ export async function deleteTestimonial(formData: FormData) {
 
   revalidatePath("/admin/testimonials");
   revalidatePath("/");
+  revalidatePath("/en");
 }
