@@ -52,6 +52,6 @@ export async function GET(request: NextRequest) {
       tunnelIp: row.tunnelIp,
       relayHost: getRelayPublicHost(row.shard),
     }));
-  const conf = buildRelayNginxConfig({ webForwards, cloudInstances });
+  const conf = buildRelayNginxConfig({ webForwards });
   return new Response(conf, { headers: { "content-type": "text/plain" } });
 }

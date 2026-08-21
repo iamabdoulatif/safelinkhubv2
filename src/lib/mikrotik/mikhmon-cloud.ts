@@ -35,6 +35,8 @@ export type CloudMikhmonInstance = {
   status: "active";
 };
 
+const CLOUD_DOMAIN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
 function shellArg(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
@@ -53,6 +55,8 @@ export async function provisionCloudMikhmon(input: {
   usedPorts: readonly number[];
   baseDomain: string;
   image?: string;
+  /** Réseau Docker où Traefik découvre les conteneurs. */
+  traefikNetwork?: string;
   run: CloudRunner;
 }): Promise<CloudMikhmonInstance> {
   if (input.existing?.status === "active") {
@@ -80,11 +84,47 @@ export async function provisionCloudMikhmon(input: {
   const containerName = containerNameFor(input.router.id);
   const image = input.image ?? "latif225/mikhmon-sf-v1:latest";
 
+  /* Le TLS des sous-domaines est terminé par TRAEFIK, pas par nginx.
+   *
+   * Le relais fait tourner les deux : nginx sert les redirections sur des
+   * ports hauts, Traefik détient 80 et 443. Un vhost nginx en `listen 443`
+   * ne pourrait donc jamais se lier — et comme la synchro écrit UN SEUL
+   * fichier pour toutes les redirections, un vhost invalide y ferait échouer
+   * `nginx -t` et gèlerait la mise à jour de l'ensemble.
+   *
+   * Traefik, lui, détient déjà le port ET le certificat joker de
+   * *.mikhmon.safelinkhub.io, qu'il renouvelle seul via Cloudflare DNS-01.
+   * On épingle `tls.domains` sur ce joker plutôt que de laisser le résolveur
+   * demander un certificat par routeur : à l'échelle du parc, les quotas
+   * Let's Encrypt seraient atteints en quelques dizaines d'instances.
+   *
+   * La publication sur 127.0.0.1 est conservée : elle ne coûte rien, donne un
+   * chemin de diagnostic local et garde son sens à la colonne local_port. */
+  /* Le domaine part dans une règle Host() de Traefik et dans un label Docker.
+     cloudMikhmonDomain l'a déjà validé, mais la garde reste explicite ici :
+     elle vivait dans le vhost nginx qu'on vient de retirer, et une validation
+     supprimée « parce qu'elle semblait redondante » est exactement ce qui
+     laisse passer une injection le jour où l'appelant change. */
+  if (!CLOUD_DOMAIN.test(domain)) {
+    throw new Error("Cloud MikHmon instance has an invalid domain.");
+  }
+  const routerLabel = `mikhmon-${containerNameFor(input.router.id).replace("slh-mikhmon-", "")}`;
+  const traefikNetwork = input.traefikNetwork ?? "safelink_safelink_net";
   const args = [
     "docker run -d",
     `--name ${shellArg(containerName)}`,
     "--restart unless-stopped",
+    `--network ${shellArg(traefikNetwork)}`,
     `--publish ${shellArg(`127.0.0.1:${localPort}:80`)}`,
+    `--label ${shellArg("traefik.enable=true")}`,
+    `--label ${shellArg(`traefik.docker.network=${traefikNetwork}`)}`,
+    `--label ${shellArg(`traefik.http.routers.${routerLabel}.rule=Host(\`${domain}\`)`)}`,
+    `--label ${shellArg(`traefik.http.routers.${routerLabel}.entrypoints=websecure`)}`,
+    `--label ${shellArg(`traefik.http.routers.${routerLabel}.tls=true`)}`,
+    `--label ${shellArg(`traefik.http.routers.${routerLabel}.tls.certresolver=cloudflare`)}`,
+    `--label ${shellArg(`traefik.http.routers.${routerLabel}.tls.domains[0].main=${input.baseDomain}`)}`,
+    `--label ${shellArg(`traefik.http.routers.${routerLabel}.tls.domains[0].sans=*.${input.baseDomain}`)}`,
+    `--label ${shellArg(`traefik.http.services.${routerLabel}.loadbalancer.server.port=80`)}`,
     `--env ${shellArg("MIKHMON_SESSION=SafeLinkHub")}`,
     `--env ${shellArg(`MIKHMON_MT_IP=${input.router.tunnelIp}`)}`,
     `--env ${shellArg(`MIKHMON_MT_USER=${input.router.username}`)}`,
