@@ -598,3 +598,46 @@ html {
   }
   .marker-sweep { background-size: 100% 100% !important; animation: none !important; }
 }
+
+/* ── Bandeau de logos défilant ─────────────────────────────────
+   La piste contient DEUX copies de la liste et translate de -50 % à 0 : le
+   défilement va de la gauche vers la droite, et au bout la seconde copie
+   occupe exactement la position de départ de la première, donc le raccord ne
+   se voit pas.
+
+   `width: max-content` est indispensable — sans elle la piste se plie à la
+   largeur du conteneur, les deux copies se superposent et -50 % ne retombe
+   plus sur un multiple de la liste : le saut redevient visible. */
+.marquee {
+  overflow: hidden;
+  /* Les logos s'effacent aux deux bords au lieu d'être tranchés net. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6rem, #000 calc(100% - 6rem), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6rem, #000 calc(100% - 6rem), transparent);
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-rtl 44s linear infinite;
+}
+.marquee:hover .marquee-track { animation-play-state: paused; }
+
+@keyframes marquee-rtl {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+
+/* Mouvement réduit : la piste s'arrête et se replie. Le bloc générique fixe
+   les durées à 0,01 ms, ce qui figerait la piste sur translateX(0) — soit la
+   seconde copie visible et la première hors champ. On repart de zéro et on
+   laisse la liste passer à la ligne. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee { -webkit-mask-image: none; mask-image: none; }
+  .marquee-track {
+    animation: none !important;
+    transform: none !important;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .marquee-track > [aria-hidden="true"] { display: none; }
+}

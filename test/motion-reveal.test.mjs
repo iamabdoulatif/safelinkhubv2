@@ -4,6 +4,17 @@ import assert from "node:assert/strict";
 
 const read = (p) => readFile(new URL(`../${p}`, import.meta.url), "utf8");
 
+/** Les blocs @media (prefers-reduced-motion: reduce) — il y en a plusieurs.
+ *  Découper sur la requête seule laisse déborder le CSS qui suit le bloc ;
+ *  on s'arrête à l'accolade fermante en début de ligne, qui clôt le média. */
+function blocsMouvementReduit(css) {
+  return css.split("@media (prefers-reduced-motion: reduce)").slice(1).map((seg) => {
+    const fin = seg.search(/\n\}\n/);
+    return fin === -1 ? seg : seg.slice(0, fin);
+  });
+}
+
+
 test("aucun contenu ne peut rester invisible faute de JavaScript", async () => {
   // La règle qui masque doit vivre sous @media (scripting: enabled) : sans JS,
   // ou dans un navigateur qui ignore la requête, la page reste lisible.
@@ -20,7 +31,10 @@ test("le mouvement réduit rend tout visible, sans exception", async () => {
   const css = await read("src/app/globals.css");
   // Le bloc générique ramène les durées à 0,01 ms — insuffisant : un .reveal
   // dont l'observateur ne se déclenche jamais resterait à opacity 0.
-  const bloc = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+  // Repéré par son CONTENU, pas par sa position : il existe plusieurs blocs
+  // « mouvement réduit », et se fier au dernier casse dès qu'on en ajoute un.
+  const bloc = blocsMouvementReduit(css).find((b) => b.includes(".reveal,"));
+  assert.ok(bloc, "aucun bloc mouvement réduit ne couvre .reveal");
   assert.match(bloc, /\.reveal[^{]*\{[^}]*opacity: 1 !important/s);
   assert.match(bloc, /\.marker-sweep\s*\{[^}]*background-size: 100% 100% !important/s);
 });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { vendors } from "./content";
+import VendorMarquee from "./VendorMarquee";
 import { type PlatformStats } from "@/lib/landing/platform-stats";
 import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 
@@ -71,10 +71,14 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
               className="absolute left-2 top-28 2xl:left-16"
             />
           )}
+          {/* Le bandeau de logos juste en dessous énonce déjà les constructeurs :
+              une carte qui répète « 8 · MikroTik, Ruijie, TP-Link… » ferait
+              doublon. Elle porte donc l'essai, qui n'est annoncé nulle part
+              ailleurs dans le champ de vision. */}
           <FloatCard
-            label="Constructeurs pris en charge"
-            value={String(stats.vendors)}
-            sub="MikroTik, Ruijie, TP-Link, UniFi…"
+            label="Essai offert"
+            value={`${VPN_TRIAL_DAYS} jours`}
+            sub="accès distant, sans carte bancaire"
             className="absolute bottom-16 left-6 2xl:left-24"
           />
           {stats.sessions > 0 && (
@@ -150,19 +154,9 @@ export default function Hero({ stats }: { stats: PlatformStats }) {
         </div>
       </div>
 
-      {/* Bande de compatibilité constructeurs */}
-      <div className="reveal border-t border-line bg-clay">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 py-4 sm:px-6">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
-            Compatible avec
-          </p>
-          {vendors.map((v) => (
-            <span key={v} translate="no" className="text-sm font-medium text-ink">
-              {v}
-            </span>
-          ))}
-        </div>
-      </div>
+      {/* Bande de compatibilité constructeurs — logos défilants */}
+      <VendorMarquee />
+
     </section>
   );
 }
