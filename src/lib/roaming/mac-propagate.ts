@@ -1,10 +1,12 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
-  vouchers,
+  roamingDeviceBindingRouters,
+  roamingDeviceBindings,
   roamingGroupRouters,
   roamingProfiles,
   routers,
+  vouchers,
 } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
@@ -15,82 +17,223 @@ import {
 } from "@/lib/vouchers/reconcile";
 import { durationToMs, type PackageDuration } from "@/lib/vouchers/expiry";
 import { isUnlimitedUnit } from "@/lib/mikrotik/package-voucher-profile";
+import { normalizeRoamingMac } from "./device-binding";
 
-/** Normalise un MAC vers AA:BB:CC:DD:EE:FF, ou "" si invalide. */
-function normalizeMac(raw: string): string {
-  const hex = (raw ?? "").replace(/[^0-9a-fA-F]/g, "").toUpperCase();
-  if (hex.length !== 12) return "";
-  return (hex.match(/.{2}/g) ?? []).join(":");
-}
+export type PropagateResult = { ok: boolean; reason?: string; boundOn?: number; bindingId?: string };
 
-export type PropagateResult = { ok: boolean; reason?: string; boundOn?: number };
-
-/**
- * Auto-login inter-zones (roaming, 1 appareil / code).
- *
- * Déclenché par le webhook `/api/roaming/seen` quand un code se connecte quelque
- * part. On :
- *   1. confirme que le voucher est bien un ticket roaming de l'org du routeur ;
- *   2. VÉRIFIE EN LIVE sur le routeur émetteur que la session (user, mac) existe
- *      vraiment (anti-usurpation : un POST forgé ne lie rien) ;
- *   3. single-device : si le code est déjà lié à un AUTRE MAC, on s'arrête ;
- *   4. sinon, sur chaque routeur du groupe : lie le code au MAC (anti-partage)
- *      et crée un utilisateur `name=<MAC>` (même profil + même expiration) qui,
- *      avec `login-by=mac`, auto-logue l'appareil en zone voisine sans re-saisie.
- *
- * Idempotent et best-effort par routeur : un routeur injoignable est sauté, les
- * autres avancent. Ne lève jamais (appelé en tâche de fond).
- */
-export async function propagateRoamingMac(input: {
-  reporterRouterId: string;
+type DeviceMaterialization = {
   username: string;
   mac: string;
-}): Promise<PropagateResult> {
-  const mac = normalizeMac(input.mac);
-  const username = (input.username ?? "").trim();
-  if (!mac || !username) return { ok: false, reason: "invalid-input" };
+  profileName: string;
+  macComment?: string;
+  resolveMacComment?: (codeUserComment: string) => string;
+};
 
-  const db = getDb();
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message.slice(0, 500) : "Erreur RouterOS inconnue.";
+}
 
-  const [reporter] = await db
-    .select()
-    .from(routers)
-    .where(eq(routers.id, input.reporterRouterId))
-    .limit(1);
-  if (!reporter) return { ok: false, reason: "unknown-router" };
+function expiryDuration(durationValue: number | null, durationUnit: string | null): PackageDuration | null {
+  return !isUnlimitedUnit(durationUnit ?? "") && durationValue && durationUnit
+    ? { durationValue, durationUnit, billingStartsOn: "Upon First Use" }
+    : null;
+}
 
-  // Ticket roaming de l'org du routeur émetteur (jamais cross-org).
-  const [voucher] = await db
-    .select({
-      id: vouchers.id,
-      roamingGroupId: vouchers.roamingGroupId,
-      profileName: vouchers.profileName,
-      durationValue: roamingProfiles.durationValue,
-      durationUnit: roamingProfiles.durationUnit,
-    })
-    .from(vouchers)
-    .leftJoin(roamingProfiles, eq(vouchers.roamingProfileId, roamingProfiles.id))
-    .where(and(eq(vouchers.username, username), eq(vouchers.orgId, reporter.orgId)))
-    .limit(1);
-  if (!voucher || !voucher.roamingGroupId || !voucher.profileName) {
-    return { ok: false, reason: "not-roaming" };
+function macCommentFor(codeUserComment: string, duration: PackageDuration | null, username: string) {
+  if (parseExpiryComment(codeUserComment)) return codeUserComment;
+  if (duration) return formatExpiryComment(dateToWall(new Date(Date.now() + durationToMs(duration))));
+  return codeUserComment || `roam ${username}`;
+}
+
+/**
+ * Matérialise une liaison déjà approuvée sur UN MikroTik. Cette unité ne touche
+ * pas à la base et se teste donc avec un client RouterOS réel ou simulé.
+ */
+export async function materializeRoamingDeviceOnRouter(
+  client: RouterOSClient,
+  input: DeviceMaterialization,
+) {
+  const codeUsers = await client.talk(["/ip/hotspot/user/print", `?name=${input.username}`]);
+  const codeUser = codeUsers[0];
+  const codeId = codeUser?.[".id"];
+  if (!codeId) throw new Error(`Le compte « ${input.username} » est absent de cette zone.`);
+
+  const mac = normalizeRoamingMac(input.mac);
+  if (!mac) throw new Error("Adresse MAC invalide.");
+  if (normalizeRoamingMac(codeUser["mac-address"] ?? "") !== mac) {
+    await client.talk(["/ip/hotspot/user/set", `=.id=${codeId}`, `=mac-address=${mac}`]);
   }
 
-  const groupRouters = await db
+  const comment = input.resolveMacComment?.(codeUser.comment ?? "") ?? input.macComment ?? `roam ${input.username}`;
+  const macUsers = await client.talk(["/ip/hotspot/user/print", `?name=${mac}`]);
+  const companion = macUsers[0];
+  if (!companion?.[".id"]) {
+    await client.talk([
+      "/ip/hotspot/user/add",
+      `=name=${mac}`,
+      `=mac-address=${mac}`,
+      `=password=${mac}`,
+      `=profile=${input.profileName}`,
+      `=comment=${comment}`,
+    ]);
+    return;
+  }
+
+  await client.talk([
+    "/ip/hotspot/user/set",
+    `=.id=${companion[".id"]}`,
+    `=mac-address=${mac}`,
+    `=password=${mac}`,
+    `=profile=${input.profileName}`,
+    `=comment=${comment}`,
+  ]);
+}
+
+async function loadGroupRouters(orgId: string, groupId: string) {
+  const db = getDb();
+  return db
     .select({ router: routers })
     .from(roamingGroupRouters)
     .innerJoin(routers, eq(roamingGroupRouters.routerId, routers.id))
     .where(
       and(
-        eq(roamingGroupRouters.groupId, voucher.roamingGroupId),
-        eq(roamingGroupRouters.orgId, reporter.orgId),
+        eq(roamingGroupRouters.groupId, groupId),
+        eq(roamingGroupRouters.orgId, orgId),
+        eq(routers.orgId, orgId),
       ),
     );
-  if (groupRouters.length === 0) return { ok: false, reason: "empty-group" };
+}
 
-  // ── Anti-usurpation : la session (user, mac) doit exister sur l'émetteur.
-  let codeUserComment = "";
-  let alreadyBoundMac = "";
+async function markBindingRouter(
+  bindingId: string,
+  routerId: string,
+  state: "PENDING" | "SYNCED" | "ERROR",
+  patch: { lastError?: string | null; syncedAt?: Date | null } = {},
+) {
+  const db = getDb();
+  const now = new Date();
+  await db
+    .insert(roamingDeviceBindingRouters)
+    .values({ bindingId, routerId, status: "PENDING" })
+    .onConflictDoNothing();
+  await db
+    .update(roamingDeviceBindingRouters)
+    .set({
+      status: state,
+      attempts: sql`${roamingDeviceBindingRouters.attempts} + 1`,
+      lastAttemptAt: now,
+      lastError: patch.lastError ?? null,
+      syncedAt: patch.syncedAt ?? (state === "SYNCED" ? now : null),
+    })
+    .where(
+      and(
+        eq(roamingDeviceBindingRouters.bindingId, bindingId),
+        eq(roamingDeviceBindingRouters.routerId, routerId),
+      ),
+    );
+}
+
+/**
+ * Réplique une liaison durable depuis la base vers une ou toutes les zones du
+ * groupe. Aucune session client n'est requise ici : c'est ce qui rend possible
+ * la reprise quand un MikroTik revient en ligne après le départ du client.
+ */
+export async function syncRoamingDeviceBinding(input: {
+  bindingId: string;
+  onlyRouterId?: string;
+}): Promise<PropagateResult> {
+  const db = getDb();
+  const [binding] = await db
+    .select({
+      id: roamingDeviceBindings.id,
+      orgId: roamingDeviceBindings.orgId,
+      macAddress: roamingDeviceBindings.macAddress,
+      username: vouchers.username,
+      groupId: vouchers.roamingGroupId,
+      profileName: vouchers.profileName,
+      durationValue: roamingProfiles.durationValue,
+      durationUnit: roamingProfiles.durationUnit,
+    })
+    .from(roamingDeviceBindings)
+    .innerJoin(vouchers, eq(roamingDeviceBindings.voucherId, vouchers.id))
+    .leftJoin(roamingProfiles, eq(vouchers.roamingProfileId, roamingProfiles.id))
+    .where(and(eq(roamingDeviceBindings.id, input.bindingId), isNull(vouchers.deletedAt)))
+    .limit(1);
+  if (!binding || !binding.groupId || !binding.profileName) {
+    return { ok: false, reason: "binding-not-found" };
+  }
+
+  const allTargets = await loadGroupRouters(binding.orgId, binding.groupId);
+  const targets = input.onlyRouterId
+    ? allTargets.filter(({ router }) => router.id === input.onlyRouterId)
+    : allTargets;
+  if (targets.length === 0) return { ok: false, reason: "empty-group" };
+
+  await db
+    .insert(roamingDeviceBindingRouters)
+    .values(targets.map(({ router }) => ({ bindingId: binding.id, routerId: router.id, status: "PENDING" as const })))
+    .onConflictDoNothing();
+
+  const duration = expiryDuration(binding.durationValue, binding.durationUnit);
+  let boundOn = 0;
+  for (const { router } of targets) {
+    let client: RouterOSClient;
+    try {
+      client = await connectToRouter(router);
+    } catch (error) {
+      await markBindingRouter(binding.id, router.id, "PENDING", { lastError: errorMessage(error) });
+      continue;
+    }
+
+    try {
+      await materializeRoamingDeviceOnRouter(client, {
+        username: binding.username,
+        mac: binding.macAddress,
+        profileName: binding.profileName,
+        resolveMacComment: (codeUserComment) => macCommentFor(codeUserComment, duration, binding.username),
+      });
+      await markBindingRouter(binding.id, router.id, "SYNCED");
+      boundOn += 1;
+    } catch (error) {
+      await markBindingRouter(binding.id, router.id, "ERROR", { lastError: errorMessage(error) });
+    } finally {
+      client.close();
+    }
+  }
+
+  return { ok: true, boundOn, bindingId: binding.id };
+}
+
+/**
+ * Vérifie la première connexion sur le routeur émetteur puis crée/relit la
+ * liaison MAC canonique. C'est le seul chemin qui accepte une nouvelle MAC.
+ */
+export async function confirmAndSyncRoamingDevice(input: {
+  reporterRouterId: string;
+  username: string;
+  mac: string;
+}): Promise<PropagateResult> {
+  const mac = normalizeRoamingMac(input.mac);
+  const username = (input.username ?? "").trim();
+  if (!mac || !username) return { ok: false, reason: "invalid-input" };
+
+  const db = getDb();
+  const [reporter] = await db.select().from(routers).where(eq(routers.id, input.reporterRouterId)).limit(1);
+  if (!reporter) return { ok: false, reason: "unknown-router" };
+
+  const [voucher] = await db
+    .select({ id: vouchers.id, groupId: vouchers.roamingGroupId, profileName: vouchers.profileName })
+    .from(vouchers)
+    .where(
+      and(
+        eq(vouchers.username, username),
+        eq(vouchers.orgId, reporter.orgId),
+        isNull(vouchers.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!voucher?.groupId || !voucher.profileName) return { ok: false, reason: "not-roaming" };
+
   let reporterClient: RouterOSClient;
   try {
     reporterClient = await connectToRouter(reporter);
@@ -98,89 +241,58 @@ export async function propagateRoamingMac(input: {
     return { ok: false, reason: "reporter-unreachable" };
   }
   try {
-    const active = await reporterClient
-      .talk(["/ip/hotspot/active/print", `?user=${username}`])
-      .catch(() => [] as Record<string, string>[]);
-    const sessionMatches = active.some((a) => normalizeMac(a["mac-address"] ?? "") === mac);
-    if (!sessionMatches) return { ok: false, reason: "session-not-found" };
-
-    const codeUsers = await reporterClient
-      .talk(["/ip/hotspot/user/print", `?name=${username}`])
-      .catch(() => [] as Record<string, string>[]);
-    codeUserComment = codeUsers[0]?.["comment"] ?? "";
-    alreadyBoundMac = normalizeMac(codeUsers[0]?.["mac-address"] ?? "");
+    const active = await reporterClient.talk(["/ip/hotspot/active/print", `?user=${username}`]);
+    if (!active.some((session) => normalizeRoamingMac(session["mac-address"] ?? "") === mac)) {
+      return { ok: false, reason: "session-not-found" };
+    }
+    const codeUsers = await reporterClient.talk(["/ip/hotspot/user/print", `?name=${username}`]);
+    const alreadyBoundMac = normalizeRoamingMac(codeUsers[0]?.["mac-address"] ?? "");
+    if (alreadyBoundMac && alreadyBoundMac !== mac) return { ok: false, reason: "bound-elsewhere" };
   } finally {
     reporterClient.close();
   }
 
-  // Single-device : code déjà lié à un autre appareil → on ne rebascule pas.
-  if (alreadyBoundMac && alreadyBoundMac !== mac) {
-    return { ok: false, reason: "bound-elsewhere" };
+  const [existing] = await db
+    .select({ id: roamingDeviceBindings.id, macAddress: roamingDeviceBindings.macAddress })
+    .from(roamingDeviceBindings)
+    .where(eq(roamingDeviceBindings.voucherId, voucher.id))
+    .limit(1);
+  if (existing && existing.macAddress !== mac) return { ok: false, reason: "bound-elsewhere" };
+
+  if (!existing) {
+    await db
+      .insert(roamingDeviceBindings)
+      .values({ orgId: reporter.orgId, voucherId: voucher.id, macAddress: mac })
+      .onConflictDoNothing();
   }
+  const [binding] = await db
+    .select({ id: roamingDeviceBindings.id, macAddress: roamingDeviceBindings.macAddress })
+    .from(roamingDeviceBindings)
+    .where(eq(roamingDeviceBindings.voucherId, voucher.id))
+    .limit(1);
+  if (!binding) return { ok: false, reason: "binding-not-created" };
+  if (binding.macAddress !== mac) return { ok: false, reason: "bound-elsewhere" };
 
-  // Commentaire du user MAC = l'expiration du code si déjà stampée, sinon on la
-  // calcule (début maintenant + durée) au format MikHmon → le sweep par profil
-  // le supprimera à échéance (pas d'utilisateur MAC orphelin).
-  // Un profil illimité (admin / technicien) n'a pas d'échéance à tamponner :
-  // pas de commentaire d'expiration, donc rien que le balayage puisse ramasser.
-  // Le test tient déjà par la valeur 0, mais on le dit explicitement — c'est une
-  // session de technicien qu'on ne veut jamais voir coupée.
-  const duration: PackageDuration | null =
-    !isUnlimitedUnit(voucher.durationUnit ?? "") && voucher.durationValue && voucher.durationUnit
-      ? {
-          durationValue: voucher.durationValue,
-          durationUnit: voucher.durationUnit,
-          billingStartsOn: "Upon First Use",
-        }
-      : null;
-  const macComment = (() => {
-    if (parseExpiryComment(codeUserComment)) return codeUserComment;
-    if (duration) return formatExpiryComment(dateToWall(new Date(Date.now() + durationToMs(duration))));
-    return codeUserComment || `roam ${username}`;
-  })();
+  return syncRoamingDeviceBinding({ bindingId: binding.id });
+}
 
-  const profileName = voucher.profileName;
-  let boundOn = 0;
-  for (const { router } of groupRouters) {
-    let client: RouterOSClient;
-    try {
-      client = await connectToRouter(router);
-    } catch {
-      continue; // routeur injoignable → sauté, les autres avancent
-    }
-    try {
-      // (a) Lier le code au MAC (anti-partage single-device), idempotent.
-      const codeUsers = await client
-        .talk(["/ip/hotspot/user/print", `?name=${username}`])
-        .catch(() => [] as Record<string, string>[]);
-      const codeId = codeUsers[0]?.[".id"];
-      if (codeId && normalizeMac(codeUsers[0]["mac-address"] ?? "") !== mac) {
-        await client
-          .talk(["/ip/hotspot/user/set", `=.id=${codeId}`, `=mac-address=${mac}`])
-          .catch(() => {});
-      }
+// Compatibilité du webhook existant : il appelle le chemin qui vérifie la
+// session avant d'autoriser le premier appareil.
+export const propagateRoamingMac = confirmAndSyncRoamingDevice;
 
-      // (b) User auto-login MAC (même profil + même expiration), idempotent.
-      const macUsers = await client
-        .talk(["/ip/hotspot/user/print", `?name=${mac}`])
-        .catch(() => [] as Record<string, string>[]);
-      if (macUsers.length === 0) {
-        await client
-          .talk([
-            "/ip/hotspot/user/add",
-            `=name=${mac}`,
-            `=mac-address=${mac}`,
-            `=password=${mac}`,
-            `=profile=${profileName}`,
-            `=comment=${macComment}`,
-          ])
-          .catch(() => {});
-      }
-      boundOn += 1;
-    } finally {
-      client.close();
-    }
-  }
-
-  return { ok: true, boundOn };
+export async function loadPendingRoamingBindings(routerId: string, limit = 50) {
+  const db = getDb();
+  return db
+    .select({ id: roamingDeviceBindings.id })
+    .from(roamingDeviceBindingRouters)
+    .innerJoin(roamingDeviceBindings, eq(roamingDeviceBindingRouters.bindingId, roamingDeviceBindings.id))
+    .innerJoin(vouchers, eq(roamingDeviceBindings.voucherId, vouchers.id))
+    .where(
+      and(
+        eq(roamingDeviceBindingRouters.routerId, routerId),
+        inArray(roamingDeviceBindingRouters.status, ["PENDING", "ERROR"]),
+        isNull(vouchers.deletedAt),
+      ),
+    )
+    .limit(limit);
 }
