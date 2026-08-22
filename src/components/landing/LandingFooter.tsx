@@ -10,9 +10,12 @@ const footerColumns = (dict: Dictionary) =>
       title: dict.footer.columns.product,
       links: [
         { href: "/", label: dict.footer.links.home },
-        { href: "#features", label: dict.footer.links.features },
-        { href: "#plateforme", label: dict.footer.links.platform },
-        { href: "#tarifs", label: dict.footer.links.pricing },
+        /* Ces trois entrées visaient des ancres de la landing. Les sections
+           sont parties sur /services et /vpn : laisser les ancres aurait donné
+           des liens qui ne défilent nulle part — un lien mort silencieux, que
+           rien n'aurait signalé. */
+        { href: "/services", label: dict.footer.links.services },
+        { href: "/vpn", label: dict.footer.links.vpn },
         { href: "#faq", label: dict.footer.links.faq },
         { href: "/boutique", label: dict.footer.links.shop },
         { href: "/auth/register", label: dict.footer.links.getStarted },
@@ -28,7 +31,7 @@ const footerColumns = (dict: Dictionary) =>
     {
       title: dict.footer.columns.resources,
       links: [
-        { href: "/blog", label: dict.footer.links.blog },
+        { href: "/formations", label: dict.footer.links.training },
         { href: "/legal/terms", label: dict.footer.links.terms },
         { href: "/legal/privacy", label: dict.footer.links.privacy },
         { href: "/support", label: dict.footer.links.support },

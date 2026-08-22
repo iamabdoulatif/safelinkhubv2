@@ -8,10 +8,6 @@ import IntroSplit from "./IntroSplit";
 import { FeatureProvisioning, FeatureMobileMoney } from "./FeatureSplits";
 import ProcessSteps from "./ProcessSteps";
 import ProductDemo from "./ProductDemo";
-import FeaturesGrid from "./FeaturesGrid";
-import PlatformDark from "./PlatformDark";
-import HardwareSection from "./HardwareSection";
-import Pricing from "./Pricing";
 import ResellerSection from "./ResellerSection";
 import SafecoinSection from "./SafecoinSection";
 import Testimonials from "./Testimonials";
@@ -37,6 +33,10 @@ export default function LandingPage({
   locale: Locale;
   stats: PlatformStats;
 }) {
+  /* Fonctionnalités, plateforme et matériel sont partis sur /services ; la
+     grille tarifaire sur /vpn. Déplacés, pas recopiés : deux pages servant le
+     même contenu se concurrenceraient au référencement. La landing garde ce
+     qui convertit — accroche, preuve, démonstration, revendeurs, avis, FAQ. */
   return (
     /* `lang` sur le sous-arbre : le layout racine est au-dessus des routes et
        code <html lang="fr"> en dur. C'est un attribut global, honoré par les
@@ -54,10 +54,6 @@ export default function LandingPage({
         <FeatureMobileMoney dict={dict} />
         <ProcessSteps dict={dict} />
         <ProductDemo dict={dict} locale={locale} />
-        <FeaturesGrid dict={dict} />
-        <PlatformDark dict={dict} />
-        <HardwareSection dict={dict} />
-        <Pricing dict={dict} locale={locale} />
         <ResellerSection dict={dict} locale={locale} />
         <SafecoinSection dict={dict} locale={locale} />
         <Testimonials dict={dict} locale={locale} />

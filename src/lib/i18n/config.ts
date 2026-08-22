@@ -60,6 +60,10 @@ export const HTML_LANG: Record<Locale, string> = { fr: "fr", en: "en" };
 const TRANSLATED_ROUTES = [
   "/",
   "/blog",
+  "/services",
+  "/vpn",
+  "/formations",
+  "/recherche",
   "/contact",
   "/boutique",
   "/auth/login",
@@ -76,7 +80,7 @@ const TRANSLATED_ROUTES = [
  * cette liste `localeHref` renvoyait chaque article du blog ANGLAIS vers sa
  * version française.
  */
-const TRANSLATED_PREFIXES = ["/blog/"] as const;
+const TRANSLATED_PREFIXES = ["/blog/", "/formations/"] as const;
 
 /** Cette page existe-t-elle en anglais ? */
 function hasTranslation(chemin: string): boolean {

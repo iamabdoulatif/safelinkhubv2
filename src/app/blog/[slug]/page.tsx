@@ -9,6 +9,7 @@ import { getPublishedPost } from "@/lib/blog/queries";
 import { getMarketingSettings } from "@/lib/marketing/queries";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { localePrefix, type Locale } from "@/lib/i18n/config";
+import ContentBlocks from "@/components/content/ContentBlocks";
 
 export async function generateMetadata({
   params,
@@ -34,24 +35,6 @@ function formatDate(date: Date, locale: Locale) {
 
 /** Rendu volontairement minimal du contenu (pas de dépendance markdown) :
  * blocs séparés par une ligne vide, "## " en début de bloc = sous-titre. */
-function ContentBlocks({ content }: { content: string }) {
-  return (
-    <>
-      {content.split(/\n{2,}/).map((block, i) =>
-        block.startsWith("## ") ? (
-          <h2 key={i} className="mt-8 font-display text-2xl font-bold text-ink">
-            {block.slice(3)}
-          </h2>
-        ) : (
-          <p key={i} className="mt-4 whitespace-pre-line leading-relaxed text-ink">
-            {block}
-          </p>
-        ),
-      )}
-    </>
-  );
-}
-
 export async function BlogPostPageContent({
   locale,
   params,

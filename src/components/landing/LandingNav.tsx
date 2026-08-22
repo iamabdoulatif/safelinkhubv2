@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { LayoutDashboard, Menu, X } from "lucide-react";
+import { LayoutDashboard, Menu, Search, X } from "lucide-react";
 import Logo from "./Logo";
 import { usePathname } from "next/navigation";
 import type { Dictionary } from "@/lib/i18n/fr";
@@ -29,10 +29,14 @@ type Nav = Dictionary["nav"];
 
 const navLinks = (nav: Nav) =>
   [
-    { href: "#features", label: nav.features },
-    { href: "#plateforme", label: nav.platform },
+    /* Le header ne pointe plus vers des ancres de la landing : chaque entrée
+       mène à une page où le contenu est réellement rangé. « Fonctionnalités »
+       et « Plateforme » sont devenues /services, l'accès distant a sa page
+       /vpn, et le blog vit sous /formations. */
+    { href: "/services", label: nav.services },
+    { href: "/vpn", label: nav.vpn },
+    { href: "/formations", label: nav.training },
     { href: "/boutique", label: nav.shop },
-    { href: "/blog", label: nav.blog },
     { href: "/contact", label: nav.contact },
   ] as const;
 
@@ -99,6 +103,16 @@ export default function LandingNav({
         </nav>
 
         <div className="flex items-center gap-3">
+          {/* La loupe précède le ternaire : elle s'affiche que l'on soit
+              connecté ou non. Masquée sous sm, où le menu mobile la reprend. */}
+          <Link
+            href={localeHref("/recherche", locale)}
+            aria-label={nav.searchLabel}
+            title={nav.search}
+            className="hidden items-center justify-center p-2 text-ink hover:text-brand-deep sm:inline-flex"
+          >
+            <Search aria-hidden="true" className="h-4 w-4" />
+          </Link>
           {authenticated ? (
             <Link href="/admin" className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-dark px-4 py-2 text-sm">
               <LayoutDashboard className="h-4 w-4" />
@@ -156,6 +170,15 @@ export default function LandingNav({
                 )}
               </li>
             ))}
+            <li>
+              <Link
+                href={localeHref("/recherche", locale)}
+                onClick={() => setOpen(false)}
+                className={mobileLinkClass}
+              >
+                {nav.search}
+              </Link>
+            </li>
             <li>
               <Link
                 href={switchLocalePath(pathname, autre)}

@@ -992,6 +992,57 @@ export const blogPosts = pgTable("blog_posts", {
 });
 
 /**
+ * Formations — contenu pédagogique STRUCTURÉ, distinct du blog.
+ *
+ * Le blog publie des articles indépendants ; une formation est une suite de
+ * leçons qu'on suit dans l'ordre. Les deux vivent donc dans des tables
+ * séparées plutôt que sous un « type » commun : ranger un cours parmi les
+ * articles obligerait chaque requête du blog à filtrer, et l'ordre des leçons
+ * n'a aucun sens pour un article.
+ *
+ * Pas d'orgId : comme le blog et les témoignages, c'est du contenu de
+ * plateforme, écrit par le superadmin et lu par tout le monde.
+ */
+export const courses = pgTable("courses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  summary: text("summary"),
+  coverImageUrl: text("cover_image_url"),
+  // debutant | intermediaire | avance — texte libre, affiché tel quel.
+  level: text("level"),
+  published: boolean("published").notNull().default(false),
+  // Fixée à la première publication : dépublier puis republier ne remonte pas
+  // la formation en tête de liste (même règle que les articles).
+  publishedAt: timestamp("published_at"),
+  // Ordre d'affichage choisi par l'auteur, à défaut de tri par date.
+  position: integer("position").notNull().default(0),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/** Une leçon d'une formation. L'ordre fait partie du contenu. */
+export const courseLessons = pgTable(
+  "course_lessons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    // Vidéo d'accompagnement facultative (YouTube ou autre).
+    videoUrl: text("video_url"),
+    durationMinutes: integer("duration_minutes"),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("course_lessons_course_position_idx").on(t.courseId, t.position)],
+);
+
+/**
  * Messages envoyés depuis le formulaire public /contact — les expéditeurs
  * sont des visiteurs anonymes (pas de orgId ni userId). Consultés et
  * triés par le superadmin dans /admin/contact.
