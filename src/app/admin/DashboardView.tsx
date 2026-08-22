@@ -2,15 +2,18 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowUpRight,
+  Coins,
   Percent,
   Receipt,
   Router as RouterIcon,
   ShoppingBag,
   Ticket,
+  TrendingUp,
   WalletCards,
   Wifi,
 } from "lucide-react";
 import { type DailyPoint } from "@/lib/dashboard/queries";
+import { type MonthlySeries } from "@/lib/dashboard/monthly";
 import { type CountryRow } from "@/lib/dashboard/geography";
 import {
   type ResellerState,
@@ -21,6 +24,7 @@ import {
 import { formatSc } from "@/lib/safecoin/pricing";
 import DateRangePicker from "./DateRangePicker";
 import LineChart from "@/components/charts/LineChart";
+import BarChart from "@/components/charts/BarChart";
 import type { AdminDictionary } from "@/lib/i18n/admin/fr";
 import { type Locale, HTML_LANG } from "@/lib/i18n/config";
 
@@ -60,6 +64,8 @@ export type SafecoinSummary = {
 
 export type DashboardViewProps = {
   kpis: DashboardKpis | null;
+  /** Six derniers mois, indépendants de la période du sélecteur. */
+  monthly: MonthlySeries | null;
   /** Répartition des comptes par pays — superadmin seulement, vide sinon. */
   countries: CountryRow[];
   reseller: ResellerState | null;
@@ -150,6 +156,7 @@ function StatTile({
   more,
   icon: Icon,
   accent = "brand",
+  children,
 }: {
   label: string;
   value: string;
@@ -158,6 +165,8 @@ function StatTile({
   more: string;
   icon: typeof WalletCards;
   accent?: "brand" | "ok" | "err" | "ink";
+  /** Complément sous la valeur — la barre segmentée du parc, par exemple. */
+  children?: React.ReactNode;
 }) {
   const accents = {
     brand: "border-t-brand",
@@ -177,8 +186,9 @@ function StatTile({
         </span>
       </div>
       <p className="mt-3 text-2xl font-bold tabular-nums tracking-tight text-ink">{value}</p>
+      {children}
       <p className="mt-1 text-xs text-ink-soft">{hint}</p>
-      <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-deep">
+      <span className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-semibold text-brand-deep">
         {more}
         <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
       </span>
@@ -186,8 +196,15 @@ function StatTile({
   );
 }
 
-export default function DashboardView({ kpis, daily, recentSales, safecoin, countries, reseller, rangeLabel, picker, t, locale }: DashboardViewProps) {
+export default function DashboardView({ kpis, monthly, daily, recentSales, safecoin, countries, reseller, rangeLabel, picker, t, locale }: DashboardViewProps) {
   const { formatFcfa, formatNumber, formatDay, formatDateTime } = formatters(locale);
+  /* « 2026-08 » → « août ». Le libellé d'axe doit rester court : six barres
+     partagent la largeur d'une carte de graphique. */
+  const moisCourt = new Intl.DateTimeFormat(HTML_LANG[locale], { month: "short" });
+  const formatMonth = (key: string) => {
+    const [y, m] = key.split("-").map(Number);
+    return moisCourt.format(new Date(y, m - 1, 1));
+  };
   const data = kpis ? { kpis, daily, recentSales } : null;
   const hasSales = (kpis?.salesCount ?? 0) > 0;
   const hasAnyData = hasSales || (kpis?.expenseCents ?? 0) > 0;
@@ -199,7 +216,19 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-ink">{t.title}</h1>
-        <DateRangePicker from={picker.from} to={picker.to} activePreset={picker.activePreset} />
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangePicker from={picker.from} to={picker.to} activePreset={picker.activePreset} />
+          {/* Les deux actions vivaient dans le bandeau héros, que la grille de
+              tuiles remplace. Elles remontent près du titre plutôt que de
+              disparaître avec lui. */}
+          <Link
+            href="/admin/vouchers"
+            className="inline-flex items-center gap-2 rounded-full border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper"
+          >
+            <Ticket aria-hidden="true" className="h-4 w-4" />
+            {t.cashed.generateVouchers}
+          </Link>
+        </div>
       </div>
 
       {/* Ce qui exige une action passe AVANT les chiffres. L'écran précédent
@@ -258,99 +287,33 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
         </p>
       )}
 
-      {/* Un chiffre domine, les autres le qualifient.
-          Le pas de cascade est réduit à 45 ms — un tableau de bord se lit en
-          urgence. Sur trois colonnes la séquence entière tient sous 150 ms,
-          soit à peine plus qu'un rendu instantané. Le bandeau d'alerte, lui,
-          n'est PAS retardé : il est au-dessus et sans classe de révélation. */}
-      <div className="stagger mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3" style={{ "--stagger-step": "45ms" } as React.CSSProperties}>
-        <Card className="reveal p-6 lg:col-span-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
-            {t.cashed.label(rangeLabel)}
-          </p>
-          <p className="mt-2 text-4xl font-bold tabular-nums tracking-tight text-ink sm:text-5xl">
-            {formatFcfa(data?.kpis.grossCents ?? 0)}
-          </p>
-          <p className="mt-2 text-sm text-ink-soft">
-            <span className="font-semibold text-ink">{formatFcfa(data?.kpis.netCents ?? 0)}</span>{" "}
-            {t.cashed.net(data?.kpis.salesCount ?? 0)}
-          </p>
-
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Link
-              href="/admin/vouchers"
-              className="inline-flex items-center gap-2 rounded-full border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper"
-            >
-              <Ticket aria-hidden="true" className="h-4 w-4" />
-              {t.cashed.generateVouchers}
-            </Link>
-            <Link
-              href="/admin/sales"
-              className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-clay"
-            >
-              {t.cashed.seeSales}
-              <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
-            </Link>
-          </div>
-        </Card>
-
-        <Card className="reveal flex flex-col p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">{t.fleet.title}</p>
-          {total > 0 ? (
-            <>
-              <p className="mt-2 text-3xl font-bold tabular-nums text-ink">
-                {online}
-                <span className="text-lg font-medium text-ink-soft">{t.fleet.online(total)}</span>
-              </p>
-              <div className="mt-4 flex gap-1" aria-hidden="true">
-                {Array.from({ length: total }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`h-1.5 flex-1 rounded-full ${i < online ? "bg-ok" : "bg-err"}`}
-                  />
-                ))}
-              </div>
-              <p className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
-                <Wifi aria-hidden="true" className="h-4 w-4" />
-                <span className="font-semibold tabular-nums text-ink">
-                  {data?.kpis.activeUsers ?? 0}
-                </span>
-                {t.fleet.sessions(data?.kpis.activeUsers ?? 0)}
-              </p>
-              <Link
-                href="/admin/router"
-                className="mt-auto pt-4 text-sm font-semibold text-brand-deep hover:underline"
-              >
-                {t.fleet.see}
-              </Link>
-            </>
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center py-4 text-center">
-              <RouterIcon aria-hidden="true" className="h-6 w-6 text-ink-soft" />
-              <p className="mt-2 text-sm font-medium text-ink">{t.fleet.empty}</p>
-              <Link
-                href="/admin/settings/router-setup?new=1"
-                className="mt-3 inline-flex items-center gap-2 rounded-full border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper"
-              >
-                {t.fleet.link}
-              </Link>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Rangée de compteurs, sur le modèle demandé : libellé, chiffre, accès.
-          QUATRE et non huit : ne figurent ici que des compteurs qui n'étaient
-          affichés nulle part ailleurs sur l'écran. Recopier l'encaissé du
-          bandeau ou le parc de la carte voisine aurait rempli la grille en
-          faisant lire deux fois la même chose. */}
+      {/* Huit compteurs, sur la disposition du modèle : libellé, chiffre,
+          accès. Le bandeau héros et la carte Parc ont fondu dedans — les
+          garder aurait fait lire l'encaissé et le parc deux fois sur le même
+          écran. La barre segmentée du parc, elle, survit DANS sa tuile : elle
+          montre d'un coup d'œil combien de routeurs sont tombés. */}
       <h2 className="mt-8 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
         {t.tiles.title}
       </h2>
-      {/* Pas de `.reveal` ici, volontairement : ces compteurs se lisent en
-          urgence, comme le bandeau d'alerte au-dessus, qui n'est pas retardé
-          non plus. Une cascade les ferait apparaître après le graphique. */}
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label={t.tiles.gross}
+          value={formatFcfa(data?.kpis.grossCents ?? 0)}
+          hint={t.tiles.grossHint(rangeLabel)}
+          href="/admin/sales"
+          more={t.tiles.more}
+          icon={Coins}
+          accent="brand"
+        />
+        <StatTile
+          label={t.tiles.net}
+          value={formatFcfa(data?.kpis.netCents ?? 0)}
+          hint={t.tiles.netHint}
+          href="/admin/sales"
+          more={t.tiles.more}
+          icon={TrendingUp}
+          accent="ok"
+        />
         <StatTile
           label={t.tiles.sales}
           value={formatNumber(data?.kpis.salesCount ?? 0)}
@@ -387,7 +350,75 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
           icon={WalletCards}
           accent="ok"
         />
+        <StatTile
+          label={t.tiles.routers}
+          value={total > 0 ? `${online}` : "—"}
+          hint={total > 0 ? t.tiles.routersHint(total) : t.tiles.routersEmpty}
+          href={total > 0 ? "/admin/router" : "/admin/settings/router-setup?new=1"}
+          more={total > 0 ? t.tiles.more : t.fleet.link}
+          icon={RouterIcon}
+          accent={offline.length > 0 ? "err" : "ok"}
+        >
+          {total > 0 && (
+            <span className="mt-2 flex gap-1" aria-hidden="true">
+              {Array.from({ length: total }).map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 flex-1 rounded-full ${i < online ? "bg-ok" : "bg-err"}`}
+                />
+              ))}
+            </span>
+          )}
+        </StatTile>
+        <StatTile
+          label={t.tiles.sessions}
+          value={formatNumber(data?.kpis.activeUsers ?? 0)}
+          hint={t.tiles.sessionsHint}
+          href="/admin/usage-analytics"
+          more={t.tiles.more}
+          icon={Wifi}
+          accent="ink"
+        />
       </div>
+
+      {/* Histogrammes mensuels, comme le modèle : un compteur par carte, les
+          mois en abscisse. Ils IGNORENT le sélecteur de période — sinon la
+          vue par défaut (le mois en cours) n'afficherait qu'une seule barre
+          par graphique, ce qui ne compare rien. */}
+      {monthly && (
+        <>
+          <h2 className="mt-8 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+            {t.charts.title}
+          </h2>
+          <p className="mt-1 text-xs text-ink-soft">{t.charts.subtitle}</p>
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {(
+              [
+                [t.charts.payments, monthly.payments, "count"],
+                [t.charts.gross, monthly.gross, "fcfa"],
+                [t.charts.commissions, monthly.commissions, "fcfa"],
+                [t.charts.expenses, monthly.expenses, "fcfa"],
+                [t.charts.topups, monthly.topups, "fcfa"],
+                [t.charts.routers, monthly.routers, "count"],
+              ] as const
+            ).map(([titre, points, unit]) => (
+              <Card key={titre} className="p-4">
+                <h3 className="text-sm font-semibold text-ink">{titre}</h3>
+                <BarChart
+                  labels={points.map((p) => formatMonth(p.month))}
+                  values={points.map((p) => p.value)}
+                  unit={unit}
+                  ariaLabel={titre}
+                  emptyLabel={t.chart.empty}
+                />
+                <p className="mt-1 text-center text-[10px] italic text-ink-soft">
+                  {t.charts.month}
+                </p>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="stagger mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3" style={{ "--stagger-step": "45ms" } as React.CSSProperties}>
         <Card className="reveal p-5 lg:col-span-2">

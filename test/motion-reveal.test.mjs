@@ -64,7 +64,7 @@ test("le compteur restitue la valeur rendue par le serveur", async () => {
 
 test("le tableau de bord ne retarde pas son bandeau d'alerte", async () => {
   const view = await read("src/app/admin/DashboardView.tsx");
-  const banniere = view.slice(view.indexOf("reseller?.pendingPayment"), view.indexOf("Un chiffre domine"));
+  const banniere = view.slice(view.indexOf("reseller?.pendingPayment"), view.indexOf("{t.tiles.title}"));
   assert.doesNotMatch(banniere, /className="[^"]*\breveal\b/, "une alerte ne s'anime pas, elle s'affiche");
   // Et la cascade reste courte : un cockpit se lit en urgence.
   assert.match(view, /"--stagger-step": "45ms"/);

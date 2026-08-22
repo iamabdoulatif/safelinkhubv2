@@ -39,9 +39,11 @@ test("les routeurs tombés sont NOMMÉS, pas seulement comptés", async () => {
 
   const view = await read("src/app/admin/DashboardView.tsx");
   assert.match(view, /offline\.join\(" · "\)/, "les noms doivent être affichés");
-  // Et l'alerte passe AVANT les chiffres : ce qui exige une action se lit d'abord.
+  // Et l'alerte passe AVANT les chiffres : ce qui exige une action se lit
+  // d'abord. Le repère est la grille de compteurs, qui a remplacé le bandeau
+  // héros ; l'ordre exigé, lui, n'a pas changé.
   const alerte = view.indexOf("{offline.length > 0 && (");
-  const chiffre = view.indexOf("{t.cashed.label(rangeLabel)}");
+  const chiffre = view.indexOf("{t.tiles.title}");
   assert.ok(alerte > 0 && alerte < chiffre, "l'alerte doit précéder le chiffre d'affaires");
 });
 

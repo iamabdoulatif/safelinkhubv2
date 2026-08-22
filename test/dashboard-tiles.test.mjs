@@ -5,32 +5,65 @@ import assert from "node:assert/strict";
 const read = (p) => readFile(new URL(`../${p}`, import.meta.url), "utf8");
 const vue = () => read("src/app/admin/DashboardView.tsx");
 
+const grille = (src) => src.slice(src.indexOf("t.tiles.title"), src.indexOf("t.charts.title"));
+
 test("chaque tuile de compteur mène à son écran", async () => {
   /* Une tuile qui affiche un chiffre sans donner accès à son détail oblige à
      retrouver l'écran à la main — c'est le « More… » de la référence. */
   const src = await vue();
-  const bloc = src.slice(src.indexOf("t.tiles.title"), src.indexOf("stagger mt-4"));
+  const bloc = grille(src);
   const tuiles = bloc.match(/<StatTile\b/g) ?? [];
-  const liens = bloc.match(/href="\/admin\/[a-z-]+"/g) ?? [];
-  assert.equal(tuiles.length, 4, "quatre tuiles attendues");
+  assert.equal(tuiles.length, 8, "huit tuiles, comme le modèle");
+  const liens = bloc.match(/href=[{"]/g) ?? [];
   assert.equal(liens.length, tuiles.length, "chaque tuile porte un href");
   // StatTile est un <Link>, pas un <div> : le clic entier est la cible.
   assert.match(src, /function StatTile\([\s\S]*?<Link/);
 });
 
-test("la rangée ne redit pas ce que l'écran affiche déjà", async () => {
-  /* Le bandeau d'en-tête porte l'encaissé (brut) et le net ; la carte Parc
-     porte les routeurs en ligne et les sessions actives. Les remettre en
-     tuiles aurait rempli la grille en faisant lire deux fois la même chose —
-     c'est pour ça qu'il y en a quatre et non huit. */
+test("les huit compteurs du modèle sont couverts, sans doublon", async () => {
+  /* Le bandeau héros et la carte Parc ont fondu DANS la grille : leurs
+     chiffres n'apparaissent qu'une fois, dans une tuile. Les laisser aussi
+     au-dessus aurait fait lire l'encaissé et le parc deux fois. */
   const src = await vue();
-  const bloc = src.slice(src.indexOf("t.tiles.title"), src.indexOf("stagger mt-4"));
-  for (const champ of ["grossCents", "netCents", "routersOnline", "activeUsers"]) {
-    assert.doesNotMatch(bloc, new RegExp(champ), `${champ} est déjà affiché ailleurs`);
+  const bloc = grille(src);
+  for (const champ of [
+    "grossCents",
+    "netCents",
+    "salesCount",
+    "commissionCents",
+    "expenseCents",
+    "creditCents",
+    "activeUsers",
+  ]) {
+    const occurrences = bloc.split(champ).length - 1;
+    assert.equal(occurrences, 1, `${champ} doit figurer dans UNE seule tuile`);
   }
-  // Et le crédit du portefeuille, lui, n'était affiché NULLE PART : c'est la
-  // seule valeur déjà calculée que l'écran laissait tomber.
-  assert.match(bloc, /creditCents/);
+  // La barre segmentée du parc survit à la disparition de sa carte.
+  assert.match(bloc, /i < online \? "bg-ok" : "bg-err"/);
+  // Et l'appel à lier un premier routeur n'est pas perdu avec la carte vide.
+  assert.match(bloc, /t\.tiles\.routersEmpty/);
+  assert.match(bloc, /t\.fleet\.link/);
+});
+
+test("les histogrammes ignorent le sélecteur de période", async () => {
+  /* Sinon la vue par défaut — le mois en cours — n'afficherait qu'une seule
+     barre par graphique, ce qui ne compare rien. */
+  const page = await read("src/app/admin/page.tsx");
+  assert.match(page, /getMonthlySeries\(session\.orgId, now\)/);
+  assert.doesNotMatch(page, /getMonthlySeries\([^)]*from/);
+});
+
+test("aucune fonction ne traverse la frontière serveur/client", async () => {
+  /* BarChart est un composant client, DashboardView un composant serveur :
+     lui passer un formateur lève « Functions cannot be passed directly to
+     Client Components » au rendu. D'où le discriminant `unit`, comme
+     LineChart. */
+  const src = await vue();
+  assert.match(src, /<BarChart[\s\S]{0,200}unit=\{unit\}/);
+  assert.doesNotMatch(src, /<BarChart[\s\S]{0,200}format=\{/);
+  const chart = await read("src/components/charts/BarChart.tsx");
+  assert.match(chart, /^"use client";/);
+  assert.match(chart, /unit\?: "fcfa" \| "count"/);
 });
 
 test("la ventilation en double a disparu du graphique", async () => {

@@ -1,5 +1,6 @@
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDashboardData } from "@/lib/dashboard/queries";
+import { getMonthlySeries } from "@/lib/dashboard/monthly";
 import { getSafecoinReport } from "@/lib/safecoin/queries";
 import { getAccountsByCountry } from "@/lib/dashboard/geography";
 import { eq } from "drizzle-orm";
@@ -61,7 +62,14 @@ export default async function DashboardPage({
             ? "30d"
             : null;
 
-  const data = session ? await getDashboardData(session.orgId, { from, to: toEnd }) : null;
+  /* Les deux lectures sont indépendantes : la première suit la période du
+     sélecteur, la seconde regarde toujours les six derniers mois. */
+  const [data, monthly] = session
+    ? await Promise.all([
+        getDashboardData(session.orgId, { from, to: toEnd }),
+        getMonthlySeries(session.orgId, now),
+      ])
+    : [null, null];
   // Réservé au superadmin : la répartition porte sur TOUS les comptes du SaaS,
   // pas sur ceux d'une organisation. L'exposer à un admin ordinaire lui
   // montrerait le portefeuille clients de la plateforme.
@@ -93,6 +101,7 @@ export default async function DashboardPage({
   return (
     <DashboardView
       kpis={data?.kpis ?? null}
+      monthly={monthly}
       daily={data?.daily ?? []}
       recentSales={data?.recentSales ?? []}
       safecoin={
