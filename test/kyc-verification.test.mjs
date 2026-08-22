@@ -19,6 +19,7 @@ test("aucune pièce d'identité ne part vers un stockage public", async () => {
     "src/app/admin/kyc/page.tsx",
     "src/app/admin/kyc/[orgId]/page.tsx",
     "src/lib/kyc/queries.ts",
+    "src/app/admin/kyc/RowActions.tsx",
   ]) {
     const src = await read(f);
     assert.doesNotMatch(src, /uploadPaymentProof|@vercel\/blob|\bput\(/, `${f} ne doit rien téléverser`);
@@ -100,7 +101,7 @@ test("toute la section KYC d'administration est réservée au superadmin", async
 test("un statut porte le même nom sur la liste et sur la fiche", async () => {
   // Deux tables de libellés auraient fini par nommer le même état
   // différemment d'un écran à l'autre.
-  const { KYC_STATUS_LABELS } = await import("../src/app/admin/kyc/status.ts");
+  const { KYC_STATUS_LABELS } = await import("../src/lib/kyc/statuses.ts");
   for (const f of ["src/app/admin/kyc/page.tsx", "src/app/admin/kyc/[orgId]/page.tsx"]) {
     assert.match(await read(f), /KYC_STATUS_LABELS/, `${f} doit lire la table partagée`);
   }
@@ -110,4 +111,41 @@ test("un statut porte le même nom sur la liste et sur la fiche", async () => {
     assert.ok(KYC_STATUS_LABELS[statut], `libellé manquant : ${statut}`);
     assert.match(actions, new RegExp(statut));
   }
+});
+
+test("la fiche découpe ses volets sans état client", async () => {
+  /* Les onglets vivent dans l'URL : la page reste rendue côté serveur et un
+     lien rouvre le même volet. Un « use client » ici ferait basculer toute la
+     fiche — et ses données — dans le navigateur. */
+  const fiche = await read("src/app/admin/kyc/[orgId]/page.tsx");
+  assert.doesNotMatch(fiche, /^"use client"/m);
+  for (const vue of ["profil", "verification", "comptes", "journal"]) {
+    assert.match(fiche, new RegExp(`onglet === "${vue}"`), `volet manquant : ${vue}`);
+  }
+});
+
+test("le menu d'une ligne ne propose de décider que si le dossier est soumis", async () => {
+  /* decideVerification n'écrase pas un dossier déjà décidé côté serveur, mais
+     proposer « Valider » sur une organisation qui n'a rien envoyé donnerait un
+     bouton sans effet — l'examinateur croirait à une panne. */
+  const liste = await read("src/app/admin/kyc/page.tsx");
+  assert.match(liste, /decidable=\{l\.status === "under_review"\}/);
+  const menu = await read("src/app/admin/kyc/RowActions.tsx");
+  assert.match(menu, /decidable \?/);
+  // La décision est définitive : chaque bouton demande confirmation.
+  assert.match(menu, /confirm\(/);
+});
+
+test("chaque file du parcours a son onglet ET son entrée de menu", async () => {
+  /* « Pièces envoyées » n'avait pas de file : ces dossiers n'apparaissaient
+     que dans « Tous », donc nulle part en pratique. */
+  const { KYC_TABS } = await import("../src/lib/kyc/statuses.ts");
+  const cles = KYC_TABS.map((t) => t.key);
+  for (const statut of ["under_review", "documents_sent", "approved", "rejected", "not_started"]) {
+    assert.ok(cles.includes(statut), `file manquante : ${statut}`);
+  }
+  // La barre latérale lit la MÊME liste — sinon menu et onglets divergeraient.
+  const barre = await read("src/components/AdminSidebar.tsx");
+  assert.match(barre, /KYC_TABS/);
+  assert.match(barre, /@\/lib\/kyc\/statuses/);
 });

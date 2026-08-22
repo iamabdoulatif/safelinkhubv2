@@ -101,5 +101,8 @@ export async function decideVerification(formData: FormData) {
       updatedAt: new Date(),
     })
     .where(eq(kycVerifications.orgId, orgId));
+  // Les deux écrans lisent la même ligne : la file d'examen doit refléter la
+  // décision aussitôt, pas au prochain passage.
   revalidatePath("/admin/verification");
+  revalidatePath("/admin/kyc");
 }

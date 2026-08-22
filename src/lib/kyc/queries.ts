@@ -2,17 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { kycVerifications, organizations, users } from "@/lib/db/schema";
-
-/** Statuts exposés comme onglets, dans l'ordre d'urgence pour l'examinateur. */
-export const KYC_TABS = [
-  { key: "under_review", label: "En attente" },
-  { key: "approved", label: "Validés" },
-  { key: "rejected", label: "Refusés" },
-  { key: "not_started", label: "Non commencés" },
-  { key: "all", label: "Tous" },
-] as const;
-
-export type KycTab = (typeof KYC_TABS)[number]["key"];
+import type { KycTab } from "./statuses";
 
 export async function listKycRows(tab: KycTab, recherche: string) {
   const db = getDb();

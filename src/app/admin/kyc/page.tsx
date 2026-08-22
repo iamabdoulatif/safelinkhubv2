@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { ShieldCheck, Search } from "lucide-react";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { countKycByStatus, listKycRows, KYC_TABS, type KycTab } from "@/lib/kyc/queries";
-import { KYC_STATUS_LABELS, statusTone } from "./status";
+import { countKycByStatus, listKycRows } from "@/lib/kyc/queries";
+import {
+  KYC_STATUS_LABELS,
+  KYC_TABS,
+  isKycTab,
+  statusTone,
+  type KycTab,
+} from "@/lib/kyc/statuses";
+import RowActions from "./RowActions";
 
 export const dynamic = "force-dynamic";
-
-const est = (v: string): v is KycTab => KYC_TABS.some((t) => t.key === v);
 
 export default async function KycAdminPage({
   searchParams,
@@ -19,7 +24,7 @@ export default async function KycAdminPage({
   }
 
   const { statut, q } = await searchParams;
-  const onglet: KycTab = statut && est(statut) ? statut : "under_review";
+  const onglet: KycTab = statut && isKycTab(statut) ? statut : "under_review";
   const recherche = (q ?? "").trim();
   const [lignes, compteurs] = await Promise.all([
     listKycRows(onglet, recherche),
@@ -97,6 +102,7 @@ export default async function KycAdminPage({
                 <th className="px-3 py-2 font-semibold">Statut</th>
                 <th className="px-3 py-2 font-semibold">Tentatives</th>
                 <th className="px-3 py-2 font-semibold">Soumis le</th>
+                <th className="px-3 py-2 text-right font-semibold">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -120,6 +126,13 @@ export default async function KycAdminPage({
                   <td className="px-3 py-3 tabular-nums text-ink-soft">{l.attempts}</td>
                   <td className="px-3 py-3 text-xs text-ink-soft">
                     {l.submittedAt ? dateFmt.format(l.submittedAt) : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    <RowActions
+                      orgId={l.orgId}
+                      orgName={l.orgName}
+                      decidable={l.status === "under_review"}
+                    />
                   </td>
                 </tr>
               ))}

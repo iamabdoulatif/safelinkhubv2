@@ -42,6 +42,7 @@ import Logo from "./landing/Logo";
 import { setLocale } from "@/lib/i18n/actions";
 import type { Locale } from "@/lib/i18n/config";
 import type { AdminDictionary } from "@/lib/i18n/admin/fr";
+import { KYC_TABS } from "@/lib/kyc/statuses";
 
 /* La tranche `nav` traverse la frontière serveur/client : elle ne doit donc
  * porter que des chaînes. `pendingBadge` est une fonction d'interpolation —
@@ -381,6 +382,26 @@ export default function AdminSidebar({
                           </span>
                         )}
                       </Link>
+                      {/* Les files du parcours KYC se déplient SUR PLACE quand
+                          on est dans la section — un examinateur saute d'une
+                          file à l'autre sans repasser par la page d'accueil.
+                          Repliées ailleurs : six entrées de plus dans une
+                          barre qui en compte déjà une trentaine. */}
+                      {href === "/admin/kyc" && isActive("/admin/kyc") && (
+                        <ul className="mb-1 ml-6 space-y-0.5 border-l border-line-soft pl-2">
+                          {KYC_TABS.map((t) => (
+                            <li key={t.key}>
+                              <Link
+                                href={`/admin/kyc?statut=${t.key}`}
+                                onClick={closeMobile}
+                                className="block px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-clay hover:text-ink"
+                              >
+                                {t.label}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </li>
                   );
                 })}
