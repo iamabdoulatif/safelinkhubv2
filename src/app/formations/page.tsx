@@ -31,9 +31,9 @@ import { listPublishedCourses } from "@/lib/courses/queries";
    photos du dossier tournent selon le rang, pour que deux cartes voisines ne
    portent pas la même image. */
 const ILLUSTRATIONS = [
-  "/landing/photos/baie-reseau.jpg",
-  "/landing/photos/antennes-toit.jpg",
-  "/landing/photos/technicien-carte.jpg",
+  "/photos/illustration-ports.jpg",
+  "/photos/illustration-cables.jpg",
+  "/photos/illustration-baie.jpg",
 ] as const;
 import { listPublishedPosts } from "@/lib/blog/queries";
 import Testimonials from "@/components/landing/Testimonials";
@@ -147,7 +147,7 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
               {/* Photo décorative : alt vide, elle n'apporte rien qu'un lecteur
                   d'écran doive entendre. */}
               <Image
-                src="/landing/photos/technicien-carte.jpg"
+                src="/photos/formations-hero.jpg"
                 alt=""
                 width={1200}
                 height={900}
@@ -311,7 +311,7 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
           <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
             <div className="lg:col-span-5">
               <Image
-                src="/landing/photos/baie-reseau.jpg"
+                src="/photos/formations-equipe.jpg"
                 alt=""
                 width={1400}
                 height={933}
