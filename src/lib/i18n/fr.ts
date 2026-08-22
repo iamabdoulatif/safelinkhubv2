@@ -626,6 +626,20 @@ export const fr = {
         text: "Aucun compte, aucun paiement. Les contenus sont ouverts, et le resteront.",
       },
     ],
+    aboutEyebrow: "Qui écrit",
+    aboutTitle: "Des guides écrits par ceux qui exploitent le réseau.",
+    aboutText: "SafeLinkHub n'est pas une école : c'est la plateforme qui fait tourner des hotspots MikroTik en Côte d'Ivoire et ailleurs. Les guides sortent de ces déploiements — des configurations qui tournent en production, pas des exercices.",
+    aboutPoints: [
+      {
+        title: "Vérifié sur du vrai matériel",
+        text: "hAP ax, RB4011, RB5009, Chateau Pro : les réglages publiés ont été appliqués sur ces cartes.",
+      },
+      {
+        title: "Corrigé quand le terrain contredit",
+        text: "Un guide qui vieillit mal est repris. RouterOS bouge, les opérateurs mobile money aussi.",
+      },
+    ],
+    aboutCta: "Découvrir la plateforme",
     categoriesTitle: "Explorer par thème",
     categoriesLead: "Les sujets couverts aujourd'hui, et le nombre de guides pour chacun.",
     categoryCount: (n: number) => `${n} guide${n > 1 ? "s" : ""}`,

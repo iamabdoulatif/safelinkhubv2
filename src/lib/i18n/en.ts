@@ -637,6 +637,20 @@ export const en: Dictionary = {
         text: "No account, no payment. The content is open, and will stay open.",
       },
     ],
+    aboutEyebrow: "Who writes",
+    aboutTitle: "Guides written by the people running the network.",
+    aboutText: "SafeLinkHub is not a school: it is the platform running MikroTik hotspots in Côte d'Ivoire and beyond. The guides come out of those deployments — configurations running in production, not exercises.",
+    aboutPoints: [
+      {
+        title: "Checked on real hardware",
+        text: "hAP ax, RB4011, RB5009, Chateau Pro: the settings published here were applied to those boards.",
+      },
+      {
+        title: "Corrected when the field disagrees",
+        text: "A guide that ages badly gets rewritten. RouterOS moves, and so do the mobile money operators.",
+      },
+    ],
+    aboutCta: "Discover the platform",
     categoriesTitle: "Explore by topic",
     categoriesLead: "The subjects covered today, and how many guides each one has.",
     categoryCount: (n) => `${n} guide${n > 1 ? "s" : ""}`,

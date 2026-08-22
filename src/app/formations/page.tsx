@@ -6,7 +6,9 @@ import {
   BookOpen,
   GraduationCap,
   MonitorSmartphone,
+  CircuitBoard,
   Newspaper,
+  RefreshCw,
   Tag,
   Terminal,
   Unlock,
@@ -16,6 +18,7 @@ import {
 /* Appariées par INDEX aux arguments du dictionnaire : un composant React ne se
    sérialise pas dans un fichier de traduction. */
 const BENEFIT_ICONS = [Wrench, Terminal, MonitorSmartphone, Unlock] as const;
+const ABOUT_ICONS = [CircuitBoard, RefreshCw] as const;
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
 import Reveal from "@/components/motion/Reveal";
@@ -33,6 +36,7 @@ const ILLUSTRATIONS = [
   "/landing/photos/technicien-carte.jpg",
 ] as const;
 import { listPublishedPosts } from "@/lib/blog/queries";
+import Testimonials from "@/components/landing/Testimonials";
 
 /* Page « Formations ».
  *
@@ -299,6 +303,64 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
             </ul>
           </div>
         </section>
+        {/* « Qui écrit » — l'équivalent du bloc « À propos » du modèle. Sans
+            lui, la page affirme des guides de terrain sans jamais dire d'où
+            ils viennent. Aucun compteur inventé ici : le modèle affiche
+            « 150k cours », un chiffre que rien chez vous ne soutiendrait. */}
+        <section className="border-t border-line bg-clay py-14">
+          <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+            <div className="lg:col-span-5">
+              <Image
+                src="/landing/photos/baie-reseau.jpg"
+                alt=""
+                width={1400}
+                height={933}
+                sizes="(min-width: 1024px) 26rem, 100vw"
+                className="slate-card h-64 w-full object-cover lg:h-80"
+              />
+            </div>
+            <div className="lg:col-span-7">
+              <span className="slate-eyebrow">{t.aboutEyebrow}</span>
+              <h2 className="mt-4 font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">
+                {t.aboutTitle}
+              </h2>
+              <p className="mt-3 text-base leading-7 text-ink-soft">{t.aboutText}</p>
+
+              <ul role="list" className="mt-6 space-y-4">
+                {t.aboutPoints.map((point, i) => {
+                  const Icone = ABOUT_ICONS[i];
+                  return (
+                    <li key={point.title} className="flex gap-3">
+                      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-paper text-brand-deep">
+                        <Icone aria-hidden="true" className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-ink">{point.title}</span>
+                        <span className="mt-0.5 block text-sm leading-6 text-ink-soft">
+                          {point.text}
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <Link
+                href={localeHref("/services", locale)}
+                className="mt-7 inline-flex items-center gap-2 slate-btn slate-btn-ghost px-6 py-3 text-sm"
+              >
+                {t.aboutCta}
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Les avis viennent de la MÊME source que la landing — composant et
+            données uniques. En écrire un second jeu ici aurait produit deux
+            vitrines de témoignages à faire vivre en parallèle. */}
+        <Testimonials dict={dict} locale={locale} />
+
         <section className="bg-paper px-4 py-14 sm:px-6">
           <div className="mx-auto max-w-6xl rounded-3xl bg-brand px-6 py-12 text-center sm:px-12">
             <h2 className="mx-auto max-w-2xl font-display text-3xl font-bold leading-tight tracking-tight text-slate-deep">
