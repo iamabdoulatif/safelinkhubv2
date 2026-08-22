@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Clock, PlayCircle } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
 import ContentBlocks from "@/components/content/ContentBlocks";
@@ -50,28 +50,21 @@ export async function CoursePageContent({
                   {String(i + 1).padStart(2, "0")}
                 </p>
                 <h2 className="mt-2 font-display text-2xl font-bold text-ink">{lesson.title}</h2>
-                <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-ink-soft">
-                  {lesson.durationMinutes ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <Clock aria-hidden="true" className="h-3.5 w-3.5" />
-                      {lesson.durationMinutes} min
-                    </span>
-                  ) : null}
-                  {lesson.videoUrl && (
-                    <a
-                      href={lesson.videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 font-semibold text-brand-deep hover:underline"
-                    >
-                      <PlayCircle aria-hidden="true" className="h-3.5 w-3.5" />
-                      Vidéo
-                    </a>
-                  )}
-                </div>
+                {lesson.excerpt && (
+                  <p className="mt-2 text-sm leading-6 text-ink-soft">{lesson.excerpt}</p>
+                )}
+                {/* Le contenu est celui de l'article : il n'existe qu'à un
+                    endroit, et se corrige dans l'éditeur de blog. */}
                 <div className="mt-2">
                   <ContentBlocks content={lesson.content} />
                 </div>
+                <Link
+                  href={localeHref(`/blog/${lesson.slug}`, locale)}
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-deep hover:underline"
+                >
+                  {t.readArticle}
+                  <BookOpen aria-hidden="true" className="h-3.5 w-3.5" />
+                </Link>
               </li>
             ))}
           </ol>

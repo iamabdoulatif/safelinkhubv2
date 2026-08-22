@@ -1,13 +1,23 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, GraduationCap, Newspaper } from "lucide-react";
+import { ArrowRight, BookOpen, GraduationCap, Newspaper } from "lucide-react";
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
 import Reveal from "@/components/motion/Reveal";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { localeHref, localePrefix, HTML_LANG, type Locale } from "@/lib/i18n/config";
 import { listPublishedCourses } from "@/lib/courses/queries";
+
+/* Illustration de repli, comme pour les articles sans couverture : une carte
+   sans image casse la grille et fait paraître le parcours inachevé. Les trois
+   photos du dossier tournent selon le rang, pour que deux cartes voisines ne
+   portent pas la même image. */
+const ILLUSTRATIONS = [
+  "/landing/photos/baie-reseau.jpg",
+  "/landing/photos/antennes-toit.jpg",
+  "/landing/photos/technicien-carte.jpg",
+] as const;
 import { listPublishedPosts } from "@/lib/blog/queries";
 
 /* Page « Formations ».
@@ -31,6 +41,39 @@ async function safePosts() {
   } catch {
     return [];
   }
+}
+
+/* Une couverture distante ne passe pas par next/image sans être déclarée dans
+   images.remotePatterns : on retombe sur une balise simple plutôt que de faire
+   échouer le rendu d'une page publique. */
+function Illustration({
+  src,
+  rang,
+  titre,
+  className = "h-44 w-full object-cover",
+}: {
+  src: string | null;
+  rang: number;
+  titre: string;
+  className?: string;
+}) {
+  const url = src || ILLUSTRATIONS[rang % ILLUSTRATIONS.length];
+  const classe = className;
+  if (/^https?:\/\//.test(url)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={url} alt="" className={classe} loading="lazy" />;
+  }
+  return (
+    <Image
+      src={url}
+      alt=""
+      width={800}
+      height={500}
+      sizes="(min-width: 768px) 22rem, 100vw"
+      className={classe}
+      title={titre}
+    />
+  );
 }
 
 export async function TrainingPageContent({ locale }: { locale: Locale }) {
@@ -70,21 +113,18 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
             </p>
           ) : (
             <div className="stagger mt-6 grid grid-cols-1 gap-5 md:grid-cols-3">
-              {cours.map((c) => (
-                <article key={c.id} className="reveal slate-card overflow-hidden bg-paper">
-                  {c.coverImageUrl && !/^https?:\/\//.test(c.coverImageUrl) ? (
-                    <Image
-                      src={c.coverImageUrl}
-                      alt=""
-                      width={800}
-                      height={500}
-                      sizes="(min-width: 768px) 20rem, 100vw"
-                      className="h-40 w-full object-cover"
-                    />
-                  ) : null}
-                  <div className="p-6">
-                    {c.level && <span className="slate-eyebrow">{c.level}</span>}
-                    <h3 className="mt-3 font-display text-lg font-bold leading-snug text-ink">
+              {cours.map((c, i) => (
+                <article key={c.id} className="reveal slate-card flex flex-col overflow-hidden bg-paper">
+                  <div className="relative">
+                    <Illustration src={c.coverImageUrl} rang={i} titre={c.title} />
+                    {c.level && (
+                      <span className="absolute left-3 top-3 rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-slate-deep">
+                        {c.level}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col p-6">
+                    <h3 className="font-display text-lg font-bold leading-snug text-ink">
                       <Link
                         href={localeHref(`/formations/${c.slug}`, locale)}
                         className="hover:underline"
@@ -95,6 +135,10 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
                     {c.summary && (
                       <p className="mt-2 text-sm leading-6 text-ink-soft">{c.summary}</p>
                     )}
+                    <p className="mt-4 flex items-center gap-1.5 border-t border-line pt-3 text-xs text-ink-soft">
+                      <BookOpen aria-hidden="true" className="h-3.5 w-3.5" />
+                      {t.lessonsCount(c.lessons)}
+                    </p>
                   </div>
                 </article>
               ))}
@@ -122,20 +166,32 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
             </div>
 
             <ul role="list" className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-              {articles.slice(0, 6).map((p) => (
-                <li key={p.id} className="slate-card bg-paper p-5">
-                  {p.category && <span className="slate-eyebrow">{p.category}</span>}
-                  <h3 className="mt-3 font-display text-base font-bold leading-snug text-ink">
-                    <Link
-                      href={localeHref(`/blog/${p.slug}`, locale)}
-                      className="hover:underline"
-                    >
-                      {p.title}
-                    </Link>
-                  </h3>
-                  <p className="mt-1.5 font-mono text-xs text-ink-soft">
-                    {dateFmt.format(p.publishedAt ?? p.createdAt)}
-                  </p>
+              {articles.slice(0, 6).map((p, i) => (
+                <li key={p.id} className="slate-card flex gap-4 overflow-hidden bg-paper p-4">
+                  {/* Vos six articles ont tous leur illustration ; le repli ne
+                      sert qu'aux prochains, publiés sans couverture. */}
+                  <span className="shrink-0">
+                    <Illustration
+                      src={p.coverImageUrl}
+                      rang={i}
+                      titre={p.title}
+                      className="h-24 w-24 rounded-xl object-cover"
+                    />
+                  </span>
+                  <span className="min-w-0">
+                    {p.category && <span className="slate-eyebrow">{p.category}</span>}
+                    <h3 className="mt-2 font-display text-base font-bold leading-snug text-ink">
+                      <Link
+                        href={localeHref(`/blog/${p.slug}`, locale)}
+                        className="hover:underline"
+                      >
+                        {p.title}
+                      </Link>
+                    </h3>
+                    <p className="mt-1.5 font-mono text-xs text-ink-soft">
+                      {dateFmt.format(p.publishedAt ?? p.createdAt)}
+                    </p>
+                  </span>
                 </li>
               ))}
             </ul>

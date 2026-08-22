@@ -623,6 +623,7 @@ export const en: Dictionary = {
     articlesLead: "Published as the field teaches us, free to read.",
     allArticles: "All articles",
     startCourse: "Start the path",
+    readArticle: "Read the full article",
     backToTraining: "← All training",
     metaTitle: "Training | SafeLinkHub",
     metaDescription: "Paths and guides to install, secure and monetise a MikroTik Wi-Fi hotspot.",

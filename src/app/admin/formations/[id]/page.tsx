@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { courseLessons, courses } from "@/lib/db/schema";
+import { blogPosts, courseLessons, courses } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import CourseForm from "../CourseForm";
 import LessonsEditor from "../LessonsEditor";
@@ -18,11 +18,27 @@ export default async function EditCoursePage({ params }: { params: Promise<{ id:
   const [course] = await db.select().from(courses).where(eq(courses.id, id)).limit(1);
   if (!course) notFound();
 
-  const lessons = await db
-    .select()
-    .from(courseLessons)
-    .where(eq(courseLessons.courseId, id))
-    .orderBy(asc(courseLessons.position));
+  const [lessons, articles] = await Promise.all([
+    db
+      .select({
+        id: courseLessons.id,
+        position: courseLessons.position,
+        postId: courseLessons.postId,
+        title: blogPosts.title,
+        slug: blogPosts.slug,
+      })
+      .from(courseLessons)
+      .innerJoin(blogPosts, eq(blogPosts.id, courseLessons.postId))
+      .where(eq(courseLessons.courseId, id))
+      .orderBy(asc(courseLessons.position)),
+    // Seuls les articles PUBLIÉS : rattacher un brouillon donnerait une leçon
+    // qui disparaît du parcours public sans explication.
+    db
+      .select({ id: blogPosts.id, title: blogPosts.title, category: blogPosts.category })
+      .from(blogPosts)
+      .where(eq(blogPosts.published, true))
+      .orderBy(asc(blogPosts.title)),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -55,7 +71,7 @@ export default async function EditCoursePage({ params }: { params: Promise<{ id:
         }}
       />
 
-      <LessonsEditor courseId={course.id} lessons={lessons} />
+      <LessonsEditor courseId={course.id} lessons={lessons} articles={articles} />
     </div>
   );
 }

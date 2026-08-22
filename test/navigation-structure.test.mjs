@@ -105,3 +105,49 @@ test("aucune capacité n'est promise sur les offres non construites", async () =
   // Hotspot, lui, décrit ce qui existe vraiment.
   assert.ok(fr.servicePages.hotspot.points.length >= 3);
 });
+
+test("une leçon est un article, et le contenu ne vit qu'à un endroit", async () => {
+  /* Demandé explicitement : le contenu des formations se rédige dans
+     l'éditeur d'articles. Un second éditeur propre aux leçons aurait dupliqué
+     couverture, catégorie, publication et diffusion — et les deux auraient
+     divergé à la première correction faite d'un seul côté. */
+  const schema = await read("src/lib/db/schema.ts");
+  /* Borné à la déclaration SUIVANTE, pas à une table repérée au hasard :
+     portalOrders est déclaré AVANT courseLessons dans le fichier, ce qui
+     donnait une tranche vide — et un test vert qui ne vérifiait rien. */
+  const deb = schema.indexOf("export const courseLessons = pgTable(");
+  assert.ok(deb > 0, "courseLessons introuvable");
+  const bloc = schema.slice(deb, schema.indexOf("export const contactMessages"));
+  assert.ok(bloc.length > 100, "tranche de schéma vide");
+  assert.match(bloc, /postId: uuid\("post_id"\)/, "la leçon doit référencer un article");
+  for (const champ of ["content", "video_url", "duration_minutes"]) {
+    assert.doesNotMatch(bloc, new RegExp(`"${champ}"`), `${champ} ne doit plus vivre sur la leçon`);
+  }
+  // Un même article deux fois dans un parcours y apparaîtrait à deux rangs.
+  assert.match(bloc, /uniqueIndex\("course_lessons_course_post_idx"\)/);
+
+  // L'éditeur choisit et ordonne, il ne rédige pas.
+  const editeur = await read("src/app/admin/formations/LessonsEditor.tsx");
+  assert.match(editeur, /attachLesson/);
+  assert.match(editeur, /moveLesson/);
+  assert.doesNotMatch(editeur, /<textarea/, "aucune saisie de contenu dans l'éditeur de parcours");
+  assert.match(editeur, /href="\/admin\/blog"/, "il doit renvoyer vers l'éditeur d'articles");
+});
+
+test("seuls des articles PUBLIÉS peuvent être rattachés", async () => {
+  // Rattacher un brouillon donnerait une leçon qui disparaît du parcours
+  // public sans explication : la requête publique écarte les dépubliés.
+  const fiche = await read("src/app/admin/formations/[id]/page.tsx");
+  assert.match(fiche, /eq\(blogPosts\.published, true\)/);
+  const requetes = await read("src/lib/courses/queries.ts");
+  assert.match(requetes, /eq\(blogPosts\.published, true\)/);
+});
+
+test("aucune carte de formation ne reste sans illustration", async () => {
+  const page = await read("src/app/formations/page.tsx");
+  assert.match(page, /const ILLUSTRATIONS = \[/, "il faut un repli visuel");
+  assert.match(page, /ILLUSTRATIONS\[rang % ILLUSTRATIONS\.length\]/, "les repli doivent alterner");
+  // Une couverture distante ne passe pas par next/image sans déclaration
+  // d'hôte : on retombe sur une balise simple plutôt que de casser la page.
+  assert.match(page, /\^https\?:\\\/\\\//);
+});

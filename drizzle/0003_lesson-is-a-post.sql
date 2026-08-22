@@ -1,0 +1,3 @@
+ALTER TABLE "course_lessons" ADD COLUMN "post_id" uuid NOT NULL;--> statement-breakpoint
+ALTER TABLE "course_lessons" ADD CONSTRAINT "course_lessons_post_id_blog_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."blog_posts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "course_lessons_course_post_idx" ON "course_lessons" USING btree ("course_id","post_id");

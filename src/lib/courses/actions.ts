@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, ne } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { courseLessons, courses } from "@/lib/db/schema";
+import { blogPosts, courseLessons, courses } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 
 async function requireSuperAdminSession() {
@@ -123,23 +123,18 @@ export async function deleteCourse(formData: FormData) {
   refresh();
 }
 
-export async function saveLesson(_prevState: unknown, formData: FormData) {
+/**
+ * Rattache un ARTICLE à une formation. Rien n'est rédigé ici : le contenu vit
+ * dans l'éditeur d'articles, et la formation n'apporte que le regroupement et
+ * l'ordre de lecture.
+ */
+export async function attachLesson(_prevState: unknown, formData: FormData) {
   const session = await requireSuperAdminSession();
   if (!session) return { error: "Accès réservé au superadmin." };
 
-  const id = String(formData.get("id") ?? "").trim();
   const courseId = String(formData.get("courseId") ?? "").trim();
-  const title = String(formData.get("title") ?? "").trim();
-  const content = String(formData.get("content") ?? "").trim();
-  const videoUrl = String(formData.get("videoUrl") ?? "").trim();
-  const dureeRaw = Number(formData.get("durationMinutes") ?? 0);
-  const durationMinutes = Number.isInteger(dureeRaw) && dureeRaw > 0 ? dureeRaw : null;
-
-  if (!courseId) return { error: "Formation manquante." };
-  if (!title || !content) return { error: "Le titre et le contenu de la leçon sont requis." };
-  if (videoUrl && !/^https:\/\//.test(videoUrl)) {
-    return { error: "Le lien vidéo doit être une URL https." };
-  }
+  const postId = String(formData.get("postId") ?? "").trim();
+  if (!courseId || !postId) return { error: "Choisissez un article à rattacher." };
 
   const db = getDb();
   const [formation] = await db
@@ -149,36 +144,68 @@ export async function saveLesson(_prevState: unknown, formData: FormData) {
     .limit(1);
   if (!formation) return { error: "Formation introuvable." };
 
-  if (id) {
-    await db
-      .update(courseLessons)
-      .set({ title, content, videoUrl: videoUrl || null, durationMinutes, updatedAt: new Date() })
-      .where(and(eq(courseLessons.id, id), eq(courseLessons.courseId, courseId)));
-    refresh(formation.slug);
-    return { success: true as const };
-  }
+  const [article] = await db
+    .select({ id: blogPosts.id })
+    .from(blogPosts)
+    .where(eq(blogPosts.id, postId))
+    .limit(1);
+  if (!article) return { error: "Article introuvable." };
 
-  /* La nouvelle leçon se range à la fin. Reprendre le compte des leçons
+  const dejaLa = await db
+    .select({ id: courseLessons.id })
+    .from(courseLessons)
+    .where(and(eq(courseLessons.courseId, courseId), eq(courseLessons.postId, postId)))
+    .limit(1);
+  if (dejaLa.length > 0) return { error: "Cet article fait déjà partie de la formation." };
+
+  /* La nouvelle leçon se range à la fin. Reprendre le NOMBRE de leçons
      donnerait deux fois la même position après une suppression au milieu, et
-     l'ordre d'affichage deviendrait celui du hasard. */
+     l'ordre de lecture deviendrait celui du hasard. */
   const positions = await db
     .select({ position: courseLessons.position })
     .from(courseLessons)
     .where(eq(courseLessons.courseId, courseId));
   const suivante = positions.reduce((max, l) => Math.max(max, l.position), -1) + 1;
 
-  await db.insert(courseLessons).values({
-    courseId,
-    title,
-    content,
-    videoUrl: videoUrl || null,
-    durationMinutes,
-    position: suivante,
-  });
+  await db.insert(courseLessons).values({ courseId, postId, position: suivante });
   refresh(formation.slug);
   return { success: true as const };
 }
 
+/** Déplace une leçon d'un rang, vers le haut ou vers le bas. */
+export async function moveLesson(formData: FormData) {
+  const session = await requireSuperAdminSession();
+  if (!session) return;
+  const id = String(formData.get("id") ?? "").trim();
+  const sens = String(formData.get("direction") ?? "");
+  if (!id || (sens !== "up" && sens !== "down")) return;
+
+  const db = getDb();
+  const [courante] = await db
+    .select({ id: courseLessons.id, courseId: courseLessons.courseId, position: courseLessons.position })
+    .from(courseLessons)
+    .where(eq(courseLessons.id, id))
+    .limit(1);
+  if (!courante) return;
+
+  const fratrie = await db
+    .select({ id: courseLessons.id, position: courseLessons.position })
+    .from(courseLessons)
+    .where(eq(courseLessons.courseId, courante.courseId))
+    .orderBy(asc(courseLessons.position));
+  const index = fratrie.findIndex((l) => l.id === id);
+  const cible = fratrie[sens === "up" ? index - 1 : index + 1];
+  if (!cible) return; // déjà en bout de liste
+
+  /* On échange les positions des deux voisins. Réécrire toute la liste
+     marcherait aussi, mais toucherait des lignes que personne n'a demandé
+     à déplacer. */
+  await db.update(courseLessons).set({ position: cible.position }).where(eq(courseLessons.id, courante.id));
+  await db.update(courseLessons).set({ position: courante.position }).where(eq(courseLessons.id, cible.id));
+  refresh();
+}
+
+/** Détache un article de la formation. L'ARTICLE lui-même n'est pas touché. */
 export async function deleteLesson(formData: FormData) {
   const session = await requireSuperAdminSession();
   if (!session) return;

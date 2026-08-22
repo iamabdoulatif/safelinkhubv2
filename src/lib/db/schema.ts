@@ -1022,7 +1022,17 @@ export const courses = pgTable("courses", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-/** Une leçon d'une formation. L'ordre fait partie du contenu. */
+/**
+ * Une leçon EST un article de blog, repris dans une formation.
+ *
+ * Le contenu ne vit donc qu'à UN endroit : l'éditeur d'articles, avec sa
+ * couverture, sa catégorie, sa publication et sa diffusion. Un second éditeur
+ * propre aux leçons aurait dupliqué tout cela, et les deux auraient divergé —
+ * la mise en forme corrigée d'un côté, pas de l'autre.
+ *
+ * La formation n'apporte que ce que l'article ne sait pas faire : le
+ * regroupement et l'ORDRE de lecture.
+ */
 export const courseLessons = pgTable(
   "course_lessons",
   {
@@ -1030,17 +1040,20 @@ export const courseLessons = pgTable(
     courseId: uuid("course_id")
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
-    title: text("title").notNull(),
-    content: text("content").notNull(),
-    // Vidéo d'accompagnement facultative (YouTube ou autre).
-    videoUrl: text("video_url"),
-    durationMinutes: integer("duration_minutes"),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => blogPosts.id, { onDelete: "cascade" }),
     position: integer("position").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [index("course_lessons_course_position_idx").on(t.courseId, t.position)],
+  (t) => [
+    index("course_lessons_course_position_idx").on(t.courseId, t.position),
+    // Un même article ne peut pas figurer deux fois dans la même formation :
+    // il y apparaîtrait en double, à deux rangs différents.
+    uniqueIndex("course_lessons_course_post_idx").on(t.courseId, t.postId),
+  ],
 );
+
 
 /**
  * Messages envoyés depuis le formulaire public /contact — les expéditeurs

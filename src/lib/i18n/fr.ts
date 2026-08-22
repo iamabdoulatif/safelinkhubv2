@@ -612,6 +612,7 @@ export const fr = {
     articlesLead: "Publiés au fil du terrain, en accès libre.",
     allArticles: "Tous les articles",
     startCourse: "Commencer le parcours",
+    readArticle: "Lire l’article complet",
     backToTraining: "← Toutes les formations",
     metaTitle: "Formations | SafeLinkHub",
     metaDescription: "Parcours et guides pour installer, sécuriser et monétiser un hotspot Wi-Fi MikroTik.",
