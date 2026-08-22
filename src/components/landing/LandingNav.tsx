@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LayoutDashboard, Menu, Search, X } from "lucide-react";
+import ServicesMenu from "./ServicesMenu";
 import Logo from "./Logo";
 import { usePathname } from "next/navigation";
 import type { Dictionary } from "@/lib/i18n/fr";
@@ -33,7 +34,6 @@ const navLinks = (nav: Nav) =>
        mène à une page où le contenu est réellement rangé. « Fonctionnalités »
        et « Plateforme » sont devenues /services, l'accès distant a sa page
        /vpn, et le blog vit sous /formations. */
-    { href: "/services", label: nav.services },
     { href: "/vpn", label: nav.vpn },
     { href: "/formations", label: nav.training },
     { href: "/boutique", label: nav.shop },
@@ -89,6 +89,7 @@ export default function LandingNav({
           aria-label={nav.mainNav}
           className="hidden items-center gap-7 text-sm font-semibold text-ink md:flex"
         >
+          <ServicesMenu menu={nav.servicesMenu} locale={locale} />
           {links.map((l) =>
             l.href.startsWith("#") ? (
               <a key={l.href} href={getHref(l.href)} className="px-1 text-ink hover:text-brand-deep">
@@ -157,6 +158,31 @@ export default function LandingNav({
       {open && (
         <nav id="mobile-menu" aria-label={nav.mobileNav} className="border-t border-line bg-paper md:hidden">
           <ul role="list" className="divide-y divide-line-soft">
+            {/* Sur mobile il n'y a pas de survol : les services sont dépliés
+                d'emblée plutôt que cachés derrière un geste impossible. Le
+                menu déroulant, lui, reste réservé au desktop. */}
+            <li className="px-6 pt-4">
+              <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-soft">
+                {nav.servicesMenu.label}
+              </span>
+            </li>
+            {[
+              { href: "/vpn", label: nav.servicesMenu.vpnTitle },
+              { href: "/services/hotspot", label: nav.servicesMenu.hotspotTitle },
+              { href: "/services/videosurveillance", label: nav.servicesMenu.cameraTitle },
+              { href: "/services/firewall", label: nav.servicesMenu.firewallTitle },
+              { href: "/services", label: nav.servicesMenu.all },
+            ].map((service) => (
+              <li key={service.href}>
+                <Link
+                  href={localeHref(service.href, locale)}
+                  onClick={() => setOpen(false)}
+                  className="block px-6 py-3 pl-8 text-base font-semibold text-ink hover:bg-clay"
+                >
+                  {service.label}
+                </Link>
+              </li>
+            ))}
             {links.map((l) => (
               <li key={l.href}>
                 {l.href.startsWith("#") ? (

@@ -11,8 +11,11 @@ test("le header suit l'ordre demandé et ne pointe plus vers des ancres", async 
      ont déménagé, et un lien d'ancre vers une section absente ne défile nulle
      part sans que rien ne le signale. */
   const nav = await read("src/components/landing/LandingNav.tsx");
+  // « Services » a quitté la liste plate : c'est désormais un menu déroulant,
+  // rendu avant les autres entrées.
+  assert.match(nav, /<ServicesMenu menu=\{nav\.servicesMenu\} locale=\{locale\} \/>/);
   const ordre = [...nav.matchAll(/\{ href: "([^"]+)", label: nav\.(\w+) \}/g)].map((m) => m[1]);
-  assert.deepEqual(ordre, ["/services", "/vpn", "/formations", "/boutique", "/contact"]);
+  assert.deepEqual(ordre, ["/vpn", "/formations", "/boutique", "/contact"]);
   assert.doesNotMatch(nav, /href: "#/, "plus aucune ancre dans le header");
 
   // La loupe existe, et le menu mobile la reprend puisqu'elle y est masquée.
@@ -60,4 +63,45 @@ test("les pages indexées par la recherche existent réellement", async () => {
   for (const chemin of chemins) {
     assert.ok(app.includes(chemin.slice(1)), `la recherche indexe ${chemin}, qui n'existe pas`);
   }
+});
+
+test("le menu Services est utilisable au clavier et au doigt", async () => {
+  /* Un menu qui ne s'ouvrirait qu'au survol serait inatteignable au clavier
+     ET au doigt — c'est-à-dire pour une bonne part du trafic. */
+  const menu = await read("src/components/landing/ServicesMenu.tsx");
+  assert.match(menu, /onClick=\{\(\) => setOuvert/, "le clic doit ouvrir, pas seulement le survol");
+  assert.match(menu, /aria-expanded=\{ouvert\}/);
+  assert.match(menu, /aria-controls=\{panneauId\}/);
+  assert.match(menu, /e\.key === "Escape"/, "Échap doit refermer");
+  assert.match(menu, /bouton\.current\?\.focus\(\)/, "le focus doit revenir au bouton");
+
+  // Les quatre services demandés, et leurs destinations.
+  for (const href of ["/vpn", "/services/hotspot", "/services/videosurveillance", "/services/firewall"]) {
+    assert.match(menu, new RegExp(`href: "${href}"`), `service manquant : ${href}`);
+  }
+});
+
+test("les quatre services du menu mènent à des pages qui existent", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const services = await readdir(new URL("../src/app/services/", import.meta.url));
+  for (const slug of ["hotspot", "videosurveillance", "firewall"]) {
+    assert.ok(services.includes(slug), `/services/${slug} n'existe pas`);
+  }
+  // Le menu mobile les reprend : sur mobile il n'y a pas de survol.
+  const nav = await read("src/components/landing/LandingNav.tsx");
+  assert.match(nav, /nav\.servicesMenu\.cameraTitle/);
+});
+
+test("aucune capacité n'est promise sur les offres non construites", async () => {
+  /* Caméra et FireWall n'existent pas encore dans le produit. Leur page dit
+     que l'offre est en préparation ; elle n'annonce aucune fonctionnalité,
+     qui se paierait au premier client venu la réclamer. */
+  const { fr } = await import("../src/lib/i18n/fr.ts");
+  for (const cle of ["camera", "firewall"]) {
+    const page = fr.servicePages[cle];
+    assert.ok(page.soon.length > 40, `${cle} doit expliquer l'état réel de l'offre`);
+    assert.equal("points" in page, false, `${cle} ne doit lister aucune fonctionnalité`);
+  }
+  // Hotspot, lui, décrit ce qui existe vraiment.
+  assert.ok(fr.servicePages.hotspot.points.length >= 3);
 });

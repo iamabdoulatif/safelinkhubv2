@@ -12,6 +12,18 @@ import type { Dictionary } from "./fr";
 
 export const en: Dictionary = {
   nav: {
+    servicesMenu: {
+      label: "Services",
+      vpnTitle: "MikroTik VPN",
+      vpnText: "Encrypted tunnel to every router, even behind a CGNAT.",
+      hotspotTitle: "Hotspot",
+      hotspotText: "Captive portal, tickets and mobile money collection.",
+      cameraTitle: "Security cameras",
+      cameraText: "Video surveillance wired into the same network.",
+      firewallTitle: "FireWall",
+      firewallText: "Filtering, segmentation and network protection.",
+      all: "See all services",
+    },
     services: "Services",
     vpn: "VPN",
     training: "Training",
@@ -627,6 +639,46 @@ export const en: Dictionary = {
     kinds: { page: "Page", article: "Article", course: "Training" },
     metaTitle: "Search | SafeLinkHub",
     metaDescription: "Search for a page, a guide or a training path on SafeLinkHub.",
+  },
+  servicePages: {
+    hotspot: {
+      eyebrow: "Service",
+      heading: "Wi-Fi hotspot",
+      lead: "The captive portal, the tickets and the collection, on your own MikroTiks.",
+      points: [
+        {
+          title: "A captive portal in your colours",
+          text: "Your branding, your plans. The customer connects, chooses, pays and leaves connected without an agent stepping in.",
+        },
+        {
+          title: "Tickets and named accounts",
+          text: "Batch generation, printing, resale through your agents, and lasting accounts for regular subscribers.",
+        },
+        {
+          title: "Mobile money collection",
+          text: "Orange Money, MTN MoMo, Wave and Moov Money. Payment creates the ticket and texts it over, hands-free.",
+        },
+        {
+          title: "Fleet monitoring",
+          text: "Routers online, live sessions, today's sales: the real state of every zone in one place.",
+        },
+      ],
+      cta: "Open an account",
+    },
+    camera: {
+      eyebrow: "Service",
+      heading: "Security cameras",
+      lead: "Wiring video surveillance into the network you already run.",
+      soon: "This offer is being prepared. The network, the tunnels and the monitoring already exist; the video side is still to be built. If you have a site to equip, describe what you need — it will shape what we build first.",
+      cta: "Describe my need",
+    },
+    firewall: {
+      eyebrow: "Service",
+      heading: "FireWall",
+      lead: "Filtering, segmentation and network protection.",
+      soon: "This offer is being prepared. Your MikroTiks already enforce firewall rules laid down by auto-setup; a managed security offer, with bespoke rules and follow-up, is still to be built. Tell us what you need to protect.",
+      cta: "Describe my need",
+    },
   },
   backToTop: "Back to top",
 };

@@ -80,7 +80,7 @@ const TRANSLATED_ROUTES = [
  * cette liste `localeHref` renvoyait chaque article du blog ANGLAIS vers sa
  * version française.
  */
-const TRANSLATED_PREFIXES = ["/blog/", "/formations/"] as const;
+const TRANSLATED_PREFIXES = ["/blog/", "/formations/", "/services/"] as const;
 
 /** Cette page existe-t-elle en anglais ? */
 function hasTranslation(chemin: string): boolean {

@@ -42,6 +42,7 @@ export const adminFr = {
       contact: "Messages de contact",
       testimonials: "Témoignages",
       blog: "Blog",
+      training: "Formations",
       marketing: "Marketing",
     },
     openMenu: "Ouvrir le menu",

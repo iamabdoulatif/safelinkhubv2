@@ -33,6 +33,7 @@ import {
   Menu,
   X,
   Languages,
+  GraduationCap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import UserMenu from "./UserMenu";
@@ -163,6 +164,7 @@ const superadminLinks: NavLink[] = [
   { href: "/admin/contact", key: "contact", icon: Mail },
   { href: "/admin/testimonials", key: "testimonials", icon: Quote },
   { href: "/admin/blog", key: "blog", icon: Newspaper },
+  { href: "/admin/formations", key: "training", icon: GraduationCap },
   { href: "/admin/marketing", key: "marketing", icon: Megaphone },
 ];
 

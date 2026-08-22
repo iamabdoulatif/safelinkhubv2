@@ -12,6 +12,18 @@
 
 export const fr = {
   nav: {
+    servicesMenu: {
+      label: "Services",
+      vpnTitle: "VPN MikroTik",
+      vpnText: "Tunnel chiffré vers chaque routeur, même derrière un CGNAT.",
+      hotspotTitle: "Hotspot",
+      hotspotText: "Portail captif, tickets et encaissement mobile money.",
+      cameraTitle: "Caméra de surveillance",
+      cameraText: "Vidéosurveillance raccordée au même réseau.",
+      firewallTitle: "FireWall",
+      firewallText: "Filtrage, segmentation et protection du réseau.",
+      all: "Voir tous les services",
+    },
     services: "Services",
     vpn: "VPN",
     training: "Formations",
@@ -617,6 +629,49 @@ export const fr = {
     kinds: { page: "Page", article: "Article", course: "Formation" },
     metaTitle: "Recherche | SafeLinkHub",
     metaDescription: "Chercher une page, un guide ou une formation sur SafeLinkHub.",
+  },
+  servicePages: {
+    hotspot: {
+      eyebrow: "Service",
+      heading: "Hotspot Wi-Fi",
+      lead: "Le portail captif, les tickets et l'encaissement, sur vos propres MikroTik.",
+      points: [
+        {
+          title: "Portail captif à votre marque",
+          text: "Vos couleurs, votre logo, vos forfaits. Le client se connecte, choisit, paie et repart connecté sans qu'un agent intervienne.",
+        },
+        {
+          title: "Tickets et comptes nominatifs",
+          text: "Génération en lot, impression, revente par vos agents, et comptes durables pour les abonnés réguliers.",
+        },
+        {
+          title: "Encaissement mobile money",
+          text: "Orange Money, MTN MoMo, Wave et Moov Money. Le paiement crée le ticket et l'envoie par SMS, sans manipulation.",
+        },
+        {
+          title: "Supervision du parc",
+          text: "Routeurs en ligne, sessions en cours, ventes du jour : l'état réel de chaque zone au même endroit.",
+        },
+      ],
+      cta: "Ouvrir un compte",
+    },
+    camera: {
+      eyebrow: "Service",
+      heading: "Caméra de surveillance",
+      lead: "Raccorder la vidéosurveillance au réseau que vous exploitez déjà.",
+      /* Aucune promesse de fonctionnalité : cette offre n'est pas encore
+         construite dans le produit. Annoncer des capacités inexistantes se
+         paierait au premier client qui les demanderait. */
+      soon: "Cette offre est en préparation. Le réseau, les tunnels et la supervision existent déjà ; la partie vidéo, elle, reste à bâtir. Si vous avez un site à équiper, décrivez-nous le besoin : cela orientera ce que nous construisons d'abord.",
+      cta: "Décrire mon besoin",
+    },
+    firewall: {
+      eyebrow: "Service",
+      heading: "FireWall",
+      lead: "Filtrage, segmentation et protection du réseau.",
+      soon: "Cette offre est en préparation. Vos MikroTik appliquent déjà des règles de pare-feu posées par l'auto-configuration ; une offre de sécurité gérée, avec règles sur mesure et suivi, reste à construire. Dites-nous ce que vous devez protéger.",
+      cta: "Décrire mon besoin",
+    },
   },
   backToTop: "Retour en haut",
 } as const;
