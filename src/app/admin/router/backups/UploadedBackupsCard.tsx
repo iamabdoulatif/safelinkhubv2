@@ -95,7 +95,7 @@ export default function UploadedBackupsCard({
       </h2>
       <p className="mt-1 text-sm text-ink-soft">
         Uploadez une sauvegarde binaire MikroTik (<code>/system backup save</code>) uniquement pour la
-        restaurer sur le <strong>même routeur physique, sous la même version RouterOS</strong>. ⚠️ Elle
+        restaurer sur le <strong>même routeur physique</strong>. ⚠️ Elle
         remplace TOUTE sa configuration et restaure aussi ses adresses MAC. Pour déplacer tickets et
         profils vers un autre MikroTik, utilisez la sauvegarde SafeLinkHub (logique) ci-dessus. Faites
         «&nbsp;Simuler&nbsp;» d&apos;abord.
@@ -153,12 +153,16 @@ function UploadedRow({
   const [scan, setScan] = useState<{ plan: ScanPlan; warnings: string[] } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string; steps?: string[] } | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [sameDeviceAndRouterOsConfirmed, setSameDeviceAndRouterOsConfirmed] = useState(false);
+  const [sameDeviceConfirmed, setSameDeviceConfirmed] = useState(false);
+  /* Version d'origine de la sauvegarde : le format binaire ne la porte pas de
+     façon lisible, mais l'opérateur la connaît. Renseignée, le serveur la
+     confronte à la version LUE sur le routeur au lieu de croire une case. */
+  const [sourceVersion, setSourceVersion] = useState("");
 
   function resetConfirmation() {
     const next = resetBinaryBackupRestoreConfirmation();
     setConfirming(next.confirming);
-    setSameDeviceAndRouterOsConfirmed(next.sameDeviceAndRouterOsConfirmed);
+    setSameDeviceConfirmed(next.sameDeviceConfirmed);
   }
 
   function doScan() {
@@ -181,7 +185,8 @@ function UploadedRow({
     start(async () => {
       const res = await restoreUploadedBackup(backup.id, targetId, {
         backupPassword: password || undefined,
-        sameDeviceAndRouterOsConfirmed,
+        sameDeviceConfirmed,
+        sourceRouterOsVersion: sourceVersion.trim() || undefined,
       });
       resetConfirmation();
       if (res && "success" in res && res.success) {
@@ -303,21 +308,44 @@ function UploadedRow({
           <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-ink">
             <input
               type="checkbox"
-              checked={sameDeviceAndRouterOsConfirmed}
-              onChange={(event) => setSameDeviceAndRouterOsConfirmed(event.target.checked)}
+              checked={sameDeviceConfirmed}
+              onChange={(event) => setSameDeviceConfirmed(event.target.checked)}
               className="mt-0.5 h-4 w-4 accent-ink"
             />
             <span>
-              Je confirme qu&apos;il s&apos;agit du <strong>même routeur physique</strong> et de la{' '}
-              <strong>même version RouterOS</strong>. Pour un routeur de remplacement, je dois utiliser la
-              restauration SafeLinkHub (logique).
+              Je confirme qu&apos;il s&apos;agit du <strong>même routeur physique</strong>. Une sauvegarde
+              binaire restaure aussi les adresses MAC et l&apos;identité : pour un routeur de
+              remplacement, je dois utiliser la restauration SafeLinkHub (logique).
+            </span>
+          </label>
+
+          {/* La version n'a PAS à être identique : une sauvegarde plus ANCIENNE
+              se restaure sur un routeur à jour, RouterOS migre la configuration.
+              Renseignée ici, elle est confrontée à la version lue en direct sur
+              le routeur — seul le sens interdit est bloqué. */}
+          <label className="mt-3 block text-sm text-ink">
+            <span className="font-medium">
+              Version RouterOS d&apos;où vient la sauvegarde{" "}
+              <span className="font-normal text-ink-soft">(facultatif)</span>
+            </span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={sourceVersion}
+              onChange={(event) => setSourceVersion(event.target.value)}
+              placeholder="ex. 7.8"
+              className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink sm:w-40 rounded-lg"
+            />
+            <span className="mt-1 block text-xs text-ink-soft">
+              Une sauvegarde plus ancienne se restaure sans souci sur un routeur à jour. L&apos;inverse
+              — ou le passage de la v6 à la v7 — est refusé.
             </span>
           </label>
           <div className="mt-2 flex gap-2">
             <button
               type="button"
               onClick={doRestore}
-              disabled={busy || !sameDeviceAndRouterOsConfirmed}
+              disabled={busy || !sameDeviceConfirmed}
               className="flex items-center gap-1.5 border border-line bg-brand px-3 py-1.5 text-sm font-bold text-slate-deep transition hover:bg-ink hover:text-paper disabled:opacity-50 rounded-full"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}

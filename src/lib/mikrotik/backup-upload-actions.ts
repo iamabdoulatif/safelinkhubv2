@@ -11,7 +11,11 @@ import { RouterOSClient } from "./client";
 import { connectToRouter } from "./router-sync";
 import { hashToken } from "./install-token";
 import { inspectRouterOsBackup } from "./routeros-backup-file";
-import { binaryBackupRestoreGuard } from "./binary-backup-restore-guard";
+import {
+  binaryBackupRestoreGuard,
+  binaryBackupVersionVerdict,
+  classifyBackupLoadOutcome,
+} from "./binary-backup-restore-guard";
 
 const PAGE = "/admin/router/backups";
 
@@ -139,8 +143,11 @@ export async function scanUploadedBackupRestore(uploadedId: string, targetRouter
 
     const warnings: string[] = [
       "Un « /system backup load » remplace TOUTE la configuration du routeur cible par celle de la sauvegarde (interfaces, IP, users, WiFi, portail…).",
-      "Cette fonction est réservée au MÊME routeur physique et à la MÊME version RouterOS. La confirmation correspondante est exigée avant le chargement.",
-      "Une sauvegarde binaire restaure aussi les adresses MAC et l'identité du routeur. Elle ne doit jamais servir à migrer vers un routeur de remplacement, même de même modèle.",
+      "Cette fonction est réservée au MÊME routeur physique : une sauvegarde binaire restaure aussi les adresses MAC et l'identité. Elle ne doit jamais servir à migrer vers un routeur de remplacement, même de même modèle.",
+      // La version n'a PAS à être identique — seul le sens compte. Annoncer
+      // l'inverse faisait déclarer incompatible un cas que RouterOS accepte
+      // (sauvegarde 7.8 sur un routeur passé en 7.24).
+      "La sauvegarde peut venir d'une version RouterOS plus ANCIENNE : RouterOS migre la configuration au chargement. L'inverse (sauvegarde plus récente que le routeur) et le passage d'une branche majeure à l'autre ne sont pas pris en charge.",
       "Pour migrer tickets, profils et portail vers un autre MikroTik, utilisez la sauvegarde SafeLinkHub (logique), qui restaure les données sans écraser les interfaces, WiFi ni tunnel.",
     ];
     if (uploaded.encrypted) {
@@ -175,13 +182,20 @@ export async function scanUploadedBackupRestore(uploadedId: string, targetRouter
 export async function restoreUploadedBackup(
   uploadedId: string,
   targetRouterId: string,
-  opts: { backupPassword?: string; sameDeviceAndRouterOsConfirmed?: boolean } = {},
+  opts: {
+    backupPassword?: string;
+    sameDeviceConfirmed?: boolean;
+    /** Version RouterOS d'origine de la sauvegarde, déclarée par l'opérateur. */
+    sourceRouterOsVersion?: string;
+  } = {},
 ) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
 
-  const guard = binaryBackupRestoreGuard(opts.sameDeviceAndRouterOsConfirmed === true);
-  if (!guard.ok) return { error: guard.error };
+  // Le volet « même appareil » se tranche sans le routeur ; le volet version
+  // exige de LIRE la cible, donc il attend la connexion, plus bas.
+  const sameDevice = binaryBackupRestoreGuard({ sameDeviceConfirmed: opts.sameDeviceConfirmed === true });
+  if (!sameDevice.ok) return { error: sameDevice.error };
 
   const loaded = await loadUploadedAndTarget(uploadedId, targetRouterId, session.orgId, session.role);
   if ("error" in loaded) return { error: loaded.error };
@@ -230,6 +244,19 @@ export async function restoreUploadedBackup(
   }
 
   try {
+    // [0] Compatibilité de version, sur la version LUE en direct — pas sur une
+    //     case à cocher. Avant le transfert : inutile de pousser 9 Mo vers un
+    //     routeur qui refusera le chargement.
+    const [resource] = await client.talk(["/system/resource/print"], 15000).catch(() => []);
+    const verdict = binaryBackupVersionVerdict({
+      sourceVersion: opts.sourceRouterOsVersion ?? null,
+      targetVersion: resource?.version ?? null,
+    });
+    if (verdict.kind === "blocked") {
+      await clearToken();
+      return { error: verdict.message };
+    }
+
     // [1] Récupération du binaire sur le routeur (bloque jusqu'à la fin).
     try {
       await client.talk(
@@ -265,9 +292,20 @@ export async function restoreUploadedBackup(
       `=name=${RESTORE_FILE_NAME}`,
     ];
     if (opts.backupPassword) loadWords.push(`=password=${opts.backupPassword}`);
-    await client.talk(loadWords, 12000).catch(() => {
-      /* reboot en cours : coupure attendue */
-    });
+    // Un refus (`!trap`) et un redémarrage (transport coupé) remontent tous
+    // deux en exception. Les confondre — ce que faisait `.catch(() => {})` —
+    // annonçait « le routeur redémarre » alors que RouterOS venait de refuser
+    // le fichier et n'avait rien fait.
+    const issue = await client
+      .talk(loadWords, 12000)
+      .then(() => null)
+      .catch((err: unknown) => classifyBackupLoadOutcome(err));
+    if (issue && !issue.rebooting) {
+      await clearToken();
+      return {
+        error: `RouterOS a refusé la sauvegarde : ${issue.routerMessage}. Le routeur n'a pas redémarré et sa configuration est intacte.`,
+      };
+    }
 
     await clearToken();
     return {
@@ -275,7 +313,7 @@ export async function restoreUploadedBackup(
       summary: `Sauvegarde « ${uploaded.fileName} » chargée sur ${target.name} — le routeur REDÉMARRE. Il revient avec l'identité de la sauvegarde, donc son tunnel actuel tombe.`,
       nextSteps: [
         "Attendez ~2 min le redémarrage complet du routeur.",
-        "Sur place / même LAN, recollez la commande d'installation SafeLinkHub (Réglages → Ajouter un routeur) pour réattribuer son identité propre (compatible RouterOS 7.9–7.23.3).",
+        "Sur place / même LAN, recollez la commande d'installation SafeLinkHub (Réglages → Ajouter un routeur) pour réattribuer son identité propre.",
         "Lancez ensuite le Diagnostic du routeur et appliquez les correctifs (droits API MikHmon, walled-garden, canal WiFi) pour rétablir portail + code.",
       ],
     };
