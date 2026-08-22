@@ -93,3 +93,31 @@ describe("le cockpit ne peut plus mentir sur ses couleurs", () => {
     assert.match(page, /dansPeriode\(row, from, toEnd\)/);
   });
 });
+
+describe("le cockpit tient la charte graphique", () => {
+  const vue = () =>
+    readFile(new URL("../../app/admin/analytics/PlatformAnalyticsView.tsx", import.meta.url), "utf8");
+
+  it("n'emploie plus aucune couleur Tailwind brute", async () => {
+    /* Les tuiles et les pastilles étaient les seules surfaces de
+       l'administration peintes hors jetons (amber-50, blue-200, green-100…) :
+       elles ne suivaient donc ni le thème ni un éventuel mode sombre. */
+    const code = (await vue()).replace(/\/\*[\s\S]*?\*\//g, "");
+    const brutes = code.match(
+      /\b(?:bg|text|border)-(?:amber|blue|green|red|slate|gray|zinc|neutral|stone)-\d{2,3}\b/g,
+    );
+    assert.equal(brutes, null, `couleurs hors charte : ${brutes?.join(", ")}`);
+  });
+
+  it("masque une tuile d'alerte à zéro", async () => {
+    // « 0 en attente » en couleur d'alerte apprend à ignorer la rangée.
+    assert.match(await vue(), /if \(count <= 0\) return null;/);
+  });
+
+  it("ne promet pas un clic là où il n'y a pas de destination", async () => {
+    const code = await vue();
+    // La tuile « refusée(s) » n'a pas de href : ni survol, ni flèche.
+    assert.match(code, /href \? \(\s*<Link/);
+    assert.match(code, /\{href && \(\s*<ArrowUpRight/);
+  });
+});
