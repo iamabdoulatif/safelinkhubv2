@@ -1,5 +1,15 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowUpRight, Router as RouterIcon, Ticket, Wifi } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Percent,
+  Receipt,
+  Router as RouterIcon,
+  ShoppingBag,
+  Ticket,
+  WalletCards,
+  Wifi,
+} from "lucide-react";
 import { type DailyPoint } from "@/lib/dashboard/queries";
 import { type CountryRow } from "@/lib/dashboard/geography";
 import {
@@ -118,6 +128,62 @@ function DailyChart({
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`rounded-xl border border-line bg-paper ${className}`}>{children}</div>;
+}
+
+/**
+ * Tuile de compteur : libellé, valeur dominante, précision, et un lien vers
+ * l'écran qui la détaille — le « More… » de la référence.
+ *
+ * Même famille visuelle que les cartes de /admin/analytics : filet d'accent en
+ * haut, icône en haut à droite, valeur en chiffres tabulaires. La pastille
+ * d'argile derrière l'icône remplace le quart de disque pastel de la
+ * référence : le motif est repris, la couleur reste celle de la charte.
+ *
+ * Toujours un lien : une tuile qui affiche un compteur sans donner accès à son
+ * détail oblige à retrouver l'écran à la main.
+ */
+function StatTile({
+  label,
+  value,
+  hint,
+  href,
+  more,
+  icon: Icon,
+  accent = "brand",
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  href: string;
+  more: string;
+  icon: typeof WalletCards;
+  accent?: "brand" | "ok" | "err" | "ink";
+}) {
+  const accents = {
+    brand: "border-t-brand",
+    ok: "border-t-ok",
+    err: "border-t-err",
+    ink: "border-t-ink",
+  } as const;
+  return (
+    <Link
+      href={href}
+      className={`tile-hover flex flex-col rounded-xl border border-line border-t-4 bg-paper p-4 ${accents[accent]}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">{label}</p>
+        <span className="tile-hover-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-clay">
+          <Icon aria-hidden="true" className="h-4 w-4 text-ink" />
+        </span>
+      </div>
+      <p className="mt-3 text-2xl font-bold tabular-nums tracking-tight text-ink">{value}</p>
+      <p className="mt-1 text-xs text-ink-soft">{hint}</p>
+      <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-deep">
+        {more}
+        <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+      </span>
+    </Link>
+  );
 }
 
 export default function DashboardView({ kpis, daily, recentSales, safecoin, countries, reseller, rangeLabel, picker, t, locale }: DashboardViewProps) {
@@ -273,6 +339,56 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
         </Card>
       </div>
 
+      {/* Rangée de compteurs, sur le modèle demandé : libellé, chiffre, accès.
+          QUATRE et non huit : ne figurent ici que des compteurs qui n'étaient
+          affichés nulle part ailleurs sur l'écran. Recopier l'encaissé du
+          bandeau ou le parc de la carte voisine aurait rempli la grille en
+          faisant lire deux fois la même chose. */}
+      <h2 className="mt-8 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+        {t.tiles.title}
+      </h2>
+      {/* Pas de `.reveal` ici, volontairement : ces compteurs se lisent en
+          urgence, comme le bandeau d'alerte au-dessus, qui n'est pas retardé
+          non plus. Une cascade les ferait apparaître après le graphique. */}
+      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label={t.tiles.sales}
+          value={formatNumber(data?.kpis.salesCount ?? 0)}
+          hint={t.tiles.salesHint}
+          href="/admin/sales"
+          more={t.tiles.more}
+          icon={ShoppingBag}
+          accent="brand"
+        />
+        <StatTile
+          label={t.tiles.commissions}
+          value={formatFcfa(data?.kpis.commissionCents ?? 0)}
+          hint={t.tiles.commissionsHint}
+          href="/admin/transactions"
+          more={t.tiles.more}
+          icon={Percent}
+          accent="ink"
+        />
+        <StatTile
+          label={t.tiles.expenses}
+          value={formatFcfa(data?.kpis.expenseCents ?? 0)}
+          hint={t.tiles.expensesHint}
+          href="/admin/expenses"
+          more={t.tiles.more}
+          icon={Receipt}
+          accent="err"
+        />
+        <StatTile
+          label={t.tiles.credit}
+          value={formatFcfa(data?.kpis.creditCents ?? 0)}
+          hint={t.tiles.creditHint}
+          href="/admin/billing"
+          more={t.tiles.more}
+          icon={WalletCards}
+          accent="ok"
+        />
+      </div>
+
       <div className="stagger mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3" style={{ "--stagger-step": "45ms" } as React.CSSProperties}>
         <Card className="reveal p-5 lg:col-span-2">
           {/* Pas de légende ajoutée ici : LineChart en rend déjà une, avec les
@@ -289,24 +405,11 @@ export default function DashboardView({ kpis, daily, recentSales, safecoin, coun
             </div>
           )}
 
-          {/* Ventilation — annoncée comme telle, et non déguisée en légende. */}
-          {data && (
-            <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-4">
-              {[
-                [t.breakdown.gross, data.kpis.grossCents],
-                [t.breakdown.commissions, data.kpis.commissionCents],
-                [t.breakdown.expenses, data.kpis.expenseCents],
-                [t.breakdown.net, data.kpis.netCents],
-              ].map(([label, value]) => (
-                <div key={label as string} className="bg-paper px-3 py-2.5">
-                  <dt className="text-[11px] text-ink-soft">{label}</dt>
-                  <dd className="mt-0.5 text-sm font-semibold tabular-nums text-ink">
-                    {formatFcfa(value as number)}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          {/* La ventilation du bas de carte a disparu : ses quatre valeurs sont
+              désormais lues ailleurs — brut et net dans le bandeau d'en-tête,
+              commissions et dépenses dans les tuiles, où elles mènent en plus
+              vers leur écran. La garder aurait fait lire les mêmes chiffres
+              trois fois sur un seul écran. */}
         </Card>
 
         <div className="reveal space-y-4">

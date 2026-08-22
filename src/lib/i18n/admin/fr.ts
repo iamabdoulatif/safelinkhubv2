@@ -95,11 +95,17 @@ export const adminFr = {
       noDataText:
         "Les paiements encaissés au portail captif et les dépenses apparaîtront ici dès la première écriture.",
     },
-    breakdown: {
-      gross: "Revenu brut",
+    tiles: {
+      title: "En un coup d'œil",
+      sales: "Paiements",
+      salesHint: "sur la période",
       commissions: "Commissions",
+      commissionsHint: "prélevées par les passerelles",
       expenses: "Dépenses",
-      net: "Revenu net",
+      expensesHint: "saisies sur la période",
+      credit: "Crédit portefeuille",
+      creditHint: "disponible pour les activations",
+      more: "Voir",
     },
     recent: {
       title: "Paiements récents",

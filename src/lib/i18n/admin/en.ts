@@ -86,11 +86,17 @@ export const adminEn: AdminDictionary = {
       noDataText:
         "Payments collected at the captive portal and expenses will appear here from the first entry.",
     },
-    breakdown: {
-      gross: "Gross revenue",
+    tiles: {
+      title: "At a glance",
+      sales: "Payments",
+      salesHint: "over the period",
       commissions: "Commissions",
+      commissionsHint: "taken by the gateways",
       expenses: "Expenses",
-      net: "Net revenue",
+      expensesHint: "recorded over the period",
+      credit: "Wallet credit",
+      creditHint: "available for activations",
+      more: "View",
     },
     recent: {
       title: "Recent payments",
