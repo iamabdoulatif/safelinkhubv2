@@ -616,6 +616,33 @@ export const en: Dictionary = {
     eyebrow: "Training",
     heading: "Learn to run a network that pays.",
     lead: "Step-by-step paths to install, secure and monetise a MikroTik hotspot — plus the field articles to go deeper.",
+    heroCta: "Browse the guides",
+    heroSecondary: "See the services",
+    benefitsTitle: "Why these guides",
+    benefits: [
+      {
+        title: "Written from the field",
+        text: "Every guide comes from a real deployment: the settings that worked, and the ones that failed.",
+      },
+      {
+        title: "Concrete MikroTik",
+        text: "RouterOS commands to copy, not theory. You follow, you apply.",
+      },
+      {
+        title: "Readable on a phone",
+        text: "As much field as desk: the guides read standing up, next to the rack.",
+      },
+      {
+        title: "Free to read",
+        text: "No account, no payment. The content is open, and will stay open.",
+      },
+    ],
+    categoriesTitle: "Explore by topic",
+    categoriesLead: "The subjects covered today, and how many guides each one has.",
+    categoryCount: (n) => `${n} guide${n > 1 ? "s" : ""}`,
+    ctaTitle: "Ready to set up your first hotspot?",
+    ctaText: "Create your account: thirty days of remote access are on us, no card required.",
+    ctaButton: "Start for free",
     coursesTitle: "Paths",
     coursesEmpty: "The first paths are on their way. In the meantime, the articles below cover the essentials.",
     lessonsCount: (n) => `${n} lesson${n > 1 ? "s" : ""}`,

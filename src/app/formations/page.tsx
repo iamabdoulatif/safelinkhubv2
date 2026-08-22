@@ -1,7 +1,21 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BookOpen, GraduationCap, Newspaper } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  GraduationCap,
+  MonitorSmartphone,
+  Newspaper,
+  Tag,
+  Terminal,
+  Unlock,
+  Wrench,
+} from "lucide-react";
+
+/* Appariées par INDEX aux arguments du dictionnaire : un composant React ne se
+   sérialise pas dans un fichier de traduction. */
+const BENEFIT_ICONS = [Wrench, Terminal, MonitorSmartphone, Unlock] as const;
 import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
 import Reveal from "@/components/motion/Reveal";
@@ -83,6 +97,14 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
     safePosts(),
   ]);
   const t = dict.trainingPage;
+  /* Comptés depuis les articles déjà chargés : une requête de plus pour la
+     même information serait du travail en double. */
+  const themes = [...articles.reduce((acc, a) => {
+    if (a.category) acc.set(a.category, (acc.get(a.category) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>())]
+    .map(([nom, total]) => ({ nom, total }))
+    .sort((a, b) => b.total - a.total || a.nom.localeCompare(b.nom));
   const dateFmt = new Intl.DateTimeFormat(HTML_LANG[locale], {
     day: "numeric",
     month: "long",
@@ -93,13 +115,93 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
     <div lang={locale} className="theme-slate flex flex-1 flex-col">
       <LandingNav anchorPrefix={localePrefix(locale) || "/"} nav={dict.nav} locale={locale} />
       <main className="flex-1 bg-paper">
-        <section className="mx-auto max-w-6xl px-4 pt-14 sm:px-6">
-          <span className="slate-eyebrow">{t.eyebrow}</span>
-          <h1 className="mt-5 max-w-3xl font-display text-4xl font-bold leading-tight tracking-tight text-ink sm:text-5xl">
-            {t.heading}
-          </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-ink-soft">{t.lead}</p>
+        <section className="border-b border-line bg-clay">
+          <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-12">
+            <div className="lg:col-span-7">
+              <span className="slate-eyebrow">{t.eyebrow}</span>
+              <h1 className="mt-5 font-display text-4xl font-bold leading-tight tracking-tight text-ink sm:text-5xl">
+                {t.heading}
+              </h1>
+              <p className="mt-4 max-w-xl text-base leading-7 text-ink-soft">{t.lead}</p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href="#guides"
+                  className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-6 py-3 text-sm"
+                >
+                  {t.heroCta}
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </a>
+                <Link
+                  href={localeHref("/services", locale)}
+                  className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-ghost px-6 py-3 text-sm"
+                >
+                  {t.heroSecondary}
+                </Link>
+              </div>
+            </div>
+            <div className="lg:col-span-5">
+              {/* Photo décorative : alt vide, elle n'apporte rien qu'un lecteur
+                  d'écran doive entendre. */}
+              <Image
+                src="/landing/photos/technicien-carte.jpg"
+                alt=""
+                width={1200}
+                height={900}
+                sizes="(min-width: 1024px) 26rem, 100vw"
+                className="slate-card h-64 w-full object-cover lg:h-80"
+                priority
+              />
+            </div>
+          </div>
         </section>
+
+        {/* Bandeau d'arguments — aplat vert profond, pas de dégradé : la
+            charte l'interdit, et un aplat tient mieux le contraste. */}
+        <section className="bg-slate-deep py-12">
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 sm:px-6 sm:grid-cols-2 lg:grid-cols-4">
+            {t.benefits.map((b, i) => {
+              const Icone = BENEFIT_ICONS[i];
+              return (
+                <article key={b.title} className="border-l border-slate-deep-line pl-5">
+                  <Icone aria-hidden="true" className="h-6 w-6 text-brand" />
+                  <h2 className="mt-4 font-display text-lg font-bold text-white">{b.title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-deep-soft">{b.text}</p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Thèmes — comptés sur les articles réellement publiés, jamais saisis
+            à la main : un compteur figé mentirait dès la publication suivante. */}
+        {themes.length > 0 && (
+          <section className="border-b border-line bg-paper py-12">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6">
+              <h2 className="font-display text-2xl font-bold text-ink">{t.categoriesTitle}</h2>
+              <p className="mt-1 text-sm text-ink-soft">{t.categoriesLead}</p>
+              <ul role="list" className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {themes.map(({ nom, total }) => (
+                  <li key={nom}>
+                    <Link
+                      href={localeHref(`/blog?sujet=${encodeURIComponent(nom)}`, locale)}
+                      className="slate-card flex items-center gap-4 bg-paper p-5 transition-colors hover:bg-clay"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-clay text-brand-deep">
+                        <Tag aria-hidden="true" className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-ink">{nom}</span>
+                        <span className="mt-0.5 block text-xs text-ink-soft">
+                          {t.categoryCount(total)}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        )}
 
         <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
           <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-ink">
@@ -146,7 +248,7 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
           )}
         </section>
 
-        <section className="border-t border-line bg-clay py-12">
+        <section id="guides" className="border-t border-line bg-clay py-12">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -195,6 +297,21 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
                 </li>
               ))}
             </ul>
+          </div>
+        </section>
+        <section className="bg-paper px-4 py-14 sm:px-6">
+          <div className="mx-auto max-w-6xl rounded-3xl bg-brand px-6 py-12 text-center sm:px-12">
+            <h2 className="mx-auto max-w-2xl font-display text-3xl font-bold leading-tight tracking-tight text-slate-deep">
+              {t.ctaTitle}
+            </h2>
+            <p className="mx-auto mt-3 max-w-lg text-sm text-[#2C4A34]">{t.ctaText}</p>
+            <Link
+              href={localeHref("/auth/register", locale)}
+              className="mt-7 inline-flex items-center justify-center gap-2 slate-btn slate-btn-dark px-7 py-3.5 text-base"
+            >
+              {t.ctaButton}
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
           </div>
         </section>
       </main>

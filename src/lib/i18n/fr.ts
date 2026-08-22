@@ -605,6 +605,33 @@ export const fr = {
     eyebrow: "Formations",
     heading: "Apprendre à faire tourner un réseau qui rapporte.",
     lead: "Des parcours suivis pas à pas pour installer, sécuriser et monétiser un hotspot MikroTik — et les articles du terrain pour approfondir.",
+    heroCta: "Parcourir les guides",
+    heroSecondary: "Voir les services",
+    benefitsTitle: "Pourquoi ces contenus",
+    benefits: [
+      {
+        title: "Écrit depuis le terrain",
+        text: "Chaque guide vient d'un déploiement réel : les réglages qui ont marché, et ceux qui ont échoué.",
+      },
+      {
+        title: "Du MikroTik concret",
+        text: "Des commandes RouterOS à recopier, pas de la théorie. Vous suivez, vous appliquez.",
+      },
+      {
+        title: "Lisible sur téléphone",
+        text: "Autant de terrain que de bureau : les guides se lisent debout, à côté de la baie.",
+      },
+      {
+        title: "En accès libre",
+        text: "Aucun compte, aucun paiement. Les contenus sont ouverts, et le resteront.",
+      },
+    ],
+    categoriesTitle: "Explorer par thème",
+    categoriesLead: "Les sujets couverts aujourd'hui, et le nombre de guides pour chacun.",
+    categoryCount: (n: number) => `${n} guide${n > 1 ? "s" : ""}`,
+    ctaTitle: "Prêt à monter votre premier hotspot ?",
+    ctaText: "Créez votre compte : trente jours d'accès distant sont offerts, sans carte bancaire.",
+    ctaButton: "Commencer gratuitement",
     coursesTitle: "Parcours",
     coursesEmpty: "Les premiers parcours arrivent. En attendant, les articles ci-dessous couvrent l'essentiel.",
     lessonsCount: (n: number) => `${n} leçon${n > 1 ? "s" : ""}`,
