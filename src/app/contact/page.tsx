@@ -3,7 +3,7 @@ import LandingNav from "@/components/landing/LandingNav";
 import LandingFooter from "@/components/landing/LandingFooter";
 import ContactForm from "./ContactForm";
 import MapEmbed from "@/components/landing/MapEmbed";
-import { Clock, LifeBuoy, MapPin } from "lucide-react";
+import { LifeBuoy, MapPin, Phone } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { localePrefix, type Locale } from "@/lib/i18n/config";
 
@@ -39,7 +39,13 @@ export async function ContactPageContent({ locale }: { locale: Locale }) {
           <div className="mx-auto mt-10 grid max-w-5xl grid-cols-1 gap-4 px-4 sm:px-6 md:grid-cols-3">
             {[
               { icon: MapPin, label: t.cards.addressLabel, value: t.cards.addressValue },
-              { icon: Clock, label: t.cards.delayLabel, value: t.cards.delayValue },
+              {
+                icon: Phone,
+                label: t.cards.phoneLabel,
+                value: t.cards.phoneValue,
+                // tel: sans espaces — un numéro composable d'un clic sur mobile.
+                href: "tel:+2250505592052",
+              },
               { icon: LifeBuoy, label: t.cards.supportLabel, value: t.cards.supportValue, href: "/admin/support" },
             ].map(({ icon: Icone, label, value, href }) => {
               const contenu = (

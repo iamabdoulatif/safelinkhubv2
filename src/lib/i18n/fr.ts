@@ -550,7 +550,9 @@ export const fr = {
   contact: {
     cards: {
       addressLabel: "Notre bureau",
-      addressValue: "330 Rue Nicolas Amenin, Attécoubé — Abidjan",
+      addressValue: "Rue Nicolas Amenin, 330 — Attécoubé, Abidjan",
+      phoneLabel: "Téléphone",
+      phoneValue: "+225 05 05 59 20 52",
       delayLabel: "Délai de réponse",
       delayValue: "Sous 24 h ouvrées, du lundi au samedi",
       supportLabel: "Déjà client ?",

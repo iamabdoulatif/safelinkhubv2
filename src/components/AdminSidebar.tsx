@@ -120,6 +120,7 @@ const mainSections: NavSection[] = [
     title: "org",
     links: [
       { href: "/admin/users", key: "users", icon: Users },
+      { href: "/admin/verification", key: "verification", icon: ShieldCheck },
       { href: "/admin/settings/general", key: "settings", icon: Settings },
     ],
   },

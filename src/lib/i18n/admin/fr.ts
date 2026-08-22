@@ -32,6 +32,7 @@ export const adminFr = {
       float: "Solde flottant",
       expenses: "Dépenses",
       users: "Utilisateurs",
+      verification: "Vérification",
       settings: "Paramètres",
       billing: "Facturation",
       support: "Support",

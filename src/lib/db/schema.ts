@@ -1056,6 +1056,47 @@ export const courseLessons = pgTable(
 
 
 /**
+ * Vérification d'identité (KYC) — UNE par organisation.
+ *
+ * CE QUE CETTE TABLE NE CONTIENT PAS : aucune pièce d'identité, aucune URL de
+ * document. Le seul téléversement du produit (uploadPaymentProof) écrit en
+ * `access: "public"` — une URL devinée ou fuitée exposerait alors les papiers
+ * d'une personne. Acceptable pour une capture de paiement, pas pour un
+ * passeport. Les documents transitent donc par le canal privé déjà utilisé
+ * pour les autorisations manuelles, et seule la DÉCISION vit ici.
+ *
+ * Les champs déclaratifs (nom complet, adresse) sont, eux, saisis par
+ * l'opérateur : ce sont ses propres coordonnées professionnelles, pas des
+ * pièces justificatives.
+ */
+export const kycVerifications = pgTable(
+  "kyc_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .unique()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // not_started | documents_sent | agreement_signed | under_review | approved | rejected
+    status: text("status").notNull().default("not_started"),
+    documentType: text("document_type"), // cni | passeport | permis
+    fullName: text("full_name"),
+    fullAddress: text("full_address"),
+    agreedAt: timestamp("agreed_at"),
+    /* Le modèle limite les tentatives : une vérification refusée ne doit pas
+       pouvoir être resoumise indéfiniment. */
+    attempts: integer("attempts").notNull().default(0),
+    submittedAt: timestamp("submitted_at"),
+    decidedAt: timestamp("decided_at"),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    adminNote: text("admin_note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("kyc_verifications_status_idx").on(t.status)],
+);
+
+/**
  * Messages envoyés depuis le formulaire public /contact — les expéditeurs
  * sont des visiteurs anonymes (pas de orgId ni userId). Consultés et
  * triés par le superadmin dans /admin/contact.

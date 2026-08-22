@@ -561,7 +561,9 @@ export const en: Dictionary = {
   contact: {
     cards: {
       addressLabel: "Our office",
-      addressValue: "330 Rue Nicolas Amenin, Attécoubé — Abidjan",
+      addressValue: "Rue Nicolas Amenin, 330 — Attécoubé, Abidjan",
+      phoneLabel: "Phone",
+      phoneValue: "+225 05 05 59 20 52",
       delayLabel: "Response time",
       delayValue: "Within 24 working hours, Monday to Saturday",
       supportLabel: "Already a customer?",
