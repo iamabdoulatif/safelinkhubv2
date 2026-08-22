@@ -251,15 +251,17 @@ function UploadedRow({
             </option>
           ))}
         </select>
-        {backup.encrypted && (
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Mot de passe du backup"
-            className="w-full border border-line bg-paper px-3 py-2 text-sm text-ink sm:w-56 rounded-lg"
-          />
-        )}
+        {/* Champ TOUJOURS offert : la détection du chiffrement est une
+            heuristique sur les premiers octets. Ne l'afficher que sur un
+            fichier détecté chiffré rendait irrécupérable une sauvegarde
+            protégée que l'heuristique avait lue comme claire. */}
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder={backup.encrypted ? "Mot de passe du backup" : "Mot de passe (si protégé)"}
+          className="w-full border border-line bg-paper px-3 py-2 text-sm text-ink sm:w-56 rounded-lg"
+        />
         <button
           type="button"
           onClick={doScan}

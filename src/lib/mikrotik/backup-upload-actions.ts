@@ -287,11 +287,17 @@ export async function restoreUploadedBackup(
 
     // [3] Chargement : REDÉMARRE le routeur. La connexion API tombe pendant le
     //     reboot → l'erreur/timeout qui suit est ATTENDU, pas un échec.
+    /* `=password=` est OBLIGATOIRE côté API, même pour une sauvegarde en clair
+       — contrairement au terminal, où il s'omet. Ne l'envoyer que lorsque
+       l'opérateur avait saisi quelque chose faisait échouer TOUTE restauration
+       non chiffrée sur « missing =password= », le fichier déjà transféré et le
+       routeur intact. Une sauvegarde sans mot de passe se charge avec une
+       valeur vide. */
     const loadWords = [
       "/system/backup/load",
       `=name=${RESTORE_FILE_NAME}`,
+      `=password=${opts.backupPassword ?? ""}`,
     ];
-    if (opts.backupPassword) loadWords.push(`=password=${opts.backupPassword}`);
     // Un refus (`!trap`) et un redémarrage (transport coupé) remontent tous
     // deux en exception. Les confondre — ce que faisait `.catch(() => {})` —
     // annonçait « le routeur redémarre » alors que RouterOS venait de refuser

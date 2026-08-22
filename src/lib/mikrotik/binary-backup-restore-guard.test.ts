@@ -167,3 +167,28 @@ describe("la restauration est branchée sur la version RÉELLE de la cible", () 
     assert.match(vue, /sourceRouterOsVersion/);
   });
 });
+
+describe("le mot de passe est toujours transmis à /system backup load", () => {
+  it("envoie =password= même sans mot de passe saisi", async () => {
+    /* Cas réel remonté du terrain : « RouterOS a refusé la sauvegarde :
+       missing =password= ». Sur l'API — contrairement au terminal — le
+       paramètre est OBLIGATOIRE, y compris pour une sauvegarde en clair. Ne
+       l'envoyer que lorsque l'opérateur avait tapé quelque chose faisait
+       échouer TOUTE restauration non chiffrée, après un transfert de 9 Mo. */
+    const src = await readFile(new URL("./backup-upload-actions.ts", import.meta.url), "utf8");
+    const restore = src.slice(src.indexOf("export async function restoreUploadedBackup"));
+    assert.match(restore, /`=password=\$\{opts\.backupPassword \?\? ""\}`/);
+    // Et surtout : plus de « on ne l'ajoute que s'il est renseigné ».
+    assert.doesNotMatch(restore, /if \(opts\.backupPassword\) loadWords\.push/);
+  });
+
+  it("propose le champ mot de passe même sur un fichier détecté « en clair »", async () => {
+    // La détection du chiffrement est une heuristique sur les premiers octets :
+    // une sauvegarde protégée mal lue serait autrement irrécupérable.
+    const vue = await readFile(
+      new URL("../../app/admin/router/backups/UploadedBackupsCard.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.doesNotMatch(vue, /\{backup\.encrypted && \(\s*<input/);
+  });
+});
