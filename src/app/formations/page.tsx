@@ -175,8 +175,8 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
             {t.benefits.map((b, i) => {
               const Icone = BENEFIT_ICONS[i];
               return (
-                <article key={b.title} className="border-l border-slate-deep-line pl-5">
-                  <Icone aria-hidden="true" className="h-6 w-6 text-brand" />
+                <article key={b.title} className="tile-hover tile-hover-dark rounded-xl border-l border-slate-deep-line py-2 pl-5 pr-4">
+                  <Icone aria-hidden="true" className="tile-hover-icon h-6 w-6 text-brand" />
                   <h2 className="mt-4 font-display text-lg font-bold text-white">{b.title}</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-deep-soft">{b.text}</p>
                 </article>

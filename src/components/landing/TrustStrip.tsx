@@ -17,10 +17,10 @@ export default function TrustStrip({ dict }: { dict: Dictionary }) {
           const Icon = icons[i] ?? Zap;
           const item = dict.content.painPoints[i];
           return (
-            <div key={item.fix} className="reveal flex gap-4 bg-paper px-6 py-8 sm:px-7">
+            <div key={item.fix} className="reveal tile-hover flex gap-4 bg-paper px-6 py-8 sm:px-7">
               <span
                 aria-hidden="true"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-slate-deep"
+                className="tile-hover-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-slate-deep"
               >
                 <Icon className="h-5 w-5" />
               </span>

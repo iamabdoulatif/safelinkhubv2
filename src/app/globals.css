@@ -588,6 +588,63 @@ html {
   }
 }
 
+
+/* ── Survol des cartes en bandeau ─────────────────────────────────────────
+   Les cartes portent déjà `.reveal`, dont l'animation se termine en
+   `transform: none` avec `animation-fill-mode: both`. Une animation l'emporte
+   sur une déclaration ordinaire : un `transform` de survol serait donc ignoré
+   sur toute carte déjà révélée.
+   D'où `translate`, propriété DISTINCTE que l'animation ne touche pas — les
+   deux se composent au lieu de se disputer.
+
+   Le fond de survol passe par une variable : le même comportement sert la
+   bande claire de la landing et le bandeau vert profond des formations, qui
+   n'ont pas la même couleur d'appui. */
+.tile-hover {
+  --tile-hover-bg: var(--clay);
+  transition:
+    background-color 200ms ease-out,
+    translate 200ms ease-out,
+    box-shadow 200ms ease-out;
+}
+
+.tile-hover .tile-hover-icon {
+  transition: scale 200ms ease-out, background-color 200ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tile-hover:hover {
+    background-color: var(--tile-hover-bg);
+    translate: 0 -3px;
+  }
+  .tile-hover:hover .tile-hover-icon {
+    scale: 1.09;
+  }
+}
+
+/* Le clavier voit la même chose que la souris : sans cela, une tabulation
+   dans la bande ne montrerait rien. */
+.tile-hover:focus-within {
+  background-color: var(--tile-hover-bg);
+  translate: 0 -3px;
+}
+
+/* Bandeau sombre : l'appui est le vert de trait, pas l'argile. */
+.tile-hover-dark {
+  --tile-hover-bg: var(--slate-deep-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-hover,
+  .tile-hover .tile-hover-icon {
+    transition: none;
+  }
+  .tile-hover:hover,
+  .tile-hover:focus-within {
+    translate: none;
+  }
+}
+
 /* ════════════════════════════════════════════════════════════
    RÉVÉLATION AU DÉFILEMENT
    Les classes .animate-* ci-dessus se déclenchent au MONTAGE : sur une page
