@@ -19,6 +19,7 @@ import {
   isWalletPaymentMethod,
 } from "./payment-options";
 import { RESELLER_PACK_FCFA, RESELLER_QUOTA } from "@/lib/billing/reseller";
+import { kycTopupGate } from "@/lib/kyc/gate";
 
 // Moyens mobile money via PawaPay : GeniusPay v3 EXIGE un numéro (phone_number).
 // Sans lui, l'API renvoie « PawaPay: Missing required field: phone_number ».
@@ -45,6 +46,11 @@ export async function addWalletFunds(_prevState: unknown, formData: FormData) {
   if (!Number.isFinite(amount) || amount <= 0) {
     return { error: "Le montant doit être supérieur à 0." };
   }
+
+  // Même porte que le dépôt en ligne : ce chemin crédite le solde sans passer
+  // par un paiement, il serait sinon le contournement évident du seuil.
+  const porte = await kycTopupGate(session.orgId, amount);
+  if (!porte.ok) return { error: porte.message };
 
   const db = getDb();
   await db.insert(walletTransactions).values({
@@ -132,6 +138,26 @@ export async function updateWalletTransaction(_prevState: unknown, formData: For
   }
 
   const db = getDb();
+  // Cette action peut faire passer une ligne en « completed » et en changer le
+  // montant : sans garde, elle serait le contournement du seuil (créer un
+  // dépôt de 200 FCFA, puis l'éditer). On retranche ce que la ligne pèse déjà
+  // pour ne pas compter deux fois une simple correction de libellé.
+  const [avant] = await db
+    .select({
+      type: walletTransactions.type,
+      status: walletTransactions.status,
+      amountCents: walletTransactions.amountCents,
+    })
+    .from(walletTransactions)
+    .where(and(eq(walletTransactions.id, id), eq(walletTransactions.orgId, session.orgId)))
+    .limit(1);
+  if (!avant) return { error: "Transaction introuvable." };
+  if (avant.type === "topup" && status === "completed") {
+    const dejaCompte = avant.status === "completed" ? avant.amountCents : 0;
+    const porte = await kycTopupGate(session.orgId, amountCents, dejaCompte);
+    if (!porte.ok) return { error: porte.message };
+  }
+
   const [updated] = await db
     .update(walletTransactions)
     .set({ note: note || null, amountCents, status })
@@ -172,6 +198,12 @@ export async function startWalletTopupPayment(_prevState: unknown, formData: For
   }
   if (!isWalletPaymentMethod(paymentMethod)) return { error: "Moyen de paiement invalide." };
   if (!isWalletEligibleCountry(countryIso2)) return { error: "Pays non éligible pour ce paiement." };
+
+  // Au-delà du seuil cumulé, plus un franc n'entre sans identité vérifiée. La
+  // porte se ferme AVANT de créer la ligne « pending » et d'appeler GeniusPay :
+  // un dépôt refusé ne doit laisser ni trace en attente ni paiement ouvert.
+  const porte = await kycTopupGate(session.orgId, amountCents);
+  if (!porte.ok) return { error: porte.message };
 
   // Numéro mobile money : requis pour Orange/MTN (PawaPay). Optionnel sinon
   // (Wave n'en a pas besoin ; Moov/carte passent par le checkout hébergé).
