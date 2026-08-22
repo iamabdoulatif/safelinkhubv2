@@ -100,9 +100,9 @@ export default function ServicesMenu({
                   <Link
                     href={localeHref(href, locale)}
                     onClick={() => setOuvert(false)}
-                    className="flex gap-3 rounded-xl p-3 transition-colors hover:bg-clay"
+                    className="nav-service flex gap-3 rounded-xl p-3 transition-colors hover:bg-clay"
                   >
-                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-clay text-brand-deep">
+                    <span className="nav-service-icon mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-clay text-brand-deep">
                       <Icon aria-hidden="true" className="h-4 w-4" />
                     </span>
                     <span className="min-w-0">

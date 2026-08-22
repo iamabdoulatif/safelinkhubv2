@@ -99,3 +99,47 @@ test("les formulaires d'authentification partagent leurs classes", async () => {
     );
   }
 });
+
+test("le survol de la navigation respecte la charte", async () => {
+  const css = await read("src/app/globals.css");
+  const bloc = css.slice(css.indexOf(".theme-slate .nav-link {"), css.indexOf("RÉVÉLATION AU DÉFILEMENT"));
+  assert.ok(bloc.length > 0, "règles de survol introuvables");
+
+  /* Le trait est l'aplat --brand, jamais une couleur en dur : la charte se
+     modifie en un seul endroit. */
+  assert.match(bloc, /background:\s*var\(--brand\)/);
+  /* Une seule couleur en dur tolérée : l'encre posée SUR le lime. La charte
+     l'impose — « texte noir dessus, jamais blanc » — et --ink ne conviendrait
+     pas, puisqu'il s'inverse en thème sombre alors que l'aplat lime, lui, ne
+     change pas. Toute autre valeur en dur signalerait une couleur échappée
+     au système de jetons. */
+  const enDur = [...new Set(bloc.match(/#[0-9A-Fa-f]{6}/g) ?? [])];
+  assert.deepEqual(enDur, ["#10160F"], `couleurs hors jetons : ${enDur.join(", ")}`);
+
+  // --brand ne sert jamais de couleur de TEXTE : 1,3:1 sur blanc, illisible.
+  assert.doesNotMatch(bloc, /color:\s*var\(--brand\)\s*;/);
+  assert.match(bloc, /color:\s*var\(--brand-deep\)/);
+
+  /* Le survol est enfermé dans (hover: hover) : sur tactile, :hover se
+     déclenche au toucher et reste collé après la navigation. */
+  const survol = bloc.slice(bloc.indexOf("@media (hover: hover)"));
+  assert.match(survol, /\(hover: hover\) and \(pointer: fine\)/);
+  assert.match(survol, /\.nav-link:hover::after/);
+
+  // Clavier et page courante : sans eux, la navigation au clavier ne montre
+  // rien et rien n'indique où l'on est.
+  assert.match(bloc, /\.nav-link:focus-visible::after/);
+  assert.match(bloc, /\.nav-link\[aria-current="page"\]::after/);
+
+  // Mouvement réduit respecté, et aucun dégradé (règle de la charte).
+  assert.match(bloc, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(bloc, /gradient/i);
+});
+
+test("la navigation marque la page courante", async () => {
+  const nav = await read("src/components/landing/LandingNav.tsx");
+  assert.match(nav, /aria-current=\{estCourante\(l\.href\) \? "page" : undefined\}/);
+  /* Le préfixe de langue est retiré avant comparaison : sur /en/contact,
+     l'entrée Contact doit s'allumer comme sur /contact. */
+  assert.match(nav, /replace\(\/\^\\\/en\(\?=\\\/\|\$\)\/, ""\)/);
+});

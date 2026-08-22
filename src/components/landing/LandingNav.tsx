@@ -75,6 +75,15 @@ export default function LandingNav({
 
   // Seules les ancres ont besoin du préfixe (retour vers la landing depuis
   // /auth, /blog, /contact…) — les vraies routes restent telles quelles.
+  /* « Page courante » se juge SANS le préfixe de langue : sur /en/contact,
+     l'entrée Contact doit s'allumer comme sur /contact. Comparaison exacte
+     pour la racine, par préfixe ailleurs, sinon /services allumerait aussi
+     /services/hotspot — ce qui est voulu — mais /vpn n'allumerait rien sur
+     une sous-page qu'il n'a pas. */
+  const cheminSansLangue = (pathname ?? "/").replace(/^\/en(?=\/|$)/, "") || "/";
+  const estCourante = (href: string) =>
+    href === "/" ? cheminSansLangue === "/" : cheminSansLangue.startsWith(href);
+
   const getHref = (href: string) =>
     href.startsWith("#") ? `${anchorPrefix}${href}` : localeHref(href, locale);
 
@@ -92,11 +101,16 @@ export default function LandingNav({
           <ServicesMenu menu={nav.servicesMenu} locale={locale} />
           {links.map((l) =>
             l.href.startsWith("#") ? (
-              <a key={l.href} href={getHref(l.href)} className="px-1 text-ink hover:text-brand-deep">
+              <a key={l.href} href={getHref(l.href)} className="nav-link px-1 text-ink">
                 <span>{l.label}</span>
               </a>
             ) : (
-              <Link key={l.href} href={getHref(l.href)} className="px-1 text-ink hover:text-brand-deep">
+              <Link
+                key={l.href}
+                href={getHref(l.href)}
+                aria-current={estCourante(l.href) ? "page" : undefined}
+                className="nav-link px-1 text-ink"
+              >
                 <span>{l.label}</span>
               </Link>
             ),

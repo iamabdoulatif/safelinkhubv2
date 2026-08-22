@@ -511,6 +511,83 @@ html {
   padding: 0 0.14em;
 }
 
+
+/* ── Survol de la navigation ──────────────────────────────────────────────
+   Le trait lime qui se déploie est l'écho du surligneur .marker, signature de
+   Slate : même aplat --brand, même arrondi, en filet plutôt qu'en bloc — un
+   fond lime plein sur chaque entrée écraserait le header.
+
+   --brand ne sert JAMAIS de couleur de texte ici : mesuré à 1,3:1 sur blanc,
+   il serait illisible. Le texte passe à --brand-deep, le vert encre.
+
+   Le survol est enfermé dans (hover: hover) et (pointer: fine), comme
+   .hover-lift plus haut : sur tactile, :hover se déclenche au TOUCHER et
+   reste collé après la navigation — le trait resterait allumé sur une entrée
+   qu'on a quittée.
+
+   Le trait s'affiche aussi au focus clavier et sur la page courante : sans
+   cela, la navigation au clavier ne montrerait rien, et rien n'indiquerait où
+   l'on se trouve. */
+.theme-slate .nav-link {
+  position: relative;
+  padding-bottom: 5px;
+  transition: color 160ms ease-out;
+}
+
+.theme-slate .nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--brand);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 180ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .theme-slate .nav-link:hover {
+    color: var(--brand-deep);
+  }
+  .theme-slate .nav-link:hover::after {
+    transform: scaleX(1);
+  }
+}
+
+.theme-slate .nav-link:focus-visible::after,
+.theme-slate .nav-link[aria-current="page"]::after {
+  transform: scaleX(1);
+}
+
+.theme-slate .nav-link[aria-current="page"] {
+  color: var(--brand-deep);
+  font-weight: 600;
+}
+
+/* Entrée du menu déroulant : le carreau d'icône passe à l'aplat lime, comme
+   un surligneur qui se pose. La ligne entière prend le fond clay — le trait
+   fin de la charte sépare, il n'encadre pas, donc pas de bordure ajoutée. */
+.theme-slate .nav-service:hover .nav-service-icon,
+.theme-slate .nav-service:focus-visible .nav-service-icon {
+  background: var(--brand);
+  color: #10160F;
+}
+
+.theme-slate .nav-service-icon {
+  transition: background 160ms ease-out, color 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-slate .nav-link,
+  .theme-slate .nav-link::after,
+  .theme-slate .nav-service-icon {
+    transition: none;
+  }
+}
+
 /* ════════════════════════════════════════════════════════════
    RÉVÉLATION AU DÉFILEMENT
    Les classes .animate-* ci-dessus se déclenchent au MONTAGE : sur une page
