@@ -9,6 +9,7 @@ import {
   CircuitBoard,
   Newspaper,
   RefreshCw,
+  Search,
   Tag,
   Terminal,
   Unlock,
@@ -30,6 +31,15 @@ import { listPublishedCourses } from "@/lib/courses/queries";
    sans image casse la grille et fait paraître le parcours inachevé. Les trois
    photos du dossier tournent selon le rang, pour que deux cartes voisines ne
    portent pas la même image. */
+/* Mosaïque de la section « Qui écrit » — apprentissage en salle, binôme,
+   mentorat, poste de travail. */
+const MOSAIQUE = [
+  "/photos/formations-lab.jpg",
+  "/photos/formations-binome.jpg",
+  "/photos/formations-mentorat.jpg",
+  "/photos/formations-poste.jpg",
+] as const;
+
 const ILLUSTRATIONS = [
   "/photos/illustration-ports.jpg",
   "/photos/illustration-cables.jpg",
@@ -136,7 +146,34 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
                 {t.heading}
               </h1>
               <p className="mt-4 max-w-xl text-base leading-7 text-ink-soft">{t.lead}</p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              {/* Recherche — elle POSTE vers /recherche, qui existe déjà et
+                  cherche articles, formations et pages. Un second moteur
+                  propre à cette page aurait été un doublon à maintenir. */}
+              <form
+                action={localeHref("/recherche", locale)}
+                method="get"
+                className="mt-8 flex w-full max-w-md gap-2"
+              >
+                <label htmlFor="q-formations" className="sr-only">
+                  {t.searchLabel}
+                </label>
+                <input
+                  id="q-formations"
+                  name="q"
+                  type="search"
+                  placeholder={t.searchPlaceholder}
+                  className="min-w-0 flex-1 rounded-full border border-line bg-paper px-5 py-3 text-sm text-ink placeholder:text-ink-soft focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
+                />
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-5 py-3 text-sm"
+                >
+                  <Search aria-hidden="true" className="h-4 w-4" />
+                  {t.searchButton}
+                </button>
+              </form>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                 <a
                   href="#guides"
                   className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-6 py-3 text-sm"
@@ -319,14 +356,22 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
         <section className="border-t border-line bg-clay py-14">
           <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
             <div className="lg:col-span-5">
-              <Image
-                src="/photos/formations-equipe.jpg"
-                alt=""
-                width={1400}
-                height={933}
-                sizes="(min-width: 1024px) 26rem, 100vw"
-                className="slate-card h-64 w-full object-cover lg:h-80"
-              />
+              {/* Mosaïque 2×2, motif du modèle. Quatre photos plutôt qu'une :
+                  la section parle de terrain, de binôme et de mentorat — un
+                  seul cliché n'en montrerait qu'un tiers. */}
+              <div className="grid grid-cols-2 gap-3">
+                {MOSAIQUE.map((src) => (
+                  <Image
+                    key={src}
+                    src={src}
+                    alt=""
+                    width={800}
+                    height={800}
+                    sizes="(min-width: 1024px) 13rem, 45vw"
+                    className="slate-card aspect-square w-full object-cover"
+                  />
+                ))}
+              </div>
             </div>
             <div className="lg:col-span-7">
               <span className="slate-eyebrow">{t.aboutEyebrow}</span>
