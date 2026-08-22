@@ -26,6 +26,7 @@ export const fr = {
     },
     services: "Services",
     vpn: "VPN",
+    blog: "Blog",
     training: "Formations",
     search: "Rechercher",
     searchLabel: "Rechercher sur le site",

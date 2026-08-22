@@ -15,7 +15,7 @@ test("le header suit l'ordre demandé et ne pointe plus vers des ancres", async 
   // rendu avant les autres entrées.
   assert.match(nav, /<ServicesMenu menu=\{nav\.servicesMenu\} locale=\{locale\} \/>/);
   const ordre = [...nav.matchAll(/\{ href: "([^"]+)", label: nav\.(\w+) \}/g)].map((m) => m[1]);
-  assert.deepEqual(ordre, ["/vpn", "/formations", "/boutique", "/contact"]);
+  assert.deepEqual(ordre, ["/vpn", "/formations", "/blog", "/boutique", "/contact"]);
   assert.doesNotMatch(nav, /href: "#/, "plus aucune ancre dans le header");
 
   // La loupe existe, et le menu mobile la reprend puisqu'elle y est masquée.

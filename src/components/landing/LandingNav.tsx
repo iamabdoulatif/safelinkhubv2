@@ -36,6 +36,10 @@ const navLinks = (nav: Nav) =>
        /vpn, et le blog vit sous /formations. */
     { href: "/vpn", label: nav.vpn },
     { href: "/formations", label: nav.training },
+    /* Le blog revient dans le header : il est resté atteignable depuis
+       /formations tout ce temps, mais six articles publiés méritent leur
+       propre entrée plutôt qu'un détour. */
+    { href: "/blog", label: nav.blog },
     { href: "/boutique", label: nav.shop },
     { href: "/contact", label: nav.contact },
   ] as const;

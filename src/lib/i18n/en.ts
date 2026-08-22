@@ -26,6 +26,7 @@ export const en: Dictionary = {
     },
     services: "Services",
     vpn: "VPN",
+    blog: "Blog",
     training: "Training",
     search: "Search",
     searchLabel: "Search the site",
