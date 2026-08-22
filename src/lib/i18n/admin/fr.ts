@@ -36,6 +36,7 @@ export const adminFr = {
       settings: "Paramètres",
       billing: "Facturation",
       support: "Support",
+      kyc: "Vérifications KYC",
       authorizations: "Autorisations",
       vpnAccess: "Accès VPN clients",
       analytics: "Analyse commerciale",

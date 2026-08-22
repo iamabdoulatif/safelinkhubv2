@@ -16,7 +16,9 @@ test("aucune pièce d'identité ne part vers un stockage public", async () => {
     "src/lib/kyc/actions.ts",
     "src/app/admin/verification/page.tsx",
     "src/app/admin/verification/VerificationCenter.tsx",
-    "src/app/admin/verification/ReviewQueue.tsx",
+    "src/app/admin/kyc/page.tsx",
+    "src/app/admin/kyc/[orgId]/page.tsx",
+    "src/lib/kyc/queries.ts",
   ]) {
     const src = await read(f);
     assert.doesNotMatch(src, /uploadPaymentProof|@vercel\/blob|\bput\(/, `${f} ne doit rien téléverser`);
@@ -78,4 +80,34 @@ test("le module d'actions n'exporte QUE des fonctions asynchrones", async () => 
   // contenait bien la chaîne — première version de ce test, rouge à tort.
   assert.doesNotMatch(constantes, /^\s*"use server"/, "ce module ne doit pas être un module serveur");
   assert.match(constantes, /export const MAX_KYC_ATTEMPTS/);
+});
+
+test("l'écran d'examen dit où sont les pièces, et n'en montre aucune", async () => {
+  /* Un examinateur qui ne verrait aucune pièce sans explication croirait à un
+     bug et chercherait un bouton qui n'existe pas. La fiche le dit. */
+  const fiche = await read("src/app/admin/kyc/[orgId]/page.tsx");
+  assert.match(fiche, /ne sont pas stockées par SafeLinkHub/);
+  assert.match(fiche, /canal privé/);
+});
+
+test("toute la section KYC d'administration est réservée au superadmin", async () => {
+  for (const f of ["src/app/admin/kyc/page.tsx", "src/app/admin/kyc/[orgId]/page.tsx"]) {
+    const src = await read(f);
+    assert.match(src, /isSuperAdmin\(session\.role\)/, `${f} doit garder l'accès`);
+  }
+});
+
+test("un statut porte le même nom sur la liste et sur la fiche", async () => {
+  // Deux tables de libellés auraient fini par nommer le même état
+  // différemment d'un écran à l'autre.
+  const { KYC_STATUS_LABELS } = await import("../src/app/admin/kyc/status.ts");
+  for (const f of ["src/app/admin/kyc/page.tsx", "src/app/admin/kyc/[orgId]/page.tsx"]) {
+    assert.match(await read(f), /KYC_STATUS_LABELS/, `${f} doit lire la table partagée`);
+  }
+  // Et chaque statut du modèle y figure.
+  const actions = await read("src/lib/kyc/actions.ts");
+  for (const statut of ["under_review", "approved", "rejected"]) {
+    assert.ok(KYC_STATUS_LABELS[statut], `libellé manquant : ${statut}`);
+    assert.match(actions, new RegExp(statut));
+  }
 });

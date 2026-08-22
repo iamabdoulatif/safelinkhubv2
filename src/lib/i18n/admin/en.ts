@@ -31,6 +31,7 @@ export const adminEn: AdminDictionary = {
       settings: "Settings",
       billing: "Billing",
       support: "Support",
+      kyc: "KYC verifications",
       authorizations: "Authorisations",
       vpnAccess: "Customer VPN access",
       analytics: "Business analytics",

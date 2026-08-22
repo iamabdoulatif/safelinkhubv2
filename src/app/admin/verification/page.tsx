@@ -1,10 +1,9 @@
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { kycVerifications, organizations } from "@/lib/db/schema";
-import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 import { getManualPaymentContact } from "@/lib/billing/manual-payment";
 import VerificationCenter from "./VerificationCenter";
-import ReviewQueue from "./ReviewQueue";
 
 export default async function VerificationPage() {
   const session = await getSession();
@@ -27,23 +26,6 @@ export default async function VerificationPage() {
     `Vérification d'identité — SafeLinkHub\nOrganisation : ${org?.name ?? "?"}\nJe vous transmets ma pièce d'identité et mon justificatif de domicile.`,
   );
 
-  const enAttente = isSuperAdmin(session.role)
-    ? await db
-        .select({
-          orgId: kycVerifications.orgId,
-          orgName: organizations.name,
-          status: kycVerifications.status,
-          documentType: kycVerifications.documentType,
-          fullName: kycVerifications.fullName,
-          fullAddress: kycVerifications.fullAddress,
-          attempts: kycVerifications.attempts,
-          submittedAt: kycVerifications.submittedAt,
-        })
-        .from(kycVerifications)
-        .innerJoin(organizations, eq(organizations.id, kycVerifications.orgId))
-        .where(eq(kycVerifications.status, "under_review"))
-        .orderBy(desc(kycVerifications.submittedAt))
-    : [];
 
   return (
     <div>
@@ -59,8 +41,6 @@ export default async function VerificationPage() {
           adminNote: row?.adminNote ?? null,
         }}
       />
-
-      {isSuperAdmin(session.role) && <ReviewQueue demandes={enAttente} />}
     </div>
   );
 }

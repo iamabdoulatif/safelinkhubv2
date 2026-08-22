@@ -34,6 +34,7 @@ import {
   X,
   Languages,
   GraduationCap,
+  BadgeCheck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import UserMenu from "./UserMenu";
@@ -159,6 +160,7 @@ function SectionTitle({ children, className = "" }: { children: string; classNam
 // ensuite, puisqu'on s'y rend par intention et non par urgence.
 const superadminLinks: NavLink[] = [
   { href: "/admin/authorizations", key: "authorizations", icon: ShieldCheck },
+  { href: "/admin/kyc", key: "kyc", icon: BadgeCheck },
   { href: "/admin/vpn-access", key: "vpnAccess", icon: KeyRound },
   { href: "/admin/analytics", key: "analytics", icon: BarChart3 },
   { href: "/admin/safecoin", key: "safecoin", icon: Coins },
