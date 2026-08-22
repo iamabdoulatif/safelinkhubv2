@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { autoSetupAuthorizations, organizations, remoteAccessAuthorizations, users } from "@/lib/db/schema";
 import {
   filterPlatformSalesRows,
+  previousRange,
   summarizePlatformSales,
   type PlatformSaleRow,
 } from "@/lib/admin/platform-analytics";
@@ -63,7 +64,12 @@ export default async function PlatformAnalyticsPage({
 
   const params = await searchParams;
   const { from, to, toEnd } = parseRange(params);
+  const precedent = previousRange(from, toEnd);
   const db = getDb();
+
+  /* Une seule lecture pour DEUX fenêtres : on descend jusqu'au début de la
+     période précédente et on tranche en mémoire. Deux requêtes de plus sur les
+     mêmes tables coûteraient deux allers-retours pour la même information. */
 
   const [autoSetupRows, vpnRows] = await Promise.all([
     db
@@ -83,7 +89,7 @@ export default async function PlatformAnalyticsPage({
       .from(autoSetupAuthorizations)
       .innerJoin(organizations, eq(autoSetupAuthorizations.orgId, organizations.id))
       .leftJoin(users, eq(autoSetupAuthorizations.userId, users.id))
-      .where(and(gte(autoSetupAuthorizations.createdAt, from), lte(autoSetupAuthorizations.createdAt, toEnd)))
+      .where(and(gte(autoSetupAuthorizations.createdAt, precedent.from), lte(autoSetupAuthorizations.createdAt, toEnd)))
       .orderBy(desc(autoSetupAuthorizations.createdAt)),
     db
       .select({
@@ -102,7 +108,7 @@ export default async function PlatformAnalyticsPage({
       })
       .from(remoteAccessAuthorizations)
       .innerJoin(organizations, eq(remoteAccessAuthorizations.orgId, organizations.id))
-      .where(and(gte(remoteAccessAuthorizations.createdAt, from), lte(remoteAccessAuthorizations.createdAt, toEnd)))
+      .where(and(gte(remoteAccessAuthorizations.createdAt, precedent.from), lte(remoteAccessAuthorizations.createdAt, toEnd)))
       .orderBy(desc(remoteAccessAuthorizations.createdAt)),
   ]);
 
@@ -140,9 +146,19 @@ export default async function PlatformAnalyticsPage({
     })),
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
-  const reportableRows = filterPlatformSalesRows(rows);
+  const dansPeriode = (row: PlatformSaleRow, debut: Date, fin: Date) => {
+    const quand = new Date(row.createdAt).getTime();
+    return quand >= debut.getTime() && quand <= fin.getTime();
+  };
+  const reportableRows = filterPlatformSalesRows(rows).filter((row) =>
+    dansPeriode(row, from, toEnd),
+  );
 
   const report = summarizePlatformSales(reportableRows, { from, to: toEnd });
+  const rapportPrecedent = summarizePlatformSales(
+    filterPlatformSalesRows(rows).filter((row) => dansPeriode(row, precedent.from, precedent.toEnd)),
+    { from: precedent.from, to: precedent.toEnd },
+  );
   const now = new Date();
   const fromParam = toParam(from);
   const toParamValue = toParam(to);
@@ -153,7 +169,12 @@ export default async function PlatformAnalyticsPage({
       <div className="mb-5 flex justify-end">
         <DateRangePicker from={fromParam} to={toParamValue} activePreset={activePreset(from, to, now)} />
       </div>
-      <PlatformAnalyticsView report={report} rows={reportableRows} rangeLabel={rangeLabel} />
+      <PlatformAnalyticsView
+        report={report}
+        previousKpis={rapportPrecedent.kpis}
+        rows={reportableRows}
+        rangeLabel={rangeLabel}
+      />
     </>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  ArrowDownRight,
   ArrowUpRight,
   BarChart3,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
   Download,
   Gauge,
   KeyRound,
+  Minus,
   RefreshCw,
   ShieldCheck,
   UsersRound,
@@ -17,7 +19,12 @@ import {
   Zap,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { buildPlatformSalesCsv, type PlatformAnalyticsReport, type PlatformSaleRow } from "@/lib/admin/platform-analytics";
+import {
+  buildPlatformSalesCsv,
+  variation,
+  type PlatformAnalyticsReport,
+  type PlatformSaleRow,
+} from "@/lib/admin/platform-analytics";
 import { formatFcfa, PAYMENT_METHODS } from "@/lib/billing/auto-setup-gate-config";
 import LineChart from "@/components/charts/LineChart";
 import { periodLabel, serviceLabel } from "@/lib/billing/remote-access-gate-config";
@@ -51,6 +58,13 @@ function percentLabel(value: number) {
   return `${value.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}%`;
 }
 
+/* Couleurs de série — UNE seule définition, lue par le graphique ET par les
+   pastilles du journal. Elles vivaient en double : la légende du bandeau
+   annonçait `--ink` pour le VPN et `--brand` pour l'Auto-Setup, quand la
+   courbe traçait `--chart-1` (ocre) et `--chart-2` (bleu). Le lecteur associait
+   donc le moutarde de la légende à la mauvaise série. */
+const COULEUR_SERIE = { vpn: "var(--chart-1)", auto_setup: "var(--chart-2)" } as const;
+
 /**
  * Ventes VPN et Auto-Setup au fil des jours.
  *
@@ -66,13 +80,13 @@ function DailySalesChart({ report }: { report: PlatformAnalyticsReport }) {
         {
           key: "vpn",
           label: "VPN",
-          color: "var(--chart-1)",
+          color: COULEUR_SERIE.vpn,
           values: report.daily.map((point) => point.vpnAmountFcfa),
         },
         {
           key: "autosetup",
           label: "Auto-Setup",
-          color: "var(--chart-2)",
+          color: COULEUR_SERIE.auto_setup,
           values: report.daily.map((point) => point.autoSetupAmountFcfa),
         },
       ]}
@@ -83,18 +97,54 @@ function DailySalesChart({ report }: { report: PlatformAnalyticsReport }) {
   );
 }
 
+/**
+ * Évolution vs période précédente.
+ *
+ * Un montant seul ne se lit pas : 240 000 FCFA sur un mois, est-ce bien ?
+ * La réponse tient dans la comparaison avec le mois d'avant. La flèche ET le
+ * texte portent l'information — jamais la seule couleur.
+ */
+function DeltaPill({ actuel, precedent }: { actuel: number; precedent: number }) {
+  const v = variation(actuel, precedent);
+  if (!v.comparable) {
+    return (
+      <span className="text-xs text-ink-soft">
+        {actuel > 0 ? "Rien sur la période précédente" : "—"}
+      </span>
+    );
+  }
+  const Fleche = v.sens === "hausse" ? ArrowUpRight : v.sens === "baisse" ? ArrowDownRight : Minus;
+  const teinte =
+    v.sens === "hausse" ? "text-ok" : v.sens === "baisse" ? "text-err" : "text-ink-soft";
+  const signe = v.pourcent > 0 ? "+" : "";
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold ${teinte}`}>
+      <Fleche className="h-3.5 w-3.5" aria-hidden="true" />
+      {v.sens === "stable"
+        ? "stable"
+        : `${signe}${v.pourcent.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`}
+      <span className="font-normal text-ink-soft">vs période précédente</span>
+    </span>
+  );
+}
+
 function MetricCard({
   label,
   value,
   hint,
   icon: Icon,
   accent = "yellow",
+  actuel,
+  precedent,
 }: {
   label: string;
   value: string;
   hint: string;
   icon: typeof WalletCards;
   accent?: "yellow" | "green" | "ink" | "red";
+  /** Valeurs BRUTES comparées — `value` est déjà formaté, donc incomparable. */
+  actuel: number;
+  precedent: number;
 }) {
   const accents = {
     yellow: "border-t-brand",
@@ -110,16 +160,22 @@ function MetricCard({
       </div>
       <p className="mt-3 text-2xl font-bold tabular-nums text-ink">{value}</p>
       <p className="mt-1 text-xs text-ink-soft">{hint}</p>
+      <p className="mt-2 border-t border-line-soft pt-2">
+        <DeltaPill actuel={actuel} precedent={precedent} />
+      </p>
     </div>
   );
 }
 
 export default function PlatformAnalyticsView({
   report,
+  previousKpis,
   rows,
   rangeLabel,
 }: {
   report: PlatformAnalyticsReport;
+  /** Mêmes indicateurs sur la fenêtre de même durée qui précède. */
+  previousKpis: PlatformAnalyticsReport["kpis"];
   rows: PlatformSaleRow[];
   rangeLabel: string;
 }) {
@@ -181,6 +237,8 @@ export default function PlatformAnalyticsView({
           hint={`${report.kpis.approvedCount} vente(s) validée(s)`}
           icon={WalletCards}
           accent="yellow"
+          actuel={report.kpis.totalAmountFcfa}
+          precedent={previousKpis.totalAmountFcfa}
         />
         <MetricCard
           label="Ventes VPN"
@@ -188,6 +246,8 @@ export default function PlatformAnalyticsView({
           hint={`${report.kpis.vpnSalesCount} accès distant(s)`}
           icon={KeyRound}
           accent="ink"
+          actuel={report.kpis.vpnAmountFcfa}
+          precedent={previousKpis.vpnAmountFcfa}
         />
         <MetricCard
           label="Auto-Setup"
@@ -195,6 +255,8 @@ export default function PlatformAnalyticsView({
           hint={`${report.kpis.autoSetupSalesCount} configuration(s)`}
           icon={Zap}
           accent="green"
+          actuel={report.kpis.autoSetupAmountFcfa}
+          precedent={previousKpis.autoSetupAmountFcfa}
         />
         <MetricCard
           label="Organisations actives"
@@ -202,6 +264,8 @@ export default function PlatformAnalyticsView({
           hint={`${percentLabel(report.kpis.activationRate)} des ventes activées`}
           icon={UsersRound}
           accent="yellow"
+          actuel={report.kpis.activeOrganizations}
+          precedent={previousKpis.activeOrganizations}
         />
       </div>
 
@@ -237,10 +301,9 @@ export default function PlatformAnalyticsView({
               <h2 id="sales-evolution-title" className="font-semibold text-ink">Évolution des ventes</h2>
               <p className="mt-1 text-xs text-ink-soft">Montants validés par jour et par produit</p>
             </div>
-            <div className="flex items-center gap-4 text-xs text-ink-soft">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 bg-ink" aria-hidden="true" /> VPN</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 border border-line bg-brand" aria-hidden="true" /> Auto-Setup</span>
-            </div>
+            {/* Pas de légende ici : LineChart en dessine déjà une, à partir
+                des couleurs qu'il trace réellement. Celle qui vivait là était
+                recopiée à la main, et fausse. */}
           </div>
           {report.kpis.approvedCount > 0 ? (
             <DailySalesChart report={report} />
@@ -311,7 +374,7 @@ export default function PlatformAnalyticsView({
           <div className="flex items-center gap-3 text-xs text-ink-soft"><span>{rows.length} ligne(s)</span>{rows.length > 8 && <button type="button" onClick={() => setShowAll((value) => !value)} className="font-semibold text-brand-deep hover:underline">{showAll ? "Réduire" : "Tout afficher"}</button>}</div>
         </div>
         {recentRows.length === 0 ? <div className="px-6 py-12 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-ok" aria-hidden="true" /><p className="mt-3 font-semibold text-ink">Aucune demande sur cette période</p><p className="mt-1 text-sm text-ink-soft">Changez la période ou revenez après une nouvelle vente.</p></div> : (
-          <div className="table-mobile-wrapper"><table className="w-full text-left text-sm"><thead className="border-b border-line-soft bg-clay text-ink-soft"><tr><th className="px-4 py-3 font-medium">Produit</th><th className="px-4 py-3 font-medium">Demandeur / organisation</th><th className="px-4 py-3 font-medium">Montant</th><th className="px-4 py-3 font-medium">État</th><th className="px-4 py-3 font-medium">Date</th></tr></thead><tbody className="divide-y divide-line-soft">{recentRows.map((row) => <tr key={row.id} className="hover:bg-clay/40"><td className="px-4 py-3"><div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${row.kind === "vpn" ? "bg-ink" : "bg-brand"}`} aria-hidden="true" /><div><p className="font-semibold text-ink">{row.kind === "vpn" ? "VPN" : "Auto-Setup"}</p><p className="text-xs text-ink-soft">{row.kind === "vpn" && row.service ? `${serviceLabel(row.service)} · ${row.billingPeriod ? periodLabel(row.billingPeriod) : ""}` : "Configuration MikroTik"}</p></div></div></td><td className="px-4 py-3"><p className="font-medium text-ink">{row.requesterName}</p><p className="max-w-[230px] truncate text-xs text-ink-soft">{row.orgName} · {row.requesterEmail}</p></td><td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-ink">{formatFcfa(row.amountFcfa)}</td><td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${row.status === "approved" ? "bg-green-100 text-green-800" : row.status === "pending" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-700"}`}>{row.status === "approved" ? "Validée" : row.status === "pending" ? "En attente" : "Refusée"}</span></td><td className="whitespace-nowrap px-4 py-3 text-xs text-ink-soft">{formatDate(row.createdAt)}</td></tr>)}</tbody></table></div>
+          <div className="table-mobile-wrapper"><table className="w-full text-left text-sm"><thead className="border-b border-line-soft bg-clay text-ink-soft"><tr><th className="px-4 py-3 font-medium">Produit</th><th className="px-4 py-3 font-medium">Demandeur / organisation</th><th className="px-4 py-3 font-medium">Montant</th><th className="px-4 py-3 font-medium">État</th><th className="px-4 py-3 font-medium">Date</th></tr></thead><tbody className="divide-y divide-line-soft">{recentRows.map((row) => <tr key={row.id} className="hover:bg-clay/40"><td className="px-4 py-3"><div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: COULEUR_SERIE[row.kind] }} aria-hidden="true" /><div><p className="font-semibold text-ink">{row.kind === "vpn" ? "VPN" : "Auto-Setup"}</p><p className="text-xs text-ink-soft">{row.kind === "vpn" && row.service ? `${serviceLabel(row.service)} · ${row.billingPeriod ? periodLabel(row.billingPeriod) : ""}` : "Configuration MikroTik"}</p></div></div></td><td className="px-4 py-3"><p className="font-medium text-ink">{row.requesterName}</p><p className="max-w-[230px] truncate text-xs text-ink-soft">{row.orgName} · {row.requesterEmail}</p></td><td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-ink">{formatFcfa(row.amountFcfa)}</td><td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${row.status === "approved" ? "bg-green-100 text-green-800" : row.status === "pending" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-700"}`}>{row.status === "approved" ? "Validée" : row.status === "pending" ? "En attente" : "Refusée"}</span></td><td className="whitespace-nowrap px-4 py-3 text-xs text-ink-soft">{formatDate(row.createdAt)}</td></tr>)}</tbody></table></div>
         )}
       </section>
     </div>

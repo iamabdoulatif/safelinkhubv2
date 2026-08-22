@@ -195,3 +195,38 @@ export function buildPlatformSalesCsv(rows: PlatformSaleRow[]) {
   );
   return `\uFEFF${[header, ...lines].join("\n")}`;
 }
+
+/**
+ * Fenêtre de même durée qui PRÉCÈDE immédiatement celle qu'on analyse.
+ *
+ * `from` inclus, `toEnd` inclus (fin de journée) : la période précédente
+ * s'arrête donc une milliseconde avant le début de la période courante, sans
+ * jamais recouvrir un jour déjà compté.
+ */
+export function previousRange(from: Date, toEnd: Date): { from: Date; toEnd: Date } {
+  const duree = toEnd.getTime() - from.getTime();
+  return {
+    from: new Date(from.getTime() - duree - 1),
+    toEnd: new Date(from.getTime() - 1),
+  };
+}
+
+export type Variation =
+  | { comparable: false }
+  | { comparable: true; pourcent: number; sens: "hausse" | "baisse" | "stable" };
+
+/**
+ * Évolution d'un indicateur entre deux périodes.
+ *
+ * `comparable: false` quand la période précédente vaut zéro : « +100 % » à
+ * partir de rien n'a aucun sens, et « +∞ » encore moins. L'écran affiche
+ * alors un libellé plutôt qu'un chiffre inventé.
+ */
+export function variation(actuel: number, precedent: number): Variation {
+  if (precedent <= 0) return { comparable: false };
+  const pourcent = ((actuel - precedent) / precedent) * 100;
+  // Sous 0,5 %, l'arrondi afficherait « +0 % » avec une flèche : on parle de
+  // stabilité, ce qui est l'information juste.
+  const sens = Math.abs(pourcent) < 0.5 ? "stable" : pourcent > 0 ? "hausse" : "baisse";
+  return { comparable: true, pourcent, sens };
+}
