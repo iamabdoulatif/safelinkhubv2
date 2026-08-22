@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFile } from "node:fs/promises";
-import { decideKycGate, KYC_THRESHOLD_FCFA } from "./gate";
+import {
+  decideKycGate,
+  kycThresholdNotice,
+  KYC_THRESHOLD_FCFA,
+  KYC_WARNING_FCFA,
+} from "./gate";
 
 const SEUIL = KYC_THRESHOLD_FCFA;
 
@@ -83,5 +88,65 @@ describe("tous les chemins qui créditent le portefeuille passent la porte", () 
       enLigne.indexOf("kycTopupGate(") < enLigne.indexOf("createPlatformV3Payment("),
       "la porte doit précéder la création du paiement",
     );
+  });
+});
+
+describe("bandeau d'avertissement sur la facturation", () => {
+  it("se tait tant qu'on est loin du seuil", () => {
+    assert.equal(
+      kycThresholdNotice({ cumulFcfa: KYC_WARNING_FCFA - 1, kycStatus: null }),
+      null,
+    );
+  });
+
+  it("se tait sur un dossier déjà validé, même au-dessus du seuil", () => {
+    // Un bandeau permanent finit par ne plus être lu.
+    assert.equal(
+      kycThresholdNotice({ cumulFcfa: KYC_THRESHOLD_FCFA * 10, kycStatus: "approved" }),
+      null,
+    );
+  });
+
+  it("avertit AVANT de bloquer, et annonce ce qui reste", () => {
+    const avis = kycThresholdNotice({ cumulFcfa: KYC_WARNING_FCFA, kycStatus: null });
+    assert.equal(avis?.ton, "avertissement");
+    const restant = (KYC_THRESHOLD_FCFA - KYC_WARNING_FCFA).toLocaleString("fr-FR");
+    assert.ok(avis?.message.includes(restant), `le reste à courir doit être nommé : ${restant}`);
+  });
+
+  it("passe au ton « blocage » une fois le seuil dépassé", () => {
+    assert.equal(
+      kycThresholdNotice({ cumulFcfa: KYC_THRESHOLD_FCFA, kycStatus: null })?.ton,
+      "avertissement",
+      "le seuil pile n'est pas encore un blocage — la porte le laisse passer",
+    );
+    assert.equal(
+      kycThresholdNotice({ cumulFcfa: KYC_THRESHOLD_FCFA + 1, kycStatus: null })?.ton,
+      "blocage",
+    );
+  });
+
+  it("dit à l'organisation en examen que ce n'est plus dans ses mains", () => {
+    const avis = kycThresholdNotice({
+      cumulFcfa: KYC_THRESHOLD_FCFA + 1,
+      kycStatus: "under_review",
+    });
+    assert.match(avis?.message ?? "", /en cours d'examen/);
+  });
+
+  it("le palier d'avertissement précède bien le seuil de blocage", () => {
+    assert.ok(KYC_WARNING_FCFA < KYC_THRESHOLD_FCFA);
+  });
+});
+
+describe("le bandeau est branché sur la page de facturation", () => {
+  it("lit le cumul déjà chargé et ne requête le KYC qu'au palier", async () => {
+    const src = await readFile(new URL("../../app/admin/billing/page.tsx", import.meta.url), "utf8");
+    assert.match(src, /kycThresholdNotice\(/);
+    // Pas de seconde requête sur les transactions : la liste est déjà en mémoire.
+    assert.match(src, /cumulTopupFcfa = transactions\.reduce\(/);
+    assert.match(src, /cumulTopupFcfa >= KYC_WARNING_FCFA/);
+    // Et le bandeau mène quelque part.
+    assert.match(src, /href="\/admin\/verification"/);
   });
 });

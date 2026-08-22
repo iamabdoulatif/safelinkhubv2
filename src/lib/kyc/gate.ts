@@ -17,6 +17,10 @@ import { kycVerifications, walletTransactions } from "@/lib/db/schema";
  *  dans wallet/actions.ts). */
 export const KYC_THRESHOLD_FCFA = 100_000;
 
+/** Palier d'avertissement : on prévient AVANT de bloquer. Découvrir la règle
+ *  au moment du refus, c'est un rechargement raté et un appel au support. */
+export const KYC_WARNING_FCFA = 80_000;
+
 export type KycGateDecision =
   | { ok: true }
   | { ok: false; reason: "kyc_required"; cumulFcfa: number; message: string };
@@ -100,4 +104,60 @@ export async function kycTopupGate(
     montantFcfa,
     kycStatus: dossier?.status ?? null,
   });
+}
+
+export type KycThresholdNotice = {
+  ton: "avertissement" | "blocage";
+  titre: string;
+  message: string;
+};
+
+/**
+ * Bandeau à afficher sur la facturation — décision pure, testable sans base.
+ *
+ * Rend `null` quand il n'y a rien à dire : sous le palier d'avertissement, ou
+ * dossier déjà validé. Un bandeau permanent finit par ne plus être lu.
+ */
+export function kycThresholdNotice({
+  cumulFcfa,
+  kycStatus,
+}: {
+  cumulFcfa: number;
+  kycStatus: string | null;
+}): KycThresholdNotice | null {
+  if (kycStatus === "approved") return null;
+  if (cumulFcfa < KYC_WARNING_FCFA) return null;
+
+  const seuil = KYC_THRESHOLD_FCFA.toLocaleString("fr-FR");
+  const cumul = cumulFcfa.toLocaleString("fr-FR");
+  const enExamen = kycStatus === "under_review" || kycStatus === "documents_sent";
+
+  if (cumulFcfa > KYC_THRESHOLD_FCFA) {
+    return {
+      ton: "blocage",
+      titre: "Rechargements suspendus",
+      message: enExamen
+        ? `Vous avez rechargé ${cumul} FCFA, au-delà du seuil de ${seuil} FCFA. Votre vérification d'identité est en cours d'examen : les rechargements reprendront dès qu'elle sera validée.`
+        : `Vous avez rechargé ${cumul} FCFA, au-delà du seuil de ${seuil} FCFA. Validez votre identité pour pouvoir recharger à nouveau.`,
+    };
+  }
+
+  const restant = (KYC_THRESHOLD_FCFA - cumulFcfa).toLocaleString("fr-FR");
+  return {
+    ton: "avertissement",
+    titre: "Vérification d'identité bientôt requise",
+    message: enExamen
+      ? `Vous avez rechargé ${cumul} FCFA. Au-delà de ${seuil} FCFA, la vérification doit être validée — la vôtre est en cours d'examen.`
+      : `Vous avez rechargé ${cumul} FCFA. Il vous reste ${restant} FCFA avant que la vérification d'identité ne devienne obligatoire. Lancez-la dès maintenant pour ne pas être interrompu.`,
+  };
+}
+
+/** Statut du dossier KYC de l'organisation, ou null s'il n'existe pas. */
+export async function getKycStatus(orgId: string): Promise<string | null> {
+  const [row] = await getDb()
+    .select({ status: kycVerifications.status })
+    .from(kycVerifications)
+    .where(eq(kycVerifications.orgId, orgId))
+    .limit(1);
+  return row?.status ?? null;
 }

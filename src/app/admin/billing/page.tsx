@@ -1,5 +1,6 @@
 import { eq, desc } from "drizzle-orm";
-import { CreditCard, Wallet } from "lucide-react";
+import Link from "next/link";
+import { CreditCard, ShieldAlert, Wallet } from "lucide-react";
 import { getDb } from "@/lib/db";
 import {
   organizations,
@@ -27,6 +28,7 @@ import SafecoinTopupReturn from "./SafecoinTopupReturn";
 import ReferralCard from "./ReferralCard";
 import { getReferralSummary } from "@/lib/referrals/service";
 import { getAppUrl } from "@/lib/net/app-url";
+import { getKycStatus, kycThresholdNotice, KYC_WARNING_FCFA } from "@/lib/kyc/gate";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(date);
@@ -127,6 +129,17 @@ export default async function BillingPage({
           .limit(20),
       ])
     : [[], [], []];
+  /* Cumul des rechargements confirmés : la liste complète est DÉJÀ chargée
+     ci-dessus, inutile d'une seconde requête. Seul le statut du dossier KYC
+     est à lire — et seulement si le palier d'avertissement est atteint. */
+  const cumulTopupFcfa = transactions.reduce(
+    (sum, t) => (t.status === "completed" && t.type === "topup" ? sum + t.amountCents : sum),
+    0,
+  );
+  const avisKyc =
+    session && cumulTopupFcfa >= KYC_WARNING_FCFA
+      ? kycThresholdNotice({ cumulFcfa: cumulTopupFcfa, kycStatus: await getKycStatus(session.orgId) })
+      : null;
   const walletBalanceCents = transactions.reduce(
     (sum, t) =>
       t.status !== "completed"
@@ -144,6 +157,31 @@ export default async function BillingPage({
       <p className="mt-1 text-sm text-ink-soft">
         Informations sur votre organisation SafeLinkHub.
       </p>
+
+      {/* On prévient AVANT de bloquer : découvrir la règle au moment du refus,
+          c'est un rechargement raté et un appel au support. */}
+      {avisKyc && (
+        <div
+          role={avisKyc.ton === "blocage" ? "alert" : undefined}
+          className={`mt-6 flex items-start gap-3 rounded-xl border p-4 sm:p-5 ${
+            avisKyc.ton === "blocage"
+              ? "border-err bg-err-soft"
+              : "border-brand-deep bg-brand/15"
+          }`}
+        >
+          <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-ink" />
+          <div className="min-w-0">
+            <p className="font-display font-bold text-ink">{avisKyc.titre}</p>
+            <p className="mt-1 text-sm leading-6 text-ink">{avisKyc.message}</p>
+            <Link
+              href="/admin/verification"
+              className="mt-3 inline-block rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
+            >
+              Ouvrir la vérification
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 border border-line bg-paper p-6 rounded-xl">
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
