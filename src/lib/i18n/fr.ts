@@ -548,6 +548,14 @@ export const fr = {
     allArticles: "Tous les articles",
   },
   contact: {
+    cards: {
+      addressLabel: "Notre bureau",
+      addressValue: "330 Rue Nicolas Amenin, Attécoubé — Abidjan",
+      delayLabel: "Délai de réponse",
+      delayValue: "Sous 24 h ouvrées, du lundi au samedi",
+      supportLabel: "Déjà client ?",
+      supportValue: "Passez par le Support de votre tableau de bord",
+    },
     eyebrow: "Entreprise",
     title: "Contactez-nous",
     lead: "Une question sur le produit, un partenariat ou un déploiement à grande échelle ? Écrivez-nous, nous répondons rapidement.",

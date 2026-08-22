@@ -559,6 +559,14 @@ export const en: Dictionary = {
     allArticles: "All articles",
   },
   contact: {
+    cards: {
+      addressLabel: "Our office",
+      addressValue: "330 Rue Nicolas Amenin, Attécoubé — Abidjan",
+      delayLabel: "Response time",
+      delayValue: "Within 24 working hours, Monday to Saturday",
+      supportLabel: "Already a customer?",
+      supportValue: "Use the Support tab in your dashboard",
+    },
     eyebrow: "Company",
     title: "Contact us",
     lead: "A product question, partnership or large-scale deployment? Write to us and we will get back to you quickly.",
