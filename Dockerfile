@@ -30,13 +30,24 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # canonical prod domain; override with --build-arg for other environments.
 ARG NEXT_PUBLIC_APP_URL=https://safelinkhub.io
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
-# Public DB-backed pages (e.g. /blog) are statically rendered at build, exactly
-# like on Vercel, so the build needs DATABASE_URL. Passed as BuildKit secrets
-# (mounted only for this step, never persisted in an image layer). The Server
-# Actions encryption key is pinned at build so action IDs stay stable across
-# rebuilds — same value must be provided at runtime (see deploy/.env).
-RUN --mount=type=secret,id=dburl --mount=type=secret,id=sakey \
-    DATABASE_URL="$(cat /run/secrets/dburl)" \
+# The build runs WITHOUT a database, on purpose.
+#
+# It used to receive DATABASE_URL so that DB-backed pages could be prerendered.
+# That secret pointed at the old Neon instance and was never updated when
+# production moved to a local Postgres — so every deploy baked pages from a
+# database that is not the live one, and served them until ISR caught up.
+# Pointing it at production is not possible either: slh-postgres listens on
+# 127.0.0.1 only, which is the right posture and not one to weaken for a build.
+#
+# Every DB-backed public page carries `revalidate`, and every query guards on
+# a missing DATABASE_URL, so the build prerenders them empty and the runtime
+# fills them from the real database. Measured: 88 pages in 250 ms, no database.
+# The deploy script warms those pages right after the swap so the first
+# visitor never meets the empty version.
+#
+# The Server Actions encryption key IS still pinned at build, so action IDs
+# stay stable across rebuilds — same value must be provided at runtime.
+RUN --mount=type=secret,id=sakey \
     NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(cat /run/secrets/sakey)" \
     npm run build
 
