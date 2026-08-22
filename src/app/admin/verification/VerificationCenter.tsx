@@ -9,7 +9,8 @@ import {
   ShieldCheck,
   XCircle,
 } from "lucide-react";
-import { markDocumentsSent, signAgreement, MAX_KYC_ATTEMPTS } from "@/lib/kyc/actions";
+import { markDocumentsSent, signAgreement } from "@/lib/kyc/actions";
+import { MAX_KYC_ATTEMPTS } from "@/lib/kyc/constants";
 
 export type Verification = {
   status: string;

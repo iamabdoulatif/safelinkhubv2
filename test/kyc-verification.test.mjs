@@ -62,3 +62,20 @@ test("un dossier déjà validé ne se rouvre pas tout seul", async () => {
   const actions = await read("src/lib/kyc/actions.ts");
   assert.match(actions, /status === "approved"/);
 });
+
+test("le module d'actions n'exporte QUE des fonctions asynchrones", async () => {
+  /* Un fichier « use server » ne peut exporter que cela. Une constante n'y
+     déclenche aucune erreur de typage — le bundler la retire, et TOUS les
+     imports du module échouent, actions comprises. C'est ce qui a cassé le
+     build la première fois. */
+  const src = await read("src/lib/kyc/actions.ts");
+  assert.match(src, /^"use server";/);
+  const exports = [...src.matchAll(/^export (?!async function)(\w+)/gm)].map((m) => m[1]);
+  assert.deepEqual(exports, [], `exports non asynchrones : ${exports.join(", ")}`);
+  // La constante partagée vit dans son propre module, sans « use server ».
+  const constantes = await read("src/lib/kyc/constants.ts");
+  // La DIRECTIVE, pas le mot : le commentaire du fichier l'explique et
+  // contenait bien la chaîne — première version de ce test, rouge à tort.
+  assert.doesNotMatch(constantes, /^\s*"use server"/, "ce module ne doit pas être un module serveur");
+  assert.match(constantes, /export const MAX_KYC_ATTEMPTS/);
+});

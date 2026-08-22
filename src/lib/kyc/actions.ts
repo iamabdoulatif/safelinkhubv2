@@ -5,11 +5,8 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { kycVerifications } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { MAX_KYC_ATTEMPTS } from "./constants";
 
-export const MAX_KYC_ATTEMPTS = 3;
-
-/** Étapes du parcours, dans l'ordre où l'écran les affiche. */
-export const KYC_STEPS = ["documents", "agreement", "review"] as const;
 
 async function currentOrRow(orgId: string) {
   const db = getDb();
