@@ -168,16 +168,22 @@ function StatTile({
   /** Complément sous la valeur — la barre segmentée du parc, par exemple. */
   children?: React.ReactNode;
 }) {
+  /* L'accent ne se montre plus QU'AU SURVOL. Huit filets colorés en
+     permanence faisaient une rangée d'arcs-en-ciel là où la charte ne pose la
+     couleur que sur ce qu'on désigne. Le trait garde ses 4 px au repos, en
+     couleur de bordure : la géométrie ne bouge donc pas au survol, seule la
+     teinte change. `focus-visible` double le survol pour le clavier — sans
+     lui, une tabulation ne montrerait rien. */
   const accents = {
-    brand: "border-t-brand",
-    ok: "border-t-ok",
-    err: "border-t-err",
-    ink: "border-t-ink",
+    brand: "hover:border-t-brand focus-visible:border-t-brand",
+    ok: "hover:border-t-ok focus-visible:border-t-ok",
+    err: "hover:border-t-err focus-visible:border-t-err",
+    ink: "hover:border-t-ink focus-visible:border-t-ink",
   } as const;
   return (
     <Link
       href={href}
-      className={`tile-hover flex flex-col rounded-xl border border-line border-t-4 bg-paper p-4 ${accents[accent]}`}
+      className={`tile-hover flex flex-col rounded-xl border border-line border-t-4 border-t-line bg-paper p-4 transition-colors ${accents[accent]}`}
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">{label}</p>

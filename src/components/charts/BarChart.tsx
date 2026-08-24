@@ -116,15 +116,20 @@ export default function BarChart({
                 className="group relative flex h-full flex-1 items-end justify-center"
                 onMouseEnter={() => setHover(i)}
               >
-                {/* Couleur posée en style : --chart-1 est un jeton de la
-                    charte, pas une classe Tailwind générée. C'est déjà ainsi
-                    que LineChart et /admin/analytics l'emploient. */}
+                {/* UNE seule couleur, celle de la marque. `--chart-1` est
+                    l'ocre de :root, que la peau Slate de l'administration ne
+                    redéfinit pas : les barres sortaient donc en brun, seule
+                    surface de l'écran à ignorer le lime du produit. Le lime est
+                    le jeton d'APLAT de la charte — c'est exactement l'emploi
+                    d'une barre ; il ne servirait pas en trait fin ni en texte,
+                    où il ne tient que 1,3:1 sur blanc.
+                    Couleur posée en style et non en classe : ces jetons ne sont
+                    pas exposés à Tailwind (voir @theme inline). */}
                 <span
-                  className="w-full max-w-10 rounded-t-sm transition-opacity"
+                  className="w-full max-w-10 rounded-t-sm transition-colors"
                   style={{
                     height: `${Math.max((value / max) * 100, value > 0 ? 2 : 0)}%`,
-                    background: "var(--chart-1)",
-                    opacity: hover === null || hover === i ? 1 : 0.55,
+                    background: hover === i ? "var(--brand-deep)" : "var(--brand)",
                   }}
                 />
                 {hover === i && (

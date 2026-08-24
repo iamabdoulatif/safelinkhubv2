@@ -89,3 +89,32 @@ test("les deux dictionnaires décrivent les mêmes tuiles", async () => {
     await cles("src/lib/i18n/admin/en.ts"),
   );
 });
+
+test("l'accent des tuiles ne se montre qu'au survol", async () => {
+  /* Huit filets colorés en permanence faisaient une rangée d'arcs-en-ciel là
+     où la charte ne pose la couleur que sur ce qu'on désigne. */
+  const src = await vue();
+  const bloc = src.slice(src.indexOf("const accents = {"), src.indexOf("} as const;", src.indexOf("const accents = {")));
+  for (const teinte of ["brand", "ok", "err", "ink"]) {
+    assert.match(bloc, new RegExp(`hover:border-t-${teinte}`), `${teinte} doit apparaître au survol`);
+    assert.match(bloc, new RegExp(`focus-visible:border-t-${teinte}`), `${teinte} doit suivre le clavier`);
+  }
+  // Aucun accent inconditionnel : c'était l'état d'avant.
+  assert.doesNotMatch(bloc, /(?<!(hover|focus-visible):)border-t-(brand|ok|err)\b/);
+
+  // Le trait garde ses 4 px au repos, en couleur de bordure : rien ne bouge
+  // au survol, seule la teinte change.
+  assert.match(src, /border-t-4 border-t-line/);
+});
+
+test("les histogrammes portent UNE seule couleur, celle de la marque", async () => {
+  /* `--chart-1` est l'ocre de :root, que la peau Slate de l'administration ne
+     redéfinit pas : les barres sortaient en brun, seule surface de l'écran à
+     ignorer le lime du produit. */
+  const chart = await read("src/components/charts/BarChart.tsx");
+  assert.doesNotMatch(chart, /var\(--chart-1\)/, "plus d'ocre hors charte");
+  assert.match(chart, /background: hover === i \? "var\(--brand-deep\)" : "var\(--brand\)"/);
+  // Une seule teinte au repos : aucune couleur par série ni par index.
+  const teintes = [...chart.matchAll(/var\(--(brand[a-z-]*|chart-\d|ok|err|ink)\)/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(teintes)].sort(), ["brand", "brand-deep"]);
+});
