@@ -468,6 +468,12 @@ export async function fixAllRoutersMacBoundTickets(): Promise<
   };
 }
 
+/** Budget de temps d'un passage, sous la coupure Cloudflare (~100 s → 524).
+ *  Le parc compte des dizaines de routeurs sondés en SÉRIE : sans borne, la
+ *  Server Action était tuée en vol et l'opérateur n'apprenait ni ce qui avait
+ *  été réparé, ni ce qui restait. On s'arrête proprement et on le dit. */
+const BUDGET_FLOTTE_MS = 70_000;
+
 /**
  * Même réparation, sur TOUT LE PARC de l'organisation (tous les routeurs pour
  * un superadmin).
@@ -475,7 +481,8 @@ export async function fixAllRoutersMacBoundTickets(): Promise<
  * Chaque routeur est traité indépendamment : un routeur hors ligne est signalé
  * nommément et n'interrompt pas les autres. Idempotent — relancer après le
  * retour d'un routeur ne retouche que lui, puisqu'une date déjà au bon format
- * n'est plus reconnue comme de l'ISO.
+ * n'est plus reconnue comme de l'ISO. C'est cette idempotence qui rend le
+ * découpage en plusieurs passages sûr : on relance, on continue.
  */
 export async function fixAllRoutersTicketExpiryFormat(): Promise<
   | { error: string }
@@ -486,6 +493,8 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
       rewritten: number;
       repaired: string[];
       unreachable: string[];
+      /** Routeurs non traités faute de temps — relancer pour les reprendre. */
+      remaining: number;
     }
 > {
   const session = await getSession();
@@ -502,8 +511,12 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
   let rewritten = 0;
   const repaired: string[] = [];
   const unreachable: string[] = [];
+  const echeance = Date.now() + BUDGET_FLOTTE_MS;
+  let traites = 0;
 
   for (const router of fleet) {
+    if (Date.now() > echeance) break;
+    traites++;
     let client: RouterOSClient;
     try {
       client = await connectToRouter(router);
@@ -526,11 +539,12 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
   revalidatePath("/admin/router");
   return {
     success: true as const,
-    routersScanned: fleet.length - unreachable.length,
+    routersScanned: traites - unreachable.length,
     found,
     rewritten,
     repaired,
     unreachable,
+    remaining: fleet.length - traites,
   };
 }
 

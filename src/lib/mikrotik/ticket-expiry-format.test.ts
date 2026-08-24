@@ -136,6 +136,28 @@ describe("audit de flotte", () => {
     );
   });
 
+  it("un passage tient sous la coupure Cloudflare, et dit ce qu'il reste", async () => {
+    /* Le parc est sondé en SÉRIE. Sans borne de temps, la Server Action était
+       tuée à ~100 s (524) et l'opérateur n'apprenait ni ce qui avait été
+       réparé, ni ce qui restait. L'idempotence rend le découpage sûr. */
+    const src = await actions();
+    const bloc = src.slice(
+      src.indexOf("export async function fixAllRoutersTicketExpiryFormat"),
+      src.indexOf("export async function fixRouterTicketExpiryFormat"),
+    );
+    assert.match(bloc, /if \(Date\.now\(\) > echeance\) break;/);
+    assert.match(bloc, /remaining: fleet\.length - traites/);
+    const budget = src.match(/const BUDGET_FLOTTE_MS = (\d+)_?(\d*)/);
+    const ms = Number((budget?.[1] ?? "0") + (budget?.[2] ?? ""));
+    assert.ok(ms > 0 && ms < 100_000, `budget hors bornes : ${ms} ms`);
+
+    const bouton = await readFile(
+      new URL("../../app/admin/router/TicketExpiryFleetButton.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(bouton, /result\.remaining > 0/, "le reste doit être annoncé");
+  });
+
   it("le bouton de flotte est posé dans la barre du parc", async () => {
     const table = await readFile(
       new URL("../../app/admin/router/RoutersTable.tsx", import.meta.url),

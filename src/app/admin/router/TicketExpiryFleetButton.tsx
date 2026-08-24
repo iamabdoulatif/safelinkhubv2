@@ -56,8 +56,14 @@ export default function TicketExpiryFleetButton({ t }: { t: RouterDictionary["ac
             if (result.unreachable.length > 0) {
               parts.push(t.retryLater.replace("{routers}", result.unreachable.join(", ")));
             }
+            /* Un passage est borné en temps pour ne pas être coupé par
+               Cloudflare : on dit combien de routeurs restent plutôt que de
+               laisser croire le parc entier traité. */
+            if (result.remaining > 0) {
+              parts.push(t.ticketExpiryRemaining.replace("{count}", String(result.remaining)));
+            }
             setMessage({
-              kind: result.unreachable.length > 0 ? "warn" : "ok",
+              kind: result.unreachable.length > 0 || result.remaining > 0 ? "warn" : "ok",
               text: parts.join(" "),
             });
             router.refresh();

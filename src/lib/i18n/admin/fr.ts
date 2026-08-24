@@ -230,6 +230,7 @@ export const adminFr = {
         ticketExpiryHelp: "RouterOS 7.24 écrit les dates en ISO ; sous cette forme le balayage du routeur ne les reconnaît plus et les tickets n’expirent jamais. Ce bouton réécrit la date au bon format, sans rien supprimer.",
         ticketExpiryDone: "{count} date(s) réécrite(s) sur {routers}. Le balayage retirera les périmés d’ici ~2 min 30.",
         ticketExpiryNone: "Aucune date au mauvais format sur les {count} routeur(s) joignables.",
+        ticketExpiryRemaining: "{count} routeur(s) non traité(s) faute de temps — relancez pour continuer.",
         retryLater: "Hors ligne, à relancer plus tard : {routers}.",
         reset: "Réinitialiser le processus de configuration",
         remove: "Supprimer le routeur",
