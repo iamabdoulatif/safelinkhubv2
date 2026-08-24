@@ -436,6 +436,26 @@ html {
   --slate-deep-line: #24462F;
   --slate-deep-soft: #A9BFB0;
 
+  /* Séries de graphiques — REDÉFINIES ici, sinon elles gardaient l'ocre de
+     :root : sur la peau Slate, les courbes du tableau de bord et du cockpit
+     commercial sortaient en brun, seule surface des écrans à ignorer le vert
+     du produit.
+
+     Série 1 = le vert de marque. PAS le lime #C8F24E : mesuré à 1,29:1 sur
+     blanc, il disparaît en trait de 2 px (il reste parfait en APLAT — c'est
+     lui que portent les barres des histogrammes).
+
+     Série 2 reste bleue : la charte Slate n'a pas de second accent, et --err
+     est un statut réservé qu'une série ne doit pas emprunter.
+
+     Mesures du couple (#3F6212, #1D4ED8) :
+       contraste sur blanc  7,08:1 et 6,70:1  (l'ocre d'avant : 4,92:1)
+       séparation ΔE        129 vision normale · 125 protan · 126 deutan · 78 tritan
+     Le tritan descend de 165 à 78 — c'est le seul recul, et il reste très
+     au-dessus du plancher que ce couple s'était fixé (21,8). */
+  --chart-1: #3F6212;
+  --chart-2: #1D4ED8;
+
   /* Display : Slate a des titres nets et géométriques, pas la graisse
      brutaliste d'Arial Black qu'utilise Bitume. */
   --font-syne: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;

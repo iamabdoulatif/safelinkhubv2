@@ -118,3 +118,21 @@ test("les histogrammes portent UNE seule couleur, celle de la marque", async () 
   const teintes = [...chart.matchAll(/var\(--(brand[a-z-]*|chart-\d|ok|err|ink)\)/g)].map((m) => m[1]);
   assert.deepEqual([...new Set(teintes)].sort(), ["brand", "brand-deep"]);
 });
+
+test("les courbes de l'administration suivent la peau Slate", async () => {
+  /* `--chart-1` n'était défini que dans :root, en ocre. L'administration
+     tourne sous .theme-slate : la courbe « Aperçu » du tableau de bord et
+     celle du cockpit commercial sortaient donc en brun, seules surfaces des
+     écrans à ignorer le vert du produit. */
+  const css = await read("src/app/globals.css");
+  const debut = css.indexOf(".theme-slate {");
+  assert.ok(debut > 0, "bloc .theme-slate introuvable");
+  // Depuis le DÉBUT du bloc : « background: var(--paper) » apparaît aussi plus
+  // haut dans le fichier, un indexOf non ancré rendait une tranche vide.
+  const slate = css.slice(debut, css.indexOf("}", debut));
+  assert.match(slate, /--chart-1: #3F6212;/, "série 1 = le vert de marque");
+  assert.match(slate, /--chart-2: #1D4ED8;/, "série 2 garde un bleu distinct");
+  // Surtout pas le lime en trait : 1,29:1 sur blanc, il disparaît.
+  assert.doesNotMatch(slate, /--chart-1: var\(--brand\)/);
+  assert.doesNotMatch(slate, /--chart-1: #C8F24E/i);
+});
