@@ -71,13 +71,18 @@ export function buildSweepScript(profileName: string): string {
   return modele.replace(CIBLE_PROFIL, `/ip hotspot user find where profile="${profileName}"`);
 }
 
-export type SweepScheduler = { name?: string; "on-event"?: string; ".id"?: string };
+export type SweepScheduler = {
+  name?: string;
+  "on-event"?: string;
+  ".id"?: string;
+  interval?: string;
+};
 
 export type SweepInspection = {
   /** Balayages trouvés, tous profils confondus. */
   total: number;
   /** Balayages aveugles à l'horloge ISO — ceux qui ne suppriment rien. */
-  stale: { id: string; name: string; profile: string; script: string }[];
+  stale: { id: string; name: string; profile: string; script: string; interval: string }[];
 };
 
 /** Fonction PURE : le verdict se teste sans routeur. */
@@ -97,6 +102,11 @@ export function inspectSweepSchedulers(schedulers: SweepScheduler[]): SweepInspe
       name: s.name ?? profile,
       profile,
       script: buildSweepScript(profile),
+      /* L'intervalle d'origine est repris tel quel. Les valeurs du parc sont
+         volontairement décalées (2m12s, 2m30s, 2m58s…) pour que huit
+         balayages ne tombent pas tous à la même seconde sur un routeur qui
+         compte des milliers de tickets. */
+      interval: s.interval ?? "2m30s",
     });
   }
 

@@ -267,10 +267,24 @@ export type SweepRepairResult = {
  * Réécrit les scripts de balayage qui ne savent pas lire l'horloge ISO de
  * RouterOS 7.24 (voir expiry-sweep-script.ts).
  *
- * On remplace le `on-event` du planificateur EXISTANT : ni suppression ni
- * recréation. Garder la ligne préserve son intervalle, son propriétaire et sa
- * politique — un planificateur recréé par le compte API hériterait d'une
- * politique plus étroite et pourrait ne plus avoir le droit de supprimer.
+ * POURQUOI ON RECRÉE AU LIEU DE MODIFIER. La première version faisait un
+ * `/system/scheduler/set` — et RouterOS l'a refusé sur les huit
+ * planificateurs de HTSPT-TREW :
+ *
+ *     user's policy does not allow to edit this script
+ *
+ * Ces lignes appartiennent à `admin` et portent une politique large
+ * (reboot, password, sniff, romon). Pour ÉDITER un script, il faut posséder
+ * toutes ses politiques ; le compte API ne les a pas — et il ne DOIT pas les
+ * avoir, ce serait lui donner le mot de passe et la capture de trafic pour
+ * réparer une tâche planifiée.
+ *
+ * En revanche il a le droit de SUPPRIMER la ligne et d'en poser une neuve,
+ * qui hérite de sa propre politique : `ftp,read,write,policy,test,sensitive`.
+ * Le balayage n'a besoin que de `write` pour retirer un utilisateur hotspot —
+ * la politique étroite suffit, et c'est même préférable.
+ *
+ * Le nom et l'intervalle d'origine sont repris à l'identique.
  */
 export async function repairExpirySweeps(
   client: RouterOSClient,
@@ -286,8 +300,19 @@ export async function repairExpirySweeps(
   const profiles: string[] = [];
   for (const s of stale) {
     try {
+      /* Suppression PUIS création : deux noms identiques ne cohabitent pas.
+         Si la création échouait après la suppression, le profil se
+         retrouverait sans balayage — mais l'ancien ne supprimait déjà rien,
+         donc il n'y a rien à perdre. L'échec est compté et rapporté. */
+      await client.talk(["/system/scheduler/remove", `=.id=${s.id}`], timeoutMs);
       await client.talk(
-        ["/system/scheduler/set", `=.id=${s.id}`, `=on-event=${s.script}`],
+        [
+          "/system/scheduler/add",
+          `=name=${s.name}`,
+          `=interval=${s.interval}`,
+          `=on-event=${s.script}`,
+          `=comment=Monitor Profile ${s.profile}`,
+        ],
         timeoutMs,
       );
       repaired++;

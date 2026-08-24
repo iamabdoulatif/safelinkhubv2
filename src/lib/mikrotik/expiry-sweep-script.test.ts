@@ -80,6 +80,7 @@ describe("inspection des planificateurs", () => {
     assert.equal(r.total, 2, "deux balayages, le reste n'en est pas");
     assert.deepEqual(r.stale.map((s) => s.profile), ["JOUR"]);
     assert.equal(sweptProfile(r.stale[0].script), "JOUR", "le remplacement vise le même profil");
+    assert.equal(r.stale[0].interval, "2m30s", "intervalle par défaut si absent");
   });
 
   it("ignore un planificateur sans identifiant — on ne peut pas l'écrire", () => {
@@ -90,17 +91,23 @@ describe("inspection des planificateurs", () => {
 });
 
 describe("le correctif est branché, et conserve le planificateur", () => {
-  it("modifie le on-event au lieu de recréer la ligne", async () => {
-    /* Recréer ferait perdre l'intervalle, le propriétaire et la POLITIQUE :
-       relevé sur le parc, ces planificateurs appartiennent à `admin` avec
-       policy write+policy. Recréés par le compte API, ils hériteraient d'une
-       politique plus étroite et pourraient ne plus avoir le droit de
-       supprimer un utilisateur. */
+  it("recrée le planificateur — le modifier est REFUSÉ par RouterOS", async () => {
+    /* Mesuré sur HTSPT-TREW : un `/system/scheduler/set` sur les huit lignes a
+       été refusé — « user's policy does not allow to edit this script ». Elles
+       appartiennent à `admin` et portent reboot/password/sniff/romon ; éditer
+       un script exige de posséder toutes ses politiques, et le compte API ne
+       doit surtout pas les avoir.
+       Supprimer puis recréer est autorisé : la nouvelle ligne hérite de la
+       politique du compte API, dont le `write` suffit au balayage. */
     const src = await readFile(new URL("./router-audit-fixes.ts", import.meta.url), "utf8");
     const bloc = src.slice(src.indexOf("export async function repairExpirySweeps"));
-    assert.match(bloc, /\/system\/scheduler\/set/);
-    assert.doesNotMatch(bloc, /\/system\/scheduler\/add/);
-    assert.doesNotMatch(bloc, /\/system\/scheduler\/remove/);
+    assert.match(bloc, /\/system\/scheduler\/remove/);
+    assert.match(bloc, /\/system\/scheduler\/add/);
+    assert.doesNotMatch(bloc, /\/system\/scheduler\/set/);
+    // Nom et intervalle d'origine repris : les intervalles du parc sont
+    // décalés exprès pour ne pas déclencher huit balayages à la même seconde.
+    assert.match(bloc, /=name=\$\{s\.name\}/);
+    assert.match(bloc, /=interval=\$\{s\.interval\}/);
   });
 
   it("l'audit lève un constat corrigeable", async () => {
@@ -121,5 +128,14 @@ describe("le correctif est branché, et conserve le planificateur", () => {
       bloc.indexOf("repairExpirySweeps(client)") < bloc.indexOf("rewriteIsoExpiryComments(client)"),
       "le balayage doit être remis en service en premier",
     );
+  });
+});
+
+describe("l'intervalle d'origine est conservé", () => {
+  it("reprend celui du planificateur remplacé", () => {
+    const r = inspectSweepSchedulers([
+      { ".id": "*9", name: "10-jour", interval: "2m12s", "on-event": BALAYAGE_PERIME.replace('profile="JOUR"', 'profile="10-jour"') },
+    ]);
+    assert.equal(r.stale[0].interval, "2m12s");
   });
 });
