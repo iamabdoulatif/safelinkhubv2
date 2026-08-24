@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFile } from "node:fs/promises";
-import { guardTransferApproval, guardTransferRequest } from "./router-transfer";
+import {
+  guardDeclaredSerial,
+  guardTransferApproval,
+  guardTransferRequest,
+  normalizeSerial,
+} from "./router-transfer";
 
 describe("demande de transfert", () => {
   const base = { routerOrgId: "org-a", requesterOrgId: "org-a", targetOrgId: null, dejaEnAttente: false };
@@ -100,5 +105,76 @@ describe("ce que le transfert déplace, et ce qu'il laisse", () => {
     const src = await source();
     const bloc = src.slice(src.indexOf("export async function decideRouterTransfer"));
     assert.match(bloc.slice(0, 400), /isSuperAdmin\(session\.role\)/);
+  });
+});
+
+describe("numéro de série déclaré", () => {
+  it("ignore casse et séparateurs de l'étiquette", () => {
+    /* Les étiquettes MikroTik se lisent par groupes (« 7C1A 0B2E ») et se
+       recopient avec des espaces ou des tirets qui n'appartiennent pas au
+       numéro. Les compter ferait échouer une saisie pourtant juste. */
+    assert.equal(normalizeSerial(" 7c1a-0b2e "), "7C1A0B2E");
+    assert.equal(
+      guardDeclaredSerial({ declared: "7c1a 0b2e", known: "7C1A0B2E" }).ok,
+      true,
+    );
+  });
+
+  it("refuse un numéro qui ne correspond pas au routeur choisi", () => {
+    const v = guardDeclaredSerial({ declared: "AAAA1111", known: "BBBB2222" });
+    assert.equal(v.ok, false);
+    assert.match(v.ok === false ? v.error : "", /ne correspond pas/);
+  });
+
+  it("refuse une saisie vide ou trop courte", () => {
+    assert.equal(guardDeclaredSerial({ declared: "", known: "AAAA1111" }).ok, false);
+    assert.equal(guardDeclaredSerial({ declared: "AB", known: null }).ok, false);
+  });
+
+  it("accepte quand le SaaS ne connaît AUCUN numéro pour ce routeur", () => {
+    /* Carte hors RouterBOARD ou jamais synchronisée : bloquer un transfert
+       légitime serait pire. Même posture que reserveRouterSerial, qui autorise
+       sans verrou quand le SN est illisible. */
+    assert.equal(guardDeclaredSerial({ declared: "AAAA1111", known: null }).ok, true);
+  });
+});
+
+describe("le numéro de série est exigé à la demande", () => {
+  const source = () => readFile(new URL("./router-transfer-actions.ts", import.meta.url), "utf8");
+
+  it("la demande le vérifie et le conserve normalisé", async () => {
+    const src = await source();
+    const bloc = src.slice(
+      src.indexOf("export async function requestRouterTransfer"),
+      src.indexOf("export async function cancelRouterTransfer"),
+    );
+    assert.match(bloc, /guardDeclaredSerial\(/);
+    assert.match(bloc, /serialNumber: normalizeSerial\(serialDeclare\)/);
+  });
+
+  it("la propriété est vérifiée AVANT la comparaison du numéro", async () => {
+    /* Sinon un compte étranger apprendrait par tâtonnement le numéro de série
+       d'un routeur qui ne lui appartient pas : l'erreur « ne correspond pas »
+       est un oracle. */
+    const src = await source();
+    const bloc = src.slice(
+      src.indexOf("export async function requestRouterTransfer"),
+      src.indexOf("export async function cancelRouterTransfer"),
+    );
+    assert.ok(
+      bloc.indexOf("guardTransferRequest(") < bloc.indexOf("guardDeclaredSerial("),
+      "la propriété doit être tranchée en premier",
+    );
+  });
+
+  it("le superadmin voit le numéro déclaré dans sa file", async () => {
+    const src = await source();
+    assert.match(src, /serialNumber: routerTransferRequests\.serialNumber/);
+    const vue = await readFile(
+      new URL("../../app/admin/router-transfers/TransfersManager.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(vue, /d\.serialNumber/);
+    assert.match(vue, /name="serialNumber"[\s\S]{0,80}required/);
   });
 });

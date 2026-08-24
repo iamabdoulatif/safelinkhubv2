@@ -17,6 +17,46 @@
 
 export type TransferVerdict = { ok: true } | { ok: false; error: string };
 
+/**
+ * Numéro de série sous forme comparable : majuscules, sans espaces ni tirets.
+ * Les étiquettes MikroTik se lisent souvent par groupes (« 7C1A 0B2E … ») et
+ * se recopient avec des séparateurs qui n'appartiennent pas au numéro.
+ */
+export function normalizeSerial(serial: string): string {
+  return serial.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/**
+ * Confronte le numéro RELEVÉ SUR L'APPAREIL à celui que le SaaS a enregistré
+ * au premier passage en ligne.
+ *
+ * `known` à null = le routeur n'a jamais livré son numéro (carte hors
+ * RouterBOARD, ou jamais synchronisée) : on accepte la déclaration plutôt que
+ * de bloquer un transfert légitime, exactement comme `reserveRouterSerial`
+ * autorise sans verrou quand le SN est illisible.
+ */
+export function guardDeclaredSerial(params: {
+  declared: string;
+  known: string | null;
+}): TransferVerdict {
+  const declare = normalizeSerial(params.declared);
+  if (declare.length < 4) {
+    return {
+      ok: false,
+      error: "Numéro de série manquant ou trop court — il est inscrit sous le boîtier du MikroTik.",
+    };
+  }
+  if (!params.known) return { ok: true };
+  if (normalizeSerial(params.known) !== declare) {
+    return {
+      ok: false,
+      error:
+        "Le numéro de série saisi ne correspond pas à celui de ce routeur. Vérifiez l'étiquette sous le boîtier, ou choisissez le bon routeur dans la liste.",
+    };
+  }
+  return { ok: true };
+}
+
 export type TransferContext = {
   routerOrgId: string;
   /** Organisation qui demande — doit posséder le routeur. */

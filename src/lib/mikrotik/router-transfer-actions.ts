@@ -13,7 +13,12 @@ import {
   users,
 } from "@/lib/db/schema";
 import { getSession, isSuperAdmin, requireCapability } from "@/lib/auth/session";
-import { guardTransferApproval, guardTransferRequest } from "./router-transfer";
+import {
+  guardDeclaredSerial,
+  guardTransferApproval,
+  guardTransferRequest,
+  normalizeSerial,
+} from "./router-transfer";
 
 const PAGE_ROUTEURS = "/admin/router";
 const PAGE_TRANSFERTS = "/admin/router-transfers";
@@ -37,6 +42,7 @@ export async function requestRouterTransfer(_prevState: unknown, formData: FormD
   const routerId = String(formData.get("routerId") ?? "");
   const toEmail = String(formData.get("toEmail") ?? "").trim().toLowerCase();
   const reason = String(formData.get("reason") ?? "").trim().slice(0, 500);
+  const serialDeclare = String(formData.get("serialNumber") ?? "").trim().slice(0, 64);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(toEmail)) {
     return { error: "Adresse e-mail du compte d'arrivée invalide." };
   }
@@ -68,9 +74,25 @@ export async function requestRouterTransfer(_prevState: unknown, formData: FormD
   });
   if (!verdict.ok) return { error: verdict.error };
 
+  /* Le numéro connu vient du verrou posé au premier passage en ligne. La
+     comparaison se fait APRÈS la vérification de propriété : autrement, un
+     compte étranger apprendrait par tâtonnement le SN d'un routeur qui ne lui
+     appartient pas. */
+  const [verrou] = await db
+    .select({ serialNumber: routerSerialLocks.serialNumber })
+    .from(routerSerialLocks)
+    .where(eq(routerSerialLocks.routerId, routerId))
+    .limit(1);
+  const serialVerdict = guardDeclaredSerial({
+    declared: serialDeclare,
+    known: verrou?.serialNumber ?? null,
+  });
+  if (!serialVerdict.ok) return { error: serialVerdict.error };
+
   await db.insert(routerTransferRequests).values({
     routerId,
     fromOrgId: routeur.orgId,
+    serialNumber: normalizeSerial(serialDeclare),
     toEmail,
     reason: reason || null,
     requestedBy: session.userId,
@@ -205,6 +227,7 @@ export async function listTransferRequests() {
       id: routerTransferRequests.id,
       routerName: routers.name,
       routerModel: routers.model,
+      serialNumber: routerTransferRequests.serialNumber,
       fromOrg: organizations.name,
       toEmail: routerTransferRequests.toEmail,
       reason: routerTransferRequests.reason,

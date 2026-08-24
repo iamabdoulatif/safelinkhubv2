@@ -43,6 +43,13 @@
       "when": 1787598628310,
       "tag": "0005_members-and-transfers",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787601960142,
+      "tag": "0006_transfer-serial-number",
+      "breakpoints": true
     }
   ]
 }

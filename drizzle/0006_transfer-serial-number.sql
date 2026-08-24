@@ -1,0 +1,1 @@
+ALTER TABLE "router_transfer_requests" ADD COLUMN "serial_number" text NOT NULL;

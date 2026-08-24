@@ -333,6 +333,11 @@ export const routerTransferRequests = pgTable(
     fromOrgId: uuid("from_org_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    /* Numéro de série RELEVÉ SUR L'APPAREIL par le demandeur, et confronté à
+       celui que le SaaS connaît déjà (router_serial_locks). Le saisir prouve
+       qu'on a l'appareil sous les yeux : sans lui, un membre pourrait demander
+       le transfert d'un routeur installé chez un client, à distance. */
+    serialNumber: text("serial_number").notNull(),
     // Cible désignée par courriel : l'organisation d'arrivée est résolue à la
     // DÉCISION, pas à la demande — le compte peut être créé entre-temps.
     toEmail: text("to_email").notNull(),

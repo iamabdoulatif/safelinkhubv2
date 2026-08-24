@@ -15,6 +15,7 @@ type Demande = {
   id: string;
   routerName: string;
   routerModel: string | null;
+  serialNumber: string;
   fromOrg: string;
   toEmail: string;
   reason: string | null;
@@ -84,6 +85,25 @@ export default function TransfersManager({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="flex-1">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                  Numéro de série
+                </span>
+                <input
+                  name="serialNumber"
+                  required
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Sous le boîtier"
+                  className="mt-1 w-full rounded-md border border-line-soft bg-paper px-3 py-2 font-mono text-sm uppercase text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                />
+                {/* Relever le numéro SUR L'APPAREIL prouve qu'on l'a sous les
+                    yeux. Le SaaS le connaît déjà — il sert donc à vérifier,
+                    pas à renseigner. */}
+                <span className="mt-1 block text-xs text-ink-soft">
+                  Recopiez-le depuis l&apos;étiquette du MikroTik.
+                </span>
               </label>
               <label className="flex-1">
                 <span className="block text-xs font-semibold uppercase tracking-wider text-ink-soft">
@@ -183,8 +203,12 @@ export default function TransfersManager({
                           {d.routerName}
                           {d.routerModel ? ` — ${d.routerModel}` : ""}
                         </span>
-                        <span className="text-xs text-ink-soft">
+                        <span className="block text-xs text-ink-soft">
                           {d.fromOrg} → <span className="font-mono">{d.toEmail}</span>
+                        </span>
+                        <span className="text-xs text-ink-soft">
+                          N° de série déclaré :{" "}
+                          <span className="font-mono text-ink">{d.serialNumber}</span>
                         </span>
                       </span>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statut.classe}`}>
