@@ -27,7 +27,6 @@ import {
   unbindMacBoundTickets,
   upgradeRouterboardFirmware,
 } from "./router-audit-fixes";
-import { blockHotspotIpv6, inspectHotspotIpv6 } from "./hotspot-ipv6-leak";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
@@ -466,118 +465,6 @@ export async function fixAllRoutersMacBoundTickets(): Promise<
     repaired,
     unreachable,
   };
-}
-
-/**
- * Diagnostic LECTURE SEULE de la fuite IPv6 du portail captif, sur tout le parc.
- *
- * N'écrit rien sur les routeurs : il répond seulement « qui fuit ». Séparé de la
- * correction à dessein — on veut pouvoir constater avant de modifier le réseau
- * de clients en production.
- */
-export async function scanFleetHotspotIpv6(): Promise<
-  | { error: string }
-  | {
-      success: true;
-      scanned: number;
-      leaking: { router: string; verdict: string }[];
-      clean: { router: string; verdict: string }[];
-      unreachable: string[];
-    }
-> {
-  const session = await getSession();
-  if (!session) return { error: "Non authentifié." };
-
-  const db = getDb();
-  const fleet = await db
-    .select()
-    .from(routers)
-    .where(isSuperAdmin(session.role) ? isNotNull(routers.id) : eq(routers.orgId, session.orgId));
-  if (fleet.length === 0) return { error: "Aucun routeur enregistré." };
-
-  const leaking: { router: string; verdict: string }[] = [];
-  const clean: { router: string; verdict: string }[] = [];
-  const unreachable: string[] = [];
-
-  for (const router of fleet) {
-    let client: RouterOSClient;
-    try {
-      client = await connectToRouter(router);
-    } catch {
-      unreachable.push(router.name);
-      continue;
-    }
-    try {
-      const res = await inspectHotspotIpv6(client, router.hotspotBridgeName);
-      (res.leaking ? leaking : clean).push({ router: router.name, verdict: res.verdict });
-    } catch {
-      unreachable.push(router.name);
-    } finally {
-      client.close();
-    }
-  }
-
-  return { success: true, scanned: fleet.length - unreachable.length, leaking, clean, unreachable };
-}
-
-/**
- * Ferme la sortie IPv6 des clients hotspot sur tout le parc.
- *
- * Ne touche QUE les routeurs que le diagnostic déclare en fuite : un routeur
- * sain n'est pas modifié. L'IPv6 propre au routeur (management, tunnel) reste
- * intacte, et les deux verrous posés sont marqués d'un commentaire pour être
- * retirés d'un geste si besoin.
- */
-export async function fixFleetHotspotIpv6(): Promise<
-  | { error: string }
-  | {
-      success: true;
-      scanned: number;
-      fixed: { router: string; rules: number; nd: number }[];
-      skipped: number;
-      unreachable: string[];
-    }
-> {
-  const session = await getSession();
-  if (!session) return { error: "Non authentifié." };
-
-  const db = getDb();
-  const fleet = await db
-    .select()
-    .from(routers)
-    .where(isSuperAdmin(session.role) ? isNotNull(routers.id) : eq(routers.orgId, session.orgId));
-  if (fleet.length === 0) return { error: "Aucun routeur enregistré." };
-
-  const fixed: { router: string; rules: number; nd: number }[] = [];
-  const unreachable: string[] = [];
-  let skipped = 0;
-
-  for (const router of fleet) {
-    let client: RouterOSClient;
-    try {
-      client = await connectToRouter(router);
-    } catch {
-      unreachable.push(router.name);
-      continue;
-    }
-    try {
-      const found = await inspectHotspotIpv6(client, router.hotspotBridgeName);
-      if (!found.leaking) {
-        skipped += 1;
-        continue;
-      }
-      const res = await blockHotspotIpv6(client, router.hotspotBridgeName);
-      if (res.applied) fixed.push({ router: router.name, rules: res.rulesAdded, nd: res.ndDisabled });
-      else skipped += 1;
-    } catch {
-      unreachable.push(router.name);
-    } finally {
-      client.close();
-    }
-  }
-
-  revalidatePath("/admin/router");
-  return { success: true, scanned: fleet.length - unreachable.length, fixed, skipped, unreachable };
 }
 
 /**

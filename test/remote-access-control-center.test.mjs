@@ -24,3 +24,31 @@ test("les changements d’accès direct passent par une confirmation nommée", a
   assert.match(source, /Confirmer la révocation/);
   assert.match(source, /role="dialog"/);
 });
+
+test("l'IPv6 a quitté le produit, sauf le décodage d'une URL", async () => {
+  /* Deux fonctionnalités retirées à la demande : le « Bypass IPv6 » (nœud de
+     sortie par le relais) et la fermeture de la FUITE IPv6 du portail captif.
+     Ce test empêche qu'un morceau revienne par recopie sans décision.
+
+     La seule mention tolérée est le retrait des crochets d'une IPv6 littérale
+     dans walled-garden.ts : c'est de l'analyse d'URL, pas une fonctionnalité. */
+  const { readdir } = await import("node:fs/promises");
+  const racine = new URL("../src/", import.meta.url);
+  const fautes = [];
+  async function descendre(dir) {
+    for (const e of await readdir(dir, { withFileTypes: true })) {
+      const enfant = new URL(e.name + (e.isDirectory() ? "/" : ""), dir);
+      if (e.isDirectory()) {
+        await descendre(enfant);
+        continue;
+      }
+      if (!/\.tsx?$/.test(e.name)) continue;
+      const chemin = enfant.pathname.slice(racine.pathname.length);
+      if (chemin === "lib/mikrotik/walled-garden.ts") continue;
+      const src = await readFile(enfant, "utf8");
+      if (/ipv6/i.test(src)) fautes.push(chemin);
+    }
+  }
+  await descendre(racine);
+  assert.deepEqual(fautes, [], `IPv6 encore présent :\n${fautes.join("\n")}`);
+});
