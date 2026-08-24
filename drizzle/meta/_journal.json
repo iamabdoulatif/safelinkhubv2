@@ -50,6 +50,13 @@
       "when": 1787601960142,
       "tag": "0006_transfer-serial-number",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787602701224,
+      "tag": "0007_drop-ipv6-bypass",
+      "breakpoints": true
     }
   ]
 }

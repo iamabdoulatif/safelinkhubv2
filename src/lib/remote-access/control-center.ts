@@ -19,7 +19,6 @@ export type RemoteAccessControlRouter = {
   lastSyncAt: string | null;
   connectionMethod: string;
   tunnelIp: string | null;
-  ipv6BypassEnabled: boolean;
   activeForwards: RemoteAccessControlForward[];
   auditEvents: RemoteAccessAuditEvent[];
   replacementStatus: string | null;
@@ -39,7 +38,6 @@ type RouterProjectionSource = {
   lastSyncAt: Date | null;
   connectionMethod: string;
   tunnelIp: string | null;
-  ipv6BypassEnabled: boolean;
   relayShard: string | null;
 };
 
@@ -81,7 +79,6 @@ export function buildControlCenterRouters({
       lastSyncAt: router.lastSyncAt?.toISOString() ?? null,
       connectionMethod: router.connectionMethod,
       tunnelIp: router.tunnelIp,
-      ipv6BypassEnabled: router.ipv6BypassEnabled,
       activeForwards: (forwardsByRouter[router.id] ?? [])
         .filter((forward) => forward.status === "active")
         .map((forward) => {

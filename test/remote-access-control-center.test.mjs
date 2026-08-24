@@ -12,7 +12,8 @@ test("l’espace routeur borne chaque opération à l’organisation de la sessi
   assert.match(source, /notFound\(\)/);
   assert.match(source, /<DirectAccessSection/);
   assert.match(source, /<BackToHomeSection/);
-  assert.match(source, /<Ipv6BypassSection/);
+  // Le bypass IPv6 a été retiré du produit : la page ne doit plus le monter.
+  assert.doesNotMatch(source, /Ipv6BypassSection/);
   assert.match(source, /<RouterReplacementSection/);
 });
 

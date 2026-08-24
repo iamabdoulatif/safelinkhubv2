@@ -11,7 +11,6 @@ import { getActiveRouterReplacement } from "@/lib/mikrotik/router-recovery-servi
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import BackToHomeSection from "../BackToHomeSection";
 import DirectAccessSection from "../DirectAccessSection";
-import Ipv6BypassSection from "../Ipv6BypassSection";
 import RouterReplacementSection from "../RouterReplacementSection";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -94,18 +93,6 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
 
       <BackToHomeSection routers={[{ id: router.id, name: router.name, status: router.status }]} />
 
-      <Ipv6BypassSection
-        routers={[
-          {
-            id: router.id,
-            name: router.name,
-            status: router.status,
-            connectionMethod: router.connectionMethod,
-            ipv6BypassEnabled: router.ipv6BypassEnabled,
-          },
-        ]}
-        relayHost={relayHost}
-      />
 
       {canReplace && (
         <RouterReplacementSection

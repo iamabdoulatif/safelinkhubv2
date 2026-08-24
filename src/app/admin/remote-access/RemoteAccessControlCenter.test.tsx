@@ -11,7 +11,6 @@ const routers = [
     lastSyncAt: "2026-08-13T10:00:00.000Z",
     connectionMethod: "vpn",
     tunnelIp: "10.0.0.2",
-    ipv6BypassEnabled: false,
     activeForwards: [
       {
         id: "f1",

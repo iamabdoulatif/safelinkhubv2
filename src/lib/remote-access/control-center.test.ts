@@ -16,7 +16,6 @@ const routers: RemoteAccessControlRouter[] = [
     lastSyncAt: "2026-08-13T10:00:00.000Z",
     connectionMethod: "vpn",
     tunnelIp: "10.0.0.2",
-    ipv6BypassEnabled: false,
     activeForwards: [
       { id: "f1", service: "webfig", publicPort: 20111, endpoint: "https://s3.example:20111", expiresAt: null },
     ],
@@ -30,7 +29,6 @@ const routers: RemoteAccessControlRouter[] = [
     lastSyncAt: "2026-08-13T09:00:00.000Z",
     connectionMethod: "vpn",
     tunnelIp: "10.0.0.3",
-    ipv6BypassEnabled: false,
     activeForwards: [
       { id: "f2", service: "ssh", publicPort: 39055, endpoint: "s3.example:39055", expiresAt: null },
     ],
@@ -44,7 +42,6 @@ const routers: RemoteAccessControlRouter[] = [
     lastSyncAt: null,
     connectionMethod: "direct",
     tunnelIp: null,
-    ipv6BypassEnabled: false,
     activeForwards: [],
     auditEvents: [],
     replacementStatus: null,
@@ -99,7 +96,6 @@ test("construit une projection sans identifiant ni secret et sécurise les URLs 
         lastSyncAt: new Date("2026-08-13T10:00:00.000Z"),
         connectionMethod: "vpn",
         tunnelIp: "10.0.0.2",
-        ipv6BypassEnabled: false,
         relayShard: "s3",
       },
     ],
@@ -123,7 +119,6 @@ test("construit une projection sans identifiant ni secret et sécurise les URLs 
       lastSyncAt: "2026-08-13T10:00:00.000Z",
       connectionMethod: "vpn",
       tunnelIp: "10.0.0.2",
-      ipv6BypassEnabled: false,
       activeForwards: [
         { id: "web", service: "webfig", publicPort: 20111, endpoint: "https://s3.example:20111", expiresAt: null },
         { id: "ssh", service: "ssh", publicPort: 39055, endpoint: "s3.example:39055", expiresAt: "2026-09-01T00:00:00.000Z" },
@@ -143,7 +138,6 @@ test("utilise le domaine HTTPS dédié pour MikHmon cloud", () => {
       lastSyncAt: null,
       connectionMethod: "vpn",
       tunnelIp: "10.66.0.23",
-      ipv6BypassEnabled: false,
       relayShard: "s1",
     }],
     forwardsByRouter: {

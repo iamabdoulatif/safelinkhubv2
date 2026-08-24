@@ -152,7 +152,6 @@ function RouterDetail({
         <RouterStatus router={router} />
         <p className="mt-1 text-xs text-ink-soft">
           {connectionMethodLabel(router.connectionMethod)}
-          {router.ipv6BypassEnabled ? " · Bypass IPv6 actif" : ""}
         </p>
       </div>
 
