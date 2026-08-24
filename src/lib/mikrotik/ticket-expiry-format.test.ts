@@ -110,3 +110,47 @@ describe("le correctif est branché sur le diagnostic", () => {
     assert.match(src, /fixRouterTicketExpiryFormat\(routerId\)/);
   });
 });
+
+describe("audit de flotte", () => {
+  const actions = () => readFile(new URL("./actions.ts", import.meta.url), "utf8");
+
+  it("un routeur hors ligne n'interrompt pas les autres", async () => {
+    /* Sur 36 routeurs, il y en a toujours un injoignable : s'arrêter au premier
+       échec laisserait le reste du parc non réparé sans le dire. */
+    const src = await actions();
+    const bloc = src.slice(
+      src.indexOf("export async function fixAllRoutersTicketExpiryFormat"),
+      src.indexOf("export async function fixRouterTicketExpiryFormat"),
+    );
+    assert.match(bloc, /unreachable\.push\(router\.name\)/);
+    assert.match(bloc, /continue;/, "on passe au routeur suivant");
+    assert.match(bloc, /client\.close\(\)/, "et la connexion est refermée");
+  });
+
+  it("un admin ne balaie QUE son parc, le superadmin tout le parc", async () => {
+    const src = await actions();
+    const bloc = src.slice(src.indexOf("export async function fixAllRoutersTicketExpiryFormat"));
+    assert.match(
+      bloc.slice(0, 1400),
+      /isSuperAdmin\(session\.role\) \? isNotNull\(routers\.id\) : eq\(routers\.orgId, session\.orgId\)/,
+    );
+  });
+
+  it("le bouton de flotte est posé dans la barre du parc", async () => {
+    const table = await readFile(
+      new URL("../../app/admin/router/RoutersTable.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(table, /<TicketExpiryFleetButton t=\{actions\} \/>/);
+  });
+
+  it("les deux dictionnaires décrivent le même bouton", async () => {
+    const cles = async (f: string) => {
+      const src = await readFile(new URL(`../i18n/admin/${f}`, import.meta.url), "utf8");
+      return [...src.matchAll(/^ *(ticketExpiry\w*):/gm)].map((m) => m[1]).sort();
+    };
+    const fr = await cles("fr.ts");
+    assert.ok(fr.length >= 5, `clés attendues, trouvées : ${fr.join(", ")}`);
+    assert.deepEqual(fr, await cles("en.ts"));
+  });
+});

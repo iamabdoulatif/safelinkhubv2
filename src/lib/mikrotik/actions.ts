@@ -469,6 +469,72 @@ export async function fixAllRoutersMacBoundTickets(): Promise<
 }
 
 /**
+ * Même réparation, sur TOUT LE PARC de l'organisation (tous les routeurs pour
+ * un superadmin).
+ *
+ * Chaque routeur est traité indépendamment : un routeur hors ligne est signalé
+ * nommément et n'interrompt pas les autres. Idempotent — relancer après le
+ * retour d'un routeur ne retouche que lui, puisqu'une date déjà au bon format
+ * n'est plus reconnue comme de l'ISO.
+ */
+export async function fixAllRoutersTicketExpiryFormat(): Promise<
+  | { error: string }
+  | {
+      success: true;
+      routersScanned: number;
+      found: number;
+      rewritten: number;
+      repaired: string[];
+      unreachable: string[];
+    }
+> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const fleet = await db
+    .select()
+    .from(routers)
+    .where(isSuperAdmin(session.role) ? isNotNull(routers.id) : eq(routers.orgId, session.orgId));
+  if (fleet.length === 0) return { error: "Aucun routeur enregistré." };
+
+  let found = 0;
+  let rewritten = 0;
+  const repaired: string[] = [];
+  const unreachable: string[] = [];
+
+  for (const router of fleet) {
+    let client: RouterOSClient;
+    try {
+      client = await connectToRouter(router);
+    } catch {
+      unreachable.push(router.name);
+      continue;
+    }
+    try {
+      const res = await rewriteIsoExpiryComments(client);
+      found += res.found;
+      rewritten += res.rewritten;
+      if (res.rewritten > 0) repaired.push(`${router.name} (${res.rewritten})`);
+    } catch {
+      unreachable.push(router.name);
+    } finally {
+      client.close();
+    }
+  }
+
+  revalidatePath("/admin/router");
+  return {
+    success: true as const,
+    routersScanned: fleet.length - unreachable.length,
+    found,
+    rewritten,
+    repaired,
+    unreachable,
+  };
+}
+
+/**
  * Réécrit au format MikHmon les dates d'expiration rendues en ISO.
  *
  * Ne supprime AUCUN ticket : rend seulement les dates lisibles par le balayage

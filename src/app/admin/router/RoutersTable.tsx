@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowUpRight, Link2, Lock, Router as RouterIcon, Save, Searc
 import RouterRowActions from "./RouterRowActions";
 import SyncAllButton from "./SyncAllButton";
 import UnbindMacTicketsButton from "./UnbindMacTicketsButton";
+import TicketExpiryFleetButton from "./TicketExpiryFleetButton";
 import { isConfiguringRouter } from "./router-portfolio";
 import { buildRouterTableQuery, type RouterTableStatusFilter } from "./router-table-query";
 import type { AdminDictionary } from "@/lib/i18n/admin/fr";
@@ -187,6 +188,7 @@ export default function RoutersTable({
           <div className="flex flex-wrap items-center gap-3">
             <SyncAllButton t={actions} />
             <UnbindMacTicketsButton t={actions} />
+            <TicketExpiryFleetButton t={actions} />
             <Link
               href="/admin/router/backups"
               className="flex items-center gap-2 border border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-ink hover:text-paper rounded-xl"
