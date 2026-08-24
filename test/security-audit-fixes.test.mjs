@@ -10,11 +10,20 @@ test("login redirects only to internal admin callbacks", async () => {
   assert.doesNotMatch(source, /redirect\(callback \|\| "\/admin"\)/);
 });
 
-test("admin layout rejects non-admin sessions", async () => {
+test("admin layout rejects sessions that are not members of the org", async () => {
+  /* La porte s'ouvre désormais aux Éditeurs, Agents de vente et Lecteurs
+     (isMemberRole) et non plus aux seuls administrateurs — mais elle reste une
+     PORTE : entrer n'accorde rien, chaque action garde sa propre capacité.
+     Le test ci-dessous vérifie précisément qu'aucun rôle inconnu ne passe. */
   const source = await readFile(new URL("../src/app/admin/layout.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /!isAdminRole\(session\.role\)/);
+  assert.match(source, /!isMemberRole\(session\.role\)/);
   assert.match(source, /redirect\("\/auth\/login\?callback=\/admin"\)/);
+
+  const roles = await readFile(new URL("../src/lib/auth/roles.ts", import.meta.url), "utf8");
+  // isMemberRole n'admet QUE les rôles connus : une valeur écrite à la main en
+  // base ("owner", "") ne doit pas ouvrir l'administration.
+  assert.match(roles, /role === "superadmin" \|\| \(typeof role === "string" && isRole\(role\)\)/);
 });
 
 test("admin layout opts out of build-time prerender before reading session and database", async () => {

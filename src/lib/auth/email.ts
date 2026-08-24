@@ -169,3 +169,33 @@ function escapeHtml(s: string): string {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
   );
 }
+
+/**
+ * Invitation à rejoindre une organisation existante. Distincte de
+ * `sendActivationEmail`, qui accompagne la création d'un compte : ici le
+ * destinataire rejoint un compte qui existe déjà.
+ */
+export async function sendOrgInvitationEmail(
+  to: string,
+  inviterName: string,
+  token: string,
+): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+  const url = `${appBaseUrl()}/auth/rejoindre/${token}`;
+  const invitant = inviterName ? `${inviterName} vous` : "Vous";
+  const html = layout(
+    "Rejoignez un compte SafeLinkHub",
+    `<p style="margin:0 0 12px">${invitant} invite à rejoindre son espace SafeLinkHub.</p>
+     <p style="margin:0">Ce lien est valable 7 jours et ne sert qu'une fois.</p>`,
+    "Rejoindre le compte",
+    url,
+  );
+  const { error } = await resend.emails.send({
+    from: getFrom(),
+    to,
+    subject: "Invitation à rejoindre un compte SafeLinkHub",
+    html,
+  });
+  return !error;
+}

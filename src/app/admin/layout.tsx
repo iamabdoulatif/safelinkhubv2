@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { eq } from "drizzle-orm";
 import AdminSidebar from "@/components/AdminSidebar";
-import { getSession, isAdminRole, isSuperAdmin } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { isMemberRole } from "@/lib/auth/roles";
 import { getDb } from "@/lib/db";
 import { organizations } from "@/lib/db/schema";
 import { countPendingFeatureAccess } from "@/lib/billing/feature-access-service";
@@ -25,11 +26,16 @@ export default async function AdminLayout({
      le contrôle des propriétés excédentaires ne s'applique pas. */
   const { pendingBadge, ...nav } = dict.nav;
   const session = await getSession();
-  if (!session || !isAdminRole(session.role)) {
+  /* `isMemberRole` et non `isAdminRole` : l'espace s'ouvre désormais aussi aux
+     Éditeurs, Agents de vente et Lecteurs. Ce qu'ils PEUVENT y faire reste
+     décidé capacité par capacité — chaque action serveur garde sa propre
+     garde, l'entrée ici n'accorde rien. */
+  if (!session || !isMemberRole(session.role)) {
     redirect("/auth/login?callback=/admin");
   }
 
   const superadmin = isSuperAdmin(session.role);
+  const role = session.role;
   const db = getDb();
   const [org] = await db
     .select({ name: organizations.name })
@@ -62,6 +68,7 @@ export default async function AdminLayout({
         userName={session.name}
         userEmail={session.email}
         superadmin={superadmin}
+        role={role}
         pendingAuthorizations={pendingAuthorizations}
         pendingLabel={
           pendingAuthorizations > 0 ? pendingBadge(pendingAuthorizations) : undefined

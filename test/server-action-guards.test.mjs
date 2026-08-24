@@ -15,7 +15,7 @@ async function walk(dir) {
   return out;
 }
 
-const GUARD = /getSession\s*\(|requireAdminSession\s*\(|isSuperAdmin\s*\(|getMfaPendingToken\s*\(/;
+const GUARD = /getSession\s*\(|requireAdminSession\s*\(|requireCapability\s*\(|isSuperAdmin\s*\(|getMfaPendingToken\s*\(/;
 
 /**
  * Toute fonction exportée d'un module `"use server"` est enregistrée par
@@ -41,6 +41,11 @@ const PUBLIC_BY_DESIGN = new Set([
   "getManualAuthWhatsappNumber",
   "getRemoteAccessContactPublic",
   "getRemoteAccessPaymentConfigPublic",
+  /* Acceptation d'une invitation : par construction, la personne n'a PAS
+     encore de session — même cas que l'activation de compte juste au-dessus.
+     La protection est le jeton, stocké haché et à usage unique. */
+  "previewInvitation",
+  "acceptInvitation",
 ]);
 
 async function collectUnguardedActions() {

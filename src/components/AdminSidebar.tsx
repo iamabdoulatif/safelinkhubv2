@@ -35,6 +35,8 @@ import {
   Languages,
   GraduationCap,
   BadgeCheck,
+  UsersRound,
+  ArrowRightLeft,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import UserMenu from "./UserMenu";
@@ -43,6 +45,7 @@ import { setLocale } from "@/lib/i18n/actions";
 import type { Locale } from "@/lib/i18n/config";
 import type { AdminDictionary } from "@/lib/i18n/admin/fr";
 import { KYC_TABS } from "@/lib/kyc/statuses";
+import { can, type Capability } from "@/lib/auth/roles";
 
 /* La tranche `nav` traverse la frontière serveur/client : elle ne doit donc
  * porter que des chaînes. `pendingBadge` est une fonction d'interpolation —
@@ -72,7 +75,11 @@ type NavDict = Omit<AdminDictionary["nav"], "pendingBadge">;
  * texte vient du dictionnaire. Renommer une route ne peut donc plus faire
  * perdre sa traduction à une entrée. */
 type NavKey = keyof NavDict["links"];
-type NavLink = { href: string; key: NavKey; icon: typeof LayoutDashboard };
+/* `need` = capacité exigée pour VOIR l'entrée. Absente = visible par tous les
+   membres, y compris un Lecteur : ce sont les écrans de consultation. Masquer
+   plutôt que laisser cliquer vers un refus — un menu qui mène à « accès
+   refusé » apprend à se méfier de tout le menu. */
+type NavLink = { href: string; key: NavKey; icon: typeof LayoutDashboard; need?: Capability };
 type NavSection = { title: keyof NavDict["sections"] | null; links: NavLink[] };
 
 const mainSections: NavSection[] = [
@@ -84,11 +91,11 @@ const mainSections: NavSection[] = [
     title: "network",
     links: [
       // Pluriel : la page liste le parc, elle n'en configure pas un seul.
-      { href: "/admin/router", key: "routers", icon: Router },
-      { href: "/admin/remote-access", key: "remoteAccess", icon: Wifi },
-      { href: "/admin/roaming", key: "roaming", icon: RadioTower },
+      { href: "/admin/router", key: "routers", icon: Router, need: "routers" },
+      { href: "/admin/remote-access", key: "remoteAccess", icon: Wifi, need: "routers" },
+      { href: "/admin/roaming", key: "roaming", icon: RadioTower, need: "routers" },
       // Casse officielle du produit : MikHmon.
-      { href: "/admin/mikhmon-online", key: "mikhmon", icon: Globe },
+      { href: "/admin/mikhmon-online", key: "mikhmon", icon: Globe, need: "routers" },
       // Utilisateurs actifs + routeurs en ligne : de la supervision réseau,
       // pas de l'analyse commerciale (à ne pas confondre avec « Analyse
       // commerciale », côté superadmin — d'où le renommage).
@@ -98,11 +105,11 @@ const mainSections: NavSection[] = [
   {
     title: "sales",
     links: [
-      { href: "/admin/packages", key: "packages", icon: Package },
+      { href: "/admin/packages", key: "packages", icon: Package, need: "packages" },
       // « Vouchers » était le seul libellé anglais de la sidebar, alors que la
       // page elle-même s'intitule « Station Tickets » et compte des « tickets ».
-      { href: "/admin/vouchers", key: "tickets", icon: Ticket },
-      { href: "/admin/agent", key: "agents", icon: UserCog },
+      { href: "/admin/vouchers", key: "tickets", icon: Ticket, need: "tickets" },
+      { href: "/admin/agent", key: "agents", icon: UserCog, need: "tickets" },
       { href: "/admin/sales", key: "sales", icon: TrendingUp },
       // La page est l'entonnoir des commandes du portail captif (combien
       // atteignent le checkout, combien paient). « Conversion paiement »
@@ -114,22 +121,24 @@ const mainSections: NavSection[] = [
     title: "finance",
     links: [
       { href: "/admin/transactions", key: "transactions", icon: ArrowLeftRight },
-      { href: "/admin/float", key: "float", icon: Droplet },
-      { href: "/admin/expenses", key: "expenses", icon: Receipt },
+      { href: "/admin/float", key: "float", icon: Droplet, need: "billing" },
+      { href: "/admin/expenses", key: "expenses", icon: Receipt, need: "billing" },
     ],
   },
   {
     title: "org",
     links: [
       { href: "/admin/users", key: "users", icon: Users },
+      { href: "/admin/members", key: "members", icon: UsersRound, need: "members" },
+      { href: "/admin/router-transfers", key: "transfers", icon: ArrowRightLeft, need: "routers" },
       { href: "/admin/verification", key: "verification", icon: ShieldCheck },
-      { href: "/admin/settings/general", key: "settings", icon: Settings },
+      { href: "/admin/settings/general", key: "settings", icon: Settings, need: "settings" },
     ],
   },
 ];
 
 const accountLinks: NavLink[] = [
-  { href: "/admin/billing", key: "billing", icon: CreditCard },
+  { href: "/admin/billing", key: "billing", icon: CreditCard, need: "billing" },
   { href: "/admin/support", key: "support", icon: LifeBuoy },
 ];
 
@@ -177,6 +186,7 @@ export default function AdminSidebar({
   userName,
   userEmail,
   superadmin,
+  role,
   pendingAuthorizations = 0,
   pendingLabel,
   nav,
@@ -187,6 +197,8 @@ export default function AdminSidebar({
   userName: string;
   userEmail: string;
   superadmin: boolean;
+  /** Rôle du visiteur — décide des entrées visibles. */
+  role: string;
   /** Nombre de demandes d'autorisation en attente (badge in-app). */
   pendingAuthorizations?: number;
   /** Texte du badge, déjà interpolé côté serveur. */
@@ -196,6 +208,7 @@ export default function AdminSidebar({
   locale: Locale;
 }) {
   const pathname = usePathname();
+  const visible = (link: NavLink) => !link.need || can(role, link.need);
   const [mobileOpen, setMobileOpen] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
 
@@ -326,7 +339,7 @@ export default function AdminSidebar({
             <div key={section.title ?? "principal"} className={index > 0 ? "mt-5" : undefined}>
               {section.title && <SectionTitle>{nav.sections[section.title]}</SectionTitle>}
               <ul className={section.title ? "mt-1 space-y-0.5" : "space-y-0.5"}>
-                {section.links.map(({ href, key, icon: Icon }) => (
+                {section.links.filter(visible).map(({ href, key, icon: Icon }) => (
                   <li key={href}>
                     <Link
                       href={href}
@@ -344,7 +357,7 @@ export default function AdminSidebar({
 
           <SectionTitle className="mt-5">{nav.sections.account}</SectionTitle>
           <ul className="mt-1 space-y-0.5">
-            {accountLinks.map(({ href, key, icon: Icon }) => (
+            {accountLinks.filter(visible).map(({ href, key, icon: Icon }) => (
               <li key={href}>
                 <Link href={href} onClick={closeMobile} className={navLinkClass(isActive(href))}>
                   <Icon className="h-4 w-4 flex-shrink-0" />

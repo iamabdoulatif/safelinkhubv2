@@ -279,6 +279,79 @@ export const routers = pgTable("routers", {
 // auto-configuré qu'UNE fois — un second essai sur le même SN depuis un autre
 // routeur/org est refusé, sauf réinitialisation par un superadmin (releasedAt).
 // Voir lib/mikrotik/router-serial-lock.ts.
+/**
+ * Invitation d'une personne à REJOINDRE une organisation existante, avec son
+ * rôle. Distincte du parrainage (`referral*`), qui amène une NOUVELLE
+ * organisation : ici on partage un compte, on n'en crée pas un autre.
+ *
+ * Le jeton n'est stocké que haché (sha256), comme les jetons d'installation et
+ * d'activation : une fuite de la base ne doit pas livrer d'invitations
+ * utilisables.
+ */
+export const orgInvitations = pgTable(
+  "org_invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    // admin | editor | sales_agent | viewer — jamais "superadmin" : il se pose
+    // en base, il ne s'invite pas (voir lib/auth/roles.ts).
+    role: text("role").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    invitedBy: uuid("invited_by").references(() => users.id, { onDelete: "set null" }),
+    acceptedAt: timestamp("accepted_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("org_invitations_org_idx").on(t.orgId),
+    index("org_invitations_token_idx").on(t.tokenHash),
+  ],
+);
+
+/**
+ * Demande de transfert d'un MikroTik vers une AUTRE organisation.
+ *
+ * Le propriétaire demande, le superadmin tranche — même modèle que les
+ * déblocages de numéro de série. Un transfert casse le tunnel, déplace le
+ * verrou de série et change qui paie : ce n'est pas un bouton en libre-service.
+ *
+ * L'historique commercial NE SUIT PAS le routeur (ventes, commandes du portail,
+ * tickets déjà vendus restent à l'organisation qui les a encaissés) — sinon le
+ * chiffre d'affaires passé de deux comptes changerait rétroactivement.
+ */
+export const routerTransferRequests = pgTable(
+  "router_transfer_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    fromOrgId: uuid("from_org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // Cible désignée par courriel : l'organisation d'arrivée est résolue à la
+    // DÉCISION, pas à la demande — le compte peut être créé entre-temps.
+    toEmail: text("to_email").notNull(),
+    toOrgId: uuid("to_org_id").references(() => organizations.id, { onDelete: "set null" }),
+    reason: text("reason"),
+    // pending | approved | rejected | cancelled
+    status: text("status").notNull().default("pending"),
+    adminNote: text("admin_note"),
+    requestedBy: uuid("requested_by").references(() => users.id, { onDelete: "set null" }),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("router_transfer_requests_status_idx").on(t.status),
+    index("router_transfer_requests_router_idx").on(t.routerId),
+  ],
+);
+
 export const routerSerialLocks = pgTable("router_serial_locks", {
   id: uuid("id").primaryKey().defaultRandom(),
   serialNumber: text("serial_number").notNull().unique(),

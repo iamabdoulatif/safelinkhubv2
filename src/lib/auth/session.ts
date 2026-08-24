@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
+import { can, type Capability } from "./roles";
 import { cookies } from "next/headers";
 
 const COOKIE_NAME = "safelinkhub_session";
@@ -76,6 +77,21 @@ export function isSuperAdmin(role: string | undefined): boolean {
 export async function requireAdminSession(): Promise<SessionPayload | null> {
   const session = await getSession();
   if (!session || !isAdminRole(session.role)) return null;
+  return session;
+}
+
+/**
+ * Session dont le rôle porte la capacité demandée.
+ *
+ * `requireAdminSession` garde son sens — administrateur complet — pour que
+ * l'arrivée des rôles Éditeur/Lecteur/Agent n'ouvre RIEN par accident : une
+ * écriture qu'on n'a pas explicitement rouverte reste réservée à l'admin.
+ */
+export async function requireCapability(
+  capability: Capability,
+): Promise<SessionPayload | null> {
+  const session = await getSession();
+  if (!session || !can(session.role, capability)) return null;
   return session;
 }
 

@@ -27,6 +27,8 @@ export const adminEn: AdminDictionary = {
       float: "Float balance",
       expenses: "Expenses",
       users: "Users",
+      members: "Members",
+      transfers: "Router transfers",
       verification: "Verification",
       settings: "Settings",
       billing: "Billing",
