@@ -105,15 +105,15 @@ export default function WalletTopupModal({
             </div>
 
             {!geniusPayEnabled && (
-              <div className="mt-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+              <div className="mt-4 flex items-start gap-2 rounded-md border border-warn bg-warn-soft px-3 py-2.5 text-xs text-warn">
                 <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <p>Le paiement en ligne n&apos;est pas encore configuré. Utilisez le dépôt manuel après confirmation avec SafeLinkHub.</p>
               </div>
             )}
 
-            {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+            {error && <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>}
             {manualState?.success && (
-              <p className="mt-4 flex items-center gap-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">
+              <p className="mt-4 flex items-center gap-2 rounded-md bg-ok-soft px-3 py-2 text-sm text-ok">
                 <Check className="h-4 w-4" aria-hidden="true" /> Dépôt manuel enregistré dans le journal.
               </p>
             )}
@@ -174,7 +174,7 @@ export default function WalletTopupModal({
                   <label className="mb-1 block text-sm font-medium text-ink" htmlFor="wallet-phone">
                     Numéro mobile money{" "}
                     {needsPhone ? (
-                      <span className="text-red-600">*</span>
+                      <span className="text-err">*</span>
                     ) : (
                       <span className="text-ink-soft">(optionnel)</span>
                     )}
@@ -229,7 +229,7 @@ export default function WalletTopupModal({
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">Passerelles</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
                 {WALLET_PAYMENT_GATEWAYS.map((gateway) => (
-                  <div key={gateway.id} className={`rounded-md border px-2.5 py-2 ${gateway.status === "available" && geniusPayEnabled ? "border-green-200 bg-green-50" : "border-line-soft bg-clay"}`}>
+                  <div key={gateway.id} className={`rounded-md border px-2.5 py-2 ${gateway.status === "available" && geniusPayEnabled ? "border-ok bg-ok-soft" : "border-line-soft bg-clay"}`}>
                     <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-ink">{gateway.label}</span>{gateway.status === "available" && geniusPayEnabled ? <Check className="h-3.5 w-3.5 text-ok" aria-label="Disponible" /> : <span className="text-[10px] text-ink-soft">Bientôt</span>}</div>
                     <p className="mt-1 text-[10px] leading-4 text-ink-soft">{gateway.description}</p>
                   </div>

@@ -78,7 +78,7 @@ export default function CreatePackageModal({
 
             <div className="mt-4" aria-live="polite">
               {state?.error && (
-                <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+                <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">
                   <span className="flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {state.error}

@@ -127,7 +127,7 @@ export default async function KycDetailPage({
               <button
                 name="decision"
                 value="rejected"
-                className="rounded-md border border-red-600 px-5 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50"
+                className="rounded-md border border-err px-5 py-2.5 text-sm font-semibold text-err hover:bg-err-soft"
               >
                 Refuser
               </button>

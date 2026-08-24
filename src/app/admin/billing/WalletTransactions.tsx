@@ -43,7 +43,7 @@ function transactionLabel(t: WalletTx) {
 
 function transactionTone(t: WalletTx) {
   if (t.status === "pending") return "bg-clay text-ink-soft";
-  if (t.status === "failed") return "bg-red-50 text-red-600";
+  if (t.status === "failed") return "bg-err-soft text-err";
   return t.type === "topup" ? "bg-clay text-ok" : "bg-clay text-warn";
 }
 
@@ -132,7 +132,7 @@ export default function WalletTransactions({ transactions }: { transactions: Wal
                   type="button"
                   onClick={() => doDelete(t.id)}
                   disabled={pending}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:underline disabled:opacity-60"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-err hover:underline disabled:opacity-60"
                 >
                   <Trash2 className="h-3.5 w-3.5" /> Supprimer
                 </button>
@@ -186,7 +186,7 @@ export default function WalletTransactions({ transactions }: { transactions: Wal
                         disabled={pending}
                         title="Supprimer"
                         aria-label="Supprimer"
-                        className="rounded-md p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-60"
+                        className="rounded-md p-1.5 text-err hover:bg-err-soft disabled:opacity-60"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -228,7 +228,7 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
           </button>
         </div>
 
-        {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>}
 
         <form action={action} className="mt-4 space-y-4">
           <input type="hidden" name="id" value={tx.id} />

@@ -100,7 +100,7 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
       {open && (
         <>
           {result && "error" in result && (
-            <p className="mt-2 text-xs text-red-600">{result.error}</p>
+            <p className="mt-2 text-xs text-err">{result.error}</p>
           )}
 
           {result && "success" in result && !result.ready && (

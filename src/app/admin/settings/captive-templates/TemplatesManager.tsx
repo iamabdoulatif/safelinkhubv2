@@ -55,7 +55,7 @@ export default function TemplatesManager({
       </div>
 
       {error && (
-        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+        <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
       )}
 
       {templates.length === 0 ? (
@@ -180,7 +180,7 @@ export default function TemplatesManager({
                           }
                         })
                       }
-                      className="rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                      className="rounded-md bg-err px-2 py-1 text-xs font-medium text-white hover:bg-ink"
                     >
                       Confirmer
                     </button>
@@ -196,7 +196,7 @@ export default function TemplatesManager({
                   <button
                     type="button"
                     onClick={() => setConfirmDeleteId(t.id)}
-                    className="flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                    className="flex items-center gap-1 rounded-md border border-err px-2 py-1 text-xs font-medium text-err hover:bg-err-soft"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Supprimer

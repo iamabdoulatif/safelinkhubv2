@@ -212,7 +212,7 @@ export default async function ConversionPage() {
           </p>
           <div className="mt-3 overflow-x-auto border border-warn bg-paper">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-warn bg-amber-50">
+              <thead className="border-b border-warn bg-warn-soft">
                 <tr className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
                   <th className="px-4 py-3">Client</th>
                   <th className="px-4 py-3">Forfait</th>
@@ -233,7 +233,7 @@ export default async function ConversionPage() {
                       {payment.payment_reference}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                      <span className="rounded-full bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn">
                         {payment.status}
                       </span>
                     </td>

@@ -112,7 +112,7 @@ export default async function ExpensesPage() {
                   {formatDate(e.expenseDate, locale)}
                 </td>
                 <td className="px-4 py-3 text-ink">{displayExpenseCategory(e.category, t.categories)}</td>
-                <td className="px-4 py-3 font-medium text-red-600">
+                <td className="px-4 py-3 font-medium text-err">
                   -{formatFcfa(e.amountCents, locale)}
                 </td>
                 <td className="px-4 py-3 text-ink-soft">{e.note ?? t.noNote}</td>

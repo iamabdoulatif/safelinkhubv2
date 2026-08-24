@@ -75,7 +75,7 @@ export default function LabelScanButton({
         )}
         {busy ? "Lecture de l'étiquette…" : "Scanner l'étiquette (caméra)"}
       </button>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-sm text-err">{error}</p>}
     </div>
   );
 }

@@ -175,9 +175,9 @@ export default function RemoteAccessPaywallModal({
 
         {done ? (
           <div className="mt-4">
-            <div className="flex items-start gap-2 rounded-md bg-green-50 p-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-              <div className="text-sm text-green-800">
+            <div className="flex items-start gap-2 rounded-md bg-ok-soft p-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ok" />
+              <div className="text-sm text-ok">
                 <p className="font-medium">Demande envoyée !</p>
                 <p className="mt-1">
                   En attente de validation par l&apos;administrateur. Envoyez votre preuve via
@@ -205,9 +205,9 @@ export default function RemoteAccessPaywallModal({
           </div>
         ) : balanceDone ? (
           <div className="mt-4">
-            <div className="flex items-start gap-2 rounded-md bg-green-50 p-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-              <div className="text-sm text-green-800">
+            <div className="flex items-start gap-2 rounded-md bg-ok-soft p-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ok" />
+              <div className="text-sm text-ok">
                 <p className="font-medium">Accès autorisé !</p>
                 <p className="mt-1">
                   Payé avec {balanceDone === "wallet" ? "votre portefeuille (FCFA)" : "vos Safecoins"}.
@@ -232,12 +232,12 @@ export default function RemoteAccessPaywallModal({
             </p>
 
             {latestStatus === "pending" && (
-              <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <p className="mt-3 rounded-md bg-warn-soft px-3 py-2 text-sm text-warn">
                 Une demande est déjà <strong>en attente</strong> pour ce service.
               </p>
             )}
             {latestStatus === "rejected" && (
-              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
                 Votre dernière demande a été <strong>refusée</strong>. Renvoyez-en une après
                 vérification du paiement.
               </p>
@@ -372,7 +372,7 @@ export default function RemoteAccessPaywallModal({
             </div>
 
             {error && (
-              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+              <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
             )}
 
             <div className="mt-5 flex justify-end gap-2">

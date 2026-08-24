@@ -50,8 +50,8 @@ function entryLabel(entry: Entry) {
 
 function entryTone(entry: Entry) {
   if (entry.status === "pending") return "bg-clay text-ink-soft";
-  if (entry.status === "failed") return "bg-red-50 text-red-700";
-  return entry.amountScCents >= 0 ? "bg-green-50 text-ok" : "bg-amber-50 text-warn";
+  if (entry.status === "failed") return "bg-err-soft text-err";
+  return entry.amountScCents >= 0 ? "bg-ok-soft text-ok" : "bg-warn-soft text-warn";
 }
 
 function formatDate(date: Date) {
@@ -223,7 +223,7 @@ export default function SafecoinWalletCard({
                     disabled={managePending}
                     title="Supprimer"
                     aria-label="Supprimer"
-                    className="rounded-md p-1 text-red-600 hover:bg-red-50 disabled:opacity-60"
+                    className="rounded-md p-1 text-err hover:bg-err-soft disabled:opacity-60"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -252,16 +252,16 @@ export default function SafecoinWalletCard({
               <button type="button" role="tab" aria-selected={mode === "online"} disabled={!geniusPayEnabled} onClick={() => setMode("online")} className={`px-3 py-2 text-sm font-semibold ${mode === "online" ? "bg-paper text-ink shadow-sm" : "text-ink-soft"}`}>Paiement en ligne</button>
               <button type="button" role="tab" aria-selected={mode === "manual"} onClick={() => setMode("manual")} className={`px-3 py-2 text-sm font-semibold ${mode === "manual" ? "bg-paper text-ink shadow-sm" : "text-ink-soft"}`}>Dépôt manuel</button>
             </div>
-            {!geniusPayEnabled && <div className="mt-4 flex gap-2 border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900"><CircleAlert className="h-4 w-4 shrink-0" aria-hidden="true" /> <p>Le paiement en ligne n&apos;est pas encore configuré. Utilisez le dépôt manuel confirmé par l&apos;équipe.</p></div>}
-            {error && <p className="mt-4 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-            {manualState?.success && <p className="mt-4 flex items-center gap-2 bg-green-50 px-3 py-2 text-sm text-green-800"><Check className="h-4 w-4" aria-hidden="true" /> Recharge Safecoin enregistrée.</p>}
+            {!geniusPayEnabled && <div className="mt-4 flex gap-2 border border-warn bg-warn-soft px-3 py-2.5 text-xs text-warn"><CircleAlert className="h-4 w-4 shrink-0" aria-hidden="true" /> <p>Le paiement en ligne n&apos;est pas encore configuré. Utilisez le dépôt manuel confirmé par l&apos;équipe.</p></div>}
+            {error && <p className="mt-4 bg-err-soft px-3 py-2 text-sm text-err">{error}</p>}
+            {manualState?.success && <p className="mt-4 flex items-center gap-2 bg-ok-soft px-3 py-2 text-sm text-ok"><Check className="h-4 w-4" aria-hidden="true" /> Recharge Safecoin enregistrée.</p>}
 
             {mode === "online" && geniusPayEnabled ? (
               <form action={onlineAction} className="mt-5 space-y-5">
                 <div><label className="mb-1 block text-sm font-medium text-ink">Montant à convertir (FCFA)</label><input name="amount" type="number" min={200} max={5000000} step={100} required placeholder="10000" className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none rounded-lg" /><p className="mt-1 text-xs text-ink-soft">Minimum 200 FCFA · le crédit sera calculé au taux actif.</p></div>
                 <fieldset><legend className="text-sm font-medium text-ink">Moyen de paiement</legend><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{WALLET_PAYMENT_METHODS.map((method) => <label key={method.id} className="cursor-pointer"><input type="radio" name="paymentMethod" value={method.id} checked={selectedMethod === method.id} onChange={() => setSelectedMethod(method.id)} className="peer sr-only" /><span className="flex h-full flex-col border border-line-soft px-3 py-2.5 peer-checked:border-brand-deep peer-checked:bg-brand/20"><span className="text-sm font-semibold text-ink">{method.label}</span><span className="mt-0.5 text-[11px] text-ink-soft">{method.hint}</span></span></label>)}</div></fieldset>
                 <div><label className="mb-1 flex items-center gap-1.5 text-sm font-medium text-ink"><Globe2 className="h-4 w-4 text-ink-soft" aria-hidden="true" /> Pays de paiement</label><select name="countryIso2" value={countryIso2} onChange={(event) => setCountryIso2(event.target.value)} className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm rounded-lg">{countries.map((country) => <option key={country.iso2} value={country.iso2}>{countryFlag(country.iso2)} {country.name} ({country.dialCode})</option>)}</select></div>
-                <div><label className="mb-1 block text-sm font-medium text-ink" htmlFor="sc-phone">Numéro mobile money {needsPhone ? <span className="text-red-600">*</span> : <span className="text-ink-soft">(optionnel)</span>}</label><input id="sc-phone" name="phone" type="tel" inputMode="tel" required={needsPhone} placeholder="07 00 00 00 00" className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none rounded-lg" /><p className="mt-1 text-xs text-ink-soft">Requis pour Orange Money et MTN MoMo. L’indicatif du pays est ajouté automatiquement.</p></div>
+                <div><label className="mb-1 block text-sm font-medium text-ink" htmlFor="sc-phone">Numéro mobile money {needsPhone ? <span className="text-err">*</span> : <span className="text-ink-soft">(optionnel)</span>}</label><input id="sc-phone" name="phone" type="tel" inputMode="tel" required={needsPhone} placeholder="07 00 00 00 00" className="w-full border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none rounded-lg" /><p className="mt-1 text-xs text-ink-soft">Requis pour Orange Money et MTN MoMo. L’indicatif du pays est ajouté automatiquement.</p></div>
                 <button type="submit" disabled={onlinePending} className="inline-flex w-full items-center justify-center gap-2 bg-ink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{onlinePending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="h-4 w-4" aria-hidden="true" />}{onlinePending ? "Ouverture du paiement…" : "Continuer vers Genius Pay"}</button>
               </form>
             ) : (
@@ -304,7 +304,7 @@ function SafecoinEditModal({ entry, onClose }: { entry: Entry; onClose: () => vo
           </button>
         </div>
 
-        {error && <p className="mt-4 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-4 bg-err-soft px-3 py-2 text-sm text-err">{error}</p>}
 
         <form action={action} className="mt-4 space-y-4">
           <input type="hidden" name="id" value={entry.id} />

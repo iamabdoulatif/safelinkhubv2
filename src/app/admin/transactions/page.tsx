@@ -92,7 +92,7 @@ export default async function TransactionsPage() {
     deposit: "bg-clay text-ok",
     sale: "bg-clay text-ok",
     withdrawal: "bg-clay text-warn",
-    expense: "bg-red-50 text-red-700",
+    expense: "bg-err-soft text-err",
   };
 
   return (
@@ -112,11 +112,11 @@ export default async function TransactionsPage() {
         </div>
         <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
           <p className="text-sm font-medium text-ink-soft">{t.totalOut}</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">{formatFcfa(totalOut, locale)}</p>
+          <p className="mt-1 text-2xl font-bold text-err">{formatFcfa(totalOut, locale)}</p>
         </div>
         <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
           <p className="text-sm font-medium text-ink-soft">{t.net}</p>
-          <p className={`mt-1 text-2xl font-bold ${net < 0 ? "text-red-600" : "text-ink"}`}>
+          <p className={`mt-1 text-2xl font-bold ${net < 0 ? "text-err" : "text-ink"}`}>
             {net < 0 ? "-" : ""}
             {formatFcfa(net, locale)}
           </p>
@@ -154,7 +154,7 @@ export default async function TransactionsPage() {
                 <td className="px-4 py-3 text-ink">{e.label}</td>
                 <td
                   className={`px-4 py-3 font-medium ${
-                    e.amountCents < 0 ? "text-red-600" : "text-ok"
+                    e.amountCents < 0 ? "text-err" : "text-ok"
                   }`}
                 >
                   {e.amountCents < 0 ? "-" : "+"}

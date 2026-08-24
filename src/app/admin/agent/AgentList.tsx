@@ -41,7 +41,7 @@ function DeleteAgentButton({ agentId }: { agentId: string }) {
               else router.refresh();
             })
           }
-          className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          className="rounded-md bg-err px-2.5 py-1 text-xs font-medium text-white hover:bg-ink disabled:opacity-60"
         >
           Confirmer
         </button>
@@ -58,11 +58,11 @@ function DeleteAgentButton({ agentId }: { agentId: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-err">{error}</span>}
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="flex items-center gap-1.5 rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+        className="flex items-center gap-1.5 rounded-md border border-err px-2.5 py-1 text-xs font-medium text-err hover:bg-err-soft"
       >
         <Trash2 className="h-3.5 w-3.5" />
         Retirer
@@ -108,7 +108,7 @@ function SellPackageModal({
         </p>
 
         {state?.error && (
-          <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{state.error}</p>
+          <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
         )}
 
         {state?.success && (

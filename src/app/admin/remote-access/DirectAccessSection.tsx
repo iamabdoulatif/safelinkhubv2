@@ -452,7 +452,7 @@ function RouterDirectAccess({
 
       {cardOpen && (
         <>
-          {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+          {error && <p className="mt-2 text-xs text-err">{error}</p>}
 
       <div className="mt-2 space-y-2">
         {(["winbox", "webfig", "ssh", "mikhmon"] as const).map((service) => {
@@ -514,7 +514,7 @@ function RouterDirectAccess({
                         : requestEnable(service, event.currentTarget)
                     }
                     className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-                      isPublic ? "bg-red-500" : "bg-line-soft"
+                      isPublic ? "bg-err" : "bg-line-soft"
                     }`}
                   >
                     <span
@@ -525,7 +525,7 @@ function RouterDirectAccess({
                   </button>
                   <span
                     className={`flex w-14 items-center gap-1 text-xs font-medium ${
-                      isPublic ? "text-red-600" : "text-ink-soft"
+                      isPublic ? "text-err" : "text-ink-soft"
                     }`}
                   >
                     {pendingService === service ? (
@@ -711,7 +711,7 @@ function RouterDirectAccess({
                 type="button"
                 onClick={confirmAccessChange}
                 className={`min-h-10 rounded-lg px-4 text-sm font-semibold text-paper ${
-                  confirmation.kind === "disable" ? "bg-red-600 hover:bg-red-700" : "bg-ink hover:bg-ink/90"
+                  confirmation.kind === "disable" ? "bg-err hover:bg-ink" : "bg-ink hover:bg-ink/90"
                 }`}
               >
                 {confirmation.kind === "disable" ? "Confirmer la révocation" : "Confirmer l’activation"}
@@ -819,7 +819,7 @@ export default function DirectAccessSection({
         ))}
       </div>
 
-      <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+      <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-xs text-err">
         Attention : ce port devient joignable par quiconque connaît
         l&apos;adresse — seule l&apos;authentification du routeur protège
         l&apos;accès. Utilisez un mot de passe fort sur le routeur avant

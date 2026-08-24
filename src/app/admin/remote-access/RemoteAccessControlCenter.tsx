@@ -339,7 +339,7 @@ export default function RemoteAccessControlCenter({
       )}
 
       {temporaryPassCount > 0 && (
-        <section className="mt-5 flex items-start gap-3 border border-ok/40 bg-green-50 px-4 py-3 text-sm text-ink">
+        <section className="mt-5 flex items-start gap-3 border border-ok/40 bg-ok-soft px-4 py-3 text-sm text-ink">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-hidden="true" />
           <p><strong>{temporaryPassCount} pass temporaire{temporaryPassCount > 1 ? "s" : ""} actif{temporaryPassCount > 1 ? "s" : ""}</strong><br /><span className="text-ink-soft">Accès gratuit {temporaryPassExpiresAt ? `jusqu’au ${dateLabel(temporaryPassExpiresAt)}` : "en cours"}.</span></p>
         </section>

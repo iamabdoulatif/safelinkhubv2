@@ -72,9 +72,9 @@ function formatDate(date: string | Date) {
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  pending: { label: "En attente", className: "bg-amber-100 text-amber-800" },
-  approved: { label: "Validée", className: "bg-green-100 text-green-800" },
-  rejected: { label: "Refusée", className: "bg-red-100 text-red-700" },
+  pending: { label: "En attente", className: "bg-warn-soft text-warn" },
+  approved: { label: "Validée", className: "bg-ok-soft text-ok" },
+  rejected: { label: "Refusée", className: "bg-err-soft text-err" },
 };
 
 function methodLabel(id: string) {
@@ -111,7 +111,7 @@ function DecisionButtons({ id, feature }: { id: string; feature: Tab }) {
         <button
           onClick={() => decide("approved")}
           disabled={pending}
-          className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
+          className="inline-flex items-center gap-1 rounded-md bg-ok px-2.5 py-1.5 text-xs font-medium text-white hover:bg-ink disabled:opacity-60"
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
           Valider
@@ -119,13 +119,13 @@ function DecisionButtons({ id, feature }: { id: string; feature: Tab }) {
         <button
           onClick={() => decide("rejected")}
           disabled={pending}
-          className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+          className="inline-flex items-center gap-1 rounded-md border border-err px-2.5 py-1.5 text-xs font-medium text-err hover:bg-err-soft disabled:opacity-60"
         >
           <X className="h-3.5 w-3.5" />
           Refuser
         </button>
       </div>
-      {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {error && <span className="text-[11px] text-err">{error}</span>}
     </div>
   );
 }
@@ -393,7 +393,7 @@ function TabButton({
     >
       {label}
       {count > 0 && (
-        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+        <span className="rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] font-semibold text-warn">
           {count}
         </span>
       )}

@@ -183,7 +183,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
         <span className="shrink-0 text-xs tabular-nums text-ink-soft">{groups.length} routeur(s)</span>
       </div>
 
-      {notice && <div className="border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">{notice}</div>}
+      {notice && <div className="border border-warn bg-warn-soft px-4 py-3 text-sm text-warn">{notice}</div>}
 
       {groups.length === 0 ? (
         <div className="border border-dashed border-line bg-paper px-6 py-14 text-center">
@@ -211,7 +211,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-ink">{row.routerName}</span>
                       <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-ink-soft">{row.orgName}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${row.routerStatus === "online" ? "bg-green-50 text-ok" : "bg-clay text-ink-soft"}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${row.routerStatus === "online" ? "bg-ok-soft text-ok" : "bg-clay text-ink-soft"}`}>
                         {statusLabel(row.routerStatus)}
                       </span>
                     </span>

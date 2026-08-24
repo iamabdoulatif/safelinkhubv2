@@ -26,7 +26,7 @@ export default function DeleteExpenseButton({
           router.refresh();
         })
       }
-      className="text-ink-soft hover:text-red-600 disabled:opacity-50"
+      className="text-ink-soft hover:text-err disabled:opacity-50"
       title={title}
     >
       <Trash2 className="h-4 w-4" />

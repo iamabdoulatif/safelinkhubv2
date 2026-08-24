@@ -12,7 +12,7 @@ export default function RefreshButton({ routerId }: { routerId: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      {error && <span className="text-xs text-red-500">{error}</span>}
+      {error && <span className="text-xs text-err">{error}</span>}
       <button
         disabled={isPending}
         onClick={() =>

@@ -50,7 +50,7 @@ export default function SafecoinTopupReturn({ transactionId }: { transactionId: 
 
   if (phase === "completed") {
     return (
-      <div className="mb-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-800">
+      <div className="mb-4 flex items-center gap-2 rounded-md border border-ok bg-ok-soft px-3 py-2.5 text-sm text-ok">
         <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
         Recharge Safecoin confirmée et créditée.
       </div>
@@ -58,7 +58,7 @@ export default function SafecoinTopupReturn({ transactionId }: { transactionId: 
   }
   if (phase === "failed") {
     return (
-      <div className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+      <div className="mb-4 flex items-center gap-2 rounded-md border border-err bg-err-soft px-3 py-2.5 text-sm text-err">
         <CircleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
         La recharge Safecoin n’a pas abouti. Aucun montant n’a été débité par SafeLinkHub.
       </div>

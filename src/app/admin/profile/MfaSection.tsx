@@ -37,7 +37,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
   }
 
   if (!enrollment.success) {
-    return <p className="text-sm text-red-600">{enrollment.error}</p>;
+    return <p className="text-sm text-err">{enrollment.error}</p>;
   }
 
   if (confirmState?.success) {
@@ -112,7 +112,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
           />
         </div>
         {confirmState && !confirmState.success && (
-          <p className="flex items-center gap-1 text-xs text-red-600">
+          <p className="flex items-center gap-1 text-xs text-err">
             <X className="h-3.5 w-3.5" /> {confirmState.error}
           </p>
         )}
@@ -149,8 +149,8 @@ function DisableMfaFlow({ onDone }: { onDone: () => void }) {
   }, [state, onDone, router]);
 
   return (
-    <form action={formAction} className="mt-3 space-y-3 rounded-lg border border-red-200 bg-red-50/50 p-4">
-      <p className="text-sm text-red-700">
+    <form action={formAction} className="mt-3 space-y-3 rounded-lg border border-err bg-err-soft/50 p-4">
+      <p className="text-sm text-err">
         Désactiver la double authentification réduit la sécurité de ce compte. Confirmez avec
         votre mot de passe.
       </p>
@@ -160,16 +160,16 @@ function DisableMfaFlow({ onDone }: { onDone: () => void }) {
         required
         autoComplete="current-password"
         placeholder="Mot de passe actuel"
-        className="w-full max-w-xs rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+        className="w-full max-w-xs rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-err focus:outline-none focus:ring-1 focus:ring-err"
       />
       {state && !state.success && (
-        <p className="text-xs text-red-600">{state.error}</p>
+        <p className="text-xs text-err">{state.error}</p>
       )}
       <div className="flex items-center gap-3">
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          className="rounded-md bg-err px-4 py-2 text-sm font-medium text-white hover:bg-ink disabled:opacity-60"
         >
           {pending ? "Désactivation..." : "Désactiver la double authentification"}
         </button>

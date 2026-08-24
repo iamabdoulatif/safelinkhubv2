@@ -357,7 +357,7 @@ export default function BackupsManager({
         {feedback && (
           <p
             className={`mt-3 rounded-md px-3 py-2 text-sm ${
-              feedback.kind === "ok" ? "bg-clay text-ok" : "bg-red-50 text-red-600"
+              feedback.kind === "ok" ? "bg-clay text-ok" : "bg-err-soft text-err"
             }`}
           >
             {feedback.text}
@@ -380,7 +380,7 @@ export default function BackupsManager({
                   {b.model && <span className="ml-2 text-xs text-ink-soft">{b.model}</span>}
                   {b.rosVersion && <span className="ml-2 text-xs text-ink-soft">RouterOS {b.rosVersion}</span>}
                   {b.orphan && (
-                    <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+                    <span className="ml-2 inline-flex items-center gap-1 rounded bg-warn-soft px-1.5 py-0.5 text-xs font-medium text-warn">
                       <AlertTriangle className="h-3 w-3" />
                       routeur supprimé — sauvegarde conservée
                     </span>
@@ -457,7 +457,7 @@ export default function BackupsManager({
                   onClick={() => remove(b.id)}
                   disabled={busy}
                   aria-label="Supprimer la sauvegarde"
-                  className="rounded-md border border-line px-3 py-2 text-ink-soft hover:border-red-300 hover:text-red-600 disabled:opacity-60"
+                  className="rounded-md border border-line px-3 py-2 text-ink-soft hover:border-err hover:text-err disabled:opacity-60"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -525,7 +525,7 @@ export default function BackupsManager({
                         )}
                       </p>
                       {reports.plan.blockers.map((b) => (
-                        <p key={b} className="mt-1 text-xs font-medium text-red-600">
+                        <p key={b} className="mt-1 text-xs font-medium text-err">
                           ⛔ {b}
                         </p>
                       ))}
@@ -543,7 +543,7 @@ export default function BackupsManager({
                       présent(s)
                       {r.updated > 0 && <>, {r.updated} réaligné(s) sur la sauvegarde</>}
                       {r.failed.length > 0 && (
-                        <span className="text-red-600">, {r.failed.length} en échec</span>
+                        <span className="text-err">, {r.failed.length} en échec</span>
                       )}
                     </p>
                   ))}

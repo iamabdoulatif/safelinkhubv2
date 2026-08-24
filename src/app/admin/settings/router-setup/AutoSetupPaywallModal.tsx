@@ -209,9 +209,9 @@ export default function AutoSetupPaywallModal({
 
         {done ? (
           <div className="mt-5">
-            <div className="flex items-start gap-2 rounded-lg bg-green-50 p-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden="true" />
-              <div className="text-sm text-green-800">
+            <div className="flex items-start gap-2 rounded-lg bg-ok-soft p-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ok" aria-hidden="true" />
+              <div className="text-sm text-ok">
                 <p className="font-medium">Demande envoyée</p>
                 <p className="mt-1">
                   Elle est en attente de validation par l&apos;administrateur. Envoyez votre preuve
@@ -239,9 +239,9 @@ export default function AutoSetupPaywallModal({
           </div>
         ) : balanceDone ? (
           <div className="mt-5">
-            <div className="flex items-start gap-2 rounded-lg bg-green-50 p-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden="true" />
-              <div className="text-sm text-green-800">
+            <div className="flex items-start gap-2 rounded-lg bg-ok-soft p-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ok" aria-hidden="true" />
+              <div className="text-sm text-ok">
                 <p className="font-medium">Configuration débloquée !</p>
                 <p className="mt-1">
                   Payé avec{" "}
@@ -262,12 +262,12 @@ export default function AutoSetupPaywallModal({
         ) : (
           <>
             {latestStatus === "pending" && (
-              <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <p className="mt-4 rounded-md bg-warn-soft px-3 py-2 text-sm text-warn">
                 Une demande est déjà <strong>en attente de validation</strong> pour ce routeur.
               </p>
             )}
             {latestStatus === "rejected" && (
-              <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
                 Votre dernière demande a été <strong>refusée</strong>. Vérifiez le paiement puis
                 réessayez.
               </p>
@@ -314,7 +314,7 @@ export default function AutoSetupPaywallModal({
                   ))}
                 </div>
 
-                <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-green-700">
+                <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-ok">
                   <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
                   Paiement sécurisé · l&apos;auto-setup se débloque automatiquement dès confirmation.
                 </p>
@@ -426,7 +426,7 @@ export default function AutoSetupPaywallModal({
             </div>
 
             {error && (
-              <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+              <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
             )}
           </>
         )}

@@ -14,7 +14,7 @@ export default function RenameOrgForm({ currentName }: { currentName: string }) 
       </p>
 
       {state?.error && (
-        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{state.error}</p>
+        <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
       )}
       {state?.success && (
         <p className="mt-3 rounded-md bg-clay px-3 py-2 text-sm text-ok">

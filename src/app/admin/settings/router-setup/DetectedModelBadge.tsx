@@ -280,7 +280,7 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
         </button>
       </div>
 
-      {result?.error && <p className="mt-2 text-red-700">{result.error}</p>}
+      {result?.error && <p className="mt-2 text-err">{result.error}</p>}
       {result?.success && <p className="mt-2 text-ok">{result.message}</p>}
 
       <p className="mt-2 text-xs font-medium text-warn">

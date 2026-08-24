@@ -24,10 +24,10 @@ export default function SafecoinActions({
           <h2 className="mt-1 text-lg font-semibold text-ink">Taux et frais</h2>
           <p className="mt-1 max-w-2xl text-sm text-ink-soft">Les changements s&apos;appliquent uniquement aux nouvelles opérations. Les écritures existantes conservent leur taux et leur version.</p>
         </div>
-        <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-ok">Version active</span>
+        <span className="rounded-full bg-ok-soft px-2.5 py-1 text-xs font-semibold text-ok">Version active</span>
       </div>
-      {state && "error" in state && <p className="mt-4 bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
-      {state && "success" in state && <p className="mt-4 flex items-center gap-2 bg-green-50 px-3 py-2 text-sm text-green-800"><Check className="h-4 w-4" aria-hidden="true" /> Paramètres Safecoin enregistrés.</p>}
+      {state && "error" in state && <p className="mt-4 bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>}
+      {state && "success" in state && <p className="mt-4 flex items-center gap-2 bg-ok-soft px-3 py-2 text-sm text-ok"><Check className="h-4 w-4" aria-hidden="true" /> Paramètres Safecoin enregistrés.</p>}
       <form action={action} className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm font-medium text-ink">FCFA pour 1 SC<input name="rateFcfaPerSc" type="number" min={1} required defaultValue={rateFcfaPerSc} className="mt-1.5 w-full border border-line-soft bg-paper px-3 py-2.5 text-sm rounded-lg" /></label>
         <label className="text-sm font-medium text-ink">Frais recharge (centièmes SC)<input name="rechargeFeeScCents" type="number" min={0} required defaultValue={rechargeFeeScCents} className="mt-1.5 w-full border border-line-soft bg-paper px-3 py-2.5 text-sm rounded-lg" /></label>

@@ -69,7 +69,7 @@ export default function RouterReplacementSection({ rows }: { rows: RecoveryRow[]
           <p className="mt-1 text-sm leading-relaxed text-ink-soft">Créez un tunnel de remplacement pour récupérer les mêmes accès payés. Les ports publics et les durées restent identiques ; aucun second paiement n’est demandé.</p>
         </div>
       </div>
-      {notice && <div className="border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">{notice}</div>}
+      {notice && <div className="border border-warn bg-warn-soft px-4 py-3 text-sm text-warn">{notice}</div>}
       {rows.map(({ router: source, services, replacement }) => {
         const name = names[source.id] ?? `${source.name} — remplacement`;
         const isInProgress = replacement?.status === "installing";
@@ -81,10 +81,10 @@ export default function RouterReplacementSection({ rows }: { rows: RecoveryRow[]
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-semibold text-ink">{source.name}</h3>
                   <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-ink-soft">{source.connectionMethod === "openvpn" ? "OpenVPN" : "WireGuard"}</span>
-                  {replacement && <span className="rounded-full bg-yellow-50 px-2 py-0.5 text-[11px] font-medium text-yellow-800">{replacementStatusLabel(replacement.status, services.some((service) => service.service === "mikhmon"))}</span>}
+                  {replacement && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-medium text-warn">{replacementStatusLabel(replacement.status, services.some((service) => service.service === "mikhmon"))}</span>}
                 </div>
                 <p className="mt-1 text-xs text-ink-soft">Accès conservés : {services.length ? services.map((service) => `${serviceLabel(service.service)} :${service.publicPort}`).join(" · ") : "aucun port actif"}</p>
-                {replacement?.error && <p className="mt-2 flex items-start gap-1.5 text-xs text-red-700"><ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{replacement.error}</p>}
+                {replacement?.error && <p className="mt-2 flex items-start gap-1.5 text-xs text-err"><ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{replacement.error}</p>}
               </div>
               <div className="flex w-full max-w-sm flex-col gap-2 md:w-auto">
                 {!replacement && (

@@ -127,7 +127,7 @@ export default function GenerateScriptForm() {
     <>
       <form action={formAction} className="space-y-4">
         {locked ? (
-          <div className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+          <div className="flex items-start gap-2 rounded-md bg-warn-soft px-3 py-2.5 text-sm text-warn">
             <Lock className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <p className="font-medium">Fonctionnalité verrouillée</p>
@@ -146,7 +146,7 @@ export default function GenerateScriptForm() {
           </div>
         ) : (
           state?.error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{state.error}</p>
+            <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
           )
         )}
         <div>

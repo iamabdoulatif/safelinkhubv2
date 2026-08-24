@@ -48,7 +48,7 @@ export default async function FloatPage() {
         <p className="text-sm font-medium text-ink-soft">Solde actuel</p>
         <p
           className={`mt-1 text-3xl font-bold ${
-            balanceCents < 0 ? "text-red-600" : "text-ink"
+            balanceCents < 0 ? "text-err" : "text-ink"
           }`}
         >
           {formatFcfa(balanceCents)}

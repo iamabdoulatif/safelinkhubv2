@@ -39,7 +39,7 @@ export default function ProfileNameForm({ currentName }: { currentName: string }
             </span>
           )}
           {!pending && state && !state.success && (
-            <span className="flex items-center gap-1 text-red-600">
+            <span className="flex items-center gap-1 text-err">
               <X className="h-3.5 w-3.5" /> {state.error}
             </span>
           )}

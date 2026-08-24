@@ -153,7 +153,7 @@ export default function ImportPortalButton() {
       </button>
 
       {error && (
-        <p className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+        <p className="w-full rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
       )}
 
       {result && (

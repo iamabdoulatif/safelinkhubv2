@@ -12,7 +12,7 @@ export default function DeleteCourseButton({ id }: { id: string }) {
         type="button"
         onClick={() => setConfirme(true)}
         title="Supprimer cette formation"
-        className="rounded-md border border-line p-1.5 text-red-700 hover:bg-red-50"
+        className="rounded-md border border-line p-1.5 text-err hover:bg-err-soft"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
@@ -22,7 +22,7 @@ export default function DeleteCourseButton({ id }: { id: string }) {
     <form action={deleteCourse} className="flex gap-1.5">
       <input type="hidden" name="id" value={id} />
       {/* Les leçons partent avec elle : la clé étrangère est en cascade. */}
-      <button className="rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white">
+      <button className="rounded-md bg-err px-2.5 py-1.5 text-xs font-bold text-white">
         Confirmer
       </button>
       <button

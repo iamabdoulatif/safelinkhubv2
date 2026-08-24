@@ -56,7 +56,7 @@ export default function FloatTransactionModal({
             </div>
 
             {state?.error && (
-              <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+              <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
                 {state.error}
               </p>
             )}

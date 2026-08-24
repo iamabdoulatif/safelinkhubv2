@@ -9,7 +9,7 @@ import { repairRouterConfig } from "@/lib/mikrotik/container-setup";
 const STATUS_STYLES: Record<ConfigAuditItem["status"], { icon: typeof CheckCircle2; pill: string; text: string }> = {
   ok: { icon: CheckCircle2, pill: "bg-clay text-ok", text: "text-ok" },
   incomplete: { icon: AlertTriangle, pill: "bg-clay text-warn", text: "text-warn" },
-  missing: { icon: XCircle, pill: "bg-red-50 text-red-600", text: "text-red-600" },
+  missing: { icon: XCircle, pill: "bg-err-soft text-err", text: "text-err" },
 };
 
 /**
@@ -187,7 +187,7 @@ export default function ConfigAuditBanner({
                   ? "bg-clay text-ok"
                   : repairResult.firmwareUpdating
                     ? "bg-clay text-warn"
-                    : "bg-red-50 text-red-600"
+                    : "bg-err-soft text-err"
               }`}
             >
               {repairResult.success ? (

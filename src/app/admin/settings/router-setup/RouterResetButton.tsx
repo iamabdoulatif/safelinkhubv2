@@ -42,7 +42,7 @@ export default function RouterResetButton({
           type="button"
           onClick={handleConfirm}
           disabled={pending}
-          className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          className="rounded-md bg-err px-3 py-1.5 text-sm font-medium text-white hover:bg-ink disabled:opacity-60"
         >
           {pending ? <ButtonLoader size="sm" color="white" /> : "Oui, supprimer"}
         </button>
@@ -60,11 +60,11 @@ export default function RouterResetButton({
 
   return (
     <div className="flex items-center gap-2">
-      {error && <span className="text-sm text-red-600">{error}</span>}
+      {error && <span className="text-sm text-err">{error}</span>}
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+        className="flex items-center gap-1.5 rounded-md border border-err px-3 py-1.5 text-sm font-medium text-err hover:bg-err-soft"
       >
         <Trash2 className="h-4 w-4" />
         {label}

@@ -72,9 +72,9 @@ export default function FeatureAccessRequestModal({
 
         {done ? (
           <div className="mt-4">
-            <div className="flex items-start gap-2 rounded-md bg-green-50 p-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-              <div className="text-sm text-green-800">
+            <div className="flex items-start gap-2 rounded-md bg-ok-soft p-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ok" />
+              <div className="text-sm text-ok">
                 <p className="font-medium">Demande envoyée !</p>
                 <p className="mt-1">
                   Elle est en attente de validation par l&apos;administrateur.
@@ -105,13 +105,13 @@ export default function FeatureAccessRequestModal({
             <p className="mt-2 text-sm text-ink-soft">{featureAccessDescription(feature)}</p>
 
             {latestStatus === "pending" && (
-              <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <p className="mt-3 rounded-md bg-warn-soft px-3 py-2 text-sm text-warn">
                 Une demande est déjà <strong>en attente de validation</strong>. Vous pouvez en
                 renvoyer une si besoin.
               </p>
             )}
             {latestStatus === "rejected" && (
-              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
                 Votre dernière demande a été <strong>refusée</strong>. Vous pouvez en renvoyer une.
               </p>
             )}
@@ -133,7 +133,7 @@ export default function FeatureAccessRequestModal({
             </div>
 
             {error && (
-              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+              <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
             )}
 
             <div className="mt-5 flex justify-end gap-2">

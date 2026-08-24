@@ -93,7 +93,7 @@ export default function CourseForm({ course }: { course: Course }) {
       </label>
 
       {state && "error" in state && state.error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
+        <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
       )}
       {state && "success" in state && state.success && course && (
         <p className="rounded-md bg-clay px-3 py-2 text-sm text-ok">Enregistré.</p>

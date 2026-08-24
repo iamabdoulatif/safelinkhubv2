@@ -136,3 +136,55 @@ test("les courbes de l'administration suivent la peau Slate", async () => {
   assert.doesNotMatch(slate, /--chart-1: var\(--brand\)/);
   assert.doesNotMatch(slate, /--chart-1: #C8F24E/i);
 });
+
+/* Parcours des sources en JS pur : un `grep -P` dépendait du grep de la
+   machine (BSD sur macOS n'a pas -P) et le test devenait vert par accident. */
+async function sourcesDuSaas() {
+  const { readdir } = await import("node:fs/promises");
+  const racine = new URL("../src/", import.meta.url);
+  const fichiers = [];
+  async function descendre(dir) {
+    for (const e of await readdir(dir, { withFileTypes: true })) {
+      const enfant = new URL(e.name + (e.isDirectory() ? "/" : ""), dir);
+      if (e.isDirectory()) await descendre(enfant);
+      else if (/\.tsx?$/.test(e.name) && !e.name.includes(".test.")) {
+        fichiers.push({
+          chemin: enfant.pathname.slice(racine.pathname.length),
+          source: await readFile(enfant, "utf8"),
+        });
+      }
+    }
+  }
+  await descendre(racine);
+  return fichiers;
+}
+
+test("plus aucune couleur Tailwind brute dans le SaaS", async () => {
+  /* Les écrans peignaient en amber-50, red-600, slate-900… : des teintes qui
+     ne suivent ni la peau Slate ni un éventuel mode sombre, et qui donnaient
+     un bleu, un violet ou un beige là où la charte n'a que quatre statuts.
+     Le NOIR est gardé — il s'écrit --ink, pas slate-900. */
+  const brute =
+    /\b(?:bg|text|border|ring|from|to|via|fill|stroke|divide)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}\b/g;
+  const fautes = [];
+  for (const { chemin, source } of await sourcesDuSaas()) {
+    // Les aperçus de tickets IMPRIMÉS dépeignent du papier, pas l'interface :
+    // les convertir changerait ce que la vignette montre à l'opérateur.
+    if (chemin.endsWith("vouchers/ticket-templates.tsx")) continue;
+    for (const m of source.match(brute) ?? []) fautes.push(`${chemin} → ${m}`);
+  }
+  assert.deepEqual(fautes, [], `couleurs hors charte :\n${fautes.join("\n")}`);
+});
+
+test("aucun aplat de statut ne porte de texte sombre", async () => {
+  /* `bg-amber-400 text-slate-deep` était lisible ; `bg-warn text-slate-deep`
+     ne l'est pas — --warn est un orange BRÛLÉ. Le passage aux jetons pouvait
+     créer ce piège, il est refusé une fois pour toutes. Les voiles (/10, /15)
+     ne sont pas concernés : le texte sombre y est juste. */
+  const piege = /bg-(?:warn|ok|err)(?![a-z/-])[^"]{0,90}text-(?:ink|slate-deep)(?![a-z-])/g;
+  const fautes = [];
+  for (const { chemin, source } of await sourcesDuSaas()) {
+    for (const m of source.match(piege) ?? []) fautes.push(`${chemin} → ${m}`);
+  }
+  assert.deepEqual(fautes, [], `texte sombre sur aplat de statut :\n${fautes.join("\n")}`);
+});

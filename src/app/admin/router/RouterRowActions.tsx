@@ -56,7 +56,7 @@ export default function RouterRowActions({ routerId, t }: { routerId: string; t:
           type="button"
           onClick={handleConfirm}
           disabled={pending}
-          className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          className="rounded-md bg-err px-2.5 py-1 text-xs font-medium text-white hover:bg-ink disabled:opacity-60"
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t.confirm}
         </button>
@@ -74,7 +74,7 @@ export default function RouterRowActions({ routerId, t }: { routerId: string; t:
 
   return (
     <div ref={menuRef} className="relative flex items-center justify-end gap-2">
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-err">{error}</span>}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -101,7 +101,7 @@ export default function RouterRowActions({ routerId, t }: { routerId: string; t:
               setOpen(false);
               setConfirming("delete");
             }}
-            className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+            className="block w-full px-3 py-2 text-left text-sm text-err hover:bg-err-soft"
           >
             {t.remove}
           </button>

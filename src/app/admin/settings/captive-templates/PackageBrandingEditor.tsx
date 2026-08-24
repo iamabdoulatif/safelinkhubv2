@@ -64,7 +64,7 @@ export default function PackageBrandingEditor({
         </div>
 
         {error && (
-          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+          <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
         )}
 
         <div className="mt-4 space-y-3">
@@ -140,7 +140,7 @@ export default function PackageBrandingEditor({
                     <button
                       type="button"
                       onClick={() => setVendors((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                      className="rounded-md border border-err p-1.5 text-err hover:bg-err-soft"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

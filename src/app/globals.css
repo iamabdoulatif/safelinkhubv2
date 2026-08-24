@@ -23,7 +23,13 @@
   --ok:   #15803D;
   --warn: #B45309;
   --err:  #C2410C;
-  --err-soft: #FFF3ED;  /* fond des encarts d'erreur */
+  /* Fonds d'encart, un par statut. `--err-soft` existait seul, ce qui poussait
+     chaque écran à improviser un `bg-green-50` ou `bg-amber-50` de Tailwind
+     pour les deux autres — d'où des pastels hors charte qui ne suivaient ni le
+     thème ni un éventuel mode sombre. */
+  --err-soft:  #FFF3ED;
+  --ok-soft:   #F0FAF3;
+  --warn-soft: #FFF8EB;
 
   /* Séries de graphiques. Deux jetons DÉDIÉS, parce que les graphiques
      empruntaient jusqu'ici --err (rouge d'erreur) et --ink (couleur du texte) :
@@ -63,7 +69,9 @@
   --ok:   #22A954;
   --warn: #D97706;
   --err:  #E05B2B;
-  --err-soft: #2B1812;
+  --err-soft:  #2B1812;
+  --ok-soft:   #10251A;
+  --warn-soft: #2A2010;
   /* Mode sombre : jetons posés par cohérence, mais NON VALIDÉS à l'écran —
      la classe .dark n'est appliquée nulle part dans l'application aujourd'hui. */
   --chart-1: #EAB308;
@@ -85,6 +93,8 @@
   --color-warn:       var(--warn);
   --color-err:        var(--err);
   --color-err-soft:   var(--err-soft);
+  --color-ok-soft:    var(--ok-soft);
+  --color-warn-soft:  var(--warn-soft);
 
   --color-slate-deep:      var(--slate-deep);
   --color-slate-deep-line: var(--slate-deep-line);
@@ -455,6 +465,12 @@ html {
      au-dessus du plancher que ce couple s'était fixé (21,8). */
   --chart-1: #3F6212;
   --chart-2: #1D4ED8;
+
+  /* Fonds d'encart refroidis : les versions chaudes de Bitume (#FFF3ED…)
+     tirent vers le beige et jurent sur le blanc pur de Slate. */
+  --err-soft:  #FEF2F2;
+  --ok-soft:   #F2FBF4;
+  --warn-soft: #FFFBEB;
 
   /* Display : Slate a des titres nets et géométriques, pas la graisse
      brutaliste d'Arial Black qu'utilise Bitume. */

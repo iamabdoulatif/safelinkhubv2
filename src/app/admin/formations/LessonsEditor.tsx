@@ -83,7 +83,7 @@ export default function LessonsEditor({
               {confirme === l.id ? (
                 <form action={deleteLesson} className="flex gap-1.5">
                   <input type="hidden" name="id" value={l.id} />
-                  <button className="rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white">
+                  <button className="rounded-md bg-err px-2.5 py-1.5 text-xs font-bold text-white">
                     Retirer
                   </button>
                   <button
@@ -99,7 +99,7 @@ export default function LessonsEditor({
                   type="button"
                   onClick={() => setConfirme(l.id)}
                   title="Retirer de la formation — l'article n'est pas supprimé"
-                  className="rounded-md border border-line p-1.5 text-red-700 hover:bg-red-50"
+                  className="rounded-md border border-line p-1.5 text-err hover:bg-err-soft"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -145,7 +145,7 @@ export default function LessonsEditor({
           {pending ? "Ajout…" : "Rattacher"}
         </button>
         {state && "error" in state && state.error && (
-          <p className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
+          <p className="w-full rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
         )}
       </form>
     </section>

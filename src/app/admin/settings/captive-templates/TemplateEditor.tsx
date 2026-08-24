@@ -120,7 +120,7 @@ export default function TemplateEditor({
         <div className="grid flex-1 grid-cols-1 gap-6 overflow-y-auto p-6 md:grid-cols-2">
           <form action={formAction} className="space-y-4">
             {state?.error && (
-              <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+              <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">
                 {state.error}
               </p>
             )}

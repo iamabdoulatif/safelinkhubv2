@@ -127,7 +127,7 @@ export default function InstallOnRouter({
           {feedback && (
             <p
               className={`mt-3 rounded-md px-3 py-2 text-sm ${
-                feedback.kind === "ok" ? "bg-clay text-ok" : "bg-red-50 text-red-600"
+                feedback.kind === "ok" ? "bg-clay text-ok" : "bg-err-soft text-err"
               }`}
             >
               {feedback.text}

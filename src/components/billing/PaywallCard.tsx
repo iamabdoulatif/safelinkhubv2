@@ -46,7 +46,7 @@ export default function PaywallCard({
         <div className="rounded-lg bg-paper px-3 py-2.5 ring-1 ring-line-soft">
           <p className="text-xs text-ink-soft">Solde portefeuille</p>
           <p
-            className={`mt-0.5 font-semibold ${sufficientBalance ? "text-ok" : "text-red-600"}`}
+            className={`mt-0.5 font-semibold ${sufficientBalance ? "text-ok" : "text-err"}`}
           >
             {fcfa(walletBalanceCents)}
           </p>

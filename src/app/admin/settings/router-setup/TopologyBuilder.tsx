@@ -315,12 +315,12 @@ function InterfaceTile({
             : used
               ? "border-ok bg-clay text-ok"
               : selected
-                ? "cursor-pointer border-orange-400 bg-orange-50 text-orange-700 ring-2 ring-orange-400/30"
+                ? "cursor-pointer border-warn bg-warn-soft text-warn ring-2 ring-warn/30"
                 : "cursor-grab border-line-soft bg-paper text-ink-soft hover:border-ok hover:text-ink"
       }`}
     >
       {selected && (
-        <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded bg-orange-500 px-1.5 py-0.5 text-[9px] font-semibold text-white whitespace-nowrap">
+        <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded bg-warn px-1.5 py-0.5 text-[9px] font-semibold text-white whitespace-nowrap">
           Entrée pour connecter
         </span>
       )}
@@ -810,13 +810,13 @@ export default function TopologyBuilder({
 
   if (loadError) {
     return (
-      <div className="flex items-center justify-between gap-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+      <div className="flex items-center justify-between gap-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
         <span>{loadError}</span>
         <button
           type="button"
           onClick={() => setRetryCount((c) => c + 1)}
           disabled={retrying}
-          className="shrink-0 rounded-md border border-red-200 bg-paper px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-100 disabled:opacity-60"
+          className="shrink-0 rounded-md border border-err bg-paper px-3 py-1.5 text-sm font-medium text-err hover:bg-err-soft disabled:opacity-60"
         >
           {retrying ? "Connexion..." : "Réessayer"}
         </button>
@@ -894,7 +894,7 @@ export default function TopologyBuilder({
             )}
 
             {state?.error && (
-              <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+              <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
                 {state.error}
               </p>
             )}

@@ -229,7 +229,7 @@ export default async function BillingPage({
         <p className="mt-4 text-sm font-medium text-ink-soft">Solde actuel</p>
         <p
           className={`mt-1 text-3xl font-bold ${
-            walletBalanceCents < 0 ? "text-red-600" : "text-ink"
+            walletBalanceCents < 0 ? "text-err" : "text-ink"
           }`}
         >
           {formatFcfa(walletBalanceCents)}

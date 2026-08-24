@@ -709,11 +709,11 @@ export default function AutoSetupStep({
           )}
           {underManualGate &&
             (gate?.authorized ? (
-              <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+              <span className="rounded-full bg-ok-soft px-2.5 py-1 text-xs font-medium text-ok">
                 Accès autorisé
               </span>
             ) : (
-              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+              <span className="rounded-full bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn">
                 {gate?.latestStatus === "pending" ? "Demande en attente" : "Payant"}
               </span>
             ))}
@@ -1235,7 +1235,7 @@ export default function AutoSetupStep({
                         type="button"
                         onClick={() => setPortalVendors((prev) => prev.filter((_, idx) => idx !== i))}
                         aria-label="Retirer ce vendeur"
-                        className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                        className="rounded-md border border-err p-1.5 text-err hover:bg-err-soft"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

@@ -375,7 +375,7 @@ export default function AdminSidebar({
                         {badge > 0 && (
                           <span
                             title={pendingLabel}
-                            className="ml-auto rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-slate-deep"
+                            className="ml-auto rounded-full bg-warn px-1.5 py-0.5 text-[10px] font-bold text-white"
                           >
                             {badge}
                             <span className="sr-only"> — {pendingLabel}</span>
