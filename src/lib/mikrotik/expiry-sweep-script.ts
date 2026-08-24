@@ -112,3 +112,94 @@ export function inspectSweepSchedulers(schedulers: SweepScheduler[]): SweepInspe
 
   return { total, stale };
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   L'AUTRE MOITIÉ : le script `on-login` du profil.
+
+   Le balayage remis à neuf retire ce qui est périmé, mais c'est le
+   `on-login` qui ÉCRIT la date à la première connexion. Sa version d'origine
+   lit `next-run` du planificateur temporaire et se contente de :
+
+       :local getxp [len $exp];
+       :if ($getxp > 15) do={ … set comment="$exp" … }
+
+   Sur RouterOS 7.24, `next-run` rend « 2026-08-25 02:15:40 » — 19 caractères,
+   donc « > 15 », donc écrit TEL QUEL. Chaque nouvelle connexion refabrique
+   ainsi un commentaire que le balayage ne sait pas lire. Réparer le balayage
+   sans réparer ceci, c'est vider une baignoire robinet ouvert.
+
+   On n'échange PAS tout le script : il porte la durée, le prix et le nom du
+   profil, qui diffèrent d'un routeur à l'autre — et pour un profil
+   personnalisé (« 5-jour », « Ordinateur- ») on ne saurait pas les
+   reconstituer. On INSÈRE les deux conversions manquantes, prélevées sur le
+   script du catalogue pour rester à une seule source de vérité.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** Découpe un bloc du script de référence entre deux repères. */
+function extraitDuCatalogue(depuis: string, jusqua: string): string {
+  const modele = VOUCHER_PROFILES.find((p) => p.name === "01-JOUR")?.onLogin ?? "";
+  const i = modele.indexOf(depuis);
+  const j = modele.indexOf(jusqua, i + depuis.length);
+  if (i < 0 || j < 0) {
+    throw new Error("Bloc de conversion introuvable dans le script du catalogue.");
+  }
+  return modele.slice(i + depuis.length, j);
+}
+
+const ANCRE_DATE = ":local date [ /system clock get date ];";
+const ANCRE_EXP = "next-run];";
+
+/** Conversion « 2026-08-24 » → « aug/24/2026 » appliquée à $date. */
+const BLOC_DATE = extraitDuCatalogue(ANCRE_DATE, ":local year");
+/** Même conversion appliquée à $exp, la valeur rendue par le planificateur. */
+const BLOC_EXP = extraitDuCatalogue(ANCRE_EXP, ":local getxp");
+
+/** Le `on-login` sait-il déjà lire l'horloge ISO ? */
+export function onLoginHandlesIsoClock(onLogin: string): boolean {
+  return /:if\s*\(\[:pick \$date 4 5\]\s*=\s*"-"\)/.test(onLogin);
+}
+
+/**
+ * Insère les deux conversions manquantes. Rend `null` si le script les a déjà,
+ * ou si ses repères sont absents — on ne réécrit jamais un script qu'on n'a pas
+ * reconnu.
+ */
+export function patchOnLoginForIsoClock(onLogin: string): string | null {
+  if (!onLogin || onLoginHandlesIsoClock(onLogin)) return null;
+  const iDate = onLogin.indexOf(ANCRE_DATE);
+  const iExp = onLogin.indexOf(ANCRE_EXP);
+  if (iDate < 0 || iExp < 0) return null;
+
+  const posDate = iDate + ANCRE_DATE.length;
+  const posExp = iExp + ANCRE_EXP.length;
+  // L'insertion la plus TARDIVE d'abord : sinon la première décale la seconde.
+  const [premier, second] = posDate < posExp ? [posExp, posDate] : [posDate, posExp];
+  const blocPremier = premier === posExp ? BLOC_EXP : BLOC_DATE;
+  const blocSecond = second === posExp ? BLOC_EXP : BLOC_DATE;
+
+  let out = onLogin.slice(0, premier) + blocPremier + onLogin.slice(premier);
+  out = out.slice(0, second) + blocSecond + out.slice(second);
+  return out;
+}
+
+export type ProfileOnLogin = { name?: string; "on-login"?: string; ".id"?: string };
+
+export type OnLoginInspection = {
+  total: number;
+  stale: { id: string; name: string; script: string }[];
+};
+
+/** Fonction PURE : quels profils réécrivent des dates illisibles ? */
+export function inspectProfileOnLogin(profiles: ProfileOnLogin[]): OnLoginInspection {
+  let total = 0;
+  const stale: OnLoginInspection["stale"] = [];
+  for (const p of profiles) {
+    const onLogin = p["on-login"] ?? "";
+    if (!onLogin) continue;
+    total++;
+    const patched = patchOnLoginForIsoClock(onLogin);
+    if (!patched || !p[".id"]) continue;
+    stale.push({ id: p[".id"], name: p.name ?? "?", script: patched });
+  }
+  return { total, stale };
+}

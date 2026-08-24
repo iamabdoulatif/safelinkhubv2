@@ -249,7 +249,7 @@ export async function rewriteIsoExpiryComments(
 }
 
 // ── Balayage aveugle à l'horloge ISO ─────────────────────────────────────
-import { inspectSweepSchedulers } from "./expiry-sweep-script";
+import { inspectProfileOnLogin, inspectSweepSchedulers } from "./expiry-sweep-script";
 
 export type SweepRepairResult = {
   /** Balayages trouvés sur le routeur. */
@@ -261,6 +261,8 @@ export type SweepRepairResult = {
   failed: number;
   /** Profils réparés, pour le compte rendu. */
   profiles: string[];
+  /** Scripts `on-login` complétés — la SOURCE des dates illisibles. */
+  onLoginRepaired: number;
 };
 
 /**
@@ -321,5 +323,24 @@ export async function repairExpirySweeps(
       failed++;
     }
   }
-  return { total, stale: stale.length, repaired, failed, profiles };
+  /* Le `on-login` du profil est l'autre moitié : il ÉCRIT la date à la
+     première connexion. Réparer le balayage sans lui, c'est vider une
+     baignoire robinet ouvert. */
+  const profils = await client
+    .talk(["/ip/hotspot/user/profile/print", "=.proplist=.id,name,on-login"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  let onLoginRepaired = 0;
+  for (const prof of inspectProfileOnLogin(profils as Record<string, string>[]).stale) {
+    try {
+      await client.talk(
+        ["/ip/hotspot/user/profile/set", `=.id=${prof.id}`, `=on-login=${prof.script}`],
+        timeoutMs,
+      );
+      onLoginRepaired++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return { total, stale: stale.length, repaired, failed, profiles, onLoginRepaired };
 }

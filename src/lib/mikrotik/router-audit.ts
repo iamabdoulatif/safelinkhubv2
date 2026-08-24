@@ -1,6 +1,6 @@
 import type { RouterOSClient } from "./client";
 import { inspectExpiryFormats } from "./ticket-expiry-format";
-import { inspectSweepSchedulers } from "./expiry-sweep-script";
+import { inspectProfileOnLogin, inspectSweepSchedulers } from "./expiry-sweep-script";
 import { readWifiState } from "./wifi-compat";
 import { readRouterboardFirmware, missingApiGroupPolicies, API_GROUP_NAME } from "./router-audit-fixes";
 
@@ -131,6 +131,21 @@ export async function auditRouter(
     );
   else if (sweeps.total > 0)
     add("ok", "Tickets", "expiry-sweep", "Balayage d'expiration à jour", `Les ${sweeps.total} balayage(s) savent lire l'horloge de RouterOS 7.24.`);
+
+  // L'autre moitié : le script qui ÉCRIT la date à la première connexion.
+  const profilsHotspot = await client
+    .talk(["/ip/hotspot/user/profile/print", "=.proplist=.id,name,on-login"], t)
+    .catch(() => []);
+  const onLogin = inspectProfileOnLogin(profilsHotspot as Record<string, string>[]);
+  if (onLogin.stale.length > 0)
+    add(
+      "error",
+      "Tickets",
+      "expiry-onlogin-stale",
+      `${onLogin.stale.length} profil(s) qui datent mal les nouveaux tickets`,
+      `Leur script de connexion recopie telle quelle la date rendue par RouterOS 7.24 (« 2026-08-25 02:15:40 »), que le balayage ne sait pas lire : chaque nouvelle connexion refabrique un ticket qui n'expirera jamais. Profils touchés : ${onLogin.stale.map((s) => s.name).join(", ")}. Le même correctif y insère la conversion manquante.`,
+      "expiry-sweep",
+    );
 
   // ── Réseau : route par défaut + NAT ─────────────────────────────────────
   const routes = await client

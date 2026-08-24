@@ -593,14 +593,18 @@ export async function fixRouterExpirySweep(routerId: string) {
   }
   try {
     const res = await repairExpirySweeps(client);
-    if (res.stale === 0) {
+    if (res.stale === 0 && res.onLoginRepaired === 0) {
       return { success: true, summary: `Les ${res.total} balayage(s) savent déjà lire l'horloge — rien à corriger.` };
     }
     revalidatePath(`/admin/router/${routerId}`);
     return {
       success: true,
       summary:
-        `${res.repaired} balayage(s) remis en service (${res.profiles.join(", ")})` +
+        `${res.repaired} balayage(s) remis en service` +
+        (res.profiles.length > 0 ? ` (${res.profiles.join(", ")})` : "") +
+        (res.onLoginRepaired > 0
+          ? `, ${res.onLoginRepaired} script(s) de connexion complété(s) — les prochains tickets seront datés lisiblement`
+          : "") +
         (res.failed > 0 ? `, ${res.failed} en échec` : "") +
         `. Les tickets périmés partiront au prochain passage (~2 min 30).`,
     };

@@ -4,7 +4,10 @@ import { readFile } from "node:fs/promises";
 import {
   buildSweepScript,
   handlesIsoClock,
+  inspectProfileOnLogin,
   inspectSweepSchedulers,
+  onLoginHandlesIsoClock,
+  patchOnLoginForIsoClock,
   sweptProfile,
 } from "./expiry-sweep-script";
 import { VOUCHER_PROFILES } from "./voucher-profiles";
@@ -137,5 +140,69 @@ describe("l'intervalle d'origine est conservé", () => {
       { ".id": "*9", name: "10-jour", interval: "2m12s", "on-event": BALAYAGE_PERIME.replace('profile="JOUR"', 'profile="10-jour"') },
     ]);
     assert.equal(r.stale[0].interval, "2m12s");
+  });
+});
+
+/* Le `on-login` réellement relevé sur le profil JOUR de HTSPT-TREW. C'est lui
+   qui écrivait « 2026-08-25 02:15:40 » : `next-run` fait 19 caractères sur
+   RouterOS 7.24, donc « > 15 », donc recopié tel quel. */
+const ONLOGIN_PERIME =
+  ':put (",remc,200,1d,0,,Disable,"); {:local comment [ /ip hotspot user get [/ip hotspot user find where name="$user"] comment];' +
+  ' :local ucode [:pic $comment 0 2]; :if ($ucode = "vc" or $comment = "") do={' +
+  ' :local date [ /system clock get date ];:local year [ :pick $date 7 11 ];' +
+  ' /sys sch add name="$user" disable=no start-date=$date interval="1d"; :delay 5s;' +
+  ' :local exp [ /sys sch get [ /sys sch find where name="$user" ] next-run];' +
+  ' :local getxp [len $exp]; :if ($getxp > 15) do={ /ip hotspot user set comment="$exp" [find where name="$user"];};}}';
+
+describe("le script de connexion, source des dates illisibles", () => {
+  it("reconnaît un on-login aveugle", () => {
+    assert.equal(onLoginHandlesIsoClock(ONLOGIN_PERIME), false);
+  });
+
+  it("insère les DEUX conversions, sans toucher au reste", () => {
+    /* Le script porte la durée, le prix et le nom du profil : on ne l'échange
+       pas, on le complète. Pour « 5-jour » ou « Ordinateur- », on ne saurait
+       de toute façon pas reconstituer ces valeurs. */
+    const patche = patchOnLoginForIsoClock(ONLOGIN_PERIME)!;
+    assert.ok(patche, "un correctif doit être proposé");
+    assert.equal(onLoginHandlesIsoClock(patche), true);
+    assert.match(patche, /:pick \$exp 10 11/, "la conversion de \$exp aussi");
+    // Ce qui identifie le profil est intact.
+    assert.match(patche, /interval="1d"/);
+    assert.match(patche, /",remc,200,1d,0,,Disable,"/);
+    // Et l'ordre du script n'est pas cassé.
+    assert.ok(patche.indexOf(":local date") < patche.indexOf(":local year"));
+    assert.ok(patche.indexOf("next-run]") < patche.indexOf(":local getxp"));
+  });
+
+  it("est idempotent — un script déjà complété n'est plus touché", () => {
+    const patche = patchOnLoginForIsoClock(ONLOGIN_PERIME)!;
+    assert.equal(patchOnLoginForIsoClock(patche), null);
+  });
+
+  it("refuse un script dont il ne reconnaît pas les repères", () => {
+    assert.equal(patchOnLoginForIsoClock(":log info bonjour"), null);
+    assert.equal(patchOnLoginForIsoClock(""), null);
+  });
+
+  it("l'inspection ne retient que les profils à compléter", () => {
+    const r = inspectProfileOnLogin([
+      { ".id": "*1", name: "JOUR", "on-login": ONLOGIN_PERIME },
+      { ".id": "*2", name: "MOIS", "on-login": patchOnLoginForIsoClock(ONLOGIN_PERIME)! },
+      { ".id": "*3", name: "default" },
+    ]);
+    assert.equal(r.total, 2, "le profil sans on-login n'en est pas un");
+    assert.deepEqual(r.stale.map((s) => s.name), ["JOUR"]);
+  });
+});
+
+describe("les deux moitiés partent ensemble", () => {
+  it("le correctif répare le balayage ET le script de connexion", async () => {
+    /* Réparer le balayage seul, c'est vider une baignoire robinet ouvert :
+       chaque nouvelle connexion refabriquerait un ticket illisible. */
+    const src = await readFile(new URL("./router-audit-fixes.ts", import.meta.url), "utf8");
+    const bloc = src.slice(src.indexOf("export async function repairExpirySweeps"));
+    assert.match(bloc, /inspectProfileOnLogin\(/);
+    assert.match(bloc, /\/ip\/hotspot\/user\/profile\/set/);
   });
 });
