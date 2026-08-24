@@ -202,3 +202,48 @@ export async function unbindMacBoundTickets(
 
   return { found: target.length, unbound, skippedRoaming: roaming.length, sample };
 }
+
+// ── Format des dates d'expiration ────────────────────────────────────────
+import { inspectExpiryFormats } from "./ticket-expiry-format";
+
+export type ExpiryFormatFixResult = {
+  /** Tickets trouvés au format ISO. */
+  found: number;
+  /** Tickets effectivement réécrits. */
+  rewritten: number;
+  /** Échecs d'écriture (routeur qui refuse, ligne disparue entre-temps). */
+  failed: number;
+};
+
+/**
+ * Réécrit au format MikHmon les expirations rendues en ISO par RouterOS 7.24.
+ *
+ * Voir ticket-expiry-format.ts pour le pourquoi. Ne SUPPRIME rien : on rend
+ * seulement les tickets lisibles par le balayage déjà installé, qui décidera
+ * lui-même quoi retirer au passage suivant. Un correctif qui supprimerait des
+ * comptes directement contournerait les règles du routeur.
+ */
+export async function rewriteIsoExpiryComments(
+  client: RouterOSClient,
+  timeoutMs = 30000,
+): Promise<ExpiryFormatFixResult> {
+  const users = await client
+    .talk(["/ip/hotspot/user/print", "=.proplist=.id,name,comment"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  const { isoCount, aReecrire } = inspectExpiryFormats(users);
+
+  let rewritten = 0;
+  let failed = 0;
+  for (const ligne of aReecrire) {
+    try {
+      await client.talk(
+        ["/ip/hotspot/user/set", `=.id=${ligne.id}`, `=comment=${ligne.to}`],
+        timeoutMs,
+      );
+      rewritten++;
+    } catch {
+      failed++;
+    }
+  }
+  return { found: isoCount, rewritten, failed };
+}

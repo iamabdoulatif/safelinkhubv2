@@ -23,6 +23,7 @@ import {
   reconfigureMikhmonSession,
   upgradeRouterFirmware,
   fixRouterApiGroupPolicy,
+  fixRouterTicketExpiryFormat,
 } from "@/lib/mikrotik/actions";
 import type { AuditFinding, AuditSeverity, RouterAudit } from "@/lib/mikrotik/router-audit";
 import NetworkGuide from "./NetworkGuide";
@@ -48,6 +49,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   "mikhmon-start": "Démarrer MikHmon",
   "rb-firmware": "Mettre à niveau le firmware",
   "api-policy": "Corriger les droits MikHmon",
+  "ticket-expiry": "Réparer les dates d\u2019expiration",
 };
 
 function scoreTone(score: number) {
@@ -101,7 +103,9 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                   ? await upgradeRouterFirmware(routerId)
                   : finding.fix === "api-policy"
                     ? await fixRouterApiGroupPolicy(routerId)
-                    : await setRouterBandwidthCap(routerId, 450);
+                    : finding.fix === "ticket-expiry"
+                      ? await fixRouterTicketExpiryFormat(routerId)
+                      : await setRouterBandwidthCap(routerId, 450);
       setFixingId(null);
       if (res?.error) {
         setFixMsg({ id: finding.id, ok: false, text: res.error });

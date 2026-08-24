@@ -1,4 +1,5 @@
 import type { RouterOSClient } from "./client";
+import { inspectExpiryFormats } from "./ticket-expiry-format";
 import { readWifiState } from "./wifi-compat";
 import { readRouterboardFirmware, missingApiGroupPolicies, API_GROUP_NAME } from "./router-audit-fixes";
 
@@ -26,13 +27,14 @@ export type AuditFixKind =
   | "mikhmon-start"
   | "rb-firmware"
   | "api-policy"
+  | "ticket-expiry"
   | null;
 
 export type AuditFinding = {
   id: string;
   severity: AuditSeverity;
   /** Domaine, pour le regroupement visuel. */
-  area: "Débit" | "WiFi" | "Ports" | "MikHmon" | "Réseau" | "Ressources" | "Système";
+  area: "Débit" | "WiFi" | "Ports" | "MikHmon" | "Réseau" | "Ressources" | "Système" | "Tickets";
   title: string;
   detail: string;
   /** Correctif applicable en un clic (null = à traiter manuellement / sur site). */
@@ -85,6 +87,29 @@ export async function auditRouter(
     add("warn", "Ressources", "mem-low", "Mémoire presque saturée", `Seulement ${freeMemMb} Mo de RAM libre sur ${totalMemMb} Mo.`);
   if (freeHddMb > 0 && freeHddMb < 5)
     add("warn", "Ressources", "flash-low", "Flash presque pleine", `Seulement ${freeHddMb} Mo libres — un conteneur ou une sauvegarde peut échouer.`);
+
+  // ── Tickets : format de la date d'expiration ────────────────────────────
+  // Voir ticket-expiry-format.ts. RouterOS 7.24 rend les dates en ISO ; quand
+  // cette forme atterrit telle quelle dans le commentaire d'un ticket, le
+  // balayage de son profil ne la reconnaît plus et le ticket ne s'éteint
+  // jamais. Lecture seule ici — le correctif est explicite.
+  const hotspotUsers = await client
+    .talk(["/ip/hotspot/user/print", "=.proplist=.id,name,comment"], t)
+    .catch(() => []);
+  if (hotspotUsers.length > 0) {
+    const formats = inspectExpiryFormats(hotspotUsers as Record<string, string | undefined>[]);
+    if (formats.isoCount > 0)
+      add(
+        "error",
+        "Tickets",
+        "ticket-expiry-iso",
+        `${formats.isoCount} ticket(s) qui n'expireront jamais`,
+        `Leur date d'expiration est écrite au format ISO (« 2026-08-24 20:15:40 ») au lieu du format MikHmon (« aug/24/2026 20:15:40 ») — RouterOS 7.24 a changé la façon de rendre les dates. Le balayage de chaque profil ne reconnaît que le second : ces tickets restent valables indéfiniment. Le correctif réécrit la date, sans rien supprimer.`,
+        "ticket-expiry",
+      );
+    else
+      add("ok", "Tickets", "ticket-expiry-format", "Dates d'expiration lisibles", `Les ${formats.mikhmonCount} ticket(s) datés sont au format attendu par le balayage.`);
+  }
 
   // ── Réseau : route par défaut + NAT ─────────────────────────────────────
   const routes = await client

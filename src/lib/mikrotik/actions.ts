@@ -24,6 +24,7 @@ import {
 import { auditRouter } from "./router-audit";
 import {
   ensureApiGroupPolicy,
+  rewriteIsoExpiryComments,
   unbindMacBoundTickets,
   upgradeRouterboardFirmware,
 } from "./router-audit-fixes";
@@ -465,6 +466,53 @@ export async function fixAllRoutersMacBoundTickets(): Promise<
     repaired,
     unreachable,
   };
+}
+
+/**
+ * Réécrit au format MikHmon les dates d'expiration rendues en ISO.
+ *
+ * Ne supprime AUCUN ticket : rend seulement les dates lisibles par le balayage
+ * déjà installé sur le routeur, qui retirera les périmés à son passage suivant
+ * (toutes les ~2 min 30). Laisser le routeur décider évite qu'un correctif du
+ * SaaS et les règles du profil se contredisent.
+ */
+export async function fixRouterTicketExpiryFormat(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour corriger les dates.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await rewriteIsoExpiryComments(client);
+    if (res.found === 0) {
+      return { success: true, summary: "Aucune date au mauvais format — rien à corriger." };
+    }
+    revalidatePath(`/admin/router/${routerId}`);
+    return {
+      success: true,
+      summary:
+        `${res.rewritten} date(s) d'expiration réécrites au format MikHmon` +
+        (res.failed > 0 ? `, ${res.failed} en échec` : "") +
+        `. Le balayage du routeur retirera les tickets périmés à son prochain passage (~2 min 30).`,
+    };
+  } finally {
+    client.close();
+  }
 }
 
 /**
