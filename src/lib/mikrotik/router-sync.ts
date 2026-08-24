@@ -366,7 +366,30 @@ export async function syncRouterStats(
  * router whose tunnel recovers (or one that never had its first successful
  * sync) stays stuck showing offline forever, since nothing else re-checks it.
  */
-export async function refreshStaleRouters(orgId: string, staleAfterMs = 5 * 60 * 1000) {
+/** Sondes menées en parallèle. MÊME plafond que le cron de santé, et pour la
+ *  même raison : les sondes passent toutes par un relais à 1 vCPU, où une
+ *  douzaine de poignées de main SSH simultanées se privent mutuellement de CPU
+ *  et produisent des « Read timed out » qui marquent hors ligne des routeurs
+ *  parfaitement sains. Sans plafond, élargir le rafraîchissement à TOUT le parc
+ *  aurait créé exactement la panne qu'il corrige. */
+const REFRESH_CONCURRENCY = 4;
+
+/**
+ * `orgId` à `null` = TOUT le parc, toutes organisations confondues.
+ *
+ * POURQUOI : la page /admin/router d'un superadmin affiche les routeurs de
+ * toutes les organisations, mais ne rafraîchissait que la SIENNE. Les autres
+ * restaient figés sur le dernier passage du cron quotidien — mesuré le
+ * 2026-08-24 : HSPT-GALAXY et HSPT-SAKONG répondaient au ping, leur API 8728
+ * était ouverte et leur poignée de main WireGuard datait d'une minute, mais
+ * l'écran les donnait hors ligne depuis treize heures. L'inverse est aussi
+ * vrai : un routeur tombé après le passage du cron restait affiché en ligne
+ * jusqu'au lendemain.
+ */
+export async function refreshStaleRouters(
+  orgId: string | null,
+  staleAfterMs = 5 * 60 * 1000,
+) {
   const db = getDb();
   const cutoff = new Date(Date.now() - staleAfterMs);
 
@@ -375,13 +398,19 @@ export async function refreshStaleRouters(orgId: string, staleAfterMs = 5 * 60 *
     .from(routers)
     .where(
       and(
-        eq(routers.orgId, orgId),
+        orgId === null ? undefined : eq(routers.orgId, orgId),
         inArray(routers.status, ["online", "installing", "offline"]),
         or(isNull(routers.lastSyncAt), lt(routers.lastSyncAt, cutoff)),
       ),
     );
 
+  let curseur = 0;
   await Promise.all(
-    candidates.map((r) => syncRouterStats(r.id, { timeoutMs: 10000, markOfflineOnFailure: true })),
+    Array.from({ length: Math.min(REFRESH_CONCURRENCY, candidates.length) }, async () => {
+      while (curseur < candidates.length) {
+        const r = candidates[curseur++];
+        await syncRouterStats(r.id, { timeoutMs: 10000, markOfflineOnFailure: true });
+      }
+    }),
   );
 }

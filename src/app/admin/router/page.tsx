@@ -66,11 +66,15 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
   const t = dict.network.routers;
   const db = getDb();
 
-  if (session) {
-    after(() => refreshStaleRouters(session.orgId));
-  }
-
   const superadmin = Boolean(session && isSuperAdmin(session.role));
+
+  /* Un superadmin voit le parc de TOUTES les organisations : ne rafraîchir que
+     la sienne laissait les autres figées sur le dernier passage du cron
+     quotidien, dans les deux sens — un routeur revenu restait « hors ligne »,
+     un routeur tombé restait « en ligne », jusqu'à 24 h. */
+  if (session) {
+    after(() => refreshStaleRouters(superadmin ? null : session.orgId));
+  }
 
   if (!session || !superadmin) {
     const ownRouterRows = session
