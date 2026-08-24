@@ -25,6 +25,7 @@ import { auditRouter } from "./router-audit";
 import {
   ensureApiGroupPolicy,
   rewriteIsoExpiryComments,
+  repairExpirySweeps,
   unbindMacBoundTickets,
   upgradeRouterboardFirmware,
 } from "./router-audit-fixes";
@@ -491,6 +492,8 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
       routersScanned: number;
       found: number;
       rewritten: number;
+      /** Balayages remis en service — le correctif de fond. */
+      sweepsRepaired: number;
       repaired: string[];
       unreachable: string[];
       /** Routeurs non traités faute de temps — relancer pour les reprendre. */
@@ -509,6 +512,7 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
 
   let found = 0;
   let rewritten = 0;
+  let sweepsRepaired = 0;
   const repaired: string[] = [];
   const unreachable: string[] = [];
   const echeance = Date.now() + BUDGET_FLOTTE_MS;
@@ -525,10 +529,20 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
       continue;
     }
     try {
+      /* Le balayage D'ABORD : réécrire des dates que personne ne lit ne
+         supprimerait toujours rien. */
+      const sweep = await repairExpirySweeps(client);
+      sweepsRepaired += sweep.repaired;
       const res = await rewriteIsoExpiryComments(client);
       found += res.found;
       rewritten += res.rewritten;
-      if (res.rewritten > 0) repaired.push(`${router.name} (${res.rewritten})`);
+      if (res.rewritten > 0 || sweep.repaired > 0) {
+        const detail = [
+          res.rewritten > 0 ? `${res.rewritten} date(s)` : null,
+          sweep.repaired > 0 ? `${sweep.repaired} balayage(s)` : null,
+        ].filter(Boolean).join(", ");
+        repaired.push(`${router.name} (${detail})`);
+      }
     } catch {
       unreachable.push(router.name);
     } finally {
@@ -542,10 +556,57 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
     routersScanned: traites - unreachable.length,
     found,
     rewritten,
+    sweepsRepaired,
     repaired,
     unreachable,
     remaining: fleet.length - traites,
   };
+}
+
+/**
+ * Remet en service le balayage d'expiration d'un routeur.
+ *
+ * C'est le correctif de FOND : tant que le balayage calcule un « aujourd'hui »
+ * illisible, aucun ticket ne s'éteint, quel que soit le format des
+ * commentaires. À appliquer avant — ou avec — la réécriture des dates.
+ */
+export async function fixRouterExpirySweep(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour réparer le balayage.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const res = await repairExpirySweeps(client);
+    if (res.stale === 0) {
+      return { success: true, summary: `Les ${res.total} balayage(s) savent déjà lire l'horloge — rien à corriger.` };
+    }
+    revalidatePath(`/admin/router/${routerId}`);
+    return {
+      success: true,
+      summary:
+        `${res.repaired} balayage(s) remis en service (${res.profiles.join(", ")})` +
+        (res.failed > 0 ? `, ${res.failed} en échec` : "") +
+        `. Les tickets périmés partiront au prochain passage (~2 min 30).`,
+    };
+  } finally {
+    client.close();
+  }
 }
 
 /**

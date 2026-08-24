@@ -46,13 +46,17 @@ export default function TicketExpiryFleetButton({ t }: { t: RouterDictionary["ac
               setMessage({ kind: "err", text: result.error });
               return;
             }
-            const parts: string[] = [
+            const parts: string[] = [];
+            if (result.sweepsRepaired > 0) {
+              parts.push(t.ticketExpirySweeps.replace("{count}", String(result.sweepsRepaired)));
+            }
+            parts.push(
               result.rewritten > 0
                 ? t.ticketExpiryDone
                     .replace("{count}", String(result.rewritten))
                     .replace("{routers}", result.repaired.join(", "))
                 : t.ticketExpiryNone.replace("{count}", String(result.routersScanned)),
-            ];
+            );
             if (result.unreachable.length > 0) {
               parts.push(t.retryLater.replace("{routers}", result.unreachable.join(", ")));
             }

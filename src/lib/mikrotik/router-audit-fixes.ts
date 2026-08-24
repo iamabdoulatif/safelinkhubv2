@@ -247,3 +247,54 @@ export async function rewriteIsoExpiryComments(
   }
   return { found: isoCount, rewritten, failed };
 }
+
+// ── Balayage aveugle à l'horloge ISO ─────────────────────────────────────
+import { inspectSweepSchedulers } from "./expiry-sweep-script";
+
+export type SweepRepairResult = {
+  /** Balayages trouvés sur le routeur. */
+  total: number;
+  /** Balayages périmés (aveugles à l'horloge ISO). */
+  stale: number;
+  /** Réécrits avec succès. */
+  repaired: number;
+  failed: number;
+  /** Profils réparés, pour le compte rendu. */
+  profiles: string[];
+};
+
+/**
+ * Réécrit les scripts de balayage qui ne savent pas lire l'horloge ISO de
+ * RouterOS 7.24 (voir expiry-sweep-script.ts).
+ *
+ * On remplace le `on-event` du planificateur EXISTANT : ni suppression ni
+ * recréation. Garder la ligne préserve son intervalle, son propriétaire et sa
+ * politique — un planificateur recréé par le compte API hériterait d'une
+ * politique plus étroite et pourrait ne plus avoir le droit de supprimer.
+ */
+export async function repairExpirySweeps(
+  client: RouterOSClient,
+  timeoutMs = 30000,
+): Promise<SweepRepairResult> {
+  const schedulers = await client
+    .talk(["/system/scheduler/print"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  const { total, stale } = inspectSweepSchedulers(schedulers as Record<string, string>[]);
+
+  let repaired = 0;
+  let failed = 0;
+  const profiles: string[] = [];
+  for (const s of stale) {
+    try {
+      await client.talk(
+        ["/system/scheduler/set", `=.id=${s.id}`, `=on-event=${s.script}`],
+        timeoutMs,
+      );
+      repaired++;
+      profiles.push(s.profile);
+    } catch {
+      failed++;
+    }
+  }
+  return { total, stale: stale.length, repaired, failed, profiles };
+}

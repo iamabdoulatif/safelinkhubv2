@@ -1,5 +1,6 @@
 import type { RouterOSClient } from "./client";
 import { inspectExpiryFormats } from "./ticket-expiry-format";
+import { inspectSweepSchedulers } from "./expiry-sweep-script";
 import { readWifiState } from "./wifi-compat";
 import { readRouterboardFirmware, missingApiGroupPolicies, API_GROUP_NAME } from "./router-audit-fixes";
 
@@ -28,6 +29,7 @@ export type AuditFixKind =
   | "rb-firmware"
   | "api-policy"
   | "ticket-expiry"
+  | "expiry-sweep"
   | null;
 
 export type AuditFinding = {
@@ -110,6 +112,25 @@ export async function auditRouter(
     else
       add("ok", "Tickets", "ticket-expiry-format", "Dates d'expiration lisibles", `Les ${formats.mikhmonCount} ticket(s) datés sont au format attendu par le balayage.`);
   }
+
+  // ── Tickets : le balayage sait-il lire l'horloge ? ──────────────────────
+  // Voir expiry-sweep-script.ts. Un balayage qui ne convertit pas la date ISO
+  // de RouterOS 7.24 calcule un « aujourd'hui » absurde et ne supprime PLUS
+  // RIEN — quel que soit le format des commentaires. C'est le défaut le plus
+  // grave des deux : il neutralise l'expiration entière.
+  const schedulers = await client.talk(["/system/scheduler/print"], t).catch(() => []);
+  const sweeps = inspectSweepSchedulers(schedulers as Record<string, string>[]);
+  if (sweeps.stale.length > 0)
+    add(
+      "error",
+      "Tickets",
+      "expiry-sweep-stale",
+      `${sweeps.stale.length} balayage(s) d'expiration hors service`,
+      `Le script qui supprime les tickets périmés découpe la date à position fixe (« aug/24/2026 ») et RouterOS 7.24 rend « 2026-08-24 » : la date du jour devient illisible, aucune comparaison n'aboutit et PLUS AUCUN ticket n'expire. Profils touchés : ${sweeps.stale.map((s) => s.profile).join(", ")}. Le correctif réécrit le script en gardant le planificateur, son intervalle et ses droits.`,
+      "expiry-sweep",
+    );
+  else if (sweeps.total > 0)
+    add("ok", "Tickets", "expiry-sweep", "Balayage d'expiration à jour", `Les ${sweeps.total} balayage(s) savent lire l'horloge de RouterOS 7.24.`);
 
   // ── Réseau : route par défaut + NAT ─────────────────────────────────────
   const routes = await client
