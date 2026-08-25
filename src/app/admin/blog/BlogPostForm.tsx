@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { saveBlogPost } from "@/lib/blog/actions";
 import { CHANNEL_LABEL, type ShareChannel } from "@/lib/social/channels";
+import RichTextEditor from "@/components/content/RichTextEditor";
+import SeoPanel from "@/components/content/SeoPanel";
 
 type BlogPostFormProps = {
   post?: {
@@ -15,6 +17,7 @@ type BlogPostFormProps = {
     content: string;
     coverImageUrl: string | null;
     published: boolean;
+    focusKeyword?: string | null;
   };
   categories?: string[];
   /** Canaux réellement configurés en réglages. Vide = bloc masqué. */
@@ -31,8 +34,18 @@ export default function BlogPostForm({
 }: BlogPostFormProps) {
   const [state, formAction, pending] = useActionState(saveBlogPost, undefined);
 
+  /* Le panneau de référencement lit les champs À LA FRAPPE : ils sont donc
+     contrôlés ici, et non laissés en `defaultValue`. */
+  const [title, setTitle] = useState(post?.title ?? "");
+  const [slug, setSlug] = useState(post?.slug ?? "");
+  const [excerpt, setExcerpt] = useState(post?.excerpt ?? "");
+  const [content, setContent] = useState(post?.content ?? "");
+  const [coverImageUrl, setCoverImageUrl] = useState(post?.coverImageUrl ?? "");
+  const [keyword, setKeyword] = useState(post?.focusKeyword ?? "");
+
   return (
-    <form action={formAction} className="max-w-3xl border border-line bg-paper p-6 rounded-xl">
+    <form action={formAction} className="grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="border border-line bg-paper p-6 rounded-xl">
       {post && <input type="hidden" name="id" value={post.id} />}
 
       {state?.error && (
@@ -49,8 +62,9 @@ export default function BlogPostForm({
           <input
             id="post-title"
             name="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             required
-            defaultValue={post?.title}
             placeholder="Ex : Monétiser son hotspot Wi-Fi avec le mobile money"
             className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
           />
@@ -63,7 +77,8 @@ export default function BlogPostForm({
           <input
             id="post-slug"
             name="slug"
-            defaultValue={post?.slug}
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
             placeholder="monetiser-son-hotspot-wifi"
             className="w-full rounded-md border border-line-soft px-3 py-2 font-mono text-sm focus:border-line-soft focus:outline-none"
           />
@@ -95,7 +110,8 @@ export default function BlogPostForm({
           <input
             id="post-cover"
             name="coverImageUrl"
-            defaultValue={post?.coverImageUrl ?? ""}
+            value={coverImageUrl}
+            onChange={(e) => setCoverImageUrl(e.target.value)}
             placeholder="/blog/mobile-money.svg"
             className="w-full rounded-md border border-line-soft px-3 py-2 font-mono text-sm focus:border-line-soft focus:outline-none"
           />
@@ -109,7 +125,8 @@ export default function BlogPostForm({
             id="post-excerpt"
             name="excerpt"
             rows={2}
-            defaultValue={post?.excerpt ?? ""}
+            value={excerpt}
+            onChange={(e) => setExcerpt(e.target.value)}
             placeholder="Résumé en une ou deux phrases."
             className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
           />
@@ -119,14 +136,13 @@ export default function BlogPostForm({
           <label htmlFor="post-content" className="mb-1 block text-sm font-medium text-ink">
             Contenu
           </label>
-          <textarea
+          <RichTextEditor
             id="post-content"
             name="content"
-            required
-            rows={16}
-            defaultValue={post?.content}
-            placeholder={"Texte de l'article.\n\nSéparez les paragraphes par une ligne vide. Commencez une ligne par « ## » pour un sous-titre."}
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm leading-relaxed focus:border-line-soft focus:outline-none"
+            rows={18}
+            defaultValue={post?.content ?? ""}
+            onChangeValue={setContent}
+            placeholder={"Texte de l'article.\n\nSéparez les paragraphes par une ligne vide. La barre d'outils écrit la syntaxe pour vous."}
           />
           <p className="mt-1 text-xs text-ink-soft">
             Paragraphes séparés par une ligne vide — « ## Mon titre » crée un sous-titre.
@@ -183,20 +199,35 @@ export default function BlogPostForm({
         )}
       </div>
 
-      <div className="mt-6 flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className="border border-line bg-brand px-5 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
-        >
-          {pending ? "Enregistrement…" : "Enregistrer"}
-        </button>
-        <Link
-          href="/admin/blog"
-          className="border border-line px-5 py-2 text-sm font-bold text-ink hover:bg-clay rounded-xl"
-        >
-          Annuler
-        </Link>
+        <div className="mt-6 flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={pending}
+            className="border border-line bg-brand px-5 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+          >
+            {pending ? "Enregistrement…" : "Enregistrer"}
+          </button>
+          <Link
+            href="/admin/blog"
+            className="border border-line px-5 py-2 text-sm font-bold text-ink hover:bg-clay rounded-xl"
+          >
+            Annuler
+          </Link>
+        </div>
+      </div>
+
+      {/* Colonne d'analyse — collante, pour rester lisible pendant qu'on écrit. */}
+      <div className="lg:sticky lg:top-6 lg:self-start">
+        <SeoPanel
+          keywordName="focusKeyword"
+          keyword={keyword}
+          onKeywordChange={setKeyword}
+          title={title}
+          slug={slug}
+          excerpt={excerpt}
+          content={content}
+          coverImageUrl={coverImageUrl}
+        />
       </div>
     </form>
   );

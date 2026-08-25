@@ -45,6 +45,7 @@ export async function saveCourse(_prevState: unknown, formData: FormData) {
   const summary = String(formData.get("summary") ?? "").trim();
   const level = String(formData.get("level") ?? "").trim();
   const coverImageUrl = String(formData.get("coverImageUrl") ?? "").trim();
+  const focusKeyword = String(formData.get("focusKeyword") ?? "").trim().slice(0, 120);
   const published = formData.get("published") === "on";
   const positionRaw = Number(formData.get("position") ?? 0);
   const position = Number.isInteger(positionRaw) ? positionRaw : 0;
@@ -83,6 +84,7 @@ export async function saveCourse(_prevState: unknown, formData: FormData) {
         summary: summary || null,
         level: level || null,
         coverImageUrl: coverImageUrl || null,
+        focusKeyword: focusKeyword || null,
         published,
         position,
         // Fixée à la PREMIÈRE publication et conservée ensuite : dépublier puis
@@ -103,6 +105,7 @@ export async function saveCourse(_prevState: unknown, formData: FormData) {
       summary: summary || null,
       level: level || null,
       coverImageUrl: coverImageUrl || null,
+      focusKeyword: focusKeyword || null,
       published,
       position,
       publishedAt: published ? new Date() : null,

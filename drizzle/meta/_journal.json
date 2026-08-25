@@ -57,6 +57,13 @@
       "when": 1787602701224,
       "tag": "0007_drop-ipv6-bypass",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787653797226,
+      "tag": "0008_editor-focus-keyword",
+      "breakpoints": true
     }
   ]
 }

@@ -69,6 +69,7 @@ export async function saveBlogPost(_prevState: unknown, formData: FormData) {
   const published = formData.get("published") === "on";
   const rawSlug = String(formData.get("slug") ?? "").trim();
   const coverImageUrl = String(formData.get("coverImageUrl") ?? "").trim();
+  const focusKeyword = String(formData.get("focusKeyword") ?? "").trim().slice(0, 120);
   const category = String(formData.get("category") ?? "").trim();
 
   if (coverImageUrl && !/^(\/|https:\/\/)/.test(coverImageUrl)) {
@@ -120,6 +121,7 @@ export async function saveBlogPost(_prevState: unknown, formData: FormData) {
         category: category || null,
         content,
         coverImageUrl: coverImageUrl || null,
+        focusKeyword: focusKeyword || null,
         published,
         publishedAt:
           published && !existing.publishedAt ? new Date() : existing.publishedAt,
@@ -144,6 +146,7 @@ export async function saveBlogPost(_prevState: unknown, formData: FormData) {
       category: category || null,
       content,
       coverImageUrl: coverImageUrl || null,
+      focusKeyword: focusKeyword || null,
       published,
       publishedAt: published ? new Date() : null,
       createdBy: session.userId,

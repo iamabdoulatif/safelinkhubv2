@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { saveCourse } from "@/lib/courses/actions";
+import SeoPanel from "@/components/content/SeoPanel";
 
 type Course = {
   id: string;
@@ -14,6 +15,7 @@ type Course = {
   coverImageUrl: string | null;
   published: boolean;
   position: number;
+  focusKeyword?: string | null;
 } | null;
 
 const input =
@@ -33,18 +35,26 @@ export default function CourseForm({ course }: { course: Course }) {
     }
   }, [state, course, navRouter]);
 
+  /* Contrôlés parce que le panneau de référencement les relit à la frappe. */
+  const [title, setTitle] = useState(course?.title ?? "");
+  const [slug, setSlug] = useState(course?.slug ?? "");
+  const [summary, setSummary] = useState(course?.summary ?? "");
+  const [coverImageUrl, setCoverImageUrl] = useState(course?.coverImageUrl ?? "");
+  const [keyword, setKeyword] = useState(course?.focusKeyword ?? "");
+
   return (
-    <form action={action} className="mt-6 space-y-4 border border-line bg-paper p-5 sm:p-6">
+    <form action={action} className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="space-y-4 border border-line bg-paper p-5 sm:p-6">
       {course && <input type="hidden" name="id" value={course.id} />}
 
       <label className="block">
         <span className={label}>Titre *</span>
-        <input name="title" required defaultValue={course?.title ?? ""} className={input} />
+        <input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} className={input} />
       </label>
 
       <label className="block">
         <span className={label}>Résumé</span>
-        <textarea name="summary" rows={3} defaultValue={course?.summary ?? ""} className={input} />
+        <textarea name="summary" rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} className={input} />
       </label>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -61,8 +71,9 @@ export default function CourseForm({ course }: { course: Course }) {
           <span className={label}>Slug</span>
           <input
             name="slug"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
             placeholder="généré depuis le titre"
-            defaultValue={course?.slug ?? ""}
             className={input}
           />
         </label>
@@ -81,8 +92,9 @@ export default function CourseForm({ course }: { course: Course }) {
         <span className={label}>Image de couverture</span>
         <input
           name="coverImageUrl"
+          value={coverImageUrl}
+          onChange={(e) => setCoverImageUrl(e.target.value)}
           placeholder="/formations/… ou https://…"
-          defaultValue={course?.coverImageUrl ?? ""}
           className={input}
         />
       </label>
@@ -106,6 +118,23 @@ export default function CourseForm({ course }: { course: Course }) {
       >
         {pending ? "Enregistrement…" : course ? "Enregistrer" : "Créer la formation"}
       </button>
+      </div>
+
+      <div className="lg:sticky lg:top-6 lg:self-start">
+        <SeoPanel
+          keywordName="focusKeyword"
+          keyword={keyword}
+          onKeywordChange={setKeyword}
+          title={title}
+          slug={slug}
+          excerpt={summary}
+          /* Une formation n'a pas de corps de texte : ce sont ses LEÇONS qui en
+             portent un, et chaque leçon est un article de blog (voir
+             /admin/blog). Le contenu analysé ici est donc le résumé. */
+          content={summary}
+          coverImageUrl={coverImageUrl}
+        />
+      </div>
     </form>
   );
 }

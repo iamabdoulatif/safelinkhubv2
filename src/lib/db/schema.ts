@@ -1053,6 +1053,10 @@ export const blogPosts = pgTable("blog_posts", {
   // Chemin public (/blog/xxx.svg) ou URL absolue de l'illustration de
   // couverture — affichée sur la liste /blog et en tête d'article.
   coverImageUrl: text("cover_image_url"),
+  /* Mot-clé principal saisi par le rédacteur — sert au panneau d'analyse, qui
+     recalcule tout dans le navigateur. Stocké pour qu'il se retrouve à la
+     réouverture ; il n'est jamais affiché aux lecteurs. */
+  focusKeyword: text("focus_keyword"),
   published: boolean("published").notNull().default(false),
   // Fixée à la première publication et conservée ensuite — dépublier puis
   // republier ne remonte pas artificiellement l'article en tête de liste.
@@ -1080,6 +1084,8 @@ export const courses = pgTable("courses", {
   title: text("title").notNull(),
   summary: text("summary"),
   coverImageUrl: text("cover_image_url"),
+  /** Mot-clé principal — même rôle que sur un article (voir blogPosts). */
+  focusKeyword: text("focus_keyword"),
   // debutant | intermediaire | avance — texte libre, affiché tel quel.
   level: text("level"),
   published: boolean("published").notNull().default(false),
