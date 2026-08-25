@@ -973,3 +973,81 @@ html {
   }
   .marquee-track > [aria-hidden="true"] { display: none; }
 }
+
+/* ── Surface d'édition WYSIWYG ───────────────────────────────────────────
+   Ce que l'auteur voit en tapant doit ressembler à l'article publié : c'est
+   toute la promesse d'un WYSIWYG. Les tailles et les marges reprennent celles
+   de ContentBlocks — si l'une bouge, l'autre doit suivre.
+
+   Le contenu est du DOM ÉDITABLE, pas du JSX : Tailwind ne peut pas le
+   classer, d'où ces règles descendantes. C'est le seul endroit du produit qui
+   en a besoin. */
+.prose-editor > * + * { margin-top: 1rem; }
+
+.prose-editor h2 {
+  margin-top: 2.5rem;
+  font-family: var(--font-syne), sans-serif;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.prose-editor h3 {
+  margin-top: 2rem;
+  font-family: var(--font-syne), sans-serif;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.prose-editor blockquote {
+  border-left: 4px solid var(--brand);
+  background: var(--clay);
+  padding: 0.75rem 1.25rem;
+  font-style: italic;
+  font-size: 1.05rem;
+}
+.prose-editor ul { list-style: disc; padding-left: 1.5rem; }
+.prose-editor ol { list-style: decimal; padding-left: 1.5rem; }
+.prose-editor li + li { margin-top: 0.375rem; }
+.prose-editor strong { font-weight: 600; }
+.prose-editor a {
+  color: var(--brand-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Le lecteur vidéo est un bloc que l'on déplace ou supprime, jamais un endroit
+   où l'on écrit — d'où contenteditable="false" côté composant. */
+.prose-editor figure {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--ink);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+.prose-editor figure iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+}
+.prose-editor .editor-video-fallback {
+  display: block;
+  padding: 1.5rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.75rem;
+  color: var(--paper);
+}
+
+/* Invite de saisie : un `placeholder` n'existe pas sur un contenteditable.
+   `:empty` seul ne suffit pas — le navigateur y laisse un <br>. */
+.prose-editor:empty::before,
+.prose-editor > p:only-child:has(> br:only-child)::before {
+  content: attr(data-placeholder);
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+.prose-editor > p:only-child:has(> br:only-child)::before {
+  content: "Rédigez votre article…";
+}

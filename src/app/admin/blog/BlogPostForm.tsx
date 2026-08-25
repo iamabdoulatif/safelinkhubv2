@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { saveBlogPost } from "@/lib/blog/actions";
 import { CHANNEL_LABEL, type ShareChannel } from "@/lib/social/channels";
-import RichTextEditor from "@/components/content/RichTextEditor";
+import WysiwygEditor from "@/components/content/WysiwygEditor";
 import SeoPanel from "@/components/content/SeoPanel";
 
 type BlogPostFormProps = {
@@ -136,17 +136,13 @@ export default function BlogPostForm({
           <label htmlFor="post-content" className="mb-1 block text-sm font-medium text-ink">
             Contenu
           </label>
-          <RichTextEditor
+          <WysiwygEditor
             id="post-content"
             name="content"
-            rows={18}
             defaultValue={post?.content ?? ""}
             onChangeValue={setContent}
-            placeholder={"Texte de l'article.\n\nSéparez les paragraphes par une ligne vide. La barre d'outils écrit la syntaxe pour vous."}
+            placeholder="Rédigez votre article — le texte s'affiche ici tel qu'il paraîtra."
           />
-          <p className="mt-1 text-xs text-ink-soft">
-            Paragraphes séparés par une ligne vide — « ## Mon titre » crée un sous-titre.
-          </p>
         </div>
 
         <label className="flex items-center gap-2 text-sm font-medium text-ink">

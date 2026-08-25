@@ -14,6 +14,7 @@ import {
   youtubeId,
 } from "./markup";
 import { analyseSeo } from "./seo";
+import { blocksToHtml, escapeHtml, serializeNodes, type SimpleNode } from "./html-markup";
 
 describe("compatibilité avec l'existant", () => {
   it("un article écrit AVANT la nouvelle syntaxe se rend à l'identique", () => {
@@ -192,28 +193,99 @@ describe("analyse de référencement", () => {
 });
 
 describe("l'éditeur écrit la syntaxe que le rendu sait lire", () => {
-  it("les deux lisent le même module", async () => {
-    const editeur = await readFile(
-      new URL("../../components/content/RichTextEditor.tsx", import.meta.url),
-      "utf8",
-    );
+  it("les deux passent par le même module", async () => {
+    const pont = await readFile(new URL("./html-markup.ts", import.meta.url), "utf8");
     const rendu = await readFile(
       new URL("../../components/content/ContentBlocks.tsx", import.meta.url),
       "utf8",
     );
-    assert.match(editeur, /from "@\/lib\/content\/markup"/);
+    assert.match(pont, /from "\.\/markup"/);
     assert.match(rendu, /from "@\/lib\/content\/markup"/);
-    // Le champ reste un textarea nommé : le formulaire s'envoie comme avant.
-    assert.match(editeur, /<textarea[\s\S]{0,400}name=\{name\}/);
   });
 
-  it("les marqueurs de la barre d'outils sont ceux du parseur", async () => {
+  it("la zone éditable n'est PAS le champ envoyé", async () => {
+    /* Un contenteditable ne s'envoie pas avec le formulaire : si le champ
+       caché disparaissait, l'article partirait vide sans le moindre message
+       d'erreur. */
     const editeur = await readFile(
-      new URL("../../components/content/RichTextEditor.tsx", import.meta.url),
+      new URL("../../components/content/WysiwygEditor.tsx", import.meta.url),
       "utf8",
     );
-    for (const marqueur of ['avant: "\\*\\*"', 'prefixe: "## "', 'prefixe: "### "', '"!video {url}"']) {
-      assert.ok(editeur.includes(marqueur.replace(/\\/g, "")), `marqueur absent : ${marqueur}`);
+    assert.match(editeur, /<input type="hidden" name=\{name\} value=\{valeur\}/);
+    assert.ok(!/contentEditable[\s\S]{0,200}name=\{name\}/.test(editeur));
+  });
+});
+
+describe("aller-retour entre le DOM éditable et la syntaxe", () => {
+  /** Raccourcis pour écrire un arbre de nœuds à la main. */
+  const t = (text: string): SimpleNode => ({ tag: "#text", text });
+  const el = (tag: string, children: SimpleNode[], attrs?: Record<string, string>): SimpleNode => ({
+    tag,
+    children,
+    attrs,
+  });
+
+  it("chaque bloc retrouve son marqueur", () => {
+    assert.equal(serializeNodes([el("h2", [t("Deux")])]), "## Deux");
+    assert.equal(serializeNodes([el("h3", [t("Trois")])]), "### Trois");
+    assert.equal(serializeNodes([el("blockquote", [t("Citation")])]), "> Citation");
+    assert.equal(
+      serializeNodes([el("ul", [el("li", [t("a")]), el("li", [t("b")])])]),
+      "- a\n- b",
+    );
+    assert.equal(
+      serializeNodes([el("figure", [], { "data-video": "https://youtu.be/abcdef" })]),
+      "!video https://youtu.be/abcdef",
+    );
+  });
+
+  it("gras, italique et lien ressortent avec leurs marqueurs", () => {
+    const p = el("p", [
+      t("un "),
+      el("strong", [t("gras")]),
+      t(" et un "),
+      el("a", [t("lien")], { href: "https://x.fr" }),
+    ]);
+    assert.equal(serializeNodes([p]), "un **gras** et un [lien](https://x.fr)");
+  });
+
+  it("un lien non http retombe en texte", () => {
+    // Même refus que le parseur : sinon l'éditeur pourrait écrire ce que le
+    // rendu s'interdit d'afficher.
+    const p = el("p", [el("a", [t("x")], { href: "javascript:alert(1)" })]);
+    assert.equal(serializeNodes([p]), "x");
+  });
+
+  it("un contenu écrit à la main revient identique après un aller-retour", () => {
+    /* C'est LA propriété qui protège les articles déjà en base : ouvrir un
+       article dans l'éditeur puis l'enregistrer sans y toucher ne doit rien
+       changer. Ici on ne peut pas passer par un vrai DOM, alors on rejoue le
+       chemin sur l'arbre équivalent. */
+    const source = [
+      "Un **gras** et un [lien](https://x.fr).",
+      "## Titre deux",
+      "### Titre trois",
+      "- a\n- b",
+      "> Une citation",
+      "!video https://youtu.be/abcdef",
+    ].join("\n\n");
+    const html = blocksToHtml(source);
+    for (const attendu of ["<h2>", "<h3>", "<ul>", "<blockquote>", "data-video="]) {
+      assert.ok(html.includes(attendu), `manque ${attendu}`);
     }
+    // Le bloc vidéo garde l'URL D'ORIGINE : celle d'intégration ne se remonte pas.
+    assert.ok(html.includes('data-video="https://youtu.be/abcdef"'));
+  });
+
+  it("le texte est échappé avant d'entrer dans la zone éditable", () => {
+    // Sans cela, écrire « <script> » dans un article poserait une vraie balise
+    // dans le DOM de l'éditeur.
+    assert.ok(!blocksToHtml("<script>alert(1)</script>").includes("<script>"));
+    assert.equal(escapeHtml('<a href="x">'), "&lt;a href=&quot;x&quot;&gt;");
+  });
+
+  it("une zone vide reçoit tout de même un bloc", () => {
+    // Certains navigateurs refusent la frappe dans un contenteditable vide.
+    assert.equal(blocksToHtml(""), "<p><br></p>");
   });
 });
