@@ -5,7 +5,7 @@ import { type Locale, localeHref } from "@/lib/i18n/config";
 
 /* Appel final — grande carte lime pleine largeur, motif de clôture de Slate.
  * Texte anthracite sur le lime : jamais de blanc, qui ne tiendrait pas le
- * contraste sur #C8F24E. */
+ * contraste sur #D6F344. */
 export default function FinalCta({ dict, locale }: { dict: Dictionary; locale: Locale }) {
   return (
     <section aria-label={dict.finalCta.aria} className="bg-paper px-4 py-16 sm:px-6 sm:py-24">

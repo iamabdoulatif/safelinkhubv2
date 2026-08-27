@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" width="2560" height="1440"
+     role="img" aria-label="SafeLinkHub — Le réseau commence ici.">
+  <title>SafeLinkHub — bannière YouTube</title>
+
+  <!-- Encre pleine page. Aucun dégradé, aucune lueur : cf. BRAND.md. -->
+  <rect width="2560" height="1440" fill="#151515"/>
+
+  <!-- Motif de routage. Tenu hors du bandeau desktop (y 508..932) et hors de la
+       zone sûre 1546x423 : sur mobile et desktop on ne voit que le lockup, le
+       motif n'apparaît qu'au recadrage TV. -->
+  <g fill="none" stroke="#282828" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-40 250H300v-150h320"/>
+    <path d="M120 430H520v-120h280"/>
+    <path d="M1180 130h300v170h280"/>
+    <path d="M2600 200H2280V60"/>
+    <path d="M2600 420H2180v-140h-260"/>
+    <path d="M-40 1180H420v-160h300"/>
+    <path d="M240 1360H760v-140h360"/>
+    <path d="M1100 1330h340v-160h300"/>
+    <path d="M2600 1250H2160v-170h-320"/>
+    <path d="M2600 1050H2340V980"/>
+  </g>
+  <g fill="#333333">
+    <rect x="608" y="88" width="24" height="24" rx="7"/>
+    <rect x="788" y="298" width="24" height="24" rx="7"/>
+    <rect x="1748" y="288" width="24" height="24" rx="7"/>
+    <rect x="1908" y="268" width="24" height="24" rx="7"/>
+    <rect x="708" y="1008" width="24" height="24" rx="7"/>
+    <rect x="1108" y="1208" width="24" height="24" rx="7"/>
+    <rect x="2328" y="968" width="24" height="24" rx="7"/>
+  </g>
+  <g fill="#D6F344">
+    <rect x="2268" y="48" width="24" height="24" rx="7"/>
+    <rect x="1828" y="1068" width="24" height="24" rx="7"/>
+    <rect x="1728" y="1158" width="24" height="24" rx="7"/>
+  </g>
+
+  <!-- ============ ZONE SÛRE 1546 x 423 : x 507..2053, y 508..932 ============ -->
+
+  <!-- Logomark : le S routé, grille 32 reportée à 176 px (x5.5) -->
+  <g transform="translate(729,600) scale(5.5)">
+    <path d="M26 7H12v9h8v9H6" fill="none" stroke="#FFFFFF" stroke-width="3.8"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="2.4" y="21.4" width="7.2" height="7.2" rx="2.1" fill="#FFFFFF"/>
+    <rect x="22.4" y="3.4" width="7.2" height="7.2" rx="2.1" fill="#D6F344"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="961" y="742" fill="#FFFFFF"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="150" font-weight="700" letter-spacing="-4">SafeLinkHub</text>
+
+  <!-- Accroche -->
+  <text x="1280" y="828" fill="#9EA298" text-anchor="middle"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="46" font-weight="400" letter-spacing="0.5">Le réseau commence ici.</text>
+
+  <!-- Bandeau capacités -->
+  <text x="1280" y="896" fill="#6F736C" text-anchor="middle"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="27" font-weight="600" letter-spacing="3.4"
+        >MIKROTIK<tspan fill="#D6F344" dx="14" dy="-4">•</tspan><tspan dx="14" dy="4">HOTSPOT</tspan
+        ><tspan fill="#D6F344" dx="14" dy="-4">•</tspan><tspan dx="14" dy="4">VOUCHERS</tspan
+        ><tspan fill="#D6F344" dx="14" dy="-4">•</tspan><tspan dx="14" dy="4">MOBILE MONEY</tspan></text>
+</svg>

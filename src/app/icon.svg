@@ -4,7 +4,7 @@
        du système du visiteur, puisque ce SVG est servi tel quel au navigateur —
        le rendu changerait d'une machine à l'autre. Les arcs restent lisibles
        à 16 px, taille réelle d'un onglet. -->
-  <rect width="64" height="64" rx="14" fill="#C8F24E"/>
+  <rect width="64" height="64" rx="14" fill="#D6F344"/>
   <g fill="none" stroke="#12301D" stroke-linecap="round">
     <path d="M14 28.5a26 26 0 0 1 36 0" stroke-width="6"/>
     <path d="M22.5 38a15 15 0 0 1 19 0" stroke-width="6"/>

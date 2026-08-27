@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="SafeLinkHub">
+  <title>SafeLinkHub</title>
+  <!-- Variante pastille : à 16 px un nœud d'accent ne fait plus qu'un pixel.
+       Le lime passe donc en champ plein et porte la couleur de marque, le S
+       reste en encre. Lisible sur onglet clair comme sombre. -->
+  <rect width="32" height="32" rx="7" fill="#D6F344"/>
+  <g transform="translate(16 16) scale(0.9) translate(-16 -16)">
+    <path d="M26 7H12v9h8v9H6" fill="none" stroke="#151515" stroke-width="4.4"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="2.2" y="21.2" width="7.6" height="7.6" rx="2.2" fill="#151515"/>
+    <rect x="22.2" y="3.2" width="7.6" height="7.6" rx="2.2" fill="#151515"/>
+  </g>
+</svg>

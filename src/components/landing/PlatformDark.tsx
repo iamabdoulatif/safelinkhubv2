@@ -30,7 +30,7 @@ export default function PlatformDark({ dict }: { dict: Dictionary }) {
               className="reveal rounded-2xl border border-slate-deep-line bg-[#0E2618] p-6 sm:p-7"
             >
               <div aria-hidden="true" className="text-white">
-                <GeoIcon name={f.icon} className="h-8 w-8" accent="#C8F24E" />
+                <GeoIcon name={f.icon} className="h-8 w-8" accent="#D6F344" />
               </div>
               <h3 className="mt-4 font-display text-lg font-bold text-white">{t.title}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-deep-soft">{t.description}</p>

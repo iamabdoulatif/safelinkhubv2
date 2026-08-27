@@ -437,8 +437,8 @@ html {
 
   /* Marque : le surligneur lime de Slate. --brand est l'aplat (texte noir
      dessus, jamais blanc) ; --brand-deep est le vert ENCRE, seul utilisable
-     en texte sur fond clair — #C8F24E ne tient que 1,3:1 sur blanc. */
-  --brand:      #C8F24E;
+     en texte sur fond clair — #D6F344 ne tient que 1,25:1 sur blanc. */
+  --brand:      #D6F344;
   --brand-deep: #3F6212;
 
   /* Vert profond des bandeaux et du pied de page */
@@ -451,7 +451,7 @@ html {
      commercial sortaient en brun, seule surface des écrans à ignorer le vert
      du produit.
 
-     Série 1 = le vert de marque. PAS le lime #C8F24E : mesuré à 1,29:1 sur
+     Série 1 = le vert de marque. PAS le lime #D6F344 : mesuré à 1,25:1 sur
      blanc, il disparaît en trait de 2 px (il reste parfait en APLAT — c'est
      lui que portent les barres des histogrammes).
 
@@ -507,9 +507,9 @@ html {
 .theme-slate .slate-btn-primary {
   background: var(--brand);
   color: #10160F;
-  border: 1px solid #B6E03A;
+  border: 1px solid #C5E23A;
 }
-.theme-slate .slate-btn-primary:hover { background: #BCE93C; }
+.theme-slate .slate-btn-primary:hover { background: #CDE94A; }
 .theme-slate .slate-btn-dark {
   background: var(--slate-deep);
   color: #FFFFFF;

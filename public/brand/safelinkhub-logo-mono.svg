@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 32" width="168" height="32"
+     style="color:#151515" role="img" aria-label="SafeLinkHub">
+  <title>SafeLinkHub</title>
+  <!-- Tout en currentColor : inliné, le logo prend la couleur du texte parent
+       (encre sur fond clair, blanc sur fond sombre ou lime). Ouvert seul, il
+       retombe sur l'encre #151515 déclarée ci-dessus. -->
+  <path d="M26 7H12v9h8v9H6" fill="none" stroke="currentColor" stroke-width="3.8"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="2.4" y="21.4" width="7.2" height="7.2" rx="2.1" fill="currentColor"/>
+  <rect x="22.4" y="3.4" width="7.2" height="7.2" rx="2.1" fill="currentColor"/>
+  <text x="42" y="24.3" fill="currentColor"
+        font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="700" letter-spacing="-0.55">SafeLinkHub</text>
+</svg>

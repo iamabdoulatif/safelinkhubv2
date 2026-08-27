@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"
+     style="color:#151515" role="img" aria-label="SafeLinkHub">
+  <title>SafeLinkHub</title>
+  <!-- Le S tracé comme un chemin réseau : 5 segments orthogonaux, nœud
+       d'origine en bas, nœud d'arrivée lime en haut.
+       L'encre est en currentColor : INLINÉ dans la page, le signe suit la
+       couleur du texte parent et reste lisible sur fond sombre. En <img> il
+       retombe sur l'encre déclarée ci-dessus, donc réservé aux fonds clairs.
+       Sur un fond lime, poser la variable slh-accent a currentColor pour
+       repasser le signe en monochrome, sinon le nœud d'arrivée disparaît
+       dans le fond. -->
+  <path d="M26 7H12v9h8v9H6" fill="none" stroke="currentColor" stroke-width="3.8"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="2.4" y="21.4" width="7.2" height="7.2" rx="2.1" fill="currentColor"/>
+  <rect x="22.4" y="3.4" width="7.2" height="7.2" rx="2.1" fill="var(--slh-accent, #D6F344)"/>
+</svg>

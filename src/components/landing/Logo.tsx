@@ -39,7 +39,7 @@ export default function Logo({ dark = false }: { dark?: boolean }) {
           width="7.2"
           height="7.2"
           rx="2.1"
-          fill="var(--slh-accent, #C8F24E)"
+          fill="var(--slh-accent, #D6F344)"
         />
       </svg>
       {/* Sous ~338 px la barre de navigation déborde : le groupe de droite
