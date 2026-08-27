@@ -6,7 +6,7 @@ import { routers, routerMikhmonCloudInstances, routerPortForwards } from "@/lib/
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
 import { REMOTE_ACCESS_PORT, DOCKER_WEB_PORT, HOTSPOT_BRIDGE_NAME } from "./constants";
-import { getRelayPublicHost } from "./relay";
+import { relayWebUrl } from "./relay";
 import { resolveMikhmonAccess } from "./mikhmon-online-access";
 
 /**
@@ -132,7 +132,7 @@ export async function getMikhmonLink(routerId: string) {
       )
       .limit(1);
     const tunnelLink = mikhmonForward
-      ? `http://${getRelayPublicHost(router.relayShard)}:${mikhmonForward.publicPort}`
+      ? relayWebUrl(router.relayShard, mikhmonForward.publicPort)
       : null;
 
     if (!ddnsName) {

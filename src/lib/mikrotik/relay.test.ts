@@ -4,6 +4,7 @@ import {
   buildPortForwardRebindScript,
   getRelayPublicHost,
   normalizeRelayPublicHost,
+  relayWebUrl,
 } from "./relay";
 
 const originalPublicHost = process.env.WG_RELAY_PUBLIC_HOST;
@@ -71,5 +72,17 @@ describe("rebind des forwards", () => {
     assert.match(script, /39001/);
     assert.match(script, /39002/);
     assert.doesNotMatch(script, /allocatePortForward/);
+  });
+});
+
+describe("lien web d'une redirection du relais", () => {
+  it("est en https — nginx ne parle que TLS sur ces ports", () => {
+    /* Mesuré sur un routeur dont MikHmon tournait (s3:16984) : `http://`
+       reçoit un 400 de nginx, `https://` un 302 vers la page de connexion.
+       Les 55 vhosts du relais portent tous `listen <port> ssl`. */
+    process.env.RELAY_BASE_DOMAIN = "safelinkhub.io";
+    process.env.RELAY_SHARDING = "1";
+    assert.equal(relayWebUrl("s2", 25226), "https://s2.safelinkhub.io:25226");
+    assert.ok(!relayWebUrl("s3", 16984).startsWith("http://"), "jamais de http:// nu");
   });
 });

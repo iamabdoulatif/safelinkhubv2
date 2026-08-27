@@ -23,6 +23,22 @@ export function getRelayPublicHost(shard?: string | null): string {
   return normalizeRelayPublicHost(process.env.WG_RELAY_PUBLIC_HOST || process.env.WG_RELAY_HOST);
 }
 
+/**
+ * URL d'une redirection WEB servie par le relais.
+ *
+ * EN HTTPS, TOUJOURS. Le générateur de vhosts écrit `listen <port> ssl` et
+ * présente le certificat joker : les 55 vhosts du relais, sans exception, ne
+ * parlent que TLS. Une URL en `http://` sur ces ports reçoit un 400 de nginx
+ * (« The plain HTTP request was sent to HTTPS port ») — mesuré sur un routeur
+ * dont MikHmon tournait : 400 en http, 302 en https.
+ *
+ * Le port n'a rien de standard, donc le schéma ne se devine pas : il doit être
+ * écrit ici, une seule fois, plutôt que recomposé à la main par chaque écran.
+ */
+export function relayWebUrl(shard: string | null | undefined, publicPort: number): string {
+  return `https://${getRelayPublicHost(shard)}:${publicPort}`;
+}
+
 function shellArg(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }

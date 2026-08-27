@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerMikhmonCloudInstances, routerPortForwards, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { getRelayPublicHost } from "@/lib/mikrotik/relay";
+import { relayWebUrl } from "@/lib/mikrotik/relay";
 import { supportsContainersFor } from "@/lib/mikrotik/device-catalog";
 import MikhmonOnlineConsole, { type MikhmonRouter } from "./MikhmonOnlineList";
 
@@ -83,7 +83,7 @@ export default async function MikhmonOnlinePage() {
       cloudDomain: instance?.status === "active" ? instance.domain : null,
       // Le lien tunnel se calcule sans joindre le routeur : le shard et le
       // port suffisent. Aucune raison de le cacher derrière un clic.
-      tunnelLink: port ? `http://${getRelayPublicHost(r.relayShard)}:${port}` : null,
+      tunnelLink: port ? relayWebUrl(r.relayShard, port) : null,
     };
   });
 
