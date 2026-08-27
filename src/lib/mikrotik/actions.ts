@@ -22,6 +22,8 @@ import {
   setRouterBandwidthCap as setBandwidthCap,
 } from "./router-throughput";
 import { auditRouter } from "./router-audit";
+import { describeApiPortVerdict, probeApiPortWith } from "./api-port-probe";
+import { openRouterTunnel } from "./relay";
 import {
   ensureApiGroupPolicy,
   rewriteIsoExpiryComments,
@@ -1121,6 +1123,58 @@ export async function reconfigureMikhmonSession(routerId: string) {
 }
 
 /**
+ * Sonde les ports API d'un routeur joignable par tunnel.
+ *
+ * Les routeurs en accès DIRECT sont hors sujet : sans tunnel il n'y a pas de
+ * canal à ouvrir, et sonder depuis le serveur applicatif traverserait
+ * l'internet public — ce n'est pas le même chemin que celui qui a échoué,
+ * donc le résultat ne prouverait rien.
+ */
+async function probeRouterApiPort(router: typeof routers.$inferSelect) {
+  if (router.connectionMethod !== "vpn" && router.connectionMethod !== "openvpn") return null;
+  if (!router.host) return null;
+  return probeApiPortWith(router.host, router.apiPort, (ip, port, timeout) =>
+    openRouterTunnel(ip, port, timeout),
+  );
+}
+
+/**
+ * Aligne le port API enregistré sur celui que le routeur écoute VRAIMENT.
+ *
+ * N'écrit RIEN sur l'équipement : le port du routeur est celui que son
+ * propriétaire a choisi, et le déplacer défairait un durcissement délibéré —
+ * 8728 est balayé en permanence. C'est notre valeur qui avait dérivé.
+ *
+ * Le port n'est pas pris sur parole : on resonde avant d'écrire, sinon un
+ * appel direct à cette action pourrait faire pointer SafeLinkHub n'importe où.
+ */
+export async function fixRouterApiPort(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  const verdict = await probeRouterApiPort(router).catch(() => null);
+  if (verdict?.kind !== "mismatch") {
+    return { error: "Aucun décalage de port à corriger — relancez le diagnostic." };
+  }
+
+  await db
+    .update(routers)
+    .set({ apiPort: verdict.found })
+    .where(eq(routers.id, routerId));
+  revalidatePath(`/admin/router/${routerId}`);
+  return {
+    success: true as const,
+    message: `Port API corrigé : ${verdict.configured} → ${verdict.found}. Rien n'a été modifié sur le routeur.`,
+  };
+}
+
+/**
  * AUDIT MikroTik : analyse (lecture seule) la config du routeur au regard des
  * bonnes pratiques de l'auto-setup et renvoie les constats + correctifs. Utilisé
  * par l'outil « Diagnostic » de la fiche routeur.
@@ -1142,11 +1196,20 @@ export async function runRouterAudit(routerId: string) {
   try {
     client = await connectToRouter(router, 30000);
   } catch (err) {
+    /* Un diagnostic qui abandonne sur « injoignable » renvoie l'exploitant
+       vers WinBox alors que la cause est souvent chez nous : un port API
+       enregistré qui ne correspond plus à celui du routeur. La sonde n'a
+       besoin d'aucun identifiant, donc elle marche ici — précisément là où
+       la connexion, elle, ne marche pas. */
+    const sonde = await probeRouterApiPort(router).catch(() => null);
+    const message =
+      err instanceof Error ? err.message : "Routeur injoignable (doit être en ligne).";
+    if (sonde?.kind === "mismatch") {
+      const d = describeApiPortVerdict(sonde);
+      return { error: `${message}. ${d.detail}`, apiPortFix: sonde };
+    }
     return {
-      error:
-        err instanceof Error
-          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour l'analyse.`
-          : "Routeur injoignable (doit être en ligne).",
+      error: `Routeur injoignable : ${message}. Il doit être en ligne pour l'analyse.`,
     };
   }
   try {

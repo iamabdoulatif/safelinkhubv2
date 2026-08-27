@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import {
+  fixRouterApiPort,
   runRouterAudit,
   optimizeRouterWifi,
   fixRouterWifiDfs,
@@ -65,6 +66,9 @@ function scoreTone(score: number) {
 export default function AuditPanel({ routerId }: { routerId: string }) {
   const [audit, setAudit] = useState<RouterAudit | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* Décalage de port API détecté par la sonde quand la connexion échoue :
+     le seul défaut réparable SANS que le diagnostic ait pu s'exécuter. */
+  const [portFix, setPortFix] = useState<{ configured: number; found: number } | null>(null);
   const [isAnalyzing, startAnalyze] = useTransition();
   const [fixingId, setFixingId] = useState<string | null>(null);
   const [isFixing, startFix] = useTransition();
@@ -74,9 +78,13 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
     startAnalyze(async () => {
       setError(null);
       setFixMsg(null);
+      setPortFix(null);
       const res = await runRouterAudit(routerId);
       if (res?.error) {
         setError(res.error);
+        if (res.apiPortFix?.kind === "mismatch") {
+          setPortFix({ configured: res.apiPortFix.configured, found: res.apiPortFix.found });
+        }
         return;
       }
       if (res?.audit) setAudit(res.audit);
@@ -143,6 +151,24 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
           <p role="alert" className="mx-auto mt-4 max-w-md border border-err bg-err/10 px-3 py-2 text-sm font-medium text-err">
             {error}
           </p>
+        )}
+        {portFix && (
+          <button
+            type="button"
+            disabled={isFixing}
+            onClick={() =>
+              startFix(async () => {
+                const res = await fixRouterApiPort(routerId);
+                if (res?.error) return setError(res.error);
+                setPortFix(null);
+                setError(null);
+                analyze();
+              })
+            }
+            className="mx-auto mt-3 block border border-ink bg-brand px-4 py-2 text-sm font-bold text-ink disabled:opacity-50"
+          >
+            Corriger le port API ({portFix.configured} → {portFix.found})
+          </button>
         )}
         <button
           type="button"

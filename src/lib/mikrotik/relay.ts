@@ -364,7 +364,15 @@ export function openRouterTunnel(
             clearTimeout(timer);
             log(`forwardOut failed: ${err.message}`);
             conn.end();
-            return reject(err);
+            /* Le message d'origine — « Channel open failure: Connection
+               refused » — ne dit PAS vers quoi. Sur un parc de 36 routeurs
+               c'est une piste morte : on ne sait ni quel équipement ni quel
+               port a refusé, et il faut ouvrir un shell pour l'apprendre.
+               Diagnostiquer un port API mal renseigné a coûté une heure
+               faute de cette ligne. */
+            return reject(
+              new Error(`${err.message} — ${tunnelIp}:${port} (port API du routeur)`),
+            );
           }
           settled = true;
           clearTimeout(timer);
