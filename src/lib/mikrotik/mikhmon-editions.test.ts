@@ -56,6 +56,24 @@ describe("choix de l'édition à l'activation", () => {
     }
   });
 
+  it("l'image v6 vient d'un registre que NOUS contrôlons", async () => {
+    /* Le déploiement fait un `docker image prune -af` : toute image sans
+       conteneur en marche disparaît, et `docker run` doit pouvoir la re-tirer.
+       Un nom nu comme « safelinkhub/mikhmon-v6 » serait cherché sur Docker Hub,
+       où ce compte ne nous appartient PAS — le jour où quelqu'un le publie, le
+       relais lancerait son image avec les identifiants des routeurs.
+
+       v7 est l'exception assumée : `latif225` est le compte Docker Hub de
+       l'exploitant, donc l'image est déjà sous son contrôle. */
+    assert.match(MIKHMON_EDITIONS.v6.image, /^ghcr\.io\/iamabdoulatif\//);
+    assert.equal(MIKHMON_EDITIONS.v7.image.startsWith("latif225/"), true);
+
+    // Et la chaîne de publication doit exister, sinon l'image n'arrive jamais.
+    const wf = await readFile(new URL("../../../.github/workflows/deploy.yml", import.meta.url), "utf8");
+    assert.match(wf, /ghcr\.io\/\$\{\{ github\.repository_owner \}\}\/mikhmon-v6/);
+    assert.match(wf, /context: deploy\/mikhmon-v6/);
+  });
+
   it("le nom d'image ne peut pas transporter d'argument shell", () => {
     /* Il finit dans une commande `docker run` sur le relais. La validation vit
        surtout dans parseEdition — qui n'accepte que deux littéraux — mais on

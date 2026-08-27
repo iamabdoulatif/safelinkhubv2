@@ -45,8 +45,11 @@ export const MIKHMON_EDITIONS: Record<MikhmonEditionId, MikhmonEdition> = {
     label: "MikHmon v6",
     audience: "Cartes MIPS restées en RouterOS 6 (RB951, hEX, wAP…) — ni Container, ni API récente.",
     origine: "MikHmon v3 de laksa19, traduit en français par SafeLinkHub.",
-    // Construite depuis deploy/mikhmon-v6/Dockerfile, présente sur le relais.
-    image: "safelinkhub/mikhmon-v6:latest",
+    /* NOTRE registre, jamais un nom Docker Hub nu : le déploiement fait un
+       `docker image prune -af`, donc l'image doit pouvoir être re-tirée — et
+       un nom non qualifié irait la chercher chez un tiers. Publiée par le job
+       `mikhmon-v6` de .github/workflows/deploy.yml. */
+    image: "ghcr.io/iamabdoulatif/mikhmon-v6:v3.20-fr",
   },
 };
 
