@@ -1,5 +1,6 @@
 import type { RouterOSClient } from "./client";
 import { inspectExpiryFormats } from "./ticket-expiry-format";
+import { superfluousServicesToDisable } from "./router-audit-fixes";
 import { inspectProfileOnLogin, inspectSweepSchedulers } from "./expiry-sweep-script";
 import { readWifiState } from "./wifi-compat";
 import { readRouterboardFirmware, missingApiGroupPolicies, API_GROUP_NAME } from "./router-audit-fixes";
@@ -30,13 +31,23 @@ export type AuditFixKind =
   | "api-policy"
   | "ticket-expiry"
   | "expiry-sweep"
+  | "services-cleanup"
   | null;
 
 export type AuditFinding = {
   id: string;
   severity: AuditSeverity;
   /** Domaine, pour le regroupement visuel. */
-  area: "Débit" | "WiFi" | "Ports" | "MikHmon" | "Réseau" | "Ressources" | "Système" | "Tickets";
+  area:
+    | "Débit"
+    | "WiFi"
+    | "Ports"
+    | "MikHmon"
+    | "Réseau"
+    | "Ressources"
+    | "Services"
+    | "Système"
+    | "Tickets";
   title: string;
   detail: string;
   /** Correctif applicable en un clic (null = à traiter manuellement / sur site). */
@@ -146,6 +157,36 @@ export async function auditRouter(
       `Leur script de connexion recopie telle quelle la date rendue par RouterOS 7.24 (« 2026-08-25 02:15:40 »), que le balayage ne sait pas lire : chaque nouvelle connexion refabrique un ticket qui n'expirera jamais. Profils touchés : ${onLogin.stale.map((s) => s.name).join(", ")}. Le même correctif y insère la conversion manquante.`,
       "expiry-sweep",
     );
+
+  // ── Services : ce qui écoute pour rien ──────────────────────────────────
+  /* Un routeur de hotspot n'a aucune raison d'exposer Telnet, un serveur PPTP
+     ou un testeur de débit. Constaté sur HS-DIARA-RB4011 : PPTP et test de
+     débit ouverts sur un routeur qui rejoint SafeLinkHub par WireGuard. */
+  const servicesIp = (await client
+    .talk(["/ip/service/print", "=.proplist=name,disabled,port"], t)
+    .catch(() => [])) as Record<string, string>[];
+  const actif = (nom: string) => {
+    const row = servicesIp.find((r) => r.name === nom);
+    return row ? row.disabled !== "true" : undefined;
+  };
+  const pptp = (await client.talk(["/interface/pptp-server/server/print"], t).catch(() => [])) as Record<string, string>[];
+  const btest = (await client.talk(["/tool/bandwidth-server/print"], t).catch(() => [])) as Record<string, string>[];
+  const superflus = superfluousServicesToDisable({
+    telnet: actif("telnet"),
+    pptp: pptp.length ? pptp[0].enabled === "true" || pptp[0].disabled === "false" : undefined,
+    "bandwidth-test": btest.length ? btest[0].enabled === "true" : undefined,
+  });
+  if (superflus.length > 0)
+    add(
+      "warn",
+      "Services",
+      "services-superflus",
+      `${superflus.length} service(s) ouverts pour rien`,
+      `${superflus.map((x) => `${x.label} — ${x.reason}`).join(" ")} Le correctif les éteint. L'API, WinBox, FTP, la console web et SSH ne sont jamais touchés : SafeLinkHub, vos sauvegardes ou votre dépannage en dépendent.`,
+      "services-cleanup",
+    );
+  else
+    add("ok", "Services", "services-superflus", "Aucun service superflu", "Ni Telnet, ni serveur PPTP, ni testeur de débit ne tournent sur ce routeur.");
 
   // ── Réseau : route par défaut + NAT ─────────────────────────────────────
   const routes = await client

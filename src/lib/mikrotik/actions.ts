@@ -28,6 +28,7 @@ import {
   repairExpirySweeps,
   unbindMacBoundTickets,
   upgradeRouterboardFirmware,
+  superfluousServicesToDisable,
 } from "./router-audit-fixes";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
@@ -570,6 +571,72 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
  * illisible, aucun ticket ne s'éteint, quel que soit le format des
  * commentaires. À appliquer avant — ou avec — la réécriture des dates.
  */
+/**
+ * Éteint les services qui écoutent pour rien sur le routeur.
+ *
+ * Constaté sur HS-DIARA-RB4011 : serveur PPTP et testeur de débit ouverts sur
+ * un routeur qui rejoint SafeLinkHub par WireGuard. Ce correctif ne touche
+ * QUE la liste SUPERFLUOUS_SERVICES — jamais l'API, WinBox, FTP, la console
+ * web ni SSH, dont SafeLinkHub, les sauvegardes ou un dépannage dépendent.
+ */
+export async function cleanupRouterServices(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour ce ménage.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const services = (await client
+      .talk(["/ip/service/print", "=.proplist=.id,name,disabled"])
+      .catch(() => [])) as Record<string, string>[];
+    const pptp = (await client.talk(["/interface/pptp-server/server/print"]).catch(() => [])) as Record<string, string>[];
+    const btest = (await client.talk(["/tool/bandwidth-server/print"]).catch(() => [])) as Record<string, string>[];
+
+    const aCouper = superfluousServicesToDisable({
+      telnet: services.find((r) => r.name === "telnet") ? services.find((r) => r.name === "telnet")!.disabled !== "true" : undefined,
+      pptp: pptp.length ? pptp[0].enabled === "true" || pptp[0].disabled === "false" : undefined,
+      "bandwidth-test": btest.length ? btest[0].enabled === "true" : undefined,
+    });
+    if (aCouper.length === 0) {
+      return { success: true, summary: "Aucun service superflu ne tourne — rien à éteindre." };
+    }
+
+    const faits: string[] = [];
+    for (const s of aCouper) {
+      if (s.id === "telnet") {
+        const row = services.find((r) => r.name === "telnet");
+        if (!row) continue;
+        await client.talk(["/ip/service/set", `=numbers=${row[".id"]}`, "=disabled=yes"]);
+      } else if (s.id === "pptp") {
+        await client.talk(["/interface/pptp-server/server/set", "=enabled=no"]);
+      } else {
+        await client.talk(["/tool/bandwidth-server/set", "=enabled=no"]);
+      }
+      faits.push(s.label);
+    }
+
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: `Éteint : ${faits.join(", ")}. L'API, WinBox, FTP, la console web et SSH sont intacts.` };
+  } finally {
+    client.close();
+  }
+}
+
 export async function fixRouterExpirySweep(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };

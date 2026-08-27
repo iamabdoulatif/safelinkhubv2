@@ -344,3 +344,63 @@ export async function repairExpirySweeps(
 
   return { total, stale: stale.length, repaired, failed, profiles, onLoginRepaired };
 }
+
+// ── Services superflus ──────────────────────────────────────────────────────
+
+/**
+ * Services que SafeLinkHub éteint d'office, et POURQUOI.
+ *
+ * Le tri suit une règle simple : on ne coupe que ce dont ni SafeLinkHub, ni le
+ * hotspot, ni l'exploitant n'ont besoin — et dont la présence coûte quelque
+ * chose. Tout le reste est SIGNALÉ, jamais touché : couper un service dont un
+ * routeur du parc dépendrait casserait trente-cinq installations pour en
+ * durcir une.
+ *
+ * Ce qu'on NE coupe pas, et la raison :
+ *   api      — l'unique canal par lequel SafeLinkHub pilote le routeur ;
+ *   winbox   — l'outil de l'exploitant, et son dernier recours si l'API tombe ;
+ *   ftp      — `/export file=` et `/system backup save` en dépendent ;
+ *   www      — console d'administration, parfois le seul accès d'un technicien ;
+ *   ssh      — canal de secours du relais.
+ */
+export const SUPERFLUOUS_SERVICES = [
+  {
+    id: "telnet",
+    label: "Telnet",
+    path: "/ip/service",
+    reason: "Session d'administration en clair — mot de passe lisible sur le réseau.",
+  },
+  {
+    id: "pptp",
+    label: "Serveur PPTP",
+    path: "/interface/pptp-server/server",
+    reason:
+      "VPN au chiffrement cassé depuis 2012, et inutilisé ici : le routeur rejoint SafeLinkHub par WireGuard.",
+  },
+  {
+    id: "bandwidth-test",
+    label: "Test de débit",
+    path: "/tool/bandwidth-server",
+    reason:
+      "Permet à quiconque possède un compte de saturer la liaison — MikroTik conseille de le laisser éteint.",
+  },
+] as const;
+
+export type SuperfluousServiceId = (typeof SUPERFLUOUS_SERVICES)[number]["id"];
+
+/** Services signalés mais JAMAIS coupés automatiquement — voir le bloc ci-dessus. */
+export const REPORTED_ONLY_SERVICES = ["ftp", "www", "www-ssl", "ssh"] as const;
+
+/**
+ * Ce qui reste à éteindre, d'après l'état lu sur le routeur.
+ *
+ * `enabled` porte l'état de chaque service, `undefined` quand la lecture n'a
+ * rien renvoyé : un service qu'on n'a pas su lire n'est pas déclaré actif —
+ * sinon le correctif tenterait d'éteindre ce qui l'est déjà, et le rapport
+ * annoncerait un durcissement qui n'a pas eu lieu.
+ */
+export function superfluousServicesToDisable(
+  enabled: Partial<Record<SuperfluousServiceId, boolean | undefined>>,
+): typeof SUPERFLUOUS_SERVICES[number][] {
+  return SUPERFLUOUS_SERVICES.filter((s) => enabled[s.id] === true);
+}

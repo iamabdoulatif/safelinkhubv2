@@ -25,6 +25,7 @@ import {
   fixRouterApiGroupPolicy,
   fixRouterTicketExpiryFormat,
   fixRouterExpirySweep,
+  cleanupRouterServices,
 } from "@/lib/mikrotik/actions";
 import type { AuditFinding, AuditSeverity, RouterAudit } from "@/lib/mikrotik/router-audit";
 import NetworkGuide from "./NetworkGuide";
@@ -52,6 +53,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   "api-policy": "Corriger les droits MikHmon",
   "ticket-expiry": "Réparer les dates d\u2019expiration",
   "expiry-sweep": "Remettre le balayage en service",
+  "services-cleanup": "Éteindre les services superflus",
 };
 
 function scoreTone(score: number) {
@@ -109,7 +111,9 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                       ? await fixRouterTicketExpiryFormat(routerId)
                       : finding.fix === "expiry-sweep"
                         ? await fixRouterExpirySweep(routerId)
-                        : await setRouterBandwidthCap(routerId, 450);
+                        : finding.fix === "services-cleanup"
+                          ? await cleanupRouterServices(routerId)
+                          : await setRouterBandwidthCap(routerId, 450);
       setFixingId(null);
       if (res?.error) {
         setFixMsg({ id: finding.id, ok: false, text: res.error });

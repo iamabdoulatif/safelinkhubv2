@@ -96,7 +96,7 @@ export async function POST(
   const sms = await sendOrgSms({
     orgId: org.id,
     to: phone,
-    content: `Code de verification WiFi : ${code} (valide 5 min). Ne le partagez pas.`,
+    content: `Code de verification SafeLinkHub : ${code} (valide 5 min). Ne le partagez pas.`,
   });
 
   if (!sms.ok) {
