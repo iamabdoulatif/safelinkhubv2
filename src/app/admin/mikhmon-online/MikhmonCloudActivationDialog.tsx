@@ -69,7 +69,7 @@ export default function MikhmonCloudActivationDialog({
           if (event.target === event.currentTarget && !pending) onClose();
         }}
       >
-        <div className="mx-auto my-3 w-full max-w-5xl overflow-hidden rounded-2xl border border-line bg-paper shadow-2xl sm:my-8">
+        <div className="mx-auto my-3 w-full max-w-6xl overflow-hidden rounded-2xl border border-line bg-paper shadow-2xl sm:my-8">
           <header className="flex items-center justify-between border-b border-line-soft bg-white px-5 py-4 sm:px-7">
             <Logo />
             <button
@@ -89,7 +89,7 @@ export default function MikhmonCloudActivationDialog({
             </button>
           </header>
 
-          <div className="grid lg:grid-cols-[220px_minmax(0,1fr)]">
+          <div className={`grid lg:grid-cols-[220px_minmax(0,1fr)] ${activated ? "" : "xl:grid-cols-[220px_minmax(0,1fr)_258px]"}`}>
             <aside className="bg-[#12301D] px-5 py-6 text-paper sm:px-6 lg:min-h-[580px]">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-brand">
                 Nouvelle liaison
@@ -231,14 +231,48 @@ export default function MikhmonCloudActivationDialog({
                       {superadmin ? "Activer le domaine" : "Continuer vers la facturation"}
                     </button>
                   </div>
-                  <p className="mt-3 text-right text-[11px] leading-5 text-ink-soft">
-                    {superadmin
-                      ? "Compte superadmin : activation immédiate, sans paiement."
-                      : "L’activation est soumise à la facturation manuelle depuis MikHmon Online."}
-                  </p>
                 </>
               )}
             </section>
+
+            {/* « Ce qui sera créé » — la colonne que la maquette pose à droite.
+                Masquée une fois l'activation lancée : à ce moment-là elle
+                annoncerait au futur ce que l'écran de succès dit au passé. */}
+            {!activated && (
+              <aside className="border-t border-line bg-clay px-5 py-6 xl:border-l xl:border-t-0">
+                <i className="block h-1 w-7 bg-brand" />
+                <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-ink-soft">
+                  Ce qui sera créé
+                </p>
+                <h2 className="mt-2 text-base leading-tight text-[#12301D]" style={titleStyle}>
+                  Un accès distinct pour ce routeur.
+                </h2>
+
+                <dl className="mt-4">
+                  <Fait titre="Un domaine dédié">
+                    Une adresse MikHmon propre à {router.name}, disponible après l’activation.
+                  </Fait>
+                  <Fait titre="Aucun service à héberger">
+                    Le tableau MikHmon tourne dans l’infrastructure SafeLinkHub, pas sur le routeur.
+                  </Fait>
+                  <Fait titre="Activation maîtrisée">
+                    {superadmin
+                      ? "Votre compte active le domaine immédiatement, sans passer par le paiement."
+                      : "La facturation est validée depuis MikHmon Online avant la mise en ligne."}
+                  </Fait>
+                </dl>
+
+                {superadmin && (
+                  <div className="mt-5 border border-[#12301D] bg-white p-3">
+                    <strong className="block text-[11px] text-ink">Vous êtes superadmin</strong>
+                    <p className="mt-1 text-[11px] leading-5 text-ink-soft">
+                      L’accès reste activable sans paiement ; la confirmation sert simplement à
+                      tracer le déploiement.
+                    </p>
+                  </div>
+                )}
+              </aside>
+            )}
           </div>
         </div>
       </div>
@@ -275,6 +309,16 @@ function ProtocolRow({ title, detail, selected }: { title: string; detail: strin
         <small className="mt-1 block text-xs leading-5 text-ink-soft">{detail}</small>
       </span>
       {selected && <span className="mt-0.5 bg-brand px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#12301D]">Détecté</span>}
+    </div>
+  );
+}
+
+/** Une ligne de la colonne « ce qui sera créé » : intitulé, puis conséquence. */
+function Fait({ titre, children }: { titre: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-line-soft py-4 first:border-t-[#12301D]">
+      <dt className="text-xs font-bold text-ink">{titre}</dt>
+      <dd className="mt-1 text-[11px] leading-5 text-ink-soft">{children}</dd>
     </div>
   );
 }
