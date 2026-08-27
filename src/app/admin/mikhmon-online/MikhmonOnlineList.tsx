@@ -11,14 +11,16 @@ import {
   Loader2,
   Router as RouterIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { getMikhmonLink } from "@/lib/mikrotik/mikhmon-online";
+import MikhmonCloudActivationDialog from "./MikhmonCloudActivationDialog";
 
 export type MikhmonRouter = {
   id: string;
   name: string;
   status: string;
   model: string | null;
+  connectionMethod?: string;
+  tunnelIp?: string | null;
   /** Où vit MikHmon pour ce routeur — voir le commentaire de page.tsx. */
   kind: "cloud" | "container" | "unknown";
   cloudDomain: string | null;
@@ -90,36 +92,52 @@ function Lien({ href, label }: { href: string; label: string }) {
 }
 
 /** Routeur sans conteneur : son MikHmon vit sur le relais, sous son domaine. */
-function CarteCloud({ router }: { router: MikhmonRouter }) {
-  return (
-    <article className="border border-line-soft p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-medium text-ink">{router.name}</span>
-        <StatusDot status={router.status} />
-      </div>
-      {router.model && <p className="mt-0.5 font-mono text-xs text-ink-soft">{router.model}</p>}
+function CarteCloud({ router, superadmin }: { router: MikhmonRouter; superadmin: boolean }) {
+  const [activationOpen, setActivationOpen] = useState(false);
 
-      {router.cloudDomain ? (
-        <div className="mt-3">
-          <Lien href={`https://${router.cloudDomain}`} label="Domaine dédié (HTTPS, sans port)" />
-          {router.status !== "online" && (
-            <p className="mt-2 flex items-start gap-1.5 bg-clay px-2.5 py-2 text-xs text-warn">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              L’instance est en place, mais le routeur est hors ligne : reconnectez son tunnel
-              avant de gérer les tickets.
-            </p>
-          )}
+  return (
+    <>
+      <article className="border border-line-soft p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="font-medium text-ink">{router.name}</span>
+          <StatusDot status={router.status} />
         </div>
-      ) : (
-        <p className="mt-3 bg-clay px-2.5 py-2 text-xs leading-5 text-ink-soft">
-          Aucune instance dédiée pour l’instant. Activez «&nbsp;MikHmon (vouchers)&nbsp;» dans{" "}
-          <Link href="/admin/remote-access" className="font-semibold text-brand-deep hover:underline">
-            Accès distant
-          </Link>{" "}
-          : SafeLinkHub démarre l’instance sur le relais et lui attribue son sous-domaine.
-        </p>
-      )}
-    </article>
+        {router.model && <p className="mt-0.5 font-mono text-xs text-ink-soft">{router.model}</p>}
+
+        {router.cloudDomain ? (
+          <div className="mt-3">
+            <Lien href={`https://${router.cloudDomain}`} label="Domaine dédié (HTTPS, sans port)" />
+            {router.status !== "online" && (
+              <p className="mt-2 flex items-start gap-1.5 bg-clay px-2.5 py-2 text-xs text-warn">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                L’instance est en place, mais le routeur est hors ligne : reconnectez son tunnel
+                avant de gérer les tickets.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="mt-3 bg-clay px-2.5 py-2.5 text-xs leading-5 text-ink-soft">
+            <p>
+              Aucune instance dédiée pour l’instant. MikHmon sera hébergé sur le relais et recevra son propre sous-domaine HTTPS.
+            </p>
+            <button
+              type="button"
+              onClick={() => setActivationOpen(true)}
+              className="mt-2 font-semibold text-brand-deep underline-offset-2 hover:underline"
+            >
+              Activer depuis MikHmon Online →
+            </button>
+          </div>
+        )}
+      </article>
+
+      <MikhmonCloudActivationDialog
+        open={activationOpen}
+        onClose={() => setActivationOpen(false)}
+        router={router}
+        superadmin={superadmin}
+      />
+    </>
   );
 }
 
@@ -224,7 +242,13 @@ function Section({
   );
 }
 
-export default function MikhmonOnlineConsole({ routers }: { routers: MikhmonRouter[] }) {
+export default function MikhmonOnlineConsole({
+  routers,
+  superadmin = false,
+}: {
+  routers: MikhmonRouter[];
+  superadmin?: boolean;
+}) {
   const cloud = routers.filter((r) => r.kind === "cloud");
   const conteneur = routers.filter((r) => r.kind === "container");
   const inconnus = routers.filter((r) => r.kind === "unknown");
@@ -283,7 +307,7 @@ export default function MikhmonOnlineConsole({ routers }: { routers: MikhmonRout
         vide="Aucun routeur classé « sans conteneur » pour l’instant."
       >
         {cloud.map((r) => (
-          <CarteCloud key={r.id} router={r} />
+          <CarteCloud key={r.id} router={r} superadmin={superadmin} />
         ))}
       </Section>
 

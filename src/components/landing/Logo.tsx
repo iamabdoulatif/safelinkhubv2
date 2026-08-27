@@ -14,7 +14,7 @@
 export default function Logo({ dark = false }: { dark?: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-2 ${dark ? "text-paper" : "text-ink"}`}
+      className={`inline-flex items-center gap-2 ${dark ? "text-paper" : "text-[#12301D]"}`}
     >
       <svg
         viewBox="0 0 32 32"
@@ -39,7 +39,7 @@ export default function Logo({ dark = false }: { dark?: boolean }) {
           width="7.2"
           height="7.2"
           rx="2.1"
-          fill="var(--slh-accent, #D6F344)"
+          fill="var(--slh-accent, #C8F24E)"
         />
       </svg>
       {/* Sous ~338 px la barre de navigation déborde : le groupe de droite

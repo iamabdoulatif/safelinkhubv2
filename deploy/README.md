@@ -105,6 +105,42 @@ repointable). **Tant que l'EC2 tourne**, on les repointe un par un vers
 
 ---
 
+## MikHmon Online — routeurs sans Container (RB951, hEX, wAP legacy)
+
+Un MikroTik MIPS ne reçoit **jamais** de conteneur, bridge `DOCKERS`, veth ou
+redirection NAT MikHmon. Lors de l'activation de MikHmon dans l'application,
+une instance isolée est créée sur le relais VPS et est joignable par son domaine
+HTTPS, par exemple `https://rb951-korhogo-14174000.mikhmon.safelinkhub.io`.
+L'instance parle à l'API RouterOS exclusivement au travers du tunnel VPN.
+
+Avant d'activer ce parcours pour le premier routeur, un administrateur VPS doit :
+
+1. Vérifier que Docker et Traefik sont disponibles sur le relais, et que
+   l'utilisateur SSH configuré par `WG_RELAY_SSH_USER` peut démarrer/supprimer
+   les conteneurs MikHmon sur le réseau Docker supervisé par Traefik, sans
+   disposer d'un accès shell général.
+2. Ajouter l'enregistrement DNS wildcard
+   `*.mikhmon.safelinkhub.io` vers l'adresse publique du VPS.
+3. Vérifier que Traefik détient un certificat wildcard pour
+   `*.mikhmon.safelinkhub.io` via Cloudflare DNS-01. Les sous-domaines sont
+   ensuite découverts par les labels Traefik de chaque instance ; aucun vhost
+   Nginx ni certificat par routeur n'est créé.
+4. Ajouter `MIKHMON_CLOUD_BASE_DOMAIN=mikhmon.safelinkhub.io` et, si besoin,
+   `MIKHMON_CLOUD_IMAGE` dans l'environnement de l'application.
+5. Appliquer la migration, après sauvegarde de la base :
+   ```bash
+   node --env-file=.env.local scripts/run-sql.mjs scripts/add-mikhmon-cloud-instances.sql
+   ```
+6. Déployer l'application. À l'activation, Traefik découvre automatiquement
+   l'instance cloud et sert son sous-domaine HTTPS.
+
+Recette pilote : activer MikHmon pour un RB951 connecté, ouvrir son domaine
+HTTPS, créer un voucher, vérifier que l'API passe par le tunnel, puis confirmer
+sur le routeur l'absence de `/container`, de veth `MIKHMON` et de règles NAT
+MikHmon. Ni le DNS ni le certificat ne sont créés par une Server Action.
+
+---
+
 ## Phase 4 — Décommission
 
 - Confirme TLS Traefik OK sur `https://safelinkhub.io`.

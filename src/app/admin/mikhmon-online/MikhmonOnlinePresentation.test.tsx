@@ -64,7 +64,8 @@ describe("station MikHmon Online", () => {
   it("distingue une instance en place d'une instance à créer", () => {
     const html = rendu(parc);
     assert.match(html, /Aucune instance dédiée/);
-    assert.match(html, /href="\/admin\/remote-access"/, "le chemin d'activation doit être cliquable");
+    assert.match(html, /Activer depuis MikHmon Online/, "le chemin d'activation doit rester dans la station");
+    assert.match(html, /<button type="button"/, "le chemin d'activation doit être cliquable");
   });
 
   it("affiche le lien tunnel d'un routeur à conteneur sans sonder l'équipement", () => {

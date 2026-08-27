@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerMikhmonCloudInstances, routerPortForwards, routers } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getRelayPublicHost } from "@/lib/mikrotik/relay";
 import { supportsContainersFor } from "@/lib/mikrotik/device-catalog";
 import MikhmonOnlineConsole, { type MikhmonRouter } from "./MikhmonOnlineList";
@@ -41,6 +41,8 @@ export default async function MikhmonOnlinePage() {
         status: routers.status,
         model: routers.model,
         supportsContainers: routers.supportsContainers,
+        connectionMethod: routers.connectionMethod,
+        tunnelIp: routers.tunnelIp,
         relayShard: routers.relayShard,
       })
       .from(routers)
@@ -72,6 +74,8 @@ export default async function MikhmonOnlinePage() {
       name: r.name,
       status: r.status,
       model: r.model,
+      connectionMethod: r.connectionMethod,
+      tunnelIp: r.tunnelIp,
       kind: (() => {
         const capable = supportsContainersFor(r.supportsContainers, r.model);
         return capable === false ? "cloud" : capable === true ? "container" : "unknown";
@@ -83,5 +87,5 @@ export default async function MikhmonOnlinePage() {
     };
   });
 
-  return <MikhmonOnlineConsole routers={zones} />;
+  return <MikhmonOnlineConsole routers={zones} superadmin={isSuperAdmin(session.role)} />;
 }

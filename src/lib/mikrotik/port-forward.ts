@@ -396,6 +396,7 @@ export async function enablePortForward(
   }
 
   revalidatePath("/admin/remote-access");
+  revalidatePath("/admin/mikhmon-online");
   revalidatePath("/admin/router");
   revalidatePath("/admin/billing");
   return result;
