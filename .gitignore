@@ -45,3 +45,6 @@ yarn-error.log*
 next-env.d.ts
 .env*.local
 aws/secrets/
+
+# Réglages Claude Code propres à ce poste (chemins locaux, autorisations).
+.claude/settings.local.json
