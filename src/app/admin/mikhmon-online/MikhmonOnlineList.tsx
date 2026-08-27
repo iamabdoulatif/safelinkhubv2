@@ -93,7 +93,15 @@ function Lien({ href, label }: { href: string; label: string }) {
 }
 
 /** Routeur sans conteneur : son MikHmon vit sur le relais, sous son domaine. */
-function CarteCloud({ router, superadmin }: { router: MikhmonRouter; superadmin: boolean }) {
+function CarteCloud({
+  router,
+  superadmin,
+  baseDomain,
+}: {
+  router: MikhmonRouter;
+  superadmin: boolean;
+  baseDomain?: string;
+}) {
   const [activationOpen, setActivationOpen] = useState(false);
 
   return (
@@ -137,6 +145,7 @@ function CarteCloud({ router, superadmin }: { router: MikhmonRouter; superadmin:
         onClose={() => setActivationOpen(false)}
         router={router}
         superadmin={superadmin}
+        baseDomain={baseDomain}
       />
     </>
   );
@@ -246,9 +255,11 @@ function Section({
 export default function MikhmonOnlineConsole({
   routers,
   superadmin = false,
+  baseDomain,
 }: {
   routers: MikhmonRouter[];
   superadmin?: boolean;
+  baseDomain?: string;
 }) {
   const cloud = routers.filter((r) => r.kind === "cloud");
   const conteneur = routers.filter((r) => r.kind === "container");
@@ -308,7 +319,7 @@ export default function MikhmonOnlineConsole({
         vide="Aucun routeur classé « sans conteneur » pour l’instant."
       >
         {cloud.map((r) => (
-          <CarteCloud key={r.id} router={r} superadmin={superadmin} />
+          <CarteCloud key={r.id} router={r} superadmin={superadmin} baseDomain={baseDomain} />
         ))}
       </Section>
 

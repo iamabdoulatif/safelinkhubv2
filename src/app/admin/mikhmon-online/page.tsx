@@ -87,5 +87,11 @@ export default async function MikhmonOnlinePage() {
     };
   });
 
-  return <MikhmonOnlineConsole routers={zones} superadmin={isSuperAdmin(session.role)} />;
+  return (
+    <MikhmonOnlineConsole
+      routers={zones}
+      superadmin={isSuperAdmin(session.role)}
+      baseDomain={process.env.MIKHMON_CLOUD_BASE_DOMAIN}
+    />
+  );
 }

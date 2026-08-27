@@ -112,6 +112,8 @@ export async function provisionCloudMikhmon(input: {
   existing: ExistingCloudInstance | null;
   usedPorts: readonly number[];
   baseDomain: string;
+  /** Sous-domaine choisi. Absent = celui dérivé du nom et de l'identifiant. */
+  slug?: string;
   /** v6 ou v7 — décide l'image. Absent = v7, l'édition historique. */
   edition?: MikhmonEditionId;
   image?: string;
@@ -142,7 +144,10 @@ export async function provisionCloudMikhmon(input: {
     };
   }
 
-  const slug = routerCloudSlug(input.router.name, input.router.id);
+  /* Le slug choisi PRIME, mais il est déjà validé par normalizeCustomSlug côté
+     appelant ; cloudMikhmonDomain le revalide de toute façon avant d'écrire
+     quoi que ce soit dans une règle Traefik. */
+  const slug = input.slug ?? routerCloudSlug(input.router.name, input.router.id);
   const domain = cloudMikhmonDomain(slug, input.baseDomain);
   const localPort = cloudMikhmonPort(input.usedPorts);
   const containerName = containerNameFor(input.router.id);
@@ -241,6 +246,7 @@ function cloudSessionFromRouter(router: CloudRouterRecord): CloudRouter {
 export async function ensureCloudMikhmonInstance(
   router: CloudRouterRecord,
   edition: MikhmonEditionId = "v7",
+  slugChoisi?: string,
 ) {
   const baseDomain = process.env.MIKHMON_CLOUD_BASE_DOMAIN;
   if (!baseDomain) throw new Error("MIKHMON_CLOUD_BASE_DOMAIN is not configured.");
@@ -254,11 +260,28 @@ export async function ensureCloudMikhmonInstance(
   const rows = await db
     .select({ localPort: routerMikhmonCloudInstances.localPort })
     .from(routerMikhmonCloudInstances);
+
+  /* Unicité du sous-domaine choisi, AVANT de toucher au relais.
+     La colonne est unique, donc la base rattraperait la collision — mais après
+     avoir créé le conteneur, et avec une erreur Postgres brute. On vérifie
+     seulement pour une PREMIÈRE activation : ensuite le domaine est figé, et
+     `existing` court-circuite la provision. */
+  if (slugChoisi && !existing) {
+    const vise = cloudMikhmonDomain(slugChoisi, baseDomain);
+    const [pris] = await db
+      .select({ routerId: routerMikhmonCloudInstances.routerId })
+      .from(routerMikhmonCloudInstances)
+      .where(eq(routerMikhmonCloudInstances.domain, vise))
+      .limit(1);
+    if (pris) throw new Error(`Le sous-domaine « ${slugChoisi} » est déjà pris.`);
+  }
+
   const instance = await provisionCloudMikhmon({
     router: cloudSessionFromRouter(router),
     existing,
     usedPorts: rows.map((row) => row.localPort),
     baseDomain,
+    slug: existing ? undefined : slugChoisi,
     edition,
     image: process.env.MIKHMON_CLOUD_IMAGE,
     /* Délai TAILLÉ POUR LE TIRAGE DE L'IMAGE. `runOnRelay` coupe à 15 s par

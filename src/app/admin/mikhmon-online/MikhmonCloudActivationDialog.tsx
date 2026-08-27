@@ -6,6 +6,7 @@ import Logo from "@/components/landing/Logo";
 import { enablePortForward } from "@/lib/mikrotik/port-forward";
 import { resolveMikhmonCloudTunnel } from "@/lib/mikrotik/mikhmon-cloud-activation";
 import { MIKHMON_EDITIONS, type MikhmonEditionId } from "@/lib/mikrotik/mikhmon-editions";
+import { normalizeCustomSlug, routerCloudSlug } from "@/lib/mikrotik/mikhmon-cloud-domain";
 import RemoteAccessPaywallModal from "../remote-access/RemoteAccessPaywallModal";
 
 type CloudRouter = {
@@ -23,11 +24,14 @@ export default function MikhmonCloudActivationDialog({
   onClose,
   router,
   superadmin,
+  baseDomain = "mikhmon.safelinkhub.io",
 }: {
   open: boolean;
   onClose: () => void;
   router: CloudRouter;
   superadmin: boolean;
+  /** Base des sous-domaines, lue côté serveur (variable d'environnement). */
+  baseDomain?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [paywall, setPaywall] = useState(false);
@@ -38,6 +42,11 @@ export default function MikhmonCloudActivationDialog({
      conteneur, et l'édition v7 réclame une API que ces routeurs n'ont pas.
      Le choix reste offert — un RB4011 rétrogradé en 6.x existe. */
   const [edition, setEdition] = useState<MikhmonEditionId>("v6");
+  /* Pré-rempli avec le nom dérivé — celui qui serait attribué sans rien faire.
+     L'exploitant part donc d'une adresse valide et la raccourcit, au lieu de
+     découvrir un identifiant illisible APRÈS l'activation. */
+  const [slug, setSlug] = useState(() => routerCloudSlug(router.name, router.id));
+  const verdictSlug = normalizeCustomSlug(slug);
   const tunnel = resolveMikhmonCloudTunnel(router.connectionMethod, router.tunnelIp);
 
   if (!open) return null;
@@ -47,7 +56,7 @@ export default function MikhmonCloudActivationDialog({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await enablePortForward(router.id, "mikhmon", "monthly", edition);
+        const result = await enablePortForward(router.id, "mikhmon", "monthly", edition, slug);
         if ("needsAuthorization" in result && result.needsAuthorization) {
           setPaywall(true);
           return;
@@ -202,6 +211,35 @@ export default function MikhmonCloudActivationDialog({
                   </div>
 
                   <div className="mt-7">
+                    <label
+                      htmlFor={`slug-${router.id}`}
+                      className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.13em] text-ink-soft"
+                    >
+                      Adresse du tableau <i className="h-px flex-1 bg-line-soft" />
+                    </label>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-2 font-mono text-sm">
+                      <span className="text-ink-soft">https://</span>
+                      <input
+                        id={`slug-${router.id}`}
+                        value={slug}
+                        onChange={(e) => setSlug(e.target.value)}
+                        spellCheck={false}
+                        autoCapitalize="none"
+                        aria-invalid={!verdictSlug.ok}
+                        className={`min-w-[10rem] flex-1 border-b-2 bg-transparent px-1 py-1 font-mono text-ink outline-none ${
+                          verdictSlug.ok ? "border-brand" : "border-err"
+                        }`}
+                      />
+                      <span className="text-ink-soft">.{baseDomain}</span>
+                    </div>
+                    <p className={`mt-2 text-xs leading-5 ${verdictSlug.ok ? "text-ink-soft" : "text-err"}`}>
+                      {verdictSlug.ok
+                        ? "Modifiable seulement maintenant : l’adresse est figée dès l’activation."
+                        : verdictSlug.erreur}
+                    </p>
+                  </div>
+
+                  <div className="mt-7">
                     <div className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.13em] text-ink-soft">
                       Édition de MikHmon <i className="h-px flex-1 bg-line-soft" />
                     </div>
@@ -262,7 +300,7 @@ export default function MikhmonCloudActivationDialog({
                     <button
                       type="button"
                       onClick={startActivation}
-                      disabled={!tunnel.ready || pending}
+                      disabled={!tunnel.ready || pending || !verdictSlug.ok}
                       className="inline-flex items-center gap-2 rounded-full border border-[#12301D] bg-brand px-5 py-2.5 text-sm font-bold text-[#12301D] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {pending && <Loader2 className="h-4 w-4 animate-spin" />}

@@ -28,6 +28,7 @@ import { getPortForwardTargetPort } from "./port-forward-rules";
 import { PERIOD_PRICE_CENTS, BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
 import { ensureCloudMikhmonInstance, removeCloudMikhmonInstance } from "./mikhmon-cloud";
 import { parseEdition } from "./mikhmon-editions";
+import { normalizeCustomSlug } from "./mikhmon-cloud-domain";
 import { supportsContainersFor } from "./device-catalog";
 
 export type { BillingPeriod } from "./billing-plans";
@@ -83,6 +84,7 @@ async function enablePortForwardForRouter(
   expiresAtOverride: Date | null = null,
   billingPeriodLabel: string | null = null,
   edition: "v6" | "v7" = "v7",
+  slug?: string,
 ) {
   const targetPort = getPortForwardTargetPort(service);
   if (!targetPort) return { error: "Unknown service." };
@@ -139,7 +141,7 @@ async function enablePortForwardForRouter(
   if (isCloudMikhmon) {
     let cloud;
     try {
-      cloud = await ensureCloudMikhmonInstance(router, edition);
+      cloud = await ensureCloudMikhmonInstance(router, edition, slug);
     } catch (err) {
       return {
         error:
@@ -277,9 +279,21 @@ export async function enablePortForward(
      `parseEdition` la ramène de toute façon à v6 ou v7, donc rien d'inattendu
      n'atteint le nom d'image passé à `docker run`. */
   editionRaw?: string,
+  /* Sous-domaine choisi à l'écran. Vide = celui dérivé du nom du routeur. */
+  slugRaw?: string,
 ) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
+
+  /* Refus AVANT tout travail : un sous-domaine invalide doit répondre par la
+     phrase que l'exploitant peut corriger, pas par une erreur de Traefik une
+     minute plus tard. Vide = on garde le nom dérivé, ce n'est pas une erreur. */
+  let slugValide: string | undefined;
+  if (slugRaw && slugRaw.trim()) {
+    const verdict = normalizeCustomSlug(slugRaw);
+    if (!verdict.ok) return { error: verdict.erreur };
+    slugValide = verdict.slug;
+  }
 
   const db = getDb();
   const [router] = await db
@@ -340,6 +354,7 @@ export async function enablePortForward(
     isFreeCapped ? effectiveExpiry : null,
     isFreeCapped ? freeLabel : null,
     parseEdition(editionRaw),
+    slugValide,
   );
 
   // Activation réussie via une autorisation manuelle : on la consomme (une par
