@@ -868,6 +868,12 @@ export const routerMikhmonCloudInstances = pgTable(
     containerName: text("container_name").notNull().unique(),
     localPort: integer("local_port").notNull().unique(),
     status: text("status").notNull().default("active"), // active | stopped | failed
+    /* Quelle édition tourne ici — v7 (SafeLinkHub, Docker) ou v6 (MikHmon v3
+       traduit). Mémorisée plutôt que redéduite du matériel : une réactivation
+       doit reposer LA MÊME que celle installée, sinon l'exploitant retrouve
+       une autre interface et des sessions qui ne s'y lisent pas. Les instances
+       créées avant ce choix sont en v7, seule édition qui existait. */
+    edition: text("edition").notNull().default("v7"), // v6 | v7
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

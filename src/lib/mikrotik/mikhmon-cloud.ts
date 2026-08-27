@@ -9,6 +9,7 @@ import { routerMikhmonCloudInstances } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import { runOnRelay } from "./relay";
 import { buildMikhmonConfigPhp } from "./mikhmon-session";
+import { MIKHMON_EDITIONS, parseEdition, type MikhmonEditionId } from "./mikhmon-editions";
 
 type CloudRouter = {
   id: string;
@@ -25,6 +26,7 @@ type ExistingCloudInstance = {
   containerName: string;
   localPort: number;
   status: string;
+  edition?: string;
 };
 
 type CloudRunner = (command: string) => Promise<string>;
@@ -34,6 +36,7 @@ export type CloudMikhmonInstance = {
   containerName: string;
   localPort: number;
   status: "active";
+  edition: MikhmonEditionId;
 };
 
 const CLOUD_DOMAIN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
@@ -109,6 +112,8 @@ export async function provisionCloudMikhmon(input: {
   existing: ExistingCloudInstance | null;
   usedPorts: readonly number[];
   baseDomain: string;
+  /** v6 ou v7 — décide l'image. Absent = v7, l'édition historique. */
+  edition?: MikhmonEditionId;
   image?: string;
   /** Réseau Docker où Traefik découvre les conteneurs. */
   traefikNetwork?: string;
@@ -124,11 +129,16 @@ export async function provisionCloudMikhmon(input: {
       await input.run(`${DOCKER} start ${shellArg(input.existing.containerName)}`);
     }
     await writeCloudMikhmonSession(input.run, input.existing.containerName, input.router);
+    /* On repose l'édition DÉJÀ EN PLACE, jamais celle demandée : changer de
+       MikHmon sous les pieds de l'exploitant lui donnerait une autre interface
+       et des sessions illisibles. Changer d'édition passe par une suppression
+       puis une nouvelle activation. */
     return {
       domain: input.existing.domain,
       containerName: input.existing.containerName,
       localPort: input.existing.localPort,
       status: "active",
+      edition: parseEdition(input.existing.edition),
     };
   }
 
@@ -136,7 +146,9 @@ export async function provisionCloudMikhmon(input: {
   const domain = cloudMikhmonDomain(slug, input.baseDomain);
   const localPort = cloudMikhmonPort(input.usedPorts);
   const containerName = containerNameFor(input.router.id);
-  const image = input.image ?? "latif225/mikhmon-sf-v1:latest";
+  const edition = input.edition ?? "v7";
+  // `image` reste prioritaire : elle sert à épingler une version en secours.
+  const image = input.image ?? MIKHMON_EDITIONS[edition].image;
 
   /* Le TLS des sous-domaines est terminé par TRAEFIK, pas par nginx.
    *
@@ -190,7 +202,7 @@ export async function provisionCloudMikhmon(input: {
   await input.run(args.join(" "));
   await writeCloudMikhmonSession(input.run, containerName, input.router);
 
-  return { domain, containerName, localPort, status: "active" };
+  return { domain, containerName, localPort, status: "active", edition };
 }
 
 type CloudRouterRecord = {
@@ -226,7 +238,10 @@ function cloudSessionFromRouter(router: CloudRouterRecord): CloudRouter {
 }
 
 /** Starts or resumes the one cloud instance owned by a legacy router. */
-export async function ensureCloudMikhmonInstance(router: CloudRouterRecord) {
+export async function ensureCloudMikhmonInstance(
+  router: CloudRouterRecord,
+  edition: MikhmonEditionId = "v7",
+) {
   const baseDomain = process.env.MIKHMON_CLOUD_BASE_DOMAIN;
   if (!baseDomain) throw new Error("MIKHMON_CLOUD_BASE_DOMAIN is not configured.");
 
@@ -244,6 +259,7 @@ export async function ensureCloudMikhmonInstance(router: CloudRouterRecord) {
     existing,
     usedPorts: rows.map((row) => row.localPort),
     baseDomain,
+    edition,
     image: process.env.MIKHMON_CLOUD_IMAGE,
     /* Délai TAILLÉ POUR LE TIRAGE DE L'IMAGE. `runOnRelay` coupe à 15 s par
        défaut, ce qui suffit aux commandes de lecture du relais mais pas à un

@@ -5,6 +5,7 @@ import { Check, Cloud, Loader2, Router as RouterIcon, ShieldCheck, X } from "luc
 import Logo from "@/components/landing/Logo";
 import { enablePortForward } from "@/lib/mikrotik/port-forward";
 import { resolveMikhmonCloudTunnel } from "@/lib/mikrotik/mikhmon-cloud-activation";
+import { MIKHMON_EDITIONS, type MikhmonEditionId } from "@/lib/mikrotik/mikhmon-editions";
 import RemoteAccessPaywallModal from "../remote-access/RemoteAccessPaywallModal";
 
 type CloudRouter = {
@@ -33,6 +34,10 @@ export default function MikhmonCloudActivationDialog({
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [activated, setActivated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* v6 par défaut ici : ce dialogue ne s'ouvre QUE pour les cartes sans
+     conteneur, et l'édition v7 réclame une API que ces routeurs n'ont pas.
+     Le choix reste offert — un RB4011 rétrogradé en 6.x existe. */
+  const [edition, setEdition] = useState<MikhmonEditionId>("v6");
   const tunnel = resolveMikhmonCloudTunnel(router.connectionMethod, router.tunnelIp);
 
   if (!open) return null;
@@ -42,7 +47,7 @@ export default function MikhmonCloudActivationDialog({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await enablePortForward(router.id, "mikhmon", "monthly");
+        const result = await enablePortForward(router.id, "mikhmon", "monthly", edition);
         if ("needsAuthorization" in result && result.needsAuthorization) {
           setPaywall(true);
           return;
@@ -193,6 +198,39 @@ export default function MikhmonCloudActivationDialog({
                         detail="RouterOS 6.x — le tunnel OpenVPN existant est utilisé."
                         selected={tunnel.id === "openvpn"}
                       />
+                    </div>
+                  </div>
+
+                  <div className="mt-7">
+                    <div className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.13em] text-ink-soft">
+                      Édition de MikHmon <i className="h-px flex-1 bg-line-soft" />
+                    </div>
+                    <div className="mt-3 divide-y divide-line-soft border-y border-line-soft">
+                      {(["v6", "v7"] as const).map((id) => {
+                        const e = MIKHMON_EDITIONS[id];
+                        const choisi = edition === id;
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setEdition(id)}
+                            aria-pressed={choisi}
+                            className="grid w-full grid-cols-[20px_1fr] items-start gap-3 py-3 text-left"
+                          >
+                            <span
+                              className={`mt-0.5 h-[18px] w-[18px] rounded-full ${
+                                choisi ? "border-[5px] border-[#12301D] bg-brand" : "border border-line bg-white"
+                              }`}
+                            />
+                            <span>
+                              <strong className="block text-sm text-ink">{e.label}</strong>
+                              <small className="mt-1 block text-xs leading-5 text-ink-soft">
+                                {e.origine} {e.audience}
+                              </small>
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 

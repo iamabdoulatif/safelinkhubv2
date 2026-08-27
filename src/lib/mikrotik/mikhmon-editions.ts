@@ -28,6 +28,8 @@ export type MikhmonEdition = {
   audience: string;
   /** D'où vient le logiciel — la question revient à chaque audit. */
   origine: string;
+  /** Image Docker servie par le relais. */
+  image: string;
 };
 
 export const MIKHMON_EDITIONS: Record<MikhmonEditionId, MikhmonEdition> = {
@@ -36,12 +38,15 @@ export const MIKHMON_EDITIONS: Record<MikhmonEditionId, MikhmonEdition> = {
     label: "MikHmon v7",
     audience: "Cartes RouterOS 7 compatibles Container — MikHmon tourne sur le routeur lui-même.",
     origine: "Édition SafeLinkHub, sur Docker.",
+    image: "latif225/mikhmon-sf-v1:latest",
   },
   v6: {
     id: "v6",
     label: "MikHmon v6",
     audience: "Cartes MIPS restées en RouterOS 6 (RB951, hEX, wAP…) — ni Container, ni API récente.",
     origine: "MikHmon v3 de laksa19, traduit en français par SafeLinkHub.",
+    // Construite depuis deploy/mikhmon-v6/Dockerfile, présente sur le relais.
+    image: "safelinkhub/mikhmon-v6:latest",
   },
 };
 
@@ -56,4 +61,12 @@ export function editionForRouter(supportsContainers: boolean | null | undefined)
   if (supportsContainers === true) return MIKHMON_EDITIONS.v7;
   if (supportsContainers === false) return MIKHMON_EDITIONS.v6;
   return null;
+}
+
+/** Lit une édition venue du formulaire ou de la base, sans jamais faire confiance à la chaîne. */
+export function parseEdition(raw: string | null | undefined): MikhmonEditionId {
+  /* Repli sur v7 et non sur v6 : c'est l'édition des instances créées avant
+     que le choix existe, et celle que le parc fait tourner aujourd'hui. Une
+     valeur inconnue ne doit pas changer le MikHmon de quelqu'un. */
+  return raw === "v6" ? "v6" : "v7";
 }

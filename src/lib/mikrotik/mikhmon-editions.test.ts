@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFile } from "node:fs/promises";
-import { MIKHMON_EDITIONS, editionForRouter } from "./mikhmon-editions";
+import { MIKHMON_EDITIONS, editionForRouter, parseEdition } from "./mikhmon-editions";
 
 describe("éditions MikHmon", () => {
   it("chaque routeur reçoit l'édition que son matériel permet", () => {
@@ -35,5 +35,33 @@ describe("éditions MikHmon", () => {
     assert.ok(!/^\$_[a-zA-Z_]+\s*=\s*["']\s*["']\s*;/m.test(fr), "une clé traduite est vide");
     assert.match(fr, /\$langid\s*=\s*"fr"/);
     assert.match(fr, /\$langname\s*=\s*"Français"/);
+  });
+});
+
+describe("choix de l'édition à l'activation", () => {
+  it("une valeur inconnue retombe sur v7, jamais sur v6", () => {
+    /* Le repli ne doit pas changer le MikHmon de quelqu'un : v7 est l'édition
+       des instances créées avant que le choix existe. */
+    for (const v of ["", "V6", "v8", "latest", null, undefined, "'; rm -rf /"]) {
+      assert.equal(parseEdition(v as string | null | undefined), "v7", `entrée : ${String(v)}`);
+    }
+    assert.equal(parseEdition("v6"), "v6");
+  });
+
+  it("chaque édition nomme une image, et jamais la même", () => {
+    // Deux éditions qui pointent la même image = un choix qui ne choisit rien.
+    assert.notEqual(MIKHMON_EDITIONS.v6.image, MIKHMON_EDITIONS.v7.image);
+    for (const e of Object.values(MIKHMON_EDITIONS)) {
+      assert.match(e.image, /^[a-z0-9][a-z0-9._/-]*:[a-zA-Z0-9._-]+$/, `${e.id} : image mal formée`);
+    }
+  });
+
+  it("le nom d'image ne peut pas transporter d'argument shell", () => {
+    /* Il finit dans une commande `docker run` sur le relais. La validation vit
+       surtout dans parseEdition — qui n'accepte que deux littéraux — mais on
+       vérifie aussi la table elle-même. */
+    for (const e of Object.values(MIKHMON_EDITIONS)) {
+      assert.ok(!/[\s;&|$`'"]/.test(e.image), `${e.id} : caractère shell dans l'image`);
+    }
   });
 });

@@ -27,6 +27,7 @@ import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { getPortForwardTargetPort } from "./port-forward-rules";
 import { PERIOD_PRICE_CENTS, BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
 import { ensureCloudMikhmonInstance, removeCloudMikhmonInstance } from "./mikhmon-cloud";
+import { parseEdition } from "./mikhmon-editions";
 import { supportsContainersFor } from "./device-catalog";
 
 export type { BillingPeriod } from "./billing-plans";
@@ -81,6 +82,7 @@ async function enablePortForwardForRouter(
   isSuperAdminSession = false,
   expiresAtOverride: Date | null = null,
   billingPeriodLabel: string | null = null,
+  edition: "v6" | "v7" = "v7",
 ) {
   const targetPort = getPortForwardTargetPort(service);
   if (!targetPort) return { error: "Unknown service." };
@@ -137,7 +139,7 @@ async function enablePortForwardForRouter(
   if (isCloudMikhmon) {
     let cloud;
     try {
-      cloud = await ensureCloudMikhmonInstance(router);
+      cloud = await ensureCloudMikhmonInstance(router, edition);
     } catch (err) {
       return {
         error:
@@ -271,6 +273,10 @@ export async function enablePortForward(
   routerId: string,
   service: string,
   billingPeriod: BillingPeriod = "monthly",
+  /* Édition MikHmon choisie à l'écran. Traversée en clair depuis le client :
+     `parseEdition` la ramène de toute façon à v6 ou v7, donc rien d'inattendu
+     n'atteint le nom d'image passé à `docker run`. */
+  editionRaw?: string,
 ) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
@@ -333,6 +339,7 @@ export async function enablePortForward(
     superadmin,
     isFreeCapped ? effectiveExpiry : null,
     isFreeCapped ? freeLabel : null,
+    parseEdition(editionRaw),
   );
 
   // Activation réussie via une autorisation manuelle : on la consomme (une par
