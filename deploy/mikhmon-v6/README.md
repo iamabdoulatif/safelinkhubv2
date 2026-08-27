@@ -49,3 +49,24 @@ Les deux qui reviennent le plus souvent :
 - **uptime**, traduit différemment selon le sujet — « temps de fonctionnement »
   pour le routeur, « temps utilisé » pour un client. Le même mot anglais couvre
   deux notions opposées.
+
+## Où vit l'image, et pourquoi pas en local
+
+L'image est publiée sur **`ghcr.io/iamabdoulatif/mikhmon-v6`** par le job
+`mikhmon-v6` de `.github/workflows/deploy.yml`, qui ne se déclenche que si ce
+dossier change.
+
+Deux raisons de ne pas la garder sur le relais :
+
+1. **Elle serait effacée.** `/root/deploy-slh-ghcr.sh` fait un
+   `docker image prune -af` à chaque bascule, qui supprime toute image qu'aucun
+   conteneur en marche n'utilise. Une image construite à la main sur le relais
+   disparaît donc au premier déploiement suivant — c'est arrivé.
+
+2. **Un nom nu pointe chez un inconnu.** Nommée `safelinkhub/mikhmon-v6`, une
+   image absente en local serait cherchée sur Docker Hub, où ce compte ne nous
+   appartient pas. Le jour où quelqu'un l'y publie, le relais lancerait son
+   image avec les identifiants des routeurs.
+
+L'édition v7 reste sur Docker Hub (`latif225/mikhmon-sf-v1`) : ce compte est
+celui de l'exploitant, donc l'image est déjà sous son contrôle.
