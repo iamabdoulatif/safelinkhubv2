@@ -236,6 +236,29 @@ export const MIKROTIK_MODELS: MikrotikModel[] = [
   { boardName: "hEX S", architecture: "mmips", wifiBands: "none" },
   { boardName: "wAP", architecture: "mmips", wifiBands: "2.4" },
   { boardName: "wAP AC", architecture: "mmips", wifiBands: "2.4+5" },
+
+  /* Les MIPS d'entrée de gamme — les plus vendus du parc ivoirien, et ceux qui
+   * manquaient. Sans eux, un hAP lite ou un hAP ac lite ne trouvait AUCUNE
+   * entrée : `supportsContainersFor` répondait `null` (« capacité inconnue »)
+   * au lieu de `false`, et la carte n'atterrissait pas dans « sans conteneur »
+   * — donc pas de domaine MikHmon cloud proposé, alors que ces cartes sont
+   * précisément celles qui en ont besoin.
+   *
+   * Ces entrées portent le CODE de carte, les noms commerciaux arrivant par
+   * BOARD_CODE_ALIASES. MESURÉ : une entrée nommée « hAP » ne vole PAS
+   * « hAP ax lite » — la correspondance exacte passe avant le rattrapage par
+   * sous-chaîne, et ce rattrapage balaie les entrées ARM en premier. Ce qui
+   * protège la famille ARM est donc l'ORDRE de ce tableau, que rien
+   * n'impose : déplacer un bloc suffirait à casser le classement. Le code de
+   * carte ne dépend, lui, d'aucun ordre. */
+  { boardName: "RB951Ui-2nD", architecture: "mipsbe", wifiBands: "2.4" },
+  { boardName: "RB952Ui-5ac2nD", architecture: "mipsbe", wifiBands: "2.4+5" },
+  { boardName: "RB962UiGS-5HacT2HnT", architecture: "mipsbe", wifiBands: "2.4+5" },
+  { boardName: "RB2011UiAS-2HnD", architecture: "mipsbe", wifiBands: "2.4" },
+  { boardName: "RB960PGS", architecture: "mipsbe", wifiBands: "none" },
+  { boardName: "RB941-2nD", architecture: "smips", wifiBands: "2.4" },
+  { boardName: "RB750r2", architecture: "smips", wifiBands: "none" },
+  { boardName: "RB750UPr2", architecture: "smips", wifiBands: "none" },
 ];
 
 function normalize(s: string) {
@@ -271,6 +294,25 @@ const BOARD_CODE_ALIASES: Record<string, string> = {
   // instead of formatting/using the USB stick (usb1/pull) this board
   // actually needs.
   "C53UiG+5HPaxD2HPaxD": "hAP ax³",
+
+  /* MIPS : RouterOS renvoie tantôt le code de carte, tantôt le nom
+   * commercial, selon la version et selon que la carte a été renommée. Les
+   * deux doivent tomber sur la même entrée — un hEX déclaré « RB750Gr3 » ne
+   * trouvait rien, et repartait en « capacité inconnue ». */
+  "RB750Gr3": "hEX",
+  "RB760iGS": "hEX S",
+  "RBwAP2nD": "wAP",
+  "RBwAPG-5HacD2HnD": "wAP AC",
+  "hAP": "RB951Ui-2nD",
+  "hAP ac lite": "RB952Ui-5ac2nD",
+  "hAP ac": "RB962UiGS-5HacT2HnT",
+  "hAP lite": "RB941-2nD",
+  "hAP lite TC": "RB941-2nD",
+  "RB941-2nD-TC": "RB941-2nD",
+  "hEX lite": "RB750r2",
+  "hEX PoE lite": "RB750UPr2",
+  "hEX PoE": "RB960PGS",
+  "RB2011UiAS-RM": "RB2011UiAS-2HnD",
 };
 
 /** Matches a RouterOS board-name/model string against the catalog, tolerant
