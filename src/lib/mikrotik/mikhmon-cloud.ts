@@ -37,6 +37,15 @@ export type CloudMikhmonInstance = {
 
 const CLOUD_DOMAIN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
+/* Le relais exécute ces commandes sous le compte `relay`, qui n'appartient PAS
+   au groupe docker : `docker …` y échoue par « permission denied … docker.sock ».
+   Il a en revanche sudo sans mot de passe, comme le reste des commandes
+   privilégiées du relais (`sudo wg show`, `sudo bash -s`). On passe donc par
+   sudo ici aussi, plutôt que d'ajouter `relay` au groupe docker : cela lui
+   ouvrirait un second chemin vers root, permanent et silencieux, alors que
+   sudo laisse une trace dans les journaux. */
+const DOCKER = "sudo docker";
+
 function shellArg(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
@@ -69,7 +78,7 @@ export async function provisionCloudMikhmon(input: {
   }
 
   if (input.existing) {
-    await input.run(`docker start ${shellArg(input.existing.containerName)}`);
+    await input.run(`${DOCKER} start ${shellArg(input.existing.containerName)}`);
     return {
       domain: input.existing.domain,
       containerName: input.existing.containerName,
@@ -111,7 +120,7 @@ export async function provisionCloudMikhmon(input: {
   const routerLabel = `mikhmon-${containerNameFor(input.router.id).replace("slh-mikhmon-", "")}`;
   const traefikNetwork = input.traefikNetwork ?? "safelink_safelink_net";
   const args = [
-    "docker run -d",
+    `${DOCKER} run -d`,
     `--name ${shellArg(containerName)}`,
     "--restart unless-stopped",
     `--network ${shellArg(traefikNetwork)}`,
@@ -191,7 +200,13 @@ export async function ensureCloudMikhmonInstance(router: CloudRouterRecord) {
     usedPorts: rows.map((row) => row.localPort),
     baseDomain,
     image: process.env.MIKHMON_CLOUD_IMAGE,
-    run: runOnRelay,
+    /* Délai TAILLÉ POUR LE TIRAGE DE L'IMAGE. `runOnRelay` coupe à 15 s par
+       défaut, ce qui suffit aux commandes de lecture du relais mais pas à un
+       `docker run` qui doit d'abord télécharger MikHmon : la première
+       activation d'un relais dont le cache est vide dépasse ce délai, et
+       l'application déclarerait l'échec pendant que le conteneur, lui,
+       finirait de se créer. */
+    run: (command) => runOnRelay(command, 180_000),
   });
 
   if (existing) {
@@ -216,7 +231,7 @@ export async function removeCloudMikhmonInstance(routerId: string): Promise<bool
     .limit(1);
   if (!existing) return false;
 
-  await runOnRelay(`docker rm -f ${shellArg(existing.containerName)}`);
+  await runOnRelay(`${DOCKER} rm -f ${shellArg(existing.containerName)}`);
   await db.delete(routerMikhmonCloudInstances).where(eq(routerMikhmonCloudInstances.id, existing.id));
   return true;
 }

@@ -28,6 +28,13 @@ describe("MikHmon cloud provisioning", () => {
     assert.equal(instance.domain, "rb951-korhogo-14174000.mikhmon.safelinkhub.io");
     assert.equal(instance.localPort, 20_000);
     assert.ok(commands.some((command) => command.includes("docker run -d")));
+    /* CHAQUE commande docker passe par sudo. Le compte `relay` du relais n'est
+       pas dans le groupe docker : sans sudo, l'activation échoue par
+       « permission denied … /var/run/docker.sock » — exactement la panne
+       remontée en production sur le premier RB951 raccordé. */
+    for (const command of commands.filter((c) => c.includes("docker"))) {
+      assert.match(command, /^sudo docker /, `commande docker sans sudo : ${command}`);
+    }
     assert.ok(
       commands.every(
         (command) => !command.includes("/ip/firewall") && !command.includes("/container/"),
