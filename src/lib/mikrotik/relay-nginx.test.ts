@@ -108,6 +108,11 @@ describe("routage des instances MikHmon cloud", () => {
       },
     });
     assert.equal(instance.domain, "deja.mikhmon.safelinkhub.io");
-    assert.deepEqual(commandes, [], "une seconde activation ne doit rien relancer");
+    /* « Ne rien relancer » portait sur le CONTENEUR, pas sur la session : une
+       seconde activation repose désormais config.php depuis la base, ce qui
+       fait du bouton un correctif pour les instances créées avant qu'on sache
+       la pré-remplir. Ce qui reste interdit, c'est un second conteneur. */
+    assert.ok(!commandes.some((c) => c.includes("docker run")), "un second conteneur a été créé");
+    assert.ok(!commandes.some((c) => c.includes("docker start")), "conteneur actif relancé pour rien");
   });
 });

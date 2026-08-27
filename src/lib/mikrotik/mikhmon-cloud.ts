@@ -8,6 +8,7 @@ import { getDb } from "@/lib/db";
 import { routerMikhmonCloudInstances } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import { runOnRelay } from "./relay";
+import { buildMikhmonConfigPhp } from "./mikhmon-session";
 
 type CloudRouter = {
   id: string;
@@ -58,6 +59,51 @@ function containerNameFor(routerId: string): string {
   return `slh-mikhmon-${compactId}`;
 }
 
+
+/** Nom de session affiché dans MikHmon — le même que sur les routeurs à conteneur. */
+export const CLOUD_SESSION_NAME = "SafeLinkHub";
+
+/**
+ * Pose la session MikHmon dans le conteneur du relais.
+ *
+ * L'image ne sait pas se pré-remplir : sans cette écriture, l'exploitant tombe
+ * sur « Nouveau routeur » et doit ressaisir à la main l'IP, le compte API, le
+ * nom du hotspot et le DNS — que SafeLinkHub connaît déjà. C'est exactement ce
+ * que fait déjà l'auto-setup des routeurs à conteneur ; on réutilise SON
+ * constructeur (buildMikhmonConfigPhp) pour que les deux chemins ne puissent
+ * pas diverger, mot de passe chiffré compris.
+ *
+ * Le fichier transite en base64 : le PHP produit contient des apostrophes et
+ * des dollars, qu'un here-doc de shell mal cité corromprait en silence.
+ */
+async function writeCloudMikhmonSession(
+  run: CloudRunner,
+  containerName: string,
+  router: CloudRouter,
+): Promise<void> {
+  const contenu = buildMikhmonConfigPhp(CLOUD_SESSION_NAME, {
+    // L'instance vit sur le relais : elle joint le routeur par son IP de
+    // tunnel, jamais par l'adresse du hotspot (injoignable depuis le VPS).
+    ip: router.tunnelIp,
+    user: router.username,
+    pass: router.password,
+    hotspot: router.hotspotName,
+    dns: router.dnsName,
+    currency: "fcfa",
+    autoload: 10,
+    iface: 1,
+    infolp: "",
+    idle: "disable",
+    livereport: "enable",
+  });
+  const b64 = Buffer.from(contenu, "utf8").toString("base64");
+  await run(
+    `${DOCKER} exec ${shellArg(containerName)} sh -c ${shellArg(
+      `echo ${b64} | base64 -d > /src/src/include/config.php`,
+    )}`,
+  );
+}
+
 export async function provisionCloudMikhmon(input: {
   router: CloudRouter;
   existing: ExistingCloudInstance | null;
@@ -68,17 +114,16 @@ export async function provisionCloudMikhmon(input: {
   traefikNetwork?: string;
   run: CloudRunner;
 }): Promise<CloudMikhmonInstance> {
-  if (input.existing?.status === "active") {
-    return {
-      domain: input.existing.domain,
-      containerName: input.existing.containerName,
-      localPort: input.existing.localPort,
-      status: "active",
-    };
-  }
-
+  /* Une instance déjà là est REPOSÉE, pas seulement redémarrée : la session est
+     réécrite depuis la base à chaque activation. C'est ce qui donne au bouton
+     sa valeur de réparation — une instance créée avant ce correctif, ou dont
+     quelqu'un a cassé les réglages à la main, revient d'un clic. Les valeurs
+     viennent de SafeLinkHub, seule source de vérité pour ce routeur. */
   if (input.existing) {
-    await input.run(`${DOCKER} start ${shellArg(input.existing.containerName)}`);
+    if (input.existing.status !== "active") {
+      await input.run(`${DOCKER} start ${shellArg(input.existing.containerName)}`);
+    }
+    await writeCloudMikhmonSession(input.run, input.existing.containerName, input.router);
     return {
       domain: input.existing.domain,
       containerName: input.existing.containerName,
@@ -134,16 +179,16 @@ export async function provisionCloudMikhmon(input: {
     `--label ${shellArg(`traefik.http.routers.${routerLabel}.tls.domains[0].main=${input.baseDomain}`)}`,
     `--label ${shellArg(`traefik.http.routers.${routerLabel}.tls.domains[0].sans=*.${input.baseDomain}`)}`,
     `--label ${shellArg(`traefik.http.services.${routerLabel}.loadbalancer.server.port=80`)}`,
-    `--env ${shellArg("MIKHMON_SESSION=SafeLinkHub")}`,
-    `--env ${shellArg(`MIKHMON_MT_IP=${input.router.tunnelIp}`)}`,
-    `--env ${shellArg(`MIKHMON_MT_USER=${input.router.username}`)}`,
-    `--env ${shellArg(`MIKHMON_MT_PASS=${input.router.password}`)}`,
-    `--env ${shellArg(`MIKHMON_HOTSPOT_NAME=${input.router.hotspotName}`)}`,
-    `--env ${shellArg(`MIKHMON_DNS=${input.router.dnsName}`)}`,
-    `--env ${shellArg("MIKHMON_CURRENCY=fcfa")}`,
+    /* AUCUNE variable MIKHMON_MT_* ici. Mesuré dans l'image : les seules
+       variables qu'elle lit sont MIKHMON_{BUILD_STAMP,BUILD_VERSION,
+       FRAUD_API_KEY,IMAGE_NAME,SECRET_KEY,UPDATE_CHECK,UPDATE_URL}. Les sept
+       autres qu'on envoyait ne servaient à rien — et l'une d'elles portait le
+       mot de passe du routeur EN CLAIR dans la sortie de `docker inspect`.
+       La session se pose par config.php, juste après. */
     shellArg(image),
   ];
   await input.run(args.join(" "));
+  await writeCloudMikhmonSession(input.run, containerName, input.router);
 
   return { domain, containerName, localPort, status: "active" };
 }
