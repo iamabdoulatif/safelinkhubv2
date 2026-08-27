@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { getMikhmonLink } from "@/lib/mikrotik/mikhmon-online";
 import MikhmonCloudActivationDialog from "./MikhmonCloudActivationDialog";
+import { MIKHMON_EDITIONS } from "@/lib/mikrotik/mikhmon-editions";
 
 export type MikhmonRouter = {
   id: string;
@@ -301,8 +302,8 @@ export default function MikhmonOnlineConsole({
 
       <Section
         icon={CloudCog}
-        titre="Sans conteneur — domaine dédié"
-        chapo="Ces cartes ne peuvent pas faire tourner RouterOS Container. Leur MikHmon est hébergé sur le relais et répond sur son propre sous-domaine HTTPS ; le routeur ne reçoit ni conteneur, ni bridge, ni règle NAT."
+        titre="MikHmon v6 — sans conteneur, domaine dédié"
+        chapo={`${MIKHMON_EDITIONS.v6.audience} ${MIKHMON_EDITIONS.v6.origine} Il est hébergé sur le relais et répond sur son propre sous-domaine HTTPS ; le routeur ne reçoit ni conteneur, ni bridge, ni règle NAT.`}
         compte={cloud.length}
         vide="Aucun routeur classé « sans conteneur » pour l’instant."
       >
@@ -313,8 +314,8 @@ export default function MikhmonOnlineConsole({
 
       <Section
         icon={Box}
-        titre="Avec conteneur — MikHmon sur le routeur"
-        chapo="MikHmon tourne dans un conteneur RouterOS, sur l’équipement lui-même. Le lien par tunnel s’affiche dès qu’il est actif ; l’accès direct exige de joindre le routeur pour lire son DDNS et sonder le port, d’où le bouton."
+        titre="MikHmon v7 — sur le routeur"
+        chapo={`${MIKHMON_EDITIONS.v7.origine} ${MIKHMON_EDITIONS.v7.audience} Le lien par tunnel s’affiche dès qu’il est actif ; l’accès direct exige de joindre le routeur pour lire son DDNS et sonder le port, d’où le bouton.`}
         compte={conteneur.length}
         vide="Aucun routeur compatible Container pour l’instant."
       >

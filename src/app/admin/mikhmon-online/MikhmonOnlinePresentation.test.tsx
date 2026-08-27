@@ -48,8 +48,12 @@ const rendu = (routers: MikhmonRouter[]) =>
 describe("station MikHmon Online", () => {
   it("sépare le parc selon l'endroit où MikHmon tourne réellement", () => {
     const html = rendu(parc);
-    assert.match(html, /Sans conteneur — domaine dédié/);
-    assert.match(html, /Avec conteneur — MikHmon sur le routeur/);
+    /* Les deux éditions portent désormais le surnom que l'exploitant emploie :
+       « v6 » pour les cartes restées en RouterOS 6, « v7 » pour celles qui
+       savent héberger un conteneur. Le surnom parle du ROUTEUR, pas du numéro
+       de version de MikHmon — voir mikhmon-editions.ts. */
+    assert.match(html, /MikHmon v6 — sans conteneur, domaine dédié/);
+    assert.match(html, /MikHmon v7 — sur le routeur/);
     assert.match(html, /Capacité pas encore déterminée/);
   });
 
@@ -100,6 +104,6 @@ describe("station MikHmon Online", () => {
   it("un parc vide dit quoi faire au lieu de n'afficher que des zéros", () => {
     const html = rendu([]);
     assert.match(html, /Aucun routeur lié/);
-    assert.doesNotMatch(html, /Sans conteneur/);
+    assert.doesNotMatch(html, /MikHmon v6/);
   });
 });
