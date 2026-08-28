@@ -129,6 +129,53 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/mikhmon-v6:v3.20-fr
             ghcr.io/${{ github.repository_owner }}/mikhmon-v6:latest
 
+  # Édition v7, corrigée : une couche mince sur l'image de l'exploitant, qui
+  # retire la division par 100 du prix des tickets (voir deploy/mikhmon-v7).
+  #
+  # MULTI-ARCHITECTURE, contrairement à la v6 : la v6 ne tourne que sur le
+  # relais, en x86 ; la v7 est installée SUR LES ROUTEURS, qui sont en ARM. Une
+  # image construite pour la seule architecture du runner ne démarrerait sur
+  # aucun MikroTik du parc.
+  mikhmon-v7:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: A-t-elle changé ?
+        id: change
+        run: |
+          if git diff --quiet HEAD~1 HEAD -- deploy/mikhmon-v7/ 2>/dev/null; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-qemu-action@v3
+        if: steps.change.outputs.build == 'true'
+      - uses: docker/setup-buildx-action@v3
+        if: steps.change.outputs.build == 'true'
+      - name: Log in to GHCR
+        if: steps.change.outputs.build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        if: steps.change.outputs.build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/mikhmon-v7
+          push: true
+          # Les mêmes architectures que l'image amont, moins s390x qu'aucun
+          # équipement du parc n'utilise.
+          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/mikhmon-v7:prix-corrige
+            ghcr.io/${{ github.repository_owner }}/mikhmon-v7:latest
+
   deploy:
     needs: build
     # Opt-in: set repo variable DEPLOY_ENABLED=true once the VPS + secrets are

@@ -111,3 +111,41 @@ describe("la plage RouterOS annoncée", () => {
     assert.match(MIKHMON_EDITIONS.v6.origine, /laksa19/);
   });
 });
+
+describe("le prix imprimé sur les tickets", () => {
+  it("le correctif est vérifié à la construction, pas au premier ticket", async () => {
+    /* Un `sed` qui ne trouve pas son motif sort en 0 : sans contrôle, une
+       image inchangée passerait la construction et rien ne la distinguerait de
+       l'originale — on ne s'en apercevrait qu'en imprimant un ticket. */
+    const { readFile } = await import("node:fs/promises");
+    const script = await readFile(
+      new URL("../../../deploy/mikhmon-v7/corrige-prix.sh", import.meta.url),
+      "utf8",
+    );
+    assert.match(script, /grep -n "\/ 100"[\s\S]{0,120}exit 1/, "la division n'est pas re-vérifiée");
+    assert.match(script, /php -l/, "la syntaxe des modèles n'est pas vérifiée");
+    assert.match(script, /^set -e$/m, "un échec de sed passerait inaperçu");
+  });
+
+  it("les trois modèles sont corrigés, pas seulement celui qu'on a sous les yeux", async () => {
+    // template.php, template-small.php et safetmp.php portaient la MÊME faute.
+    const { readFile } = await import("node:fs/promises");
+    const script = await readFile(
+      new URL("../../../deploy/mikhmon-v7/corrige-prix.sh", import.meta.url),
+      "utf8",
+    );
+    for (const modele of ["template.php", "template-small.php", "safetmp.php"]) {
+      assert.ok(script.includes(modele), `modèle oublié : ${modele}`);
+    }
+  });
+
+  it("l'image v7 est construite pour l'ARM des routeurs", async () => {
+    /* La v6 ne tourne que sur le relais, en x86. La v7 est installée SUR les
+       MikroTik : une image mono-architecture ne démarrerait sur aucun. */
+    const { readFile } = await import("node:fs/promises");
+    const wf = await readFile(new URL("../../../.github/workflows/deploy.yml", import.meta.url), "utf8");
+    const job = wf.slice(wf.indexOf("mikhmon-v7:"));
+    assert.match(job, /platforms:.*linux\/arm64/);
+    assert.match(job, /platforms:.*linux\/arm\/v7/);
+  });
+});
