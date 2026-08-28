@@ -101,19 +101,24 @@ describe("le prix imprimé sur les tickets", () => {
        l'originale — on ne s'en apercevrait qu'en imprimant un ticket. */
     const { readFile } = await import("node:fs/promises");
     const script = await readFile(
-      new URL("../../../deploy/mikhmon-v7/corrige-prix.sh", import.meta.url),
+      new URL("../../../deploy/mikhmon-v7/patch-modeles.php", import.meta.url),
       "utf8",
     );
-    assert.match(script, /grep -n "\/ 100"[\s\S]{0,120}exit 1/, "la division n'est pas re-vérifiée");
-    assert.match(script, /php -l/, "la syntaxe des modèles n'est pas vérifiée");
-    assert.match(script, /^set -e$/m, "un échec de sed passerait inaperçu");
+    /* Le correctif est passé de sed à PHP : il remplace des BLOCS (un switch de
+       dix lignes, une liste de règles CSS), que sed ne décrirait qu'avec des
+       plages multi-lignes illisibles. Le contrôle, lui, est plus strict —
+       chaque remplacement est COMPTÉ, là où un sed qui rate sort en 0. */
+    assert.match(script, /\$nClean !== 1 \|\| \$nValue !== 1/, "le prix n'est pas recompté");
+    assert.match(script, /\$nSwitch !== 1/, "le switch n'est pas recompté");
+    assert.match(script, /\$nCss !== 1/, "le CSS n'est pas recompté");
+    assert.match(script, /'\/ 100'\) !== false[\s\S]{0,120}exit\(1\)/, "la division n'est pas re-vérifiée");
   });
 
   it("les trois modèles sont corrigés, pas seulement celui qu'on a sous les yeux", async () => {
     // template.php, template-small.php et safetmp.php portaient la MÊME faute.
     const { readFile } = await import("node:fs/promises");
     const script = await readFile(
-      new URL("../../../deploy/mikhmon-v7/corrige-prix.sh", import.meta.url),
+      new URL("../../../deploy/mikhmon-v7/patch-modeles.php", import.meta.url),
       "utf8",
     );
     for (const modele of ["template.php", "template-small.php", "safetmp.php"]) {
@@ -159,5 +164,60 @@ describe("d'où viennent les images", () => {
       !profil.includes("latif225/"),
       "le profil de référence montre encore l'ancienne image",
     );
+  });
+});
+
+describe("couleurs des tickets imprimés", () => {
+  const palette = async () => {
+    const { readFile } = await import("node:fs/promises");
+    return readFile(new URL("../../../deploy/mikhmon-v7/couleurs-prix.php", import.meta.url), "utf8");
+  };
+
+  it("plus de douze prix, et aucune couleur en double", async () => {
+    /* Deux prix de la même couleur, c'est une confusion au comptoir : le
+       vendeur trie les tickets à l'œil, pas en lisant le montant. */
+    const src = await palette();
+    const lignes = [...src.matchAll(/^\s*(\d+)\s*=>\s*array\('(#[0-9A-F]{6})'/gm)];
+    assert.ok(lignes.length > 12, `seulement ${lignes.length} prix`);
+    const fonds = lignes.map((m) => m[2]);
+    assert.equal(new Set(fonds).size, fonds.length, "deux prix partagent une couleur");
+    const prix = lignes.map((m) => m[1]);
+    assert.equal(new Set(prix).size, prix.length, "un prix apparaît deux fois");
+  });
+
+  it("aucun dégradé — que des aplats", async () => {
+    /* L'amont en posait trois dans safetmp.php. Un dégradé s'imprime mal et
+       mange l'encre : ces tickets sortent sur des imprimantes de comptoir. */
+    const src = await palette();
+    assert.ok(!/gradient/i.test(src), "un dégradé s'est glissé dans la palette");
+    const patch = await (await import("node:fs/promises")).readFile(
+      new URL("../../../deploy/mikhmon-v7/patch-modeles.php", import.meta.url),
+      "utf8",
+    );
+    // Le bloc CSS amont est remplacé en entier, donc ses dégradés disparaissent.
+    assert.match(patch, /slh_css_prix/);
+  });
+
+  it("le texte reste lisible sur les fonds clairs", async () => {
+    /* Du blanc sur le jaune ou le lavande est illisible, et un ticket se lit
+       sur papier, souvent mal imprimé. Chaque teinte porte donc sa couleur de
+       texte plutôt qu'un blanc uniforme. */
+    const src = await palette();
+    for (const clair of ["#FFE119", "#42D4F4", "#BFEF45", "#FFD8B1", "#FABED4", "#DCBEFF"]) {
+      const ligne = src.split("\n").find((l) => l.includes(clair));
+      assert.ok(ligne?.includes("'fonce'"), `${clair} devrait porter un texte foncé`);
+    }
+  });
+
+  it("la couleur et le prix ne peuvent plus diverger", async () => {
+    /* La faute d'origine : une liste CSS déclarant .bg-800 pendant que le
+       switch testait case 700. Les deux se lisent maintenant dans la MÊME
+       table — le CSS est engendré, plus recopié. */
+    const src = await palette();
+    assert.match(src, /function slh_classe_prix/);
+    assert.match(src, /function slh_css_prix/);
+    assert.match(src, /slh_palette_prix\(\)/);
+    // Aucune règle .bg- écrite à la main dans le fichier de palette.
+    assert.ok(!/^\s*\.bg-\d+\s*\{/m.test(src), "une règle CSS est écrite en dur");
   });
 });
