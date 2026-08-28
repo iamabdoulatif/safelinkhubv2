@@ -17,10 +17,13 @@ describe("éditions MikHmon", () => {
   });
 
   it("les surnoms disent la version de RouterOS, pas celle de MikHmon", () => {
-    // v6 = MikHmon v3 de laksa19 ; le surnom parle du routeur, pas du logiciel.
+    /* v6 = MikHmon v3 de laksa19 ; le surnom parle du routeur, pas du logiciel.
+       La version vit dans `routerOs` depuis qu'elle a son propre champ — elle
+       était noyée dans la phrase d'audience, où elle ne pouvait pas être
+       affichée seule. */
     assert.match(MIKHMON_EDITIONS.v6.origine, /v3/);
-    assert.match(MIKHMON_EDITIONS.v6.audience, /RouterOS 6/);
-    assert.match(MIKHMON_EDITIONS.v7.audience, /RouterOS 7/);
+    assert.match(MIKHMON_EDITIONS.v6.routerOs, /RouterOS 6/);
+    assert.match(MIKHMON_EDITIONS.v7.routerOs, /RouterOS 7/);
   });
 
   it("la traduction française couvre toutes les clés de l'original", async () => {
@@ -81,5 +84,30 @@ describe("choix de l'édition à l'activation", () => {
     for (const e of Object.values(MIKHMON_EDITIONS)) {
       assert.ok(!/[\s;&|$`'"]/.test(e.image), `${e.id} : caractère shell dans l'image`);
     }
+  });
+});
+
+describe("la plage RouterOS annoncée", () => {
+  it("chaque édition dit à quelle version de RouterOS elle s'adresse", () => {
+    /* Le surnom seul (« v6 », « v7 ») se confond avec une version de MikHmon.
+       La plage est LE critère de choix de l'exploitant, elle doit être écrite. */
+    assert.match(MIKHMON_EDITIONS.v7.routerOs, /7\.0.*7\.24\.1/);
+    assert.match(MIKHMON_EDITIONS.v6.routerOs, /^RouterOS 6/);
+  });
+
+  it("la borne haute suit celle du reste du produit", async () => {
+    /* 7.24.1 est aussi la version que l'écran d'activation annonce pour le
+       tunnel WireGuard. Deux endroits qui affichent une borne différente
+       enverraient l'exploitant sur la mauvaise édition. */
+    const { readFile } = await import("node:fs/promises");
+    const src = await readFile(new URL("./mikhmon-cloud-activation.ts", import.meta.url), "utf8");
+    assert.ok(src.includes("7.24.1"), "la borne du tunnel a bougé sans celle de l'édition");
+  });
+
+  it("l'édition v7 est bien celle de SafeLinkHub", () => {
+    // C'est l'écran « MIKHMON by SafeLink Africa » : l'origine doit le dire,
+    // sinon deux tableaux d'apparence proche deviennent indiscernables.
+    assert.match(MIKHMON_EDITIONS.v7.origine, /SafeLink/i);
+    assert.match(MIKHMON_EDITIONS.v6.origine, /laksa19/);
   });
 });

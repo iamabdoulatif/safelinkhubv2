@@ -28,6 +28,10 @@ export type MikhmonEdition = {
   audience: string;
   /** D'où vient le logiciel — la question revient à chaque audit. */
   origine: string;
+  /** Plage de RouterOS couverte. Dite en toutes lettres : c'est le critère de
+      choix de l'exploitant, et « v6 »/« v7 » seuls prêtent à confusion avec
+      une version de MikHmon. */
+  routerOs: string;
   /** Image Docker servie par le relais. */
   image: string;
 };
@@ -36,14 +40,16 @@ export const MIKHMON_EDITIONS: Record<MikhmonEditionId, MikhmonEdition> = {
   v7: {
     id: "v7",
     label: "MikHmon v7",
-    audience: "Cartes RouterOS 7 compatibles Container — MikHmon tourne sur le routeur lui-même.",
-    origine: "Édition SafeLinkHub, sur Docker.",
+    routerOs: "RouterOS 7.0 à 7.24.1",
+    audience: "Cartes compatibles Container — MikHmon tourne sur le routeur lui-même.",
+    origine: "Édition SafeLinkHub (MIKHMON by SafeLink Africa), sur Docker.",
     image: "latif225/mikhmon-sf-v1:latest",
   },
   v6: {
     id: "v6",
     label: "MikHmon v6",
-    audience: "Cartes MIPS restées en RouterOS 6 (RB951, hEX, wAP…) — ni Container, ni API récente.",
+    routerOs: "RouterOS 6.x",
+    audience: "Cartes MIPS restées en 6.x (RB951, hEX, wAP…) — ni Container, ni API récente.",
     origine: "MikHmon v3 de laksa19, traduit en français par SafeLinkHub.",
     /* NOTRE registre, jamais un nom Docker Hub nu : le déploiement fait un
        `docker image prune -af`, donc l'image doit pouvoir être re-tirée — et

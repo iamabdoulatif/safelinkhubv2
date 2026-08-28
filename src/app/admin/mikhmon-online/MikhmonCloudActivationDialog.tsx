@@ -261,9 +261,14 @@ export default function MikhmonCloudActivationDialog({
                               }`}
                             />
                             <span>
-                              <strong className="block text-sm text-ink">{e.label}</strong>
+                              <strong className="block text-sm text-ink">
+                                {e.label}{" "}
+                                <span className="font-mono text-[11px] font-normal text-brand-deep">
+                                  {e.routerOs}
+                                </span>
+                              </strong>
                               <small className="mt-1 block text-xs leading-5 text-ink-soft">
-                                {e.origine} {e.audience}
+                                {e.audience} {e.origine}
                               </small>
                             </span>
                           </button>
