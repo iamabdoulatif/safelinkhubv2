@@ -92,6 +92,22 @@ export default function PurchaseFlow({
         await initiatePurchase();
         return;
       }
+      /* Crédit SMS du point de vente épuisé, ou passerelle en panne.
+         Le serveur a DÉJÀ marqué le numéro vérifié et attend le paiement : la
+         vérification par SMS est impossible, la refuser ne protégerait rien et
+         ferait perdre la vente. Le code d'accès s'affichera à l'écran après le
+         paiement, repli prévu par le portail.
+         Sans ce cas, `sms_unavailable` tombait dans le `throw` ci-dessous et
+         l'acheteur restait bloqué sur « Impossible d'envoyer le code » —
+         alors que le serveur, lui, l'avait laissé passer. Le portail captif
+         installé sur les routeurs traitait déjà ce statut ; cette page-ci, non. */
+      if (data.status === "sms_unavailable") {
+        setNotice(
+          "Vérification par SMS momentanément indisponible. Payez normalement : votre code d’accès s’affichera à l’écran après le paiement.",
+        );
+        await initiatePurchase();
+        return;
+      }
       if (data.status !== "sent") {
         throw new Error(data.error || "Impossible d'envoyer le code.");
       }
