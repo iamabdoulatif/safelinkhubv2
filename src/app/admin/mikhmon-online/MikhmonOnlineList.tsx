@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import {
   AlertTriangle,
   Box,
@@ -10,10 +10,18 @@ import {
   HelpCircle,
   Loader2,
   Router as RouterIcon,
+  Settings2,
 } from "lucide-react";
 import { getMikhmonLink } from "@/lib/mikrotik/mikhmon-online";
 import MikhmonCloudActivationDialog from "./MikhmonCloudActivationDialog";
 import { MIKHMON_EDITIONS } from "@/lib/mikrotik/mikhmon-editions";
+import { normalizeCustomSlug } from "@/lib/mikrotik/mikhmon-cloud-domain";
+import {
+  activerMikhmonCloud,
+  desactiverMikhmonCloud,
+  renommerMikhmonCloud,
+  supprimerMikhmonCloud,
+} from "@/lib/mikrotik/mikhmon-cloud-actions";
 
 export type MikhmonRouter = {
   id: string;
@@ -25,6 +33,9 @@ export type MikhmonRouter = {
   /** Où vit MikHmon pour ce routeur — voir le commentaire de page.tsx. */
   kind: "cloud" | "container" | "unknown";
   cloudDomain: string | null;
+  /** active | stopped | failed — null quand aucune instance n'existe. */
+  cloudStatus: string | null;
+  cloudEdition: string | null;
   tunnelLink: string | null;
 };
 
@@ -92,6 +103,163 @@ function Lien({ href, label }: { href: string; label: string }) {
   );
 }
 
+
+/**
+ * Les quatre gestes sur une instance en place : renommer, désactiver,
+ * réactiver, supprimer.
+ *
+ * Les deux destructeurs demandent une CONFIRMATION FRAPPÉE, pas un simple
+ * « êtes-vous sûr ». Supprimer détruit le conteneur et libère l'adresse ;
+ * renommer détruit puis recrée, donc coupe le tableau une minute. Un clic de
+ * trop ne doit pas suffire.
+ */
+function GestionInstance({
+  router,
+  baseDomain,
+}: {
+  router: MikhmonRouter;
+  baseDomain?: string;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const [nouveauSlug, setNouveauSlug] = useState(
+    () => router.cloudDomain?.split(".")[0] ?? "",
+  );
+  const [confirmation, setConfirmation] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const actif = router.cloudStatus === "active";
+  const slugActuel = router.cloudDomain?.split(".")[0] ?? "";
+  const verdict = normalizeCustomSlug(nouveauSlug);
+  const slugChange = verdict.ok && verdict.slug !== slugActuel;
+
+  function lancer(action: () => Promise<{ error?: string; success?: true }>, succes: string) {
+    setErreur(null);
+    setMessage(null);
+    startTransition(async () => {
+      const r = await action();
+      if (r?.error) setErreur(r.error);
+      else {
+        setMessage(succes);
+        window.location.reload();
+      }
+    });
+  }
+
+  return (
+    <div className="mt-3 border-t border-line-soft pt-2.5">
+      <button
+        type="button"
+        onClick={() => setOuvert((v) => !v)}
+        aria-expanded={ouvert}
+        className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft hover:text-ink"
+      >
+        <Settings2 className="h-3.5 w-3.5" />
+        Gérer ce tableau
+      </button>
+
+      {ouvert && (
+        <div className="mt-3 space-y-3">
+          <div>
+            <label
+              htmlFor={`slug-${router.id}`}
+              className="block text-[11px] font-semibold uppercase tracking-wider text-ink-soft"
+            >
+              Adresse du tableau
+            </label>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <input
+                id={`slug-${router.id}`}
+                value={nouveauSlug}
+                onChange={(e) => setNouveauSlug(e.target.value)}
+                className="w-44 rounded-md border border-line-soft px-2 py-1 font-mono text-xs focus:outline-none"
+              />
+              <span className="font-mono text-xs text-ink-soft">.{baseDomain ?? "…"}</span>
+              <button
+                type="button"
+                disabled={!slugChange || pending}
+                onClick={() =>
+                  lancer(
+                    () => renommerMikhmonCloud(router.id, nouveauSlug),
+                    "Adresse changée.",
+                  )
+                }
+                className="rounded-md border border-line px-2.5 py-1 text-xs font-semibold text-ink disabled:opacity-40"
+              >
+                Enregistrer
+              </button>
+            </div>
+            {!verdict.ok && nouveauSlug.length > 0 && (
+              <p className="mt-1 text-[11px] text-err">{verdict.erreur}</p>
+            )}
+            {slugChange && (
+              <p className="mt-1 text-[11px] leading-4 text-ink-soft">
+                Le tableau sera recréé : l&apos;ancienne adresse cessera de répondre
+                immédiatement, la nouvelle en une minute environ.
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {actif ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  lancer(() => desactiverMikhmonCloud(router.id), "Tableau désactivé.")
+                }
+                className="rounded-md border border-line px-2.5 py-1 text-xs font-semibold text-ink disabled:opacity-40"
+              >
+                Désactiver
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => lancer(() => activerMikhmonCloud(router.id), "Tableau réactivé.")}
+                className="rounded-md border border-[#12301D] bg-brand px-2.5 py-1 text-xs font-bold text-[#12301D] disabled:opacity-40"
+              >
+                Réactiver
+              </button>
+            )}
+          </div>
+
+          <div className="border-t border-line-soft pt-2.5">
+            <p className="text-[11px] leading-4 text-ink-soft">
+              Supprimer détruit le tableau et libère l&apos;adresse. Vos tickets ne
+              sont pas touchés : ils vivent sur le routeur.{" "}
+              Tapez <span className="font-mono font-semibold text-ink">{slugActuel}</span> pour
+              confirmer.
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <input
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+                aria-label="Confirmation de suppression"
+                className="w-44 rounded-md border border-line-soft px-2 py-1 font-mono text-xs focus:outline-none"
+              />
+              <button
+                type="button"
+                disabled={confirmation !== slugActuel || pending}
+                onClick={() =>
+                  lancer(() => supprimerMikhmonCloud(router.id), "Tableau supprimé.")
+                }
+                className="rounded-md border border-err px-2.5 py-1 text-xs font-semibold text-err disabled:opacity-40"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+
+          {erreur && <p className="text-xs leading-5 text-err">{erreur}</p>}
+          {message && <p className="text-xs leading-5 text-ok">{message}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Routeur sans conteneur : son MikHmon vit sur le relais, sous son domaine. */
 function CarteCloud({
   router,
@@ -115,14 +283,27 @@ function CarteCloud({
 
         {router.cloudDomain ? (
           <div className="mt-3">
-            <Lien href={`https://${router.cloudDomain}`} label="Domaine dédié (HTTPS, sans port)" />
-            {router.status !== "online" && (
+            {router.cloudStatus === "active" ? (
+              <Lien href={`https://${router.cloudDomain}`} label="Domaine dédié (HTTPS, sans port)" />
+            ) : (
+              /* Instance arrêtée : on montre l'adresse SANS lien. Un lien qui
+                 mène à une erreur 404 est pire que pas de lien — il fait
+                 croire à une panne alors que c'est un choix de l'exploitant. */
+              <div>
+                <span className="block text-[11px] text-ink-soft">Domaine dédié (désactivé)</span>
+                <span className="block break-all font-mono text-sm text-ink-soft line-through">
+                  {router.cloudDomain}
+                </span>
+              </div>
+            )}
+            {router.cloudStatus === "active" && router.status !== "online" && (
               <p className="mt-2 flex items-start gap-1.5 bg-clay px-2.5 py-2 text-xs text-warn">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 L’instance est en place, mais le routeur est hors ligne : reconnectez son tunnel
                 avant de gérer les tickets.
               </p>
             )}
+            <GestionInstance router={router} baseDomain={baseDomain} />
           </div>
         ) : (
           <div className="mt-3 bg-clay px-2.5 py-2.5 text-xs leading-5 text-ink-soft">
@@ -264,7 +445,7 @@ export default function MikhmonOnlineConsole({
   const cloud = routers.filter((r) => r.kind === "cloud");
   const conteneur = routers.filter((r) => r.kind === "container");
   const inconnus = routers.filter((r) => r.kind === "unknown");
-  const cloudActifs = cloud.filter((r) => r.cloudDomain).length;
+  const cloudActifs = cloud.filter((r) => r.cloudStatus === "active").length;
 
   if (routers.length === 0) {
     return (

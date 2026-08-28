@@ -319,3 +319,27 @@ export async function removeCloudMikhmonInstance(routerId: string): Promise<bool
   await db.delete(routerMikhmonCloudInstances).where(eq(routerMikhmonCloudInstances.id, existing.id));
   return true;
 }
+
+/**
+ * Arrête le conteneur sans rien détruire.
+ *
+ * `docker stop`, pas `rm` : l'adresse, le port et l'édition restent en base, et
+ * la remise en marche ne retélécharge rien. C'est la différence entre
+ * « désactiver » et « supprimer », et elle doit se voir dans le code.
+ */
+export async function stopCloudMikhmonInstance(routerId: string): Promise<boolean> {
+  const db = getDb();
+  const [existing] = await db
+    .select()
+    .from(routerMikhmonCloudInstances)
+    .where(eq(routerMikhmonCloudInstances.routerId, routerId))
+    .limit(1);
+  if (!existing) return false;
+
+  await runOnRelay(`${DOCKER} stop ${shellArg(existing.containerName)}`, 60_000);
+  await db
+    .update(routerMikhmonCloudInstances)
+    .set({ status: "stopped", updatedAt: new Date() })
+    .where(eq(routerMikhmonCloudInstances.id, existing.id));
+  return true;
+}

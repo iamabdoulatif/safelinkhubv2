@@ -10,7 +10,7 @@ const parc: MikhmonRouter[] = [
     status: "online",
     model: "RB951Ui-2HnD",
     kind: "cloud",
-    cloudDomain: "hspt-abdoulatif-1a2b3c4d.mikhmon.safelinkhub.io",
+    cloudDomain: "hspt-abdoulatif-1a2b3c4d.mikhmon.safelinkhub.io", cloudStatus: "active", cloudEdition: "v6",
     tunnelLink: null,
   },
   {
@@ -19,7 +19,7 @@ const parc: MikhmonRouter[] = [
     status: "offline",
     model: "hEX",
     kind: "cloud",
-    cloudDomain: null,
+    cloudDomain: null, cloudStatus: null, cloudEdition: null,
     tunnelLink: null,
   },
   {
@@ -28,7 +28,7 @@ const parc: MikhmonRouter[] = [
     status: "online",
     model: "hAP ax²",
     kind: "container",
-    cloudDomain: null,
+    cloudDomain: null, cloudStatus: null, cloudEdition: null,
     tunnelLink: "http://s2.safelinkhub.io:31234",
   },
   {
@@ -37,7 +37,7 @@ const parc: MikhmonRouter[] = [
     status: "online",
     model: null,
     kind: "unknown",
-    cloudDomain: null,
+    cloudDomain: null, cloudStatus: null, cloudEdition: null,
     tunnelLink: null,
   },
 ];

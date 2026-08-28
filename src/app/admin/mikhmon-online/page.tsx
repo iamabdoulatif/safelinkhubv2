@@ -53,6 +53,7 @@ export default async function MikhmonOnlinePage() {
         routerId: routerMikhmonCloudInstances.routerId,
         domain: routerMikhmonCloudInstances.domain,
         status: routerMikhmonCloudInstances.status,
+        edition: routerMikhmonCloudInstances.edition,
       })
       .from(routerMikhmonCloudInstances),
     db
@@ -80,7 +81,12 @@ export default async function MikhmonOnlinePage() {
         const capable = supportsContainersFor(r.supportsContainers, r.model);
         return capable === false ? "cloud" : capable === true ? "container" : "unknown";
       })(),
-      cloudDomain: instance?.status === "active" ? instance.domain : null,
+      /* L'adresse est remontée QUEL QUE SOIT l'état, avec l'état à côté.
+         Ne montrer que les instances actives faisait disparaître de l'écran
+         celle qu'on venait de désactiver — donc tout moyen de la rallumer. */
+      cloudDomain: instance?.domain ?? null,
+      cloudStatus: instance?.status ?? null,
+      cloudEdition: instance?.edition ?? null,
       // Le lien tunnel se calcule sans joindre le routeur : le shard et le
       // port suffisent. Aucune raison de le cacher derrière un clic.
       tunnelLink: port ? relayWebUrl(r.relayShard, port) : null,
