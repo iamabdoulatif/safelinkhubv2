@@ -10,8 +10,12 @@ const mikhmonTunnelAccessSource = () =>
 test("auto-setup installs the mikhmon-sf-v1 image and cleans up the legacy v3 container", async () => {
   const source = await containerSetupSource();
 
-  // Active image (operator's explicit choice): latif225/mikhmon-sf-v1:latest.
-  assert.match(source, /REMOTE_IMAGE = "latif225\/mikhmon-sf-v1:latest"/);
+  // Image active : notre couche mince sur l'image de l'exploitant
+  // (deploy/mikhmon-v7), qui corrige le prix imprimé sur les tickets. Le
+  // contenu reste celui de mikhmon-sf-v1 — seuls les trois modèles changent.
+  // Le registre est épinglé : un nom nu serait résolu sur Docker Hub, et le
+  // routeur lancerait l'image d'un inconnu avec ses propres identifiants.
+  assert.match(source, /REMOTE_IMAGE = "ghcr\.io\/iamabdoulatif\/mikhmon-v7:[a-z-]+"/);
   assert.match(source, /CONTAINER_NAME = "mikhmon-sf-v1:latest"/);
   // The previous v3 container must still be referenced so it is removed as a
   // legacy container during provisioning (in-place migration).

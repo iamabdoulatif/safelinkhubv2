@@ -43,7 +43,10 @@ export const MIKHMON_EDITIONS: Record<MikhmonEditionId, MikhmonEdition> = {
     routerOs: "RouterOS 7.0 à 7.24.1",
     audience: "Cartes compatibles Container — MikHmon tourne sur le routeur lui-même.",
     origine: "Édition SafeLinkHub (MIKHMON by SafeLink Africa), sur Docker.",
-    image: "latif225/mikhmon-sf-v1:latest",
+    /* Couche mince sur l'image de l'exploitant, avec le prix des tickets
+       corrigé — voir deploy/mikhmon-v7. Même registre que la v6, pour la même
+       raison : un nom nu irait chercher l'image d'un inconnu. */
+    image: "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige",
   },
   v6: {
     id: "v6",

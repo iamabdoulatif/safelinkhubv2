@@ -1,3 +1,5 @@
+import { MIKHMON_EDITIONS } from "./mikhmon-editions";
+
 export const ROUTER_SETUP_PROFILE = {
   referenceDevice: "hAP ax^2",
   routerosVersion: "7.23.1",
@@ -20,7 +22,10 @@ export const ROUTER_SETUP_PROFILE = {
     network: "11.11.11.0/28",
     vethName: "MIKHMON",
     vethAddress: "11.11.11.11/28",
-    image: "latif225/mikhmon-sf-v1:latest",
+    /* Lue depuis la table des éditions, pas recopiée : ce profil est AFFICHÉ
+       à l'exploitant comme la référence du parc. Une copie figée finirait par
+       montrer une image que l'auto-setup n'installe plus. */
+    image: MIKHMON_EDITIONS.v7.image,
     remoteAccessPort: 8088,
     localWebPort: 8087,
   },

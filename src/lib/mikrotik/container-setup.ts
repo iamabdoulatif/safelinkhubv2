@@ -89,7 +89,12 @@ const DOCKER_NETWORK = "11.11.11.0/28";
 // devient legacy → nettoyée au provisioning.
 const CONTAINER_NAME = "mikhmon-sf-v1:latest";
 const LEGACY_CONTAINER_NAMES = ["mikhmonv3-safelinkhub:latest"];
-const REMOTE_IMAGE = "latif225/mikhmon-sf-v1:latest";
+/* Notre couche mince sur l'image de l'exploitant : même contenu, avec le prix
+   des tickets corrigé (deploy/mikhmon-v7). Publiée en arm/v7 + arm64 + amd64,
+   sans quoi elle ne démarrerait sur aucun MikroTik du parc — vérifié en lisant
+   les modèles dans la variante arm64 avant cette bascule, et le paquet GHCR
+   répond bien en anonyme, seul mode dont disposent les routeurs. */
+const REMOTE_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige";
 const NTP_SERVERS = ["196.200.131.160", "196.10.52.57"]; // Côte d'Ivoire NTP
 
 function rosBoolean(value: string | undefined) {

@@ -68,5 +68,8 @@ Deux raisons de ne pas la garder sur le relais :
    appartient pas. Le jour où quelqu'un l'y publie, le relais lancerait son
    image avec les identifiants des routeurs.
 
-L'édition v7 reste sur Docker Hub (`latif225/mikhmon-sf-v1`) : ce compte est
-celui de l'exploitant, donc l'image est déjà sous son contrôle.
+L'édition v7 est passée sur GHCR elle aussi (`ghcr.io/iamabdoulatif/mikhmon-v7`,
+recette dans `deploy/mikhmon-v7`) : une couche mince sur l'image Docker Hub de
+l'exploitant, qui corrige le prix imprimé sur les tickets. Elle est construite
+en multi-architecture — contrairement à la v6, qui ne tourne que sur le relais,
+la v7 est installée SUR les routeurs, en ARM.
