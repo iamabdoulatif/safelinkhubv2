@@ -5,7 +5,8 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { ensureDefaultPortals } from "./default-portals";
 import { bridges, captiveTemplates, routers, organizations } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { portailAReposer } from "./portail-a-reposer";
+import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
@@ -690,6 +691,56 @@ export async function installTemplateOnRouter(
   } finally {
     client.close();
   }
+}
+
+
+/**
+ * Repose le portail captif d'un routeur — la voie de réparation.
+ *
+ * POURQUOI ELLE MANQUAIT. Les fichiers du portail sont écrits dans la flash du
+ * routeur, PRIX COMPRIS : ils sont rendus au moment du téléchargement, puis
+ * figés. Corriger un tarif dans Forfaits ne redescend donc jamais tout seul, et
+ * la seule façon de rattraper l'erreur vivait dans Réglages → Portails captifs,
+ * un écran organisé par MODÈLE. Or quand un routeur affiche un mauvais prix, on
+ * part du routeur, pas du modèle : la réparation était là sans être trouvable.
+ *
+ * Le modèle reposé est celui que le routeur porte déjà — voir portailAReposer
+ * pour le refus délibéré de retomber sur le défaut quand l'assignation pointe
+ * dans le vide.
+ */
+export async function reposerPortailRouteur(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const db = getDb();
+  const [router] = await db
+    .select({ id: routers.id, orgId: routers.orgId, captiveTemplateId: routers.captiveTemplateId })
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  const modeles = await db
+    .select({
+      id: captiveTemplates.id,
+      name: captiveTemplates.name,
+      isDefault: captiveTemplates.isDefault,
+      templateType: captiveTemplates.templateType,
+    })
+    .from(captiveTemplates)
+    .where(eq(captiveTemplates.orgId, router.orgId));
+
+  const verdict = portailAReposer(router.captiveTemplateId, modeles);
+  if (!verdict.ok) return { error: verdict.erreur };
+
+  /* On réutilise l'installation existante plutôt que d'en écrire une seconde :
+     c'est elle qui régénère les prix depuis la table packages. Deux chemins
+     d'écriture donneraient deux portails subtilement différents. */
+  const res = await installTemplateOnRouter(routerId, verdict.templateId, { orgId: router.orgId });
+  if ("error" in res && res.error) return res;
+  return { ...res, portail: verdict.nom, origine: verdict.origine };
 }
 
 export async function assignTemplateToBridge(bridgeId: string, templateId: string | null) {

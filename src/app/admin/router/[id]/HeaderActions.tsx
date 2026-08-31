@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, RefreshCw, Trash2, Gauge, Lock, LockOpen, Zap, Activity, PackageOpen } from "lucide-react";
+import { Loader2, Pencil, RefreshCw, Trash2, Gauge, Lock, LockOpen, Zap, Activity, PackageOpen, LayoutTemplate } from "lucide-react";
 import {
   deleteRouter,
   optimizeRouterWifi,
@@ -14,6 +14,7 @@ import {
   speedTestRouter,
 } from "@/lib/mikrotik/actions";
 import { reinstallMikhmonContainer } from "@/lib/mikrotik/container-setup";
+import { reposerPortailRouteur } from "@/lib/captive-templates/actions";
 
 export default function HeaderActions({
   routerId,
@@ -26,6 +27,7 @@ export default function HeaderActions({
   const [isRefreshing, startRefresh] = useTransition();
   const [isOptimizing, startOptimize] = useTransition();
   const [isReinstalling, startReinstall] = useTransition();
+  const [isReposing, startRepose] = useTransition();
   const [isTuning, startTune] = useTransition();
   const [isTesting, startTest] = useTransition();
   const [isLocking, startLock] = useTransition();
@@ -151,6 +153,32 @@ export default function HeaderActions({
           <PackageOpen aria-hidden="true" className="h-4 w-4" />
         )}
         {isReinstalling ? "Lancement…" : "Réinstaller MikHmon"}
+      </button>
+      <button
+        type="button"
+        disabled={isReposing}
+        title="Réécrit les fichiers du portail sur le routeur. Les prix y sont figés au téléchargement : c'est ce geste qui fait redescendre un tarif corrigé dans Forfaits."
+        onClick={() =>
+          startRepose(async () => {
+            setError(null);
+            setOk(null);
+            const result = await reposerPortailRouteur(routerId);
+            if ("error" in result && result.error) setError(result.error);
+            else {
+              const nom = "portail" in result ? result.portail : "captif";
+              setOk(`Portail « ${nom} » reposé — les prix affichés suivent maintenant la page Forfaits.`);
+            }
+            router.refresh();
+          })
+        }
+        className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-xl"
+      >
+        {isReposing ? (
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+        ) : (
+          <LayoutTemplate aria-hidden="true" className="h-4 w-4" />
+        )}
+        {isReposing ? "Envoi…" : "Reposer le portail"}
       </button>
       <button
         type="button"
