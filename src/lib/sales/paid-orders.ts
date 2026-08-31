@@ -10,7 +10,7 @@
 // `payment_initiating` et `failed` = aucun encaissement.
 import { and, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { packages, portalOrders, vouchers } from "@/lib/db/schema";
+import { packages, portalOrders, routers, vouchers } from "@/lib/db/schema";
 
 export const PAID_ORDER_STATUSES = ["paid", "fulfilling", "fulfilled"] as const;
 
@@ -23,6 +23,10 @@ export type PaidSale = {
   commissionCents: number;
   status: string;
   createdAt: Date;
+  /* La zone Wi-Fi d'où vient la vente. `router_id` est renseignée sur chaque
+     commande du portail depuis toujours ; elle n'était simplement jamais lue. */
+  routerId: string | null;
+  routerName: string | null;
 };
 
 /** Ventes encaissées d'une org, les plus récentes d'abord. `range` optionnel. */
@@ -53,12 +57,17 @@ export async function getPaidSales(
       packageName: packages.name,
       packagePriceCents: packages.priceCents,
       commissionCents: packages.commissionCents,
+      routerId: portalOrders.routerId,
+      routerName: routers.name,
     })
     .from(portalOrders)
     // Jointures externes : un forfait supprimé ou un ticket non encore honoré
     // ne doit pas faire disparaître un paiement déjà encaissé.
     .leftJoin(packages, eq(portalOrders.packageId, packages.id))
     .leftJoin(vouchers, eq(portalOrders.voucherId, vouchers.id))
+    // Externe elle aussi : un routeur retiré du parc ne doit pas faire
+    // disparaître les ventes qu'il a encaissées.
+    .leftJoin(routers, eq(portalOrders.routerId, routers.id))
     .where(and(...filters))
     .orderBy(desc(portalOrders.createdAt));
 
@@ -73,5 +82,7 @@ export async function getPaidSales(
     commissionCents: r.commissionCents ?? 0,
     status: r.status,
     createdAt: r.createdAt,
+    routerId: r.routerId ?? null,
+    routerName: r.routerName ?? null,
   }));
 }

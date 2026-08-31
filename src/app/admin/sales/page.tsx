@@ -1,6 +1,7 @@
 import { TrendingUp } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
 import { getPaidSales } from "@/lib/sales/paid-orders";
+import { revenuParZone } from "@/lib/sales/par-zone";
 import { getAdminDict } from "@/lib/i18n/admin";
 import { getLocale } from "@/lib/i18n/server";
 
@@ -40,6 +41,7 @@ export default async function SalesPage() {
     (sum, s) => sum + s.commissionCents,
     0,
   );
+  const zones = revenuParZone(sales);
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
@@ -75,12 +77,42 @@ export default async function SalesPage() {
         </div>
       </div>
 
+      {zones.length > 0 && (
+        <section className="mt-6 border border-line bg-paper p-5 rounded-xl">
+          <h2 className="text-sm font-semibold text-ink">{t.byZone}</h2>
+          <p className="mt-0.5 text-xs text-ink-soft">{t.byZoneHint}</p>
+          <ul className="mt-4 space-y-3" role="list">
+            {zones.map((z) => (
+              <li key={z.routerId ?? "sans-routeur"}>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                  <span className="text-sm font-medium text-ink">{z.nom}</span>
+                  <span className="text-sm font-bold tabular-nums text-ink">
+                    {formatFcfa(z.revenuCents, locale)}
+                  </span>
+                </div>
+                {/* La barre double le chiffre plutôt que de le remplacer : elle
+                    se lit d'un coup d'œil, le montant reste la donnée. */}
+                <div className="mt-1.5 flex items-center gap-3">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-clay">
+                    <div className="h-full rounded-full bg-brand" style={{ width: `${z.part}%` }} />
+                  </div>
+                  <span className="w-24 shrink-0 text-right text-xs tabular-nums text-ink-soft">
+                    {t.zoneSales(z.ventes)} · {z.part}%
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="mt-6 overflow-hidden border border-line bg-paper">
         <div className="table-mobile-wrapper">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">{t.voucher}</th>
+              <th className="px-4 py-3 font-medium">{t.zone}</th>
               <th className="px-4 py-3 font-medium">{t.package}</th>
               <th className="px-4 py-3 font-medium">{t.price}</th>
               <th className="px-4 py-3 font-medium">{t.status}</th>
@@ -90,7 +122,7 @@ export default async function SalesPage() {
           <tbody className="divide-y divide-line-soft">
             {sales.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-ink-soft">
+                <td colSpan={6} className="px-4 py-8 text-center text-ink-soft">
                   {t.empty}
                 </td>
               </tr>
@@ -99,6 +131,9 @@ export default async function SalesPage() {
               <tr key={s.id}>
                 <td className="px-4 py-3 font-medium text-ink">
                   {s.username}
+                </td>
+                <td className="px-4 py-3 text-ink-soft">
+                  {s.routerName ?? <span className="italic">{"—"}</span>}
                 </td>
                 <td className="px-4 py-3 text-ink-soft">{s.packageName}</td>
                 <td className="px-4 py-3 font-medium text-ok">
