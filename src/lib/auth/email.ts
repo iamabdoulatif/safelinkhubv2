@@ -27,24 +27,32 @@ function getFrom(): string {
 // Shared, brand-light HTML shell. Kept deliberately simple (inline styles,
 // table-free) — enough to render cleanly across mail clients without pulling
 // in a templating dependency.
-function layout(
+/** Gabarit commun des e-mails. Exporté pour être rendu et vérifié tel quel. */
+export function layout(
   title: string,
   bodyHtml: string,
   ctaLabel: string,
   ctaUrl: string,
   english = false,
 ): string {
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1C1917">
-    <h1 style="font-size:20px;margin:0 0 16px">${title}</h1>
+  /* Couleurs de la peau Slate, RECOPIÉES EN DUR — un client de messagerie ne
+     lit ni variable CSS ni feuille externe, tout doit tenir en style inline.
+     Elles suivent globals.css : --brand #D6F344, --brand-deep #3F6212,
+     --slate-deep #12301D, --ink #10160F. Le moutarde #E0A82E qui traînait ici
+     venait de l'ancienne direction, abandonnée depuis que toute l'application
+     est en Slate. Un test relit globals.css pour qu'elles ne divergent plus. */
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#10160F;background:#FFFFFF">
+    <p style="margin:0 0 20px;font-size:15px;font-weight:bold;letter-spacing:-0.03em;color:#12301D">SafeLink<span style="color:#3F6212">Hub</span></p>
+    <h1 style="font-size:20px;margin:0 0 16px;color:#10160F">${title}</h1>
     ${bodyHtml}
     <p style="margin:24px 0">
-      <a href="${ctaUrl}" style="display:inline-block;background:#E0A82E;color:#1C1917;font-weight:bold;text-decoration:none;padding:12px 24px;border:2px solid #1C1917">${ctaLabel}</a>
+      <a href="${ctaUrl}" style="display:inline-block;background:#D6F344;color:#10160F;font-weight:bold;text-decoration:none;padding:12px 24px;border:1px solid #12301D;border-radius:6px">${ctaLabel}</a>
     </p>
-    <p style="font-size:13px;color:#57534E;margin:16px 0 0">${english ? "If the button does not work, copy and paste this link into your browser:" : "Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur&nbsp;:"}<br>
-      <a href="${ctaUrl}" style="color:#1C1917">${ctaUrl}</a>
+    <p style="font-size:13px;color:#5A6B5E;margin:16px 0 0">${english ? "If the button does not work, copy and paste this link into your browser:" : "Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur&nbsp;:"}<br>
+      <a href="${ctaUrl}" style="color:#3F6212">${ctaUrl}</a>
     </p>
-    <hr style="border:none;border-top:1px solid #E7E5E4;margin:24px 0">
-    <p style="font-size:12px;color:#78716C;margin:0">${english ? "SafeLinkHub — run your routers, sales and remote access." : "SafeLinkHub — pilotez vos routeurs, ventes et accès distants."}</p>
+    <hr style="border:none;border-top:1px solid #E2E7DC;margin:24px 0">
+    <p style="font-size:12px;color:#5A6B5E;margin:0">${english ? "SafeLinkHub — run your routers, sales and remote access." : "SafeLinkHub — pilotez vos routeurs, ventes et accès distants."}</p>
   </div>`;
 }
 

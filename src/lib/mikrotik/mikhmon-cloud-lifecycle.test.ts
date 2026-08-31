@@ -79,3 +79,51 @@ describe("ce que la suppression touche, et ce qu'elle laisse", () => {
     assert.match(bloc, /delete\(routerPortForwards\)/, "la redirection n'est pas retirée");
   });
 });
+
+describe("un conteneur orphelin ne bloque plus la recréation", () => {
+  const source = async () => {
+    const { readFile } = await import("node:fs/promises");
+    return readFile(new URL("./mikhmon-cloud.ts", import.meta.url), "utf8");
+  };
+
+  it("un homonyme est retiré AVANT le docker run", async () => {
+    /* La panne observée : « container name is already in use ». Arrivé à la
+       création, la base n'a aucune instance pour ce routeur — un conteneur
+       portant son nom ne peut donc être qu'un orphelin. */
+    const s = await source();
+    const bloc = s.slice(s.indexOf("const args = ["));
+    const rm = bloc.indexOf("rm -f ${shellArg(containerName)}");
+    const run = bloc.indexOf("await input.run(args.join");
+    assert.ok(rm > 0, "aucun retrait de l'homonyme");
+    assert.ok(rm < run, "le retrait doit précéder la création");
+  });
+
+  it("l'absence de conteneur n'est pas une erreur", () => {
+    // C'est le cas NORMAL : sans `|| true`, chaque première activation
+    // échouerait sur un `docker rm` qui ne trouve rien.
+    return source().then((s) =>
+      assert.match(s, /rm -f \$\{shellArg\(containerName\)\} 2>\/dev\/null \|\| true/),
+    );
+  });
+
+  it("une session qui échoue ne laisse pas le conteneur derrière", async () => {
+    /* C'est ce chemin-là qui a fabriqué l'orphelin de HSPT-ADJA : la ligne en
+       base ne s'écrit qu'à la toute fin, donc toute erreur après `docker run`
+       laissait un conteneur invisible et bloquant. */
+    const s = await source();
+    const bloc = s.slice(s.indexOf("await input.run(args.join"));
+    assert.match(bloc, /catch[\s\S]{0,400}rm -f \$\{shellArg\(containerName\)\}[\s\S]{0,200}throw/);
+  });
+
+  it("supprimer un routeur retire aussi son tableau du relais", async () => {
+    /* Sans cela, le conteneur survit à son routeur : plus aucune trace en base
+       pour le retrouver, un port occupé pour rien, et un blocage au retour. */
+    const { readFile } = await import("node:fs/promises");
+    const actions = await readFile(new URL("./actions.ts", import.meta.url), "utf8");
+    const bloc = actions.slice(
+      actions.indexOf("export async function deleteRouter"),
+      actions.indexOf("export async function resetRouterDevice"),
+    );
+    assert.match(bloc, /removeCloudMikhmonInstance\(routerId\)/);
+  });
+});

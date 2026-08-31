@@ -204,8 +204,30 @@ export async function provisionCloudMikhmon(input: {
        La session se pose par config.php, juste après. */
     shellArg(image),
   ];
+  /* ON RETIRE D'ABORD UN ÉVENTUEL HOMONYME.
+     Le nom vient de l'identifiant du routeur : arrivé ici, la base n'a AUCUNE
+     instance pour lui, donc un conteneur portant ce nom ne peut être qu'un
+     orphelin. Deux chemins en produisaient — un provisionnement interrompu
+     après `docker run` (la ligne n'est écrite qu'à la toute fin), et une
+     suppression de routeur qui laissait le conteneur sur le relais. Sans ce
+     nettoyage, `docker run` répondait « container name is already in use » et
+     la recréation était définitivement bloquée : l'écran proposait un bouton
+     qui ne pouvait plus aboutir.
+     `-f` parce qu'un orphelin peut tourner, et `|| true` parce que l'absence
+     de conteneur est le cas NORMAL — la commande ne doit pas échouer pour ça. */
+  await input.run(`${DOCKER} rm -f ${shellArg(containerName)} 2>/dev/null || true`);
+
   await input.run(args.join(" "));
-  await writeCloudMikhmonSession(input.run, containerName, input.router);
+  try {
+    await writeCloudMikhmonSession(input.run, containerName, input.router);
+  } catch (cause) {
+    /* La session n'a pas pu s'écrire : on RETIRE le conteneur avant de
+       remonter l'erreur. Le laisser en place, c'est exactement ce qui a créé
+       l'orphelin de HSPT-ADJA — un conteneur sans ligne en base, qui bloque
+       ensuite toute nouvelle tentative. */
+    await input.run(`${DOCKER} rm -f ${shellArg(containerName)} 2>/dev/null || true`);
+    throw cause;
+  }
 
   return { domain, containerName, localPort, status: "active", edition };
 }

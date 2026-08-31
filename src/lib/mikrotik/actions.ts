@@ -1468,6 +1468,22 @@ export async function deleteRouter(routerId: string) {
     // router record itself removed from SafeLinkHub.
   }
 
+  /* Le tableau MikHmon du relais part AVEC le routeur.
+     La ligne router_mikhmon_cloud_instances disparaît en cascade, mais rien
+     n'enlevait le CONTENEUR : il restait à tourner sur le relais, sans plus
+     aucune trace en base pour le retrouver. Un parc en a accumulé ainsi,
+     chacun consommant un port et sa part de mémoire — et le jour où le même
+     routeur revenait avec le même identifiant, sa recréation butait sur
+     « container name is already in use ». Best-effort comme le reste : un
+     relais injoignable ne doit pas empêcher de retirer le routeur. */
+  try {
+    const { removeCloudMikhmonInstance } = await import("./mikhmon-cloud");
+    await removeCloudMikhmonInstance(routerId);
+  } catch {
+    // Le conteneur survivra ; provisionCloudMikhmon sait désormais le retirer
+    // avant d'en créer un du même nom.
+  }
+
   await db.delete(routers).where(eq(routers.id, routerId));
 
   revalidatePath("/admin/router");
