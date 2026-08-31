@@ -130,8 +130,12 @@ test("RouterOS install scripts create the API group with every policy the audit 
     new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/route.ts", import.meta.url),
     "utf8",
   );
+  // Le script OpenVPN a quitté le fichier de route pour un module à part, afin
+  // que sa compatibilité RouterOS 6 puisse être testée en l'appelant vraiment
+  // (openvpn-install-script.test.ts). Le garde-fou sur les policies suit le
+  // code plutôt que de rester à surveiller un fichier qui ne les porte plus.
   const openvpn = await readFile(
-    new URL("../src/app/api/router/v1/[slug]/scripts/install-openvpn/route.ts", import.meta.url),
+    new URL("../src/lib/mikrotik/openvpn-install-script.ts", import.meta.url),
     "utf8",
   );
 
@@ -152,6 +156,8 @@ test("VPN script fetch is single-use while the callback token remains valid", as
     new URL("../src/app/api/router/v1/[slug]/scripts/install-vpn/route.ts", import.meta.url),
     "utf8",
   );
+  // Ici on surveille le fichier de ROUTE : l'usage unique du jeton est une
+  // affaire de requête, elle n'a pas suivi le script dans son module.
   const openvpn = await readFile(
     new URL("../src/app/api/router/v1/[slug]/scripts/install-openvpn/route.ts", import.meta.url),
     "utf8",
