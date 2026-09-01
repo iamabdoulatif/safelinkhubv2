@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { decisionReprise } from "@/lib/ui/chunk-recovery";
 
 export default function AdminError({
   error,
@@ -10,6 +13,40 @@ export default function AdminError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const chemin = usePathname() ?? "/admin";
+
+  /* RECHARGEMENT AUTOMATIQUE sur fragment manquant.
+   *
+   * Après un déploiement, un onglet resté ouvert réclame des fragments dont le
+   * nom a changé. L'erreur qui en résulte parle de connexion, ce qui envoie
+   * l'exploitant chercher au mauvais endroit. Un rechargement suffit.
+   *
+   * `reset()` ne suffirait PAS : il refait le rendu avec le même bundle
+   * périmé, donc la même erreur. Il faut redemander le document au serveur.
+   *
+   * Une seule tentative par chemin et par session — au-delà, l'erreur n'est
+   * plus un onglet périmé, et recharger en boucle masquerait la vraie cause
+   * derrière une page qui clignote. */
+  useEffect(() => {
+    let dejaTente = false;
+    try {
+      dejaTente = sessionStorage.getItem(`slh:rechargement-fragment:${chemin}`) === "1";
+    } catch {
+      // Navigation privée, stockage refusé : sans mémoire, on ne peut pas
+      // garantir l'unicité de la tentative — on s'abstient plutôt que risquer
+      // la boucle.
+      return;
+    }
+    const decision = decisionReprise(error, chemin, dejaTente);
+    if (!decision.recharger) return;
+    try {
+      sessionStorage.setItem(decision.cle, "1");
+    } catch {
+      return;
+    }
+    window.location.reload();
+  }, [error, chemin]);
+
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-md rounded-xl border border-err bg-paper p-8 text-center">
