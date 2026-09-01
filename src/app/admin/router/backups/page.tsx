@@ -8,6 +8,7 @@ import { listOrgBackups } from "@/lib/mikrotik/router-backup";
 import { getOrgUploadedBackups } from "@/lib/mikrotik/backup-upload-actions";
 import BackupsManager from "./BackupsManager";
 import RestoreGuide from "./RestoreGuide";
+import RscTransferCard from "./RscTransferCard";
 import UploadedBackupsCard from "./UploadedBackupsCard";
 
 // La restauration réelle recrée les tickets UN À UN (RouterOS n'a pas d'ajout en
@@ -121,6 +122,7 @@ export default async function RouterBackupsPage() {
         initialJob={initialJob}
       />
 
+      <RscTransferCard routers={orgRouters} />
       <UploadedBackupsCard
         routers={orgRouters}
         initialItems={uploadedBackups.map((b) => ({

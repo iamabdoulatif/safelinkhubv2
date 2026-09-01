@@ -258,3 +258,34 @@ describe("le bridge du hotspot d'accueil", () => {
     assert.match(src, /hotspotBridge: serveur\.interface/);
   });
 });
+
+describe("l'écran de transfert", () => {
+  const carte = async () => {
+    const { readFile } = await import("node:fs/promises");
+    return readFile(
+      new URL("../../app/admin/router/backups/RscTransferCard.tsx", import.meta.url),
+      "utf8",
+    );
+  };
+
+  it("ne propose que des routeurs EN LIGNE", async () => {
+    /* Le plan se construit en lisant le pool et le serveur hotspot SUR
+       l'appareil : proposer un routeur injoignable ne mènerait qu'à une erreur
+       de connexion, après que l'exploitant a choisi son fichier. */
+    assert.match(await carte(), /routers\.filter\(\(r\) => r\.status === "online"\)/);
+  });
+
+  it("montre le plan AVANT d'écrire", async () => {
+    // Un transfert qui s'applique au premier clic ne laisse pas vérifier ce
+    // qui va être posé sur un routeur en service.
+    const c = await carte();
+    assert.ok(c.indexOf("planifierTransfertRsc") < c.indexOf("appliquerTransfertRsc"));
+    assert.match(c, /Voir ce qui sera transféré/);
+    // Le bouton d'écriture n'apparaît qu'une fois le plan affiché.
+    assert.match(c, /\{plan && !bilan && \(/);
+  });
+
+  it("annonce ce qui est écarté, pas seulement ce qui passe", async () => {
+    assert.match(await carte(), /sections écartées/);
+  });
+});

@@ -17,7 +17,20 @@ import {
   type CibleRouteur,
   type PlanTransfert,
   decouperArguments,
+  estSauvegardeBinaire,
+  MESSAGE_BACKUP_BINAIRE,
 } from "./rsc-selective-restore";
+
+/**
+ * Refuse un `.backup` AVANT de joindre le routeur.
+ *
+ * Le contrôle porte sur la SIGNATURE, pas sur l'extension : un binaire renommé
+ * en `.rsc` produirait sinon un plan vide, et l'exploitant chercherait
+ * longtemps pourquoi son transfert ne reprend rien.
+ */
+function refuserSiBinaire(rsc: string): string | null {
+  return estSauvegardeBinaire(Buffer.from(rsc, "utf8")) ? MESSAGE_BACKUP_BINAIRE : null;
+}
 
 type Sentence = Record<string, string>;
 
@@ -69,6 +82,9 @@ async function lireCible(client: Awaited<ReturnType<typeof connectToRouter>>): P
 
 /** Ce que l'écran affiche AVANT d'écrire quoi que ce soit. */
 export async function planifierTransfertRsc(routerId: string, rsc: string) {
+  const binaire = refuserSiBinaire(rsc);
+  if (binaire) return { error: binaire };
+
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
 
@@ -108,6 +124,9 @@ export async function planifierTransfertRsc(routerId: string, rsc: string) {
  * tickets dont un seul peut porter un caractère que RouterOS n'accepte plus.
  */
 export async function appliquerTransfertRsc(routerId: string, rsc: string) {
+  const binaire = refuserSiBinaire(rsc);
+  if (binaire) return { error: binaire };
+
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
 
