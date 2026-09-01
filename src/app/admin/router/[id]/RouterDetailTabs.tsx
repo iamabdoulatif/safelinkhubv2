@@ -1,16 +1,18 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Gauge, SlidersHorizontal, LayoutGrid, Stethoscope } from "lucide-react";
+import { Gauge, SlidersHorizontal, LayoutGrid, Stethoscope, ShieldBan } from "lucide-react";
 import ResourcesPanel from "./ResourcesPanel";
 import ServicesWizard from "./ServicesWizard";
 import AuditPanel from "./AuditPanel";
+import ContentFilterPanel from "./ContentFilterPanel";
 
-type TabKey = "overview" | "diagnostic" | "resources" | "services";
+type TabKey = "overview" | "diagnostic" | "filter" | "resources" | "services";
 
 const TABS: { key: TabKey; label: string; icon: typeof Gauge }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutGrid },
   { key: "diagnostic", label: "Diagnostic", icon: Stethoscope },
+  { key: "filter", label: "Filtrage de contenu", icon: ShieldBan },
   { key: "resources", label: "Ressources", icon: Gauge },
   { key: "services", label: "Configurer les services", icon: SlidersHorizontal },
 ];
@@ -75,6 +77,8 @@ export default function RouterDetailTabs({
               </p>
             ) : key === "diagnostic" ? (
               <AuditPanel routerId={routerId} />
+            ) : key === "filter" ? (
+              <ContentFilterPanel routerId={routerId} />
             ) : key === "resources" ? (
               <ResourcesPanel routerId={routerId} />
             ) : (
