@@ -221,3 +221,33 @@ describe("couleurs des tickets imprimés", () => {
     assert.ok(!/^\s*\.bg-\d+\s*\{/m.test(src), "une règle CSS est écrite en dur");
   });
 });
+
+describe("le format de l'image v7, tel que RouterOS sait le lire", () => {
+  const workflow = async () => {
+    const { readFile } = await import("node:fs/promises");
+    return readFile(new URL("../../../.github/workflows/deploy.yml", import.meta.url), "utf8");
+  };
+
+  it("l'image est publiée en Docker v2, jamais en OCI", async () => {
+    /* PANNE OBSERVÉE SUR HSPT-SAMASSA. RouterOS ne lit pas un manifeste OCI :
+       il extrait les premières couches — assez pour que PHP démarre — et
+       abandonne celles qui portent l'application. Le conteneur tourne en
+       répondant 404 sur TOUTE URL, ce qui ne ressemble à aucune panne connue :
+       ni conteneur arrêté, ni NAT manquant, ni tunnel coupé.
+
+       buildx bascule en OCI dès qu'il joint une attestation, ce qu'il fait par
+       défaut — d'où les trois réglages, qui vont ensemble. */
+    const job = (await workflow()).slice((await workflow()).indexOf("mikhmon-v7:"));
+    assert.match(job, /provenance: false/);
+    assert.match(job, /sbom: false/);
+    assert.match(job, /oci-mediatypes=false/);
+  });
+
+  it("la v6 n'a pas la même contrainte, et c'est expliqué", async () => {
+    /* L'image v6 ne tourne QUE sur le relais, sous Docker, qui lit les deux
+       formats. Lui imposer la même contrainte serait un culte du cargo. */
+    const wf = await workflow();
+    const v6 = wf.slice(wf.indexOf("mikhmon-v6:"), wf.indexOf("mikhmon-v7:"));
+    assert.ok(!v6.includes("oci-mediatypes"), "contrainte inutile recopiée sur la v6");
+  });
+});

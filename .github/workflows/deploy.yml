@@ -172,6 +172,19 @@ jobs:
           # Les mêmes architectures que l'image amont, moins s390x qu'aucun
           # équipement du parc n'utilise.
           platforms: linux/amd64,linux/arm/v7,linux/arm64
+          # FORMAT DOCKER v2, PAS OCI. RouterOS ne sait pas lire un manifeste
+          # OCI : il extrait les premières couches — assez pour que PHP démarre
+          # — et abandonne les suivantes, celles qui portent l'application. Le
+          # conteneur tourne alors en répondant 404 sur toute URL, ce qui ne
+          # ressemble à aucune panne connue.
+          #
+          # buildx produit de l'OCI dès qu'il joint une attestation de
+          # provenance ou un SBOM, ce qu'il fait PAR DÉFAUT. Les trois réglages
+          # vont ensemble : désactiver les deux attestations, et demander
+          # explicitement les types de média Docker.
+          provenance: false
+          sbom: false
+          outputs: type=registry,oci-mediatypes=false
           tags: |
             ghcr.io/${{ github.repository_owner }}/mikhmon-v7:prix-corrige
             ghcr.io/${{ github.repository_owner }}/mikhmon-v7:latest
