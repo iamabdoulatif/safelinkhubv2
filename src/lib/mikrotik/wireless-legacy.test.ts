@@ -127,3 +127,62 @@ describe("la radio héritée rejoint le bridge du hotspot", () => {
     );
   });
 });
+
+describe("le conteneur n'est pas attendu partout", () => {
+  it("arm, arm64 et tile l'acceptent ; MIPS et PowerPC non", async () => {
+    const { architectureAccepteConteneur } = await import("./wireless-legacy");
+    for (const a of ["arm", "arm64", "tile", "ARM64", " arm "]) {
+      assert.equal(architectureAccepteConteneur(a), true, a);
+    }
+    for (const a of ["mipsbe", "mmips", "smips", "powerpc", "ppc", "", null, undefined]) {
+      assert.equal(architectureAccepteConteneur(a), false, String(a));
+    }
+  });
+
+  it("une carte MIPS est déclarée CONFORME, pas en échec", async () => {
+    /* C'est le cœur du problème vu à l'écran : « Conteneur MikHmon ✗ » et un
+       bouton « Continuer l'auto-setup » qui ne pouvait rien réparer. */
+    const { readFile } = await import("node:fs/promises");
+    const src = await readFile(new URL("./config-audit.ts", import.meta.url), "utf8");
+    const bloc = src.slice(src.indexOf("const conteneurPossible"));
+    assert.match(bloc, /if \(!conteneurPossible\)[\s\S]{0,200}status: "ok"/);
+    // Et la décision précède l'ancien test d'absence, sinon elle ne sert à rien.
+    assert.ok(
+      src.indexOf("const conteneurPossible") < src.indexOf('status: "missing"\n        detail:') ||
+        src.indexOf("!conteneurPossible") < src.indexOf("container.length === 0"),
+      "l'architecture est consultée trop tard",
+    );
+  });
+});
+
+describe("le bridge DOCKERS n'est plus posé sur les cartes MIPS", () => {
+  const script = async () => {
+    const { readFile } = await import("node:fs/promises");
+    return readFile(
+      new URL("../../app/api/router/v1/[slug]/scripts/install-vpn/route.ts", import.meta.url),
+      "utf8",
+    );
+  };
+
+  it("la capacité est lue SUR LE ROUTEUR, pas décidée par le serveur", async () => {
+    /* Ce script s'exécute à l'enrôlement, avant toute détection : le serveur
+       ne connaît pas encore l'architecture. */
+    const s = await script();
+    assert.match(s, /:local slhArch \[\/system resource get architecture-name\]/);
+    assert.match(s, /slhContainerCapable \(\$slhArch = "arm" \|\| \$slhArch = "arm64" \|\| \$slhArch = "tile"\)/);
+  });
+
+  it("la création du bridge est conditionnée", async () => {
+    // C'était la ligne fautive : un bridge existe sur TOUTES les cartes, donc
+    // la commande réussissait là où la veth échouait en silence.
+    const s = await script();
+    assert.match(s, /:if \(\$slhContainerCapable\) do=\{ :if \(\[:len \[\/interface bridge find where name="DOCKERS"\]\] = 0\)/);
+  });
+
+  it("un bridge posé par une ancienne version est RETIRÉ", async () => {
+    // Sans cela, les routeurs déjà enrôlés gardent l'objet inutile.
+    const s = await script();
+    const bloc = s.slice(s.indexOf("} else={"), s.indexOf("} else={") + 400);
+    assert.match(bloc, /\/interface bridge remove \[find name="DOCKERS"\]/);
+  });
+});

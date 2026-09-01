@@ -9,6 +9,7 @@ import type { RouterOSClient } from "./client";
 import { HOTSPOT_BRIDGE_NAME } from "./constants";
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 import type { HotspotStackOptions } from "./container-setup";
+import { architectureAccepteConteneur } from "./wireless-legacy";
 
 export type ConfigAuditItem = {
   key: string;
@@ -185,7 +186,22 @@ export async function auditRouterConfig(routerId: string) {
     const container = await client
       .talk(["/container/print", `?name=${CONTAINER_NAME}`])
       .catch(() => []);
-    if (container.length === 0) {
+    /* L'ARCHITECTURE DÉCIDE AVANT TOUT. Sur une carte MIPS ou PowerPC, le menu
+       /container n'existe pas : son absence est le fonctionnement normal, pas
+       une panne. La vérification l'annonçait pourtant en rouge avec un bouton
+       « Continuer l'auto-setup » incapable d'y changer quoi que ce soit —
+       l'exploitant relançait une configuration déjà complète. */
+    const [resource] = await client.talk(["/system/resource/print"]).catch(() => []);
+    const conteneurPossible = architectureAccepteConteneur(resource?.["architecture-name"]);
+
+    if (!conteneurPossible) {
+      items.push({
+        key: "mikhmon",
+        label: "MikHmon",
+        status: "ok",
+        detail: `Cette carte (${resource?.["architecture-name"] || "architecture inconnue"}) n'exécute pas de conteneur — c'est normal. MikHmon est hébergé sur le relais SafeLinkHub, avec son propre sous-domaine.`,
+      });
+    } else if (container.length === 0) {
       items.push({
         key: "mikhmon",
         label: "Conteneur MikHmon",

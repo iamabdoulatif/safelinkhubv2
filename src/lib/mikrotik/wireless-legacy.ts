@@ -94,3 +94,20 @@ export function utiliserPiloteHerite(
 ): boolean {
   return interfacesWifi.length === 0 && interfacesWireless.length > 0;
 }
+
+/**
+ * Le conteneur MikHmon a-t-il un sens sur cette carte ?
+ *
+ * RouterOS n'expose le menu `/container` que sur arm, arm64 et tile. Sur une
+ * carte MIPS ou PowerPC, son absence n'est pas une panne : c'est le
+ * fonctionnement normal, et MikHmon vit alors sur le relais.
+ *
+ * La vérification d'après auto-setup l'annonçait pourtant en rouge, avec un
+ * bouton « Continuer l'auto-setup » qui ne pouvait rien réparer — l'exploitant
+ * relançait une configuration déjà complète en croyant à un échec.
+ */
+const ARCHITECTURES_CONTENEUR = new Set(["arm", "arm64", "tile"]);
+
+export function architectureAccepteConteneur(architectureName: string | null | undefined): boolean {
+  return ARCHITECTURES_CONTENEUR.has((architectureName ?? "").trim().toLowerCase());
+}

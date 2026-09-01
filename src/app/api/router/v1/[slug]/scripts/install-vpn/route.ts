@@ -42,16 +42,36 @@ function buildScript(opts: {
 # PARSE time — aborting the whole /import with "expected end of command",
 # which :do on-error cannot catch. A runtime :parse failure is catchable,
 # so those boards just log the warning and continue installing the VPN.
+#
+# LA CAPACITÉ CONTENEUR EST LUE SUR L'APPAREIL, pas décidée par le serveur :
+# ce script s'exécute à l'enrôlement, AVANT que SafeLinkHub n'ait détecté quoi
+# que ce soit du routeur. RouterOS n'expose le conteneur que sur arm, arm64 et
+# tile — sur mipsbe, mmips, smips ou powerpc, le menu /container n'existe pas.
+#
+# Le bridge était jusqu'ici créé SANS condition. La veth, elle, passe par un
+# [:parse] et échouait donc en silence sur ces cartes — mais un bridge existe
+# sur toutes, si bien qu'un RB951 repartait avec un bridge DOCKERS et une
+# adresse 11.11.11.1/28 qui ne servaient à rien et inquiétaient l'exploitant
+# en les découvrant dans WinBox.
+:local slhArch [/system resource get architecture-name]
+:local slhContainerCapable ($slhArch = "arm" || $slhArch = "arm64" || $slhArch = "tile")
 :do {
   :foreach oldBridge in={"CONTAINERS";"dockers";"DOCKER-SAFELINKHUB";"DOCKER"} do={
     /ip address remove [find interface=$oldBridge address=11.11.11.1/28]
     :if (([:len [/interface bridge find where name=$oldBridge]] > 0) && ([:len [/interface bridge port find where bridge=$oldBridge]] = 0)) do={ /interface bridge remove [find name=$oldBridge] }
   }
-  :if ([:len [/interface bridge find where name="DOCKERS"]] = 0) do={ /interface bridge add name=DOCKERS }
+  :if ($slhContainerCapable) do={ :if ([:len [/interface bridge find where name="DOCKERS"]] = 0) do={ /interface bridge add name=DOCKERS } } else={
+    # Carte SANS conteneur : on RETIRE ce qui aurait pu être posé par une
+    # version précédente du script, plutôt que de le laisser traîner.
+    /ip address remove [find interface="DOCKERS" address=11.11.11.1/28]
+    :if ([:len [/interface bridge find where name="DOCKERS"]] > 0) do={ /interface bridge remove [find name="DOCKERS"] }
+  }
   :local vethPrep [:parse ":if ([:len [/interface veth find where name=\\"MIKHMON\\"]] = 0) do={ /interface veth add name=MIKHMON address=11.11.11.11/28 gateway=11.11.11.1 } else={ /interface veth set [find where name=\\"MIKHMON\\"] address=11.11.11.11/28 gateway=11.11.11.1 }; :if ([:len [/interface bridge port find where interface=\\"MIKHMON\\"]] = 0) do={ /interface bridge port add bridge=DOCKERS interface=MIKHMON } else={ /interface bridge port set [find where interface=\\"MIKHMON\\"] bridge=DOCKERS }"]
-  $vethPrep
-  /ip address remove [find interface=DOCKERS address=11.11.11.1/28]
-  /ip address add address=11.11.11.1/28 interface=DOCKERS network=11.11.11.0
+  :if ($slhContainerCapable) do={
+    $vethPrep
+    /ip address remove [find interface=DOCKERS address=11.11.11.1/28]
+    /ip address add address=11.11.11.1/28 interface=DOCKERS network=11.11.11.0
+  }
 } on-error={ :log warning "SafeLinkHub could not prepare DOCKERS/MIKHMON during VPN install (container package likely missing); auto-setup will retry" }
 
 # Format a plugged-in USB stick to ext4 early too, same as the container
