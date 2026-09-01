@@ -38,6 +38,7 @@ import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { getSafecoinAccount } from "@/lib/safecoin/ledger";
 import { autoSetupChargeScCents, chargeAutoSetup } from "@/lib/safecoin/service-charges";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
+import { commandeSsidLegacy, utiliserPiloteHerite } from "./wireless-legacy";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { isUnsupportedEnvlistError, withoutEnvlist } from "./container-envlist";
 import {
@@ -1343,6 +1344,24 @@ export async function provisionHotspotStack(
           `WiFi SSID on ${wifi.name}`,
         );
       }
+
+      /* PILOTE HÉRITÉ — RB951, hEX, wAP, hAP ac…
+         Sur ces cartes, `/interface/wifi/print` renvoie une liste VIDE : la
+         boucle ci-dessus ne tourne pas une seule fois, et le SSID restait donc
+         « MikroTik » sans qu'aucune commande n'échoue. Constaté sur un
+         RB951Ui-2HnD en 7.24.1, où le nom saisi n'atteignait jamais la radio.
+         Le paquet wifi garde la priorité quand il existe — c'est la règle pour
+         les cartes ARM et ARM64. */
+      const wirelessRows = await client.talk(["/interface/wireless/print"]).catch(() => []);
+      if (utiliserPiloteHerite(wifiInterfaces, wirelessRows)) {
+        for (const radio of wirelessRows) {
+          if (!radio.name) continue;
+          await run(
+            commandeSsidLegacy({ name: radio.name, band: radio.band }, opts.ssid.trim()),
+            `WiFi SSID (pilote hérité) sur ${radio.name}`,
+          );
+        }
+      }
     }
 
     // SAFELINKHUB-BRIDGE across every ethernet port that isn't the WAN uplink,
@@ -1384,9 +1403,19 @@ export async function provisionHotspotStack(
 
     const ethernetRows = await client.talk(["/interface/ethernet/print"]).catch(() => []);
     const wifiRows = await client.talk(["/interface/wifi/print"]).catch(() => []);
+    /* La radio HÉRITÉE doit entrer dans le bridge elle aussi.
+       Sans elle, `wlan1` reste hors du domaine L2 du hotspot : le SSID est
+       bien posé, les clients s'associent — et n'atteignent jamais le portail,
+       ce qui ressemble à un portail cassé plutôt qu'à un port manquant. La
+       configuration de référence d'un RB951 en service porte bien
+       `add bridge=HOTSPOT interface=wlan1`.
+       Les deux listes sont concaténées sans condition : sur une carte ax,
+       `/interface/wireless/print` est vide, et inversement. */
+    const wirelessLanRows = await client.talk(["/interface/wireless/print"]).catch(() => []);
     const lanPorts = [
       ...ethernetRows.map((r) => r.name),
       ...wifiRows.map((r) => r.name),
+      ...wirelessLanRows.map((r) => r.name),
     ].filter((name): name is string => Boolean(name) && name !== WAN_INTERFACE_NAME);
 
     // Routers ship from the factory with ether2..etherN already slaved to a
