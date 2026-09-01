@@ -9,6 +9,8 @@ import {
   planifierTransfert,
   recollerLignes,
   decouperArguments,
+  estSauvegardeBinaire,
+  MESSAGE_BACKUP_BINAIRE,
   rendreTransfert,
 } from "./rsc-selective-restore";
 
@@ -16,6 +18,7 @@ const CIBLE = {
   poolName: "POOL-HOTSPOT",
   poolRanges: "10.5.50.10-10.5.53.254",
   hotspotServer: "hotspot1",
+  hotspotBridge: "SAFELINKHUB-BRIDGE",
 };
 
 /** La vraie sauvegarde d'un RB951 en production (HSPT-KALAM, 7.24.1, mipsbe). */
@@ -211,5 +214,47 @@ describe("découpage vers l'API RouterOS", () => {
     // `\"` dans l'export est un guillemet littéral une fois transmis.
     const [mot] = decouperArguments('comment="il a dit \\"oui\\""');
     assert.equal(mot, '=comment=il a dit "oui"');
+  });
+});
+
+describe("le fichier déposé", () => {
+  it("un .backup binaire est reconnu, même renommé en .rsc", async () => {
+    /* Détecté à sa SIGNATURE, pas à son extension : un fichier renommé
+       produirait sinon un plan vide, sans que rien ne l'explique. */
+    const binaire = Buffer.from([0x88, 0xac, 0x00, 0x01, 0x00, 0x00, 0x42, 0x00]);
+    assert.equal(estSauvegardeBinaire(binaire), true);
+  });
+
+  it("un export texte n'est jamais pris pour un binaire", async () => {
+    const rsc = await sauvegarde();
+    assert.equal(estSauvegardeBinaire(Buffer.from(rsc, "utf8")), false);
+    // Et un export sans en-tête « # », qui commence directement par un menu.
+    assert.equal(estSauvegardeBinaire(Buffer.from("/ip pool\nadd name=P\n", "utf8")), false);
+  });
+
+  it("le message explique quoi faire, pas seulement ce qui ne marche pas", () => {
+    /* Un refus sans issue laisse l'exploitant bloqué avec son fichier. La
+       commande exacte doit être là. */
+    assert.match(MESSAGE_BACKUP_BINAIRE, /\/export file=/);
+    assert.match(MESSAGE_BACKUP_BINAIRE, /binaire/i);
+  });
+});
+
+describe("le bridge du hotspot d'accueil", () => {
+  it("celui de l'ANCIEN routeur ne suit pas", async () => {
+    /* Il porte ses ports — ether2..5 et wlan1 sur un RB951 — qui n'existent pas
+       forcément sur la carte d'accueil, et celle-ci a déjà le sien. En ajouter
+       un second laisserait le hotspot desservir le mauvais, et les clients
+       n'obtiendraient plus d'adresse. */
+    const out = rendreTransfert(planifierTransfert(await sauvegarde(), CIBLE));
+    assert.ok(!out.includes("/interface bridge"));
+    assert.ok(!out.includes("bridge=SAFELINKHUB-BRIDGE"));
+  });
+
+  it("le bridge d'accueil fait partie de ce qu'on annonce", async () => {
+    // L'exploitant doit voir OÙ les tickets vont atterrir.
+    const { readFile } = await import("node:fs/promises");
+    const src = await readFile(new URL("./rsc-transfer-actions.ts", import.meta.url), "utf8");
+    assert.match(src, /hotspotBridge: serveur\.interface/);
   });
 });

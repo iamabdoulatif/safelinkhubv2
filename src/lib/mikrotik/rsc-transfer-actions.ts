@@ -56,7 +56,14 @@ async function lireCible(client: Awaited<ReturnType<typeof connectToRouter>>): P
   }
   return {
     ok: true,
-    cible: { poolName: pool.name, poolRanges: pool.ranges, hotspotServer: serveur.name },
+    cible: {
+      poolName: pool.name,
+      poolRanges: pool.ranges,
+      hotspotServer: serveur.name,
+      /* Le bridge que le hotspot d'accueil dessert déjà. On l'ANNONCE sans y
+         toucher : c'est là que les tickets transférés atterriront. */
+      hotspotBridge: serveur.interface ?? "(inconnu)",
+    },
   };
 }
 

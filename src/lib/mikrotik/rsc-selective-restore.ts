@@ -124,6 +124,19 @@ export type CibleRouteur = {
   poolRanges: string;
   /** Nom du serveur hotspot sur le nouveau routeur. */
   hotspotServer: string;
+  /**
+   * Bridge que ce serveur hotspot dessert sur le nouveau routeur.
+   *
+   * ON NE RECOPIE PAS LE BRIDGE DE L'ANCIEN. Il porte son nom, ses ports
+   * (ether2..5, wlan1 sur un RB951) et son adressage — des ports qui n'existent
+   * pas forcément sur la carte d'accueil, et un bridge que son auto-setup a
+   * déjà créé. En ajouter un second laisserait le hotspot desservir le mauvais,
+   * et les clients n'obtiendraient plus d'adresse.
+   *
+   * Le bridge d'accueil est donc LU et ANNONCÉ : l'exploitant voit où les
+   * tickets vont atterrir, sans qu'on touche à son réseau.
+   */
+  hotspotBridge: string;
 };
 
 export type PlanTransfert = {
@@ -134,6 +147,33 @@ export type PlanTransfert = {
   /** Sections vues dans la sauvegarde et volontairement écartées. */
   ecartees: string[];
 };
+
+/**
+ * Un fichier `.backup` peut-il être transféré sélectivement ? Non.
+ *
+ * C'est un format BINAIRE propriétaire : RouterOS ne sait le relire qu'en le
+ * restaurant en bloc, et n'offre aucune restauration partielle. Il faudrait
+ * donc écraser toute la configuration du routeur d'accueil — son tunnel, ses
+ * clés, son adressage — c'est-à-dire précisément ce que ce transfert existe
+ * pour éviter.
+ *
+ * On le détecte à sa signature plutôt qu'à son extension : un fichier renommé
+ * en `.rsc` produirait sinon un plan vide, sans que rien ne l'explique.
+ */
+export function estSauvegardeBinaire(contenu: Buffer | Uint8Array): boolean {
+  const octets = Buffer.from(contenu.subarray(0, 512));
+  // Un export texte commence par « # » (l'en-tête de date) ou par « / ».
+  const texte = octets.toString("utf8");
+  if (/^[#/]/.test(texte.trimStart())) return false;
+  // Un octet nul ne survient jamais dans un export RouterOS.
+  return octets.includes(0);
+}
+
+export const MESSAGE_BACKUP_BINAIRE =
+  "Un fichier .backup est un format binaire que RouterOS ne sait restaurer qu'en BLOC : " +
+  "il écraserait le tunnel, les clés et l'adressage du routeur d'accueil. " +
+  "Sur l'ancien routeur, produisez un export texte — /export file=transfert — " +
+  "puis déposez le .rsc obtenu ici.";
 
 /** Une entrée de `/system script` est-elle une recette MikHmon ? */
 export function estRecetteMikhmon(args: string): boolean {
