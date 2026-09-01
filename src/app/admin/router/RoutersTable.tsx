@@ -333,7 +333,7 @@ export default function RoutersTable({
                     {table.details}
                     <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
                   </Link>
-                  <RouterRowActions routerId={r.id} t={actions} />
+                  <RouterRowActions routerId={r.id} routerName={r.name} t={actions} />
                 </div>
               </li>
             ))}
@@ -396,7 +396,7 @@ export default function RoutersTable({
                           {table.details}
                           <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
                         </Link>
-                        <RouterRowActions routerId={r.id} t={actions} />
+                        <RouterRowActions routerId={r.id} routerName={r.name} t={actions} />
                       </div>
                     </td>
                   </tr>
