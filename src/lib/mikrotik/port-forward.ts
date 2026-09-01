@@ -26,6 +26,8 @@ import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { getPortForwardTargetPort } from "./port-forward-rules";
 import { PERIOD_PRICE_CENTS, BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
+import { getWalletBalanceCents } from "@/lib/wallet/balance";
+import { messageSoldeInsuffisant, verdictDebitWallet } from "./activation-billing";
 import { ensureCloudMikhmonInstance, removeCloudMikhmonInstance } from "./mikhmon-cloud";
 import { parseEdition } from "./mikhmon-editions";
 import { normalizeCustomSlug } from "./mikhmon-cloud-domain";
@@ -405,6 +407,18 @@ export async function enablePortForward(
           };
         }
       } else {
+        /* LE SOLDE EST VÉRIFIÉ AVANT LE DÉBIT, comme sur la voie Safecoin.
+           Cette branche écrivait la ligne de charge sans jamais le regarder :
+           un portefeuille vide — ou déjà négatif — laissait l'accès s'ouvrir.
+           Deux comportements opposés pour un même geste, selon l'ancienneté de
+           l'organisation. */
+        const solde = await getWalletBalanceCents(session.orgId);
+        const verdict = verdictDebitWallet(solde, PERIOD_PRICE_CENTS[billingPeriod]);
+        if (!verdict.ok) {
+          // Même règle que Safecoin : pas d'accès ouvert sans paiement.
+          await disablePortForward(result.forwardId);
+          return { error: messageSoldeInsuffisant(verdict.manqueCents) };
+        }
         await chargeWalletForActivation({
           orgId: session.orgId,
           userId: session.userId,
