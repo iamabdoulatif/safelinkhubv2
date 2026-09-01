@@ -145,7 +145,18 @@ export function findCategory(key: ContentCategoryKey): ContentCategory {
 // ── Le plan ─────────────────────────────────────────────────────────────────
 
 export type PlanStep =
-  | { kind: "add"; path: string; params: Record<string, string> }
+  | {
+      kind: "add";
+      path: string;
+      params: Record<string, string>;
+      /**
+       * Jeu de paramètres de SECOURS, rejoué si le routeur refuse le premier.
+       * Mesuré sur HSPT-TOFESSO (RouterOS 7.21) : `type=NXDOMAIN` est la forme
+       * juste en v7, mais on ne sait pas à partir de quelle 7.x elle existe —
+       * le repli garantit qu'un blocage est posé quoi qu'il arrive.
+       */
+      fallback?: Record<string, string>;
+    }
   | { kind: "set"; path: string; params: Record<string, string> }
   /** `remove [find comment="safelinkhub-content-filter"]` */
   | { kind: "remove-comment"; path: string }
@@ -267,10 +278,21 @@ export function buildInstallPlan(
     steps.push({
       kind: "add",
       path: "/ip/dns/static",
+      // RouterOS REFUSE `address=0.0.0.0` sur une entrée statique
+      // (« bad A data: IPv4 address expected », relevé en 7.21 sur les 82
+      // domaines d'un coup) : 0.0.0.0 n'est pas une adresse joignable, la
+      // validation de l'enregistrement A la rejette. En v7 la bonne forme est
+      // `type=NXDOMAIN` — le client reçoit « ce domaine n'existe pas » au lieu
+      // de tenter une connexion vers le vide. La v6 n'a pas de champ `type` :
+      // elle pointe sur la boucle locale, seule adresse toujours valide.
       params:
         version.major >= 7
-          ? { name: domain, "match-subdomain": "yes", address: "0.0.0.0", comment }
-          : { regexp: domainRegexp(domain), address: "0.0.0.0", comment },
+          ? { name: domain, "match-subdomain": "yes", type: "NXDOMAIN", comment }
+          : { regexp: domainRegexp(domain), address: "127.0.0.1", comment },
+      fallback:
+        version.major >= 7
+          ? { name: domain, "match-subdomain": "yes", address: "127.0.0.1", comment }
+          : undefined,
     });
   }
 
@@ -408,8 +430,15 @@ export function buildInstallPlan(
   //    ordinaire commence par « accept connection-state=established,related » —
   //    le ClientHello arrive DANS une connexion déjà établie et serait accepté
   //    avant d'atteindre nos règles ajoutées en fin de liste. On les remonte
-  //    donc en position 0. `move` plutôt que `place-before=0` : `place-before`
-  //    échoue sur une liste vide, `move [find …]` ne fait rien dans ce cas.
+  //    donc en tête. `move` plutôt que `place-before` : `place-before` exige un
+  //    identifiant existant, `move [find …]` ne fait rien sur une liste vide.
+  //
+  //    Mais PAS en position 0 : RouterOS 7 pose en tête de la chaîne forward une
+  //    règle interne (« special dummy rule to show fasttrack counters »), et un
+  //    hotspot y ajoute les siennes, toutes DYNAMIQUES. Viser 0 revient à
+  //    déplacer ces règles-là → « cannot move builtin », relevé sur
+  //    HSPT-TOFESSO. La destination est donc calculée SUR LE ROUTEUR : juste
+  //    après le bloc dynamique de tête.
   if (steps.some((s) => s.kind === "add" && s.path === "/ip/firewall/filter")) {
     steps.push({ kind: "move-top", path: "/ip/firewall/filter" });
   }
@@ -455,7 +484,10 @@ export function renderStep(step: PlanStep): string {
     case "remove-where":
       return `${base} remove [find ${step.field}=${quoteRos(step.value)}]`;
     case "move-top":
-      return `${base} move [find comment=${quoteRos(CONTENT_FILTER_COMMENT)}] destination=0`;
+      return (
+        `${base} move [find comment=${quoteRos(CONTENT_FILTER_COMMENT)}]` +
+        ` destination=[:len [${base} find where dynamic=yes]]`
+      );
   }
 }
 
@@ -472,8 +504,12 @@ export function renderPlanScript(plan: ContentFilterPlan): string {
     `# Généré pour cette version : ne le rejouez pas sur une branche majeure différente.`,
     `# Pour tout retirer : chaque ligne "remove [find comment=..." ci-dessous suffit.`,
   ];
-  const body = plan.steps.map(
-    (s) => `:do {:local c [:parse ${quoteRos(renderStep(s))}]; $c} on-error={}`,
+  const run = (line: string, sinon: string) =>
+    `:do {:local c [:parse ${quoteRos(line)}]; $c} on-error={${sinon}}`;
+  const body = plan.steps.map((s) =>
+    s.kind === "add" && s.fallback
+      ? run(renderStep(s), run(renderStep({ ...s, params: s.fallback }), ""))
+      : run(renderStep(s), ""),
   );
   return [...header, ...body, `:log info "SafeLinkHub content filter applied"`].join("\n");
 }
@@ -481,6 +517,11 @@ export function renderPlanScript(plan: ContentFilterPlan): string {
 // ── Sortie 2 : la même chose via l'API RouterOS ─────────────────────────────
 
 export type ApplyResult = { applied: number; failed: { step: string; error: string }[] };
+
+/** `{name: "x"}` → `["=name=x"]` — la forme mot-à-mot de l'API RouterOS. */
+function apiWords(params: Record<string, string>): string[] {
+  return Object.entries(params).map(([k, v]) => `=${k}=${v}`);
+}
 
 async function idsWhere(
   client: RouterOSClient,
@@ -511,13 +552,20 @@ export async function applyPlan(
     const label = renderStep(step);
     try {
       switch (step.kind) {
-        case "add":
         case "set": {
-          const words = [
-            `${step.path}/${step.kind}`,
-            ...Object.entries(step.params).map(([k, v]) => `=${k}=${v}`),
-          ];
-          await client.talk(words, timeoutMs);
+          await client.talk([`${step.path}/set`, ...apiWords(step.params)], timeoutMs);
+          result.applied++;
+          break;
+        }
+        case "add": {
+          try {
+            await client.talk([`${step.path}/add`, ...apiWords(step.params)], timeoutMs);
+          } catch (err) {
+            // Forme refusée par CETTE version : on rejoue le repli plutôt que
+            // de laisser un domaine non bloqué. Sans repli, l'échec remonte.
+            if (!step.fallback) throw err;
+            await client.talk([`${step.path}/add`, ...apiWords(step.fallback)], timeoutMs);
+          }
           result.applied++;
           break;
         }
@@ -535,9 +583,18 @@ export async function applyPlan(
         }
         case "move-top": {
           const ids = await idsWhere(client, step.path, "comment", CONTENT_FILTER_COMMENT, timeoutMs);
-          if (ids.length > 0) {
+          // Destination = la première règle qui n'est ni interne/dynamique ni
+          // l'une des nôtres. Viser l'index 0 buterait sur la règle « fasttrack
+          // counters » de RouterOS 7 et sur les règles dynamiques du hotspot :
+          // « cannot move builtin ».
+          const rows = await client.talk([`${step.path}/print`], timeoutMs).catch(() => []);
+          const mine = new Set(ids);
+          const cible = rows.find(
+            (r) => r.dynamic !== "true" && r[".id"] && !mine.has(r[".id"]),
+          )?.[".id"];
+          if (ids.length > 0 && cible) {
             await client.talk(
-              [`${step.path}/move`, `=numbers=${ids.join(",")}`, "=destination=0"],
+              [`${step.path}/move`, `=numbers=${ids.join(",")}`, `=destination=${cible}`],
               timeoutMs,
             );
           }

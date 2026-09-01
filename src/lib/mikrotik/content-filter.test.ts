@@ -56,6 +56,52 @@ describe("blocage DNS : la forme dépend de la branche", () => {
   });
 });
 
+/* Deux défauts relevés sur HSPT-TOFESSO (RouterOS 7.21), premier tir réel :
+   82 entrées DNS refusées d'un coup et le classement des règles impossible. */
+describe("régressions HSPT-TOFESSO", () => {
+  it("ne pose jamais address=0.0.0.0 : RouterOS rejette « bad A data »", () => {
+    for (const v of ["6.49.10", "7.21.0", "7.23.1"]) {
+      const dns = adds(v).filter((s) => s.path === "/ip/dns/static");
+      assert.ok(dns.length > 0);
+      assert.ok(dns.every((s) => s.params.address !== "0.0.0.0"));
+      assert.ok(dns.every((s) => Object.values(s.fallback ?? {}).every((x) => x !== "0.0.0.0")));
+    }
+  });
+
+  it("v7 bloque par NXDOMAIN, avec repli sur la boucle locale", () => {
+    const s = adds("7.21.0").find((x) => x.path === "/ip/dns/static")!;
+    assert.equal(s.params.type, "NXDOMAIN");
+    assert.equal(s.params.address, undefined);
+    // Une 7.x sans NXDOMAIN doit quand même repartir avec un blocage.
+    assert.equal(s.fallback?.address, "127.0.0.1");
+    // Le repli garde le nom ET la portée sous-domaines de l'entrée d'origine.
+    assert.equal(s.fallback?.name, s.params.name);
+    assert.equal(s.fallback?.["match-subdomain"], "yes");
+  });
+
+  it("v6 n'a pas de champ type : il pointe sur la boucle locale", () => {
+    const s = adds("6.49.10").find((x) => x.path === "/ip/dns/static")!;
+    assert.equal(s.params.type, undefined);
+    assert.equal(s.params.address, "127.0.0.1");
+  });
+
+  it("le classement des règles ne vise plus l'index 0 (« cannot move builtin »)", () => {
+    // La règle interne « fasttrack counters » et les règles dynamiques du
+    // hotspot occupent la tête de chaîne : la destination est calculée sur le
+    // routeur, jamais codée à 0.
+    const ligne = renderStep({ kind: "move-top", path: "/ip/firewall/filter" });
+    assert.ok(!ligne.includes("destination=0"));
+    assert.match(ligne, /destination=\[:len \[\/ip firewall filter find where dynamic=yes\]\]/);
+  });
+
+  it("le script rejoue le repli quand la forme principale est refusée", () => {
+    const out = renderPlanScript(buildInstallPlan("7.21.0", { categories: ["adult"] }));
+    const ligne = out.split("\n").find((l) => l.includes("type=NXDOMAIN"))!;
+    // on-error imbriqué : forme v7 d'abord, boucle locale ensuite.
+    assert.match(ligne, /on-error=\{:do \{.*address=127\.0\.0\.1.*\} on-error=\{\}\}$/);
+  });
+});
+
 describe("torrents : le matcher p2p n'existe qu'en v6", () => {
   it("v6 pose p2p=all-p2p et aucun layer7", () => {
     const s = adds("6.49.10");
@@ -141,7 +187,11 @@ describe("échappement console", () => {
     const out = script("7.23.1");
     for (const line of out.split("\n")) {
       if (line.startsWith("#") || line.startsWith(":log")) continue;
-      assert.match(line, /^:do \{:local c \[:parse ".*"\]; \$c\} on-error=\{\}$/);
+      // Deux formes admises : sans repli, ou avec un second :do en on-error.
+      assert.match(
+        line,
+        /^:do \{:local c \[:parse ".*"\]; \$c\} on-error=\{(|:do \{:local c \[:parse ".*"\]; \$c\} on-error=\{\})\}$/,
+      );
     }
     assert.ok(out.includes(CONTENT_FILTER_COMMENT));
   });
