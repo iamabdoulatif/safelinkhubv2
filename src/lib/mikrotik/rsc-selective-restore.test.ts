@@ -11,6 +11,8 @@ import {
   decouperArguments,
   estSauvegardeBinaire,
   MESSAGE_BACKUP_BINAIRE,
+  droitsRetenus,
+  dateRouterOs7,
   rendreTransfert,
 } from "./rsc-selective-restore";
 
@@ -287,5 +289,83 @@ describe("l'écran de transfert", () => {
 
   it("annonce ce qui est écarté, pas seulement ce qui passe", async () => {
     assert.match(await carte(), /sections écartées/);
+  });
+});
+
+describe("une sauvegarde RouterOS 6 rendue acceptable par un routeur 7", () => {
+  const v6 = () =>
+    readFile(new URL("../../../test/fixtures/rb951-v6.rsc", import.meta.url), "utf8");
+
+  it("les droits sont ramenés à ce que l'utilisateur API possède", async () => {
+    /* LE PIÈGE LE PLUS COÛTEUX. RouterOS refuse de créer un script portant des
+       droits que son créateur n'a pas — « user's policy does not allow ». Les
+       exports v6 portent reboot,password,sniff,romon, absents du groupe
+       safelinkhub. Sans cette réduction, les 1 672 schedulers ET les 11 lignes
+       de recette de cette sauvegarde seraient refusés, un par un. */
+    assert.equal(
+      droitsRetenus("ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon"),
+      "ftp,read,write,policy,test,sensitive",
+    );
+    const plan = planifierTransfert(await v6(), CIBLE);
+    for (const c of plan.commandes) {
+      const p = lireArgument(c.arguments, "policy");
+      if (!p) continue;
+      for (const droit of p.split(",")) {
+        assert.ok(
+          ["ftp", "read", "write", "policy", "test", "sensitive"].includes(droit),
+          `droit non accordable transmis : ${droit}`,
+        );
+      }
+    }
+  });
+
+  it("les dates passent de mmm/jj/aaaa à l'ISO", () => {
+    // RouterOS 6 écrit apr/05/2017 ; RouterOS 7 refuse cette forme.
+    assert.equal(dateRouterOs7("apr/05/2017"), "2017-04-05");
+    assert.equal(dateRouterOs7("jun/29/2016"), "2016-06-29");
+    assert.equal(dateRouterOs7("dec/31/1999"), "1999-12-31");
+  });
+
+  it("une date DÉJÀ ISO ou une variable n'est pas touchée", () => {
+    /* La conversion se pilote par la VALEUR, jamais par le nom d'argument : un
+       `on-login` contient lui-même `start-date=$date`, et réécrire sur le nom
+       irait corrompre le script à l'intérieur de sa propre chaîne. */
+    assert.equal(dateRouterOs7("2024-01-01"), null);
+    assert.equal(dateRouterOs7("\\$date"), null);
+    assert.equal(dateRouterOs7("nawak/99/0000"), null);
+  });
+
+  it("`owner` ne part pas — RouterOS 7 ne l'accepte plus en écriture", async () => {
+    /* Il l'attribue à l'utilisateur connecté. Le transmettre ferait échouer la
+       commande entière pour un champ qui ne serait de toute façon pas honoré. */
+    const plan = planifierTransfert(await v6(), CIBLE);
+    for (const c of plan.commandes) {
+      assert.equal(lireArgument(c.arguments, "owner"), null, `owner transmis : ${c.arguments.slice(0, 50)}`);
+    }
+  });
+
+  it("les sections propres à RouterOS 6 sont écartées d'office", async () => {
+    /* User Manager, RADIUS, layer7 : elles n'ont pas d'équivalent sur le
+       routeur d'accueil, et l'allowlist les écarte sans règle particulière. */
+    const plan = planifierTransfert(await v6(), CIBLE);
+    for (const v6only of [
+      "/tool user-manager customer",
+      "/tool user-manager profile",
+      "/radius",
+      "/ip firewall layer7-protocol",
+      "/system routerboard settings",
+    ]) {
+      assert.ok(plan.ecartees.includes(v6only), `section v6 non écartée : ${v6only}`);
+    }
+  });
+
+  it("les comptes créés à la main ne suivent pas, les vouchers si", async () => {
+    /* 1 150 utilisateurs en base, dont 179 comptes sans profil créés
+       manuellement (admin, baba, John…). Seuls les 971 vouchers MikHmon —
+       ceux qui portent un profil — ont un sens sur le routeur d'accueil. */
+    const plan = planifierTransfert(await v6(), CIBLE);
+    const tickets = plan.commandes.filter((c) => c.section === "/ip hotspot user");
+    assert.ok(tickets.length > 900 && tickets.length < 1000, `compte inattendu : ${tickets.length}`);
+    for (const t of tickets) assert.ok(lireArgument(t.arguments, "profile"), "ticket sans profil");
   });
 });

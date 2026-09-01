@@ -217,7 +217,12 @@ export function planifierTransfert(rsc: string, cible: CibleRouteur): PlanTransf
         args = ecrireArgument(args, "server", cible.hotspotServer);
       }
 
-      retenues.push({ ...c, arguments: args });
+      /* Une sauvegarde RouterOS 6 doit être rendue acceptable par un routeur
+         v7 : droits, dates et `owner`. Appliqué à TOUTES les commandes, pas
+         seulement aux exports v6 — sur un export v7 les trois règles sont sans
+         effet, et faire dépendre la conversion d'une détection de version
+         ajouterait un chemin qui ne serait jamais éprouvé. */
+      retenues.push({ ...c, arguments: adapterPourRouterOs7(args) });
     }
   }
 
@@ -271,4 +276,80 @@ export function decouperArguments(args: string): string[] {
     mots.push(`=${m[1]}=${valeur}`);
   }
   return mots;
+}
+
+/* ── Adaptation d'un export RouterOS 6 vers un routeur RouterOS 7 ───────── */
+
+/**
+ * Droits que notre utilisateur API possède réellement sur le routeur.
+ *
+ * RouterOS REFUSE de créer un script ou un scheduler portant des droits que
+ * son créateur n'a pas — l'erreur exacte étant « user's policy does not allow
+ * to edit this script ». Or les exports RouterOS 6 portent
+ * `reboot,password,sniff,romon`, qui ne sont pas dans le groupe
+ * `safelinkhub-group`. Sans cette intersection, CHAQUE scheduler et CHAQUE
+ * ligne de recette d'une sauvegarde v6 serait refusé — soit, sur le routeur
+ * mesuré, 1 672 refus sur 1 672.
+ */
+const DROITS_UTILISABLES = new Set([
+  "ftp", "read", "write", "policy", "test", "sensitive",
+]);
+
+const MOIS_ROUTEROS: Record<string, string> = {
+  jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+  jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+};
+
+/**
+ * `apr/05/2017` → `2017-04-05`.
+ *
+ * RouterOS 6 écrit les dates en `mmm/jj/aaaa`, RouterOS 7 les veut en ISO.
+ * La conversion est pilotée par la VALEUR, jamais par le nom de l'argument :
+ * un `on-login` contient lui-même des `start-date=$date`, et réécrire sur le
+ * nom irait toucher le script à l'intérieur de sa propre chaîne.
+ */
+export function dateRouterOs7(valeur: string): string | null {
+  const m = valeur.trim().toLowerCase().match(/^([a-z]{3})\/(\d{2})\/(\d{4})$/);
+  if (!m || !MOIS_ROUTEROS[m[1]]) return null;
+  return `${m[3]}-${MOIS_ROUTEROS[m[1]]}-${m[2]}`;
+}
+
+/** Ne garde que les droits que l'utilisateur API peut réellement accorder. */
+export function droitsRetenus(policy: string): string {
+  const gardes = policy
+    .split(",")
+    .map((p) => p.trim().toLowerCase())
+    .filter((p) => DROITS_UTILISABLES.has(p));
+  return [...new Set(gardes)].join(",");
+}
+
+/**
+ * Rend une commande d'un export RouterOS 6 acceptable par un routeur v7.
+ *
+ * Trois écarts, tous silencieux si on les ignore :
+ *   1. les DROITS que le créateur ne possède pas → la commande est refusée ;
+ *   2. les DATES en `mmm/jj/aaaa` → refusées par RouterOS 7 ;
+ *   3. `owner`, que RouterOS 7 n'accepte plus en écriture — il l'attribue à
+ *      l'utilisateur connecté. Le laisser ferait échouer la commande entière
+ *      pour un champ qui, de toute façon, ne serait pas honoré.
+ */
+export function adapterPourRouterOs7(args: string): string {
+  let sortie = args;
+
+  const policy = lireArgument(sortie, "policy");
+  if (policy) {
+    const retenus = droitsRetenus(policy);
+    sortie = retenus
+      ? ecrireArgument(sortie, "policy", retenus)
+      : sortie.replace(/(?:^|\s)policy=("[^"]*"|\S+)/, "");
+  }
+
+  const debut = lireArgument(sortie, "start-date");
+  const iso = debut ? dateRouterOs7(debut) : null;
+  if (iso) sortie = ecrireArgument(sortie, "start-date", iso);
+
+  // `owner` retiré plutôt que traduit : aucune valeur n'est acceptable.
+  sortie = sortie.replace(/(?:^|\s)owner=("[^"]*"|\S+)/, "");
+
+  return sortie.replace(/\s{2,}/g, " ").trim();
 }
