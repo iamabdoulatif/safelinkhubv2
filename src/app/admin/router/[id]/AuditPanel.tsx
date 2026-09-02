@@ -24,6 +24,7 @@ import {
   reconfigureMikhmonSession,
   upgradeRouterFirmware,
   fixRouterApiGroupPolicy,
+  fixRouterMikhmonApiAccess,
   fixRouterTicketExpiryFormat,
   fixRouterExpirySweep,
   cleanupRouterServices,
@@ -52,6 +53,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   "mikhmon-start": "Démarrer MikHmon",
   "rb-firmware": "Mettre à niveau le firmware",
   "api-policy": "Corriger les droits MikHmon",
+  "mikhmon-api-access": "Autoriser MikHmon sur l\u2019API",
   "ticket-expiry": "Réparer les dates d\u2019expiration",
   "expiry-sweep": "Remettre le balayage en service",
   "services-cleanup": "Éteindre les services superflus",
@@ -115,6 +117,8 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                   ? await upgradeRouterFirmware(routerId)
                   : finding.fix === "api-policy"
                     ? await fixRouterApiGroupPolicy(routerId)
+                    : finding.fix === "mikhmon-api-access"
+                    ? await fixRouterMikhmonApiAccess(routerId)
                     : finding.fix === "ticket-expiry"
                       ? await fixRouterTicketExpiryFormat(routerId)
                       : finding.fix === "expiry-sweep"

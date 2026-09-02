@@ -4,6 +4,8 @@ import { superfluousServicesToDisable } from "./router-audit-fixes";
 import { inspectProfileOnLogin, inspectSweepSchedulers } from "./expiry-sweep-script";
 import { readWifiState } from "./wifi-compat";
 import { readRouterboardFirmware, missingApiGroupPolicies, API_GROUP_NAME } from "./router-audit-fixes";
+import { inspectApiService, MIKHMON_EXPECTED_API_PORT } from "./api-service-access";
+import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 
 /**
  * OUTIL D'AUDIT MikroTik — analyse un routeur (souvent mal configuré, importé
@@ -29,6 +31,7 @@ export type AuditFixKind =
   | "mikhmon-start"
   | "rb-firmware"
   | "api-policy"
+  | "mikhmon-api-access"
   | "ticket-expiry"
   | "expiry-sweep"
   | "services-cleanup"
@@ -474,6 +477,57 @@ export async function auditRouter(
     }
   } catch {
     /* /user/group illisible — on ne conseille rien à tort. */
+  }
+
+  // ── MikHmon : l'API accepte-t-elle le conteneur ? ────────────────────────
+  // Le défaut qui donne « MikroTik Not Connected » dans MikHmon pendant que
+  // TOUT le reste va bien — voir api-service-access.ts. Le piège : SafeLinkHub
+  // arrive par le tunnel, toujours autorisé, donc rien d'autre ne bronche.
+  try {
+    const containerIp = await resolveMikhmonContainerAddress(client);
+    const rows = (await client
+      .talk(["/ip/service/print", "?name=api"], t)
+      .catch(() => [])) as Record<string, string>[];
+    const api = inspectApiService(rows[0], containerIp);
+    if (api) {
+      if (api.disabled)
+        add(
+          "error",
+          "MikHmon",
+          "mikhmon-api-access",
+          "Le service API du routeur est éteint",
+          `Sans le service API, ni le MikHmon hébergé ni SafeLinkHub ne peuvent gérer les tickets. Le correctif le rallume et autorise le conteneur (${containerIp}).`,
+          "mikhmon-api-access",
+        );
+      else if (!api.reachableFromContainer)
+        add(
+          "error",
+          "MikHmon",
+          "mikhmon-api-access",
+          "MikHmon ne peut pas joindre l'API du routeur (interface de tickets vide)",
+          `Le service API n'accepte que ${api.entries.join(", ")} — le conteneur MikHmon (${containerIp}) n'y est pas, RouterOS refuse donc sa connexion : MikHmon affiche « MikroTik Not Connected » et la page des tickets reste vide. Rien d'autre ne le montre, parce que SafeLinkHub, lui, arrive par le tunnel, qui est bien dans la liste. Le correctif AJOUTE ${containerIp}/32 à la liste sans rien en retirer.`,
+          "mikhmon-api-access",
+        );
+      else if (api.portMismatch)
+        add(
+          "warn",
+          "MikHmon",
+          "mikhmon-api-access-port",
+          `API déplacée sur le port ${api.port} — MikHmon ne sait pas l'y suivre`,
+          `Le MikHmon hébergé interroge toujours le port ${MIKHMON_EXPECTED_API_PORT} et n'a pas de réglage pour en changer : tant que l'API écoute ailleurs, son interface de tickets restera vide. À remettre sur ${MIKHMON_EXPECTED_API_PORT} depuis WinBox — ce n'est pas automatisé ici, déplacer le port couperait la connexion SafeLinkHub en cours.`,
+          null,
+        );
+      else
+        add(
+          "ok",
+          "MikHmon",
+          "mikhmon-api-access-ok",
+          "MikHmon joint l'API du routeur",
+          `Le conteneur (${containerIp}) est autorisé sur le service API${api.restricted ? ` (${api.entries.join(", ")})` : " (aucune restriction de source)"}.`,
+        );
+    }
+  } catch {
+    /* /ip/service illisible — on ne conseille rien à tort. */
   }
 
   // ── Score de santé ──────────────────────────────────────────────────────

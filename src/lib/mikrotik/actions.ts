@@ -32,6 +32,8 @@ import {
   upgradeRouterboardFirmware,
   superfluousServicesToDisable,
 } from "./router-audit-fixes";
+import { ensureApiReachableFromContainer } from "./api-service-access";
+import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
@@ -301,6 +303,73 @@ export async function upgradeRouterFirmware(routerId: string) {
  * schedulers d'expiration ni le journal de revenu. Idempotent, sans coupure
  * (n'affecte que le compte de service).
  */
+/**
+ * Rend l'API du routeur joignable depuis le conteneur MikHmon.
+ *
+ * C'est le correctif de « MikroTik Not Connected » : la liste `address=` du
+ * service API a perdu le réseau du conteneur, RouterOS refuse sa connexion, et
+ * l'interface de tickets reste vide alors que tout le reste fonctionne. On
+ * AJOUTE l'adresse réelle du conteneur (lue sur l'appareil — un MikHmon posé à
+ * la main vit sur une autre veth) sans jamais retirer d'entrée : celle du
+ * tunnel porte la connexion qui applique le correctif.
+ */
+export async function fixRouterMikhmonApiAccess(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour corriger l'accès API.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const containerIp = await resolveMikhmonContainerAddress(client);
+    const res = await ensureApiReachableFromContainer(client, containerIp);
+    if (!res.found) {
+      return { error: "Service API introuvable dans /ip/service — routeur non standard." };
+    }
+    if (!res.applied) {
+      return {
+        success: true,
+        summary: `L'API acceptait déjà le conteneur MikHmon (${containerIp}). Si l'interface de tickets reste vide, le blocage est ailleurs : identifiants du compte de service, ou conteneur arrêté.`,
+      };
+    }
+    revalidatePath(`/admin/router/${routerId}`);
+    const morceaux = [
+      res.added ? `${res.added} ajouté à la liste des sources autorisées` : null,
+      res.wasDisabled ? "service API rallumé" : null,
+    ].filter(Boolean);
+    return {
+      success: true,
+      summary: `Accès API réparé (${morceaux.join(", ")}) : « ${res.before || "aucune restriction"} » → « ${res.after} ». Rechargez MikHmon — la session doit passer de « Not Connected » à connectée, et les tickets réapparaître.`,
+    };
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Échec de la réparation de l'accès API : ${err.message}`
+          : "Échec de la réparation de l'accès API.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
 export async function fixRouterApiGroupPolicy(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
