@@ -5,6 +5,7 @@ import { inspectProfileOnLogin, inspectSweepSchedulers } from "./expiry-sweep-sc
 import { readWifiState } from "./wifi-compat";
 import { readRouterboardFirmware, missingApiGroupPolicies, API_GROUP_NAME } from "./router-audit-fixes";
 import { inspectApiService, MIKHMON_EXPECTED_API_PORT } from "./api-service-access";
+import { inspectMikhmonApiLogins } from "./mikhmon-api-login";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 
 /**
@@ -528,6 +529,38 @@ export async function auditRouter(
     }
   } catch {
     /* /ip/service illisible — on ne conseille rien à tort. */
+  }
+
+  // ── MikHmon : le routeur accepte-t-il ses identifiants ? ────────────────
+  // Le constat le plus direct qui soit : le routeur JOURNALISE le rejet. Une
+  // session saisie à la main (ou par un ancien chemin d'installation) garde un
+  // mot de passe que plus rien ne resynchronise avec celui de l'app — et rien
+  // d'autre ne le montre. Voir mikhmon-api-login.ts.
+  try {
+    const containerIp = await resolveMikhmonContainerAddress(client);
+    const journal = (await client
+      .talk(["/log/print", "=.proplist=time,message"], t)
+      .catch(() => [])) as Record<string, string>[];
+    const verdict = inspectMikhmonApiLogins(journal, containerIp);
+    if (verdict.state === "rejected")
+      add(
+        "error",
+        "MikHmon",
+        "mikhmon-credentials",
+        "Le routeur REFUSE les identifiants de MikHmon (interface de tickets vide)",
+        `Le journal du routeur est formel : « login failure for user ${verdict.user} from ${containerIp} via api » (${verdict.failures} tentative(s), la dernière à ${verdict.at}). Le conteneur atteint bien l'API — c'est le mot de passe qu'il détient qui est périmé, alors que celui de SafeLinkHub fonctionne. Cela arrive quand la session MikHmon a été saisie à la main : plus rien ne les resynchronise. Le correctif réécrit la session du conteneur avec les identifiants de l'app, puis le redémarre.`,
+        "mikhmon-session",
+      );
+    else if (verdict.state === "ok")
+      add(
+        "ok",
+        "MikHmon",
+        "mikhmon-credentials-ok",
+        "MikHmon est authentifié sur le routeur",
+        `Dernière connexion API acceptée depuis le conteneur (${containerIp}) à ${verdict.at}, compte ${verdict.user}.`,
+      );
+  } catch {
+    /* Journal illisible — on ne conseille rien à tort. */
   }
 
   // ── Score de santé ──────────────────────────────────────────────────────
