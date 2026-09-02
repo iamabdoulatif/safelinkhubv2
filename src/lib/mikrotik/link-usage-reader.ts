@@ -163,18 +163,30 @@ async function applyZoneQueue(
       )
       .catch(() => {});
   } else {
-    const all = await client.talk(["/queue/simple/print"], timeoutMs).catch(() => []);
-    const first = all.find((q) => q[".id"]);
-    const add = [
-      "/queue/simple/add",
-      `=name=${name}`,
-      `=target=${zone}`,
-      `=max-limit=${plan.maxLimit}`,
-      `=queue=${queueRef}`,
-      "=comment=SafeLinkHub debit zone (VLAN + par client)",
-    ];
-    if (first?.[".id"]) add.push(`=place-before=${first[".id"]}`);
-    await client.talk(add, timeoutMs).catch(() => {});
+    await client
+      .talk(
+        [
+          "/queue/simple/add",
+          `=name=${name}`,
+          `=target=${zone}`,
+          `=max-limit=${plan.maxLimit}`,
+          `=queue=${queueRef}`,
+          "=comment=SafeLinkHub debit zone (VLAN + par client)",
+        ],
+        timeoutMs,
+      )
+      .catch(() => {});
+  }
+
+  // La file DOIT primer sur la file hotspot DYNAMIQUE (target=HOTSPOT,
+  // max-limit=0/0) que RouterOS pose en tête : les files simples s'évaluent de
+  // haut en bas, 1re correspondance gagne, donc placée EN DESSOUS la nôtre
+  // serait court-circuitée. Vérifié sur KONGASSO-HTSPT (RouterOS 7.19) :
+  // `place-before` sur l'id de la file dynamique la laisse à l'index 1 ;
+  // `move destination=0` la remonte réellement au sommet.
+  const mine = (await client.talk(["/queue/simple/print", `?name=${name}`], timeoutMs).catch(() => []))[0];
+  if (mine?.[".id"]) {
+    await client.talk(["/queue/simple/move", `=numbers=${mine[".id"]}`, "=destination=0"], timeoutMs).catch(() => {});
   }
 
   // Si on est passé de « par client » à « sans », déréférencer PUIS supprimer.
