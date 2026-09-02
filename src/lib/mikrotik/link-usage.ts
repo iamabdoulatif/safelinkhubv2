@@ -150,3 +150,54 @@ export function mbpsToKbps(mbps: number | null | undefined): number | null {
   if (!mbps || mbps <= 0) return null;
   return Math.round(mbps * 1000);
 }
+
+// ── Files d'attente de zone : plafond du VLAN + débit par client (PCQ) ───────
+
+/**
+ * Nom stable des types PCQ posés pour une zone (un par sens). Distinct du nom
+ * de la file simple (zoneQueueName dans le reader) — un type et une file ne
+ * partagent pas d'espace de noms, mais on garde le préfixe SafeLinkHub pour
+ * repérer et purger ce qu'on gère.
+ */
+export function pcqTypeName(zone: string, dir: "up" | "dn"): string {
+  return `SLH-pcq-${zone}-${dir}`;
+}
+
+export type ZoneQueuePlan =
+  | { kind: "none" }
+  | {
+      /** max-limit de la file simple (« 0/0 » = agrégat illimité). */
+      maxLimit: string;
+      /**
+       * Sous-files PCQ à créer/référencer pour plafonner CHAQUE client. null =
+       * pas de limite par client (la file ne porte que le plafond agrégé).
+       */
+      pcq: { up: string; dn: string; rateKbps: number } | null;
+      kind: "simple";
+    };
+
+/**
+ * Traduit (plafond agrégé du VLAN, débit par client) en plan de files RouterOS.
+ * PUR : le « quoi poser » se teste sans routeur ; le « comment le poser » (I/O)
+ * est dans link-usage-reader.ts.
+ *
+ *  - `totalKbps` seul  → une file simple max-limit=total (tout le VLAN partage).
+ *  - `perClientKbps` seul → max-limit illimité + PCQ pcq-rate=perClient (chaque
+ *    client plafonné, pas d'agrégat).
+ *  - les deux → total en plafond ET PCQ par client à l'intérieur.
+ *  - aucun → rien à poser (kind "none").
+ */
+export function zoneQueuePlan(
+  totalKbps: number | null,
+  perClientKbps: number | null,
+  zone: string,
+): ZoneQueuePlan {
+  if (!totalKbps && !perClientKbps) return { kind: "none" };
+  return {
+    kind: "simple",
+    maxLimit: totalKbps ? `${totalKbps}k/${totalKbps}k` : "0/0",
+    pcq: perClientKbps
+      ? { up: pcqTypeName(zone, "up"), dn: pcqTypeName(zone, "dn"), rateKbps: perClientKbps }
+      : null,
+  };
+}

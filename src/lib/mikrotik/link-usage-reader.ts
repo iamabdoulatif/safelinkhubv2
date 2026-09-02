@@ -12,7 +12,9 @@ import { detectUplinkInterface } from "./router-lock";
 import {
   accumulate,
   mbpsToKbps,
+  pcqTypeName,
   quotaVerdict,
+  zoneQueuePlan,
   type UsageAccumulator,
 } from "./link-usage";
 
@@ -82,12 +84,113 @@ async function applyCapQueue(
   await client.talk(add, timeoutMs).catch(() => {});
 }
 
+/**
+ * Ensure/maj/suppression d'un type PCQ (débit par CLIENT) pour une zone. Le
+ * classifieur découpe le trafic par adresse : côté « download » (vers les
+ * clients) par dst-address, côté « upload » (depuis les clients) par
+ * src-address — chaque client obtient ainsi sa propre sous-file plafonnée.
+ */
+async function ensurePcqType(
+  client: RouterOSClient,
+  name: string,
+  rateKbps: number,
+  classifier: "src-address" | "dst-address",
+  timeoutMs: number,
+): Promise<void> {
+  const rate = `${rateKbps}k`;
+  const existing = (await client.talk(["/queue/type/print", `?name=${name}`], timeoutMs).catch(() => []))[0];
+  if (existing?.[".id"]) {
+    await client
+      .talk(["/queue/type/set", `=numbers=${existing[".id"]}`, `=pcq-rate=${rate}`, `=pcq-classifier=${classifier}`], timeoutMs)
+      .catch(() => {});
+    return;
+  }
+  await client
+    .talk(
+      ["/queue/type/add", `=name=${name}`, "=kind=pcq", `=pcq-rate=${rate}`, `=pcq-classifier=${classifier}`],
+      timeoutMs,
+    )
+    .catch(() => {});
+}
+
+async function removePcqType(client: RouterOSClient, name: string, timeoutMs: number): Promise<void> {
+  const existing = (await client.talk(["/queue/type/print", `?name=${name}`], timeoutMs).catch(() => []))[0];
+  if (existing?.[".id"]) {
+    await client.talk(["/queue/type/remove", `=numbers=${existing[".id"]}`], timeoutMs).catch(() => {});
+  }
+}
+
+/**
+ * Pose la file d'une zone : plafond agrégé du VLAN (max-limit) + débit par
+ * client (PCQ). Idempotent. Ordre de retrait important : la file simple
+ * RÉFÉRENCE les types PCQ, donc on la retire (ou on la déréférence) AVANT de
+ * supprimer les types — sinon RouterOS refuse (« type in use »).
+ */
+async function applyZoneQueue(
+  client: RouterOSClient,
+  zone: string,
+  totalKbps: number | null,
+  perClientKbps: number | null,
+  timeoutMs: number,
+): Promise<void> {
+  const name = zoneQueueName(zone);
+  const plan = zoneQueuePlan(totalKbps, perClientKbps, zone);
+  const simple = (await client.talk(["/queue/simple/print", `?name=${name}`], timeoutMs).catch(() => []))[0];
+
+  if (plan.kind === "none") {
+    if (simple?.[".id"] && simple.dynamic !== "true") {
+      await client.talk(["/queue/simple/remove", `=numbers=${simple[".id"]}`], timeoutMs).catch(() => {});
+    }
+    await removePcqType(client, pcqTypeName(zone, "up"), timeoutMs);
+    await removePcqType(client, pcqTypeName(zone, "dn"), timeoutMs);
+    return;
+  }
+
+  // Types PCQ d'abord (la file va les référencer) ; sinon on les retire.
+  if (plan.pcq) {
+    await ensurePcqType(client, plan.pcq.up, plan.pcq.rateKbps, "src-address", timeoutMs);
+    await ensurePcqType(client, plan.pcq.dn, plan.pcq.rateKbps, "dst-address", timeoutMs);
+  }
+
+  // queue=upload/download : PCQ par client, ou la file par défaut sinon.
+  const queueRef = plan.pcq ? `${plan.pcq.up}/${plan.pcq.dn}` : "default-small/default-small";
+
+  if (simple?.[".id"] && simple.dynamic !== "true") {
+    await client
+      .talk(
+        ["/queue/simple/set", `=numbers=${simple[".id"]}`, `=max-limit=${plan.maxLimit}`, `=queue=${queueRef}`, "=disabled=no"],
+        timeoutMs,
+      )
+      .catch(() => {});
+  } else {
+    const all = await client.talk(["/queue/simple/print"], timeoutMs).catch(() => []);
+    const first = all.find((q) => q[".id"]);
+    const add = [
+      "/queue/simple/add",
+      `=name=${name}`,
+      `=target=${zone}`,
+      `=max-limit=${plan.maxLimit}`,
+      `=queue=${queueRef}`,
+      "=comment=SafeLinkHub debit zone (VLAN + par client)",
+    ];
+    if (first?.[".id"]) add.push(`=place-before=${first[".id"]}`);
+    await client.talk(add, timeoutMs).catch(() => {});
+  }
+
+  // Si on est passé de « par client » à « sans », déréférencer PUIS supprimer.
+  if (!plan.pcq) {
+    await removePcqType(client, pcqTypeName(zone, "up"), timeoutMs);
+    await removePcqType(client, pcqTypeName(zone, "dn"), timeoutMs);
+  }
+}
+
 export type ZoneUsage = {
   bridgeId: string;
   name: string;
   usedBytes: number;
   quotaMb: number | null;
   capKbps: number | null;
+  perClientKbps: number | null;
   pct: number;
   state: ReturnType<typeof quotaVerdict>["state"];
   throttled: boolean;
@@ -201,12 +304,13 @@ export async function updateRouterUsage(
     }
 
     const verdict = quotaVerdict(usedBytes, b.zoneQuotaMb ?? null);
-    // Débit de zone : le plafond fixe (zoneCapKbps) s'applique toujours ; si le
-    // quota est dépassé, on tombe au débit de bride du WAN (ou on garde le cap).
+    // Débit de zone : le plafond agrégé du VLAN (zoneCapKbps) s'applique
+    // toujours ; au dépassement du quota, l'agrégat tombe au débit de bride du
+    // WAN. Le débit PAR CLIENT (zonePerClientKbps) reste, lui, constant.
     const baseCap = b.zoneCapKbps ?? null;
-    const overCap = verdict.state === "over" ? (router.wanThrottleKbps ?? baseCap) : baseCap;
-    const effectiveCap = overCap ?? baseCap;
-    await applyCapQueue(client, zoneQueueName(b.name), b.name, effectiveCap, timeoutMs);
+    const totalCap = verdict.state === "over" ? (router.wanThrottleKbps ?? baseCap) : baseCap;
+    const perClient = b.zonePerClientKbps ?? null;
+    await applyZoneQueue(client, b.name, totalCap, perClient, timeoutMs);
 
     zones.push({
       bridgeId: b.id,
@@ -214,13 +318,14 @@ export async function updateRouterUsage(
       usedBytes,
       quotaMb: b.zoneQuotaMb ?? null,
       capKbps: b.zoneCapKbps ?? null,
+      perClientKbps: perClient,
       pct: verdict.pct,
       state: verdict.state,
-      throttled: verdict.state === "over" && Boolean(overCap),
+      throttled: verdict.state === "over" && Boolean(totalCap),
     });
   }
 
   return { linkType: router.linkType ?? null, wan: wanState, zones };
 }
 
-export { WAN_CAP_QUEUE, zoneQueueName, mbpsToKbps };
+export { WAN_CAP_QUEUE, zoneQueueName, mbpsToKbps, pcqTypeName };

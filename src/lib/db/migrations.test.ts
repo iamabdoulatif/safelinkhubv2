@@ -33,9 +33,15 @@ describe("registre des migrations", () => {
   // Le SQL embarqué (joué au démarrage) et le fichier .sql (miroir humain /
   // secours manuel) ne doivent pas diverger : un correctif appliqué à l'un sans
   // l'autre reposerait un piège de dérive de schéma.
-  it("0001_link_usage : le miroir scripts/add-link-usage.sql correspond", () => {
-    const embedded = normalizeSql(MIGRATIONS.find((m) => m.id === "0001_link_usage")!.sql);
-    const mirror = normalizeSql(readFileSync(join(repoRoot, "scripts", "add-link-usage.sql"), "utf8"));
-    assert.equal(mirror, embedded);
-  });
+  const MIRRORS: Record<string, string> = {
+    "0001_link_usage": "add-link-usage.sql",
+    "0002_zone_per_client": "add-zone-per-client.sql",
+  };
+  for (const [id, file] of Object.entries(MIRRORS)) {
+    it(`${id} : le miroir scripts/${file} correspond`, () => {
+      const embedded = normalizeSql(MIGRATIONS.find((m) => m.id === id)!.sql);
+      const mirror = normalizeSql(readFileSync(join(repoRoot, "scripts", file), "utf8"));
+      assert.equal(mirror, embedded);
+    });
+  }
 });

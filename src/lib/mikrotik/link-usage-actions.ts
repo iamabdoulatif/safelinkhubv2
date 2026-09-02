@@ -69,7 +69,7 @@ export async function setRouterLink(
 export async function setZoneUsage(
   routerId: string,
   bridgeId: string,
-  input: { zoneQuotaMb?: number | null; zoneCapKbps?: number | null },
+  input: { zoneQuotaMb?: number | null; zoneCapKbps?: number | null; zonePerClientKbps?: number | null },
 ) {
   const loaded = await loadRouter(routerId);
   if (!loaded.ok) return { error: loaded.error };
@@ -85,7 +85,11 @@ export async function setZoneUsage(
 
   await db
     .update(bridges)
-    .set({ zoneQuotaMb: clampInt(input.zoneQuotaMb, 1, 100_000_000), zoneCapKbps: clampInt(input.zoneCapKbps, 64, 10_000_000) })
+    .set({
+      zoneQuotaMb: clampInt(input.zoneQuotaMb, 1, 100_000_000),
+      zoneCapKbps: clampInt(input.zoneCapKbps, 64, 10_000_000),
+      zonePerClientKbps: clampInt(input.zonePerClientKbps, 64, 10_000_000),
+    })
     .where(eq(bridges.id, bridgeId));
 
   revalidatePath(`/admin/router/${routerId}`);

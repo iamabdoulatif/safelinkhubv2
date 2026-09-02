@@ -42,4 +42,12 @@ alter table bridges
   add column if not exists zone_cycle_started_at timestamp;
 `.trim(),
   },
+  {
+    // Débit individuel par client de zone (PCQ). Miroir : scripts/add-zone-per-client.sql.
+    id: "0002_zone_per_client",
+    sql: `
+alter table bridges
+  add column if not exists zone_per_client_kbps integer;
+`.trim(),
+  },
 ];

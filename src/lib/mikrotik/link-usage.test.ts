@@ -6,6 +6,8 @@ import {
   formatBytes,
   mbpsToKbps,
   quotaVerdict,
+  zoneQueuePlan,
+  pcqTypeName,
   type UsageAccumulator,
 } from "./link-usage";
 
@@ -80,5 +82,37 @@ describe("formats", () => {
     assert.equal(mbpsToKbps(5), 5000);
     assert.equal(mbpsToKbps(0), null);
     assert.equal(mbpsToKbps(null), null);
+  });
+});
+
+describe("plan de files de zone (VLAN + par client)", () => {
+  it("rien à poser sans plafond ni débit par client", () => {
+    assert.deepEqual(zoneQueuePlan(null, null, "HOTSPOT"), { kind: "none" });
+    assert.deepEqual(zoneQueuePlan(0, 0, "HOTSPOT"), { kind: "none" });
+  });
+
+  it("plafond agrégé seul : file simple, pas de PCQ", () => {
+    const p = zoneQueuePlan(50000, null, "HOTSPOT");
+    assert.equal(p.kind, "simple");
+    if (p.kind !== "simple") return;
+    assert.equal(p.maxLimit, "50000k/50000k");
+    assert.equal(p.pcq, null);
+  });
+
+  it("débit par client seul : agrégat illimité + PCQ par sens", () => {
+    const p = zoneQueuePlan(null, 2000, "HOTSPOT");
+    if (p.kind !== "simple") return assert.fail("attendu simple");
+    assert.equal(p.maxLimit, "0/0"); // pas de plafond agrégé
+    assert.deepEqual(p.pcq, { up: pcqTypeName("HOTSPOT", "up"), dn: pcqTypeName("HOTSPOT", "dn"), rateKbps: 2000 });
+  });
+
+  it("les deux : plafond du VLAN ET PCQ par client", () => {
+    const p = zoneQueuePlan(50000, 2000, "ZONE-A");
+    if (p.kind !== "simple") return assert.fail("attendu simple");
+    assert.equal(p.maxLimit, "50000k/50000k");
+    assert.equal(p.pcq?.rateKbps, 2000);
+    // Les types PCQ sont nommés par zone → deux zones ne partagent pas leur cap.
+    assert.equal(p.pcq?.up, "SLH-pcq-ZONE-A-up");
+    assert.notEqual(pcqTypeName("ZONE-A", "up"), pcqTypeName("ZONE-B", "up"));
   });
 });

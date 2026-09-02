@@ -247,6 +247,7 @@ function ZoneCard({
 }) {
   const [quota, setQuota] = useState(zone.quotaMb != null ? String(zone.quotaMb) : "");
   const [cap, setCap] = useState(zone.capKbps != null ? String(zone.capKbps / 1000) : "");
+  const [perClient, setPerClient] = useState(zone.perClientKbps != null ? String(zone.perClientKbps / 1000) : "");
   const [isSaving, startSave] = useTransition();
   const tone = STATE_TONE[zone.state] ?? STATE_TONE.ok;
 
@@ -255,6 +256,7 @@ function ZoneCard({
       const res = await setZoneUsage(routerId, zone.bridgeId, {
         zoneQuotaMb: quota ? Number(quota) : null,
         zoneCapKbps: cap ? Math.round(Number(cap) * 1000) : null,
+        zonePerClientKbps: perClient ? Math.round(Number(perClient) * 1000) : null,
       });
       if ("error" in res && res.error) return onError(res.error);
       onSaved(`Zone ${zone.name} enregistrée.`);
@@ -277,7 +279,7 @@ function ZoneCard({
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <MbField label="Quota (Mo)" value={quota} onChange={setQuota} placeholder="illimité" />
         <label className="block">
-          <span className="text-xs font-bold text-ink-soft">Débit max (Mbps)</span>
+          <span className="text-xs font-bold text-ink-soft">Débit max du VLAN (Mbps)</span>
           <input
             type="number"
             min={0}
@@ -286,19 +288,31 @@ function ZoneCard({
             onChange={(e) => setCap(e.target.value)}
             className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
           />
-          <span className="mt-0.5 block text-[11px] text-ink-soft">plafond permanent de la zone</span>
+          <span className="mt-0.5 block text-[11px] text-ink-soft">plafond partagé par toute la zone</span>
         </label>
-        <div className="flex items-end">
-          <button
-            type="button"
-            disabled={isSaving}
-            onClick={save}
-            className="inline-flex items-center gap-2 border border-line bg-paper px-4 py-2 text-sm font-bold text-ink hover:bg-clay disabled:opacity-60 rounded-full"
-          >
-            {isSaving ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Gauge aria-hidden="true" className="h-4 w-4" />}
-            Appliquer
-          </button>
-        </div>
+        <label className="block">
+          <span className="text-xs font-bold text-ink-soft">Débit par client (Mbps)</span>
+          <input
+            type="number"
+            min={0}
+            step="0.5"
+            value={perClient}
+            onChange={(e) => setPerClient(e.target.value)}
+            className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
+          />
+          <span className="mt-0.5 block text-[11px] text-ink-soft">plafond de CHAQUE appareil (PCQ)</span>
+        </label>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          disabled={isSaving}
+          onClick={save}
+          className="inline-flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+        >
+          {isSaving ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Gauge aria-hidden="true" className="h-4 w-4" />}
+          Appliquer
+        </button>
       </div>
     </div>
   );

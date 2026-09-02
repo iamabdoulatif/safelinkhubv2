@@ -509,6 +509,10 @@ export const bridges = pgTable(
     // Accumulateur : mêmes champs que le WAN (voir link-usage.ts).
     zoneQuotaMb: integer("zone_quota_mb"),
     zoneCapKbps: integer("zone_cap_kbps"),
+    // Débit INDIVIDUEL par client de la zone, en kbit/s (null = pas de limite
+    // par client). Appliqué par une file PCQ : zoneCapKbps plafonne le VLAN
+    // entier, zonePerClientKbps plafonne CHAQUE client à l'intérieur.
+    zonePerClientKbps: integer("zone_per_client_kbps"),
     zoneUsedBytes: bigint("zone_used_bytes", { mode: "number" }).notNull().default(0),
     zoneLastRaw: bigint("zone_last_raw", { mode: "number" }).notNull().default(0),
     zoneCycleStartedAt: timestamp("zone_cycle_started_at"),
