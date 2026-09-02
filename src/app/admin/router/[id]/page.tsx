@@ -7,6 +7,7 @@ import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import SerialLockPanel from "./SerialLockPanel";
 import TicketDiagnosisPanel from "./TicketDiagnosisPanel";
 import HeaderActions from "./HeaderActions";
+import { linkTypeLabel } from "@/lib/mikrotik/link-usage";
 import RouterDetailTabs from "./RouterDetailTabs";
 
 function formatUptime(seconds: number) {
@@ -133,6 +134,10 @@ export default async function RouterDetailPage({
             <dd className="font-semibold text-ink">
               {router.connectionMethod === "vpn" ? "Tunnel WireGuard" : "Directe (API)"}
             </dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 py-2">
+            <dt className="text-ink-soft">Type de lien</dt>
+            <dd className="font-semibold text-ink">{linkTypeLabel(router.linkType)}</dd>
           </div>
           <div className="flex items-center justify-between gap-3 py-2">
             <dt className="text-ink-soft">Modèle</dt>

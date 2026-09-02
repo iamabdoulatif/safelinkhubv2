@@ -89,7 +89,7 @@ async function accessInterfaces(
  * n'est PAS en train de couper le lien qui porte le tunnel. Best-effort :
  * client DHCP actif d'abord, sinon interface de la route par défaut.
  */
-async function detectUplinkInterface(
+export async function detectUplinkInterface(
   client: RouterOSClient,
   timeoutMs: number,
 ): Promise<string | null> {

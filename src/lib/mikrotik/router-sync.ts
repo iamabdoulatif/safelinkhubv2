@@ -9,6 +9,7 @@ import {
   hasFreshWireGuardHandshake,
 } from "./relay";
 import { reconcileWalledGardenOnce } from "./walled-garden";
+import { updateRouterUsage } from "./link-usage-reader";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { ensureHotspotLoginByCode } from "./hotspot-login-mode";
 import { persistRouterLoginHost } from "@/lib/portal/router-login-url";
@@ -327,6 +328,16 @@ export async function syncRouterStats(
       await persistRouterLoginHost(routerId, loginHost);
     } catch {
       // Non-fatal — réessayé au prochain sync (routeur sans hotspot, hiccup API).
+    }
+
+    // Suivi AUTOMATIQUE de la consommation : relève les compteurs WAN + zones,
+    // met à jour l'accumulateur de conso, et applique/retire les brides de débit
+    // selon les quotas. Réutilise la connexion courante. Best-effort : un
+    // routeur sans quota configuré n'écrit qu'un accumulateur, sans rien brider.
+    try {
+      await updateRouterUsage(client, router);
+    } catch {
+      // Non-fatal — réessayé au prochain sync.
     }
   } catch (err) {
     if (markOfflineOnFailure) {

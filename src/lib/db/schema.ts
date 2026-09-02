@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   numeric,
+  bigint,
   jsonb,
   uniqueIndex,
   index,
@@ -264,6 +265,28 @@ export const routers = pgTable("routers", {
   // (config-audit.ts's repair action) replay the exact same run against
   // whatever's missing on the router, without the admin re-typing every
   // field from the original wizard pass.
+  // ── Contrôle de consommation du lien montant (WAN) ────────────────────────
+  // Type d'uplink de CE routeur : "fibre" | "starlink" | "autre" (null =
+  // inconnu). Sert à savoir d'où vient la connexion de l'organisation et à
+  // adapter le suivi (un Starlink facturé au volume a besoin d'un quota, une
+  // fibre rarement). Voir lib/mikrotik/link-usage.ts.
+  linkType: text("link_type"),
+  // Quota mensuel total du lien, en Mo (null = illimité). Jour de remise à zéro
+  // du cycle (1-28). Débit de bridage appliqué quand le quota est atteint, en
+  // kbit/s (null = alerte seule, sans brider).
+  wanQuotaMb: integer("wan_quota_mb"),
+  billingCycleDay: integer("billing_cycle_day").notNull().default(1),
+  wanThrottleKbps: integer("wan_throttle_kbps"),
+  // Accumulateur persistant (voir link-usage.ts) : octets consommés depuis le
+  // début du cycle, dernier relevé BRUT du compteur d'interface (rx+tx, pour
+  // calculer l'écart et détecter un reboot), et début du cycle courant.
+  wanUsedBytes: bigint("wan_used_bytes", { mode: "number" }).notNull().default(0),
+  wanLastRaw: bigint("wan_last_raw", { mode: "number" }).notNull().default(0),
+  wanCycleStartedAt: timestamp("wan_cycle_started_at"),
+  // Dédup de l'alerte « quota bientôt atteint » (une par cycle) et horodatage
+  // du bridage actuellement appliqué (null = pas de file de bridage posée).
+  wanQuotaAlertedAt: timestamp("wan_quota_alerted_at"),
+  wanThrottledAt: timestamp("wan_throttled_at"),
   lastAutoSetupConfig: jsonb("last_auto_setup_config"),
 });
 
@@ -480,6 +503,15 @@ export const bridges = pgTable(
     captiveTemplateId: uuid("captive_template_id").references(() => captiveTemplates.id, {
       onDelete: "set null",
     }),
+    // ── Quota + débit de CETTE zone (VLAN/bridge hotspot) ──────────────────
+    // Quota mensuel de la zone en Mo (null = illimité) et plafond de débit en
+    // kbit/s (null = pas de bride). Le cycle suit le billingCycleDay du routeur.
+    // Accumulateur : mêmes champs que le WAN (voir link-usage.ts).
+    zoneQuotaMb: integer("zone_quota_mb"),
+    zoneCapKbps: integer("zone_cap_kbps"),
+    zoneUsedBytes: bigint("zone_used_bytes", { mode: "number" }).notNull().default(0),
+    zoneLastRaw: bigint("zone_last_raw", { mode: "number" }).notNull().default(0),
+    zoneCycleStartedAt: timestamp("zone_cycle_started_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [uniqueIndex("bridges_router_name_idx").on(t.routerId, t.name)],
