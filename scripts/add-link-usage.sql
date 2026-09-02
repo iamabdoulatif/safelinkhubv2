@@ -1,11 +1,11 @@
 -- Contrôle de consommation du lien montant (WAN) et par zone WiFi (VLAN).
--- Colonnes nullables / à défaut → aucun risque pour l'existant (null = pas de
--- quota, accumulateurs à 0). Voir src/lib/db/schema.ts (routers.link*/wan*,
--- bridges.zone*) + src/lib/mikrotik/link-usage.ts.
 --
--- ⚠️ À APPLIQUER SUR LA BASE DE PROD AVANT DE DÉPLOYER : sans ces colonnes, une
--- lecture de `routers`/`bridges` échoue (« column does not exist ») car le SaaS
--- sélectionne des colonnes explicites depuis schema.ts.
+-- ⚙️ APPLIQUÉE AUTOMATIQUEMENT au démarrage du conteneur (voir
+-- src/lib/db/migrations.ts, entrée "0001_link_usage"). Ce fichier est le miroir
+-- humain / l'application manuelle de secours — un test vérifie qu'il ne diverge
+-- pas du SQL embarqué (src/lib/db/migrations.test.ts).
+--
+-- Colonnes nullables / à défaut → aucun risque pour l'existant.
 alter table routers
   add column if not exists link_type text,
   add column if not exists wan_quota_mb integer,
