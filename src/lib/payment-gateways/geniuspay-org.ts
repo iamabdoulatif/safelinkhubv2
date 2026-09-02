@@ -435,3 +435,67 @@ export async function getOrgPaymentStatus(
   }
   return { ok: false, error: lastError };
 }
+
+// ── Solde du compte marchand (lecture seule) ────────────────────────────────
+//
+// GET /account/balance (doc v3) → { success, data: { available, pending, total,
+// currency } }, montants en XOF ENTIER (pas de centimes — comme les montants de
+// paiement). `available` = « montant disponible pour retrait » : c'est le gain
+// encaissé que l'org peut sortir depuis SON compte GeniusPay. Lecture seule :
+// SafeLinkHub ne déclenche aucun retrait (l'API Payouts de GeniusPay est encore
+// en bêta ; voir la réponse à la question « retrait programmable »).
+
+export type GeniusBalance = {
+  /** Disponible pour retrait, en FCFA (XOF entier). */
+  available: number;
+  /** En attente de confirmation, en FCFA. */
+  pending: number;
+  /** available + pending, en FCFA. */
+  total: number;
+  currency: string;
+};
+
+export async function getOrgGeniusBalance(
+  creds: OrgGeniusCreds,
+): Promise<{ ok: true; balance: GeniusBalance } | { ok: false; error: string }> {
+  // Même robustesse que getOrgPaymentStatus : GeniusPay (Laravel/LiteSpeed) peut
+  // renvoyer par intermittence sa page SPA (HTML 200) au lieu du JSON. Lecture
+  // idempotente → on réessaie sans risque.
+  const MAX_ATTEMPTS = 3;
+  let lastError = "Solde GeniusPay indisponible.";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) await new Promise((r) => setTimeout(r, 250 * (attempt - 1)));
+    let res: Response;
+    try {
+      res = await fetch(`${baseUrl()}/account/balance`, {
+        method: "GET",
+        headers: headers(creds),
+        cache: "no-store",
+      });
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : "Échec de contact GeniusPay.";
+      continue;
+    }
+
+    const ct = res.headers.get("content-type") || "";
+    const rawText = await res.text().catch(() => "");
+    const json = ct.includes("json") ? safeParse(rawText) : null;
+    if (!json) {
+      lastError = `Réponse GeniusPay non-JSON (${res.status}).`;
+      continue; // page SPA → transitoire
+    }
+    if (!res.ok) return { ok: false, error: geniusErrorMessage(json, res.status) };
+
+    const data = (json.data as Record<string, unknown>) ?? json;
+    const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const available = num(data.available);
+    const pending = num(data.pending);
+    // `total` peut manquer selon la version → on retombe sur la somme documentée.
+    const total = data.total != null ? num(data.total) : available + pending;
+    return {
+      ok: true,
+      balance: { available, pending, total, currency: String(data.currency ?? "XOF") },
+    };
+  }
+  return { ok: false, error: lastError };
+}

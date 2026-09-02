@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import { paymentGateways } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { encryptSecret } from "@/lib/mikrotik/crypto";
-import { getOrgGeniusCreds, ensureOrgWebhook, forgetOrgWebhook } from "./geniuspay-org";
+import { getOrgGeniusCreds, getOrgGeniusBalance, ensureOrgWebhook, forgetOrgWebhook, type GeniusBalance } from "./geniuspay-org";
 import { PROVIDERS, type Provider } from "./providers";
 
 export async function listPaymentGateways() {
@@ -95,4 +95,19 @@ export async function savePaymentGateway(_prevState: unknown, formData: FormData
 
   revalidatePath("/admin/settings/payment-gateways");
   return { success: true };
+}
+
+/**
+ * Solde GeniusPay de l'organisation (lecture seule). Renvoie null si l'org n'a
+ * pas de clés GeniusPay activées (rien à afficher), ou une erreur si l'appel a
+ * échoué. Ne déclenche AUCUN mouvement d'argent.
+ */
+export async function getGeniusPayBalance(): Promise<
+  { ok: true; balance: GeniusBalance } | { ok: false; error: string } | null
+> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Non authentifié." };
+  const creds = await getOrgGeniusCreds(session.orgId);
+  if (!creds) return null; // pas de compte GeniusPay actif → pas de carte
+  return getOrgGeniusBalance(creds);
 }

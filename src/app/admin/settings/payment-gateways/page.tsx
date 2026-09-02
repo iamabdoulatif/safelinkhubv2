@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import { CreditCard } from "lucide-react";
 import { listPaymentGateways } from "@/lib/payment-gateways/actions";
 import { PROVIDERS } from "@/lib/payment-gateways/providers";
 import GatewayCard from "./GatewayCard";
 import ChannelPicker from "./ChannelPicker";
+import GeniusBalanceCard from "./GeniusBalanceCard";
 
 export default async function PaymentGatewaysPage() {
   const gateways = await listPaymentGateways();
@@ -53,6 +55,14 @@ export default async function PaymentGatewaysPage() {
           );
         })}
       </div>
+
+      <Suspense
+        fallback={
+          <p className="mt-8 text-sm text-ink-soft">Lecture du solde GeniusPay…</p>
+        }
+      >
+        <GeniusBalanceCard />
+      </Suspense>
 
       <p className="mt-6 border border-line bg-clay px-4 py-3 text-xs leading-5 text-ink rounded-xl">
         Les clés sont chiffrées au repos. <strong>Genius Pay</strong> est branché
