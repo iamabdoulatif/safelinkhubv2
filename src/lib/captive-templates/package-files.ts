@@ -458,7 +458,16 @@ const PORTAL_PAY_SCRIPT = `(function(){
   function api(p){ return cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + p; }
   // Un échec fetch bas-niveau (walled-garden qui bloque safelinkhub.io, coupure
   // réseau) remonte "Load failed" / "Failed to fetch" : message clair au client.
-  function errMsg(err){ var m = err && err.message ? String(err.message) : ""; if(!m || /load failed|failed to fetch|networkerror|network request failed/i.test(m)) return "Connexion au serveur impossible. Restez sur le portail WiFi et reessayez."; return m; }
+  // Panne RESEAU : le portail ne joint pas l API. Le message NOMME l hote
+  // injoignable — sans lui, l ecran disait seulement "connexion impossible" et
+  // l operateur cherchait du cote du SMS alors que le WiFi bloquait l acces
+  // (walled-garden absent ou appUrl erronee). Une photo de cet ecran doit
+  // suffire a diagnostiquer.
+  // Sans expression reguliere : ce script vit dans un litteral de gabarit
+  // TypeScript, ou "\/" retombe sur "/" — une regex contenant une barre y
+  // serait coupee en deux et le script entier cesserait d etre valide.
+  function apiHost(){ try { var u = String(cfg.appUrl); var i = u.indexOf("://"); if(i >= 0) u = u.slice(i + 3); var j = u.indexOf("/"); return j >= 0 ? u.slice(0, j) : u; } catch(e){ return "le serveur"; } }
+  function errMsg(err){ var m = err && err.message ? String(err.message) : ""; if(!m || /load failed|failed to fetch|networkerror|network request failed/i.test(m)) return "Connexion a " + apiHost() + " impossible depuis ce WiFi. Signalez-le au point de vente (walled-garden)."; return m; }
   // Copie dans le presse-papiers. Le portail est servi en HTTP (contexte non
   // securise) : navigator.clipboard est indisponible -> execCommand d abord.
   function copyText(t){

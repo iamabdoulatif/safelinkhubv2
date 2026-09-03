@@ -3,19 +3,17 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
-  ArrowUpRight,
-  Check,
-  Copy,
   ChevronDown,
   Download,
   Gift,
-  Mail,
   RotateCcw,
   Search,
+  ChevronRight,
   ShieldCheck,
   Wifi,
 } from "lucide-react";
-import VpnQuotaForm from "./VpnQuotaForm";
+import UserDrawer from "./UserDrawer";
+import { expiryHint } from "./user-expiry";
 import TemporaryAccessPasses, {
   type Grant,
   type GrantRouter,
@@ -36,14 +34,6 @@ const FILTERS: Array<{ value: UserControlFilter; label: string }> = [
   { value: "paid", label: "VPN payant" },
   { value: "expiring", label: "Expire bientôt" },
 ];
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
-}
 
 function roleLabel(role: string) {
   return role === "superadmin" ? "Superadmin" : role === "admin" ? "Admin" : role;
@@ -73,6 +63,7 @@ export default function UsersControlCenter({
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<UserControlFilter>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
   const now = useMemo(() => new Date(), []);
   const filteredRows = useMemo(
     () => filterUsers(rows, query, activeFilter, now),
@@ -100,39 +91,11 @@ export default function UsersControlCenter({
     window.setTimeout(() => setCopiedId((current) => (current === row.id ? null : current)), 1600);
   }
 
+  const openRow = openRowId ? (rows.find((row) => row.id === openRowId) ?? null) : null;
+
   function resetFilters() {
     setQuery("");
     setActiveFilter("all");
-  }
-
-  function rowActions(row: UserControlRow) {
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => copyEmail(row)}
-          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs font-medium text-ink-soft hover:bg-clay hover:text-ink"
-          title="Copier l’adresse email"
-        >
-          {copiedId === row.id ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
-          {copiedId === row.id ? "Copié" : "Email"}
-        </button>
-        {superadmin && (
-          <Link
-            href="/admin/vpn-access"
-            className="inline-flex items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs font-medium text-ink-soft hover:bg-clay hover:text-ink"
-          >
-            <Wifi className="h-3.5 w-3.5" /> VPN
-          </Link>
-        )}
-        <Link
-          href="/admin/remote-access"
-          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs font-medium text-ink-soft hover:bg-clay hover:text-ink"
-        >
-          <ArrowUpRight className="h-3.5 w-3.5" /> Accès distant
-        </Link>
-      </div>
-    );
   }
 
   return (
@@ -199,80 +162,117 @@ export default function UsersControlCenter({
         </div>
       ) : (
         <>
-          <div className="space-y-4 md:hidden">
-            {filteredRows.map((row) => (
-              <div key={row.id} className="border border-line-soft bg-paper p-5 rounded-xl">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink" aria-hidden="true">
+          {/* ANNUAIRE. Une ligne = UNE ligne. Avant, chaque utilisateur
+              occupait quatre étages : sélecteur de quota, bouton « Appliquer »,
+              trois boutons d'action et la même phrase d'avertissement recopiée
+              à l'infini. On voyait quatre personnes par écran au lieu de vingt,
+              et l'avertissement, répété, ne se lisait plus.
+
+              Une liste sert à TROUVER, un tiroir sert à AGIR : tout ce qui agit
+              est parti dans UserDrawer, pour un utilisateur à la fois. */}
+          <ul
+            role="list"
+            /* L'intitulé de portée était porté par le <caption> de la table.
+               La table a disparu, pas le besoin : un lecteur d'écran doit
+               toujours savoir de QUELS utilisateurs cette liste parle. */
+            aria-label={
+              organizationFocus
+                ? `Utilisateurs de ${organizationFocus.name} correspondant aux filtres actifs`
+                : "Utilisateurs correspondant aux filtres actifs"
+            }
+            className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line bg-paper"
+          >
+            {filteredRows.map((row) => {
+              const fin = expiryHint(row.quotaExpiresAt, now);
+              return (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenRowId(row.id)}
+                    aria-label={`Ouvrir le détail de ${row.name}`}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-clay/60 focus-visible:bg-clay/60 focus-visible:outline-none sm:px-5"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-clay text-xs font-bold text-ink"
+                    >
                       {userMonogram(row.name)}
                     </span>
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-ink">{row.name}</p>
-                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-ink-soft">
-                        <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {row.email}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="inline-flex shrink-0 border border-line px-2 py-1 text-xs font-semibold text-ink">{roleLabel(row.role)}</span>
-                </div>
-                {superadmin && !organizationFocus && <p className="mt-3 truncate text-xs text-ink-soft">{row.orgName}</p>}
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {superadmin && <span className={`inline-flex border px-2 py-1 text-xs font-semibold ${quotaTone(row.quotaCategory)}`}>{row.quotaLabel}</span>}
-                  <span className="text-xs text-ink-soft">Inscrit le {formatDate(row.createdAt)}</span>
-                </div>
-                <div className="mt-3 border-t border-line-soft pt-3">{rowActions(row)}</div>
-                {superadmin && <div className="mt-3 border-t border-line-soft pt-3"><p className="mb-2 text-xs font-medium text-ink-soft">Quota VPN</p><VpnQuotaForm userId={row.id} userEmail={row.email} /></div>}
-              </div>
-            ))}
-          </div>
 
-          <div className="hidden overflow-hidden border border-line-soft bg-paper md:block">
-            <div className="table-mobile-wrapper">
-              <table className="w-full text-left text-sm">
-                <caption className="sr-only">
-                  {organizationFocus
-                    ? `Utilisateurs de ${organizationFocus.name} correspondant aux filtres actifs`
-                    : "Utilisateurs correspondant aux filtres actifs"}
-                </caption>
-                <thead className="border-b border-line-soft bg-clay/70 text-ink-soft">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Personne</th>
-                    {superadmin && !organizationFocus && <th className="px-4 py-3 font-medium">Organisation</th>}
-                    <th className="px-4 py-3 font-medium">Rôle</th>
-                    {superadmin && <th className="px-4 py-3 font-medium">Quota VPN</th>}
-                    <th className="px-4 py-3 font-medium">Inscrit le</th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line-soft">
-                  {filteredRows.map((row) => (
-                    <tr key={row.id} className="align-top transition-colors hover:bg-clay/35">
-                      <td className="px-5 py-5">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-line bg-clay text-xs font-bold text-ink" aria-hidden="true">
-                            {userMonogram(row.name)}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold text-ink">{row.name}</span>
+                      <span className="block truncate text-xs text-ink-soft">{row.email}</span>
+                    </span>
+
+                    {/* L'organisation ne pousse plus la ligne sur trois étages :
+                        une seule ligne tronquée, et seulement quand l'écran est
+                        assez large pour qu'elle apporte quelque chose. */}
+                    {superadmin && !organizationFocus && (
+                      <span className="hidden min-w-0 max-w-[12rem] shrink-0 truncate text-sm text-ink-soft lg:block">
+                        {row.orgName}
+                      </span>
+                    )}
+
+                    <span className="hidden shrink-0 rounded-full border border-line px-2 py-0.5 text-[11px] font-semibold text-ink sm:inline-flex">
+                      {roleLabel(row.role)}
+                    </span>
+
+                    {superadmin && (
+                      <span className="hidden w-40 shrink-0 text-right md:block">
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${quotaTone(row.quotaCategory)}`}>
+                          {row.quotaLabel}
+                        </span>
+                        {/* Le temps qui RESTE, pas la date à recalculer. */}
+                        {fin.label && (
+                          <span
+                            className={`mt-0.5 block text-[11px] ${
+                              fin.tone === "urgent" || fin.tone === "over" ? "font-semibold text-err" : "text-ink-soft"
+                            }`}
+                          >
+                            {fin.label}
                           </span>
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-ink">{row.name}</p>
-                            <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-ink-soft">
-                              <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {row.email}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      {superadmin && !organizationFocus && <td className="px-5 py-5 text-ink-soft">{row.orgName}</td>}
-                      <td className="px-5 py-5"><span className="inline-flex border border-line px-2 py-1 text-xs font-semibold text-ink">{roleLabel(row.role)}</span></td>
-                      {superadmin && <td className="min-w-64 px-5 py-5"><div className="flex flex-col gap-2"><span className={`inline-flex w-fit border px-2 py-1 text-xs font-semibold ${quotaTone(row.quotaCategory)}`}>{row.quotaLabel}</span><VpnQuotaForm userId={row.id} userEmail={row.email} /></div></td>}
-                      <td className="whitespace-nowrap px-5 py-5 text-ink-soft">{formatDate(row.createdAt)}</td>
-                      <td className="px-5 py-5">{rowActions(row)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                        )}
+                      </span>
+                    )}
+
+                    <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-soft" />
+                  </button>
+
+                  {/* Sur téléphone, l'essentiel qui ne tient pas sur la ligne
+                      passe dessous, en une seule ligne discrète. */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-3 text-[11px] text-ink-soft sm:hidden">
+                    <span className="rounded-full border border-line px-2 py-0.5 font-semibold text-ink">
+                      {roleLabel(row.role)}
+                    </span>
+                    {superadmin && <span>{row.quotaLabel}</span>}
+                    {fin.label && (
+                      <span className={fin.tone === "urgent" || fin.tone === "over" ? "font-semibold text-err" : ""}>
+                        {fin.label}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          <p className="mt-3 text-xs text-ink-soft">
+            {filteredRows.length} utilisateur{filteredRows.length > 1 ? "s" : ""} affiché
+            {filteredRows.length > 1 ? "s" : ""} · touchez une ligne pour agir.
+          </p>
         </>
+      )}
+
+      {/* Un seul tiroir à la fois : c'est ce qui permet à la liste de rester
+          une liste. */}
+      {openRow && (
+        <UserDrawer
+          row={openRow}
+          superadmin={superadmin}
+          copied={copiedId === openRow.id}
+          onCopyEmail={() => copyEmail(openRow)}
+          onClose={() => setOpenRowId(null)}
+        />
       )}
 
       {superadmin && !organizationFocus && temporaryAccess && (

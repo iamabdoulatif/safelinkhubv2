@@ -88,7 +88,9 @@ describe("users register presentation", () => {
     );
 
     const priorityPosition = markup.indexOf('aria-label="Repères du registre"');
-    const personPosition = markup.indexOf(">Personne<");
+    // Ancré sur l'annuaire lui-même : l'en-tête « Personne » appartenait à la
+    // table, remplacée par une liste. L'ordre des sections, lui, n'a pas changé.
+    const personPosition = markup.indexOf('aria-label="Utilisateurs correspondant aux filtres actifs"');
     const temporaryAccessPosition = markup.indexOf(">Passes d’accès temporaire<");
 
     assert.notEqual(priorityPosition, -1);
@@ -97,34 +99,18 @@ describe("users register presentation", () => {
     assert.ok(priorityPosition < personPosition);
     assert.ok(personPosition < temporaryAccessPosition);
 
-    const mobileWrappers = openingTagsWithClassTokens(markup, "div", ["space-y-4", "md:hidden"]);
-    const desktopWrappers = openingTagsWithClassTokens(markup, "div", [
-      "hidden",
-      "overflow-hidden",
-      "border",
-      "border-line-soft",
-      "bg-paper",
-      "md:block",
-    ]);
-    assert.equal(mobileWrappers.length, 1);
-    assert.equal(desktopWrappers.length, 1);
-    const [mobileWrapper] = mobileWrappers;
-    const [desktopWrapper] = desktopWrappers;
-    assert.ok(mobileWrapper);
-    assert.ok(desktopWrapper);
-    assert.ok(mobileWrapper.index < desktopWrapper.index);
+    /* L'identité n'est plus rendue DEUX fois (une carte mobile + une ligne de
+       table) : la liste est unique à toutes les tailles. C'est une garantie
+       plus forte que l'ancienne — plus de duplication à maintenir en phase,
+       et un lecteur d'écran n'entend plus chaque personne deux fois. */
+    const monogrammes = openingTagsWithClassTokens(markup, "span", ["h-10", "w-10", "border"]).filter(
+      ({ tag, index }) => markup.slice(index + tag.length).startsWith("AT</span>"),
+    );
+    assert.equal(monogrammes.length, 1, "l'identité est rendue une seule fois");
+    monogrammes.forEach(({ tag }) => assert.match(tag, /\saria-hidden="true"(?:\s|>)/));
 
-    const responsiveIdentityRegions = [
-      markup.slice(mobileWrapper.index, desktopWrapper.index),
-      markup.slice(desktopWrapper.index, temporaryAccessPosition),
-    ];
-
-    responsiveIdentityRegions.forEach((region) => {
-      const monogramOpeningTags = openingTagsWithClassTokens(region, "span", ["h-10", "w-10", "border"])
-        .filter(({ tag, index }) => region.slice(index + tag.length).startsWith("AT</span>"));
-      assert.equal(monogramOpeningTags.length, 1);
-      monogramOpeningTags.forEach(({ tag }) => assert.match(tag, /\saria-hidden="true"(?:\s|>)/));
-    });
+    // La liste porte l'intitulé de portée (ex-<caption> de la table).
+    assert.match(markup, /aria-label="Utilisateurs correspondant aux filtres actifs"/);
   });
 
   it("does not render global temporary access details in an organization focus", () => {
