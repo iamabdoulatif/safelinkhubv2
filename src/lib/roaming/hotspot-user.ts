@@ -32,6 +32,7 @@ export async function findHotspotUser(
 export async function purgeHotspotAccount(
   client: HotspotUserClient,
   username: string,
+  knownMacs: readonly string[] = [],
 ): Promise<boolean> {
   const user = await findHotspotUser(client, username);
   if (!user?.[".id"]) return false;
@@ -45,10 +46,18 @@ export async function purgeHotspotAccount(
     }
   }
 
+  // Le ticket ne porte plus de mac-address (elle rendait le code inutilisable
+  // depuis une autre adresse) : les compagnons sont donc désignés par les MAC
+  // connues en base, `mac-address` ne servant plus que de repli historique.
   const boundMac = (user["mac-address"] ?? "").trim();
   await client.talk(["/ip/hotspot/user/remove", `=.id=${user[".id"]}`]);
-  if (boundMac && boundMac !== "00:00:00:00:00:00") {
-    const companion = await findHotspotUser(client, boundMac);
+  const macs = new Set(
+    [boundMac, ...knownMacs]
+      .map((mac) => mac.trim())
+      .filter((mac) => mac && mac !== "00:00:00:00:00:00"),
+  );
+  for (const mac of macs) {
+    const companion = await findHotspotUser(client, mac).catch(() => null);
     if (companion?.[".id"]) {
       await client.talk(["/ip/hotspot/user/remove", `=.id=${companion[".id"]}`]).catch(() => {});
     }

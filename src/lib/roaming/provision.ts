@@ -784,7 +784,7 @@ export async function shrinkRoamingGroup(opts: {
   if (!target) return { error: "Cette zone ne couvre pas ce groupe." };
 
   const accounts = await db
-    .select({ username: vouchers.username })
+    .select({ id: vouchers.id, username: vouchers.username })
     .from(vouchers)
     .where(
       and(
@@ -793,6 +793,24 @@ export async function shrinkRoamingGroup(opts: {
         isNull(vouchers.deletedAt),
       ),
     );
+
+  // Les compagnons `name=<MAC>` ne sont plus retrouvables par la mac-address du
+  // ticket (qui n'en porte plus) : la base est désormais la seule à savoir
+  // quelles adresses ce compte auto-connecte sur la zone retirée.
+  const bindingMacs = new Map<string, string[]>();
+  if (accounts.length > 0) {
+    const rows = await db
+      .select({
+        voucherId: roamingDeviceBindings.voucherId,
+        macAddress: roamingDeviceBindings.macAddress,
+        previousMacs: roamingDeviceBindings.previousMacs,
+      })
+      .from(roamingDeviceBindings)
+      .where(inArray(roamingDeviceBindings.voucherId, accounts.map((account) => account.id)));
+    for (const row of rows) {
+      bindingMacs.set(row.voucherId, [row.macAddress, ...row.previousMacs]);
+    }
+  }
 
   if (members.length === 1 && accounts.length > 0) {
     return {
@@ -819,7 +837,8 @@ export async function shrinkRoamingGroup(opts: {
     }
     try {
       for (const account of accounts) {
-        if (await purgeHotspotAccount(client, account.username)) removedAccounts += 1;
+        const macs = bindingMacs.get(account.id) ?? [];
+        if (await purgeHotspotAccount(client, account.username, macs)) removedAccounts += 1;
       }
     } catch {
       return {

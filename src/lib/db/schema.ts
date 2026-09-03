@@ -723,6 +723,11 @@ export const roamingDeviceBindings = pgTable(
       .notNull()
       .references(() => vouchers.id, { onDelete: "cascade" }),
     macAddress: text("mac_address").notNull(),
+    // Adresses MAC précédemment liées dont le compagnon `name=<MAC>` n'a PAS pu
+    // être retiré (zone injoignable au moment du changement d'appareil). On les
+    // garde pour que la révocation du compte les efface plus tard : un
+    // compagnon oublié laisserait l'ancienne adresse s'auto-loguer.
+    previousMacs: text("previous_macs").array().notNull().default([]),
     boundAt: timestamp("bound_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     revokedAt: timestamp("revoked_at"),

@@ -146,7 +146,10 @@ test("retirer une zone révoque avant d'écrire, et refuse les cas qui laisserai
      les comptes du groupe sur la nouvelle zone, donc le retrait doit les en
      effacer. Sans cela la ligne disparaît du SaaS pendant que les comptes
      restent actifs sur le MikroTik, sans plus aucun bouton pour les couper. */
-  assert.match(body, /purgeHotspotAccount\(client, account\.username\)/);
+  // Les MAC connues en base sont transmises : le ticket ne porte plus d'adresse
+  // (elle le rendait inutilisable ailleurs), donc la base est seule à savoir
+  // quels compagnons `name=<MAC>` cette zone doit perdre.
+  assert.match(body, /purgeHotspotAccount\(client, account\.username, macs\)/);
 
   const purge = body.indexOf("purgeHotspotAccount");
   const suppression = body.indexOf("delete(roamingGroupRouters)");

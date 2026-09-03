@@ -62,8 +62,16 @@ export async function materializeRoamingDeviceOnRouter(
 
   const mac = normalizeRoamingMac(input.mac);
   if (!mac) throw new Error("Adresse MAC invalide.");
-  if (normalizeRoamingMac(codeUser["mac-address"] ?? "") !== mac) {
-    await client.talk(["/ip/hotspot/user/set", `=.id=${codeId}`, `=mac-address=${mac}`]);
+
+  // Le TICKET lui-même ne porte JAMAIS de mac-address, et on le délie s'il en a
+  // une : RouterOS refuse alors le code depuis toute autre adresse, or les
+  // téléphones présentent une MAC privée différente d'un SSID (donc souvent
+  // d'une zone) à l'autre et la font tourner. C'est très exactement ce qui
+  // rendait un ticket déjà utilisé en zone A INUTILISABLE en zone B, jusqu'à
+  // effacer la MAC à la main. L'auto-login inter-zones passe par le compagnon
+  // `name=<MAC>` ci-dessous ; l'anti-partage par `shared-users=1` du profil.
+  if (normalizeRoamingMac(codeUser["mac-address"] ?? "")) {
+    await client.talk(["/ip/hotspot/user/set", `=.id=${codeId}`, "=mac-address="]);
   }
 
   const comment = input.resolveMacComment?.(codeUser.comment ?? "") ?? input.macComment ?? `roam ${input.username}`;
@@ -249,35 +257,86 @@ export async function confirmAndSyncRoamingDevice(input: {
     if (!active.some((session) => normalizeRoamingMac(session["mac-address"] ?? "") === mac)) {
       return { ok: false, reason: "session-not-found" };
     }
-    const codeUsers = await reporterClient.talk(["/ip/hotspot/user/print", `?name=${username}`]);
-    const alreadyBoundMac = normalizeRoamingMac(codeUsers[0]?.["mac-address"] ?? "");
-    if (alreadyBoundMac && alreadyBoundMac !== mac) return { ok: false, reason: "bound-elsewhere" };
   } finally {
     reporterClient.close();
   }
 
   const [existing] = await db
-    .select({ id: roamingDeviceBindings.id, macAddress: roamingDeviceBindings.macAddress })
+    .select({
+      id: roamingDeviceBindings.id,
+      macAddress: roamingDeviceBindings.macAddress,
+      previousMacs: roamingDeviceBindings.previousMacs,
+    })
     .from(roamingDeviceBindings)
     .where(eq(roamingDeviceBindings.voucherId, voucher.id))
     .limit(1);
-  if (existing && existing.macAddress !== mac) return { ok: false, reason: "bound-elsewhere" };
 
   if (!existing) {
     await db
       .insert(roamingDeviceBindings)
       .values({ orgId: reporter.orgId, voucherId: voucher.id, macAddress: mac })
       .onConflictDoNothing();
+  } else if (existing.macAddress !== mac) {
+    // Le code VIENT d'être authentifié pour de bon (session vérifiée plus haut)
+    // depuis une autre adresse : le téléphone a changé de MAC privée. On DÉPLACE
+    // la liaison au lieu de la refuser — refuser, c'était obliger l'admin à
+    // supprimer la MAC à la main avant que le client puisse se connecter
+    // ailleurs. Un compte reste lié à UN appareil auto-logué à la fois.
+    await rebindRoamingDevice({
+      bindingId: existing.id,
+      orgId: reporter.orgId,
+      groupId: voucher.groupId,
+      staleMacs: [existing.macAddress, ...existing.previousMacs],
+      mac,
+    });
   }
+
   const [binding] = await db
     .select({ id: roamingDeviceBindings.id, macAddress: roamingDeviceBindings.macAddress })
     .from(roamingDeviceBindings)
     .where(eq(roamingDeviceBindings.voucherId, voucher.id))
     .limit(1);
-  if (!binding) return { ok: false, reason: "binding-not-created" };
-  if (binding.macAddress !== mac) return { ok: false, reason: "bound-elsewhere" };
+  if (!binding || binding.macAddress !== mac) return { ok: false, reason: "binding-not-created" };
 
   return syncRoamingDeviceBinding({ bindingId: binding.id });
+}
+
+/**
+ * Déplace une liaison vers une nouvelle MAC : les compagnons `name=<MAC>` des
+ * anciennes adresses sont retirés de toutes les zones JOIGNABLES. Les adresses
+ * dont une zone n'a pas répondu sont mémorisées (previousMacs) et re-tentées au
+ * prochain changement ou à la révocation : un compagnon oublié laisserait
+ * l'ancienne adresse s'auto-loguer alors que l'appareil n'est plus le bon.
+ */
+async function rebindRoamingDevice(input: {
+  bindingId: string;
+  orgId: string;
+  groupId: string;
+  staleMacs: string[];
+  mac: string;
+}) {
+  const db = getDb();
+  const targets = await loadGroupRouters(input.orgId, input.groupId);
+  const { unreachable } = await revokeRoamingTargets(
+    targets.map(({ router }) => ({ name: router.name, router })),
+    async ({ router }) => {
+      const client = await connectToRouter(router, 10_000, 1);
+      try {
+        await purgeDeviceMacsOnRouter(client, input.staleMacs);
+      } finally {
+        client.close();
+      }
+    },
+  );
+
+  await db
+    .update(roamingDeviceBindings)
+    .set({
+      macAddress: input.mac,
+      previousMacs: unreachable.length > 0 ? [...new Set(input.staleMacs)] : [],
+      updatedAt: new Date(),
+    })
+    .where(eq(roamingDeviceBindings.id, input.bindingId));
 }
 
 // Compatibilité du webhook existant : il appelle le chemin qui vérifie la
@@ -316,6 +375,22 @@ async function removeActiveSessions(client: RouterOSClient, username: string) {
   }
 }
 
+/**
+ * Efface d'UNE zone tout ce qui auto-connecte les adresses données : sessions,
+ * cookies, et le compagnon hotspot `name=<MAC>`. Laisse remonter l'erreur de
+ * transport — l'appelant doit distinguer « effacé » d'« injoignable ».
+ */
+async function purgeDeviceMacsOnRouter(client: RouterOSClient, macs: readonly string[]) {
+  for (const mac of macs) {
+    await removeActiveSessions(client, mac);
+    await removeHotspotCookies(client, mac);
+    const companion = await findHotspotUser(client, mac);
+    if (companion?.[".id"]) {
+      await client.talk(["/ip/hotspot/user/remove", `=.id=${companion[".id"]}`]);
+    }
+  }
+}
+
 async function removeHotspotCookies(client: RouterOSClient, username: string) {
   const cookies = await client.talk(["/ip/hotspot/cookie/print", `?user=${username}`]);
   for (const cookie of cookies) {
@@ -337,6 +412,7 @@ export async function clearRoamingDeviceBinding(input: {
     .select({
       id: roamingDeviceBindings.id,
       macAddress: roamingDeviceBindings.macAddress,
+      previousMacs: roamingDeviceBindings.previousMacs,
       username: vouchers.username,
       groupId: vouchers.roamingGroupId,
     })
@@ -356,28 +432,26 @@ export async function clearRoamingDeviceBinding(input: {
   const targets = await loadGroupRouters(input.orgId, binding.groupId);
   if (targets.length === 0) return { error: "Ce groupe ne contient aucune zone à révoquer." };
 
+  // Toutes les adresses jamais liées, pas seulement la dernière : une MAC dont
+  // le compagnon avait survécu à un changement d'appareil rendrait la
+  // révocation incomplète.
+  const macs = [...new Set([binding.macAddress, ...binding.previousMacs])];
   const { removedOn, unreachable } = await revokeRoamingTargets(
     targets.map(({ router }) => ({ name: router.name, router })),
     async ({ router }) => {
       const client = await connectToRouter(router, 10_000, 1);
       try {
         await removeActiveSessions(client, binding.username);
-        await removeActiveSessions(client, binding.macAddress);
         await removeHotspotCookies(client, binding.username);
-        await removeHotspotCookies(client, binding.macAddress);
 
+        // Le ticket ne doit porter aucune mac-address (voir
+        // materializeRoamingDeviceOnRouter) : on le délie plutôt que de le
+        // figer sur 00:00:00:00:00:00.
         const codeUser = await findHotspotUser(client, binding.username);
         if (codeUser?.[".id"]) {
-          await client.talk([
-            "/ip/hotspot/user/set",
-            `=.id=${codeUser[".id"]}`,
-            "=mac-address=00:00:00:00:00:00",
-          ]);
+          await client.talk(["/ip/hotspot/user/set", `=.id=${codeUser[".id"]}`, "=mac-address="]);
         }
-        const companion = await findHotspotUser(client, binding.macAddress);
-        if (companion?.[".id"]) {
-          await client.talk(["/ip/hotspot/user/remove", `=.id=${companion[".id"]}`]);
-        }
+        await purgeDeviceMacsOnRouter(client, macs);
       } finally {
         client.close();
       }

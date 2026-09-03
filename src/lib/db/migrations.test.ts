@@ -36,6 +36,7 @@ describe("registre des migrations", () => {
   const MIRRORS: Record<string, string> = {
     "0001_link_usage": "add-link-usage.sql",
     "0002_zone_per_client": "add-zone-per-client.sql",
+    "0003_roaming_previous_macs": "add-roaming-previous-macs.sql",
   };
   for (const [id, file] of Object.entries(MIRRORS)) {
     it(`${id} : le miroir scripts/${file} correspond`, () => {

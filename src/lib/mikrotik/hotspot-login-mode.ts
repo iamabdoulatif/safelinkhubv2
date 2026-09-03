@@ -191,6 +191,26 @@ export async function ensureMacAutoLogin(
     const id = profile[".id"];
     if (!name || !id || !activeProfileNames.has(name)) continue;
 
+    // L'auto-login par MAC envoie le MAC comme NOM d'utilisateur ; le mot de
+    // passe attendu dépend de ce réglage. Les compagnons `name=<MAC>` posés par
+    // le roaming portent `password=<MAC>` : avec le mode par défaut
+    // (`mac-as-username`), RouterOS compare au `mac-auth-password` du profil —
+    // vide — et REFUSE l'auto-login, donc la zone sœur redemande le code.
+    // Appel SÉPARÉ et tolérant : une version qui ne connaîtrait pas la
+    // propriété ne doit pas faire échouer le réglage de `login-by`.
+    if (profile["mac-auth-mode"] !== "mac-as-username-and-password") {
+      await client
+        .talk(
+          [
+            "/ip/hotspot/profile/set",
+            `=numbers=${id}`,
+            "=mac-auth-mode=mac-as-username-and-password",
+          ],
+          timeoutMs,
+        )
+        .catch(() => {});
+    }
+
     const current = parseLoginBy(profile["login-by"]);
     const present = new Set(current);
     const missing = MAC_LOGIN_METHODS.filter((m) => !present.has(m));

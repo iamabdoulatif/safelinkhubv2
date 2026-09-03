@@ -88,3 +88,20 @@ test("une panne de transport remonte au lieu de passer pour une suppression", as
   await assert.rejects(() => purgeHotspotAccount(client, "carol"), /tunnel timeout/);
 });
 
+
+test("la purge efface aussi les compagnons des MAC connues en base", async () => {
+  // Le ticket ne porte plus de mac-address : sans les MAC transmises, un
+  // compagnon oublié laisserait l'appareil s'auto-loguer après révocation.
+  const client = fakeClient({
+    "/ip/hotspot/user/print ?name=adamo": [{ ".id": "*1", name: "adamo", "mac-address": "" }],
+    "/ip/hotspot/user/print ?name=AA:BB:CC:DD:EE:FF": [{ ".id": "*2", name: "AA:BB:CC:DD:EE:FF" }],
+    "/ip/hotspot/user/print ?name=11:22:33:44:55:66": [{ ".id": "*3", name: "11:22:33:44:55:66" }],
+  });
+
+  await purgeHotspotAccount(client, "adamo", ["AA:BB:CC:DD:EE:FF", "11:22:33:44:55:66"]);
+
+  const removed = client.commandes
+    .filter((c) => c[0] === "/ip/hotspot/user/remove")
+    .map((c) => c[1]);
+  assert.deepEqual(removed, ["=.id=*1", "=.id=*2", "=.id=*3"]);
+});
