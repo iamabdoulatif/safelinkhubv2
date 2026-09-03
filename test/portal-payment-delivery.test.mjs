@@ -15,8 +15,14 @@ test("journalise une vérification GeniusPay indisponible", async () => {
 });
 
 test("expose les commandes GeniusPay non confirmées dans l'administration", async () => {
-  const source = await readFile("src/app/admin/conversion/page.tsx", "utf8");
+  // La requête vit dans la page, l'affichage dans la vue : une commande dont
+  // le paiement n'est pas confirmé doit rester VISIBLE quelque part, sinon
+  // elle disparaît entre « pas encaissée » et « jamais vérifiée ».
+  const page = await readFile("src/app/admin/conversion/page.tsx", "utf8");
+  assert.match(page, /failure_reason/);
+  assert.match(page, /status <> 'fulfilled'/);
 
-  assert.match(source, /Commandes à vérifier/);
-  assert.match(source, /failure_reason/);
+  const vue = await readFile("src/app/admin/conversion/ConversionView.tsx", "utf8");
+  assert.match(vue, /À vérifier/);
+  assert.match(vue, /pendingPayments\.map/);
 });
