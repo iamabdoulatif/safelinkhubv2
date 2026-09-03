@@ -1,8 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import dynamic from "next/dynamic";
 import { Crosshair, ExternalLink, Loader2, MapPin, Search } from "lucide-react";
 import type { GeoPlace } from "@/lib/geo/geocode";
+/* Chargé seulement quand l'opérateur ouvre la carte : Leaflet et sa feuille de
+   style ne pèsent pas sur la page d'enregistrement de tous les autres.
+   `ssr: false` parce que Leaflet touche `window` dès son import. */
+const LocationMap = dynamic(() => import("./LocationMap"), {
+  ssr: false,
+  loading: () => <div className="h-64 w-full animate-pulse rounded-md bg-clay" />,
+});
 
 /**
  * Où se trouve la zone, saisi à l'enregistrement du routeur.
@@ -24,9 +32,10 @@ import type { GeoPlace } from "@/lib/geo/geocode";
  * public) : sinon chaque ouverture du formulaire enverrait la position du
  * routeur à Google avant que l'opérateur ait rien demandé.
  *
- * ponytail: pas de pointage au doigt sur la carte — il faudrait Leaflet et une
- * couche de tuiles. À ajouter si « ma position » et la recherche ne suffisent
- * pas sur le terrain.
+ *   4. Pointage sur la carte — quand ni le GPS (opérateur au bureau) ni la
+ *      recherche (rue absente d'OpenStreetMap, courant à Abidjan) ne donnent
+ *      le bon point : on touche la carte, l'épingle s'y pose, elle se fait
+ *      glisser au mètre près.
  */
 
 const inputClass =
@@ -51,6 +60,12 @@ export default function RouterLocationPicker() {
   const [occupe, setOccupe] = useState<"" | "position" | "recherche">("");
   const [note, setNote] = useState("");
   const [carteOuverte, setCarteOuverte] = useState(false);
+  const latitudeNombre = Number(latitude);
+  const longitudeNombre = Number(longitude);
+  const point =
+    latitude !== "" && longitude !== "" && Number.isFinite(latitudeNombre) && Number.isFinite(longitudeNombre)
+      ? { latitude: latitudeNombre, longitude: longitudeNombre }
+      : null;
 
   const situe = latitude !== "" && longitude !== "";
 
@@ -64,7 +79,8 @@ export default function RouterLocationPicker() {
       country: place.country,
     });
     setResultats([]);
-    setCarteOuverte(false);
+    // On garde la carte ouverte : après une recherche, le premier réflexe est
+    // de vérifier que le point est au bon endroit — et de le corriger.
   }
 
   async function interroger(params: string): Promise<GeoPlace[]> {
@@ -110,6 +126,32 @@ export default function RouterLocationPicker() {
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
     );
   }
+
+  /* Épingle déplacée : la coordonnée fait foi immédiatement, l'adresse suit si
+     le géocodeur répond. Mémorisé (useCallback) pour ne pas remonter une
+     nouvelle fonction à chaque frappe dans un champ voisin. */
+  const poserEpingle = useCallback((lat: number, lng: number) => {
+    setLatitude(lat.toFixed(6));
+    setLongitude(lng.toFixed(6));
+    setNote("");
+    void (async () => {
+      try {
+        const reponse = await fetch(`/api/admin/geo?lat=${lat}&lon=${lng}`);
+        if (!reponse.ok) return;
+        const data = (await reponse.json()) as { places?: GeoPlace[] };
+        const place = data.places?.[0];
+        if (!place) return;
+        setAdresse({
+          street: place.street,
+          neighbourhood: place.neighbourhood,
+          commune: place.commune,
+          country: place.country,
+        });
+      } catch {
+        /* Adresse non retrouvée : le point, lui, est déjà posé. */
+      }
+    })();
+  }, []);
 
   async function chercher() {
     if (recherche.trim().length < 3) return;
@@ -257,37 +299,44 @@ export default function RouterLocationPicker() {
         {champ("country", "Pays", "Côte d'Ivoire")}
       </div>
 
-      {situe && (
-        <div className="mt-3">
-          {carteOuverte ? (
-            <iframe
-              title="Carte de la zone"
-              src={`https://maps.google.com/maps?q=${latitude},${longitude}&z=17&hl=fr&output=embed`}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              className="h-56 w-full rounded-md border border-line-soft"
+      <div className="mt-3">
+        {carteOuverte ? (
+          <>
+            <LocationMap
+              latitude={point?.latitude ?? null}
+              longitude={point?.longitude ?? null}
+              onPick={poserEpingle}
             />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setCarteOuverte(true)}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-line-soft bg-paper px-3 py-2 text-xs font-semibold text-ink hover:bg-clay"
-            >
-              <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
-              Vérifier sur la carte
-            </button>
-          )}
+            <p className="mt-1.5 text-xs text-ink-soft">
+              Touchez la carte pour poser l&apos;épingle, ou faites-la glisser. L&apos;adresse se
+              met à jour toute seule ; corrigez-la si elle se trompe.
+            </p>
+          </>
+        ) : (
+          /* La carte n'est montée qu'à la demande : elle charge Leaflet et des
+             tuiles OpenStreetMap, inutiles pour qui enregistre un routeur sans
+             renseigner sa position. */
+          <button
+            type="button"
+            onClick={() => setCarteOuverte(true)}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-line-soft bg-paper px-3 py-2 text-xs font-semibold text-ink hover:bg-clay"
+          >
+            <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
+            {situe ? "Vérifier sur la carte" : "Placer sur la carte"}
+          </button>
+        )}
+        {situe && (
           <a
             href={`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-brand-deep hover:underline"
+            className="mt-1 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-brand-deep hover:underline"
           >
             Ouvrir dans Google Maps
             <ExternalLink aria-hidden="true" className="h-3 w-3" />
           </a>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
