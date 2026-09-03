@@ -3,26 +3,18 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, RefreshCw, Trash2, Gauge, Lock, LockOpen, Zap, Activity, PackageOpen, LayoutTemplate } from "lucide-react";
+import { Loader2, Pencil, RefreshCw, Trash2, Gauge, Zap, Activity, PackageOpen, LayoutTemplate } from "lucide-react";
 import {
   deleteRouter,
   optimizeRouterWifi,
   refreshRouterStats,
-  lockRouterPorts,
-  unlockRouterPorts,
   optimizeRouterThroughput,
   speedTestRouter,
 } from "@/lib/mikrotik/actions";
 import { reinstallMikhmonContainer } from "@/lib/mikrotik/container-setup";
 import { reposerPortailRouteur } from "@/lib/captive-templates/actions";
 
-export default function HeaderActions({
-  routerId,
-  locked,
-}: {
-  routerId: string;
-  locked: boolean;
-}) {
+export default function HeaderActions({ routerId }: { routerId: string }) {
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
   const [isOptimizing, startOptimize] = useTransition();
@@ -30,35 +22,10 @@ export default function HeaderActions({
   const [isReposing, startRepose] = useTransition();
   const [isTuning, startTune] = useTransition();
   const [isTesting, startTest] = useTransition();
-  const [isLocking, startLock] = useTransition();
-  const [confirmingLock, setConfirmingLock] = useState(false);
   const [isDeleting, startDelete] = useTransition();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
-
-  function runUnlock() {
-    startLock(async () => {
-      setError(null);
-      setOk(null);
-      const result = await unlockRouterPorts(routerId);
-      if (result?.error) setError(result.error);
-      else setOk(result?.summary ?? "Routeur déverrouillé.");
-      router.refresh();
-    });
-  }
-
-  function runLock() {
-    setConfirmingLock(false);
-    startLock(async () => {
-      setError(null);
-      setOk(null);
-      const result = await lockRouterPorts(routerId);
-      if (result?.error) setError(result.error);
-      else setOk(result?.summary ?? "Routeur verrouillé.");
-      router.refresh();
-    });
-  }
 
   if (confirmingDelete) {
     return (
@@ -248,58 +215,6 @@ export default function HeaderActions({
         )}
         {isTesting ? "Test en cours..." : "Test débit"}
       </button>
-      {locked ? (
-        <button
-          type="button"
-          disabled={isLocking}
-          title="Réactive tous les ports et le WiFi coupés par le verrouillage"
-          onClick={runUnlock}
-          className="flex items-center gap-1.5 border border-ok bg-ok px-3 py-1.5 text-sm font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-ok disabled:opacity-60"
-        >
-          {isLocking ? (
-            <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-          ) : (
-            <LockOpen aria-hidden="true" className="h-4 w-4" />
-          )}
-          {isLocking ? "Déverrouillage..." : "Déverrouiller"}
-        </button>
-      ) : confirmingLock ? (
-        <span className="flex items-center gap-2">
-          <span className="text-sm font-medium text-ink">Couper tous les ports sauf le WAN ?</span>
-          <button
-            type="button"
-            disabled={isLocking}
-            onClick={runLock}
-            className="flex items-center gap-1.5 border border-err bg-err px-3 py-1.5 text-sm font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-err disabled:opacity-60"
-          >
-            {isLocking ? (
-              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-            ) : (
-              <Lock aria-hidden="true" className="h-4 w-4" />
-            )}
-            Confirmer
-          </button>
-          <button
-            type="button"
-            disabled={isLocking}
-            onClick={() => setConfirmingLock(false)}
-            className="border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay rounded-xl"
-          >
-            Annuler
-          </button>
-        </span>
-      ) : (
-        <button
-          type="button"
-          disabled={isLocking}
-          title="Paralyse le routeur : coupe tous les ports et le WiFi sauf le port WAN (lien de gestion)"
-          onClick={() => setConfirmingLock(true)}
-          className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-err transition-colors duration-150 hover:bg-err hover:text-white rounded-xl"
-        >
-          <Lock aria-hidden="true" className="h-4 w-4" />
-          Verrouiller
-        </button>
-      )}
       <Link
         href="/admin/settings/router-setup"
         className="flex items-center gap-1.5 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay rounded-xl"

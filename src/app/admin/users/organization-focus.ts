@@ -17,6 +17,8 @@ export type OrganizationFocus = {
     model: string | null;
     status: string;
     activeUsers: number | null;
+    /** Ports actuellement coupés (kill-switch superadmin) ? */
+    locked: boolean;
   }>;
 };
 

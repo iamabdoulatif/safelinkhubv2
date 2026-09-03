@@ -17,6 +17,7 @@ const focus = {
       model: "MikroTik hEX S",
       status: "online",
       activeUsers: 18,
+      locked: false,
     },
   ],
 };

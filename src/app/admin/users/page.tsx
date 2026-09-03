@@ -95,6 +95,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
           model: routers.model,
           status: routers.status,
           activeUsers: routers.activeUsers,
+          portsLockedAt: routers.portsLockedAt,
         })
         .from(routers)
         .where(eq(routers.orgId, focusedOrganization.id))
@@ -113,7 +114,14 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
         }),
         memberCount: orgUsers.length,
         routerCounts: countRouterStatuses(focusedRouters),
-        routers: focusedRouters,
+        routers: focusedRouters.map((r) => ({
+          id: r.id,
+          name: r.name,
+          model: r.model,
+          status: r.status,
+          activeUsers: r.activeUsers,
+          locked: Boolean(r.portsLockedAt),
+        })),
       }
     : null;
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, Router, Users } from "lucide-react";
 import { isConfiguringRouter } from "../router/router-portfolio";
+import RouterLockButton from "./RouterLockButton";
 import type { OrganizationFocus } from "./organization-focus";
 
 type OrganizationFocusPanelProps = {
@@ -106,6 +107,7 @@ export function OrganizationFocusPanel({ focus, compact = false }: OrganizationF
                   >
                     Détail <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>
+                  <RouterLockButton routerId={router.id} locked={router.locked} />
                 </div>
               </li>
             ))}

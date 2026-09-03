@@ -178,6 +178,7 @@ export async function optimizeRouterWifi(routerId: string) {
     }
     revalidatePath("/admin/router");
     revalidatePath(`/admin/router/${routerId}`);
+    revalidatePath("/admin/users");
     return { success: true, summary: res.summary };
   } catch (err) {
     return {
@@ -227,6 +228,7 @@ export async function fixRouterWifiDfs(routerId: string) {
     }
     revalidatePath("/admin/router");
     revalidatePath(`/admin/router/${routerId}`);
+    revalidatePath("/admin/users");
     const failedNote = res.failed.length > 0 ? ` (${res.failed.length} échec(s))` : "";
     return {
       success: true,
@@ -807,10 +809,13 @@ export async function fixRouterTicketExpiryFormat(routerId: string) {
 export async function lockRouterPorts(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
+  // Réservé au superadmin (plateforme) : c'est un levier de recouvrement contre
+  // un client non solvable, jamais une action en libre-service de l'org.
+  if (!isSuperAdmin(session.role)) return { error: "Action réservée au superadmin." };
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return { error: "Routeur introuvable." };
+  if (!router) return { error: "Routeur introuvable." };
   if (!router.host || !router.username || !router.passwordEncrypted) {
     return { error: "Détails de connexion du routeur manquants." };
   }
@@ -834,6 +839,7 @@ export async function lockRouterPorts(routerId: string) {
       .where(eq(routers.id, routerId));
     revalidatePath("/admin/router");
     revalidatePath(`/admin/router/${routerId}`);
+    revalidatePath("/admin/users");
     const n = res.locked.length + res.alreadyDisabled.length;
     return {
       success: true,
@@ -852,10 +858,11 @@ export async function lockRouterPorts(routerId: string) {
 export async function unlockRouterPorts(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
+  if (!isSuperAdmin(session.role)) return { error: "Action réservée au superadmin." };
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return { error: "Routeur introuvable." };
+  if (!router) return { error: "Routeur introuvable." };
   if (!router.host || !router.username || !router.passwordEncrypted) {
     return { error: "Détails de connexion du routeur manquants." };
   }
@@ -879,6 +886,7 @@ export async function unlockRouterPorts(routerId: string) {
       .where(eq(routers.id, routerId));
     revalidatePath("/admin/router");
     revalidatePath(`/admin/router/${routerId}`);
+    revalidatePath("/admin/users");
     if (res.failed.length > 0) {
       return {
         success: true,
