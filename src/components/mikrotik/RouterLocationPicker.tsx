@@ -49,17 +49,31 @@ type Adresse = {
   country: string;
 };
 
-const ADRESSE_VIDE: Adresse = { street: "", neighbourhood: "", commune: "", country: "" };
+export type LocationInitiale = {
+  latitude?: string | null;
+  longitude?: string | null;
+  street?: string | null;
+  neighbourhood?: string | null;
+  commune?: string | null;
+  country?: string | null;
+};
 
-export default function RouterLocationPicker() {
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
-  const [adresse, setAdresse] = useState<Adresse>(ADRESSE_VIDE);
+export default function RouterLocationPicker({ initial }: { initial?: LocationInitiale }) {
+  // Une localisation déjà posée revient telle quelle : on corrige un quartier
+  // mal deviné sans avoir à tout resaisir.
+  const [latitude, setLatitude] = useState(initial?.latitude ?? "");
+  const [longitude, setLongitude] = useState(initial?.longitude ?? "");
+  const [adresse, setAdresse] = useState<Adresse>({
+    street: initial?.street ?? "",
+    neighbourhood: initial?.neighbourhood ?? "",
+    commune: initial?.commune ?? "",
+    country: initial?.country ?? "",
+  });
   const [recherche, setRecherche] = useState("");
   const [resultats, setResultats] = useState<GeoPlace[]>([]);
   const [occupe, setOccupe] = useState<"" | "position" | "recherche">("");
   const [note, setNote] = useState("");
-  const [carteOuverte, setCarteOuverte] = useState(false);
+  const [carteOuverte, setCarteOuverte] = useState(Boolean(initial?.latitude));
   const latitudeNombre = Number(latitude);
   const longitudeNombre = Number(longitude);
   const point =

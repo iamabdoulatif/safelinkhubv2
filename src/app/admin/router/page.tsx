@@ -15,15 +15,20 @@ import {
 import { getAdminDict } from "@/lib/i18n/admin";
 import { getLocale } from "@/lib/i18n/server";
 import type { RouterDictionary } from "./RoutersTable";
+import { routerLocationLabel } from "@/lib/geo/router-location";
 
 type RouterPageProps = {
   searchParams: Promise<{ scope?: string; org?: string }>;
 };
 
-type RouterTableSource = Omit<RouterRow, "lastSyncAtMs" | "locked"> & {
+type RouterTableSource = Omit<RouterRow, "lastSyncAtMs" | "locked" | "location"> & {
   orgId: string;
   lastSyncAt: Date | null;
   portsLockedAt: Date | null;
+  locationStreet: string | null;
+  locationNeighbourhood: string | null;
+  locationCommune: string | null;
+  locationCountry: string | null;
 };
 
 function toRouterRows(rows: RouterTableSource[]): RouterRow[] {
@@ -40,6 +45,8 @@ function toRouterRows(rows: RouterTableSource[]): RouterRow[] {
     lastSyncAtMs: router.lastSyncAt?.getTime() ?? null,
     connectionMethod: router.connectionMethod,
     locked: Boolean(router.portsLockedAt),
+    // Composé ici, une fois : la table l'affiche ET le cherche.
+    location: routerLocationLabel(router),
   }));
 }
 
@@ -120,6 +127,10 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
         lastSyncAt: routers.lastSyncAt,
         connectionMethod: routers.connectionMethod,
         portsLockedAt: routers.portsLockedAt,
+        locationStreet: routers.locationStreet,
+        locationNeighbourhood: routers.locationNeighbourhood,
+        locationCommune: routers.locationCommune,
+        locationCountry: routers.locationCountry,
       })
       .from(routers)
       .orderBy(desc(routers.createdAt)),

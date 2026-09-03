@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Link2, Lock, Router as RouterIcon, Save, Search } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Link2, Lock, MapPin, Router as RouterIcon, Save, Search } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
 import RouterLockButton from "@/components/RouterLockButton";
 import SyncAllButton from "./SyncAllButton";
@@ -34,6 +34,8 @@ export type RouterRow = {
   connectionMethod: string;
   /** Routeur « paralysé » : ports + WiFi coupés sauf ether1 (kill-switch). */
   locked?: boolean;
+  /** Adresse déjà composée (rue · quartier · commune · pays), "" si inconnue. */
+  location?: string;
 };
 
 export type RouterDictionary = AdminDictionary["network"]["routers"];
@@ -163,7 +165,7 @@ export default function RoutersTable({
     if (filter === "config" && !isConfiguringRouter(r.status)) return false;
     if (query) {
       const q = query.toLowerCase();
-      const haystack = `${r.name} ${r.host ?? ""} ${r.model ?? ""}`.toLowerCase();
+      const haystack = `${r.name} ${r.host ?? ""} ${r.model ?? ""} ${r.location ?? ""}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -320,6 +322,12 @@ export default function RoutersTable({
                     <dd className="tabular-nums font-medium text-ink">{Math.round(Number(r.memoryUsage ?? 0))}%</dd>
                   </div>
                   <div className="col-span-2 flex justify-between gap-2">
+                    <dt className="text-ink-soft">{table.location}</dt>
+                    <dd className="min-w-0 truncate text-right font-medium text-ink">
+                      {r.location || <span className="text-ink-soft">{table.locationMissing}</span>}
+                    </dd>
+                  </div>
+                  <div className="col-span-2 flex justify-between gap-2">
                     <dt className="text-ink-soft">{table.lastSync}</dt>
                     {/* timeAgo dépend de Date.now() : le texte serveur peut
                         différer d'une poignée de secondes au moment de
@@ -375,6 +383,12 @@ export default function RoutersTable({
                         <span className="block font-mono text-xs text-ink-soft">
                           {r.host ? `${r.host}:${r.apiPort ?? 8728}` : "—"}
                         </span>
+                        {r.location && (
+                          <span className="mt-0.5 flex items-center gap-1 text-xs text-ink-soft">
+                            <MapPin aria-hidden="true" className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{r.location}</span>
+                          </span>
+                        )}
                       </Link>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-ink">{r.model ?? "—"}</td>

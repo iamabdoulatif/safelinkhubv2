@@ -138,6 +138,41 @@ export async function connectRouter(_prevState: unknown, formData: FormData) {
   return { success: true };
 }
 
+/**
+ * Renseigne ou corrige la localisation d'un routeur DÉJÀ enregistré.
+ *
+ * Sans ce chemin, la localisation n'existait que pour les routeurs créés après
+ * la fonctionnalité : tout le parc déjà en place restait sans adresse, à vie.
+ * C'est aussi ici qu'on corrige un quartier deviné de travers par le
+ * géocodage, ou qu'on suit un déménagement.
+ *
+ * Borné à l'organisation (le superadmin voit tout le parc) : un opérateur ne
+ * doit pas pouvoir déplacer la zone d'un autre client.
+ */
+export async function updateRouterLocation(_prevState: unknown, formData: FormData) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+
+  const routerId = String(formData.get("routerId") ?? "").trim();
+  if (!routerId) return { error: "Routeur introuvable." };
+
+  const db = getDb();
+  const [router] = await db
+    .select({ id: routers.id, orgId: routers.orgId })
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  await db.update(routers).set(readLocation(formData)).where(eq(routers.id, routerId));
+
+  revalidatePath("/admin/router");
+  revalidatePath(`/admin/router/${routerId}`);
+  return { success: true } as const;
+}
+
 export async function refreshRouterStats(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
