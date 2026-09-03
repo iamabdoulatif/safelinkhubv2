@@ -1,9 +1,24 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MapPin, Phone } from "lucide-react";
 import Logo from "./Logo";
 import type { Dictionary } from "@/lib/i18n/fr";
 import { type Locale, localeHref } from "@/lib/i18n/config";
+import {
+  SITE_CITY,
+  SITE_MAP_URL,
+  SITE_PHONE,
+  SITE_PHONE_DISPLAY,
+  SITE_SOCIALS,
+  SITE_STREET,
+} from "@/lib/site/contact";
 
+/* CHAQUE ENTRÉE MÈNE À UNE PAGE QUI EXISTE.
+   Quatre liens pointaient dans le vide sur toutes les pages publiques —
+   /careers, /support, /legal/terms et /legal/privacy renvoient 404 (vérifié en
+   production). Un lien mort dans un pied de page ne casse rien visiblement :
+   il coûte la confiance du visiteur qui le suit. Ils sont retirés jusqu'à ce
+   que les pages soient écrites ; les libellés restent dans les dictionnaires,
+   prêts à revenir. */
 const footerColumns = (dict: Dictionary) =>
   [
     {
@@ -16,7 +31,6 @@ const footerColumns = (dict: Dictionary) =>
            rien n'aurait signalé. */
         { href: "/services", label: dict.footer.links.services },
         { href: "/vpn", label: dict.footer.links.vpn },
-        { href: "#faq", label: dict.footer.links.faq },
         { href: "/boutique", label: dict.footer.links.shop },
         { href: "/auth/register", label: dict.footer.links.getStarted },
       ],
@@ -25,25 +39,17 @@ const footerColumns = (dict: Dictionary) =>
       title: dict.footer.columns.company,
       links: [
         { href: "/contact", label: dict.footer.links.contact },
-        { href: "/careers", label: dict.footer.links.careers },
+        { href: "/blog", label: dict.footer.links.blog },
       ],
     },
     {
       title: dict.footer.columns.resources,
       links: [
         { href: "/formations", label: dict.footer.links.training },
-        { href: "/legal/terms", label: dict.footer.links.terms },
-        { href: "/legal/privacy", label: dict.footer.links.privacy },
-        { href: "/support", label: dict.footer.links.support },
+        { href: "#faq", label: dict.footer.links.faq },
       ],
     },
   ] as const;
-
-const socials = [
-  { href: "https://x.com/safelinkhub", label: "Twitter / X" },
-  { href: "https://linkedin.com/company/safelinkhub", label: "LinkedIn" },
-  { href: "https://tiktok.com/@safelinkhub", label: "TikTok" },
-] as const;
 
 export default function LandingFooter({
   anchorPrefix = "",
@@ -58,7 +64,11 @@ export default function LandingFooter({
   const getHref = (href: string) =>
     href.startsWith("#") ? `${anchorPrefix}${href}` : localeHref(href, locale);
   const muted = "text-slate-deep-soft";
-  const linkClass = "text-sm text-white/85 hover:text-brand";
+  /* 17 px de haut avec 10 px d'écart : une pile de liens invisables au pouce.
+     44 px sur mobile, densité d'origine à partir de lg où l'on vise à la
+     souris. */
+  const linkClass =
+    "-mx-2 flex min-h-11 items-center rounded-lg px-2 text-sm text-white/85 hover:bg-white/5 hover:text-brand lg:mx-0 lg:min-h-0 lg:rounded-none lg:px-0 lg:py-0.5 lg:hover:bg-transparent";
 
   return (
     <footer className="bg-slate-deep py-16 text-white">
@@ -106,13 +116,40 @@ export default function LandingFooter({
             <p className={`mt-4 max-w-xs text-sm leading-6 ${muted}`}>
               {dict.footer.address}
             </p>
+
+            {/* Adresse et téléphone RÉELS, et pas seulement sur /contact : un
+                visiteur cherche « où sont-ils, comment je les appelle » en bas
+                de page, pas dans un formulaire. Les deux sont actionnables —
+                itinéraire d'un côté, appel d'un clic de l'autre — avec une
+                hauteur de doigt. */}
+            <address className="mt-5 space-y-1 text-sm not-italic">
+              <a
+                href={SITE_MAP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="-mx-2 flex min-h-11 items-start gap-3 rounded-lg px-2 py-2 text-white/85 hover:bg-white/5 hover:text-brand"
+              >
+                <MapPin aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+                <span>
+                  {SITE_STREET}
+                  <span className="block text-xs text-slate-deep-soft">{SITE_CITY}</span>
+                </span>
+              </a>
+              <a
+                href={`tel:${SITE_PHONE}`}
+                className="-mx-2 flex min-h-11 items-center gap-3 rounded-lg px-2 py-2 text-white/85 hover:bg-white/5 hover:text-brand"
+              >
+                <Phone aria-hidden="true" className="h-4 w-4 shrink-0 text-brand" />
+                <span className="font-mono tracking-tight">{SITE_PHONE_DISPLAY}</span>
+              </a>
+            </address>
           </div>
           {columns.map((col) => (
             <nav key={col.title} aria-label={col.title} className="lg:col-span-2">
               <p className={`text-[11px] font-semibold uppercase tracking-wider ${muted}`}>
                 {col.title}
               </p>
-              <ul className="mt-4 space-y-2.5" role="list">
+              <ul className="mt-3 lg:mt-4 lg:space-y-2" role="list">
                 {col.links.map((l) => (
                   <li key={l.label}>
                     {l.href.startsWith("/auth") ? (
@@ -135,16 +172,18 @@ export default function LandingFooter({
           <p className={`text-xs ${muted}`}>
             {dict.footer.rights(new Date().getFullYear())}
           </p>
-          <nav aria-label={dict.footer.socials} className="flex gap-5">
-            {socials.map((s) => (
+          {/* 12 px de texte sur 16 px de haut : impossible à viser au doigt.
+              Chaque réseau devient une pastille de 44 px, YouTube compris. */}
+          <nav aria-label={dict.footer.socials} className="-mx-2 flex flex-wrap items-center">
+            {SITE_SOCIALS.map((reseau) => (
               <a
-                key={s.label}
-                href={s.href}
+                key={reseau.label}
+                href={reseau.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-slate-deep-soft hover:text-brand"
+                className="inline-flex min-h-11 items-center rounded-lg px-3 text-xs font-medium text-slate-deep-soft hover:bg-white/5 hover:text-brand"
               >
-                {s.label}
+                {reseau.label}
               </a>
             ))}
           </nav>

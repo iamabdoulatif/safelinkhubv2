@@ -242,7 +242,7 @@ export const en: Dictionary = {
     emailLabel: "Email address",
     emailPlaceholder: "you@your-network.ci",
     submit: "Create an account",
-    address: "Hotspot and ISP automation platform. Abidjan, Côte d'Ivoire.",
+    address: "Hotspot and ISP automation platform, born in Abidjan.",
     columns: {
       product: "Product",
       company: "Company",

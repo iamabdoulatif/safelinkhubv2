@@ -242,8 +242,7 @@ export const fr = {
     emailLabel: "Adresse e-mail",
     emailPlaceholder: "vous@votre-reseau.ci",
     submit: "Créer un compte",
-    address:
-      "Plateforme d'automatisation Hotspot et FAI. Abidjan, Côte d'Ivoire.",
+    address: "Plateforme d'automatisation Hotspot et FAI, née à Abidjan.",
     columns: {
       product: "Produit",
       company: "Entreprise",

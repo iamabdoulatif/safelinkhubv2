@@ -6,6 +6,7 @@ import MapEmbed from "@/components/landing/MapEmbed";
 import { LifeBuoy, MapPin, Phone } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { localePrefix, type Locale } from "@/lib/i18n/config";
+import { SITE_PHONE } from "@/lib/site/contact";
 
 export const metadata: Metadata = {
   title: "Contact | SafeLinkHub",
@@ -44,7 +45,7 @@ export async function ContactPageContent({ locale }: { locale: Locale }) {
                 label: t.cards.phoneLabel,
                 value: t.cards.phoneValue,
                 // tel: sans espaces — un numéro composable d'un clic sur mobile.
-                href: "tel:+2250505592052",
+                href: `tel:${SITE_PHONE}`,
               },
               { icon: LifeBuoy, label: t.cards.supportLabel, value: t.cards.supportValue, href: "/admin/support" },
             ].map(({ icon: Icone, label, value, href }) => {

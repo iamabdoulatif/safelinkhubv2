@@ -3,6 +3,12 @@
 import { useState } from "react";
 import { MapPin, ExternalLink } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n/fr";
+import {
+  SITE_CITY,
+  SITE_DIRECTIONS_URL,
+  SITE_GEO,
+  SITE_STREET,
+} from "@/lib/site/contact";
 
 /* Carte Google en « façade », comme le lecteur vidéo (YouTubeEmbed).
  *
@@ -16,10 +22,13 @@ import type { Dictionary } from "@/lib/i18n/fr";
  * « Ouvrir dans Google Maps » fonctionne lui aussi sans que rien ne s'exécute.
  */
 
-const LAT = 5.3453013;
-const LNG = -4.03603;
-const ADRESSE = "330 Rue Nicolas Amenin, Attécoubé";
-const VILLE = "Abidjan, Côte d'Ivoire";
+/* Coordonnées, adresse et ville viennent de lib/site/contact : le pied de page
+   et la page contact affichent les MÊMES faits, ils ne doivent pas en garder
+   chacun une copie. */
+const LAT = SITE_GEO.lat;
+const LNG = SITE_GEO.lng;
+const ADRESSE = SITE_STREET;
+const VILLE = SITE_CITY;
 
 /** Forme historique et sans clé d'API. Google redirige vers /maps/embed. */
 const embedUrl = (locale: "fr" | "en") =>
@@ -29,7 +38,7 @@ const embedUrl = (locale: "fr" | "en") =>
    (0xfc1eafbca2653ed:…), pas au format ChIJ… attendu ici, et le convertir de
    tête reviendrait à inventer un identifiant. Les coordonnées, elles, viennent
    directement de l'URL fournie. */
-const ITINERAIRE = `https://www.google.com/maps/dir/?api=1&destination=${LAT},${LNG}`;
+const ITINERAIRE = SITE_DIRECTIONS_URL;
 
 const defaultCopy: Dictionary["contact"]["map"] = {
   findUs: "Nous trouver",

@@ -2,12 +2,10 @@ import Link from "next/link";
 import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 import type { Dictionary } from "@/lib/i18n/fr";
 import { type Locale, localeHref } from "@/lib/i18n/config";
+// Même liste qu'en pied de page : deux copies auraient divergé au premier
+// réseau ajouté (c'est ce qui est arrivé avec YouTube).
+import { SITE_SOCIALS } from "@/lib/site/contact";
 
-const socials = [
-  { href: "https://x.com/safelinkhub", label: "X" },
-  { href: "https://linkedin.com/company/safelinkhub", label: "LinkedIn" },
-  { href: "https://tiktok.com/@safelinkhub", label: "TikTok" },
-] as const;
 
 /** Bandeau d'annonce vert profond, en tête de page — le motif d'ouverture de
  * Slate. Le nombre de jours vient de la config de facturation, pas d'un
@@ -33,16 +31,19 @@ export default function AnnounceBar({ dict, locale }: { dict: Dictionary; locale
             {dict.announce.cta}
           </Link>
         </p>
-        <nav aria-label={dict.announce.socials} className="hidden items-center gap-4 md:flex">
-          {socials.map((s) => (
+        {/* lg et non md : à 768 px, quatre réseaux plus la phrase d'essai ne
+            tenaient pas sur une ligne — le bandeau passait à 80 px de haut,
+            pour une information que le pied de page porte déjà. */}
+        <nav aria-label={dict.announce.socials} className="hidden items-center gap-4 lg:flex">
+          {SITE_SOCIALS.map((reseau) => (
             <a
-              key={s.label}
-              href={s.href}
+              key={reseau.label}
+              href={reseau.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-medium text-slate-deep-soft hover:text-white"
+              className="inline-flex min-h-8 items-center text-xs font-medium text-slate-deep-soft hover:text-white"
             >
-              {s.label}
+              {reseau.label}
             </a>
           ))}
         </nav>
