@@ -4,7 +4,7 @@ import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { organizations, routers, users } from "@/lib/db/schema";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
-import { ClientPortfolioGrid } from "./ClientPortfolioGrid";
+import { ClientPortfolioBrowser } from "./ClientPortfolioBrowser";
 import { RouterPortfolioTabs } from "./RouterPortfolioTabs";
 import RoutersTable, { type RouterRow } from "./RoutersTable";
 import {
@@ -156,7 +156,7 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
             locale={locale}
           />
         ) : view.kind === "client-cards" ? (
-          <ClientPortfolioGrid clients={clients} t={t.clients} />
+          <ClientPortfolioBrowser clients={clients} t={t.clients} />
         ) : (
           <RoutersTable
             routers={toRouterRows(routerRows.filter((router) => router.orgId === view.client.id))}
