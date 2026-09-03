@@ -400,7 +400,9 @@ test("la station roaming expose les quatre vues de la refonte", async () => {
   const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
 
   for (const label of ["Exploitation", "Groupes", "Catalogue", "Comptes"]) {
-    assert.match(console_, new RegExp(`>${label}<`), `la navigation doit exposer « ${label} »`);
+    // Les libellés vivent dans le tableau navItems (label: "…") depuis la refonte
+    // de l'en-tête ; on vérifie leur présence là plutôt que dans une KPI band.
+    assert.match(console_, new RegExp(`label: "${label}"`), `la navigation doit exposer « ${label} »`);
   }
   assert.match(console_, /const \[activeView, setActiveView\]/);
 });

@@ -123,7 +123,20 @@ function StatusDot({ status }: { status: string }) {
 const inputClass =
   "mt-1 w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20";
 const labelClass = "block text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft";
-const panelClass = "border border-line bg-paper p-5 sm:p-6";
+const panelClass = "rounded-2xl border border-line-soft bg-paper p-5 shadow-sm sm:p-6";
+
+/** Petite carte KPI d'en-tête : grand nombre tabulaire, label mono discret. */
+function RoamKpi({ value, label, tone }: { value: number; label: string; tone?: "ok" }) {
+  return (
+    <div className="rounded-2xl border border-line-soft bg-paper px-4 py-3.5 shadow-sm">
+      <p className="text-[26px] font-extrabold leading-none tracking-tight tabular-nums text-ink">{value}</p>
+      <p className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.11em] text-ink-soft">
+        {tone === "ok" && <span aria-hidden="true" className="h-[6px] w-[6px] rounded-full bg-ok" />}
+        {label}
+      </p>
+    </div>
+  );
+}
 
 export default function RoamingConsole({
   groups,
@@ -221,38 +234,42 @@ export default function RoamingConsole({
 
   return (
     <div className="animate-fade-in-up pb-10">
-      <section className="overflow-hidden border border-line bg-ink text-paper">
-        <div className="grid gap-7 p-6 lg:grid-cols-[1.25fr_0.75fr] lg:p-8">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-paper/20 bg-paper/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-brand">
-              <Wifi className="h-3.5 w-3.5" /> Station roaming
-            </div>
-            <h1 className="mt-4 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">Pilotez la couverture avant d’émettre.</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-paper/70">
-              Une même offre peut couvrir plusieurs zones. Vérifiez d’abord le terrain, puis créez les accès dans le groupe choisi.
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-px self-end overflow-hidden border border-paper/15 bg-paper/15 text-center">
-            <div className="bg-ink p-4"><p className="text-2xl font-bold text-brand">{groups.length}</p><p className="mt-1 text-[11px] uppercase tracking-wide text-paper/60">Groupes</p></div>
-            <div className="bg-ink p-4"><p className="text-2xl font-bold text-brand">{onlineZoneCount}</p><p className="mt-1 text-[11px] uppercase tracking-wide text-paper/60">Zones en ligne</p></div>
-            <div className="bg-ink p-4"><p className="text-2xl font-bold text-brand">{namedUsers.length}</p><p className="mt-1 text-[11px] uppercase tracking-wide text-paper/60">Comptes</p></div>
-          </div>
+      <header className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <span className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">
+            <Wifi className="h-3.5 w-3.5 text-brand-deep" /> Station roaming
+          </span>
+          <h1 className="mt-2.5 max-w-[18ch] font-display text-3xl font-extrabold tracking-tight text-ink [text-wrap:balance] sm:text-[34px]">
+            Pilotez la couverture avant d’émettre.
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-ink-soft">
+            Une même offre couvre plusieurs zones. Vérifiez le terrain, puis créez les accès dans le groupe choisi.
+          </p>
         </div>
-      </section>
+        <dl className="grid grid-cols-3 gap-3">
+          <RoamKpi value={groups.length} label="Groupes" />
+          <RoamKpi value={onlineZoneCount} label="Zones en ligne" tone="ok" />
+          <RoamKpi value={namedUsers.length} label="Comptes" />
+        </dl>
+      </header>
 
-      <nav aria-label="Navigation de la station roaming" className="mt-5 flex gap-1 overflow-x-auto border-b border-line pb-px">
+      <nav aria-label="Navigation de la station roaming" className="mt-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-xl bg-clay p-1">
         {navItems.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setActiveView(item.id)}
             aria-current={activeView === item.id ? "page" : undefined}
-            className={`flex shrink-0 items-center gap-2 border-x border-t px-4 py-3 text-sm font-semibold transition-colors ${
-              activeView === item.id ? "border-line bg-paper text-ink" : "border-transparent text-ink-soft hover:bg-clay hover:text-ink"
+            className={`flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
+              activeView === item.id ? "bg-paper text-ink shadow-sm" : "text-ink-soft hover:text-ink"
             }`}
           >
             <span>{item.label}</span>
-            {item.count !== undefined && <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] text-ink-soft">{item.count}</span>}
+            {item.count !== undefined && (
+              <span className={`rounded-full px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums ${activeView === item.id ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"}`}>
+                {item.count}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -266,7 +283,7 @@ export default function RoamingConsole({
                 <h2 className="mt-1 text-2xl font-bold text-ink">Exploitation</h2>
                 <p className="mt-1 text-sm text-ink-soft">Choisissez une couverture pour concentrer les décisions au même endroit.</p>
               </div>
-              <button type="button" onClick={() => openDrawer("tickets")} disabled={!selectedGroup?.active || selectableOffers.length === 0} className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-bold text-ink shadow-[3px_3px_0_var(--color-ink)] hover:bg-brand/85 disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={() => openDrawer("tickets")} disabled={!selectedGroup?.active || selectableOffers.length === 0} className="inline-flex items-center gap-2 rounded-full bg-brand px-4 py-2.5 text-sm font-bold text-slate-deep transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50">
                 <Ticket className="h-4 w-4" /> Créer des accès
               </button>
             </div>
@@ -287,14 +304,14 @@ export default function RoamingConsole({
                     <h3 className="mt-1 text-xl font-bold text-ink">{selectedGroup.name}</h3>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${selectedGroup.active ? "bg-brand text-ink" : "bg-clay text-ink-soft"}`}>{selectedGroup.active ? "Émission active" : "Émission en pause"}</span>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${selectedGroup.active ? "bg-ok-soft text-ok" : "bg-clay text-ink-soft"}`}>{selectedGroup.active && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />}{selectedGroup.active ? "Émission active" : "Émission en pause"}</span>
                     <button type="button" onClick={() => openDrawer("zone", selectedGroup.id)} className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-clay"><Plus className="h-3.5 w-3.5" /> Zone</button>
                   </div>
                 </div>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  <article className="border border-line-soft p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft">Zones en ligne</p><p className="mt-2 text-3xl font-bold text-ok">{selectedGroup.onlineRouters.length}<span className="ml-1 text-base text-ink-soft">/ {selectedGroup.routers.length}</span></p><p className="mt-2 text-xs text-ink-soft">Le dernier état connu du parc sélectionné.</p></article>
-                  <article className="border border-line-soft p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft">Comptes nominatifs</p><p className="mt-2 text-3xl font-bold text-ink">{selectedNamedUsers.length}</p><p className="mt-2 text-xs text-ink-soft">Administrateurs et techniciens de ce groupe.</p></article>
+                  <article className="rounded-xl border border-line-soft bg-paper p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft">Zones en ligne</p><p className="mt-2 text-3xl font-bold text-ok">{selectedGroup.onlineRouters.length}<span className="ml-1 text-base text-ink-soft">/ {selectedGroup.routers.length}</span></p><p className="mt-2 text-xs text-ink-soft">Le dernier état connu du parc sélectionné.</p></article>
+                  <article className="rounded-xl border border-line-soft bg-paper p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft">Comptes nominatifs</p><p className="mt-2 text-3xl font-bold text-ink">{selectedNamedUsers.length}</p><p className="mt-2 text-xs text-ink-soft">Administrateurs et techniciens de ce groupe.</p></article>
                 </div>
 
                 <div className="mt-5">
@@ -313,9 +330,9 @@ export default function RoamingConsole({
           </div>
 
           <aside className="space-y-5">
-            <section className={`${panelClass} border-brand`}>
+            <section className={`${panelClass} border-l-4 border-l-brand`}>
               <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.15em] text-brand">À vérifier</p><h2 className="mt-1 text-xl font-bold text-ink">Alertes de couverture</h2></div><MapPin className="h-5 w-5 text-brand" /></div>
-              <p className="mt-4 text-4xl font-bold text-ink">{offlineZoneCount}</p>
+              <p className={`mt-4 text-4xl font-extrabold tabular-nums ${offlineZoneCount === 0 ? "text-ok" : "text-err"}`}>{offlineZoneCount}</p>
               <p className="mt-1 text-sm text-ink-soft">zones non joignables dans les groupes configurés.</p>
               {offlineZoneCount > 0 && <ul className="mt-4 space-y-2 border-t border-line-soft pt-3">{groupsWithHealth.flatMap((group) => group.offlineRouters.map((router) => <li key={router.id} className="flex items-center justify-between gap-3 text-sm"><span className="text-ink">{router.name}</span><span className="text-xs text-ink-soft">{group.name}</span></li>))}</ul>}
             </section>
