@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Loader2,
   RotateCcw,
+  Search,
   Trash2,
   Ticket,
 } from "lucide-react";
@@ -42,17 +43,31 @@ type ActionMessage =
   | { kind: "success"; text: string; undoIds?: string[] }
   | { kind: "error"; text: string };
 
-function Metric({ label, value, tone }: { label: string; value: number; tone: "paper" | "brand" | "clay" }) {
-  const palette = {
-    paper: "bg-paper text-ink",
-    brand: "bg-brand text-ink",
-    clay: "bg-clay text-ink",
-  }[tone];
-
+/** Carte KPI posée : label discret, grand nombre tabulaire, ligne de contexte.
+ *  `tone` "lead" ajoute un liseré lime sur la métrique qui compte. */
+function Kpi({
+  label,
+  value,
+  hint,
+  tone = "plain",
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  tone?: "lead" | "muted" | "plain";
+}) {
+  const dot = tone === "lead" ? "bg-ok" : tone === "muted" ? "bg-ink-soft" : null;
   return (
-    <div className={`flex min-h-24 items-end justify-between gap-3 px-5 py-4 ${palette}`}>
-      <span className="text-xs font-bold uppercase tracking-[0.14em]">{label}</span>
-      <strong className="font-mono text-3xl leading-none">{value}</strong>
+    <div className={`relative rounded-2xl border border-line-soft bg-paper p-[18px] shadow-sm ${tone === "lead" ? "pl-[22px]" : ""}`}>
+      {tone === "lead" && <span aria-hidden="true" className="absolute bottom-4 left-0 top-4 w-[3px] rounded bg-brand" />}
+      <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">{label}</p>
+      <p className="mt-2 text-[34px] font-extrabold leading-none tracking-tight tabular-nums text-ink">
+        {value.toLocaleString("fr-FR")}
+      </p>
+      <p className="mt-2 flex items-center gap-1.5 text-[12.5px] text-ink-soft">
+        {dot && <span aria-hidden="true" className={`h-[7px] w-[7px] rounded-full ${dot}`} />}
+        {hint}
+      </p>
     </div>
   );
 }
@@ -72,6 +87,7 @@ export default function VoucherTable({
 }) {
   const router = useRouter();
   const [view, setView] = useState<View>("active");
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -79,7 +95,13 @@ export default function VoucherTable({
   // Suppression définitive : le dialogue porte le choix de portée, jamais le bouton.
   const [deleteAsk, setDeleteAsk] = useState<{ mode: "selection" | "empty"; ids: string[] } | null>(null);
   const vouchers = view === "active" ? activeVouchers : trashedVouchers;
-  const allSelected = vouchers.length > 0 && selected.size === vouchers.length;
+  // Recherche client sur code, note et nom de forfait (insensible à la casse).
+  const normalizedQuery = query.trim().toLowerCase();
+  const visible = normalizedQuery
+    ? vouchers.filter((v) => `${v.username} ${v.note} ${v.packageName}`.toLowerCase().includes(normalizedQuery))
+    : vouchers;
+  // « Tout sélectionner » porte sur ce qui est VISIBLE (résultats du filtre).
+  const allSelected = visible.length > 0 && visible.every((v) => selected.has(v.id));
 
   // Remise à zéro de la sélection au changement d'onglet, PENDANT le rendu et
   // non dans un effet : un setState dans un effet déclenche un second rendu en
@@ -91,10 +113,18 @@ export default function VoucherTable({
     setRenderedView(view);
     setSelected(new Set());
     setActionMessage(null);
+    setQuery("");
   }
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(vouchers.map((voucher) => voucher.id)));
+    setSelected((previous) => {
+      const next = new Set(previous);
+      for (const v of visible) {
+        if (allSelected) next.delete(v.id);
+        else next.add(v.id);
+      }
+      return next;
+    });
   }
 
   function toggleOne(id: string) {
@@ -201,64 +231,78 @@ export default function VoucherTable({
 
   return (
     <div className="space-y-5">
-      <section className="overflow-hidden border border-line bg-paper">
-        <div className="relative overflow-hidden bg-ink px-5 py-6 text-paper md:px-7">
-          <div className="absolute right-0 top-0 h-full w-24 border-l border-paper/20 bg-brand/90 sm:w-36" />
-          <div className="relative flex flex-wrap items-end justify-between gap-5">
-            <div>
-              <div className="flex items-center gap-2 text-brand">
-                <span className="h-2 w-2 bg-brand" />
-                <p className="text-xs font-bold tracking-[0.18em]">CONSOLE D&apos;ACCÈS</p>
-              </div>
-              <h1 className="mt-2 font-display text-3xl font-black tracking-tight md:text-4xl">
-                Station Tickets
-              </h1>
-              <p className="mt-1 max-w-xl text-sm text-paper/70">
-                Pilotez, importez et retrouvez chaque accès Wi-Fi.
-              </p>
-            </div>
-            <div className="relative flex flex-wrap items-center gap-2">{headerExtra}</div>
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-5">
+          <div>
+            <span className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">
+              <span aria-hidden="true" className="h-2 w-2 rounded-[2px] bg-brand" />
+              Console d&apos;accès
+            </span>
+            <h1 className="mt-2.5 font-display text-3xl font-extrabold tracking-tight text-ink md:text-[34px]">
+              Station Tickets
+            </h1>
+            <p className="mt-1.5 max-w-xl text-sm text-ink-soft">
+              Pilotez, importez et retrouvez chaque accès vendu ou provisionné.
+            </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">{headerExtra}</div>
         </div>
-        <div className="grid grid-cols-1 divide-y divide-line border-y border-line md:grid-cols-3 md:divide-x md:divide-y-0">
-          <Metric label="Tickets actifs" value={stats.active} tone="paper" />
-          <Metric label="Importés" value={stats.imported} tone="brand" />
-          <Metric label="Corbeille" value={stats.trashed} tone="clay" />
+        <div className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+          <Kpi label="Tickets actifs" value={stats.active} hint="En circulation, provisionnés" tone="lead" />
+          <Kpi
+            label="Importés"
+            value={stats.imported}
+            hint={stats.imported > 0 ? "Lot importé en attente d'archivage" : "Aucun lot importé en attente"}
+          />
+          <Kpi label="Corbeille" value={stats.trashed} hint="Archivés, restaurables" tone="muted" />
         </div>
       </section>
 
-      <section className="border border-line bg-paper">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft bg-clay px-4 py-3 md:px-5">
-          <div className="flex items-center gap-2" role="tablist" aria-label="Vue des tickets">
+      <section className="overflow-hidden rounded-2xl border border-line-soft bg-paper shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-4 py-3 md:px-5">
+          <div className="inline-flex gap-1 rounded-xl bg-clay p-1" role="tablist" aria-label="Vue des tickets">
             <button
               type="button"
               role="tab"
               aria-selected={view === "active"}
               onClick={() => setView("active")}
-              className={`rounded-sm border px-3 py-1.5 text-sm font-bold transition-colors ${
-                view === "active"
-                  ? "border-ink bg-ink text-paper"
-                  : "border-line-soft bg-paper text-ink hover:border-ink"
+              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                view === "active" ? "bg-paper text-ink shadow-sm" : "text-ink-soft hover:text-ink"
               }`}
             >
-              Tickets actifs <span className="ml-1 font-mono text-xs">{stats.active}</span>
+              Tickets actifs
+              <span className={`rounded-full px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums ${view === "active" ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"}`}>
+                {stats.active}
+              </span>
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={view === "trash"}
               onClick={() => setView("trash")}
-              className={`rounded-sm border px-3 py-1.5 text-sm font-bold transition-colors ${
-                view === "trash"
-                  ? "border-ink bg-ink text-paper"
-                  : "border-line-soft bg-paper text-ink hover:border-ink"
+              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                view === "trash" ? "bg-paper text-ink shadow-sm" : "text-ink-soft hover:text-ink"
               }`}
             >
-              Corbeille <span className="ml-1 font-mono text-xs">{stats.trashed}</span>
+              Corbeille
+              <span className={`rounded-full px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums ${view === "trash" ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"}`}>
+                {stats.trashed}
+              </span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                aria-label="Rechercher un ticket"
+                placeholder="Rechercher un code, une note…"
+                className="w-56 max-w-[44vw] rounded-lg border border-line bg-paper py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-soft focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand"
+              />
+            </div>
             {selected.size > 0 && (
               <button
                 type="button"
@@ -339,7 +383,7 @@ export default function VoucherTable({
 
         <div className="overflow-x-auto table-mobile-wrapper">
           <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="border-b border-line-soft bg-paper text-xs font-bold uppercase tracking-[0.1em] text-ink-soft">
+            <thead className="border-b border-line-soft bg-paper font-mono text-[10.5px] font-semibold uppercase tracking-[0.11em] text-ink-soft">
               <tr>
                 <th className="w-10 px-4 py-3">
                   <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Tout sélectionner" />
@@ -355,23 +399,32 @@ export default function VoucherTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-line-soft">
-              {vouchers.length === 0 && (
+              {visible.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-4 py-12 text-center">
                     <Ticket className="mx-auto mb-3 h-7 w-7 text-brand-deep" />
-                    <p className="font-bold text-ink">
-                      {view === "active" ? "Aucun ticket actif." : "La corbeille est vide."}
-                    </p>
-                    <p className="mt-1 text-sm text-ink-soft">
-                      {view === "active"
-                        ? "Importez un export MikHmon ou générez un nouveau lot."
-                        : "Les tickets archivés apparaîtront ici et pourront être restaurés."}
-                    </p>
+                    {normalizedQuery ? (
+                      <>
+                        <p className="font-bold text-ink">Aucun ticket ne correspond à « {query} ».</p>
+                        <p className="mt-1 text-sm text-ink-soft">Essayez un autre code, une autre note ou un forfait.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-bold text-ink">
+                          {view === "active" ? "Aucun ticket actif." : "La corbeille est vide."}
+                        </p>
+                        <p className="mt-1 text-sm text-ink-soft">
+                          {view === "active"
+                            ? "Importez un export MikHmon ou générez un nouveau lot."
+                            : "Les tickets archivés apparaîtront ici et pourront être restaurés."}
+                        </p>
+                      </>
+                    )}
                   </td>
                 </tr>
               )}
-              {vouchers.map((voucher) => (
-                <tr key={voucher.id} className={busyId === voucher.id ? "opacity-40" : "hover:bg-clay/55"}>
+              {visible.map((voucher) => (
+                <tr key={voucher.id} className={busyId === voucher.id ? "opacity-40" : "transition-colors hover:bg-clay/45"}>
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
@@ -380,21 +433,29 @@ export default function VoucherTable({
                       aria-label={`Sélectionner ${voucher.username}`}
                     />
                   </td>
-                  <td className="px-4 py-3 font-mono font-bold tracking-wide text-ink">{voucher.username}</td>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-ink">{voucher.packageName}</div>
+                    <span className="rounded-md bg-clay px-2 py-1 font-mono text-[13px] font-bold tracking-wide text-ink">
+                      {voucher.username}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-ink">{voucher.packageName}</div>
                     {voucher.validity && <div className="mt-0.5 text-xs text-ink-soft">{voucher.validity}</div>}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 bg-paper px-2 py-1 text-xs font-bold text-ink">
-                      <i className="h-1.5 w-1.5 rounded-full bg-ok" />
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-ok-soft px-2.5 py-1 text-xs font-semibold text-ok">
+                      <i className="h-1.5 w-1.5 rounded-full bg-current" />
                       {voucher.status}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-ink-soft">
                     {voucher.expiresPending ? <em>{voucher.expiresOn}</em> : voucher.expiresOn}
                   </td>
-                  <td className="px-4 py-3 text-ink-soft">{voucher.useCase}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center rounded-full border border-line-soft bg-paper px-2.5 py-1 text-xs font-medium text-ink-soft">
+                      {voucher.useCase}
+                    </span>
+                  </td>
                   <td className="max-w-52 truncate px-4 py-3 text-ink-soft" title={voucher.note}>{voucher.note}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-ink-soft">
                     {view === "trash" ? voucher.deletedOn : voucher.createdOn}
@@ -408,7 +469,7 @@ export default function VoucherTable({
                           : restore([voucher.id])
                       }
                       disabled={pending}
-                      className="inline-flex items-center gap-1 rounded-sm border border-line-soft bg-paper px-2 py-1.5 text-xs font-bold text-ink hover:border-ink hover:bg-brand disabled:opacity-40"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-paper px-2.5 py-1.5 text-xs font-semibold text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:opacity-40"
                     >
                       {busyId === voucher.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -439,7 +500,7 @@ export default function VoucherTable({
         </div>
         <div className="flex items-center justify-between border-t border-line-soft px-4 py-3 text-xs text-ink-soft md:px-5">
           <span>{selected.size} sélectionné(s)</span>
-          <span className="font-mono">{vouchers.length} ticket(s) affiché(s)</span>
+          <span className="font-mono">{visible.length} ticket(s) affiché(s)</span>
         </div>
       </section>
 
