@@ -103,7 +103,7 @@ describe("users register presentation", () => {
        table) : la liste est unique à toutes les tailles. C'est une garantie
        plus forte que l'ancienne — plus de duplication à maintenir en phase,
        et un lecteur d'écran n'entend plus chaque personne deux fois. */
-    const monogrammes = openingTagsWithClassTokens(markup, "span", ["h-10", "w-10", "border"]).filter(
+    const monogrammes = openingTagsWithClassTokens(markup, "span", ["h-9", "w-9", "rounded-full"]).filter(
       ({ tag, index }) => markup.slice(index + tag.length).startsWith("AT</span>"),
     );
     assert.equal(monogrammes.length, 1, "l'identité est rendue une seule fois");

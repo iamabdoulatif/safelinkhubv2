@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import UserDrawer from "./UserDrawer";
 import { expiryHint } from "./user-expiry";
+import { orgDisplayName, quotaShortLabel, roleBadge } from "./user-labels";
 import TemporaryAccessPasses, {
   type Grant,
   type GrantRouter,
@@ -35,15 +36,7 @@ const FILTERS: Array<{ value: UserControlFilter; label: string }> = [
   { value: "expiring", label: "Expire bientôt" },
 ];
 
-function roleLabel(role: string) {
-  return role === "superadmin" ? "Superadmin" : role === "admin" ? "Admin" : role;
-}
 
-function quotaTone(category: UserControlRow["quotaCategory"]) {
-  if (category === "paid") return "border-warn bg-warn/10 text-ink";
-  if (category === "free" || category === "unlimited") return "border-ok bg-ok/10 text-ink";
-  return "border-line bg-clay text-ink-soft";
-}
 
 export default function UsersControlCenter({
   rows,
@@ -184,73 +177,76 @@ export default function UsersControlCenter({
           >
             {filteredRows.map((row) => {
               const fin = expiryHint(row.quotaExpiresAt, now);
+              const org = orgDisplayName(row.orgName, row.name);
+              const acces = quotaShortLabel(row.quotaCategory);
+              const rang = roleBadge(row.role);
+              const alerte = fin.tone === "urgent" || fin.tone === "over";
               return (
                 <li key={row.id}>
                   <button
                     type="button"
                     onClick={() => setOpenRowId(row.id)}
                     aria-label={`Ouvrir le détail de ${row.name}`}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-clay/60 focus-visible:bg-clay/60 focus-visible:outline-none sm:px-5"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-clay/60 focus-visible:bg-clay/60 focus-visible:outline-none sm:gap-4 sm:px-5"
                   >
+                    {/* Un liseré ne s'allume que sur les comptes qui réclament
+                        une décision. Une bordure verte sur les quarante lignes
+                        ne signalait plus rien : c'était devenu la couleur du
+                        fond. */}
                     <span
                       aria-hidden="true"
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-clay text-xs font-bold text-ink"
+                      className={`h-9 w-0.5 shrink-0 rounded-full ${alerte ? "bg-err" : "bg-transparent"}`}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-clay text-[11px] font-bold text-ink-soft"
                     >
                       {userMonogram(row.name)}
                     </span>
 
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-semibold text-ink">{row.name}</span>
-                      <span className="block truncate text-xs text-ink-soft">{row.email}</span>
-                    </span>
-
-                    {/* L'organisation ne pousse plus la ligne sur trois étages :
-                        une seule ligne tronquée, et seulement quand l'écran est
-                        assez large pour qu'elle apporte quelque chose. */}
-                    {superadmin && !organizationFocus && (
-                      <span className="hidden min-w-0 max-w-[12rem] shrink-0 truncate text-sm text-ink-soft lg:block">
-                        {row.orgName}
+                      <span className="flex items-center gap-2">
+                        <span className="truncate font-semibold text-ink">{row.name}</span>
+                        {/* Le rôle n'apparaît que s'il sort de l'ordinaire :
+                            « Admin » était vrai 38 fois sur 40. */}
+                        {rang && (
+                          <span className="shrink-0 rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-paper">
+                            {rang}
+                          </span>
+                        )}
                       </span>
-                    )}
-
-                    <span className="hidden shrink-0 rounded-full border border-line px-2 py-0.5 text-[11px] font-semibold text-ink sm:inline-flex">
-                      {roleLabel(row.role)}
+                      <span className="block truncate text-xs text-ink-soft">
+                        {row.email}
+                        {/* L'organisation ne se répète plus : à l'inscription
+                            elle s'appelle « Organisation de <la personne> ». */}
+                        {org && <span className="hidden sm:inline"> · {org}</span>}
+                      </span>
                     </span>
 
-                    {superadmin && (
-                      <span className="hidden w-40 shrink-0 text-right md:block">
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${quotaTone(row.quotaCategory)}`}>
-                          {row.quotaLabel}
-                        </span>
-                        {/* Le temps qui RESTE, pas la date à recalculer. */}
+                    {superadmin && (acces || fin.label) && (
+                      <span className="hidden shrink-0 text-right sm:block">
+                        <span className="block text-sm font-medium text-ink">{acces}</span>
                         {fin.label && (
-                          <span
-                            className={`mt-0.5 block text-[11px] ${
-                              fin.tone === "urgent" || fin.tone === "over" ? "font-semibold text-err" : "text-ink-soft"
-                            }`}
-                          >
+                          <span className={`block text-xs ${alerte ? "font-semibold text-err" : "text-ink-soft"}`}>
                             {fin.label}
                           </span>
                         )}
                       </span>
                     )}
 
-                    <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-soft" />
+                    <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-soft/60" />
                   </button>
 
-                  {/* Sur téléphone, l'essentiel qui ne tient pas sur la ligne
-                      passe dessous, en une seule ligne discrète. */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-3 text-[11px] text-ink-soft sm:hidden">
-                    <span className="rounded-full border border-line px-2 py-0.5 font-semibold text-ink">
-                      {roleLabel(row.role)}
-                    </span>
-                    {superadmin && <span>{row.quotaLabel}</span>}
-                    {fin.label && (
-                      <span className={fin.tone === "urgent" || fin.tone === "over" ? "font-semibold text-err" : ""}>
-                        {fin.label}
-                      </span>
-                    )}
-                  </div>
+                  {/* Téléphone : l'accès passe sous le nom, sur une ligne, sans
+                      pastille — la largeur manque pour deux colonnes. */}
+                  {superadmin && (acces || fin.label) && (
+                    <p className="flex flex-wrap items-center gap-x-2 px-4 pb-3 pl-[4.25rem] text-xs text-ink-soft sm:hidden">
+                      {acces && <span className="font-medium text-ink">{acces}</span>}
+                      {fin.label && (
+                        <span className={alerte ? "font-semibold text-err" : ""}>{fin.label}</span>
+                      )}
+                    </p>
+                  )}
                 </li>
               );
             })}
