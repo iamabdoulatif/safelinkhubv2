@@ -53,29 +53,31 @@ export default async function SalesPage() {
         {t.description}
       </p>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">{t.totalRevenue}</p>
-          <p className="mt-1 text-2xl font-bold text-ink">
-            {formatFcfa(totalRevenueCents, locale)}
-          </p>
-        </div>
-        <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">{t.todayRevenue}</p>
-          <p className="mt-1 text-2xl font-bold text-ink">
-            {formatFcfa(todayRevenueCents, locale)}
-          </p>
-        </div>
-        <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">{t.salesCommission}</p>
-          <p className="mt-1 text-2xl font-bold text-ink">
-            {sales.length}{" "}
-            <span className="text-sm font-normal text-ink-soft">
-              {t.commission(formatFcfa(totalCommissionCents, locale))}
-            </span>
-          </p>
-        </div>
-      </div>
+      {/* Trois cartes de même poids : on ne savait pas laquelle lire. Le
+          revenu de la période porte la page, le reste l'accompagne. */}
+      <section className="mt-6 rounded-xl border border-line bg-paper p-5 sm:p-6">
+        <p className="text-sm text-ink-soft">{t.totalRevenue}</p>
+        <p className="mt-1 font-display text-3xl font-extrabold tabular-nums text-ink sm:text-4xl">
+          {formatFcfa(totalRevenueCents, locale)}
+        </p>
+        <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-t border-line-soft pt-4 text-sm">
+          <div className="flex items-baseline gap-2">
+            <dt className="text-ink-soft">{t.todayRevenue}</dt>
+            <dd className="font-semibold tabular-nums text-ink">
+              {formatFcfa(todayRevenueCents, locale)}
+            </dd>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <dt className="text-ink-soft">{t.salesCommission}</dt>
+            <dd className="font-semibold tabular-nums text-ink">
+              {sales.length}{" "}
+              <span className="font-normal text-ink-soft">
+                {t.commission(formatFcfa(totalCommissionCents, locale))}
+              </span>
+            </dd>
+          </div>
+        </dl>
+      </section>
 
       {zones.length > 0 && (
         <section className="mt-6 border border-line bg-paper p-5 rounded-xl">
@@ -106,37 +108,54 @@ export default async function SalesPage() {
         </section>
       )}
 
-      <div className="mt-6 overflow-hidden border border-line bg-paper">
-        <div className="table-mobile-wrapper">
-        <table className="w-full text-left text-sm">
+      {sales.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-line-soft bg-paper p-10 text-center">
+          <p className="font-display text-lg font-bold text-ink">{t.empty}</p>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-soft">{t.description}</p>
+        </div>
+      ) : (
+      <div className="mt-6 overflow-hidden rounded-xl border border-line bg-paper">
+        {/* Cartes sous md : six colonnes dans 375 px imposaient un défilement
+            latéral qui séparait le ticket de son montant. */}
+        <ul role="list" className="divide-y divide-line-soft md:hidden">
+          {sales.map((s) => (
+            <li key={`m-${s.id}`} className="p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 truncate font-medium text-ink">{s.username}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-ink">
+                  {formatFcfa(s.priceCents, locale)}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-ink-soft">
+                {s.packageName}
+                {s.routerName ? ` · ${s.routerName}` : ""} · {formatDate(s.createdAt, locale)}
+              </p>
+            </li>
+          ))}
+        </ul>
+
+        <table className="hidden w-full text-left text-sm md:table">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">{t.voucher}</th>
               <th className="px-4 py-3 font-medium">{t.zone}</th>
               <th className="px-4 py-3 font-medium">{t.package}</th>
-              <th className="px-4 py-3 font-medium">{t.price}</th>
+              <th className="px-4 py-3 text-right font-medium">{t.price}</th>
               <th className="px-4 py-3 font-medium">{t.status}</th>
               <th className="px-4 py-3 font-medium">{t.date}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
-            {sales.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-ink-soft">
-                  {t.empty}
-                </td>
-              </tr>
-            )}
             {sales.map((s) => (
-              <tr key={s.id}>
-                <td className="px-4 py-3 font-medium text-ink">
-                  {s.username}
-                </td>
+              <tr key={s.id} className="hover:bg-clay">
+                <td className="px-4 py-3 font-medium text-ink">{s.username}</td>
                 <td className="px-4 py-3 text-ink-soft">
                   {s.routerName ?? <span className="italic">{"—"}</span>}
                 </td>
                 <td className="px-4 py-3 text-ink-soft">{s.packageName}</td>
-                <td className="px-4 py-3 font-medium text-ok">
+                {/* Toutes les lignes sont des ventes : les peindre toutes en
+                    vert ne distingue aucune d'elles. */}
+                <td className="whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums text-ink">
                   {formatFcfa(s.priceCents, locale)}
                 </td>
                 <td className="px-4 py-3">
@@ -144,15 +163,24 @@ export default async function SalesPage() {
                     {s.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-ink-soft">
+                <td className="whitespace-nowrap px-4 py-3 text-ink-soft">
                   {formatDate(s.createdAt, locale)}
                 </td>
               </tr>
             ))}
           </tbody>
+          <tfoot className="border-t border-line bg-clay">
+            <tr className="font-semibold text-ink">
+              <td className="px-4 py-3" colSpan={3}>{t.totalRevenue}</td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                {formatFcfa(totalRevenueCents, locale)}
+              </td>
+              <td className="px-4 py-3" colSpan={2} />
+            </tr>
+          </tfoot>
         </table>
-        </div>
       </div>
+      )}
     </div>
   );
 }

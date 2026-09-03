@@ -21,6 +21,34 @@ function dayKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+/** Pastille d'état : le point porte l'information, le mot la confirme —
+ *  jamais la couleur seule. */
+function Etat({ online }: { online: boolean }) {
+  return (
+    <span className={`flex items-center gap-1.5 text-sm font-medium ${online ? "text-ok" : "text-ink-soft"}`}>
+      <span aria-hidden="true" className={`h-2 w-2 rounded-full ${online ? "bg-ok" : "bg-line-soft"}`} />
+      {online ? "En ligne" : "Hors ligne"}
+    </span>
+  );
+}
+
+/** Jauge de charge : rouge seulement au-delà de 80 %, là où il y a
+ *  effectivement quelque chose à regarder. */
+function Jauge({ percent }: { percent: number }) {
+  const valeur = Math.max(0, Math.min(100, Math.round(percent)));
+  return (
+    <span className="flex items-center gap-2">
+      <span className="h-1.5 w-16 shrink-0 rounded-full bg-clay" aria-hidden="true">
+        <span
+          className={`block h-full rounded-full ${valeur >= 80 ? "bg-err" : "bg-ink"}`}
+          style={{ width: `${valeur}%` }}
+        />
+      </span>
+      <span className="tabular-nums text-xs text-ink-soft">{valeur}%</span>
+    </span>
+  );
+}
+
 export default async function UsageAnalyticsPage() {
   const session = await getSession();
   const db = getDb();
@@ -91,30 +119,31 @@ export default async function UsageAnalyticsPage() {
         Activité réseau en direct et tendance d&apos;activation des tickets.
       </p>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="border border-line bg-paper p-4 hover-lift rounded-xl">
-          <p className="text-sm text-ink-soft">Utilisateurs actifs</p>
-          <p className="mt-2 text-2xl font-semibold text-ink">
-            {totalActiveUsers}
-          </p>
-        </div>
-        <div className="border border-line bg-paper p-4 hover-lift rounded-xl">
-          <p className="text-sm text-ink-soft">Routeurs en ligne</p>
-          <p className="mt-2 text-2xl font-semibold text-ink">
-            {onlineRouters} / {allRouters.length}
-          </p>
-        </div>
-        <div className="border border-line bg-paper p-4 hover-lift rounded-xl">
-          <p className="text-sm text-ink-soft">Charge CPU moyenne</p>
-          <p className="mt-2 text-2xl font-semibold text-ink">{avgCpu}%</p>
-        </div>
-        <div className="border border-line bg-paper p-4 hover-lift rounded-xl">
-          <p className="text-sm text-ink-soft">Mémoire moyenne</p>
-          <p className="mt-2 text-2xl font-semibold text-ink">
-            {avgMemory}%
-          </p>
-        </div>
-      </div>
+      {/* Quatre cartes de même poids ne disaient pas quoi regarder. Ce qu'on
+          vient vérifier ici, c'est le monde en train de se connecter ; le parc
+          et les moyennes machines expliquent ce chiffre. */}
+      <section className="mt-6 rounded-xl border border-line bg-paper p-5 sm:p-6">
+        <p className="text-sm text-ink-soft">Utilisateurs connectés en ce moment</p>
+        <p className="mt-1 font-display text-3xl font-extrabold tabular-nums text-ink sm:text-4xl">
+          {totalActiveUsers}
+        </p>
+        <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-t border-line-soft pt-4 text-sm">
+          <div className="flex items-baseline gap-2">
+            <dt className="text-ink-soft">Routeurs en ligne</dt>
+            <dd className="font-semibold tabular-nums text-ink">
+              {onlineRouters} / {allRouters.length}
+            </dd>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <dt className="text-ink-soft">CPU moyen</dt>
+            <dd className="font-semibold tabular-nums text-ink">{avgCpu}%</dd>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <dt className="text-ink-soft">Mémoire moyenne</dt>
+            <dd className="font-semibold tabular-nums text-ink">{avgMemory}%</dd>
+          </div>
+        </dl>
+      </section>
 
       <div className="mt-6 border border-line bg-paper p-6 rounded-xl">
         <h2 className="font-semibold text-ink">
@@ -135,58 +164,81 @@ export default async function UsageAnalyticsPage() {
         />
       </div>
 
-      <div className="mt-6 overflow-hidden border border-line bg-paper">
-        <div className="table-mobile-wrapper">
-        <table className="w-full text-left text-sm">
+      {allRouters.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-line-soft bg-paper p-10 text-center">
+          <p className="font-display text-lg font-bold text-ink">Aucun routeur supervisé</p>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-soft">
+            Liez un MikroTik depuis Paramètres → Configuration du routeur : sa charge, sa mémoire
+            et ses utilisateurs connectés apparaîtront ici.
+          </p>
+        </div>
+      ) : (
+      <div className="mt-6 overflow-hidden rounded-xl border border-line bg-paper">
+        {/* Cartes sous md : six colonnes de mesures dans un téléphone
+            imposaient un défilement latéral, qui séparait la mesure de son
+            routeur. */}
+        <ul role="list" className="divide-y divide-line-soft md:hidden">
+          {allRouters.map((r) => (
+            <li key={`m-${r.id}`} className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate font-medium text-ink">{r.name}</span>
+                <Etat online={r.status === "online"} />
+              </div>
+              <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs">
+                <div className="flex gap-1.5">
+                  <dt className="text-ink-soft">Connectés</dt>
+                  <dd className="font-semibold tabular-nums text-ink">{r.activeUsers ?? 0}</dd>
+                </div>
+                <div className="flex gap-1.5">
+                  <dt className="text-ink-soft">CPU</dt>
+                  <dd className="tabular-nums text-ink">{r.cpuLoad ?? 0}%</dd>
+                </div>
+                <div className="flex gap-1.5">
+                  <dt className="text-ink-soft">Mémoire</dt>
+                  <dd className="tabular-nums text-ink">{Math.round(Number(r.memoryUsage ?? 0))}%</dd>
+                </div>
+                <div className="flex gap-1.5">
+                  <dt className="text-ink-soft">Depuis</dt>
+                  <dd className="tabular-nums text-ink">{formatUptime(r.uptimeSeconds ?? 0)}</dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+
+        <table className="hidden w-full text-left text-sm md:table">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">Routeur</th>
               <th className="px-4 py-3 font-medium">Statut</th>
-              <th className="px-4 py-3 font-medium">Utilisateurs actifs</th>
+              <th className="px-4 py-3 text-right font-medium">Connectés</th>
               <th className="px-4 py-3 font-medium">CPU</th>
               <th className="px-4 py-3 font-medium">Mémoire</th>
               <th className="px-4 py-3 font-medium">Temps de fonctionnement</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
-            {allRouters.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-ink-soft">
-                  Aucun routeur pour le moment.
-                </td>
-              </tr>
-            )}
             {allRouters.map((r) => (
-              <tr key={r.id}>
+              <tr key={r.id} className="hover:bg-clay">
                 <td className="px-4 py-3 font-medium text-ink">{r.name}</td>
                 <td className="px-4 py-3">
-                  <span
-                    className={`flex items-center gap-1.5 text-sm font-medium ${
-                      r.status === "online" ? "text-ok" : "text-ink-soft"
-                    }`}
-                  >
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        r.status === "online" ? "bg-ok" : "bg-line-soft"
-                      }`}
-                    />
-                    {r.status === "online" ? "En ligne" : "Hors ligne"}
-                  </span>
+                  <Etat online={r.status === "online"} />
                 </td>
-                <td className="px-4 py-3 text-ink-soft">{r.activeUsers ?? 0}</td>
-                <td className="px-4 py-3 text-ink-soft">{r.cpuLoad ?? 0}%</td>
-                <td className="px-4 py-3 text-ink-soft">
-                  {r.memoryUsage ?? 0}%
-                </td>
-                <td className="px-4 py-3 text-ink-soft">
+                <td className="px-4 py-3 text-right tabular-nums text-ink">{r.activeUsers ?? 0}</td>
+                {/* Une jauge plutôt qu'un pourcentage nu : sur trente lignes,
+                    c'est ce qui laisse repérer la machine qui souffre sans
+                    lire chaque nombre. */}
+                <td className="px-4 py-3"><Jauge percent={Number(r.cpuLoad ?? 0)} /></td>
+                <td className="px-4 py-3"><Jauge percent={Math.round(Number(r.memoryUsage ?? 0))} /></td>
+                <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink-soft">
                   {formatUptime(r.uptimeSeconds ?? 0)}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        </div>
       </div>
+      )}
     </div>
   );
 }

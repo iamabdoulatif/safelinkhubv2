@@ -60,56 +60,81 @@ export default async function FloatPage() {
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden border border-line bg-paper">
-        <div className="table-mobile-wrapper">
-        <table className="w-full text-left text-sm">
+      {transactions.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-line-soft bg-paper p-10 text-center">
+          <p className="font-display text-lg font-bold text-ink">Aucun mouvement pour l&apos;instant</p>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-soft">
+            Enregistrez un dépôt quand vous approvisionnez la caisse, un retrait quand vous en
+            sortez de l&apos;argent : le solde ci-dessus suivra tout seul.
+          </p>
+        </div>
+      ) : (
+      <div className="mt-6 overflow-hidden rounded-xl border border-line bg-paper">
+        {/* Sous md, une liste de cartes plutôt qu'une table de 640 px qui
+            défile latéralement : sur un téléphone, on perdait la date en
+            faisant apparaître le montant. */}
+        <ul role="list" className="divide-y divide-line-soft md:hidden">
+          {transactions.map((t) => (
+            <li key={`m-${t.id}`} className="p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-medium text-ink">
+                  {t.type === "deposit" ? "Dépôt" : "Retrait"}
+                </span>
+                <span className={`shrink-0 font-semibold tabular-nums ${t.type === "deposit" ? "text-ink" : "text-err"}`}>
+                  {t.type === "deposit" ? "+" : "−"}
+                  {formatFcfa(t.amountCents)}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-ink-soft">
+                {formatDate(t.createdAt)}
+                {t.note ? ` · ${t.note}` : ""}
+              </p>
+            </li>
+          ))}
+        </ul>
+
+        <table className="hidden w-full text-left text-sm md:table">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">Date</th>
               <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-4 py-3 font-medium">Montant</th>
+              <th className="px-4 py-3 text-right font-medium">Montant</th>
               <th className="px-4 py-3 font-medium">Note</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
-            {transactions.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-ink-soft">
-                  Aucune transaction pour le moment.
-                </td>
-              </tr>
-            )}
             {transactions.map((t) => (
-              <tr key={t.id}>
-                <td className="px-4 py-3 text-ink-soft">
-                  {formatDate(t.createdAt)}
-                </td>
+              <tr key={t.id} className="hover:bg-clay">
+                <td className="whitespace-nowrap px-4 py-3 text-ink-soft">{formatDate(t.createdAt)}</td>
                 <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                      t.type === "deposit"
-                        ? "bg-clay text-ok"
-                        : "bg-clay text-warn"
-                    }`}
-                  >
+                  {/* Pastille neutre : le type est déjà porté par le signe et
+                      par la colonne. Le colorier en plus, c'est dire deux fois
+                      la même chose — et user le rouge sur un retrait normal. */}
+                  <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ink-soft">
                     {t.type === "deposit" ? "Dépôt" : "Retrait"}
                   </span>
                 </td>
-                <td
-                  className={`px-4 py-3 font-medium ${
-                    t.type === "deposit" ? "text-ok" : "text-warn"
-                  }`}
-                >
-                  {t.type === "deposit" ? "+" : "-"}
+                <td className={`whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums ${t.type === "deposit" ? "text-ink" : "text-err"}`}>
+                  {t.type === "deposit" ? "+" : "−"}
                   {formatFcfa(t.amountCents)}
                 </td>
                 <td className="px-4 py-3 text-ink-soft">{t.note ?? "—"}</td>
               </tr>
             ))}
           </tbody>
+          <tfoot className="border-t border-line bg-clay">
+            <tr className="font-semibold text-ink">
+              <td className="px-4 py-3" colSpan={2}>Solde</td>
+              <td className={`px-4 py-3 text-right tabular-nums ${balanceCents < 0 ? "text-err" : "text-ink"}`}>
+                {balanceCents < 0 ? "−" : ""}
+                {formatFcfa(balanceCents)}
+              </td>
+              <td className="px-4 py-3" />
+            </tr>
+          </tfoot>
         </table>
-        </div>
       </div>
+      )}
     </div>
   );
 }

@@ -88,12 +88,6 @@ export default async function TransactionsPage() {
 
   const visible = entries.slice(0, 300);
 
-  const categoryStyle: Record<LedgerEntry["category"], string> = {
-    deposit: "bg-clay text-ok",
-    sale: "bg-clay text-ok",
-    withdrawal: "bg-clay text-warn",
-    expense: "bg-err-soft text-err",
-  };
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
@@ -105,73 +99,111 @@ export default async function TransactionsPage() {
         {t.description}
       </p>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">{t.totalIn}</p>
-          <p className="mt-1 text-2xl font-bold text-ok">{formatFcfa(totalIn, locale)}</p>
-        </div>
-        <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">{t.totalOut}</p>
-          <p className="mt-1 text-2xl font-bold text-err">{formatFcfa(totalOut, locale)}</p>
-        </div>
-        <div className="border border-line bg-paper p-5 hover-lift rounded-xl">
-          <p className="text-sm font-medium text-ink-soft">{t.net}</p>
-          <p className={`mt-1 text-2xl font-bold ${net < 0 ? "text-err" : "text-ink"}`}>
-            {net < 0 ? "-" : ""}
-            {formatFcfa(net, locale)}
-          </p>
-        </div>
-      </div>
+      {/* Trois cartes de même poids ne disaient pas quoi regarder. Le NET est
+          la réponse ; entrées et sorties sont ce qui le compose, donc en
+          appui. Le rouge est réservé au net négatif — le seul cas où il y a
+          quelque chose à faire. */}
+      <section className="mt-6 rounded-xl border border-line bg-paper p-5 sm:p-6">
+        <p className="text-sm text-ink-soft">{t.net}</p>
+        <p className={`mt-1 font-display text-3xl font-extrabold tabular-nums sm:text-4xl ${net < 0 ? "text-err" : "text-ink"}`}>
+          {net < 0 ? "−" : ""}
+          {formatFcfa(net, locale)}
+        </p>
+        <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-t border-line-soft pt-4 text-sm">
+          <div className="flex items-baseline gap-2">
+            <dt className="text-ink-soft">{t.totalIn}</dt>
+            <dd className="font-semibold tabular-nums text-ink">+{formatFcfa(totalIn, locale)}</dd>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <dt className="text-ink-soft">{t.totalOut}</dt>
+            <dd className="font-semibold tabular-nums text-ink">−{formatFcfa(totalOut, locale)}</dd>
+          </div>
+        </dl>
+      </section>
 
-      <div className="mt-6 overflow-hidden border border-line bg-paper">
-        <div className="table-mobile-wrapper">
-        <table className="w-full text-left text-sm">
+      {visible.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-line-soft bg-paper p-10 text-center">
+          <p className="font-display text-lg font-bold text-ink">{t.empty}</p>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-soft">{t.description}</p>
+        </div>
+      ) : (
+      <div className="mt-6 overflow-hidden rounded-xl border border-line bg-paper">
+        {/* Sous md, une liste de cartes : la table faisait 640 px de large
+            minimum et défilait latéralement — sur un téléphone, on perdait la
+            date en faisant apparaître le montant. */}
+        <ul role="list" className="divide-y divide-line-soft md:hidden">
+          {visible.map((e) => (
+            <li key={`m-${e.category}-${e.id}`} className="p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 font-medium text-ink">{e.label}</span>
+                <span className={`shrink-0 font-semibold tabular-nums ${e.amountCents < 0 ? "text-err" : "text-ink"}`}>
+                  {e.amountCents < 0 ? "−" : "+"}
+                  {formatFcfa(e.amountCents, locale)}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-ink-soft">
+                {t.categories[e.category]} · {formatDate(e.date, locale)}
+                {e.note ? ` · ${e.note}` : ""}
+              </p>
+            </li>
+          ))}
+        </ul>
+
+        <table className="hidden w-full text-left text-sm md:table">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">{t.date}</th>
               <th className="px-4 py-3 font-medium">{t.category}</th>
               <th className="px-4 py-3 font-medium">{t.detail}</th>
-              <th className="px-4 py-3 font-medium">{t.amount}</th>
+              <th className="px-4 py-3 text-right font-medium">{t.amount}</th>
               <th className="px-4 py-3 font-medium">{t.note}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
-            {visible.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-ink-soft">
-                  {t.empty}
-                </td>
-              </tr>
-            )}
             {visible.map((e) => (
-              <tr key={`${e.category}-${e.id}`}>
-                <td className="px-4 py-3 text-ink-soft">{formatDate(e.date, locale)}</td>
+              <tr key={`${e.category}-${e.id}`} className="hover:bg-clay">
+                <td className="whitespace-nowrap px-4 py-3 text-ink-soft">{formatDate(e.date, locale)}</td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${categoryStyle[e.category]}`}>
+                  {/* Pastille NEUTRE : la catégorie est un classement, pas une
+                      alerte. Trois couleurs de pastille plus deux de montant
+                      faisaient quatre signaux par ligne, donc aucun. */}
+                  <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-ink-soft">
                     {t.categories[e.category]}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-ink">{e.label}</td>
                 <td
-                  className={`px-4 py-3 font-medium ${
-                    e.amountCents < 0 ? "text-err" : "text-ok"
+                  className={`whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums ${
+                    e.amountCents < 0 ? "text-err" : "text-ink"
                   }`}
                 >
-                  {e.amountCents < 0 ? "-" : "+"}
+                  {e.amountCents < 0 ? "−" : "+"}
                   {formatFcfa(e.amountCents, locale)}
                 </td>
                 <td className="px-4 py-3 text-ink-soft">{e.note ?? "—"}</td>
               </tr>
             ))}
           </tbody>
+          <tfoot className="border-t border-line bg-clay">
+            <tr className="font-semibold text-ink">
+              <td className="px-4 py-3" colSpan={3}>
+                {t.net}
+              </td>
+              <td className={`px-4 py-3 text-right tabular-nums ${net < 0 ? "text-err" : "text-ink"}`}>
+                {net < 0 ? "−" : ""}
+                {formatFcfa(net, locale)}
+              </td>
+              <td className="px-4 py-3" />
+            </tr>
+          </tfoot>
         </table>
-        </div>
         {entries.length > visible.length && (
           <p className="border-t border-line-soft px-4 py-3 text-xs text-ink-soft">
             {t.display(visible.length, entries.length)}
           </p>
         )}
       </div>
+      )}
     </div>
   );
 }
