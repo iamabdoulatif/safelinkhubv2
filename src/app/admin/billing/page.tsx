@@ -1,6 +1,6 @@
 import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
-import { CreditCard, ShieldAlert, Wallet } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { getDb } from "@/lib/db";
 import {
   organizations,
@@ -12,8 +12,6 @@ import {
 } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
-import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
-import { PERIOD_PRICE_CENTS } from "@/lib/mikrotik/billing-plans";
 import WalletTopupModal from "./WalletTopupModal";
 import {
   resellerState,
@@ -26,6 +24,8 @@ import WalletTransactions from "./WalletTransactions";
 import SafecoinWalletCard from "./SafecoinWalletCard";
 import SafecoinTopupReturn from "./SafecoinTopupReturn";
 import ReferralCard from "./ReferralCard";
+import PricingTable from "./PricingTable";
+import { BOUTON_SOLDE } from "./ui";
 import { getReferralSummary } from "@/lib/referrals/service";
 import { getAppUrl } from "@/lib/net/app-url";
 import { getKycStatus, kycThresholdNotice, KYC_WARNING_FCFA } from "@/lib/kyc/gate";
@@ -39,16 +39,24 @@ function formatDateTime(date: Date) {
 }
 
 function formatFcfa(cents: number) {
-  return `FCFA ${cents.toLocaleString("en-US")}`;
+  return `FCFA ${cents.toLocaleString("fr-FR")}`;
 }
 
 /**
- * SafeLinkHub has no subscription/plan/invoice system yet (no Stripe or
- * similar wired in) — rather than fabricate fake invoices or a pricing
- * plan that isn't actually enforced anywhere, this shows the real account
- * info on file, the prepaid wallet that VPN direct-access plans charge
- * against (see lib/mikrotik/port-forward.ts), and how to reach support to
- * manage anything else manually.
+ * SafeLinkHub n'a pas d'abonnement ni de facture : rien à afficher de ce
+ * côté-là tant que ce n'est pas branché. La page répond donc aux trois seules
+ * questions qu'on vient s'y poser, dans cet ordre : combien me reste-t-il,
+ * combien coûte ce que je m'apprête à faire, et qu'est-ce qui a été débité.
+ *
+ * Les deux portefeuilles (FCFA et Safecoin) portent désormais la MÊME forme de
+ * carte — solde à gauche, bouton de rechargement à droite, journal en dessous.
+ * Le crédit interne s'affichait auparavant dans un bandeau noir à ombre portée
+ * qui n'avait rien à voir avec son voisin : deux traitements pour deux choses
+ * qui se manipulent pareil, l'œil croyait à deux fonctionnalités distinctes.
+ *
+ * L'identité de l'organisation (nom, slug, membres, ancienneté) tenait la
+ * première carte de la page. Elle ne se lit qu'une fois dans une vie de compte
+ * et ne se décide jamais : elle est passée en pied de page.
  */
 export default async function BillingPage({
   searchParams,
@@ -147,23 +155,23 @@ export default async function BillingPage({
         : sum + (t.type === "topup" ? t.amountCents : -t.amountCents),
     0,
   );
+  const rateFcfaPerSc = safecoinRate[0]?.rateFcfaPerSc ?? 100;
 
   return (
-    <div className="mx-auto max-w-3xl animate-fade-in-up">
-      <div className="flex items-center gap-2">
-        <CreditCard className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">Facturation</h1>
-      </div>
-      <p className="mt-1 text-sm text-ink-soft">
-        Informations sur votre organisation SafeLinkHub.
-      </p>
+    <div className="mx-auto max-w-4xl animate-fade-in-up space-y-6">
+      <header>
+        <h1 className="font-display text-2xl font-bold text-ink">Facturation</h1>
+        <p className="mt-1 text-sm text-ink-soft">
+          Ce que vous pouvez dépenser, ce que ça coûte, et ce qui a déjà été débité.
+        </p>
+      </header>
 
       {/* On prévient AVANT de bloquer : découvrir la règle au moment du refus,
           c'est un rechargement raté et un appel au support. */}
       {avisKyc && (
         <div
           role={avisKyc.ton === "blocage" ? "alert" : undefined}
-          className={`mt-6 flex items-start gap-3 rounded-xl border p-4 sm:p-5 ${
+          className={`flex items-start gap-3 rounded-xl border p-4 sm:p-5 ${
             avisKyc.ton === "blocage"
               ? "border-err bg-err-soft"
               : "border-brand-deep bg-brand/15"
@@ -183,42 +191,36 @@ export default async function BillingPage({
         </div>
       )}
 
-      <div className="mt-6 border border-line bg-paper p-6 rounded-xl">
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <dt className="text-sm text-ink-soft">Organisation</dt>
-            <dd className="mt-1 font-medium text-ink">{org?.name ?? "—"}</dd>
+      <section className="rounded-xl border border-line bg-paper p-4 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+              Portefeuille FCFA
+            </h2>
+            <p
+              className={`mt-1 font-display text-3xl font-bold tabular-nums ${
+                walletBalanceCents < 0 ? "text-err" : "text-ink"
+              }`}
+            >
+              {formatFcfa(walletBalanceCents)}
+            </p>
+            <p className="mt-1 text-sm text-ink-soft">
+              Paie les accès VPN directs (WinBox/WebFig/SSH/MikHmon) et les Auto-Setup.
+            </p>
           </div>
-          <div>
-            <dt className="text-sm text-ink-soft">Identifiant (slug)</dt>
-            <dd className="mt-1 font-medium text-ink">{org?.slug ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-ink-soft">Membres de l&apos;équipe</dt>
-            <dd className="mt-1 font-medium text-ink">{teamCount}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-ink-soft">Client depuis</dt>
-            <dd className="mt-1 font-medium text-ink">
-              {org ? formatDate(org.createdAt) : "—"}
-            </dd>
-          </div>
-        </dl>
-      </div>
-
-      <div className="mt-6 border border-line bg-paper p-4 sm:p-6 hover-lift rounded-xl">
-        <div className="flex items-center gap-2">
-          <Wallet className="h-5 w-5 text-ink" />
-          <h2 className="font-semibold text-ink">Portefeuille</h2>
+          <WalletTopupModal
+            defaultCountry={currentUser?.country ?? "CI"}
+            geniusPayEnabled={isGeniusPayCheckoutEnabled()}
+            trigger={<span className={BOUTON_SOLDE}>+ Ajouter des fonds</span>}
+          />
         </div>
-        <p className="mt-1 text-sm text-ink-soft">
-          Sert à payer les accès VPN directs (WinBox/WebFig/SSH/MikHmon) et les Auto-Setup
-          supplémentaires. VPN : 1 mois ={" "}
-          {formatFcfa(PERIOD_PRICE_CENTS.monthly)}, 3 mois = {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}
-          , 6 mois = {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}, 12 mois ={" "}
-          {formatFcfa(PERIOD_PRICE_CENTS.yearly)}. Auto-Setup : {formatFcfa(autoSetupFeeCentsFor(true))} avec container,
-          {" "}{formatFcfa(autoSetupFeeCentsFor(false))} sans container.
-        </p>
+
+        {walletBalanceCents < 0 && (
+          <p className="mt-3 rounded-lg border border-err bg-err-soft px-3 py-2 text-sm text-ink">
+            Solde négatif : les prochains débits VPN ou Auto-Setup seront refusés tant qu&apos;il
+            n&apos;est pas repassé au-dessus de zéro.
+          </p>
+        )}
 
         {topup === "success" && transaction ? (
           <div className="mt-4">
@@ -226,32 +228,11 @@ export default async function BillingPage({
           </div>
         ) : null}
 
-        <p className="mt-4 text-sm font-medium text-ink-soft">Solde actuel</p>
-        <p
-          className={`mt-1 text-3xl font-bold ${
-            walletBalanceCents < 0 ? "text-err" : "text-ink"
-          }`}
-        >
-          {formatFcfa(walletBalanceCents)}
-        </p>
-        {walletBalanceCents < 0 && (
-          <p className="mt-1 text-xs text-warn">
-            Les prochains débits VPN ou Auto-Setup nécessitent un solde positif.
-          </p>
-        )}
-
-        <div className="mt-4">
-          <WalletTopupModal
-            defaultCountry={currentUser?.country ?? "CI"}
-            geniusPayEnabled={isGeniusPayCheckoutEnabled()}
-          />
-        </div>
-
         {/* Pack revendeur — n'apparaît qu'aux comptes qui l'ont demandé et pas
             encore réglé, ou dont le pack a expiré. Un compte simple ne le voit
             pas : le statut se demande à l'inscription. */}
         {reseller && (reseller.pendingPayment || reseller.expired) && (
-          <div className="mt-6 rounded-xl border border-brand-deep bg-brand/15 p-5">
+          <div className="mt-5 rounded-xl border border-brand-deep bg-brand/15 p-4 sm:p-5">
             <p className="text-sm font-semibold text-ink">
               {reseller.expired ? "Votre pack revendeur a expiré" : "Pack revendeur — à régler"}
             </p>
@@ -264,7 +245,7 @@ export default async function BillingPage({
                 defaultCountry={currentUser?.country ?? "CI"}
                 geniusPayEnabled={isGeniusPayCheckoutEnabled()}
                 trigger={
-                  <span className="inline-flex items-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper">
+                  <span className={BOUTON_SOLDE}>
                     {reseller.expired ? "Renouveler le pack" : "Régler le pack"}
                   </span>
                 }
@@ -279,6 +260,9 @@ export default async function BillingPage({
           </p>
         )}
 
+        <h3 className="mt-6 border-t border-line-soft pt-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
+          Mouvements
+        </h3>
         <WalletTransactions
           transactions={transactions.map((t) => ({
             id: t.id,
@@ -290,53 +274,57 @@ export default async function BillingPage({
             dateLabel: formatDateTime(t.createdAt),
           }))}
         />
-      </div>
+      </section>
 
-      <div className="mt-8">
-        {safecoinTopup === "success" && transaction ? (
-          <SafecoinTopupReturn transactionId={transaction} />
-        ) : null}
-        <SafecoinWalletCard
-          balanceScCents={safecoinAccount[0]?.balanceScCents ?? 0}
-          rateFcfaPerSc={safecoinRate[0]?.rateFcfaPerSc ?? 100}
-          entries={safecoinEntries}
-          defaultCountry={currentUser?.country ?? "CI"}
-          geniusPayEnabled={isGeniusPayCheckoutEnabled()}
-        />
-      </div>
+      {safecoinTopup === "success" && transaction ? (
+        <SafecoinTopupReturn transactionId={transaction} />
+      ) : null}
+      <SafecoinWalletCard
+        balanceScCents={safecoinAccount[0]?.balanceScCents ?? 0}
+        rateFcfaPerSc={rateFcfaPerSc}
+        entries={safecoinEntries}
+        defaultCountry={currentUser?.country ?? "CI"}
+        geniusPayEnabled={isGeniusPayCheckoutEnabled()}
+      />
+
+      <PricingTable rateFcfaPerSc={rateFcfaPerSc} />
 
       {referral && (
-        <div className="mt-8">
-          <ReferralCard
-            code={referral.code}
-            shareUrl={`${getAppUrl()}/auth/register?ref=${referral.code}`}
-            totalScCents={referral.totalScCents}
-            referredCount={referral.referredCount}
-            rewards={referral.rewards.map((r) => ({
-              id: r.id,
-              event: r.event,
-              amountScCents: r.amountScCents,
-              referredName: r.referredName,
-              dateLabel: formatDate(r.createdAt),
-            }))}
-            referred={referral.referred.map((r) => ({
-              id: r.id,
-              name: r.name,
-              contact: r.contact,
-              dateLabel: formatDate(r.joinedAt),
-            }))}
-          />
-        </div>
+        <ReferralCard
+          code={referral.code}
+          shareUrl={`${getAppUrl()}/auth/register?ref=${referral.code}`}
+          totalScCents={referral.totalScCents}
+          referredCount={referral.referredCount}
+          rewards={referral.rewards.map((r) => ({
+            id: r.id,
+            event: r.event,
+            amountScCents: r.amountScCents,
+            referredName: r.referredName,
+            dateLabel: formatDate(r.createdAt),
+          }))}
+          referred={referral.referred.map((r) => ({
+            id: r.id,
+            name: r.name,
+            contact: r.contact,
+            dateLabel: formatDate(r.joinedAt),
+          }))}
+        />
       )}
 
-      <div className="mt-6 border border-line bg-paper p-6 rounded-xl">
-        <h2 className="font-semibold text-ink">Gérer votre abonnement</h2>
-        <p className="mt-2 text-sm text-ink-soft">
-          Les dépôts en ligne sont confirmés automatiquement par la passerelle. Les
-          demandes manuelles restent visibles dans le journal pour faciliter le suivi
-          avec le support SafeLinkHub.
+      {/* Identité du compte — à donner au support, jamais à décider. */}
+      <footer className="border-t border-line-soft pt-4 text-xs leading-6 text-ink-soft">
+        <p>
+          <span className="font-semibold text-ink">{org?.name ?? "—"}</span>
+          {" · "}identifiant <code className="font-mono">{org?.slug ?? "—"}</code>
+          {" · "}
+          {teamCount} membre{teamCount > 1 ? "s" : ""}
+          {org ? ` · client depuis le ${formatDate(org.createdAt)}` : ""}
         </p>
-      </div>
+        <p className="mt-1">
+          Les dépôts en ligne sont confirmés automatiquement par la passerelle. Les demandes
+          manuelles restent dans le journal, pour le suivi avec le support SafeLinkHub.
+        </p>
+      </footer>
     </div>
   );
 }

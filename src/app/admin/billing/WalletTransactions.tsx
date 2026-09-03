@@ -31,7 +31,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function formatFcfa(cents: number) {
-  return `FCFA ${cents.toLocaleString("en-US")}`;
+  return `FCFA ${cents.toLocaleString("fr-FR")}`;
 }
 
 function transactionLabel(t: WalletTx) {

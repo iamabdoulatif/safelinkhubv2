@@ -231,6 +231,27 @@ body {
   animation: scale-in 0.35s ease-out both;
 }
 
+/* Dépliage d'un groupe de la barre latérale. 160 ms : assez pour que l'œil
+   suive le mouvement, trop court pour qu'on l'attende. */
+@keyframes nav-unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-nav-unfold {
+  animation: nav-unfold 0.16s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-nav-unfold {
+    animation: none;
+  }
+}
+
 @keyframes slide-in-right {
   from {
     opacity: 0;

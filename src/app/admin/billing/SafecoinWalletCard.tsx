@@ -25,8 +25,7 @@ import {
 import { formatSc, scCentsToFcfa } from "@/lib/safecoin/pricing";
 import { getWalletEligibleCountries, WALLET_PAYMENT_METHODS } from "@/lib/wallet/payment-options";
 import { countryFlag } from "@/lib/intl/countries";
-import { PERIOD_PRICE_CENTS } from "@/lib/mikrotik/billing-plans";
-import { autoSetupFeeCentsFor } from "@/lib/billing/auto-setup-pricing";
+import { BOUTON_SOLDE } from "./ui";
 
 type Entry = {
   id: string;
@@ -125,60 +124,39 @@ export default function SafecoinWalletCard({
   const close = () => {
     if (!onlinePending && !manualPending) setOpen(false);
   };
-  const plans = [
-    { label: "VPN · 1 mois", sc: Math.ceil(PERIOD_PRICE_CENTS.monthly / rateFcfaPerSc) },
-    { label: "VPN · 12 mois", sc: Math.ceil(PERIOD_PRICE_CENTS.yearly / rateFcfaPerSc) },
-    { label: "Auto-Setup", sc: Math.ceil(autoSetupFeeCentsFor(false) / rateFcfaPerSc) },
-  ];
-
   return (
-    <section className="relative overflow-hidden border border-line bg-paper shadow-[6px_6px_0_var(--line)]">
-      <div className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-brand/20 blur-3xl" aria-hidden="true" />
-      <div className="relative border-b border-line-soft bg-[#1c1917] p-5 text-white sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-brand">
-              <Coins className="h-5 w-5" aria-hidden="true" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.22em]">SafeLinkHub · crédit interne</span>
-            </div>
-            <h2 className="mt-2 text-xl font-semibold">Solde Safecoin</h2>
-            <p className="mt-1 text-sm text-white/65">Le carburant du VPN et de l&apos;Auto-Setup.</p>
-          </div>
-          <div className="rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white/80">
-            1 SC = {rateFcfaPerSc.toLocaleString("fr-FR")} FCFA
-          </div>
+    /* Même carte que le portefeuille FCFA : solde, bouton, journal. Le bandeau
+       noir d'avant faisait passer un second portefeuille pour un autre produit. */
+    <section className="rounded-xl border border-line bg-paper p-4 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-soft">
+            <Coins className="h-3.5 w-3.5" aria-hidden="true" /> Solde Safecoin
+          </h2>
+          <p className="mt-1 font-display text-3xl font-bold tabular-nums text-ink">
+            {formatSc(balanceScCents)}
+          </p>
+          <p className="mt-1 text-sm text-ink-soft">
+            L&apos;autre façon de payer les accès VPN et les Auto-Setup.
+          </p>
         </div>
-        <div className="mt-7 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-4xl font-bold tracking-tight text-brand">{formatSc(balanceScCents)}</p>
-            <p className="mt-1 text-sm text-white/60">≈ {fcfaValue.toLocaleString("fr-FR")} FCFA/XOF</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-bold text-[#1c1917] transition-transform hover:-translate-y-0.5"
-          >
-            <ArrowDownToLine className="h-4 w-4" aria-hidden="true" /> Ajouter des SC
-          </button>
-        </div>
+        <button type="button" onClick={() => setOpen(true)} className={BOUTON_SOLDE}>
+          <ArrowDownToLine className="h-4 w-4" aria-hidden="true" /> Ajouter des SC
+        </button>
       </div>
 
-      <div className="relative grid gap-3 p-5 sm:grid-cols-3 sm:p-6">
-        {plans.map((plan) => (
-          <div key={plan.label} className="border border-line-soft bg-clay/50 p-3 rounded-xl">
-            <p className="text-xs text-ink-soft">{plan.label}</p>
-            <p className="mt-1 text-lg font-bold text-ink">{plan.sc} SC</p>
-            <p className="text-[11px] text-ink-soft">prix catalogue</p>
-          </div>
-        ))}
-      </div>
+      <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-ink-soft">
+        <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-ok" aria-hidden="true" />
+        <span>
+          1 SC = {rateFcfaPerSc.toLocaleString("fr-FR")} FCFA — ce solde vaut ≈{" "}
+          {fcfaValue.toLocaleString("fr-FR")} FCFA. Crédit interne, non retirable et non
+          transférable.
+        </span>
+      </p>
 
-      <div className="relative border-t border-line-soft px-5 py-4 sm:px-6">
+      <div className="mt-6 border-t border-line-soft pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-ok" aria-hidden="true" />
-            <p className="text-xs text-ink-soft">Crédit interne, non retirable et non transférable.</p>
-          </div>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Mouvements</h3>
           <div className="flex items-center gap-2">
             {cleanableCount > 0 && (
               <button
@@ -191,14 +169,13 @@ export default function SafecoinWalletCard({
                 Nettoyer les échouées / en attente ({cleanableCount})
               </button>
             )}
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">Journal récent</span>
           </div>
         </div>
         <div className="mt-3 space-y-2">
           {entries.length === 0 ? (
-            <p className="border border-dashed border-line-soft px-3 py-4 text-center text-sm text-ink-soft">Aucune opération Safecoin pour le moment.</p>
+            <p className="rounded-lg border border-dashed border-line-soft px-3 py-6 text-center text-sm text-ink-soft">Aucune opération Safecoin pour le moment.</p>
           ) : entries.slice(0, 8).map((entry) => (
-            <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 border border-line-soft px-3 py-2.5 text-sm">
+            <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line-soft px-3 py-2.5 text-sm">
               <div className="flex items-center gap-2">
                 <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${entryTone(entry)}`}>{entryLabel(entry)}</span>
                 <span className="text-xs text-ink-soft">{formatDate(new Date(entry.createdAt))}</span>
