@@ -5,31 +5,30 @@ import { getSession } from "@/lib/auth/session";
 import CreatePackageModal from "./CreatePackageModal";
 import StatusToggle from "./StatusToggle";
 import PriceEditor from "./PriceEditor";
+import { grouperForfaits, libelleDuree, type ZoneCatalogue } from "./package-ladder";
 
-function formatUgx(value: number) {
-  return `FCFA ${value.toLocaleString("en-US")}`;
+function formatFcfa(value: number) {
+  return `FCFA ${value.toLocaleString("fr-FR")}`;
 }
 
-function formatDuration(value: number, unit: string) {
-  const suffix =
-    unit === "Minutes"
-      ? "Min"
-      : unit === "Hours"
-        ? "H"
-        : unit === "Days"
-          ? "J"
-          : unit === "Months"
-            ? "Mois"
-            : "Sem";
-  return `${value} ${suffix}`;
+/** Ce qui est vrai pour TOUS les forfaits d'une zone se dit une fois, en tête
+ *  de zone : répété sur chaque ligne, « 5M/5M » et « FCFA 0 » occupaient deux
+ *  colonnes entières sans jamais rien distinguer. */
+function reglesCommunes(zone: ZoneCatalogue): string {
+  const parts: string[] = [];
+  if (zone.debitCommun) parts.push(`Débit ${zone.debitCommun}`);
+  if (zone.commissionCommune === 0) parts.push("sans commission agent");
+  else if (zone.commissionCommune !== null)
+    parts.push(`commission agent ${formatFcfa(zone.commissionCommune)}`);
+  return parts.join(" · ");
 }
 
 export default async function PackagesPage() {
   const session = await getSession();
   const db = getDb();
 
-  // Forfaits + nom du routeur rattaché (badge de zone). Left join : les
-  // forfaits globaux (routerId null) restent listés, sans badge.
+  // Forfaits + nom du routeur rattaché. Left join : les forfaits globaux
+  // (routerId null) restent listés, dans leur propre groupe.
   const orgPackages = session
     ? await db
         .select({
@@ -60,13 +59,18 @@ export default async function PackagesPage() {
         .orderBy(asc(routers.name))
     : [];
 
+  const zones = grouperForfaits(orgPackages);
+  const inactifs = orgPackages.filter((p) => !p.active).length;
+
   return (
     <div className="animate-fade-in-up">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Gérer les forfaits</h1>
+          <h1 className="font-display text-2xl font-bold text-ink">Forfaits</h1>
           <p className="mt-1 text-sm text-ink-soft">
-            Créez et gérez vos forfaits Hotspot et abonnements PPPoE.
+            {orgPackages.length === 0
+              ? "Ce que le client achète au portail : un prix, une durée, un débit."
+              : `${orgPackages.length} forfait${orgPackages.length > 1 ? "s" : ""} sur ${zones.length} zone${zones.length > 1 ? "s" : ""}${inactifs > 0 ? ` · ${inactifs} désactivé${inactifs > 1 ? "s" : ""}` : ""}.`}
           </p>
         </div>
         <CreatePackageModal routers={orgRouters} />
@@ -86,89 +90,69 @@ export default async function PackagesPage() {
           </p>
         </div>
       ) : (
-      <div className="mt-6 overflow-hidden rounded-xl border border-line bg-paper">
-        {/* Cartes sous md : huit colonnes ne tiennent pas dans un téléphone,
-            et le défilement latéral séparait le prix de son forfait. */}
-        <ul role="list" className="divide-y divide-line-soft md:hidden">
-          {orgPackages.map((p) => (
-            <li key={`m-${p.id}`} className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-medium text-ink">{p.name}</p>
-                  <p className="mt-0.5 text-xs text-ink-soft">
-                    {p.routerName ?? "Tous les routeurs"} · {formatDuration(p.durationValue, p.durationUnit)}
+        /* Une carte par zone, et dans la carte l'échelle des durées du plus
+           court au plus long. La zone n'est plus une pastille recopiée sur
+           chaque ligne : c'est le titre de ce qu'on lit. */
+        <div className="mt-6 space-y-4">
+          {zones.map((zone) => {
+            const regles = reglesCommunes(zone);
+            const zoneInactifs = zone.forfaits.filter((f) => !f.active).length;
+            return (
+              <section
+                key={zone.cle}
+                className="overflow-hidden rounded-xl border border-line bg-paper"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line-soft px-4 py-3">
+                  <h2 className="font-display text-base font-bold text-ink">{zone.nom}</h2>
+                  <p className="text-xs text-ink-soft">
+                    {zone.forfaits.length} forfait{zone.forfaits.length > 1 ? "s" : ""}
+                    {zoneInactifs > 0 ? ` · ${zoneInactifs} désactivé${zoneInactifs > 1 ? "s" : ""}` : ""}
+                    {regles ? ` · ${regles}` : ""}
                   </p>
                 </div>
-                <StatusToggle packageId={p.id} active={p.active} />
-              </div>
-              <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs">
-                <div className="flex gap-1.5">
-                  <dt className="text-ink-soft">Prix</dt>
-                  <dd className="font-semibold tabular-nums text-ink">{formatUgx(p.priceCents)}</dd>
-                </div>
-                <div className="flex gap-1.5">
-                  <dt className="text-ink-soft">Commission</dt>
-                  <dd className="tabular-nums text-ink">{formatUgx(p.commissionCents)}</dd>
-                </div>
-                <div className="flex gap-1.5">
-                  <dt className="text-ink-soft">Débit</dt>
-                  <dd className="tabular-nums text-ink">{p.uploadMbps}M/{p.downloadMbps}M</dd>
-                </div>
-              </dl>
-            </li>
-          ))}
-        </ul>
 
-        <table className="hidden w-full text-left text-sm md:table">
-          <thead className="border-b border-line-soft bg-clay text-ink-soft">
-            <tr>
-              <th className="px-4 py-3 font-medium">Nom du forfait</th>
-              <th className="px-4 py-3 font-medium">Zone / Routeur</th>
-              <th className="px-4 py-3 text-right font-medium">Prix</th>
-              <th className="px-4 py-3 font-medium">Durée</th>
-              <th className="px-4 py-3 text-right font-medium">Commission agent</th>
-              <th className="px-4 py-3 font-medium">Limite de débit</th>
-              <th className="px-4 py-3 font-medium">Statut</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line-soft">
-            {orgPackages.map((p) => (
-              <tr key={p.id} className="hover:bg-clay">
-                <td className="px-4 py-3 font-medium text-ink">{p.name}</td>
-                <td className="px-4 py-3">
-                  {p.routerName ? (
-                    <span className="inline-flex items-center rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand">
-                      {p.routerName}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center rounded-full bg-clay px-2.5 py-0.5 text-xs font-medium text-ink-soft">
-                      Tous les routeurs
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <PriceEditor packageId={p.id} priceCents={p.priceCents} formatted={formatUgx(p.priceCents)} />
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-ink-soft">
-                  {formatDuration(p.durationValue, p.durationUnit)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-ink-soft">
-                  {formatUgx(p.commissionCents)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink-soft">
-                  {p.uploadMbps}M/{p.downloadMbps}M
-                </td>
-                <td className="px-4 py-3">
-                  <StatusToggle packageId={p.id} active={p.active} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="border-t border-line-soft px-4 py-3 text-xs text-ink-soft">
-          {orgPackages.length} forfait{orgPackages.length > 1 ? "s" : ""}.
-        </p>
-      </div>
+                <ul role="list" className="divide-y divide-line-soft">
+                  {zone.forfaits.map((f) => (
+                    <li key={f.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                      <div className="min-w-0 flex-1 basis-48">
+                        <p
+                          className={`font-medium ${f.active ? "text-ink" : "text-ink-soft"}`}
+                        >
+                          {f.name}
+                        </p>
+                        <p className="mt-0.5 text-xs text-ink-soft">
+                          {libelleDuree(f.durationValue, f.durationUnit)}
+                          {f.parJour !== null && ` · ≈ ${formatFcfa(f.parJour)}/jour`}
+                          {!zone.debitCommun && ` · ${f.uploadMbps ?? 0}M/${f.downloadMbps ?? 0}M`}
+                          {zone.commissionCommune === null &&
+                            ` · commission ${formatFcfa(f.commissionCents)}`}
+                          {!f.active && " · désactivé"}
+                        </p>
+                        {/* Une grille saine coûte de moins en moins cher par jour
+                            à mesure que la durée s'allonge. Quand ce n'est pas le
+                            cas, le palier ne se vendra pas — et rien, dans un
+                            tableau de prix bruts, ne le faisait voir. */}
+                        {f.inversion && (
+                          <p className="mt-1 text-xs font-medium text-warn">
+                            Plus cher par jour que {f.inversionContre} — aucun intérêt à le prendre.
+                          </p>
+                        )}
+                      </div>
+                      <div className="ml-auto text-right text-base font-semibold tabular-nums text-ink">
+                        <PriceEditor
+                          packageId={f.id}
+                          priceCents={f.priceCents}
+                          formatted={formatFcfa(f.priceCents)}
+                        />
+                      </div>
+                      <StatusToggle packageId={f.id} active={f.active} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
       )}
     </div>
   );
