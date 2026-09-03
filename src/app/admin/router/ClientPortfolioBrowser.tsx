@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, X, Building2, Router as RouterIcon, Wifi, WifiOff, SlidersHorizontal } from "lucide-react";
+import { Search, X, Building2, Router as RouterIcon, Wifi, WifiOff, SlidersHorizontal, LayoutGrid, List } from "lucide-react";
 import { ClientPortfolioGrid } from "./ClientPortfolioGrid";
+import { ClientPortfolioList } from "./ClientPortfolioList";
 import {
   filterAndSortClients,
   summarizePortfolios,
@@ -26,9 +27,14 @@ export function ClientPortfolioBrowser({
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<PortfolioSort>("name");
+  const [onlyOffline, setOnlyOffline] = useState(false);
+  const [view, setView] = useState<"cards" | "list">("cards");
 
   const summary = useMemo(() => summarizePortfolios(clients), [clients]);
-  const visible = useMemo(() => filterAndSortClients(clients, query, sort), [clients, query, sort]);
+  const visible = useMemo(
+    () => filterAndSortClients(clients, query, sort, { onlyOffline }),
+    [clients, query, sort, onlyOffline],
+  );
 
   // Grille vide « de base » (aucun client du tout) : on laisse la grille rendre
   // son propre état vide traduit. La recherche sans résultat a son état à elle.
@@ -89,6 +95,51 @@ export function ClientPortfolioBrowser({
             <option value="offline">{t.sortOffline}</option>
           </select>
         </label>
+
+        {/* Filtre rapide « à traiter » */}
+        <button
+          type="button"
+          aria-pressed={onlyOffline}
+          onClick={() => setOnlyOffline((v) => !v)}
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
+            onlyOffline
+              ? "border-err bg-err text-white"
+              : "border-line bg-paper text-ink hover:bg-clay"
+          }`}
+        >
+          <WifiOff aria-hidden="true" className="h-4 w-4" />
+          {t.filterOffline}
+        </button>
+
+        {/* Bascule cartes / liste */}
+        <div className="inline-flex shrink-0 overflow-hidden rounded-full border border-line" role="group">
+          <button
+            type="button"
+            aria-pressed={view === "cards"}
+            onClick={() => setView("cards")}
+            title={t.viewCards}
+            aria-label={t.viewCards}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold ${
+              view === "cards" ? "bg-brand text-slate-deep" : "bg-paper text-ink hover:bg-clay"
+            }`}
+          >
+            <LayoutGrid aria-hidden="true" className="h-4 w-4" />
+            <span className="hidden sm:inline">{t.viewCards}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={view === "list"}
+            onClick={() => setView("list")}
+            title={t.viewList}
+            aria-label={t.viewList}
+            className={`flex items-center gap-1.5 border-l border-line px-3 py-2 text-sm font-semibold ${
+              view === "list" ? "bg-brand text-slate-deep" : "bg-paper text-ink hover:bg-clay"
+            }`}
+          >
+            <List aria-hidden="true" className="h-4 w-4" />
+            <span className="hidden sm:inline">{t.viewList}</span>
+          </button>
+        </div>
       </div>
 
       <p className="mt-3 text-xs font-medium uppercase tracking-wide text-ink-soft" aria-live="polite">
@@ -111,6 +162,8 @@ export function ClientPortfolioBrowser({
               {t.clearSearch}
             </button>
           </section>
+        ) : view === "list" ? (
+          <ClientPortfolioList clients={visible} t={t} />
         ) : (
           <ClientPortfolioGrid clients={visible} t={t} />
         )}

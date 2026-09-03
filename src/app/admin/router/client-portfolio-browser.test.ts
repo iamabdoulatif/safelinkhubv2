@@ -69,3 +69,17 @@ describe("résumé agrégé", () => {
     });
   });
 });
+
+describe("filtre rapide « avec routeurs hors ligne »", () => {
+  it("ne garde que les organisations à routeur hors ligne", () => {
+    const r = filterAndSortClients(clients, "", "name", { onlyOffline: true });
+    assert.deepEqual(r.map((c) => c.name), ["Nébié-Services"]);
+  });
+  it("se combine avec la recherche", () => {
+    // « akr » n'a pas de hors-ligne → filtre offline vide le résultat.
+    assert.equal(filterAndSortClients(clients, "akr", "name", { onlyOffline: true }).length, 0);
+  });
+  it("désactivé = comportement inchangé", () => {
+    assert.equal(filterAndSortClients(clients, "", "name", { onlyOffline: false }).length, 3);
+  });
+});

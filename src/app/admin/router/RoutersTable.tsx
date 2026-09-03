@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, Link2, Lock, Router as RouterIcon, Save, Search } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
+import RouterLockButton from "@/components/RouterLockButton";
 import SyncAllButton from "./SyncAllButton";
 import UnbindMacTicketsButton from "./UnbindMacTicketsButton";
 import TicketExpiryFleetButton from "./TicketExpiryFleetButton";
@@ -93,6 +94,8 @@ type RoutersTableProps = {
   backHref?: string;
   backLabel?: string;
   showFleetActions?: boolean;
+  /** Superadmin : affiche le kill-switch (verrouiller/déverrouiller) par ligne. */
+  canLock?: boolean;
   t: RouterDictionary;
   locale: Locale;
 };
@@ -105,6 +108,7 @@ export default function RoutersTable({
   backHref,
   backLabel,
   showFleetActions = true,
+  canLock = false,
   t,
 }: RoutersTableProps) {
   const router = useRouter();
@@ -333,7 +337,10 @@ export default function RoutersTable({
                     {table.details}
                     <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
                   </Link>
-                  <RouterRowActions routerId={r.id} routerName={r.name} t={actions} />
+                  <div className="flex items-center gap-2">
+                    {canLock && <RouterLockButton routerId={r.id} locked={Boolean(r.locked)} />}
+                    <RouterRowActions routerId={r.id} routerName={r.name} t={actions} />
+                  </div>
                 </div>
               </li>
             ))}
@@ -396,6 +403,7 @@ export default function RoutersTable({
                           {table.details}
                           <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
                         </Link>
+                        {canLock && <RouterLockButton routerId={r.id} locked={Boolean(r.locked)} />}
                         <RouterRowActions routerId={r.id} routerName={r.name} t={actions} />
                       </div>
                     </td>

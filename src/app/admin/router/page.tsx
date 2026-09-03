@@ -152,6 +152,7 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
             title={t.page.ownFleet}
             description={t.page.fleetDescription}
             headingLevel="h2"
+            canLock={superadmin}
             t={t}
             locale={locale}
           />
@@ -166,6 +167,7 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
             backHref="/admin/router?scope=clients"
             backLabel={t.page.backToClientFleets}
             showFleetActions={false}
+            canLock={superadmin}
             t={t}
             locale={locale}
           />

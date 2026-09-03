@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, Router, Users } from "lucide-react";
 import { isConfiguringRouter } from "../router/router-portfolio";
-import RouterLockButton from "./RouterLockButton";
+import RouterLockButton from "@/components/RouterLockButton";
 import type { OrganizationFocus } from "./organization-focus";
 
 type OrganizationFocusPanelProps = {

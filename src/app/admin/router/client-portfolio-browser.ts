@@ -44,9 +44,13 @@ export function filterAndSortClients(
   clients: ClientPortfolio[],
   query: string,
   sort: PortfolioSort,
+  opts: { onlyOffline?: boolean } = {},
 ): ClientPortfolio[] {
   const q = normalizeSearch(query);
-  const filtered = q ? clients.filter((c) => normalizeSearch(c.name).includes(q)) : clients.slice();
+  let filtered = q ? clients.filter((c) => normalizeSearch(c.name).includes(q)) : clients.slice();
+  // Filtre rapide « à traiter » : ne garde que les organisations qui ont au
+  // moins un routeur hors ligne.
+  if (opts.onlyOffline) filtered = filtered.filter((c) => c.routerCounts.offline > 0);
 
   const byName = (a: ClientPortfolio, b: ClientPortfolio) =>
     a.name.localeCompare(b.name, "fr", { sensitivity: "base" });

@@ -188,6 +188,10 @@ export const adminEn: AdminDictionary = {
         summaryRouters: "Routers",
         summaryOnline: "Online",
         summaryOffline: "Offline",
+        filterOffline: "With offline routers",
+        viewCards: "Cards",
+        viewList: "List",
+        colActions: "Actions",
       },
       table: {
         title: "MikroTik routers",

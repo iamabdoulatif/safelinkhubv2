@@ -197,6 +197,10 @@ export const adminFr = {
         summaryRouters: "Routeurs",
         summaryOnline: "En ligne",
         summaryOffline: "Hors ligne",
+        filterOffline: "Avec routeurs hors ligne",
+        viewCards: "Cartes",
+        viewList: "Liste",
+        colActions: "Actions",
       },
       table: {
         title: "Routeurs MikroTik",
