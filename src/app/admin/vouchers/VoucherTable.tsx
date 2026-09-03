@@ -32,6 +32,8 @@ export type VoucherRow = {
   expiresOn: string;
   /** true = pas encore d'horloge démarrée (durée affichée, pas une date). */
   expiresPending: boolean;
+  /** Date d'expiration en ms (null si en attente/inconnue) — pour le repère relatif. */
+  expiresAtMs: number | null;
   useCase: string;
   note: string;
   deletedOn: string;
@@ -42,6 +44,20 @@ type View = "active" | "trash";
 type ActionMessage =
   | { kind: "success"; text: string; undoIds?: string[] }
   | { kind: "error"; text: string };
+
+/** Repère relatif « dans N j » / « aujourd'hui » / « expiré », en jours calendaires.
+ *  tone colore l'échéance proche (warn) ou dépassée (err). */
+export function relativeExpiry(ms: number): { text: string; tone: "past" | "soon" | "normal" } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const exp = new Date(ms);
+  exp.setHours(0, 0, 0, 0);
+  const days = Math.round((exp.getTime() - today.getTime()) / 86_400_000);
+  if (days < 0) return { text: days === -1 ? "expiré hier" : `expiré (${-days} j)`, tone: "past" };
+  if (days === 0) return { text: "expire aujourd'hui", tone: "soon" };
+  if (days === 1) return { text: "demain", tone: "soon" };
+  return { text: `dans ${days} j`, tone: days <= 2 ? "soon" : "normal" };
+}
 
 /** Carte KPI posée : label discret, grand nombre tabulaire, ligne de contexte.
  *  `tone` "lead" ajoute un liseré lime sur la métrique qui compte. */
@@ -449,7 +465,22 @@ export default function VoucherTable({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-ink-soft">
-                    {voucher.expiresPending ? <em>{voucher.expiresOn}</em> : voucher.expiresOn}
+                    {voucher.expiresPending ? (
+                      <em>{voucher.expiresOn}</em>
+                    ) : (
+                      <>
+                        <span className="text-ink">{voucher.expiresOn}</span>
+                        {voucher.expiresAtMs !== null && (() => {
+                          const rel = relativeExpiry(voucher.expiresAtMs);
+                          const tone = rel.tone === "past" ? "text-err" : rel.tone === "soon" ? "text-warn" : "text-ink-soft";
+                          return (
+                            <span suppressHydrationWarning className={`mt-0.5 block text-xs ${tone}`}>
+                              {rel.text}
+                            </span>
+                          );
+                        })()}
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center rounded-full border border-line-soft bg-paper px-2.5 py-1 text-xs font-medium text-ink-soft">

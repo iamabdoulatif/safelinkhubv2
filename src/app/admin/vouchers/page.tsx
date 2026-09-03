@@ -184,6 +184,7 @@ export default async function VouchersPage() {
       firstLogin: formatDate(v.firstLoginAt),
       expiresOn,
       expiresPending,
+      expiresAtMs: expiry.kind === "date" ? expiry.date.getTime() : null,
       useCase: v.useCase,
       note: v.note ?? "—",
       deletedOn: formatDate(v.deletedAt),
