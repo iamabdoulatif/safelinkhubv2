@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X, Building2, Router as RouterIcon, Wifi, WifiOff, SlidersHorizontal, LayoutGrid, List } from "lucide-react";
 import { ClientPortfolioGrid } from "./ClientPortfolioGrid";
 import { ClientPortfolioList } from "./ClientPortfolioList";
@@ -25,10 +26,39 @@ export function ClientPortfolioBrowser({
   clients: ClientPortfolio[];
   t: RouterDictionary["clients"];
 }) {
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<PortfolioSort>("name");
-  const [onlyOffline, setOnlyOffline] = useState(false);
-  const [view, setView] = useState<"cards" | "list">("cards");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const initialSort = ((): PortfolioSort => {
+    const s = searchParams.get("sort");
+    return s === "routers" || s === "offline" ? s : "name";
+  })();
+
+  const [query, setQuery] = useState(searchParams.get("q") ?? "");
+  const [sort, setSort] = useState<PortfolioSort>(initialSort);
+  const [onlyOffline, setOnlyOffline] = useState(searchParams.get("offline") === "1");
+  const [view, setView] = useState<"cards" | "list">(searchParams.get("view") === "list" ? "list" : "cards");
+
+  // Persiste l'état dans l'URL : un lien partagé, un rafraîchissement ou un
+  // retour arrière retrouvent la même recherche / vue / filtre. On PART des
+  // params courants (on garde scope, org…) et on ne touche qu'aux nôtres.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    const setOrDelete = (key: string, value: string | null) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    };
+    setOrDelete("q", query.trim() || null);
+    setOrDelete("sort", sort === "name" ? null : sort);
+    setOrDelete("offline", onlyOffline ? "1" : null);
+    setOrDelete("view", view === "list" ? "list" : null);
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    }
+  }, [query, sort, onlyOffline, view, pathname, router, searchParams]);
 
   const summary = useMemo(() => summarizePortfolios(clients), [clients]);
   const visible = useMemo(
