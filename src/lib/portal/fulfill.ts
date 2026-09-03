@@ -8,7 +8,7 @@ import { and, desc, eq, gte, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { portalOrders, packages, routers, voucherRouters, vouchers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
-import { sendOrgSms } from "@/lib/sms/send";
+import { isOrgSmsEnabled, sendOrgSms } from "@/lib/sms/send";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
 import { voucherProfileForPackage } from "@/lib/mikrotik/package-voucher-profile";
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
@@ -480,6 +480,16 @@ export async function sendPortalTicketSms(
   const code = await codeForOrder(db, order.voucherId);
   if (!code) return { ok: false, smsSent: false, error: "Code introuvable." };
   if (order.smsStatus === "sent") return { ok: true, smsSent: true };
+  /* Bouton « Recevoir par SMS » alors que la passerelle est décochée : on le
+     DIT, au lieu de renvoyer un échec muet que l'acheteur relancerait en
+     boucle. Son code reste affiché à l'écran, c'est la bonne réponse. */
+  if (!(await isOrgSmsEnabled(order.orgId))) {
+    return {
+      ok: false,
+      smsSent: false,
+      error: "L'envoi par SMS est désactivé sur ce point de vente. Votre code reste affiché à l'écran.",
+    };
+  }
   const smsSent = await trySendPortalSms(db, order, code);
   return { ok: smsSent, smsSent };
 }
@@ -509,6 +519,13 @@ async function trySendPortalSms(
   order: typeof portalOrders.$inferSelect,
   code: string,
 ): Promise<boolean> {
+  /* Passerelle décochée dans les réglages : on ne tente RIEN. Sans cette
+     sortie, chaque commande ouvrait une tentative, s'inscrivait en « échec
+     d'envoi » et repassait devant le cron de reprise toutes les minutes — un
+     journal d'erreurs pour un envoi que l'opérateur a délibérément coupé. Le
+     client, lui, voit son code à l'écran (repli du portail). */
+  if (!(await isOrgSmsEnabled(order.orgId))) return false;
+
   if (
     !shouldAttemptPortalSms({
       status: order.smsStatus,

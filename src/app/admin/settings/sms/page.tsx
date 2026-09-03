@@ -33,11 +33,31 @@ export default async function SmsSettingsPage() {
         })}
       </div>
 
-      <p className="mt-6 rounded-md bg-clay px-4 py-3 text-xs text-ink-soft">
-        Les clés sont chiffrées au repos. Une fois la passerelle activée et la clé
-        enregistrée, utilisez le bouton « Tester » pour envoyer un vrai SMS via
-        l&apos;API Wassoya et vérifier vos identifiants.
-      </p>
+      {/* Ce que « Activée » change VRAIMENT, écrit noir sur blanc : sans cette
+          phrase, décocher la case ressemble à une panne, alors que c'est un
+          mode de vente à part entière. */}
+      <div className="mt-6 space-y-3 rounded-md bg-clay px-4 py-3 text-xs leading-5 text-ink-soft">
+        <p>
+          <strong className="font-semibold text-ink">Passerelle activée :</strong> le portail
+          demande un code par SMS avant le paiement, et le code du ticket part par SMS après
+          l&apos;achat.
+        </p>
+        <p>
+          <strong className="font-semibold text-ink">Passerelle décochée :</strong> plus aucune
+          vérification par SMS — le client saisit son numéro et passe directement au paiement,
+          puis son code d&apos;accès s&apos;affiche à l&apos;écran. Aucun SMS n&apos;est envoyé,
+          donc rien n&apos;est facturé.
+        </p>
+        <p>
+          <strong className="font-semibold text-ink">Crédit SMS épuisé</strong> alors que la
+          passerelle est activée : la vente n&apos;est jamais bloquée. Le portail bascule tout
+          seul sur le code à l&apos;écran, exactement comme ci-dessus.
+        </p>
+        <p>
+          Les clés sont chiffrées au repos. Après activation, le bouton « Tester » envoie un vrai
+          SMS via l&apos;API Wassoya pour vérifier vos identifiants.
+        </p>
+      </div>
     </div>
   );
 }

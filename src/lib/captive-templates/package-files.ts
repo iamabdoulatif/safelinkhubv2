@@ -673,12 +673,14 @@ const PORTAL_PAY_SCRIPT = `(function(){
           primary.disabled = false;
           if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Envoi impossible.");
           if(res.j.status === "verified"){ setStatus(""); show("pay"); return; }
-          // Credit SMS du point de vente epuise (ou passerelle en panne) : le
-          // serveur autorise la vente sans verification -> on saute l etape
-          // code et le ticket s affichera a l ecran apres le paiement.
+          // Pas de verification par SMS possible : soit le point de vente l a
+          // desactivee, soit son credit SMS est epuise. Dans les deux cas le
+          // serveur autorise la vente -> on saute l etape code et le ticket s
+          // affiche a l ecran apres le paiement. (Le message ne dit plus
+          // "momentanement" : c est faux quand la passerelle est coupee expres.)
           if(res.j.status === "sms_unavailable"){
             var note = document.getElementById("slh-pay-note");
-            if(note) note.textContent = "Vérification SMS momentanément indisponible. Payez normalement : votre code d'accès s'affichera à l'écran après le paiement.";
+            if(note) note.textContent = "Payez normalement : votre code d'accès s'affichera à l'écran juste après le paiement.";
             setStatus(""); show("pay"); return;
           }
           var to = document.getElementById("slh-otp-to"); if(to) to.textContent = res.j.to || "";

@@ -103,7 +103,7 @@ export default function PurchaseFlow({
          installé sur les routeurs traitait déjà ce statut ; cette page-ci, non. */
       if (data.status === "sms_unavailable") {
         setNotice(
-          "Vérification par SMS momentanément indisponible. Payez normalement : votre code d’accès s’affichera à l’écran après le paiement.",
+          "Payez normalement : votre code d’accès s’affichera à l’écran juste après le paiement.",
         );
         await initiatePurchase();
         return;

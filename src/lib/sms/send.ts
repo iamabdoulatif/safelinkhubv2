@@ -10,10 +10,36 @@ import { decryptSecret } from "@/lib/mikrotik/crypto";
 import { sendWassoyaSms, type SendSmsResult } from "./wassoya";
 
 // `notConfigured` distingue « l'org n'a pas de passerelle SMS utilisable »
-// (config absente → vente au portail bloquée, décision produit) d'un échec
-// d'ENVOI sur une passerelle configurée (solde épuisé, API en panne) — cas où
-// le portail bascule en repli « code affiché à l'écran » au lieu de bloquer.
+// (décochée dans les réglages, ou clé absente) d'un échec d'ENVOI sur une
+// passerelle activée (crédit épuisé, API en panne). AUCUN des deux ne bloque
+// la vente au portail : les deux font sauter la vérification et affichent le
+// code à l'écran. La distinction sert à ne pas inscrire « échec » ni
+// programmer de reprise là où il n'y a rien à réessayer.
 export type OrgSmsResult = SendSmsResult & { notConfigured?: boolean };
+
+/**
+ * La passerelle SMS de l'org est-elle ACTIVÉE et utilisable ?
+ *
+ * Sert aux chemins qui doivent se comporter différemment quand l'opérateur a
+ * volontairement décoché la passerelle : ne pas ouvrir de tentative d'envoi,
+ * ne pas programmer de reprise, ne rien inscrire comme « échec » — il n'y a
+ * rien qui a échoué, l'envoi n'a simplement pas lieu d'être.
+ */
+export async function isOrgSmsEnabled(orgId: string): Promise<boolean> {
+  const db = getDb();
+  const [gateway] = await db
+    .select({ apiKeyEncrypted: smsGateways.apiKeyEncrypted })
+    .from(smsGateways)
+    .where(
+      and(
+        eq(smsGateways.orgId, orgId),
+        eq(smsGateways.provider, "wassoya"),
+        eq(smsGateways.enabled, true),
+      ),
+    )
+    .limit(1);
+  return Boolean(gateway?.apiKeyEncrypted);
+}
 
 /**
  * Envoie un SMS pour le compte d'une org.

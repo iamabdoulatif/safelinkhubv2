@@ -6,8 +6,9 @@
 // Décisions produit : (1) une vérification réussie est mémorisée SANS limite de
 // durée → un numéro déjà vérifié une fois renvoie {status:"verified"} sans
 // re-SMS, quel que soit l'ancienneté (seul un NOUVEAU numéro reçoit un code) ;
-// (2) une org sans passerelle Wassoya CONFIGURÉE ne peut pas vendre au portail,
-// mais un échec d'ENVOI (solde épuisé…) bascule en repli code-à-l'écran.
+// (2) quand le SMS ne peut pas partir — passerelle décochée dans les réglages
+// OU crédit épuisé — la vérification est SAUTÉE et la vente continue : le code
+// s'affiche à l'écran après paiement.
 
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
@@ -100,19 +101,27 @@ export async function POST(
   });
 
   if (!sms.ok) {
-    console.warn("[portal:otp] envoi SMS impossible", { slug, error: sms.error });
-    // Passerelle absente/inutilisable : la vente reste bloquée (décision produit
-    // — une org sans SMS configuré ne vend pas au portail).
-    if (sms.notConfigured) {
-      return corsJson(
-        { error: "Verification par SMS indisponible. Contactez le point de vente." },
-        { status: 400 },
-      );
-    }
-    // Passerelle configurée mais envoi refusé (solde SMS épuisé, API en panne) :
-    // on ne bloque PAS la vente. Le numéro est marqué vérifié (la vérification
-    // par SMS est de toute façon impossible) → /initiate acceptera le paiement,
-    // et le code s'affichera à l'écran après paiement (repli du portail).
+    console.warn("[portal:otp] envoi SMS impossible", {
+      slug,
+      error: sms.error,
+      passerelleEteinte: Boolean(sms.notConfigured),
+    });
+    /* AUCUN de ces deux cas ne bloque la vente.
+     *
+     *   • passerelle DÉCOCHÉE dans les réglages (ou clé absente) : l'opérateur
+     *     a choisi de vendre sans vérification par SMS. Lui refuser la vente
+     *     serait lui désobéir.
+     *   • passerelle activée mais envoi refusé (crédit SMS épuisé, API en
+     *     panne) : une vérification impossible ne protège personne, tandis
+     *     qu'une vente perdue coûte, elle, tout de suite.
+     *
+     * Dans les deux cas le numéro est marqué vérifié — /initiate acceptera le
+     * paiement — et le code s'affichera à l'écran après paiement (repli déjà
+     * en place côté portail).
+     *
+     * MÊME STATUT `sms_unavailable` pour les deux : les portails DÉJÀ INSTALLÉS
+     * sur les routeurs savent le lire. Un statut neuf aurait obligé à
+     * réinstaller le portail sur tout le parc avant que la vente reparte. */
     await db
       .update(portalOtps)
       .set({ verifiedAt: new Date(now) })

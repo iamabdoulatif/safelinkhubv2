@@ -3,14 +3,19 @@ import { describe, it } from "node:test";
 import { readFile } from "node:fs/promises";
 
 /**
- * Crédit SMS épuisé : la vente doit continuer.
+ * SMS impossible : la vente doit continuer.
  *
- * Le serveur tranche déjà — il marque le numéro vérifié et répond
- * `sms_unavailable`, parce qu'une vérification impossible ne protège personne
- * et qu'une vente perdue, si. Encore faut-il que CHAQUE client sache lire ce
- * statut : celui qui l'ignore le fait tomber dans son cas d'erreur et bloque
- * l'acheteur, alors que le serveur venait de le laisser passer. C'est
- * exactement ce qui arrivait à la page /portal/purchase.
+ * DEUX causes, un seul comportement :
+ *   • le crédit SMS du point de vente est épuisé (ou l'API en panne) ;
+ *   • l'opérateur a DÉCOCHÉ la passerelle dans ses réglages — il vend
+ *     sciemment sans vérification par SMS.
+ *
+ * Le serveur marque le numéro vérifié et répond `sms_unavailable` dans les
+ * deux cas : une vérification impossible ne protège personne, une vente
+ * perdue coûte tout de suite, et refuser la vente à qui a coupé le SMS exprès
+ * serait lui désobéir. Encore faut-il que CHAQUE client sache lire ce statut :
+ * celui qui l'ignore le fait tomber dans son cas d'erreur et bloque
+ * l'acheteur, alors que le serveur venait de le laisser passer.
  */
 const lire = (chemin: string) => readFile(new URL(chemin, import.meta.url), "utf8");
 
@@ -21,9 +26,19 @@ describe("crédit SMS épuisé", () => {
     // Le numéro est marqué vérifié : sans cela, /initiate refuserait le paiement.
     assert.match(bloc, /verifiedAt: new Date\(now\)/, "le numéro n'est pas débloqué");
     assert.match(bloc, /status: "sms_unavailable"/);
-    /* Une passerelle NON CONFIGURÉE reste bloquante, elle : c'est une org qui
-       n'a jamais mis de SMS en place, pas un crédit tombé à zéro. */
-    assert.match(bloc, /sms\.notConfigured[\s\S]{0,200}status: 400/);
+    /* Et AUCUNE sortie en 400 : une passerelle décochée ne bloque plus la
+       vente. C'était l'ancienne règle ; elle punissait l'opérateur qui avait
+       volontairement coupé le SMS. */
+    assert.doesNotMatch(bloc, /status: 400/);
+  });
+
+  it("le SMS du ticket ne s'obstine pas quand la passerelle est décochée", async () => {
+    /* Sans cette sortie, chaque commande ouvrait une tentative d'envoi,
+       s'inscrivait en « échec » et repassait devant le cron de reprise toutes
+       les minutes — un journal d'erreurs pour un envoi délibérément coupé. */
+    const src = await lire("../portal/fulfill.ts");
+    const bloc = src.slice(src.indexOf("async function trySendPortalSms"));
+    assert.match(bloc.slice(0, 900), /isOrgSmsEnabled\(order\.orgId\)/);
   });
 
   it("les DEUX clients savent lire ce statut", async () => {
