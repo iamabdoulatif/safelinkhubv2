@@ -14,7 +14,10 @@ type PackageRow = {
 };
 
 function formatFcfa(cents: number) {
-  return `FCFA ${cents.toLocaleString("en-US")}`;
+  // fr-FR : espace insécable comme séparateur de milliers, comme partout
+  // ailleurs dans l'administration. En en-US, « 1,500 » se lit « 1,5 » pour un
+  // francophone — le pire malentendu possible sur un montant.
+  return `FCFA ${cents.toLocaleString("fr-FR")}`;
 }
 
 function formatDate(date: Date) {
@@ -187,6 +190,14 @@ export default function AgentList({
   packages: PackageRow[];
 }) {
   const [sellingFor, setSellingFor] = useState<AgentWithStats | null>(null);
+  const totaux = agents.reduce(
+    (a, agent) => ({
+      ventes: a.ventes + agent.salesCount,
+      revenu: a.revenu + agent.revenueCents,
+      commission: a.commission + agent.commissionCents,
+    }),
+    { ventes: 0, revenu: 0, commission: 0 },
+  );
 
   if (agents.length === 0) {
     return (
@@ -202,32 +213,72 @@ export default function AgentList({
 
   return (
     <>
-      <div className="mt-6 overflow-hidden border border-line bg-paper">
-        <div className="table-mobile-wrapper">
-        <table className="w-full text-left text-sm">
+      <div className="mt-6 overflow-hidden rounded-xl border border-line bg-paper">
+        {/* Cartes sous md. Dans la table, la colonne d'actions était la
+            DERNIÈRE : sur un téléphone, il fallait faire défiler jusqu'au bout
+            pour atteindre « Vendre » — l'action principale de cet écran. */}
+        <ul role="list" className="divide-y divide-line-soft md:hidden">
+          {agents.map((agent) => (
+            <li key={`m-${agent.id}`} className="p-4">
+              <p className="font-medium text-ink">{agent.name}</p>
+              <p className="text-xs text-ink-soft">{agent.email}</p>
+              <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs">
+                <div className="flex gap-1.5">
+                  <dt className="text-ink-soft">Ventes</dt>
+                  <dd className="font-semibold tabular-nums text-ink">{agent.salesCount}</dd>
+                </div>
+                <div className="flex gap-1.5">
+                  <dt className="text-ink-soft">Revenu</dt>
+                  <dd className="tabular-nums text-ink">{formatFcfa(agent.revenueCents)}</dd>
+                </div>
+                <div className="flex gap-1.5">
+                  <dt className="text-ink-soft">Commission due</dt>
+                  <dd className="font-semibold tabular-nums text-ink">{formatFcfa(agent.commissionCents)}</dd>
+                </div>
+              </dl>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSellingFor(agent)}
+                  className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white hover:bg-slate-deep-line"
+                >
+                  <Banknote className="h-4 w-4" />
+                  Vendre
+                </button>
+                <DeleteAgentButton agentId={agent.id} />
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <table className="hidden w-full text-left text-sm md:table">
           <thead className="border-b border-line-soft bg-clay text-ink-soft">
             <tr>
               <th className="px-4 py-3 font-medium">Agent</th>
-              <th className="px-4 py-3 font-medium">Ventes</th>
-              <th className="px-4 py-3 font-medium">Revenu généré</th>
-              <th className="px-4 py-3 font-medium">Commission due</th>
+              <th className="px-4 py-3 text-right font-medium">Ventes</th>
+              <th className="px-4 py-3 text-right font-medium">Revenu généré</th>
+              <th className="px-4 py-3 text-right font-medium">Commission due</th>
               <th className="px-4 py-3 font-medium">Depuis</th>
               <th className="px-4 py-3 font-medium" />
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
             {agents.map((agent) => (
-              <tr key={agent.id}>
+              <tr key={agent.id} className="hover:bg-clay">
                 <td className="px-4 py-3">
                   <p className="font-medium text-ink">{agent.name}</p>
                   <p className="text-xs text-ink-soft">{agent.email}</p>
                 </td>
-                <td className="px-4 py-3 text-ink-soft">{agent.salesCount}</td>
-                <td className="px-4 py-3 font-medium text-ok">
+                <td className="px-4 py-3 text-right tabular-nums text-ink">{agent.salesCount}</td>
+                {/* Tous les agents génèrent du revenu : le peindre en vert
+                    partout ne désigne personne. */}
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-ink">
                   {formatFcfa(agent.revenueCents)}
                 </td>
-                <td className="px-4 py-3 text-ink-soft">{formatFcfa(agent.commissionCents)}</td>
-                <td className="px-4 py-3 text-ink-soft">{formatDate(agent.createdAt)}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums text-ink">
+                  {formatFcfa(agent.commissionCents)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-ink-soft">{formatDate(agent.createdAt)}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <button
@@ -244,8 +295,22 @@ export default function AgentList({
               </tr>
             ))}
           </tbody>
+          {/* Ce qu'on vient chercher ici avant de payer la tournée : combien
+              est dû, au total. On l'additionnait à la main. */}
+          <tfoot className="border-t border-line bg-clay">
+            <tr className="font-semibold text-ink">
+              <td className="px-4 py-3">{agents.length} agent{agents.length > 1 ? "s" : ""}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{totaux.ventes}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatFcfa(totaux.revenu)}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatFcfa(totaux.commission)}</td>
+              <td className="px-4 py-3" colSpan={2} />
+            </tr>
+          </tfoot>
         </table>
-        </div>
+        <p className="border-t border-line-soft px-4 py-3 text-xs text-ink-soft md:hidden">
+          {agents.length} agent{agents.length > 1 ? "s" : ""} · {formatFcfa(totaux.commission)} de
+          commission due au total.
+        </p>
       </div>
 
       {sellingFor && (

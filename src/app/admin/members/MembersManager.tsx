@@ -117,13 +117,16 @@ export default function MembersManager({
           <Shield className="h-4 w-4 text-brand-deep" />
           Membres du compte
         </h2>
-        <div className="table-mobile-wrapper">
+        {/* Pas de `table-mobile-wrapper` ici : trois colonnes tiennent dans un
+            téléphone. Le wrapper leur imposait 640 px de large et un
+            défilement latéral pour rien — il cachait la colonne d'action. */}
+        <div className="overflow-hidden">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line-soft bg-clay text-xs uppercase tracking-wider text-ink-soft">
               <tr>
-                <th className="px-5 py-2.5 font-semibold">Personne</th>
-                <th className="px-5 py-2.5 font-semibold">Rôle</th>
-                <th className="px-5 py-2.5 text-right font-semibold">Action</th>
+                <th className="px-4 py-2.5 font-semibold sm:px-5">Personne</th>
+                <th className="px-4 py-2.5 font-semibold sm:px-5">Rôle</th>
+                <th className="px-4 py-2.5 text-right font-semibold sm:px-5">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line-soft">
@@ -131,14 +134,14 @@ export default function MembersManager({
                 const moi = m.id === moiId;
                 return (
                   <tr key={m.id}>
-                    <td className="px-5 py-3">
+                    <td className="px-4 py-3 sm:px-5">
                       <p className="font-medium text-ink">
                         {m.name}
                         {moi && <span className="ml-2 text-xs text-ink-soft">(vous)</span>}
                       </p>
-                      <p className="font-mono text-xs text-ink-soft">{m.email}</p>
+                      <p className="break-all font-mono text-xs text-ink-soft">{m.email}</p>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-4 py-3 sm:px-5">
                       {moi || m.role === "superadmin" ? (
                         <span className="text-ink">{roleLabel(m.role)}</span>
                       ) : (
@@ -151,7 +154,7 @@ export default function MembersManager({
                             fd.set("role", e.target.value);
                             agir(changeMemberRole, fd);
                           }}
-                          className="rounded-md border border-line-soft bg-paper px-2 py-1 text-sm text-ink"
+                          className="min-h-11 rounded-md border border-line-soft bg-paper px-2 py-1 text-sm text-ink sm:min-h-0"
                         >
                           {ROLES.map((r) => (
                             <option key={r.id} value={r.id}>
@@ -161,7 +164,7 @@ export default function MembersManager({
                         </select>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-right">
+                    <td className="px-4 py-3 text-right sm:px-5">
                       {!moi && m.role !== "superadmin" && (
                         <button
                           type="button"
@@ -173,7 +176,7 @@ export default function MembersManager({
                             fd.set("userId", m.id);
                             agir(removeMember, fd);
                           }}
-                          className="rounded-md border border-line-soft p-1.5 text-ink-soft transition hover:border-err hover:text-err disabled:opacity-50"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-line-soft text-ink-soft transition hover:border-err hover:text-err disabled:opacity-50 sm:h-9 sm:w-9"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
