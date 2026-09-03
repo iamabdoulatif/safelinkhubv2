@@ -100,3 +100,15 @@ test("ce qui est identique partout se dit une fois : débit et commission", () =
   assert.equal(mixte.debitCommun, null);
   assert.equal(mixte.commissionCommune, null);
 });
+
+test("l'alerte porte le prix qui rétablit la grille", () => {
+  const [zone] = grouperForfaits([
+    forfait({ name: "10-JOURS", durationValue: 10, durationUnit: "Days", priceCents: 1000 }),
+    forfait({ name: "02-SEMAINES", durationValue: 2, durationUnit: "Weeks", priceCents: 1500 }),
+  ]);
+  const deuxSemaines = zone.forfaits[1];
+  assert.equal(deuxSemaines.inversion, true);
+  // 100 F/jour × 14 jours = 1 400 : au-dessus, le client paie sa fidélité.
+  assert.equal(deuxSemaines.prixMax, 1400);
+  assert.equal(zone.forfaits[0].prixMax, null);
+});

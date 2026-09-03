@@ -3,25 +3,8 @@ import { getDb } from "@/lib/db";
 import { packages, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import CreatePackageModal from "./CreatePackageModal";
-import StatusToggle from "./StatusToggle";
-import PriceEditor from "./PriceEditor";
-import { grouperForfaits, libelleDuree, type ZoneCatalogue } from "./package-ladder";
-
-function formatFcfa(value: number) {
-  return `FCFA ${value.toLocaleString("fr-FR")}`;
-}
-
-/** Ce qui est vrai pour TOUS les forfaits d'une zone se dit une fois, en tête
- *  de zone : répété sur chaque ligne, « 5M/5M » et « FCFA 0 » occupaient deux
- *  colonnes entières sans jamais rien distinguer. */
-function reglesCommunes(zone: ZoneCatalogue): string {
-  const parts: string[] = [];
-  if (zone.debitCommun) parts.push(`Débit ${zone.debitCommun}`);
-  if (zone.commissionCommune === 0) parts.push("sans commission agent");
-  else if (zone.commissionCommune !== null)
-    parts.push(`commission agent ${formatFcfa(zone.commissionCommune)}`);
-  return parts.join(" · ");
-}
+import PackageCatalog from "./PackageCatalog";
+import { grouperForfaits } from "./package-ladder";
 
 export default async function PackagesPage() {
   const session = await getSession();
@@ -60,18 +43,29 @@ export default async function PackagesPage() {
     : [];
 
   const zones = grouperForfaits(orgPackages);
-  const inactifs = orgPackages.filter((p) => !p.active).length;
+  const zonesARevoir = zones.filter((z) => z.forfaits.some((f) => f.inversion)).length;
 
   return (
     <div className="animate-fade-in-up">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Forfaits</h1>
-          <p className="mt-1 text-sm text-ink-soft">
-            {orgPackages.length === 0
-              ? "Ce que le client achète au portail : un prix, une durée, un débit."
-              : `${orgPackages.length} forfait${orgPackages.length > 1 ? "s" : ""} sur ${zones.length} zone${zones.length > 1 ? "s" : ""}${inactifs > 0 ? ` · ${inactifs} désactivé${inactifs > 1 ? "s" : ""}` : ""}.`}
-          </p>
+          {orgPackages.length === 0 ? (
+            <p className="mt-1 text-sm text-ink-soft">
+              Ce que le client achète au portail : un prix, une durée, un débit.
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-ink-soft">
+              {zones.length} zone{zones.length > 1 ? "s" : ""} · {orgPackages.length} forfait
+              {orgPackages.length > 1 ? "s" : ""}
+              {zonesARevoir > 0 && (
+                <span className="font-medium text-warn">
+                  {" · "}
+                  {zonesARevoir} zone{zonesARevoir > 1 ? "s" : ""} à revoir
+                </span>
+              )}
+            </p>
+          )}
         </div>
         <CreatePackageModal routers={orgRouters} />
       </div>
@@ -90,68 +84,8 @@ export default async function PackagesPage() {
           </p>
         </div>
       ) : (
-        /* Une carte par zone, et dans la carte l'échelle des durées du plus
-           court au plus long. La zone n'est plus une pastille recopiée sur
-           chaque ligne : c'est le titre de ce qu'on lit. */
-        <div className="mt-6 space-y-4">
-          {zones.map((zone) => {
-            const regles = reglesCommunes(zone);
-            const zoneInactifs = zone.forfaits.filter((f) => !f.active).length;
-            return (
-              <section
-                key={zone.cle}
-                className="overflow-hidden rounded-xl border border-line bg-paper"
-              >
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line-soft px-4 py-3">
-                  <h2 className="font-display text-base font-bold text-ink">{zone.nom}</h2>
-                  <p className="text-xs text-ink-soft">
-                    {zone.forfaits.length} forfait{zone.forfaits.length > 1 ? "s" : ""}
-                    {zoneInactifs > 0 ? ` · ${zoneInactifs} désactivé${zoneInactifs > 1 ? "s" : ""}` : ""}
-                    {regles ? ` · ${regles}` : ""}
-                  </p>
-                </div>
-
-                <ul role="list" className="divide-y divide-line-soft">
-                  {zone.forfaits.map((f) => (
-                    <li key={f.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-                      <div className="min-w-0 flex-1 basis-48">
-                        <p
-                          className={`font-medium ${f.active ? "text-ink" : "text-ink-soft"}`}
-                        >
-                          {f.name}
-                        </p>
-                        <p className="mt-0.5 text-xs text-ink-soft">
-                          {libelleDuree(f.durationValue, f.durationUnit)}
-                          {f.parJour !== null && ` · ≈ ${formatFcfa(f.parJour)}/jour`}
-                          {!zone.debitCommun && ` · ${f.uploadMbps ?? 0}M/${f.downloadMbps ?? 0}M`}
-                          {zone.commissionCommune === null &&
-                            ` · commission ${formatFcfa(f.commissionCents)}`}
-                          {!f.active && " · désactivé"}
-                        </p>
-                        {/* Une grille saine coûte de moins en moins cher par jour
-                            à mesure que la durée s'allonge. Quand ce n'est pas le
-                            cas, le palier ne se vendra pas — et rien, dans un
-                            tableau de prix bruts, ne le faisait voir. */}
-                        {f.inversion && (
-                          <p className="mt-1 text-xs font-medium text-warn">
-                            Plus cher par jour que {f.inversionContre} — aucun intérêt à le prendre.
-                          </p>
-                        )}
-                      </div>
-                      <div className="ml-auto text-right text-base font-semibold tabular-nums text-ink">
-                        <PriceEditor
-                          packageId={f.id}
-                          priceCents={f.priceCents}
-                          formatted={formatFcfa(f.priceCents)}
-                        />
-                      </div>
-                      <StatusToggle packageId={f.id} active={f.active} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
+        <div className="mt-6">
+          <PackageCatalog zones={zones} />
         </div>
       )}
     </div>

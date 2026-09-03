@@ -14,6 +14,10 @@
  * le précède, le client n'a aucune raison de le prendre : cette inversion-là
  * était invisible dans un tableau, elle se signale maintenant toute seule.
  */
+export function formatFcfa(value: number): string {
+  return `FCFA ${value.toLocaleString("fr-FR")}`;
+}
+
 export type ForfaitBrut = {
   id: string;
   name: string;
@@ -72,6 +76,8 @@ export type ForfaitClasse = ForfaitBrut & {
   inversion: boolean;
   /** Nom de ce palier plus court — pour dire de QUI on parle. */
   inversionContre: string | null;
+  /** Prix le plus élevé qui rétablit la grille, en FCFA. Null hors inversion. */
+  prixMax: number | null;
 };
 
 export type ZoneCatalogue = {
@@ -137,6 +143,13 @@ export function grouperForfaits(rows: ForfaitBrut[]): ZoneCatalogue[] {
         parJour,
         inversion,
         inversionContre: inversion ? (precedent as ForfaitClasse).name : null,
+        /* Le prix le plus haut qui remet le palier au niveau du précédent :
+           signaler l'incohérence sans dire de combien, c'est laisser le calcul
+           à faire de tête devant l'écran. */
+        prixMax:
+          inversion && minutes
+            ? Math.floor(((precedent as ForfaitClasse).parJour! * minutes) / 1440)
+            : null,
       };
       forfaits.push(classe);
       if (parJour !== null && f.active) precedent = classe;
