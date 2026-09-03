@@ -201,6 +201,10 @@ export const adminFr = {
         viewCards: "Cartes",
         viewList: "Liste",
         colActions: "Actions",
+        legendOnline: "en ligne",
+        legendConfiguring: "config",
+        legendOffline: "hors ligne",
+        noRouter: "Aucun routeur rattaché",
       },
       table: {
         title: "Routeurs MikroTik",

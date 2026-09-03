@@ -192,6 +192,10 @@ export const adminEn: AdminDictionary = {
         viewCards: "Cards",
         viewList: "List",
         colActions: "Actions",
+        legendOnline: "online",
+        legendConfiguring: "config",
+        legendOffline: "offline",
+        noRouter: "No router attached",
       },
       table: {
         title: "MikroTik routers",
