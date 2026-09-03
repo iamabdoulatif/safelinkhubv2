@@ -34,19 +34,19 @@ export default function Hero({
 }) {
   return (
     <section aria-label={dict.hero.eyebrow} className="relative overflow-hidden border-b border-line bg-paper">
-      <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-20">
+      <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-9 sm:px-6 sm:pb-20 sm:pt-20">
         <div className="hero-layout">
           {/* Le message reste premier dans le DOM : mobile et lecteurs d'écran
               le rencontrent avant l'animation. */}
           <div className="hero-seq relative z-10 mx-auto max-w-3xl text-center lg:mx-0 lg:max-w-xl lg:text-left">
             <span className="slate-eyebrow">{dict.hero.eyebrow}</span>
 
-            <h1 className="mt-6 font-display text-[2.25rem] font-bold leading-[1.06] tracking-tight text-ink sm:text-5xl md:text-6xl">
+            <h1 className="mt-5 text-balance font-display text-[2.125rem] font-bold leading-[1.08] tracking-tight text-ink sm:mt-6 sm:text-5xl md:text-6xl">
               {dict.hero.titleA}
               <span className="marker marker-sweep">{dict.hero.titleMark}</span>
             </h1>
 
-            <p className="mx-auto mt-6 max-w-xl text-base leading-7 text-ink-soft sm:text-lg lg:mx-0">
+            <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-7 text-ink-soft sm:mt-6 sm:text-lg lg:mx-0">
             {dict.hero.lead}
             </p>
 
@@ -55,7 +55,7 @@ export default function Hero({
             <form
               action={localeHref("/auth/register", locale)}
               method="get"
-              className="mx-auto mt-8 flex w-full max-w-md flex-col gap-2 sm:flex-row lg:mx-0"
+              className="mx-auto mt-6 flex w-full max-w-md flex-col gap-2 sm:mt-8 sm:flex-row lg:mx-0"
             >
               <label htmlFor="hero-email" className="sr-only">
               {dict.hero.emailLabel}
@@ -68,7 +68,7 @@ export default function Hero({
                 placeholder={dict.hero.emailPlaceholder}
                 className="min-w-0 flex-1 rounded-full border border-line bg-paper px-5 py-3 text-sm text-ink placeholder:text-ink-soft focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand"
               />
-              <button type="submit" className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-6 py-3 text-sm">
+              <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 slate-btn slate-btn-primary px-6 py-3 text-sm">
               {dict.hero.submit}
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </button>
@@ -80,10 +80,10 @@ export default function Hero({
               {dict.hero.microcopy(VPN_TRIAL_DAYS)}
             </p>
 
-            <div className="mt-6 flex justify-center lg:justify-start">
+            <div className="mt-5 flex justify-center lg:justify-start">
               <Link
                 href="#demo"
-                className="text-sm font-semibold text-brand-deep underline-offset-4 hover:underline"
+                className="inline-block py-2 text-sm font-semibold text-brand-deep underline-offset-4 hover:underline"
               >
               {dict.hero.watch}
               </Link>

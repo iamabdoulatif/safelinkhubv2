@@ -97,7 +97,9 @@ export default function TestimonialForm({
                 type="button"
                 onClick={() => setRating(value)}
                 aria-label={label}
-                className="p-0.5"
+                /* 44 px de côté : à p-0.5 la cible faisait 28 px, sous le
+                   minimum tactile, et les cinq étoiles se touchaient. */
+                className="-m-1 rounded-full p-2.5 hover:bg-clay"
               >
                 <Star
                   className={`h-6 w-6 ${value <= rating ? "fill-brand text-brand" : "text-line"}`}

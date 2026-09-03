@@ -15,13 +15,20 @@ const socials = [
 export default function AnnounceBar({ dict, locale }: { dict: Dictionary; locale: Locale }) {
   return (
     <div className="bg-slate-deep text-white">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-2 sm:px-6 md:justify-between">
-        <p className="text-center text-xs font-medium text-slate-deep-soft md:text-left">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-1.5 sm:px-6 md:justify-between">
+        {/* Sur mobile, `detail` est masqué : sans séparateur, la phrase se
+            terminait directement sur le libellé du lien (« …accès distant
+            Commencer »). Le point médian rétablit la coupure, et le lien reçoit
+            une vraie hauteur de doigt au lieu de ses 14 px de texte. */}
+        <p className="text-center text-xs font-medium leading-5 text-slate-deep-soft md:text-left">
           <span className="text-white">{dict.announce.trial(VPN_TRIAL_DAYS)}</span>
-          <span className="hidden sm:inline">{dict.announce.detail}</span>{" "}
+          <span className="hidden sm:inline">{dict.announce.detail}</span>
+          <span aria-hidden="true" className="px-1.5 sm:hidden">
+            ·
+          </span>{" "}
           <Link
             href={localeHref("/auth/register", locale)}
-            className="font-semibold text-brand underline-offset-2 hover:underline"
+            className="inline-block py-1.5 font-semibold text-brand underline-offset-2 hover:underline"
           >
             {dict.announce.cta}
           </Link>

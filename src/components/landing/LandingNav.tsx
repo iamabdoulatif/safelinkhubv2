@@ -64,6 +64,23 @@ export default function LandingNav({
   // dynamiques des pages aujourd'hui statiques (/, /blog, /contact).
   const [authenticated, setAuthenticated] = useState(false);
 
+  /* Le panneau ouvert doit se fermer à Échap, et la page derrière lui ne doit
+     pas continuer à défiler sous le doigt : sans le premier, le clavier restait
+     piégé dans un menu qu'aucune touche ne refermait. */
+  useEffect(() => {
+    if (!open) return;
+    const surTouche = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", surTouche);
+    const overflowInitial = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", surTouche);
+      document.body.style.overflow = overflowInitial;
+    };
+  }, [open]);
+
   useEffect(() => {
     let cancelled = false;
     fetch("/api/session")
@@ -98,9 +115,13 @@ export default function LandingNav({
           <Logo />
         </Link>
 
+        {/* lg (1024) et non md (768) : à 768 px la barre complète réclamait
+            1055 px — les liens chevauchaient le logo, « Connexion » et « English »
+            sortaient de l'écran, et TOUTE la page défilait latéralement sur iPad
+            portrait. Mesuré à 1024 px avec les seules entrées gardées ici : 884 px. */}
         <nav
           aria-label={nav.mainNav}
-          className="hidden items-center gap-7 text-sm font-semibold text-ink md:flex"
+          className="hidden min-w-0 items-center gap-5 text-sm font-semibold text-ink lg:flex xl:gap-7"
         >
           <ServicesMenu menu={nav.servicesMenu} locale={locale} />
           {links.map((l) =>
@@ -128,7 +149,7 @@ export default function LandingNav({
             href={localeHref("/recherche", locale)}
             aria-label={nav.searchLabel}
             title={nav.search}
-            className="hidden items-center justify-center p-2 text-ink hover:text-brand-deep sm:inline-flex"
+            className="hidden h-11 w-11 items-center justify-center rounded-full text-ink hover:bg-clay hover:text-brand-deep lg:inline-flex"
           >
             <Search aria-hidden="true" className="h-4 w-4" />
           </Link>
@@ -139,10 +160,10 @@ export default function LandingNav({
             </Link>
           ) : (
             <>
-              <Link href={localeHref("/auth/login", locale)} className="hidden items-center justify-center gap-2 slate-btn slate-btn-ghost px-4 py-2 text-sm sm:inline-flex">
+              <Link href={localeHref("/auth/login", locale)} className="hidden min-h-11 items-center justify-center gap-2 slate-btn slate-btn-ghost px-4 py-2 text-sm xl:inline-flex">
                 {nav.signIn}
               </Link>
-              <Link href={localeHref("/auth/register", locale)} className="inline-flex items-center justify-center gap-2 slate-btn slate-btn-primary px-4 py-2 text-sm">
+              <Link href={localeHref("/auth/register", locale)} className="inline-flex min-h-11 items-center justify-center gap-2 slate-btn slate-btn-primary px-4 py-2 text-sm">
                 {nav.getStarted}
               </Link>
             </>
@@ -155,7 +176,7 @@ export default function LandingNav({
             href={switchLocalePath(pathname, autre)}
             hrefLang={autre}
             aria-label={nav.switchLabel}
-            className="hidden items-center justify-center gap-1.5 rounded-full border border-line px-3 py-2 text-xs font-semibold text-ink-soft hover:bg-clay hover:text-ink sm:inline-flex"
+            className="hidden min-h-11 items-center justify-center gap-1.5 rounded-full border border-line px-3 text-xs font-semibold text-ink-soft hover:bg-clay hover:text-ink xl:inline-flex"
           >
             {nav.switchTo}
           </Link>
@@ -166,15 +187,15 @@ export default function LandingNav({
             aria-controls="mobile-menu"
             aria-label={open ? nav.closeMenu : nav.openMenu}
             onClick={() => setOpen((v) => !v)}
-            className="rounded-full border border-line p-2 text-ink md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-line text-ink lg:hidden"
           >
-            {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>
 
       {open && (
-        <nav id="mobile-menu" aria-label={nav.mobileNav} className="border-t border-line bg-paper md:hidden">
+        <nav id="mobile-menu" aria-label={nav.mobileNav} className="max-h-[calc(100dvh-4.5rem)] overflow-y-auto border-t border-line bg-paper lg:hidden">
           <ul role="list" className="divide-y divide-line-soft">
             {/* Sur mobile il n'y a pas de survol : les services sont dépliés
                 d'emblée plutôt que cachés derrière un geste impossible. Le
@@ -236,6 +257,7 @@ export default function LandingNav({
             <li>
               <Link
                 href={authenticated ? "/admin" : localeHref("/auth/login", locale)}
+                onClick={() => setOpen(false)}
                 className="block px-6 py-4 font-display text-lg font-bold text-brand-deep hover:bg-clay"
               >
                 {authenticated ? nav.dashboard : nav.signIn}

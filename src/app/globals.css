@@ -329,6 +329,10 @@ body {
 /* Smooth scroll for anchor links */
 html {
   scroll-behavior: smooth;
+  /* L'en-tête est collant : sans cette réserve, une ancre (#demo, #faq,
+     #safecoin…) posait le titre de la section DERRIÈRE la barre, et le
+     visiteur atterrissait sur un titre coupé en deux. */
+  scroll-padding-top: 5.5rem;
 }
 
 /* Le cadre « scanner » du menu et les animations d'entrée du panneau mobile
@@ -408,6 +412,12 @@ html {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  /* Le défilement doux est un mouvement comme un autre : déclaré plus haut sur
+     html, il continuait de faire glisser toute la page à chaque ancre malgré
+     le réglage système. */
+  html {
+    scroll-behavior: auto !important;
   }
 }
 
@@ -883,7 +893,10 @@ html {
   }
   .hero-orbit-metric {
     position: absolute;
-    width: clamp(8.7rem, 13vw, 11.5rem);
+    /* Plancher relevé de 8,7 à 9,75 rem : entre 1024 et 1280 px, 13vw ramenait
+       la carte à 139 px et la liste des opérateurs mobile money y tombait sur
+       quatre lignes, au-dessus du routeur. */
+    width: clamp(9.75rem, 13vw, 11.5rem);
     min-height: 0;
     pointer-events: auto;
     animation: hero-orbit-counterturn 38s linear infinite;
