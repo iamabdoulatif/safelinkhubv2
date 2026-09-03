@@ -9,7 +9,7 @@ export default function IntroSplit({ dict }: { dict: Dictionary }) {
   // que de laisser un \n dans du JSX, où il serait avalé.
   const lignes = dict.intro.title.split("\n");
   return (
-    <section aria-label={dict.intro.link} className="border-b border-line bg-paper py-16 sm:py-24">
+    <section aria-label={dict.intro.link} className="border-b border-line bg-clay py-16 sm:py-24">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-12 lg:gap-16">
         <h2 className="font-display text-3xl font-bold leading-[1.15] tracking-tight text-ink sm:text-4xl lg:col-span-6 md:text-[2.75rem]">
           {lignes.map((ligne, i) => (

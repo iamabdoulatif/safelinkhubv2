@@ -100,6 +100,7 @@ export function MikrotikOrbitScene({
   const sceneRef = useRef<HTMLDivElement>(null);
   const pointerRef = useRef(new THREE.Vector2());
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [orbitAllowed, setOrbitAllowed] = useState(false);
   const [webglReady, setWebglReady] = useState(false);
 
   useEffect(() => {
@@ -110,10 +111,25 @@ export function MikrotikOrbitScene({
     return () => media.removeEventListener("change", update);
   }, []);
 
+  /* L'orbite 3D est une parure de DESKTOP — le hero mobile est prévu pour la
+     PHOTO dans le flux, avec les quatre faits en dessous (voir Hero.tsx).
+     Le rendu WebGL démarrait pourtant sur téléphone : il remplissait toute la
+     boîte de la scène, masquait la photo (`--webgl-ready` la met à opacity 0)
+     et les cartes de faits se posaient par-dessus un routeur géant et rogné.
+     On ne démarre donc rien sous 1024 px — ce qui épargne aussi une boucle
+     d'animation permanente sur batterie. */
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const update = () => setOrbitAllowed(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const host = sceneRef.current;
-    if (!canvas || !host) return;
+    if (!canvas || !host || !orbitAllowed) return;
 
     setWebglReady(false);
     let renderer: THREE.WebGLRenderer;
@@ -332,6 +348,10 @@ export function MikrotikOrbitScene({
     start();
 
     return () => {
+      // Repasser à false ici, et pas seulement à l'entrée : en passant du
+      // desktop au mobile (rotation d'iPad, fenêtre réduite), la classe
+      // `--webgl-ready` resterait posée et la photo du routeur invisible.
+      setWebglReady(false);
       sceneActive = false;
       stop();
       resizeObserver.disconnect();
@@ -352,7 +372,7 @@ export function MikrotikOrbitScene({
       haloMaterial.dispose();
       renderer.dispose();
     };
-  }, [reducedMotion]);
+  }, [reducedMotion, orbitAllowed]);
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (reducedMotion) return;

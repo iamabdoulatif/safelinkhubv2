@@ -63,7 +63,7 @@ export default async function BlogTeaser({
   const [lead, ...rest] = posts;
 
   return (
-    <section aria-label={t.aria} className="border-b border-line bg-paper py-16 sm:py-24">
+    <section aria-label={t.aria} className="border-b border-line bg-clay py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionIntro eyebrow={t.eyebrow} title={t.title} marker={t.marker} />
 

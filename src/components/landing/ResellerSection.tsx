@@ -60,7 +60,7 @@ export default function ResellerSection({
     <section
       id="revendeurs"
       aria-label={dict.reseller.aria}
-      className="border-b border-line bg-clay py-16 sm:py-24"
+      className="border-b border-line bg-paper py-16 sm:py-24"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionIntro
