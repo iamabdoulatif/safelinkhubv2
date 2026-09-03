@@ -38,6 +38,7 @@ import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
 import { decryptSecret } from "./crypto";
+import { isValidCoordinate } from "@/lib/geo/geocode";
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -47,6 +48,34 @@ import { decryptSecret } from "./crypto";
 async function nextRelayShard(db: ReturnType<typeof getDb>): Promise<string> {
   const [row] = await db.select({ n: count() }).from(routers);
   return shardForIndex(Number(row?.n ?? 0));
+}
+
+/**
+ * Lit la localisation posée par RouterLocationPicker.
+ *
+ * Le point n'est retenu que s'il est VALIDE : une latitude bricolée à la main
+ * (« 5,34 » avec une virgule, un champ à moitié rempli, 0/0) ne doit pas
+ * s'enregistrer en base et poser la zone au large du Ghana. Les lignes
+ * d'adresse, elles, sont acceptées seules : connaître le quartier sans le
+ * point reste utile pour envoyer quelqu'un sur place.
+ */
+function readLocation(formData: FormData) {
+  const texte = (cle: string) => {
+    const valeur = String(formData.get(cle) ?? "").trim();
+    return valeur ? valeur.slice(0, 160) : null;
+  };
+  const latitude = Number(String(formData.get("latitude") ?? "").trim());
+  const longitude = Number(String(formData.get("longitude") ?? "").trim());
+  const situe = isValidCoordinate(latitude, longitude);
+
+  return {
+    latitude: situe ? latitude.toFixed(6) : null,
+    longitude: situe ? longitude.toFixed(6) : null,
+    locationStreet: texte("locationStreet"),
+    locationNeighbourhood: texte("locationNeighbourhood"),
+    locationCommune: texte("locationCommune"),
+    locationCountry: texte("locationCountry"),
+  };
 }
 
 export async function connectRouter(_prevState: unknown, formData: FormData) {
@@ -101,6 +130,7 @@ export async function connectRouter(_prevState: unknown, formData: FormData) {
     status: "online",
     lastSyncAt: new Date(),
     relayShard: await nextRelayShard(db),
+    ...readLocation(formData),
   });
 
   revalidatePath("/admin/router");
@@ -1433,6 +1463,7 @@ export async function generateInstallScript(
       installTokenHash: hashToken(installToken),
       installTokenExpiresAt: new Date(Date.now() + INSTALL_TOKEN_TTL_MS),
       relayShard: await nextRelayShard(db),
+      ...readLocation(formData),
     })
     .returning();
 

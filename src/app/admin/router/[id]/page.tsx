@@ -9,6 +9,7 @@ import TicketDiagnosisPanel from "./TicketDiagnosisPanel";
 import HeaderActions from "./HeaderActions";
 import { linkTypeLabel } from "@/lib/mikrotik/link-usage";
 import RouterDetailTabs from "./RouterDetailTabs";
+import { routerLocationLabel } from "@/lib/geo/router-location";
 
 function formatUptime(seconds: number) {
   if (seconds <= 0) return "0m";
@@ -147,6 +148,31 @@ export default async function RouterDetailPage({
             <dt className="text-ink-soft">Ajouté le</dt>
             <dd className="font-semibold text-ink">
               {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(router.createdAt)}
+            </dd>
+          </div>
+          {/* Où la zone se trouve VRAIMENT. Saisi à l'enregistrement ; une
+              localisation qu'on ne peut relire nulle part ne sert à personne,
+              et c'est cette ligne qu'on lit avant d'envoyer un technicien. */}
+          <div className="flex items-start justify-between gap-3 py-2">
+            <dt className="shrink-0 text-ink-soft">Localisation</dt>
+            <dd className="text-right font-semibold text-ink">
+              {routerLocationLabel(router) ? (
+                <>
+                  <span className="block">{routerLocationLabel(router)}</span>
+                  {router.latitude && router.longitude && (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${router.latitude},${router.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-0.5 inline-block font-mono text-xs font-normal text-brand-deep hover:underline"
+                    >
+                      {Number(router.latitude).toFixed(5)}, {Number(router.longitude).toFixed(5)}
+                    </a>
+                  )}
+                </>
+              ) : (
+                <span className="font-normal text-ink-soft">non renseignée</span>
+              )}
             </dd>
           </div>
         </dl>

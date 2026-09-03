@@ -8,6 +8,7 @@ import FeatureAccessRequestModal from "@/components/billing/FeatureAccessRequest
 import type { FeatureAccessId } from "@/lib/billing/feature-access-config";
 import LabelScanButton from "./LabelScanButton";
 import type { MikrotikLabel } from "@/lib/mikrotik/label-parse";
+import RouterLocationPicker from "@/components/mikrotik/RouterLocationPicker";
 
 type ConnectState =
   | { success?: boolean; error?: string; needsAuthorization?: FeatureAccessId }
@@ -92,6 +93,10 @@ export default function ConnectRouterForm() {
             placeholder="hAP ac lite"
             className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
           />
+        </div>
+
+        <div className="col-span-2">
+          <RouterLocationPicker />
         </div>
 
         <div className="col-span-2 sm:col-span-1">

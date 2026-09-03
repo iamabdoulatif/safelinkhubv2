@@ -88,4 +88,18 @@ alter table roaming_device_bindings
   add column if not exists previous_macs text[] not null default '{}';
 `.trim(),
   },
+  {
+    // Localisation physique d'une zone (routeur).
+    // Miroir : scripts/add-router-location.sql.
+    id: "0004_router_location",
+    sql: `
+alter table routers
+  add column if not exists latitude numeric(9,6),
+  add column if not exists longitude numeric(9,6),
+  add column if not exists location_street text,
+  add column if not exists location_neighbourhood text,
+  add column if not exists location_commune text,
+  add column if not exists location_country text;
+`.trim(),
+  },
 ];

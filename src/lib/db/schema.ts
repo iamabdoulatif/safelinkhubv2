@@ -249,6 +249,23 @@ export const routers = pgTable("routers", {
   // assuming the fixed default name.
   hotspotBridgeName: text("hotspot_bridge_name"),
   hotspotServerName: text("hotspot_server_name"),
+  /* ── Où se trouve PHYSIQUEMENT cette zone ────────────────────────────────
+     Saisi à l'enregistrement du routeur (auto-setup ou liage direct). Le parc
+     ne savait situer aucune zone : « SHIA ROAM » ou « MAMBA WIFI » ne dit ni
+     la commune ni la rue, alors qu'un technicien qu'on envoie sur site, une
+     facture, ou une carte du parc en ont besoin.
+
+     latitude/longitude sont des COLONNES (et pas un objet JSON) parce qu'elles
+     seules se filtrent et se trient — « les zones à moins de 5 km », une carte
+     du parc. Les quatre lignes d'adresse restent du texte libre ET modifiable :
+     le géocodage inverse se trompe régulièrement sur les rues d'Abidjan, et
+     l'opérateur doit pouvoir corriger sans que la coordonnée bouge. */
+  latitude: numeric("latitude", { precision: 9, scale: 6 }),
+  longitude: numeric("longitude", { precision: 9, scale: 6 }),
+  locationStreet: text("location_street"),
+  locationNeighbourhood: text("location_neighbourhood"),
+  locationCommune: text("location_commune"),
+  locationCountry: text("location_country"),
   // Branding du portail captif SCOPÉ AU ROUTEUR, saisi dans l'auto-setup :
   // contact support/paiement + « espaces vendeurs » (vendeurs agréés). Rendu
   // par le portail de CE routeur avec priorité sur le branding du modèle

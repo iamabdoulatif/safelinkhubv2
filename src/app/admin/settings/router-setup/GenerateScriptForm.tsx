@@ -6,6 +6,7 @@ import { Check, Copy, Lock } from "lucide-react";
 import { ButtonLoader } from "@/components/FancyLoader";
 import { generateInstallScript, checkRouterConnection } from "@/lib/mikrotik/actions";
 import FeatureAccessRequestModal from "@/components/billing/FeatureAccessRequestModal";
+import RouterLocationPicker from "@/components/mikrotik/RouterLocationPicker";
 import type { FeatureAccessId } from "@/lib/billing/feature-access-config";
 
 type ConnectionState = "idle" | "waiting" | "connected" | "timeout";
@@ -160,6 +161,7 @@ export default function GenerateScriptForm() {
             className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
           />
         </div>
+        <RouterLocationPicker />
         <button
           type="submit"
           disabled={pending}
