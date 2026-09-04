@@ -11,6 +11,7 @@ import { organizations } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getPortalPlansForRouter } from "@/lib/portal/plans";
 import { portalPlanObjects } from "@/lib/captive-templates/package-files";
+import { isOrgSmsEnabled } from "@/lib/sms/send";
 
 export function OPTIONS() {
   return corsPreflight();
@@ -32,5 +33,11 @@ export async function GET(
   if (!org) return corsJson({ plans: [] }, { status: 404 });
 
   const plans = await getPortalPlansForRouter(org.id, routerId);
-  return corsJson({ plans: portalPlanObjects(plans) });
+  /* `smsEnabled` voyage avec les forfaits parce que le portail appelle DÉJÀ cet
+     endpoint au chargement : une info de plus, zéro requête de plus. Sans elle,
+     la page promet un SMS avant de savoir s'il partira, et doit interroger le
+     serveur au moment du clic — précisément l'appel qui échoue quand le
+     walled-garden vacille. */
+  const smsEnabled = await isOrgSmsEnabled(org.id).catch(() => true);
+  return corsJson({ plans: portalPlanObjects(plans), smsEnabled });
 }

@@ -588,7 +588,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       +     dialField
       +     '<input id="slh-phone" type="tel" inputmode="numeric" placeholder="07 00 00 00 00" autocomplete="tel" style="flex:1;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;" />'
       +   '</div>'
-      +   '<p style="margin:0 0 6px;font-size:.72rem;color:#94a3b8;">Premier achat : un code de v&eacute;rification vous sera envoy&eacute; par SMS. Ensuite, plus jamais de code &mdash; paiement direct.</p>'
+      +   '<p style="margin:0 0 6px;font-size:.72rem;color:#94a3b8;">' + (SMS_ON ? 'Premier achat : un code de v&eacute;rification vous sera envoy&eacute; par SMS. Ensuite, plus jamais de code &mdash; paiement direct.' : 'Votre num&eacute;ro sert au paiement Mobile Money. Le code d&#39;acc&egrave;s s&#39;affichera &agrave; l&#39;&eacute;cran juste apr&egrave;s.') + '</p>'
       +   '<p style="margin:0 0 12px;font-size:.75rem;text-align:center;"><a href="#" id="slh-recover" style="color:#0f172a;text-decoration:underline;">D&eacute;j&agrave; pay&eacute; ? Retrouver mon code</a></p>'
       + '</div>'
       + '<div data-step="otp" style="display:none;">'
@@ -607,7 +607,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       + '<div id="slh-status" style="display:none;font-size:.85rem;margin:12px 0 0;"></div>'
       + '<div style="display:flex;gap:8px;margin-top:16px;">'
       +   '<button id="slh-cancel" type="button" style="flex:1;padding:11px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;font-size:.9rem;">Fermer</button>'
-      +   '<button id="slh-primary" type="button" style="flex:2;padding:11px;border:0;background:#10b981;color:#fff;border-radius:8px;font-size:.9rem;font-weight:600;">Recevoir le code</button>'
+      +   '<button id="slh-primary" type="button" style="flex:2;padding:11px;border:0;background:#10b981;color:#fff;border-radius:8px;font-size:.9rem;font-weight:600;">' + (SMS_ON ? 'Recevoir le code' : 'Payer') + '</button>'
       + '</div>'
       + '</div>';
     document.body.appendChild(o);
@@ -641,7 +641,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       step = name;
       var steps = o.querySelectorAll("[data-step]");
       for(var i=0;i<steps.length;i++){ steps[i].style.display = steps[i].getAttribute("data-step")===name ? "" : "none"; }
-      if(name==="phone"){ primary.textContent = "Recevoir le code"; }
+      if(name==="phone"){ primary.textContent = SMS_ON ? "Recevoir le code" : "Payer"; }
       else if(name==="otp"){ primary.textContent = "Vérifier"; setTimeout(function(){ if(otpEl) otpEl.focus(); }, 80); }
       else if(name==="pay"){ primary.textContent = "Payer"; }
       else if(name==="done"){ primary.textContent = "Se connecter"; }
@@ -674,6 +674,16 @@ const PORTAL_PAY_SCRIPT = `(function(){
     function sendOtp(isResend){
       var lp = localPhone();
       if(lp.length < 7){ setStatus("Numéro invalide.", "#ef4444"); return; }
+      // Passerelle SMS decochee : il n y a AUCUN code a envoyer ni a verifier.
+      // On saute l aller-retour au lieu de le faire pour s entendre repondre
+      // qu il ne sert a rien — un appel reseau de moins avant le paiement, sur
+      // un WiFi ou chaque appel est une occasion d echouer. Le serveur reste
+      // seul juge : /initiate accepte le numero non verifie dans ce cas precis.
+      if(!SMS_ON){
+        var note = document.getElementById("slh-pay-note");
+        if(note) note.textContent = "Payez normalement : votre code d'accès s'affichera à l'écran juste après le paiement.";
+        setStatus(""); show("pay"); return;
+      }
       primary.disabled = true;
       setStatus(isResend ? "Renvoi du code..." : "Envoi du code...");
       fetch(api("/otp/send"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: lp, dialCode: selDial() }) })
@@ -776,6 +786,12 @@ const PORTAL_PAY_SCRIPT = `(function(){
   // priment sur ceux cuits dans la page (SLH_PLANS, repli hors-ligne / walled-
   // garden pas encore ouvert). Voir fetchLivePlans + endpoint /plans.
   var LIVE_PLANS = null;
+  // Passerelle SMS de l organisation. VRAI par defaut : tant qu on ne sait pas,
+  // on garde le parcours avec code, et c est le serveur qui tranche (il repond
+  // "sms_unavailable" et le portail saute l etape). Passe a FAUX des que /plans
+  // repond que la passerelle est decochee -> la page ne promet plus un SMS qui
+  // ne partira pas, et n a plus besoin d appeler /otp/send pour l apprendre.
+  var SMS_ON = true;
   function slhPlans(){
     if(LIVE_PLANS && LIVE_PLANS.length) return LIVE_PLANS;
     return (window.SLH_PLANS && window.SLH_PLANS.length) ? window.SLH_PLANS : [];
@@ -792,7 +808,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
     var url = cfg.appUrl + "/api/portal/" + encodeURIComponent(cfg.slug) + "/plans" + (cfg.routerId ? ("?routerId=" + encodeURIComponent(cfg.routerId)) : "");
     fetch(url, { cache: "no-store" })
       .then(function(r){ return r.json(); })
-      .then(function(d){ if(d && d.plans && d.plans.length){ LIVE_PLANS = d.plans; } cb(); })
+      .then(function(d){ if(d && d.plans && d.plans.length){ LIVE_PLANS = d.plans; } if(d && d.smsEnabled === false){ SMS_ON = false; } cb(); })
       .catch(function(){ cb(); });
   }
   function hasNativeButtons(){ return document.querySelectorAll("[data-package-id]").length > 0; }

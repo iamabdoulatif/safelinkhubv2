@@ -59,3 +59,13 @@ describe("crédit SMS épuisé", () => {
     assert.match(bloc.slice(0, 600), /initiatePurchase\(\)/);
   });
 });
+
+describe("bypass du code quand la passerelle est décochée", () => {
+  it("/initiate n'exige plus de numéro vérifié", async () => {
+    const source = await readFile("src/app/api/portal/[slug]/initiate/route.ts", "utf8");
+    // La garde subsiste, mais seulement quand une vérification est POSSIBLE.
+    assert.match(source, /if \(await isOrgSmsEnabled\(org\.id\)\) \{\s*return corsJson\(\{ error: "Numéro non vérifié\." \}/);
+    // Et le numéro est mémorisé vérifié pour que la suite du parcours tienne.
+    assert.match(source, /verifiedAt: maintenant/);
+  });
+});

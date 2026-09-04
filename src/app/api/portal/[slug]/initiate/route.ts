@@ -18,6 +18,7 @@ import { getOrgDial } from "@/lib/portal/org-dial";
 import { sanitizeClientDial, toInternational } from "@/lib/portal/otp";
 import { appendPortalTheme, portalThemeFromUnknown } from "@/lib/portal/theme";
 import { getOrgGeniusCreds, ensureOrgWebhook } from "@/lib/payment-gateways/geniuspay-org";
+import { isOrgSmsEnabled } from "@/lib/sms/send";
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -73,7 +74,32 @@ export async function POST(
     .where(and(eq(portalOtps.orgId, org.id), eq(portalOtps.phone, phone)))
     .limit(1);
   if (!otp?.verifiedAt) {
-    return corsJson({ error: "Numéro non vérifié." }, { status: 403 });
+    /* Pas de passerelle SMS active = aucune vérification POSSIBLE. Exiger un
+       numéro « vérifié » reviendrait alors à interdire toute vente en ligne,
+       ce qui est l'inverse du service rendu : la vérification protège contre
+       les faux numéros, elle ne vaut pas la peine d'un chiffre d'affaires nul.
+       On laisse donc passer, et on mémorise le numéro comme vérifié pour que
+       le reste du parcours (statut, ticket, rachat) reste cohérent.
+       Quand la passerelle est active, le code reste exigé : rien ne change. */
+    if (await isOrgSmsEnabled(org.id)) {
+      return corsJson({ error: "Numéro non vérifié." }, { status: 403 });
+    }
+    const maintenant = new Date();
+    await db
+      .insert(portalOtps)
+      .values({
+        orgId: org.id,
+        phone,
+        codeHash: "",
+        expiresAt: maintenant,
+        attempts: 0,
+        verifiedAt: maintenant,
+        lastSentAt: maintenant,
+      })
+      .onConflictDoUpdate({
+        target: [portalOtps.orgId, portalOtps.phone],
+        set: { verifiedAt: maintenant },
+      });
   }
 
   const creds = await getOrgGeniusCreds(org.id);

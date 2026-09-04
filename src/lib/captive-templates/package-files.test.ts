@@ -183,6 +183,30 @@ describe("renderPackageFile", () => {
     assert.doesNotThrow(() => new Function(flow), "script toujours syntaxiquement valide");
   });
 
+  it("saute l'étape du code quand la passerelle SMS est décochée", () => {
+    // /plans porte déjà l'état de la passerelle : la page n'a donc pas à
+    // demander au serveur, au moment du clic, s'il pourra envoyer un SMS.
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: '<html><body><button data-package-id="pkg-x">Acheter</button></body></html>',
+    };
+    const body = renderPackageFile(login, {
+      ssid: "X",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+      routerId: "router-1",
+    }).toString("utf8");
+    const scripts = [...body.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    const flow = scripts.find((s) => s.includes("SMS_ON")) ?? "";
+    assert.ok(flow.length > 0, "drapeau SMS injecté");
+    // Vrai par défaut : sans réponse du serveur, on garde le parcours avec code.
+    assert.ok(flow.includes("var SMS_ON = true;"), "prudent tant qu'on ne sait pas");
+    assert.ok(flow.includes("d.smsEnabled === false"), "mis à jour par /plans");
+    assert.ok(flow.includes("if(!SMS_ON){"), "l'étape du code est sautée");
+    assert.doesNotThrow(() => new Function(flow), "script toujours syntaxiquement valide");
+  });
+
   it("injects inline-plan rendering that fills an imported portal's #forfaits container", () => {
     // Portail importé façon Safelink_baraka : conteneur #forfaits + forfaits
     // codés en dur. Le script injecté doit contenir de quoi le remplir avec les
