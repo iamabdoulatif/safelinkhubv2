@@ -3,9 +3,11 @@ import { describe, it } from "node:test";
 import { readFile } from "node:fs/promises";
 import {
   inspectExpiryFormats,
+  isCorruptedExpiryComment,
   isIsoExpiryComment,
   isMikhmonExpiryComment,
   isoToMikhmonComment,
+  profileDurationsSeconds,
 } from "./ticket-expiry-format";
 
 describe("reconnaissance des deux formats", () => {
@@ -184,5 +186,54 @@ describe("audit de flotte", () => {
     const fr = await cles("fr.ts");
     assert.ok(fr.length >= 5, `clés attendues, trouvées : ${fr.join(", ")}`);
     assert.deepEqual(fr, await cles("en.ts"));
+  });
+});
+
+describe("date corrompue par une double conversion", () => {
+  const CORROMPU = "jan/02/sep/  21:40:3";
+
+  it("reconnaît l'année qui est un nom de mois", () => {
+    assert.equal(isCorruptedExpiryComment(CORROMPU), true);
+    // Une vraie date MikHmon ne doit jamais être prise pour corrompue.
+    assert.equal(isCorruptedExpiryComment("sep/06/2026 21:40:30"), false);
+    assert.equal(isCorruptedExpiryComment("2026-09-06 21:40:30"), false);
+    assert.equal(isCorruptedExpiryComment("vc-427-06.26.26-ali"), false);
+  });
+
+  it("le balayage la prend pour une vraie date — d'où le ticket éternel", () => {
+    // Positions 3 et 6 sont des « / » : c'est le test exact du script routeur.
+    assert.equal(isMikhmonExpiryComment(CORROMPU), true);
+  });
+
+  it("reconstruit l'échéance sur la durée du forfait, comptée depuis maintenant", () => {
+    const maintenant = new Date("2026-09-04T22:00:00.000Z");
+    const vue = inspectExpiryFormats(
+      [{ ".id": "*1", name: "t1", profile: "02-JOURS", comment: CORROMPU }],
+      { "02-JOURS": 2 * 86400 },
+      maintenant,
+    );
+    assert.equal(vue.corruptedCount, 1);
+    assert.deepEqual(vue.aReecrire, [
+      { id: "*1", name: "t1", from: CORROMPU, to: "sep/06/2026 22:00:00" },
+    ]);
+  });
+
+  it("sans durée connue, elle est COMPTÉE mais pas réécrite", () => {
+    // Inventer une échéance vaut moins qu'un constat : le profil peut avoir
+    // été renommé ou supprimé.
+    const vue = inspectExpiryFormats([{ ".id": "*1", name: "t1", profile: "?", comment: CORROMPU }]);
+    assert.equal(vue.corruptedCount, 1);
+    assert.deepEqual(vue.aReecrire, []);
+  });
+
+  it("lit la durée d'un profil dans son on-login, pas dans son nom", () => {
+    assert.deepEqual(
+      profileDurationsSeconds([
+        { name: "02-JOURS", "on-login": '/sys sch add name="$user" interval="2d" comment=x' },
+        { name: "05-HEURES", "on-login": 'interval="5h"' },
+        { name: "SANS-SCRIPT", "on-login": "" },
+      ]),
+      { "02-JOURS": 172800, "05-HEURES": 18000 },
+    );
   });
 });

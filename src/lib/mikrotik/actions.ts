@@ -1000,7 +1000,7 @@ export async function fixRouterTicketExpiryFormat(routerId: string) {
   }
   try {
     const res = await rewriteIsoExpiryComments(client);
-    if (res.found === 0) {
+    if (res.found === 0 && res.corrupted === 0) {
       return { success: true, summary: "Aucune date au mauvais format — rien à corriger." };
     }
     revalidatePath(`/admin/router/${routerId}`);
@@ -1008,6 +1008,9 @@ export async function fixRouterTicketExpiryFormat(routerId: string) {
       success: true,
       summary:
         `${res.rewritten} date(s) d'expiration réécrites au format MikHmon` +
+        (res.corrupted > 0
+          ? ` (dont ${res.corrupted} illisible(s), reconstruite(s) sur la durée du forfait — la vraie échéance était perdue)`
+          : "") +
         (res.failed > 0 ? `, ${res.failed} en échec` : "") +
         `. Le balayage du routeur retirera les tickets périmés à son prochain passage (~2 min 30).`,
     };

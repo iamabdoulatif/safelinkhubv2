@@ -67,9 +67,57 @@ export function isoToMikhmonComment(comment: string): string | null {
   return corps ? `${converti} ${corps}` : converti;
 }
 
+/**
+ * « jan/02/sep/  21:40:3 » — une date dont l'ANNÉE est un nom de mois.
+ *
+ * Elle naît d'une double conversion : un script `on-login` qui gère déjà
+ * l'horloge ISO, auquel on a ajouté une seconde conversion. La première rend
+ * « sep/06/2026 21:40:30 », la seconde la relit comme si c'était encore de
+ * l'ISO et en tire cette bouillie. Voir onLoginHandlesIsoClock, qui empêche
+ * désormais l'insertion en double.
+ *
+ * Le balayage la traite comme une vraie date — positions 3 et 6 sont bien des
+ * « / » — puis compare une année « sep/ » : aucune comparaison n'est vraie, le
+ * ticket ne s'éteint JAMAIS. Mesuré sur HSPT-FOUANGA : 202 tickets en deux
+ * jours, dont 120 en cours d'utilisation.
+ */
+export function isCorruptedExpiryComment(comment: string): boolean {
+  return /^[a-z]{3}\/\d{2}\/[a-z]{3}\//i.test(comment);
+}
+
+/** Une date au format du balayage, pour un instant donné. */
+export function formatMikhmonComment(instant: Date): string {
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${MOIS[instant.getUTCMonth()]}/${p2(instant.getUTCDate())}/${instant.getUTCFullYear()} ` +
+    `${p2(instant.getUTCHours())}:${p2(instant.getUTCMinutes())}:${p2(instant.getUTCSeconds())}`
+  );
+}
+
+const SECONDES_PAR_UNITE: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 };
+
+/**
+ * Durée d'un forfait, lue dans le `on-login` de son profil — c'est
+ * l'intervalle du planificateur temporaire que MikHmon y pose. La déduire du
+ * NOM du profil (« 02-JOURS ») serait deviner : un exploitant renomme.
+ */
+export function profileDurationsSeconds(
+  profiles: Record<string, string | undefined>[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const p of profiles) {
+    const nom = p.name;
+    const m = (p["on-login"] ?? "").match(/interval="(\d+)([smhdw])"/);
+    if (nom && m) out[nom] = Number(m[1]) * SECONDES_PAR_UNITE[m[2]];
+  }
+  return out;
+}
+
 export type ExpiryFormatInspection = {
   /** Tickets porteurs d'une date ISO — ceux qui n'expireront jamais. */
   isoCount: number;
+  /** Tickets dont la date est corrompue (année = nom de mois). */
+  corruptedCount: number;
   /** Tickets au format attendu par le balayage. */
   mikhmonCount: number;
   /** Ni l'un ni l'autre : bons de commande non utilisés (« vc-… »), notes… */
@@ -83,8 +131,14 @@ export function inspectExpiryFormats(
   /* `Record<string, string>` et non un type fermé : c'est ce que rend le
      client RouterOS, dont les sentences sont des dictionnaires libres. */
   users: Record<string, string | undefined>[],
+  /* Durées par profil, pour reconstruire une date corrompue. Absentes = on
+     COMPTE ces tickets sans les réécrire : mieux vaut un constat qu'une date
+     inventée. */
+  durations: Record<string, number> = {},
+  now = new Date(),
 ): ExpiryFormatInspection {
   let isoCount = 0;
+  let corruptedCount = 0;
   let mikhmonCount = 0;
   let otherCount = 0;
   const aReecrire: ExpiryFormatInspection["aReecrire"] = [];
@@ -95,9 +149,24 @@ export function inspectExpiryFormats(
       isoCount++;
       const to = isoToMikhmonComment(comment);
       if (to && u[".id"]) aReecrire.push({ id: u[".id"], name: u.name ?? "?", from: comment, to });
+    } else if (isCorruptedExpiryComment(comment)) {
+      /* La vraie échéance est PERDUE — la corruption a mangé l'année. On
+         repart de maintenant + la durée du forfait : le client garde au pire
+         une période de trop, là où l'expirer sur-le-champ couperait une
+         session en cours et l'ISO ne dit rien de récupérable. */
+      corruptedCount++;
+      const duree = durations[u.profile ?? ""];
+      if (duree && u[".id"]) {
+        aReecrire.push({
+          id: u[".id"],
+          name: u.name ?? "?",
+          from: comment,
+          to: formatMikhmonComment(new Date(now.getTime() + duree * 1000)),
+        });
+      }
     } else if (isMikhmonExpiryComment(comment)) mikhmonCount++;
     else otherCount++;
   }
 
-  return { isoCount, mikhmonCount, otherCount, aReecrire };
+  return { isoCount, corruptedCount, mikhmonCount, otherCount, aReecrire };
 }

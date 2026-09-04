@@ -204,11 +204,13 @@ export async function unbindMacBoundTickets(
 }
 
 // ── Format des dates d'expiration ────────────────────────────────────────
-import { inspectExpiryFormats } from "./ticket-expiry-format";
+import { inspectExpiryFormats, profileDurationsSeconds } from "./ticket-expiry-format";
 
 export type ExpiryFormatFixResult = {
   /** Tickets trouvés au format ISO. */
   found: number;
+  /** Tickets à la date corrompue (année = nom de mois) — voir isCorruptedExpiryComment. */
+  corrupted: number;
   /** Tickets effectivement réécrits. */
   rewritten: number;
   /** Échecs d'écriture (routeur qui refuse, ligne disparue entre-temps). */
@@ -228,9 +230,17 @@ export async function rewriteIsoExpiryComments(
   timeoutMs = 30000,
 ): Promise<ExpiryFormatFixResult> {
   const users = await client
-    .talk(["/ip/hotspot/user/print", "=.proplist=.id,name,comment"], timeoutMs)
+    /* `profile` en plus : reconstruire une date corrompue demande la DURÉE du
+       forfait, et seule la ligne dit à quel profil elle appartient. */
+    .talk(["/ip/hotspot/user/print", "=.proplist=.id,name,comment,profile"], timeoutMs)
     .catch(() => [] as Record<string, string>[]);
-  const { isoCount, aReecrire } = inspectExpiryFormats(users);
+  const profils = await client
+    .talk(["/ip/hotspot/user/profile/print", "=.proplist=name,on-login"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  const { isoCount, corruptedCount, aReecrire } = inspectExpiryFormats(
+    users,
+    profileDurationsSeconds(profils),
+  );
 
   let rewritten = 0;
   let failed = 0;
@@ -245,7 +255,7 @@ export async function rewriteIsoExpiryComments(
       failed++;
     }
   }
-  return { found: isoCount, rewritten, failed };
+  return { found: isoCount, corrupted: corruptedCount, rewritten, failed };
 }
 
 // ── Balayage aveugle à l'horloge ISO ─────────────────────────────────────

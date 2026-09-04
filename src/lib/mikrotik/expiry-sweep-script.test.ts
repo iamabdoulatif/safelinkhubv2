@@ -206,3 +206,28 @@ describe("les deux moitiés partent ensemble", () => {
     assert.match(bloc, /\/ip\/hotspot\/user\/profile\/set/);
   });
 });
+
+describe("ne jamais convertir deux fois l'horloge ISO", () => {
+  /* Le script MikHmon récent : il convertit l'ISO à SA manière, en cherchant
+     un tiret. C'est cette forme que le contrôle ne voyait pas. */
+  const MIKHMON_RECENT =
+    ':local date [ /system clock get date ];:local year [ :pick $date 7 11 ];' +
+    ':if ([:find $date "-"] != nil) do={ :set dateKey "x"; };' +
+    '/sys sch add name="$user" start-date=$date interval="2d";' +
+    ':local exp [ /sys sch get [ /sys sch find where name="$user" ] next-run];' +
+    ':if ([:find $exp "-"] != nil) do={ :set expKey "y"; };';
+
+  it("reconnaît la conversion de MikHmon, pas seulement la nôtre", () => {
+    assert.equal(onLoginHandlesIsoClock(MIKHMON_RECENT), true);
+  });
+
+  it("n'insère RIEN dans un script qui gère déjà l'ISO", () => {
+    // C'est le défaut qui a rendu 202 tickets éternels sur HSPT-FOUANGA :
+    // deux conversions superposées produisent une année « sep/ ».
+    assert.equal(patchOnLoginForIsoClock(MIKHMON_RECENT), null);
+  });
+
+  it("complète toujours un script qui, lui, ignore l'ISO", () => {
+    assert.notEqual(patchOnLoginForIsoClock(ONLOGIN_PERIME), null);
+  });
+});

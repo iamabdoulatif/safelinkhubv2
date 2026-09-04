@@ -131,6 +131,15 @@ export async function auditRouter(
     .catch(() => []);
   if (hotspotUsers.length > 0) {
     const formats = inspectExpiryFormats(hotspotUsers as Record<string, string | undefined>[]);
+    if (formats.corruptedCount > 0)
+      add(
+        "error",
+        "Tickets",
+        "ticket-expiry-corrupted",
+        `${formats.corruptedCount} ticket(s) à la date illisible`,
+        `Leur date d'expiration ressemble à « jan/02/sep/  21:40:3 » : l'année est un nom de mois. Elle vient d'une DOUBLE conversion — un script « on-login » qui savait déjà lire l'horloge ISO, auquel une seconde conversion a été ajoutée. Le balayage traite ces dates comme valides puis compare une année « sep/ » : le ticket ne s'éteint jamais. Le correctif reconstruit l'échéance à partir de la durée du forfait, comptée depuis maintenant — la vraie est perdue, et couper une session en cours serait pire.`,
+        "ticket-expiry",
+      );
     if (formats.isoCount > 0)
       add(
         "error",
@@ -556,12 +565,12 @@ export async function auditRouter(
           "warn",
           "MikHmon",
           "api-policy",
-          "MikHmon : tickets sans expiration & revenu absent (droits API incomplets)",
-          `Le compte de service « ${API_GROUP_NAME} », utilisé par le MikHmon hébergé pour piloter le routeur, n'a pas ${missing.map((m) => `« ${m} »`).join(", ")} dans ses permissions API. Sans « policy » notamment, MikHmon ne peut pas poser les schedulers d'expiration des tickets ni écrire/relire le journal de revenu (/system script) — d'où des tickets qui n'expirent jamais et un revenu qui ne s'affiche pas. Le correctif complète les permissions manquantes en un clic (sans coupure : n'affecte que le compte de service SafeLinkHub).`,
+          "Droits API du compte de service incomplets",
+          `Le compte de service « ${API_GROUP_NAME} », utilisé par le MikHmon hébergé pour piloter le routeur, n'a pas ${missing.map((m) => `« ${m} »`).join(", ")} dans ses permissions API — l'installation VPN les accorde toutes, ce routeur a donc été provisionné avant le correctif. Le correctif complète les permissions manquantes en un clic, sans coupure (n'affecte que le compte de service). NOTE : contrairement à ce que ce contrôle affirmait, l'absence de « policy » n'empêche À ELLE SEULE ni l'expiration des tickets ni l'écriture du revenu — vérifié sur HSPT-FOUANGA le 2026-09-04, où ce compte pouvait créer scripts et planificateurs malgré « !policy ». Si les tickets n'expirent pas, regarder d'abord les deux contrôles ci-dessus (format des dates, balayage).`,
           "api-policy",
         );
       else
-        add("ok", "MikHmon", "api-policy-ok", "Droits API MikHmon complets", "Le compte de service a les permissions requises pour gérer expiration des tickets et revenu.");
+        add("ok", "MikHmon", "api-policy-ok", "Droits API MikHmon complets", "Le compte de service a toutes les permissions accordées par l'installation VPN.");
     }
   } catch {
     /* /user/group illisible — on ne conseille rien à tort. */

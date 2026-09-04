@@ -154,9 +154,30 @@ const BLOC_DATE = extraitDuCatalogue(ANCRE_DATE, ":local year");
 /** Même conversion appliquée à $exp, la valeur rendue par le planificateur. */
 const BLOC_EXP = extraitDuCatalogue(ANCRE_EXP, ":local getxp");
 
-/** Le `on-login` sait-il déjà lire l'horloge ISO ? */
+/**
+ * Le `on-login` sait-il déjà lire l'horloge ISO ?
+ *
+ * DEUX façons de savoir, et il a fallu un routeur cassé pour l'apprendre.
+ * La nôtre — le bloc que nous insérons — se reconnaît à `[:pick $date 4 5]`.
+ * Mais les versions RÉCENTES de MikHmon convertissent l'ISO à leur manière,
+ * en cherchant un tiret dans la chaîne (`[:find $date "-"]`), et ce test-là
+ * ne les voyait pas.
+ *
+ * Conséquence mesurée sur HSPT-FOUANGA le 2026-09-04 : le correctif a ajouté
+ * SA conversion par-dessus celle de MikHmon. La première rendait
+ * « sep/06/2026 21:40:30 », la seconde la reprenait comme si c'était encore
+ * de l'ISO et en tirait « jan/02/sep/  21:40:3 » — une année « sep/ », que le
+ * balayage ne peut pas comparer. 202 tickets devenus éternels en deux jours,
+ * et le journal de revenu, écrit en fin du même script, arrêté net.
+ *
+ * Un script qui sait déjà lire l'ISO — de l'une OU l'autre façon — ne doit
+ * plus jamais être « complété ».
+ */
 export function onLoginHandlesIsoClock(onLogin: string): boolean {
-  return /:if\s*\(\[:pick \$date 4 5\]\s*=\s*"-"\)/.test(onLogin);
+  const notreBloc = /:if\s*\(\[:pick \$date 4 5\]\s*=\s*"-"\)/.test(onLogin);
+  const blocMikhmon =
+    /:find \$date "-"/.test(onLogin) && /:find \$exp "-"/.test(onLogin);
+  return notreBloc || blocMikhmon;
 }
 
 /**
