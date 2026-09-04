@@ -504,8 +504,8 @@ export async function fixRouterApiGroupPolicy(
       return {
         needsAdmin: true as const,
         error: admin
-          ? `Ce compte non plus n'a pas le droit de modifier les permissions. Utilisez le compte administrateur du routeur (celui du groupe « full »), ou passez la commande sur place : ${apiGroupPolicyCommand()}`
-          : `Le compte de service ne peut pas s'accorder « ${res.missing.join(", ")} » lui-même — « policy » est justement la permission qui gouverne les permissions. Donnez le compte administrateur du routeur ci-dessous : il sera utilisé pour cette seule commande, et n'est pas enregistré.`,
+          ? `Ce compte n'a pas le droit de modifier les permissions. Prenez celui du groupe « full », ou passez la commande sur place : ${apiGroupPolicyCommand()}`
+          : `Le compte de service ne peut pas s'accorder « ${res.missing.join(", ")} » lui-même. Donnez le compte administrateur du routeur :`,
       };
     }
     if (!res.applied) {

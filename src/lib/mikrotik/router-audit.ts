@@ -137,7 +137,7 @@ export async function auditRouter(
         "Tickets",
         "ticket-expiry-corrupted",
         `${formats.corruptedCount} ticket(s) à la date illisible`,
-        `Leur date d'expiration ressemble à « jan/02/sep/  21:40:3 » : l'année est un nom de mois. Elle vient d'une DOUBLE conversion — un script « on-login » qui savait déjà lire l'horloge ISO, auquel une seconde conversion a été ajoutée. Le balayage traite ces dates comme valides puis compare une année « sep/ » : le ticket ne s'éteint jamais. Le correctif reconstruit l'échéance à partir de la durée du forfait, comptée depuis maintenant — la vraie est perdue, et couper une session en cours serait pire.`,
+        `Leur date ressemble à « jan/02/sep/ 21:40:3 » : l'année est un nom de mois. Le balayage la croit valide, ne peut pas la comparer, et le ticket ne s'éteint jamais. Le correctif recalcule l'échéance sur la durée du forfait à partir de maintenant — la vraie est perdue, et couper une session en cours serait pire.`,
         "ticket-expiry",
       );
     if (formats.isoCount > 0)
@@ -566,7 +566,7 @@ export async function auditRouter(
           "MikHmon",
           "api-policy",
           "Droits API du compte de service incomplets",
-          `Le compte de service « ${API_GROUP_NAME} », utilisé par le MikHmon hébergé pour piloter le routeur, n'a pas ${missing.map((m) => `« ${m} »`).join(", ")} dans ses permissions API — l'installation VPN les accorde toutes, ce routeur a donc été provisionné avant le correctif. Le correctif complète les permissions manquantes sans coupure (n'affecte que le compte de service) — mais RouterOS le refusera si l'application se connecte avec ce même compte de service : « policy » est la permission qui gouverne les permissions, et personne ne se l'accorde à soi-même. Le message vous donnera alors la commande à passer une fois depuis le compte admin du routeur. NOTE : contrairement à ce que ce contrôle affirmait, l'absence de « policy » n'empêche À ELLE SEULE ni l'expiration des tickets ni l'écriture du revenu — vérifié sur HSPT-FOUANGA le 2026-09-04, où ce compte pouvait créer scripts et planificateurs malgré « !policy ». Si les tickets n'expirent pas, regarder d'abord les deux contrôles ci-dessus (format des dates, balayage).`,
+          `Le compte de service « ${API_GROUP_NAME} » n'a pas ${missing.map((m) => `« ${m} »`).join(", ")} : ce routeur a été posé avant que l'installation VPN ne les accorde. Sans effet connu sur l'expiration des tickets ni sur le revenu — si ceux-là clochent, voir les contrôles « dates » et « balayage ». Le correctif demande le compte administrateur du routeur : « policy » gouverne les permissions, et le compte de service ne se l'accorde pas lui-même.`,
           "api-policy",
         );
       else
