@@ -52,13 +52,14 @@ function toRouterRows(rows: RouterTableSource[]): RouterRow[] {
 
 function RouterPageHeader({ t }: { t: RouterDictionary["page"] }) {
   return (
+    /* Un seul titre monumental par écran — et pas celui-ci : la question de
+       l'exploitant n'est pas « où suis-je », c'est « est-ce que mon parc va
+       bien ». Le titre se range, l'état du parc prend la place. */
     <header>
-      <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">
+      <h1 className="font-display text-lg font-semibold tracking-tight text-ink sm:text-xl">
         {t.title}
       </h1>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">
-        {t.description}
-      </p>
+      <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-soft">{t.description}</p>
     </header>
   );
 }
@@ -95,11 +96,10 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
     return (
       <div className="animate-fade-in-up">
         <RouterPageHeader t={t.page} />
-        <div className="mt-8">
+        <div className="mt-5">
           <RoutersTable
             routers={toRouterRows(ownRouterRows)}
             title={t.page.ownFleet}
-            description={t.page.fleetDescription}
             headingLevel="h2"
             t={t}
             locale={locale}
@@ -152,16 +152,15 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
   return (
     <div className="animate-fade-in-up">
       <RouterPageHeader t={t.page} />
-      <div className="mt-6">
+      <div className="mt-4">
         <RouterPortfolioTabs activeScope={scope} t={t.tabs} />
       </div>
 
-      <div className="mt-8">
+      <div className="mt-5">
         {view.kind === "own-fleet" ? (
           <RoutersTable
             routers={toRouterRows(routerRows.filter((router) => router.orgId === session.orgId))}
             title={t.page.ownFleet}
-            description={t.page.fleetDescription}
             headingLevel="h2"
             canLock={superadmin}
             t={t}

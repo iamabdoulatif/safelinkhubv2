@@ -158,12 +158,22 @@ describe("audit de flotte", () => {
     assert.match(bouton, /result\.remaining > 0/, "le reste doit être annoncé");
   });
 
-  it("le bouton de flotte est posé dans la barre du parc", async () => {
+  it("le bouton de flotte est posé dans les outils du parc", async () => {
+    // Les trois outils de réparation ont quitté la barre du parc pour le
+    // repli « Plus d'actions » (ils occupaient l'écran au même poids que
+    // l'action du quotidien). Ils restent atteignables en un geste, et cette
+    // garantie-là est ce que le contrôle doit vérifier.
+    const outils = await readFile(
+      new URL("../../app/admin/router/FleetActions.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(outils, /<TicketExpiryFleetButton t=\{actions\} \/>/);
+
     const table = await readFile(
       new URL("../../app/admin/router/RoutersTable.tsx", import.meta.url),
       "utf8",
     );
-    assert.match(table, /<TicketExpiryFleetButton t=\{actions\} \/>/);
+    assert.match(table, /<FleetActions[^>]*actions=\{actions\}/);
   });
 
   it("les deux dictionnaires décrivent le même bouton", async () => {

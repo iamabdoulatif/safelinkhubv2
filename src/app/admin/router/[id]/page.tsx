@@ -56,12 +56,25 @@ function Badge({ tone, children }: { tone: "ok" | "brand" | "muted"; children: R
 // actions héritent du maxDuration de la page qui les invoque).
 export const maxDuration = 120;
 
+function parseTab(value: string | undefined) {
+  return value === "diagnostic" ||
+    value === "filter" ||
+    value === "usage" ||
+    value === "resources" ||
+    value === "services"
+    ? value
+    : "overview";
+}
+
 export default async function RouterDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const tab = parseTab((await searchParams)?.tab);
   const session = await getSession();
   if (!session) notFound();
 
@@ -242,7 +255,7 @@ export default async function RouterDetailPage({
         ))}
       </div>
 
-      <RouterDetailTabs routerId={router.id} online={online} overview={overview} />
+      <RouterDetailTabs routerId={router.id} online={online} overview={overview} initialTab={tab} />
 
       {/* Le verrou de série est un mécanisme de plateforme, pas de compte : il
           n'a de sens que pour le superadmin, et il n'est utile que lorsque le

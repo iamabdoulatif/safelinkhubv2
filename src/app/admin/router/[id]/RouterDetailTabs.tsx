@@ -8,7 +8,7 @@ import AuditPanel from "./AuditPanel";
 import ContentFilterPanel from "./ContentFilterPanel";
 import UsagePanel from "./UsagePanel";
 
-type TabKey = "overview" | "diagnostic" | "filter" | "usage" | "resources" | "services";
+export type TabKey = "overview" | "diagnostic" | "filter" | "usage" | "resources" | "services";
 
 const TABS: { key: TabKey; label: string; icon: typeof Gauge }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutGrid },
@@ -23,12 +23,17 @@ export default function RouterDetailTabs({
   routerId,
   online,
   overview,
+  initialTab = "overview",
 }: {
   routerId: string;
   online: boolean;
   overview: React.ReactNode;
+  /* Onglet d'arrivée, porté par ?tab= : le parc envoie « Diagnostiquer » sur
+     un routeur muet, et le lien doit ouvrir le diagnostic — pas la vue
+     d'ensemble, en laissant l'exploitant chercher l'onglet lui-même. */
+  initialTab?: TabKey;
 }) {
-  const [active, setActive] = useState<TabKey>("overview");
+  const [active, setActive] = useState<TabKey>(initialTab);
   const baseId = useId();
 
   return (

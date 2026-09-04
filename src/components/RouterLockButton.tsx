@@ -14,11 +14,19 @@ import { lockRouterPorts, unlockRouterPorts } from "@/lib/mikrotik/actions";
 export default function RouterLockButton({
   routerId,
   locked,
+  variant = "button",
 }: {
   routerId: string;
   locked: boolean;
+  /* "menu" : le kill-switch vit désormais DANS le menu ⋮ de la ligne. Il
+     dominait la ligne en bouton rouge, à côté d'un simple « Détails » — une
+     action de recouvrement qui coupe tous les ports d'un client ne se
+     présente pas au même niveau qu'une consultation. Seule l'apparence
+     change : mêmes actions serveur, même confirmation. */
+  variant?: "button" | "menu";
 }) {
   const [isBusy, start] = useTransition();
+  const menu = variant === "menu";
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,13 +50,17 @@ export default function RouterLockButton({
 
   if (locked) {
     return (
-      <span className="flex flex-col items-end gap-1">
+      <span className={menu ? "flex flex-col gap-1" : "flex flex-col items-end gap-1"}>
         <button
           type="button"
           disabled={isBusy}
           onClick={unlock}
           title="Réactive les ports et le WiFi coupés par le verrouillage"
-          className="inline-flex items-center gap-1.5 border border-ok bg-ok px-2.5 py-1.5 font-semibold text-white transition-colors duration-150 hover:bg-paper hover:text-ok disabled:opacity-60 rounded-xl"
+          className={
+            menu
+              ? "flex w-full min-h-11 items-center gap-2 px-3 py-2 text-left text-sm font-medium text-ok hover:bg-ok-soft disabled:opacity-60"
+              : "inline-flex items-center gap-1.5 border border-ok bg-ok px-2.5 py-1.5 font-semibold text-white transition-colors duration-150 hover:bg-paper hover:text-ok disabled:opacity-60 rounded-xl"
+          }
         >
           {isBusy ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : <LockOpen aria-hidden="true" className="h-3.5 w-3.5" />}
           Déverrouiller
@@ -60,7 +72,7 @@ export default function RouterLockButton({
 
   if (confirming) {
     return (
-      <span className="flex flex-wrap items-center justify-end gap-1.5">
+      <span className={`flex flex-wrap items-center gap-1.5 ${menu ? "px-3 py-2" : "justify-end"}`}>
         <span className="text-[11px] font-medium text-ink">Couper tous les ports sauf le WAN ?</span>
         <button
           type="button"
@@ -85,13 +97,17 @@ export default function RouterLockButton({
   }
 
   return (
-    <span className="flex flex-col items-end gap-1">
+    <span className={menu ? "flex flex-col gap-1" : "flex flex-col items-end gap-1"}>
       <button
         type="button"
         disabled={isBusy}
         onClick={() => setConfirming(true)}
         title="Paralyse le routeur du client : coupe tous les ports et le WiFi sauf le WAN (recouvrement)"
-        className="inline-flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1.5 font-semibold text-err transition-colors duration-150 hover:bg-err hover:text-white rounded-xl"
+        className={
+          menu
+            ? "flex w-full min-h-11 items-center gap-2 px-3 py-2 text-left text-sm font-medium text-err hover:bg-err-soft"
+            : "inline-flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1.5 font-semibold text-err transition-colors duration-150 hover:bg-err hover:text-white rounded-xl"
+        }
       >
         <Lock aria-hidden="true" className="h-3.5 w-3.5" />
         Verrouiller

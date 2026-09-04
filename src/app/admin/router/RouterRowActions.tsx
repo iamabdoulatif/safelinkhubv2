@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import { deleteRouter, resetRouterDevice } from "@/lib/mikrotik/actions";
 import RouterDangerDialog from "./RouterDangerDialog";
+import RouterLockButton from "@/components/RouterLockButton";
 import type { ActionDestructive } from "@/lib/mikrotik/action-destructive";
 import type { RouterDictionary } from "./RoutersTable";
 
@@ -17,10 +18,17 @@ export default function RouterRowActions({
   routerId,
   routerName,
   t,
+  canLock = false,
+  locked = false,
 }: {
   routerId: string;
   routerName: string;
   t: RouterDictionary["actions"];
+  /* Superadmin : le kill-switch est RECUEILLI ici plutôt que posé en bouton
+     rouge dans la ligne. Il coupe tous les ports d'un client — le sortir du
+     flux de lecture évite le clic de travers, sans rien retirer. */
+  canLock?: boolean;
+  locked?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -73,8 +81,10 @@ export default function RouterRowActions({
           if (r) setAncre({ top: r.bottom + 6, right: window.innerWidth - r.right });
           setOpen((o) => !o);
         }}
-        className="rounded-md p-1.5 text-ink-soft hover:bg-clay hover:text-ink-soft"
+        className="flex h-11 w-11 items-center justify-center rounded-full text-ink-soft hover:bg-clay hover:text-ink"
         title={t.more}
+        aria-label={t.more}
+        aria-expanded={open}
       >
         <MoreVertical className="h-4 w-4" />
       </button>
@@ -91,6 +101,11 @@ export default function RouterRowActions({
           style={{ top: ancre.top, right: ancre.right }}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          {canLock && (
+            <div className="border-b border-line-soft pb-1">
+              <RouterLockButton routerId={routerId} locked={locked} variant="menu" />
+            </div>
+          )}
           <button
             type="button"
             onClick={() => {

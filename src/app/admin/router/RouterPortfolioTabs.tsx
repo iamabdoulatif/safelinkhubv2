@@ -23,10 +23,10 @@ export function RouterPortfolioTabs({ activeScope, t }: RouterPortfolioTabsProps
             key={scope}
             href={href}
             aria-current={isActive ? "page" : undefined}
-            className={`inline-flex border border-line px-4 py-2 text-sm font-bold transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+            className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
               isActive
-                ? "bg-brand text-slate-deep"
-                : "bg-paper text-ink hover:bg-clay"
+                ? "border-ink bg-ink text-paper"
+                : "border-line bg-paper text-ink-soft hover:bg-clay hover:text-ink"
             }`}
           >
             {t[label]}
