@@ -79,6 +79,13 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
   const [fixingId, setFixingId] = useState<string | null>(null);
   const [isFixing, startFix] = useTransition();
   const [fixMsg, setFixMsg] = useState<{ id: string; ok: boolean; text: string } | null>(null);
+  /* Un correctif que SEUL le compte administrateur du routeur peut appliquer :
+     « policy » gouverne les permissions, le compte de service ne se l'accorde
+     pas lui-même. Ce qui est saisi ici ne quitte pas le formulaire — envoyé
+     une fois à l'action, jamais enregistré. */
+  const [besoinAdmin, setBesoinAdmin] = useState<string | null>(null);
+  const [adminUser, setAdminUser] = useState("admin");
+  const [adminPass, setAdminPass] = useState("");
 
   function analyze() {
     startAnalyze(async () => {
@@ -97,7 +104,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
     });
   }
 
-  function applyFix(finding: AuditFinding) {
+  function applyFix(finding: AuditFinding, admin?: { username: string; password: string }) {
     if (!finding.fix) return;
     setFixingId(finding.id);
     startFix(async () => {
@@ -120,7 +127,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                 : finding.fix === "rb-firmware"
                   ? await upgradeRouterFirmware(routerId)
                   : finding.fix === "api-policy"
-                    ? await fixRouterApiGroupPolicy(routerId)
+                    ? await fixRouterApiGroupPolicy(routerId, admin)
                     : finding.fix === "mikhmon-api-access"
                     ? await fixRouterMikhmonApiAccess(routerId)
                     : finding.fix === "ticket-expiry"
@@ -137,8 +144,13 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
       setFixingId(null);
       if (res?.error) {
         setFixMsg({ id: finding.id, ok: false, text: res.error });
+        // Le routeur ne refuse pas le correctif : il refuse CE compte. On
+        // demande l'autre, au lieu de laisser l'opérateur devant un mur.
+        setBesoinAdmin("needsAdmin" in res && res.needsAdmin ? finding.id : null);
         return;
       }
+      setBesoinAdmin(null);
+      setAdminPass("");
       setFixMsg({ id: finding.id, ok: true, text: res?.summary ?? "Correctif appliqué." });
       // Ré-analyse auto pour refléter l'état corrigé — sauf la migration MikHmon,
       // longue et lancée en arrière-plan : l'utilisateur ré-analyse après ~2 min.
@@ -296,6 +308,46 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                   >
                     {msg.text}
                   </p>
+                )}
+                {besoinAdmin === f.id && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      applyFix(f, { username: adminUser, password: adminPass });
+                    }}
+                    className="flex flex-wrap items-end gap-2 border-t border-line bg-clay px-4 py-3"
+                  >
+                    <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+                      Compte administrateur du routeur
+                      <input
+                        value={adminUser}
+                        onChange={(e) => setAdminUser(e.target.value)}
+                        autoComplete="off"
+                        className="h-10 w-40 rounded-lg border border-line bg-paper px-2 text-sm font-normal normal-case tracking-normal text-ink"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+                      Mot de passe
+                      <input
+                        type="password"
+                        value={adminPass}
+                        onChange={(e) => setAdminPass(e.target.value)}
+                        autoComplete="off"
+                        className="h-10 w-48 rounded-lg border border-line bg-paper px-2 text-sm font-normal normal-case tracking-normal text-ink"
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={isFixing || !adminUser.trim()}
+                      className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-brand px-4 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60"
+                    >
+                      {busy ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
+                      Appliquer avec ce compte
+                    </button>
+                    <p className="w-full text-[11px] text-ink-soft">
+                      Utilisé pour cette seule commande, puis oublié — il n&apos;est pas enregistré.
+                    </p>
+                  </form>
                 )}
                 {!f.fix && (
                   <p className="border-t border-line-soft bg-clay px-4 py-1.5 text-[12px] text-ink-soft">

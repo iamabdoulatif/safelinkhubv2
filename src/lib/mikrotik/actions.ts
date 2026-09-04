@@ -446,7 +446,21 @@ export async function fixRouterMikhmonApiAccess(routerId: string) {
   }
 }
 
-export async function fixRouterApiGroupPolicy(routerId: string) {
+/**
+ * Complète les droits API du compte de service.
+ *
+ * `admin` est le compte du ROUTEUR, saisi à l'écran et employé le temps d'une
+ * commande. Il faut bien celui-là : « policy » est la permission qui gouverne
+ * les permissions, et le compte de service — avec lequel l'application se
+ * connecte d'ordinaire — ne peut pas se l'accorder à lui-même (RouterOS :
+ * « not enough permissions »). Ces identifiants ne sont NI enregistrés, NI
+ * journalisés : ils vivent le temps de la connexion, comme dans l'assistant de
+ * liaison qui les demande déjà pour poser un routeur.
+ */
+export async function fixRouterApiGroupPolicy(
+  routerId: string,
+  admin?: { username: string; password: string },
+) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
 
@@ -459,14 +473,25 @@ export async function fixRouterApiGroupPolicy(routerId: string) {
     return { error: "Détails de connexion du routeur manquants." };
   }
 
+  /* Même chemin de connexion (tunnel VPN compris) : seules les informations
+     d'identification changent, et seulement en mémoire. */
+  const cible =
+    admin && admin.username.trim()
+      ? {
+          ...router,
+          username: admin.username.trim(),
+          passwordEncrypted: encryptSecret(admin.password),
+        }
+      : router;
+
   let client: RouterOSClient;
   try {
-    client = await connectToRouter(router);
+    client = await connectToRouter(cible);
   } catch (err) {
     return {
       error:
         err instanceof Error
-          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour corriger les droits API.`
+          ? `Connexion refusée : ${err.message}.${admin ? " Vérifiez l'identifiant et le mot de passe du compte administrateur." : " Le routeur doit être en ligne."}`
           : "Routeur injoignable (doit être en ligne).",
     };
   }
@@ -477,10 +502,10 @@ export async function fixRouterApiGroupPolicy(routerId: string) {
     }
     if (res.refused) {
       return {
-        error:
-          `Le routeur refuse : le compte de service ne peut pas s'accorder « ${res.missing.join(", ")} » lui-même — ` +
-          `c'est justement « policy » qui gouverne les permissions. À faire une fois depuis le compte admin du routeur ` +
-          `(WinBox → New Terminal, ou SSH) :\n\n${apiGroupPolicyCommand()}`,
+        needsAdmin: true as const,
+        error: admin
+          ? `Ce compte non plus n'a pas le droit de modifier les permissions. Utilisez le compte administrateur du routeur (celui du groupe « full »), ou passez la commande sur place : ${apiGroupPolicyCommand()}`
+          : `Le compte de service ne peut pas s'accorder « ${res.missing.join(", ")} » lui-même — « policy » est justement la permission qui gouverne les permissions. Donnez le compte administrateur du routeur ci-dessous : il sera utilisé pour cette seule commande, et n'est pas enregistré.`,
       };
     }
     if (!res.applied) {
