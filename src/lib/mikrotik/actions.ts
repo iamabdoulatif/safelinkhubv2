@@ -26,6 +26,7 @@ import { describeApiPortVerdict, probeApiPortWith } from "./api-port-probe";
 import { openRouterTunnel } from "./relay";
 import {
   ensureApiGroupPolicy,
+  apiGroupPolicyCommand,
   rewriteIsoExpiryComments,
   repairExpirySweeps,
   unbindMacBoundTickets,
@@ -474,8 +475,16 @@ export async function fixRouterApiGroupPolicy(routerId: string) {
     if (!res.found) {
       return { error: "Groupe de service « safelinkhub-group » introuvable — relancez l'installation VPN du routeur." };
     }
+    if (res.refused) {
+      return {
+        error:
+          `Le routeur refuse : le compte de service ne peut pas s'accorder « ${res.missing.join(", ")} » lui-même — ` +
+          `c'est justement « policy » qui gouverne les permissions. À faire une fois depuis le compte admin du routeur ` +
+          `(WinBox → New Terminal, ou SSH) :\n\n${apiGroupPolicyCommand()}`,
+      };
+    }
     if (!res.applied) {
-      return { success: true, summary: "Droits API déjà complets — MikHmon peut gérer expiration et revenu." };
+      return { success: true, summary: "Droits API déjà complets." };
     }
     revalidatePath(`/admin/router/${routerId}`);
     return {

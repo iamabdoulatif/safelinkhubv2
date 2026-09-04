@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  apiGroupPolicyCommand,
+  ensureApiGroupPolicy,
   missingApiGroupPolicies,
   REQUIRED_API_GROUP_POLICIES,
 } from "./router-audit-fixes";
@@ -47,5 +49,53 @@ describe("WIFI_ENABLE_ANY_VERSION (compat RouterOS 7.9 → 7.23.x)", () => {
     const guards = WIFI_ENABLE_ANY_VERSION.match(/:do \{:local c \[:parse/g) ?? [];
     assert.equal(guards.length, 3);
     assert.equal((WIFI_ENABLE_ANY_VERSION.match(/on-error=\{\}/g) ?? []).length, 3);
+  });
+});
+
+
+describe("le compte de service ne peut pas s'accorder « policy » lui-même", () => {
+  const GROUPE_INCOMPLET = {
+    ".id": "*1",
+    policy: "ssh,ftp,read,write,test,sensitive,api,!policy",
+  };
+  /** Client minimal : rend le groupe en lecture, refuse l'écriture. */
+  function clientQuiRefuse() {
+    const appels: string[][] = [];
+    return {
+      appels,
+      async talk(words: string[]) {
+        appels.push(words);
+        if (words[0] === "/user/group/print") return [GROUPE_INCOMPLET];
+        // Le mot exact de RouterOS, mesuré sur HSPT-FOUANGA le 2026-09-04.
+        throw new Error("not enough permissions (9)");
+      },
+    };
+  }
+
+  it("rend « refusé » au lieu de propager une erreur RouterOS brute", async () => {
+    const client = clientQuiRefuse();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await ensureApiGroupPolicy(client as any);
+    assert.deepEqual(res, { found: true, missing: ["policy"], applied: false, refused: true });
+  });
+
+  it("la commande de secours accorde exactement les permissions requises", () => {
+    const cmd = apiGroupPolicyCommand();
+    assert.match(cmd, /^\/user group set safelinkhub-group policy=/);
+    for (const p of REQUIRED_API_GROUP_POLICIES) assert.ok(cmd.includes(p), `« ${p} » absente`);
+  });
+
+  it("une autre panne d'écriture remonte telle quelle", async () => {
+    const client = {
+      async talk(words: string[]) {
+        if (words[0] === "/user/group/print") return [GROUPE_INCOMPLET];
+        throw new Error("Read timed out");
+      },
+    };
+    await assert.rejects(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => ensureApiGroupPolicy(client as any),
+      /Read timed out/,
+    );
   });
 });

@@ -53,9 +53,27 @@ export type ApiGroupPolicyResult = {
   found: boolean;
   /** Permissions qui manquaient avant correction (vide si déjà conforme). */
   missing: string[];
-  /** Un `set` a-t-il été appliqué ? (false = déjà conforme ou introuvable) */
+  /** Un `set` a-t-il été appliqué ? (false = déjà conforme, introuvable ou refusé) */
   applied: boolean;
+  /**
+   * RouterOS a REFUSÉ l'écriture, faute de droits.
+   *
+   * C'est le cas normal, pas l'exception : nous nous connectons avec le compte
+   * de service, et « policy » est précisément la permission qui autorise à
+   * modifier les permissions. Un compte qui ne l'a pas ne peut pas se
+   * l'accorder — mesuré sur HSPT-FOUANGA le 2026-09-04 : « not enough
+   * permissions (9) ». Ce correctif ne peut donc aboutir que là où
+   * l'application se connecte avec un compte complet ; ailleurs, il faut
+   * passer par le compte admin du routeur. Le dire vaut mieux que rendre une
+   * erreur RouterOS brute que personne ne sait interpréter.
+   */
+  refused: boolean;
 };
+
+/** La commande à taper sur le routeur quand l'API n'a pas le droit de le faire. */
+export function apiGroupPolicyCommand(): string {
+  return `/user group set ${API_GROUP_NAME} policy=${REQUIRED_API_GROUP_POLICIES.join(",")}`;
+}
 
 /**
  * Complète les policies du groupe API si `policy` (ou toute autre requise)
@@ -70,20 +88,29 @@ export async function ensureApiGroupPolicy(
     .talk(["/user/group/print", `?name=${API_GROUP_NAME}`], timeoutMs)
     .catch(() => []);
   const group = groups[0];
-  if (!group) return { found: false, missing: [], applied: false };
+  if (!group) return { found: false, missing: [], applied: false, refused: false };
 
   const missing = missingApiGroupPolicies(group.policy);
-  if (missing.length === 0) return { found: true, missing: [], applied: false };
+  if (missing.length === 0) return { found: true, missing: [], applied: false, refused: false };
 
-  await client.talk(
-    [
-      "/user/group/set",
-      `=numbers=${group[".id"]}`,
-      `=policy=${REQUIRED_API_GROUP_POLICIES.join(",")}`,
-    ],
-    timeoutMs,
-  );
-  return { found: true, missing, applied: true };
+  try {
+    await client.talk(
+      [
+        "/user/group/set",
+        `=numbers=${group[".id"]}`,
+        `=policy=${REQUIRED_API_GROUP_POLICIES.join(",")}`,
+      ],
+      timeoutMs,
+    );
+  } catch (err) {
+    // « not enough permissions » : le compte de service ne peut pas s'accorder
+    // lui-même la permission qui gouverne les permissions. Rien n'a été écrit.
+    if (err instanceof Error && /not enough permissions/i.test(err.message)) {
+      return { found: true, missing, applied: false, refused: true };
+    }
+    throw err;
+  }
+  return { found: true, missing, applied: true, refused: false };
 }
 
 // ── Firmware RouterBOARD ────────────────────────────────────────────────────
