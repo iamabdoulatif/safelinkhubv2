@@ -10,6 +10,8 @@
 // besoin).
 
 import type { RouterOSClient } from "./client";
+import { APP_PIN_COMMENT, pinCommands } from "./app-ip-pin";
+import { resolveAppAddresses } from "@/lib/net/app-addresses";
 
 export const WALLED_GARDEN_COMMENT = "safelinkhub-walled-garden";
 
@@ -266,7 +268,12 @@ export async function reconcileWalledGardenOnce(
   // la clé → le routeur est re-réconcilié UNE fois à sa prochaine sync. Le
   // préfixe de version invalide aussi la clé quand la FORME des entrées change
   // (ex. ajout des entrées walled-garden ip pour l'HTTPS), pas juste la liste.
-  const key = `wg-v2|${walledGardenHosts(appHost, disabledHosts).join(",")}`;
+  /* La clé porte AUSSI les adresses ancrées : si Cloudflare change d'adresse,
+     la clé change et chaque routeur est ré-ancré à son prochain passage. Sans
+     cela, un routeur resterait sur une adresse morte jusqu'au redémarrage du
+     processus. */
+  const adresses = await resolveAppAddresses(appHost).catch(() => [] as string[]);
+  const key = `wg-v3|${walledGardenHosts(appHost, disabledHosts).join(",")}|${adresses.join(",")}`;
   if (reconciledRouters.get(routerId) === key) return;
   await ensureWalledGarden(client, appHost, disabledHosts);
   reconciledRouters.set(routerId, key); // marqué seulement si ensureWalledGarden n'a pas levé
@@ -274,6 +281,9 @@ export async function reconcileWalledGardenOnce(
 
 export type WalledGardenResult = {
   added: string[];
+  /** Adresses de l'application épinglées sur le routeur (DNS + autorisation).
+   *  Vide si la résolution a échoué côté SafeLinkHub. */
+  pinned: string[];
   /** Entrées REFUSÉES par le routeur, avec la raison qu'il a donnée.
    *  Longtemps avalées en silence : c'est ainsi qu'un walled-garden a pu
    *  rester incomplet malgré des dizaines de réinstallations. Ce qui échoue
@@ -287,10 +297,18 @@ export async function ensureWalledGarden(
   disabledHosts: string[] = [],
   timeoutMs = 15000,
 ): Promise<WalledGardenResult> {
-  // Purge des DEUX tables gérées (par commentaire) avant ré-ajout — idempotent.
-  for (const path of ["/ip/hotspot/walled-garden", "/ip/hotspot/walled-garden/ip"]) {
+  // Purge des tables gérées (par commentaire) avant ré-ajout — idempotent.
+  // L'ancrage par adresse (app-ip-pin) vit aussi dans le DNS statique : il est
+  // purgé sous son propre commentaire, pour que les adresses suivent Cloudflare
+  // au lieu de s'empiler.
+  for (const [path, comment] of [
+    ["/ip/hotspot/walled-garden", WALLED_GARDEN_COMMENT],
+    ["/ip/hotspot/walled-garden/ip", WALLED_GARDEN_COMMENT],
+    ["/ip/hotspot/walled-garden/ip", APP_PIN_COMMENT],
+    ["/ip/dns/static", APP_PIN_COMMENT],
+  ] as const) {
     const existing = await client
-      .talk([`${path}/print`, `?comment=${WALLED_GARDEN_COMMENT}`], timeoutMs)
+      .talk([`${path}/print`, `?comment=${comment}`], timeoutMs)
       .catch(() => [] as Record<string, string>[]);
     for (const entry of existing) {
       const id = entry[".id"];
@@ -344,5 +362,22 @@ export async function ensureWalledGarden(
         });
     }
   }
-  return { added, failed };
+  /* ANCRAGE PAR ADRESSE — voir app-ip-pin.ts. Autoriser l'application par son
+     NOM suppose que le routeur sache résoudre ce nom, et que le téléphone
+     tombe sur la même adresse que lui. Derrière Cloudflare, ça ne tient pas :
+     la règle existe, elle ne matche pas, et le portail affiche « Connexion à
+     safelinkhub.io impossible » alors que le diagnostic voit la règle. On
+     donne donc au routeur les adresses résolues ICI : le DNS du routeur les
+     sert aux téléphones, et le walled-garden les accepte en dur. */
+  const pinned = await resolveAppAddresses(appHost).catch(() => [] as string[]);
+  for (const cmd of pinCommands(sanitizeAppHost(appHost), pinned)) {
+    await client.talk(cmd, timeoutMs).catch((err: unknown) => {
+      failed.push({
+        host: `${cmd[1]?.replace(/^=\w+=/, "") ?? appHost} (ancrage)`,
+        reason: err instanceof Error ? err.message : "refus du routeur",
+      });
+    });
+  }
+
+  return { added, failed, pinned };
 }

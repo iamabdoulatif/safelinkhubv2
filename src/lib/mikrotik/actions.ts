@@ -39,6 +39,7 @@ import {
   portalTlsRepairCommands,
 } from "./portal-tls";
 import { ensureWalledGarden, walledGardenHosts } from "./walled-garden";
+import { resolveAppAddresses } from "@/lib/net/app-addresses";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
@@ -830,7 +831,7 @@ export async function fixRouterWalledGarden(routerId: string) {
   try {
     const appHost = new URL(getAppUrl()).host;
     const desactives = await getOrgWalledGardenDisabledHosts(router.orgId).catch(() => []);
-    const { added, failed } = await ensureWalledGarden(client, appHost, desactives);
+    const { added, failed, pinned } = await ensureWalledGarden(client, appHost, desactives);
     if (added.length === 0) {
       const raison = failed[0]?.reason ?? "aucune raison renvoyée";
       return { error: `Aucune entrée n'a pu être posée — le routeur a répondu : ${raison}` };
@@ -846,9 +847,17 @@ export async function fixRouterWalledGarden(routerId: string) {
             .map((f) => `${f.host} (${f.reason})`)
             .join(" ; ")}${failed.length > 3 ? "…" : ""}`
         : "";
+    /* L'ancrage est la partie qui décide vraiment : on le nomme, adresses
+       comprises, pour qu'une capture d'écran suffise à savoir ce qui a été
+       posé — et pour qu'une résolution vide se voie au lieu de passer pour un
+       succès. */
+    const ancrage =
+      pinned.length > 0
+        ? ` ${appHost} est ancré sur ${pinned.join(" et ")} (DNS du routeur + autorisation par adresse).`
+        : ` ATTENTION : aucune adresse n'a pu être résolue pour ${appHost}, l'ancrage n'a pas été posé.`;
     return {
       success: true,
-      summary: `Walled-garden réinstallé : ${added.length} hôte(s) joignables avant connexion, dont ${appHost}.${reste} Reprenez un achat depuis le portail pour vérifier.`,
+      summary: `Walled-garden réinstallé : ${added.length} hôte(s) joignables avant connexion.${ancrage}${reste} Reprenez un achat depuis le portail pour vérifier.`,
     };
   } catch (err) {
     return {
@@ -1504,9 +1513,11 @@ export async function runRouterAudit(routerId: string) {
       mikhmonConfigured: Boolean(router.mikhmonSessionAt),
       walledGarden: {
         l7: attendus,
-        // Les hôtes jokers ne sont pas résolvables : pas d'entrée L3 possible.
-        ip: attendus.filter((h) => !/[*?]/.test(h)),
+        // Les motifs (regex) ne sont pas résolvables : pas d'entrée L3 possible.
+        ip: attendus.filter((h) => !/[*?\\]/.test(h)),
         appHost,
+        // Adresses que le routeur doit accepter en dur — voir app-ip-pin.ts.
+        addresses: await resolveAppAddresses(appHost).catch(() => []),
       },
     });
     return { success: true, audit };

@@ -65,3 +65,32 @@ test("la casse d'un dst-host ne fait pas croire à un manque", () => {
   assert.equal(walledGardenBloquant(state), false);
   assert.deepEqual(state.perimes, []);
 });
+
+test("la règle par nom ne suffit pas : sans ancrage par adresse, c'est bloquant", () => {
+  // Le cas YAHYA WIFI : safelinkhub.io figure dans les deux tables, et le
+  // portail n'y arrive toujours pas parce que rien n'accepte SES adresses.
+  const state = inspectWalledGarden(
+    attendus.l7.map(ligne),
+    attendus.ip.map(ligne),
+    { ...attendus, addresses: ["104.21.13.231", "172.67.133.105"] },
+  );
+  assert.equal(state.appJoignable, true, "le nom est bien autorisé");
+  assert.deepEqual(state.ancrageManquant, ["104.21.13.231", "172.67.133.105"]);
+  assert.equal(walledGardenBloquant(state), true);
+  assert.match(walledGardenDetail(state, "safelinkhub.io"), /n'est pas ancré/);
+});
+
+test("ancrage posé : plus rien à signaler", () => {
+  const state = inspectWalledGarden(
+    attendus.l7.map(ligne),
+    [
+      ...attendus.ip.map(ligne),
+      { "dst-address": "104.21.13.231", comment: "safelinkhub-app-pin" },
+      { "dst-address": "172.67.133.105", comment: "safelinkhub-app-pin" },
+    ],
+    { ...attendus, addresses: ["104.21.13.231", "172.67.133.105"] },
+  );
+  assert.deepEqual(state.ancrageManquant, []);
+  assert.equal(walledGardenBloquant(state), false);
+  assert.deepEqual(state.ancrees, ["104.21.13.231", "172.67.133.105"]);
+});

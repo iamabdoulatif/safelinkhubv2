@@ -17,6 +17,8 @@
 // dst-host) couvre le HTTP, la L3 (`walled-garden ip`, port 443) le HTTPS.
 // L'app est jointe en HTTPS : l'oubli de la seconde suffit à tout bloquer.
 
+import { missingPins, pinnedAddresses } from "./app-ip-pin";
+
 type Row = Record<string, string | undefined>;
 
 export type WalledGardenState = {
@@ -33,6 +35,11 @@ export type WalledGardenState = {
   perimes: string[];
   /** L'hôte de l'application est-il joignable dans les DEUX tables ? */
   appJoignable: boolean;
+  /** Adresses de l'application acceptées en dur sur le routeur (ancrage). */
+  ancrees: string[];
+  /** Adresses attendues qui ne sont pas ancrées — la cause la plus fréquente
+   *  d'un « la règle existe mais ne matche pas ». */
+  ancrageManquant: string[];
 };
 
 function hosts(rows: Row[]): string[] {
@@ -44,7 +51,7 @@ function hosts(rows: Row[]): string[] {
 export function inspectWalledGarden(
   l7Rows: Row[],
   ipRows: Row[],
-  attendus: { l7: string[]; ip: string[]; appHost: string },
+  attendus: { l7: string[]; ip: string[]; appHost: string; addresses?: string[] },
 ): WalledGardenState {
   const poses = hosts(l7Rows);
   const posesIp = hosts(ipRows);
@@ -60,13 +67,19 @@ export function inspectWalledGarden(
     manquantsIp: attendus.ip.filter((h) => !vusIp.has(h.toLowerCase())),
     perimes: [...new Set([...poses, ...posesIp])].filter((h) => !attenduSet.has(h)),
     appJoignable: vus.has(app) && vusIp.has(app),
+    ancrees: pinnedAddresses(ipRows),
+    ancrageManquant: missingPins(attendus.addresses ?? [], ipRows),
   };
 }
 
 /** Bloquant = l'app n'est pas joignable. Un hôte de paiement manquant gêne un
  *  rail donné ; l'app manquante empêche TOUTE vente, c'est autre chose. */
 export function walledGardenBloquant(state: WalledGardenState): boolean {
-  return !state.appJoignable;
+  /* Autoriser l'application par son NOM ne suffit pas : encore faut-il que le
+     routeur résolve ce nom vers l'adresse que le téléphone, lui, a obtenue.
+     Sans ancrage par adresse, la règle existe et ne matche pas — c'est le cas
+     qui a coûté le plus de temps sur YAHYA WIFI. */
+  return !state.appJoignable || state.ancrageManquant.length > 0;
 }
 
 export function walledGardenIncomplet(state: WalledGardenState): boolean {
@@ -75,6 +88,11 @@ export function walledGardenIncomplet(state: WalledGardenState): boolean {
 
 export function walledGardenDetail(state: WalledGardenState, appHost: string): string {
   const parts: string[] = [];
+  if (state.ancrageManquant.length > 0) {
+    parts.push(
+      `${appHost} n'est pas ancré sur ce routeur : ses adresses (${state.ancrageManquant.join(", ")}) ne sont pas acceptées avant connexion. Autoriser le NOM ne suffit pas — le routeur doit résoudre ce nom vers exactement l'adresse que le téléphone obtient, et derrière Cloudflare les deux divergent. Le portail affiche alors « Connexion à ${appHost} impossible » alors que la règle par nom, elle, est bien là.`,
+    );
+  }
   if (!state.appJoignable) {
     parts.push(
       `${appHost} n'est pas autorisé avant connexion : le portail affiche « Connexion à ${appHost} impossible depuis ce WiFi » et aucun client ne peut acheter.`,

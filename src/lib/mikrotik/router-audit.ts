@@ -90,7 +90,7 @@ export async function auditRouter(
     mikhmonConfigured?: boolean;
     /** Hôtes que le portail doit pouvoir joindre AVANT connexion. Absent =
      *  contrôle sauté (l'appelant seul connaît l'org et ses hôtes décochés). */
-    walledGarden?: { l7: string[]; ip: string[]; appHost: string };
+    walledGarden?: { l7: string[]; ip: string[]; appHost: string; addresses?: string[] };
   } = {},
 ): Promise<RouterAudit> {
   const t = opts.timeoutMs ?? 20000;
@@ -275,7 +275,7 @@ export async function auditRouter(
         "Portail",
         "walled-garden",
         "Walled-garden en place",
-        `Un client non connecté peut joindre ${opts.walledGarden.appHost} et les hôtes de paiement, en HTTP comme en HTTPS.`,
+        `Un client non connecté peut joindre ${opts.walledGarden.appHost} et les hôtes de paiement, en HTTP comme en HTTPS. Ancrage par adresse en place${wg.ancrees.length > 0 ? ` (${wg.ancrees.join(", ")})` : ""}.`,
       );
   }
 
