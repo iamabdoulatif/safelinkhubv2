@@ -207,6 +207,29 @@ describe("renderPackageFile", () => {
     assert.doesNotThrow(() => new Function(flow), "script toujours syntaxiquement valide");
   });
 
+  it("distingue un WiFi qui bloque d'une requête refusée (sonde image)", () => {
+    // « Failed to fetch » recouvre deux causes opposées. Une image ne passe
+    // pas par CORS : si elle arrive alors que le fetch a échoué, accuser le
+    // walled-garden envoie chercher pendant des jours au mauvais endroit.
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: '<html><body><button data-package-id="pkg-x">Acheter</button></body></html>',
+    };
+    const body = renderPackageFile(login, {
+      ssid: "X",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+      routerId: "router-1",
+    }).toString("utf8");
+    const scripts = [...body.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    const flow = scripts.find((s) => s.includes("probeApp")) ?? "";
+    assert.ok(flow.length > 0, "sonde injectée");
+    assert.ok(flow.includes("/payment/visa.svg?sonde="), "aller-retour réel, hors cache");
+    assert.ok(flow.includes("SONDE-OK"), "verdict lisible sur une photo d'écran");
+    assert.doesNotThrow(() => new Function(flow), "script toujours syntaxiquement valide");
+  });
+
   it("injects inline-plan rendering that fills an imported portal's #forfaits container", () => {
     // Portail importé façon Safelink_baraka : conteneur #forfaits + forfaits
     // codés en dur. Le script injecté doit contenir de quoi le remplir avec les

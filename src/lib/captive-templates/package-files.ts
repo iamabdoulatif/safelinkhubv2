@@ -468,6 +468,25 @@ const PORTAL_PAY_SCRIPT = `(function(){
   // serait coupee en deux et le script entier cesserait d etre valide.
   function apiHost(){ try { var u = String(cfg.appUrl); var i = u.indexOf("://"); if(i >= 0) u = u.slice(i + 3); var j = u.indexOf("/"); return j >= 0 ? u.slice(0, j) : u; } catch(e){ return "le serveur"; } }
   function errMsg(err){ var m = err && err.message ? String(err.message) : ""; if(!m || /load failed|failed to fetch|networkerror|network request failed/i.test(m)) return "Connexion a " + apiHost() + " impossible depuis ce WiFi. Signalez-le au point de vente (walled-garden)."; return m; }
+  // Un echec fetch ne dit pas SI le WiFi bloque : il dit seulement que la
+  // requete n a pas abouti. Deux causes tres differentes portent le meme
+  // "Failed to fetch" — le reseau captif qui jette la connexion, ou la requete
+  // elle-meme refusee alors que l hote est joignable. On tranche avec une
+  // SONDE IMAGE : une image ne passe pas par CORS et ne demande aucune
+  // permission particuliere. Si elle arrive alors que le fetch a echoue, le
+  // walled-garden n y est pour rien — et le message ne doit pas accuser le
+  // WiFi, sinon on cherche pendant des jours du cote du routeur.
+  function isNetworkErr(err){ var m = err && err.message ? String(err.message) : ""; return !m || /load failed|failed to fetch|networkerror|network request failed/i.test(m); }
+  function probeApp(cb){
+    if(!cfg.appUrl){ cb("inconnu"); return; }
+    var img = new Image();
+    var fini = false;
+    var minuteur = setTimeout(function(){ if(!fini){ fini = true; cb("bloque"); } }, 6000);
+    img.onload = function(){ if(!fini){ fini = true; clearTimeout(minuteur); cb("joignable"); } };
+    img.onerror = function(){ if(!fini){ fini = true; clearTimeout(minuteur); cb("bloque"); } };
+    // Parametre unique : on veut un vrai aller-retour reseau, pas le cache.
+    img.src = cfg.appUrl + "/payment/visa.svg?sonde=" + Date.now();
+  }
   // Copie dans le presse-papiers. Le portail est servi en HTTP (contexte non
   // securise) : navigator.clipboard est indisponible -> execCommand d abord.
   function copyText(t){
@@ -634,6 +653,15 @@ const PORTAL_PAY_SCRIPT = `(function(){
     }
 
     function setStatus(m,c){ if(!m){ statusEl.style.display="none"; return; } statusEl.style.display="block"; statusEl.style.color = c || "#64748b"; statusEl.textContent = m; }
+    // Message d erreur, puis PRECISION une fois la sonde revenue.
+    function reportErr(err){
+      setStatus(errMsg(err), "#ef4444");
+      if(!isNetworkErr(err)) return;
+      probeApp(function(verdict){
+        if(verdict !== "joignable") return;   // le message walled-garden reste juste
+        setStatus("Ce WiFi joint bien " + apiHost() + " (sonde OK) mais la requete a ete refusee. Montrez ce message au support : SONDE-OK.", "#ef4444");
+      });
+    }
     function localPhone(){ return digits(phoneEl.value); }
     // Indicatif effectif : le pays choisi dans le selecteur, sinon celui de l org.
     function selDial(){ var s = document.getElementById("slh-dial"); return (s && s.value) ? s.value : dial; }
@@ -705,7 +733,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
           var to = document.getElementById("slh-otp-to"); if(to) to.textContent = res.j.to || "";
           setStatus(""); show("otp"); startCooldown();
         })
-        .catch(function(err){ primary.disabled = false; setStatus(errMsg(err), "#ef4444"); });
+        .catch(function(err){ primary.disabled = false; reportErr(err); });
     }
 
     function verifyOtp(){
@@ -720,7 +748,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
           if(cdTimer) clearInterval(cdTimer);
           setStatus(""); show("pay");
         })
-        .catch(function(err){ primary.disabled = false; setStatus(errMsg(err), "#ef4444"); });
+        .catch(function(err){ primary.disabled = false; reportErr(err); });
     }
 
     function startPayment(){
@@ -735,7 +763,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
           setStatus("Redirection vers le paiement...", "#0ea5e9");
           window.location.href = res.j.payUrl || res.j.checkoutUrl;
         })
-        .catch(function(err){ primary.disabled = false; primary.textContent = "Payer"; setStatus(errMsg(err), "#ef4444"); });
+        .catch(function(err){ primary.disabled = false; primary.textContent = "Payer"; reportErr(err); });
     }
 
     function poll(orderId){
