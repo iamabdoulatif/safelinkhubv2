@@ -4,10 +4,19 @@ import { publicSubmissionAttempts } from "@/lib/db/schema";
 import { getClientIp } from "@/lib/auth/client-ip";
 
 export const PUBLIC_SUBMISSION_WINDOW_MINUTES = 60;
-const PUBLIC_SUBMISSION_MAX_ATTEMPTS = 5;
+/* Cinq envois par heure conviennent à un formulaire, pas à une conversation :
+   un échange normal avec l'assistant fait dix à vingt messages, et le compteur
+   l'aurait coupé au milieu. Le seuil est donc par usage — la fenêtre, elle,
+   reste commune. */
+const PUBLIC_SUBMISSION_MAX_ATTEMPTS: Record<PublicSubmissionBucket, number> = {
+  contact: 5,
+  testimonial: 5,
+  recover: 5,
+  chat: 30,
+};
 const PUBLIC_SUBMISSION_PRUNE_AFTER_HOURS = 24;
 
-export type PublicSubmissionBucket = "contact" | "testimonial" | "recover";
+export type PublicSubmissionBucket = "contact" | "testimonial" | "recover" | "chat";
 
 type PublicSubmissionRateLimitResult =
   | { allowed: true }
@@ -30,7 +39,7 @@ export async function checkPublicSubmissionRateLimit(
       ),
     );
 
-  if (Number(attempts?.count ?? 0) >= PUBLIC_SUBMISSION_MAX_ATTEMPTS) {
+  if (Number(attempts?.count ?? 0) >= PUBLIC_SUBMISSION_MAX_ATTEMPTS[bucket]) {
     return {
       allowed: false,
       retryAfterSeconds: PUBLIC_SUBMISSION_WINDOW_MINUTES * 60,
