@@ -148,20 +148,50 @@ function sanitizeAppHost(appHost: string): string {
   return host;
 }
 
+/**
+ * Un `dst-host` de walled-garden est une EXPRESSION RÉGULIÈRE côté RouterOS,
+ * pas un joker de shell. « *.genius.ci » n'en est donc pas une valide — le `*`
+ * n'a rien à répéter — et RouterOS REFUSE l'entrée.
+ *
+ * Constaté sur YAHYA WIFI : après plusieurs réinstallations, le diagnostic
+ * listait comme manquants EXACTEMENT les quatorze hôtes en « *. », et aucun
+ * autre. Les ajouts échouaient un par un depuis toujours, silencieusement
+ * (chaque `add` était enveloppé d'un `catch` muet), et l'exploitant recliquait
+ * sans fin sur un correctif qui ne pouvait pas aboutir.
+ *
+ * On émet donc la forme régulière : « .*\.genius\.ci ». Les points du domaine
+ * sont échappés — sans quoi « . » accepterait n'importe quel caractère, et
+ * « genius-ci » passerait pour « genius.ci ».
+ */
+export function dstHostPattern(host: string): string {
+  if (!host.startsWith("*.")) return host;
+  return `.*\\.${host.slice(2).replace(/\./g, "\\.")}`;
+}
+
+/**
+ * Le même motif, tel qu'il doit être ÉCRIT DANS UN SCRIPT RouterOS. Entre
+ * guillemets, RouterOS traite `\` comme un échappement : « \. » y serait lu
+ * comme une séquence inconnue. Il faut donc doubler chaque antislash.
+ */
+export function dstHostPatternForScript(host: string): string {
+  return dstHostPattern(host).replace(/\\/g, "\\\\");
+}
+
 export function walledGardenHosts(appHost: string, disabledHosts: string[] = []): string[] {
   const disabled = new Set(disabledHosts);
   const payment = PAYMENT_WALLED_GARDEN_HOSTS.filter((host) => !disabled.has(host));
   const cleanAppHost = sanitizeAppHost(appHost);
   const hosts = [cleanAppHost, `*.${cleanAppHost}`, ...payment];
-  // Dédoublonne en préservant l'ordre (appHost pourrait recouper un motif).
-  return [...new Set(hosts.filter(Boolean))];
+  // Dédoublonne en préservant l'ordre (appHost pourrait recouper un motif),
+  // puis convertit chaque joker en motif accepté par RouterOS.
+  return [...new Set(hosts.filter(Boolean))].map(dstHostPattern);
 }
 
 // Hôte joker (*.domaine / a?b.tld) : accepté par le walled-garden L7
 // (dst-host supporte * et ?), mais PAS résolvable en DNS → pas d'entrée
 // « walled-garden ip » possible pour lui.
 function isWildcardHost(host: string): boolean {
-  return /[*?]/.test(host);
+  return /[*?\\]/.test(host);
 }
 
 /**
@@ -189,7 +219,7 @@ export function walledGardenScriptLines(appHost: string, disabledHosts: string[]
   const adds = walledGardenHosts(appHost, disabledHosts)
     .map(
       (h) =>
-        `/ip hotspot walled-garden add dst-host="${h}" action=allow comment="${WALLED_GARDEN_COMMENT}"`,
+        `/ip hotspot walled-garden add dst-host="${dstHostPatternForScript(h)}" action=allow comment="${WALLED_GARDEN_COMMENT}"`,
     )
     .join("\n");
   const ipAdds = walledGardenIpEntries(appHost, disabledHosts)
@@ -242,12 +272,21 @@ export async function reconcileWalledGardenOnce(
   reconciledRouters.set(routerId, key); // marqué seulement si ensureWalledGarden n'a pas levé
 }
 
+export type WalledGardenResult = {
+  added: string[];
+  /** Entrées REFUSÉES par le routeur, avec la raison qu'il a donnée.
+   *  Longtemps avalées en silence : c'est ainsi qu'un walled-garden a pu
+   *  rester incomplet malgré des dizaines de réinstallations. Ce qui échoue
+   *  doit se voir. */
+  failed: { host: string; reason: string }[];
+};
+
 export async function ensureWalledGarden(
   client: RouterOSClient,
   appHost: string,
   disabledHosts: string[] = [],
   timeoutMs = 15000,
-): Promise<{ added: string[] }> {
+): Promise<WalledGardenResult> {
   // Purge des DEUX tables gérées (par commentaire) avant ré-ajout — idempotent.
   for (const path of ["/ip/hotspot/walled-garden", "/ip/hotspot/walled-garden/ip"]) {
     const existing = await client
@@ -262,6 +301,7 @@ export async function ensureWalledGarden(
   }
 
   const added: string[] = [];
+  const failed: { host: string; reason: string }[] = [];
   for (const host of walledGardenHosts(appHost, disabledHosts)) {
     try {
       await client.talk(
@@ -274,8 +314,10 @@ export async function ensureWalledGarden(
         timeoutMs,
       );
       added.push(host);
-    } catch {
-      // best-effort : une entrée qui échoue ne doit pas bloquer les autres.
+    } catch (err) {
+      // On continue les autres entrées, mais on GARDE la raison : un refus
+      // muet est ce qui a rendu ce défaut invisible pendant des mois.
+      failed.push({ host, reason: err instanceof Error ? err.message : "refus du routeur" });
     }
   }
   // Entrées L3 (walled-garden ip, résolues en DNS) pour le HTTPS pré-auth des
@@ -294,10 +336,13 @@ export async function ensureWalledGarden(
           ],
           timeoutMs,
         )
-        .catch(() => {
-          // best-effort, même logique que ci-dessus.
+        .catch((err: unknown) => {
+          failed.push({
+            host: `${host} (${protocol}/443)`,
+            reason: err instanceof Error ? err.message : "refus du routeur",
+          });
         });
     }
   }
-  return { added };
+  return { added, failed };
 }

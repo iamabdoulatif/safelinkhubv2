@@ -830,13 +830,25 @@ export async function fixRouterWalledGarden(routerId: string) {
   try {
     const appHost = new URL(getAppUrl()).host;
     const desactives = await getOrgWalledGardenDisabledHosts(router.orgId).catch(() => []);
-    const { added } = await ensureWalledGarden(client, appHost, desactives);
+    const { added, failed } = await ensureWalledGarden(client, appHost, desactives);
     if (added.length === 0) {
-      return { error: "Aucune entrée n'a pu être posée — le routeur a refusé les commandes." };
+      const raison = failed[0]?.reason ?? "aucune raison renvoyée";
+      return { error: `Aucune entrée n'a pu être posée — le routeur a répondu : ${raison}` };
     }
+    /* Un refus partiel se DIT, avec la raison du routeur. C'est ce silence qui
+       a laissé un walled-garden incomplet survivre à des dizaines de
+       réinstallations : le correctif annonçait un succès, le diagnostic
+       reportait un manque, et rien ne reliait les deux. */
+    const reste =
+      failed.length > 0
+        ? ` ${failed.length} refusée(s) par le routeur : ${failed
+            .slice(0, 3)
+            .map((f) => `${f.host} (${f.reason})`)
+            .join(" ; ")}${failed.length > 3 ? "…" : ""}`
+        : "";
     return {
       success: true,
-      summary: `Walled-garden réinstallé : ${added.length} hôte(s) joignables avant connexion, dont ${appHost}. Reprenez un achat depuis le portail pour vérifier.`,
+      summary: `Walled-garden réinstallé : ${added.length} hôte(s) joignables avant connexion, dont ${appHost}.${reste} Reprenez un achat depuis le portail pour vérifier.`,
     };
   } catch (err) {
     return {
