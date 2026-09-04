@@ -305,6 +305,13 @@ export const routers = pgTable("routers", {
   wanQuotaAlertedAt: timestamp("wan_quota_alerted_at"),
   wanThrottledAt: timestamp("wan_throttled_at"),
   lastAutoSetupConfig: jsonb("last_auto_setup_config"),
+  // Quota VPN SCOPÉ AU ROUTEUR — surcharge celui de l'organisation. null = ce
+  // routeur SUIT l'org (comportement historique). Une organisation peut avoir
+  // plusieurs zones et n'en offrir qu'une : sans cette surcharge, offrir un
+  // mois à un routeur l'offrait à tout le parc du compte. Mêmes valeurs que
+  // organizations.vpn_quota_mode ("free_until" | "unlimited" | "paid").
+  vpnQuotaMode: text("vpn_quota_mode"),
+  vpnQuotaExpiresAt: timestamp("vpn_quota_expires_at"),
 });
 
 // Verrou anti-abus de l'auto-setup : le numéro de série RouterOS d'un MikroTik

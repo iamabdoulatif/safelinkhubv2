@@ -11,6 +11,7 @@ import {
   walletTransactions,
 } from "@/lib/db/schema";
 import { capVpnAccessExpiry, getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
+import { getRouterVpnQuotaFields } from "@/lib/billing/router-vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getSafecoinAccount } from "@/lib/safecoin/ledger";
 import { chargeVpnActivation } from "@/lib/safecoin/service-charges";
@@ -219,12 +220,8 @@ async function enablePortForwardForRouter(
   // auto-enable that fires right after a fresh install) — store no expiry
   // so this isn't just a display quirk: anything that later enforces
   // expiresAt also sees it as never-expiring.
-  const [org] = await db
-    .select({ vpnQuotaMode: organizations.vpnQuotaMode, vpnQuotaExpiresAt: organizations.vpnQuotaExpiresAt })
-    .from(organizations)
-    .where(eq(organizations.id, router.orgId))
-    .limit(1);
-  const isUnlimited = isSuperAdminSession || (org ? getVpnQuotaStatus(org).unlimited : false);
+  const quotaFields = await getRouterVpnQuotaFields(routerId, router.orgId);
+  const isUnlimited = isSuperAdminSession || getVpnQuotaStatus(quotaFields).unlimited;
 
   const [forward] = await db
     .insert(routerPortForwards)
@@ -308,14 +305,13 @@ export async function enablePortForward(
   }
 
   const [org] = await db
-    .select({
-      createdAt: organizations.createdAt,
-      vpnQuotaMode: organizations.vpnQuotaMode,
-      vpnQuotaExpiresAt: organizations.vpnQuotaExpiresAt,
-    })
+    .select({ createdAt: organizations.createdAt })
     .from(organizations)
     .where(eq(organizations.id, session.orgId))
     .limit(1);
+  // Quota applicable à CE routeur : sa surcharge si le superadmin lui en a
+  // posé une, sinon celui de l'organisation.
+  const quotaFields = await getRouterVpnQuotaFields(routerId, session.orgId);
 
   // TEMPORAIRE — porte de monétisation manuelle : hors superadmin, activer un
   // accès distant exige une autorisation validée (et non consommée) pour ce
@@ -332,11 +328,11 @@ export async function enablePortForward(
   }
 
   const superadmin = isSuperAdmin(session.role);
-  const quota = org ? getVpnQuotaStatus(org) : null;
+  const quota = getVpnQuotaStatus(quotaFields);
   // A superadmin session is an operational override: it must not inherit the
   // organization owner's free-quota expiry when repairing or provisioning a
   // router from the admin account.
-  const quotaExpiry = !superadmin && quota?.free && quota.expiresAt ? quota.expiresAt : null;
+  const quotaExpiry = !superadmin && quota.free && quota.expiresAt ? quota.expiresAt : null;
   const temporaryGrantExpiry = gate.reason === "temporary_grant" ? gate.expiresAt : null;
   const planExpiry = expiresAtFor(billingPeriod);
   const freeExpiry = [quotaExpiry, temporaryGrantExpiry]
@@ -378,8 +374,8 @@ export async function enablePortForward(
       shouldChargeVpnActivation({
         isSuperAdmin: isSuperAdmin(session.role),
         orgCreatedAt: org?.createdAt ?? null,
-        vpnQuotaMode: org?.vpnQuotaMode ?? "default",
-        vpnQuotaExpiresAt: org?.vpnQuotaExpiresAt ?? null,
+        vpnQuotaMode: quotaFields.vpnQuotaMode ?? "default",
+        vpnQuotaExpiresAt: quotaFields.vpnQuotaExpiresAt,
       });
 
     if (shouldCharge) {

@@ -5,9 +5,10 @@
 
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { organizations, remoteAccessAuthorizations } from "@/lib/db/schema";
+import { remoteAccessAuthorizations } from "@/lib/db/schema";
 import { isSuperAdmin, type SessionPayload } from "@/lib/auth/session";
 import { getVpnQuotaStatus } from "./vpn-quota";
+import { getRouterVpnQuotaFields } from "./router-vpn-quota";
 import type { PaymentMethodId } from "./auto-setup-gate-config";
 import type { RemoteAccessService } from "./remote-access-gate-config";
 import type { BillingPeriod } from "@/lib/mikrotik/billing-plans";
@@ -54,13 +55,10 @@ export async function evaluateRemoteAccessGate(
   if (!session) return { ok: false, reason: "not_authorized" };
   const grant = await findUsableRemoteAccessGrant(session.orgId, routerId, service);
   if (grant) return { ok: true, reason: "temporary_grant", grantId: grant.id, expiresAt: grant.expiresAt };
-  const [org] = await getDb()
-    .select({ vpnQuotaMode: organizations.vpnQuotaMode, vpnQuotaExpiresAt: organizations.vpnQuotaExpiresAt })
-    .from(organizations)
-    .where(eq(organizations.id, session.orgId))
-    .limit(1);
-  const quota = org ? getVpnQuotaStatus(org) : null;
-  if (quota?.free) return { ok: true, reason: "quota", expiresAt: quota.expiresAt };
+  // Quota DE CE ROUTEUR (sa surcharge, sinon celle de l'org) : un compte à
+  // plusieurs zones peut n'en avoir qu'une offerte.
+  const quota = getVpnQuotaStatus(await getRouterVpnQuotaFields(routerId, session.orgId));
+  if (quota.free) return { ok: true, reason: "quota", expiresAt: quota.expiresAt };
   const auth = await findUsableRemoteAccessAuthorization(routerId, service);
   if (auth) return { ok: true, reason: "authorized", authorizationId: auth.id };
   return { ok: false, reason: "not_authorized" };
@@ -98,12 +96,7 @@ export async function getRemoteAccessGateStatus(
   const temporaryGrant = await findUsableRemoteAccessGrant(session.orgId, routerId, service);
 
   const db = getDb();
-  const [org] = await db
-    .select({ vpnQuotaMode: organizations.vpnQuotaMode, vpnQuotaExpiresAt: organizations.vpnQuotaExpiresAt })
-    .from(organizations)
-    .where(eq(organizations.id, session.orgId))
-    .limit(1);
-  const quota = org ? getVpnQuotaStatus(org) : null;
+  const quota = getVpnQuotaStatus(await getRouterVpnQuotaFields(routerId, session.orgId));
   const [latest] = await db
     .select()
     .from(remoteAccessAuthorizations)
@@ -119,7 +112,7 @@ export async function getRemoteAccessGateStatus(
   const usable = await findUsableRemoteAccessAuthorization(routerId, service);
   return {
     superadmin: false,
-    authorized: Boolean(usable || temporaryGrant || quota?.free),
+    authorized: Boolean(usable || temporaryGrant || quota.free),
     latest: latest ?? null,
     temporaryGrant: temporaryGrant
       ? { id: temporaryGrant.id, expiresAt: temporaryGrant.expiresAt, reason: temporaryGrant.reason }

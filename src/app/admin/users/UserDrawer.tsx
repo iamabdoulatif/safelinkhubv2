@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Check, Copy, Mail, Wifi, X } from "lucide-react";
-import VpnQuotaForm from "./VpnQuotaForm";
+import VpnQuotaForm, { type QuotaRouter } from "./VpnQuotaForm";
 import type { UserControlRow } from "./users-control-center";
 import { userMonogram } from "./users-register";
 import { expiryHint } from "./user-expiry";
@@ -25,12 +25,15 @@ import { expiryHint } from "./user-expiry";
 export default function UserDrawer({
   row,
   superadmin,
+  routers,
   copied,
   onCopyEmail,
   onClose,
 }: {
   row: UserControlRow;
   superadmin: boolean;
+  /* Routeurs de l'organisation de cet utilisateur — portée possible du quota. */
+  routers: QuotaRouter[];
   copied: boolean;
   onCopyEmail: () => void;
   onClose: () => void;
@@ -151,7 +154,7 @@ export default function UserDrawer({
                 Les passes promotionnels sont gratuits et ne débitent jamais Safecoin.
               </p>
               <div className="mt-3">
-                <VpnQuotaForm userId={row.id} userEmail={row.email} />
+                <VpnQuotaForm userId={row.id} userEmail={row.email} routers={routers} />
               </div>
             </section>
           )}

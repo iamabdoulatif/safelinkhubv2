@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   computeVpnQuotaGrant,
   getVpnQuotaStatus,
+  resolveVpnQuotaFields,
   shouldChargeVpnActivation,
   capVpnAccessExpiry,
   VPN_QUOTA_GRANT_OPTIONS,
@@ -210,5 +211,22 @@ describe("vpn quota grants", () => {
     const quotaExpiry = new Date("2026-07-05T12:00:00.000Z");
     assert.equal(capVpnAccessExpiry(planExpiry, quotaExpiry), quotaExpiry);
     assert.equal(capVpnAccessExpiry(planExpiry, null), planExpiry);
+  });
+
+  it("un routeur doté ne suit plus l'org, les autres routeurs du compte si", () => {
+    const org = { vpnQuotaMode: "default", vpnQuotaExpiresAt: null };
+    const offert = { vpnQuotaMode: "unlimited", vpnQuotaExpiresAt: null };
+
+    // Zone offerte : sa surcharge gagne.
+    assert.equal(getVpnQuotaStatus(resolveVpnQuotaFields(offert, org)).unlimited, true);
+    // Zone voisine du MÊME compte : non dotée (null), donc toujours payante.
+    assert.equal(
+      getVpnQuotaStatus(
+        resolveVpnQuotaFields({ vpnQuotaMode: null, vpnQuotaExpiresAt: null }, org),
+      ).free,
+      false,
+    );
+    // Sans routeur du tout, on retombe sur l'org.
+    assert.equal(resolveVpnQuotaFields(null, org), org);
   });
 });

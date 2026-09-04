@@ -4,6 +4,7 @@ export type UserControlRow = {
   id: string;
   name: string;
   email: string;
+  orgId: string;
   orgName: string;
   role: string;
   quotaCategory: UserQuotaCategory;

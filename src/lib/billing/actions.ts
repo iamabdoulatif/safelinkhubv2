@@ -1,15 +1,17 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
-import { organizations, users } from "@/lib/db/schema";
+import { organizations, routers, users } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { isWithinVpnTrial, vpnTrialDaysFor, vpnTrialDaysRemaining, vpnTrialEndsAt } from "./auto-setup-pricing";
 import {
   computeVpnQuotaGrant,
   getVpnQuotaStatus,
   isVpnQuotaGrant,
+  ROUTER_QUOTA_INHERIT,
+  type VpnQuotaGrant,
 } from "./vpn-quota";
 
 export async function getVpnTrialStatus() {
@@ -75,8 +77,16 @@ export async function updateOrganizationVpnQuota(
 
   const userId = String(formData.get("userId") ?? "");
   const grant = String(formData.get("grant") ?? "");
-  if (!userId || !isVpnQuotaGrant(grant)) {
+  // Vide = quota de l'organisation entière (comportement historique). Sinon un
+  // routeur précis du compte : une organisation peut porter plusieurs zones et
+  // n'en avoir qu'une offerte.
+  const routerId = String(formData.get("routerId") ?? "");
+  const inherit = grant === ROUTER_QUOTA_INHERIT;
+  if (!userId || (!isVpnQuotaGrant(grant) && !inherit)) {
     return { success: false, error: "Sélection invalide." };
+  }
+  if (inherit && !routerId) {
+    return { success: false, error: "« Suivre l'organisation » ne vaut que pour un routeur." };
   }
 
   const db = getDb();
@@ -89,14 +99,35 @@ export async function updateOrganizationVpnQuota(
     return { success: false, error: "Utilisateur introuvable." };
   }
 
-  const patch = computeVpnQuotaGrant(grant);
-  await db
-    .update(organizations)
-    .set({
-      vpnQuotaMode: patch.mode,
-      vpnQuotaExpiresAt: patch.expiresAt,
-    })
-    .where(eq(organizations.id, targetUser.orgId));
+  if (routerId) {
+    // Le routeur doit appartenir à l'organisation de l'utilisateur visé :
+    // sans ce contrôle, un identifiant recopié à la main offrirait un accès
+    // sur le routeur d'un AUTRE client.
+    const [targetRouter] = await db
+      .select({ id: routers.id })
+      .from(routers)
+      .where(and(eq(routers.id, routerId), eq(routers.orgId, targetUser.orgId)))
+      .limit(1);
+    if (!targetRouter) {
+      return { success: false, error: "Routeur introuvable pour cette organisation." };
+    }
+
+    // null = ce routeur suit de nouveau son organisation.
+    const patch = inherit ? { mode: null, expiresAt: null } : computeVpnQuotaGrant(grant as VpnQuotaGrant);
+    await db
+      .update(routers)
+      .set({ vpnQuotaMode: patch.mode, vpnQuotaExpiresAt: patch.expiresAt })
+      .where(eq(routers.id, routerId));
+  } else {
+    const patch = computeVpnQuotaGrant(grant as VpnQuotaGrant);
+    await db
+      .update(organizations)
+      .set({
+        vpnQuotaMode: patch.mode,
+        vpnQuotaExpiresAt: patch.expiresAt,
+      })
+      .where(eq(organizations.id, targetUser.orgId));
+  }
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/remote-access");

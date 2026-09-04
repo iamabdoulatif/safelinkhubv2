@@ -1,8 +1,8 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, routers, users } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
-import { getVpnQuotaStatus } from "@/lib/billing/vpn-quota";
+import { getVpnQuotaStatus, resolveVpnQuotaFields } from "@/lib/billing/vpn-quota";
 import UsersControlCenter from "./UsersControlCenter";
 import { listAllRemoteAccessGrants } from "@/lib/remote-access/grants";
 import { countRouterStatuses } from "../router/router-portfolio";
@@ -125,6 +125,42 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
       }
     : null;
 
+  // Routeurs des organisations affichées : le tiroir doit pouvoir accorder un
+  // quota à UNE zone quand le compte en porte plusieurs, et montrer ce que
+  // cette zone a déjà (sa surcharge, ou le quota hérité de son org).
+  const listedOrgIds = [...new Set(orgUsers.map((user) => user.orgId))];
+  const quotaRouters = listedOrgIds.length
+    ? await db
+        .select({
+          id: routers.id,
+          name: routers.name,
+          orgId: routers.orgId,
+          vpnQuotaMode: routers.vpnQuotaMode,
+          vpnQuotaExpiresAt: routers.vpnQuotaExpiresAt,
+          orgQuotaMode: organizations.vpnQuotaMode,
+          orgQuotaExpiresAt: organizations.vpnQuotaExpiresAt,
+        })
+        .from(routers)
+        .innerJoin(organizations, eq(routers.orgId, organizations.id))
+        .where(inArray(routers.orgId, listedOrgIds))
+        .orderBy(routers.name)
+    : [];
+
+  const routersByOrg: Record<string, Array<{ id: string; name: string; quotaLabel: string }>> = {};
+  for (const router of quotaRouters) {
+    const fields = resolveVpnQuotaFields(router, {
+      vpnQuotaMode: router.orgQuotaMode,
+      vpnQuotaExpiresAt: router.orgQuotaExpiresAt,
+    });
+    (routersByOrg[router.orgId] ??= []).push({
+      id: router.id,
+      name: router.name,
+      quotaLabel: router.vpnQuotaMode
+        ? quotaLabel(fields)
+        : `${quotaLabel(fields)} (hérité du compte)`,
+    });
+  }
+
   const controlRows = orgUsers.map((user) => {
     const fields = {
       vpnQuotaMode: user.vpnQuotaMode,
@@ -135,6 +171,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
       id: user.id,
       name: user.name,
       email: user.email,
+      orgId: user.orgId,
       orgName: user.orgName,
       role: user.role,
       quotaCategory: quotaCategory(fields),
@@ -168,6 +205,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
     <UsersControlCenter
       rows={controlRows}
       superadmin={superadmin}
+      routersByOrg={routersByOrg}
       temporaryAccess={temporaryAccess}
       organizationFocus={organizationFocus}
     />

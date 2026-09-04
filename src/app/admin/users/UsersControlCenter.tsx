@@ -13,6 +13,7 @@ import {
   Wifi,
 } from "lucide-react";
 import UserDrawer from "./UserDrawer";
+import type { QuotaRouter } from "./VpnQuotaForm";
 import { expiryHint } from "./user-expiry";
 import { orgDisplayName, quotaShortLabel, roleBadge } from "./user-labels";
 import TemporaryAccessPasses, {
@@ -41,11 +42,14 @@ const FILTERS: Array<{ value: UserControlFilter; label: string }> = [
 export default function UsersControlCenter({
   rows,
   superadmin,
+  routersByOrg,
   temporaryAccess,
   organizationFocus,
 }: {
   rows: UserControlRow[];
   superadmin: boolean;
+  /* Routeurs par organisation : le tiroir doit pouvoir viser UNE zone. */
+  routersByOrg: Record<string, QuotaRouter[]>;
   temporaryAccess: {
     organizations: Organization[];
     routers: GrantRouter[];
@@ -265,6 +269,7 @@ export default function UsersControlCenter({
         <UserDrawer
           row={openRow}
           superadmin={superadmin}
+          routers={routersByOrg[openRow.orgId] ?? []}
           copied={copiedId === openRow.id}
           onCopyEmail={() => copyEmail(openRow)}
           onClose={() => setOpenRowId(null)}

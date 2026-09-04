@@ -20,6 +20,9 @@ export const VPN_QUOTA_GRANT_OPTIONS = [
   { value: "paid", label: "VPN payant", months: null, durationMs: null },
 ] as const;
 
+/** Choix « ce routeur suit son organisation » — efface sa surcharge. */
+export const ROUTER_QUOTA_INHERIT = "inherit" as const;
+
 export type VpnQuotaGrant = (typeof VPN_QUOTA_GRANT_OPTIONS)[number]["value"];
 
 export type VpnQuotaFields = {
@@ -60,6 +63,19 @@ function addQuotaDuration(date: Date, option: (typeof VPN_QUOTA_GRANT_OPTIONS)[n
 
 export function isVpnQuotaGrant(value: string): value is VpnQuotaGrant {
   return VPN_QUOTA_GRANT_OPTIONS.some((option) => option.value === value);
+}
+
+/**
+ * Quota qui s'applique à UN routeur : sa propre surcharge si le superadmin lui
+ * en a posé une, sinon celle de son organisation. Un compte peut porter
+ * plusieurs zones ; offrir un mois à l'une ne doit pas l'offrir à toutes.
+ */
+export function resolveVpnQuotaFields(
+  router: VpnQuotaFields | null | undefined,
+  org: VpnQuotaFields | null | undefined,
+): VpnQuotaFields {
+  if (router?.vpnQuotaMode) return router;
+  return org ?? { vpnQuotaMode: null, vpnQuotaExpiresAt: null };
 }
 
 export function normalizeVpnQuotaMode(mode: string | null | undefined): VpnQuotaMode {

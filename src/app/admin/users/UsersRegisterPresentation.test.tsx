@@ -34,6 +34,7 @@ const controlCenterRows: UserControlRow[] = [
     id: "user-awa",
     name: "Awa Traoré",
     email: "awa@example.com",
+    orgId: "org-1",
     orgName: "Atelier Réseau Abidjan",
     role: "admin",
     quotaCategory: "paid",
@@ -78,6 +79,7 @@ describe("users register presentation", () => {
       <UsersControlCenter
         rows={controlCenterRows}
         superadmin
+        routersByOrg={{}}
         temporaryAccess={{
           organizations: [{ id: "org-1", name: "Atelier Réseau Abidjan", slug: "atelier-reseau" }],
           routers: [],
@@ -119,6 +121,7 @@ describe("users register presentation", () => {
         <UsersControlCenter
           rows={controlCenterRows}
           superadmin
+          routersByOrg={{}}
           temporaryAccess={{
             organizations: [{ id: "foreign-org", name: "Organisation étrangère", slug: "organisation-etrangere" }],
             routers: [{ id: "foreign-router", name: "Routeur étranger", orgId: "foreign-org" }],

@@ -92,11 +92,13 @@ test("le panneau utilise la table serveur du parc propre lorsqu’elle est fourn
 test("la station de contrôle rend clairement la portée ciblée sans colonne organisation", () => {
   const markup = renderToStaticMarkup(
     <UsersControlCenter
+      routersByOrg={{}}
       rows={[
         {
           id: "member-1",
           name: "Awa Traoré",
           email: "awa@example.com",
+          orgId: "org-1",
           orgName: focus.name,
           role: "admin",
           quotaCategory: "default",
