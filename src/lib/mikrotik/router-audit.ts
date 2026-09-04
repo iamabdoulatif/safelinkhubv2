@@ -6,6 +6,12 @@ import { readWifiState } from "./wifi-compat";
 import { readRouterboardFirmware, missingApiGroupPolicies, API_GROUP_NAME } from "./router-audit-fixes";
 import { inspectApiService, MIKHMON_EXPECTED_API_PORT } from "./api-service-access";
 import { inspectPortalTls, portalTlsBroken, portalTlsDetail } from "./portal-tls";
+import {
+  inspectWalledGarden,
+  walledGardenBloquant,
+  walledGardenDetail,
+  walledGardenIncomplet,
+} from "./walled-garden-inspect";
 import { inspectMikhmonApiLogins } from "./mikhmon-api-login";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 
@@ -38,6 +44,7 @@ export type AuditFixKind =
   | "expiry-sweep"
   | "services-cleanup"
   | "portal-tls"
+  | "walled-garden"
   | null;
 
 export type AuditFinding = {
@@ -78,7 +85,13 @@ const num = (v: string | undefined) => Number(v ?? 0) || 0;
 
 export async function auditRouter(
   client: RouterOSClient,
-  opts: { timeoutMs?: number; mikhmonConfigured?: boolean } = {},
+  opts: {
+    timeoutMs?: number;
+    mikhmonConfigured?: boolean;
+    /** Hôtes que le portail doit pouvoir joindre AVANT connexion. Absent =
+     *  contrôle sauté (l'appelant seul connaît l'org et ses hôtes décochés). */
+    walledGarden?: { l7: string[]; ip: string[]; appHost: string };
+  } = {},
 ): Promise<RouterAudit> {
   const t = opts.timeoutMs ?? 20000;
   const findings: AuditFinding[] = [];
@@ -222,6 +235,49 @@ export async function auditRouter(
       "Portail servi en clair",
       "Aucun certificat auto-signé sur la page de connexion : le mini-navigateur des téléphones l'ouvre sans avertissement de sécurité.",
     );
+
+  // ── Portail : les hôtes joignables avant connexion ──────────────────────
+  /* Voir walled-garden-inspect.ts. Un client pas encore authentifié ne peut
+     joindre que cette liste : si safelinkhub.io n'y est pas, le portail
+     affiche « Connexion à safelinkhub.io impossible depuis ce WiFi » et
+     PERSONNE ne peut acheter — quel que soit l'état du SMS ou du paiement. */
+  if (opts.walledGarden) {
+    const [l7Rows, ipRows] = await Promise.all([
+      client.talk(["/ip/hotspot/walled-garden/print"], t).catch(() => []),
+      client.talk(["/ip/hotspot/walled-garden/ip/print"], t).catch(() => []),
+    ]);
+    const wg = inspectWalledGarden(
+      l7Rows as Record<string, string>[],
+      ipRows as Record<string, string>[],
+      opts.walledGarden,
+    );
+    if (walledGardenBloquant(wg))
+      add(
+        "error",
+        "Portail",
+        "walled-garden",
+        "Le portail ne peut pas joindre SafeLinkHub",
+        walledGardenDetail(wg, opts.walledGarden.appHost),
+        "walled-garden",
+      );
+    else if (walledGardenIncomplet(wg))
+      add(
+        "warn",
+        "Portail",
+        "walled-garden",
+        "Walled-garden incomplet",
+        walledGardenDetail(wg, opts.walledGarden.appHost),
+        "walled-garden",
+      );
+    else
+      add(
+        "ok",
+        "Portail",
+        "walled-garden",
+        "Walled-garden en place",
+        `Un client non connecté peut joindre ${opts.walledGarden.appHost} et les hôtes de paiement, en HTTP comme en HTTPS.`,
+      );
+  }
 
   // ── Réseau : route par défaut + NAT ─────────────────────────────────────
   const routes = await client

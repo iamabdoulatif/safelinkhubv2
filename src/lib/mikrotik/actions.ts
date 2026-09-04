@@ -38,6 +38,8 @@ import {
   portalTlsBroken,
   portalTlsRepairCommands,
 } from "./portal-tls";
+import { ensureWalledGarden, walledGardenHosts } from "./walled-garden";
+import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
@@ -793,6 +795,58 @@ export async function fixRouterPortalTls(routerId: string) {
   }
 }
 
+/**
+ * Réinstalle le walled-garden du routeur (correctif « walled-garden »).
+ *
+ * Un client pas encore authentifié ne peut joindre QUE cette liste. Si
+ * safelinkhub.io n'y figure pas, le portail affiche « Connexion à
+ * safelinkhub.io impossible depuis ce WiFi » et personne ne peut acheter —
+ * peu importe l'état du SMS ou de la passerelle de paiement. La liste est
+ * pourtant réinstallée à chaque synchronisation : ce bouton sert aux routeurs
+ * qui n'en font plus (longtemps hors contact, restaurés d'une sauvegarde, ou
+ * porteurs d'entrées écrites par un serveur de développement).
+ */
+export async function fixRouterWalledGarden(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour ce correctif.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const appHost = new URL(getAppUrl()).host;
+    const desactives = await getOrgWalledGardenDisabledHosts(router.orgId).catch(() => []);
+    const { added } = await ensureWalledGarden(client, appHost, desactives);
+    if (added.length === 0) {
+      return { error: "Aucune entrée n'a pu être posée — le routeur a refusé les commandes." };
+    }
+    return {
+      success: true,
+      summary: `Walled-garden réinstallé : ${added.length} hôte(s) joignables avant connexion, dont ${appHost}. Reprenez un achat depuis le portail pour vérifier.`,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Correctif refusé : ${err.message}` : "Correctif refusé.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
 export async function cleanupRouterServices(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
@@ -1431,7 +1485,18 @@ export async function runRouterAudit(routerId: string) {
     };
   }
   try {
-    const audit = await auditRouter(client, { mikhmonConfigured: Boolean(router.mikhmonSessionAt) });
+    const appHost = new URL(getAppUrl()).host;
+    const desactives = await getOrgWalledGardenDisabledHosts(router.orgId).catch(() => []);
+    const attendus = walledGardenHosts(appHost, desactives);
+    const audit = await auditRouter(client, {
+      mikhmonConfigured: Boolean(router.mikhmonSessionAt),
+      walledGarden: {
+        l7: attendus,
+        // Les hôtes jokers ne sont pas résolvables : pas d'entrée L3 possible.
+        ip: attendus.filter((h) => !/[*?]/.test(h)),
+        appHost,
+      },
+    });
     return { success: true, audit };
   } catch (err) {
     return { error: err instanceof Error ? `Échec de l'analyse : ${err.message}` : "Échec de l'analyse." };

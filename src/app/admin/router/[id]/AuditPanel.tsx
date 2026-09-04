@@ -29,6 +29,7 @@ import {
   fixRouterExpirySweep,
   cleanupRouterServices,
   fixRouterPortalTls,
+  fixRouterWalledGarden,
 } from "@/lib/mikrotik/actions";
 import type { AuditFinding, AuditSeverity, RouterAudit } from "@/lib/mikrotik/router-audit";
 import NetworkGuide from "./NetworkGuide";
@@ -59,6 +60,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   "expiry-sweep": "Remettre le balayage en service",
   "services-cleanup": "Éteindre les services superflus",
   "portal-tls": "Remettre le portail en HTTP",
+  "walled-garden": "Réinstaller le walled-garden",
 };
 
 function scoreTone(score: number) {
@@ -129,7 +131,9 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                           ? await cleanupRouterServices(routerId)
                           : finding.fix === "portal-tls"
                             ? await fixRouterPortalTls(routerId)
-                            : await setRouterBandwidthCap(routerId, 450);
+                            : finding.fix === "walled-garden"
+                              ? await fixRouterWalledGarden(routerId)
+                              : await setRouterBandwidthCap(routerId, 450);
       setFixingId(null);
       if (res?.error) {
         setFixMsg({ id: finding.id, ok: false, text: res.error });
