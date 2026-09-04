@@ -5,6 +5,7 @@ import { inspectProfileOnLogin, inspectSweepSchedulers } from "./expiry-sweep-sc
 import { readWifiState } from "./wifi-compat";
 import { readRouterboardFirmware, missingApiGroupPolicies, API_GROUP_NAME } from "./router-audit-fixes";
 import { inspectApiService, MIKHMON_EXPECTED_API_PORT } from "./api-service-access";
+import { inspectPortalTls, portalTlsBroken, portalTlsDetail } from "./portal-tls";
 import { inspectMikhmonApiLogins } from "./mikhmon-api-login";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 
@@ -36,6 +37,7 @@ export type AuditFixKind =
   | "ticket-expiry"
   | "expiry-sweep"
   | "services-cleanup"
+  | "portal-tls"
   | null;
 
 export type AuditFinding = {
@@ -45,6 +47,7 @@ export type AuditFinding = {
   area:
     | "Débit"
     | "WiFi"
+    | "Portail"
     | "Ports"
     | "MikHmon"
     | "Réseau"
@@ -167,7 +170,7 @@ export async function auditRouter(
      ou un testeur de débit. Constaté sur HS-DIARA-RB4011 : PPTP et test de
      débit ouverts sur un routeur qui rejoint SafeLinkHub par WireGuard. */
   const servicesIp = (await client
-    .talk(["/ip/service/print", "=.proplist=name,disabled,port"], t)
+    .talk(["/ip/service/print", "=.proplist=.id,name,disabled,port"], t)
     .catch(() => [])) as Record<string, string>[];
   const actif = (nom: string) => {
     const row = servicesIp.find((r) => r.name === nom);
@@ -191,6 +194,34 @@ export async function auditRouter(
     );
   else
     add("ok", "Services", "services-superflus", "Aucun service superflu", "Ni Telnet, ni serveur PPTP, ni testeur de débit ne tournent sur ce routeur.");
+
+  // ── Portail : servi en clair, jamais derrière un certificat auto-signé ──
+  /* Voir portal-tls.ts. Un portail servi en HTTPS avec le certificat du
+     routeur fait afficher au mini-navigateur Android « le réseau présente des
+     problèmes de sécurité » à la place de la page — le client ne peut plus
+     acheter. Constaté sur YAHYA WIFI. */
+  const hotspotServers = (await client.talk(["/ip/hotspot/print"], t).catch(() => [])) as Record<string, string>[];
+  const hotspotProfiles = (await client
+    .talk(["/ip/hotspot/profile/print"], t)
+    .catch(() => [])) as Record<string, string>[];
+  const portalTls = inspectPortalTls(hotspotServers, hotspotProfiles, servicesIp);
+  if (portalTlsBroken(portalTls))
+    add(
+      "error",
+      "Portail",
+      "portail-tls",
+      "La page de connexion est servie en HTTPS",
+      portalTlsDetail(portalTls),
+      "portal-tls",
+    );
+  else if (hotspotServers.length > 0)
+    add(
+      "ok",
+      "Portail",
+      "portail-tls",
+      "Portail servi en clair",
+      "Aucun certificat auto-signé sur la page de connexion : le mini-navigateur des téléphones l'ouvre sans avertissement de sécurité.",
+    );
 
   // ── Réseau : route par défaut + NAT ─────────────────────────────────────
   const routes = await client

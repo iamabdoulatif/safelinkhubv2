@@ -881,6 +881,35 @@ const PORTAL_PAY_SCRIPT = `(function(){
     document.body.appendChild(b);
   }
   function slhReady(fn){ if(document.readyState !== "loading"){ fn(); } else { document.addEventListener("DOMContentLoaded", fn); } }
+
+  // ===== La page de connexion ne doit JAMAIS partir en HTTPS =====
+  // RouterOS rend $(link-login-only) en "https://<domaine>/login" des que le
+  // profil hotspot porte un certificat. Ce certificat est celui du routeur, pas
+  // du domaine du portail : le mini-navigateur Android refuse la page et
+  // affiche "le reseau presente des problemes de securite", puis "continuer
+  // dans le navigateur" tombe sur une page d erreur. Le routeur sert pourtant
+  // la MEME page en clair sur le meme hote.
+  // On ne retouche QUE les formulaires qui repartent vers l hote de la page
+  // courante : safelinkhub.io et la passerelle de paiement gardent leur HTTPS.
+  // Le vrai correctif est cote routeur (diagnostic -> "Remettre le portail en
+  // HTTP") ; ceci depanne les routeurs pas encore corriges.
+  function loginEnClair(){
+    if(location.protocol !== "http:") return;   // page deja en TLS : ne rien tenter
+    var formulaires = document.querySelectorAll("form[action]");
+    for(var i = 0; i < formulaires.length; i++){
+      var action = formulaires[i].getAttribute("action") || "";
+      if(action.slice(0, 8).toLowerCase() !== "https://") continue;
+      var reste = action.slice(8);
+      var fin = reste.indexOf("/");
+      var hote = fin >= 0 ? reste.slice(0, fin) : reste;
+      if(hote.toLowerCase() !== location.host.toLowerCase()) continue;  // hote tiers
+      formulaires[i].setAttribute("action", "http://" + reste);
+    }
+  }
+  // Au chargement ET juste avant tout envoi : un portail qui recree son
+  // formulaire apres coup ne doit pas reintroduire le defaut.
+  slhReady(loginEnClair);
+  document.addEventListener("submit", loginEnClair, true);
   // 1) affiche les vrais prix du SaaS dans le conteneur du portail (renderInlinePlans),
   // 2) sinon (aucun conteneur) monte le bouton flottant. Un 2e passage differe
   // rattrape un portail qui remplit ses forfaits tardivement (rendu async).

@@ -33,6 +33,11 @@ import {
   superfluousServicesToDisable,
 } from "./router-audit-fixes";
 import { ensureApiReachableFromContainer } from "./api-service-access";
+import {
+  inspectPortalTls,
+  portalTlsBroken,
+  portalTlsRepairCommands,
+} from "./portal-tls";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
@@ -717,6 +722,77 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
  * QUE la liste SUPERFLUOUS_SERVICES — jamais l'API, WinBox, FTP, la console
  * web ni SSH, dont SafeLinkHub, les sauvegardes ou un dépannage dépendent.
  */
+/**
+ * Repasse le portail captif en HTTP (correctif « portal-tls » du diagnostic).
+ *
+ * Le mini-navigateur des téléphones refuse le certificat auto-signé d'un
+ * routeur : il affiche « le réseau présente des problèmes de sécurité » à la
+ * place de la page de connexion, et le client ne peut plus acheter. On retire
+ * donc le certificat du profil hotspot, `https` de `login-by`, et on éteint
+ * `www-ssl` qui répondait en 443 à toute requête d'un client pas encore
+ * authentifié. Rien d'autre n'est touché : l'API, WinBox, SSH et la console web
+ * en clair restent tels quels — c'est par là qu'on dépanne.
+ */
+export async function fixRouterPortalTls(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne pour ce correctif.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const [servers, profiles, services] = await Promise.all([
+      client.talk(["/ip/hotspot/print"]).catch(() => []),
+      client.talk(["/ip/hotspot/profile/print"]).catch(() => []),
+      client.talk(["/ip/service/print", "=.proplist=.id,name,disabled,port"]).catch(() => []),
+    ]);
+    const state = inspectPortalTls(
+      servers as Record<string, string>[],
+      profiles as Record<string, string>[],
+      services as Record<string, string>[],
+    );
+    if (!portalTlsBroken(state)) {
+      return { success: true, summary: "Le portail est déjà servi en clair — rien à corriger." };
+    }
+
+    for (const cmd of portalTlsRepairCommands(state)) {
+      await client.talk(cmd);
+    }
+
+    const faits: string[] = [];
+    if (state.profiles.length > 0) {
+      faits.push(
+        `page de connexion remise en HTTP sur ${state.profiles.map((p) => `« ${p.name} »`).join(", ")}`,
+      );
+    }
+    if (state.wwwSsl) faits.push("service www-ssl éteint");
+    return {
+      success: true,
+      summary: `Portail réparé : ${faits.join(" ; ")}. Reconnectez un téléphone au WiFi pour vérifier.`,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? `Correctif refusé : ${err.message}` : "Correctif refusé.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
 export async function cleanupRouterServices(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };

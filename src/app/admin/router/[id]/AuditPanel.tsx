@@ -28,6 +28,7 @@ import {
   fixRouterTicketExpiryFormat,
   fixRouterExpirySweep,
   cleanupRouterServices,
+  fixRouterPortalTls,
 } from "@/lib/mikrotik/actions";
 import type { AuditFinding, AuditSeverity, RouterAudit } from "@/lib/mikrotik/router-audit";
 import NetworkGuide from "./NetworkGuide";
@@ -57,6 +58,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   "ticket-expiry": "Réparer les dates d\u2019expiration",
   "expiry-sweep": "Remettre le balayage en service",
   "services-cleanup": "Éteindre les services superflus",
+  "portal-tls": "Remettre le portail en HTTP",
 };
 
 function scoreTone(score: number) {
@@ -125,7 +127,9 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                         ? await fixRouterExpirySweep(routerId)
                         : finding.fix === "services-cleanup"
                           ? await cleanupRouterServices(routerId)
-                          : await setRouterBandwidthCap(routerId, 450);
+                          : finding.fix === "portal-tls"
+                            ? await fixRouterPortalTls(routerId)
+                            : await setRouterBandwidthCap(routerId, 450);
       setFixingId(null);
       if (res?.error) {
         setFixMsg({ id: finding.id, ok: false, text: res.error });

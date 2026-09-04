@@ -156,6 +156,33 @@ describe("renderPackageFile", () => {
     assert.doesNotThrow(() => new Function(flow), "injected script is syntactically valid");
   });
 
+  it("ramène en HTTP un formulaire de connexion que RouterOS a rendu en HTTPS", () => {
+    // $(link-login-only) sort en https:// dès que le profil hotspot porte un
+    // certificat : le mini-navigateur Android refuse alors la page (certificat
+    // du routeur, pas du domaine du portail). Le script doit le corriger — et
+    // ne toucher QUE l'hôte de la page, jamais safelinkhub.io.
+    const login: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: '<html><body><form action="https://yahya.ci/login"></form></body></html>',
+    };
+    const body = renderPackageFile(login, {
+      ssid: "X",
+      appUrl: "https://safelinkhub.io",
+      slug: "demo-org",
+      routerId: "router-1",
+    }).toString("utf8");
+    const scripts = [...body.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    const flow = scripts.find((s) => s.includes("loginEnClair")) ?? "";
+    assert.ok(flow.length > 0, "correctif injecté");
+    assert.ok(flow.includes("location.host.toLowerCase()"), "limité à l'hôte de la page");
+    assert.ok(
+      flow.includes('addEventListener("submit", loginEnClair, true)'),
+      "rejoué avant chaque envoi",
+    );
+    assert.doesNotThrow(() => new Function(flow), "script toujours syntaxiquement valide");
+  });
+
   it("injects inline-plan rendering that fills an imported portal's #forfaits container", () => {
     // Portail importé façon Safelink_baraka : conteneur #forfaits + forfaits
     // codés en dur. Le script injecté doit contenir de quoi le remplir avec les
@@ -239,3 +266,4 @@ describe("renderPackageFile", () => {
     assert.ok(!statusBody.includes("SLH_PORTAL"), "only login.html gets the flow");
   });
 });
+
