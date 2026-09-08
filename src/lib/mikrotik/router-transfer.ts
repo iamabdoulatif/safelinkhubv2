@@ -1,9 +1,9 @@
 /**
  * Transfert d'un MikroTik vers une AUTRE organisation.
  *
- * CE QUI SUIT LE ROUTEUR : la ligne `routers`, ses forfaits, ses passerelles
- * de configuration (bridges, redirections, MikHmon, groupes de roaming) et son
- * verrou de numéro de série.
+ * CE QUI SUIT LE ROUTEUR : la ligne `routers` — donc son tunnel, dont les
+ * colonnes y vivent —, ses forfaits, ses passerelles de configuration (bridges,
+ * redirections, MikHmon, groupes de roaming) et son verrou de numéro de série.
  *
  * CE QUI RESTE : tout l'historique commercial — ventes encaissées, commandes du
  * portail, tickets déjà vendus, autorisations payées. Le chiffre d'affaires
@@ -108,14 +108,17 @@ export function guardTransferApproval(ctx: {
 }
 
 /**
- * Ce que l'opérateur doit refaire après un transfert accepté.
+ * Ce qui se passe après un transfert accepté.
  *
- * Le tunnel et le compte API restent ceux de l'ancien propriétaire : le
- * routeur continue de fonctionner, mais il faut le ré-adopter pour que le
- * nouveau compte le pilote. Le dire ici plutôt que de laisser deviner.
+ * Ce texte a longtemps annoncé une réinstallation à faire. C'était faux : le
+ * tunnel vit sur les colonnes de la ligne `routers` (`tunnel_ip`,
+ * `wg_peer_public_key`, `connection_method`), qui suit le routeur — le compte
+ * d'arrivée le pilote immédiatement. Faire recoller la commande d'installation
+ * ne servait qu'à refaire un peer identique dans le même pool.
  */
 export const ETAPES_APRES_TRANSFERT = [
-  "Le routeur reste en ligne : rien n'est coupé au moment du transfert.",
-  "Le nouveau compte doit recoller la commande d'installation SafeLinkHub pour reprendre le tunnel et le compte API à son nom.",
+  "Le routeur reste en ligne : rien n'est coupé, et il n'y a rien à réinstaller.",
+  "Le tunnel suit le routeur — le compte d'arrivée le pilote immédiatement, sans recoller la commande d'installation.",
+  "Le mot de passe du compte API est renouvelé à l'acceptation. Ce que l'ancien propriétaire connaît du routeur lui-même (compte admin RouterOS, accès physique) reste à changer sur place si besoin.",
   "L'historique de ventes, les commandes du portail et les tickets déjà vendus restent sur l'ancien compte.",
 ] as const;

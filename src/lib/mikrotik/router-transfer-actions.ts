@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
@@ -19,6 +20,7 @@ import {
   guardTransferRequest,
   normalizeSerial,
 } from "./router-transfer";
+import { rotateRouterApiPassword } from "./api-password-rotation";
 
 const PAGE_ROUTEURS = "/admin/router";
 const PAGE_TRANSFERTS = "/admin/router-transfers";
@@ -210,6 +212,27 @@ export async function decideRouterTransfer(formData: FormData) {
         decidedAt: new Date(),
         decidedBy: session.userId,
       })
+      .where(eq(routerTransferRequests.id, id));
+  });
+
+  /* Le tunnel n'est PAS refait : ses colonnes vivent sur la ligne `routers`,
+     que la transaction vient de déplacer — le compte d'arrivée pilote déjà le
+     routeur. Le seul secret à renouveler est le compte API, que l'ancien
+     propriétaire a pu lire depuis sa console RouterOS.
+
+     APRÈS la réponse : ouvrir le tunnel prend quelques secondes et peut échouer
+     sur un routeur hors ligne. Un transfert déjà tranché ne doit ni attendre
+     cela, ni être annulé par cela — l'échec se raconte dans la note, qui est
+     déjà affichée sous la demande. */
+  after(async () => {
+    const rotation = await rotateRouterApiPassword(demande.routerId).catch((err) => ({
+      ok: false as const,
+      error: `mot de passe API non renouvelé (${err instanceof Error ? err.message : "erreur"})`,
+    }));
+    if (rotation.ok) return;
+    await getDb()
+      .update(routerTransferRequests)
+      .set({ adminNote: [adminNote, `\u26a0 ${rotation.error}`].filter(Boolean).join(" — ") })
       .where(eq(routerTransferRequests.id, id));
   });
 
