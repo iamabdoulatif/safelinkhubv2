@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { rotateApiPassword, type RotationDeps } from "./api-password-rotation";
+import { noteSansAvertissement } from "./router-transfer";
 
 /** Routeur simulé : `valide` est le mot de passe que la carte accepte. */
 function faux(opts: { valide: string; poseEchoue?: boolean; tunnelTombeApresPose?: boolean }) {
@@ -72,5 +73,28 @@ describe("renouvellement du mot de passe API", () => {
       await rotateApiPassword(cas.deps, { ancien: "ancien", nouveau: "nouveau" });
       assert.equal(cas.journal.filter((e) => e === "poser").length, 1);
     }
+  });
+});
+
+describe("la note du superadmin après un renouvellement", () => {
+  it("retire l'avertissement du passage précédent", () => {
+    assert.equal(
+      noteSansAvertissement("Transfert au client — ⚠ mot de passe API non renouvelé (hors ligne)"),
+      "Transfert au client",
+    );
+  });
+
+  it("est idempotente — rejouer trois fois ne laisse pas trois avertissements", () => {
+    let note = "Transfert au client";
+    for (let i = 0; i < 3; i++) {
+      note = `${noteSansAvertissement(note)} — ⚠ échec ${i}`;
+    }
+    assert.equal(noteSansAvertissement(note), "Transfert au client");
+    assert.equal(note.split("⚠").length - 1, 1, "un seul avertissement à la fois");
+  });
+
+  it("laisse intacte une note qui n'en porte pas", () => {
+    assert.equal(noteSansAvertissement("Transfert au client"), "Transfert au client");
+    assert.equal(noteSansAvertissement(null), "");
   });
 });

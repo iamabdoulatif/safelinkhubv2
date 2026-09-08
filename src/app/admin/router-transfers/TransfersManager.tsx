@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { ArrowRightLeft, Loader2 } from "lucide-react";
+import { ArrowRightLeft, KeyRound, Loader2 } from "lucide-react";
 import {
   cancelRouterTransfer,
   decideRouterTransfer,
   requestRouterTransfer,
+  retryRouterApiPasswordRotation,
 } from "@/lib/mikrotik/router-transfer-actions";
 import { ETAPES_APRES_TRANSFERT } from "@/lib/mikrotik/router-transfer";
 
@@ -52,6 +53,9 @@ export default function TransfersManager({
      tranchée…). Un `action={decideRouterTransfer}` nu exige une action qui ne
      rend rien : le message serait perdu et le superadmin croirait au succès. */
   const [verdict, setVerdict] = useState<string | null>(null);
+  /* Le rejeu du mot de passe API rend un verdict à SUCCÈS aussi — « renouvelé »
+     est précisément ce que le superadmin est venu lire. */
+  const [rotation, setRotation] = useState<{ id: string; ok: boolean; texte: string } | null>(null);
 
   return (
     <div className="mt-6 space-y-6">
@@ -219,6 +223,31 @@ export default function TransfersManager({
                     {d.adminNote && (
                       <p className="mt-2 border-l-2 border-line bg-clay px-3 py-2 text-sm text-ink">
                         {d.adminNote}
+                      </p>
+                    )}
+                    {d.status === "approved" && (
+                      <form
+                        action={async (fd) => {
+                          setRotation(null);
+                          const res = await retryRouterApiPasswordRotation(fd);
+                          setRotation({
+                            id: d.id,
+                            ok: !res?.error,
+                            texte: res?.error ?? "Mot de passe API renouvelé.",
+                          });
+                        }}
+                        className="mt-3"
+                      >
+                        <input type="hidden" name="id" value={d.id} />
+                        <button className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink-soft hover:bg-clay">
+                          <KeyRound aria-hidden="true" className="h-3.5 w-3.5" />
+                          Renouveler le mot de passe API
+                        </button>
+                      </form>
+                    )}
+                    {rotation?.id === d.id && (
+                      <p className={`mt-2 text-xs ${rotation.ok ? "text-ok" : "text-err"}`}>
+                        {rotation.texte}
                       </p>
                     )}
                     {d.status === "pending" && (

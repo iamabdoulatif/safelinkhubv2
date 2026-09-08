@@ -19,8 +19,9 @@ import {
   guardTransferApproval,
   guardTransferRequest,
   normalizeSerial,
+  noteSansAvertissement,
 } from "./router-transfer";
-import { rotateRouterApiPassword } from "./api-password-rotation";
+import { rotateRouterApiPassword, type RotationVerdict } from "./api-password-rotation";
 
 const PAGE_ROUTEURS = "/admin/router";
 const PAGE_TRANSFERTS = "/admin/router-transfers";
@@ -34,6 +35,29 @@ async function resoudreOrgParEmail(email: string): Promise<string | null> {
     .orderBy(asc(users.createdAt))
     .limit(1);
   return row?.orgId ?? null;
+}
+
+/**
+ * Accroche le compte rendu du renouvellement à la note du superadmin, là où
+ * elle est DÉJÀ affichée sous la demande — plutôt que d'inventer une colonne et
+ * un bloc d'écran pour une ligne qui ne paraît qu'en cas d'ennui.
+ *
+ * Il REMPLACE celui du passage précédent : rejouer ne doit pas empiler.
+ */
+async function noterRotation(id: string, rotation: RotationVerdict) {
+  const db = getDb();
+  const [demande] = await db
+    .select({ adminNote: routerTransferRequests.adminNote })
+    .from(routerTransferRequests)
+    .where(eq(routerTransferRequests.id, id))
+    .limit(1);
+  const base = noteSansAvertissement(demande?.adminNote ?? null);
+  const note = rotation.ok ? base || null : [base, `\u26a0 ${rotation.error}`].filter(Boolean).join(" — ");
+  await db
+    .update(routerTransferRequests)
+    .set({ adminNote: note })
+    .where(eq(routerTransferRequests.id, id));
+  revalidatePath(PAGE_TRANSFERTS);
 }
 
 /** Le propriétaire demande le transfert. Le superadmin tranchera. */
@@ -229,16 +253,44 @@ export async function decideRouterTransfer(formData: FormData) {
       ok: false as const,
       error: `mot de passe API non renouvelé (${err instanceof Error ? err.message : "erreur"})`,
     }));
-    if (rotation.ok) return;
-    await getDb()
-      .update(routerTransferRequests)
-      .set({ adminNote: [adminNote, `\u26a0 ${rotation.error}`].filter(Boolean).join(" — ") })
-      .where(eq(routerTransferRequests.id, id));
+    await noterRotation(id, rotation);
   });
 
   revalidatePath(PAGE_ROUTEURS);
   revalidatePath(PAGE_TRANSFERTS);
   return { success: true as const };
+}
+
+/**
+ * Rejouer le renouvellement du mot de passe API sur un transfert déjà accepté.
+ *
+ * Deux cas le réclament, et aucun n'est rare : le routeur était HORS LIGNE au
+ * moment de la décision — la rotation se fait par son tunnel, elle échoue donc
+ * sans rien casser —, et les transferts ANTÉRIEURS à cette étape, qui n'en ont
+ * jamais eu. Sans ce bouton, un mot de passe que l'ancien propriétaire a pu
+ * lire resterait en place sans qu'aucun écran ne permette de le changer.
+ *
+ * Synchrone, contrairement à la décision : ici le superadmin ATTEND le verdict,
+ * c'est tout l'objet du geste. Trois ouvertures de tunnel au pire, très en deçà
+ * de la coupure à 100 s.
+ */
+export async function retryRouterApiPasswordRotation(formData: FormData) {
+  const session = await getSession();
+  if (!session || !isSuperAdmin(session.role)) return { error: "Réservé au superadmin." };
+
+  const id = String(formData.get("id") ?? "");
+  const [demande] = await getDb()
+    .select({ routerId: routerTransferRequests.routerId, status: routerTransferRequests.status })
+    .from(routerTransferRequests)
+    .where(eq(routerTransferRequests.id, id))
+    .limit(1);
+  if (!demande || demande.status !== "approved") {
+    return { error: "Le renouvellement ne concerne qu'un transfert accepté." };
+  }
+
+  const rotation = await rotateRouterApiPassword(demande.routerId);
+  await noterRotation(id, rotation);
+  return rotation.ok ? { success: true as const } : { error: rotation.error };
 }
 
 /** File des demandes — superadmin. */

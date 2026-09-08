@@ -57,6 +57,19 @@ export function guardDeclaredSerial(params: {
   return { ok: true };
 }
 
+/**
+ * La note du superadmin, débarrassée du compte rendu de renouvellement qu'on y
+ * avait accroché.
+ *
+ * Le renouvellement peut être REJOUÉ (routeur hors ligne le jour de la
+ * décision). Sans ce nettoyage, chaque passage empilerait son avertissement
+ * derrière le précédent et la note deviendrait un journal illisible — alors
+ * que seul le dernier verdict compte.
+ */
+export function noteSansAvertissement(note: string | null): string {
+  return (note ?? "").split(" — \u26a0")[0].trim();
+}
+
 export type TransferContext = {
   routerOrgId: string;
   /** Organisation qui demande — doit posséder le routeur. */
