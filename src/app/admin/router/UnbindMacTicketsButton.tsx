@@ -21,20 +21,10 @@ export default function UnbindMacTicketsButton({ t }: { t: RouterDictionary["act
   const [message, setMessage] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {message && (
-        <span
-          className={`max-w-md text-xs ${
-            message.kind === "err" ? "text-err" : message.kind === "warn" ? "text-warn" : "text-ok"
-          }`}
-        >
-          {message.text}
-        </span>
-      )}
+    <div className="flex flex-col items-start gap-1.5">
       <button
         type="button"
         disabled={pending}
-        title={t.unbindHelp}
         onClick={() =>
           startTransition(async () => {
             setMessage(null);
@@ -75,6 +65,15 @@ export default function UnbindMacTicketsButton({ t }: { t: RouterDictionary["act
         )}
         {pending ? t.unbinding : t.unbind}
       </button>
+      {message && (
+        <span
+          className={`max-w-md text-xs ${
+            message.kind === "err" ? "text-err" : message.kind === "warn" ? "text-warn" : "text-ok"
+          }`}
+        >
+          {message.text}
+        </span>
+      )}
     </div>
   );
 }

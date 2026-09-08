@@ -24,20 +24,10 @@ export default function TicketExpiryFleetButton({ t }: { t: RouterDictionary["ac
   const [message, setMessage] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {message && (
-        <span
-          className={`max-w-md text-xs ${
-            message.kind === "err" ? "text-err" : message.kind === "warn" ? "text-warn" : "text-ok"
-          }`}
-        >
-          {message.text}
-        </span>
-      )}
+    <div className="flex flex-col items-start gap-1.5">
       <button
         type="button"
         disabled={pending}
-        title={t.ticketExpiryHelp}
         onClick={() =>
           startTransition(async () => {
             setMessage(null);
@@ -82,6 +72,15 @@ export default function TicketExpiryFleetButton({ t }: { t: RouterDictionary["ac
         )}
         {pending ? t.ticketExpiryBusy : t.ticketExpiry}
       </button>
+      {message && (
+        <span
+          className={`max-w-md text-xs ${
+            message.kind === "err" ? "text-err" : message.kind === "warn" ? "text-warn" : "text-ok"
+          }`}
+        >
+          {message.text}
+        </span>
+      )}
     </div>
   );
 }

@@ -12,8 +12,7 @@ export default function SyncAllButton({ t }: { t: RouterDictionary["actions"] })
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="flex items-center gap-2">
-      {error && <span className="text-xs text-err">{error}</span>}
+    <div className="flex flex-col items-start gap-1.5">
       <button
         type="button"
         disabled={isPending}
@@ -29,6 +28,7 @@ export default function SyncAllButton({ t }: { t: RouterDictionary["actions"] })
         <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
         {isPending ? t.syncing : t.sync}
       </button>
+      {error && <span className="text-xs text-err">{error}</span>}
     </div>
   );
 }
