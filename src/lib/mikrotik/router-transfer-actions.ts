@@ -271,8 +271,10 @@ export async function decideRouterTransfer(formData: FormData) {
  * lire resterait en place sans qu'aucun écran ne permette de le changer.
  *
  * Synchrone, contrairement à la décision : ici le superadmin ATTEND le verdict,
- * c'est tout l'objet du geste. Trois ouvertures de tunnel au pire, très en deçà
- * de la coupure à 100 s.
+ * c'est tout l'objet du geste. Ce qui oblige la rotation à tenir dans un budget
+ * borné — voir BUDGET_ROTATION_MS : avec les reprises par défaut, un routeur
+ * hors ligne dépassait la coupure de Cloudflare et le bouton semblait ne rien
+ * faire.
  */
 export async function retryRouterApiPasswordRotation(formData: FormData) {
   const session = await getSession();

@@ -30,6 +30,25 @@ import { routers } from "@/lib/db/schema";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { connectToRouter } from "./router-sync";
 
+/**
+ * Budget d'un renouvellement : au pire TROIS ouvertures de tunnel — la pose,
+ * puis les deux vérifications.
+ *
+ * connectToRouter réessaie 3 fois × 20 s par défaut, soit jusqu'à 180 s sur un
+ * routeur injoignable : Cloudflare coupe la requête à 100 s et le superadmin,
+ * qui ATTEND ce verdict, ne voit jamais rien. Sur une carte hors ligne les
+ * reprises ne servent à rien de toute façon — mieux vaut rendre la main et
+ * dire « hors ligne » que s'acharner jusqu'à la coupure.
+ *
+ * La POSE garde deux essais : elle, c'est le geste utile, et un raté de
+ * transport ne doit pas faire renoncer à un renouvellement légitime.
+ */
+export const TUNNEL_TIMEOUT_MS = 12_000;
+export const TUNNEL_ESSAIS_POSE = 2;
+export const TUNNEL_ESSAIS_VERIFICATION = 1;
+export const BUDGET_ROTATION_MS =
+  TUNNEL_TIMEOUT_MS * (TUNNEL_ESSAIS_POSE + TUNNEL_ESSAIS_VERIFICATION * 2);
+
 export type RotationVerdict = { ok: true } | { ok: false; error: string };
 
 export type RotationDeps = {
@@ -93,13 +112,17 @@ export async function rotateRouterApiPassword(routerId: string): Promise<Rotatio
   /* On repasse par connectToRouter — donc par le tunnel du relais — plutôt que
      de rouvrir un socket à la main : c'est lui qui sait qu'un routeur en `vpn`
      ne s'atteint pas comme un routeur en direct. */
-  const ouvrir = (motDePasse: string) =>
-    connectToRouter({ ...routeur, passwordEncrypted: encryptSecret(motDePasse) });
+  const ouvrir = (motDePasse: string, essais: number) =>
+    connectToRouter(
+      { ...routeur, passwordEncrypted: encryptSecret(motDePasse) },
+      TUNNEL_TIMEOUT_MS,
+      essais,
+    );
 
   return rotateApiPassword(
     {
       poser: async (motDePasse) => {
-        const client = await ouvrir(ancien);
+        const client = await ouvrir(ancien, TUNNEL_ESSAIS_POSE);
         try {
           const [compte] = await client.talk(["/user/print", `?name=${compteApi}`]);
           if (!compte?.[".id"]) throw new Error(`compte ${compteApi} absent du routeur`);
@@ -114,7 +137,7 @@ export async function rotateRouterApiPassword(routerId: string): Promise<Rotatio
       },
       ouvre: async (motDePasse) => {
         try {
-          const client = await ouvrir(motDePasse);
+          const client = await ouvrir(motDePasse, TUNNEL_ESSAIS_VERIFICATION);
           client.close();
           return true;
         } catch {

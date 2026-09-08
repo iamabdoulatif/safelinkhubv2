@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { rotateApiPassword, type RotationDeps } from "./api-password-rotation";
+import {
+  BUDGET_ROTATION_MS,
+  rotateApiPassword,
+  type RotationDeps,
+} from "./api-password-rotation";
 import { noteSansAvertissement } from "./router-transfer";
 
 /** Routeur simulé : `valide` est le mot de passe que la carte accepte. */
@@ -96,5 +100,22 @@ describe("la note du superadmin après un renouvellement", () => {
   it("laisse intacte une note qui n'en porte pas", () => {
     assert.equal(noteSansAvertissement("Transfert au client"), "Transfert au client");
     assert.equal(noteSansAvertissement(null), "");
+  });
+});
+
+describe("le budget du renouvellement", () => {
+  it("rend la main avant la coupure de Cloudflare", () => {
+    /* Le superadmin ATTEND ce verdict : la requête doit finir. Avec les
+       reprises par défaut de connectToRouter (3 × 20 s, trois fois), un routeur
+       hors ligne consommait jusqu'à 180 s — coupés à 100 s, donc aucun verdict,
+       aucune note, et un bouton qui semble ne rien faire. Constaté en prod. */
+    assert.ok(
+      BUDGET_ROTATION_MS < 100_000,
+      `budget hors bornes : ${BUDGET_ROTATION_MS} ms`,
+    );
+  });
+
+  it("laisse de la marge pour les appels API entre les ouvertures", () => {
+    assert.ok(BUDGET_ROTATION_MS < 60_000, `trop juste : ${BUDGET_ROTATION_MS} ms`);
   });
 });
