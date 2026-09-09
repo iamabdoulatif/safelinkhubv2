@@ -14,7 +14,6 @@ import { verifyOrgGeniusWebhookSignature } from "@/lib/payment-gateways/geniuspa
 import { approveRemoteAccessPaymentByReference } from "@/lib/billing/remote-access-authorization-service";
 import { approveAutoSetupPaymentByReference } from "@/lib/billing/auto-setup-authorization-service";
 import {
-  confirmAndFulfillPortalByReference,
   confirmSignedPortalPaymentByReference,
   fulfillPortalOrder,
   sendPortalTicketSms,
@@ -86,31 +85,18 @@ export async function POST(request: Request) {
     }
   }
 
-  // 2) PORTAIL CAPTIF historique (sans query org signé). Pendant la migration,
-  // on garde ce repli prudent qui re-vérifie l'API avant d'honorer.
-  // on retrouve la commande par sa référence et on RE-VÉRIFIE le paiement via les
-  // clés de l'org (autorité) avant d'honorer — un faux webhook ne débloque rien.
-  // Traité AVANT la vérif de signature plateforme. Si la référence n'est pas une
-  // commande portail, on enchaîne sur le flux plateforme (signé) plus bas.
-  if (reference) {
-    try {
-      const portal = await confirmAndFulfillPortalByReference(reference);
-      if (portal.found) {
-        if (portal.fulfilled) revalidatePath("/admin/vouchers");
-        console.info("[geniuspay:webhook] commande portail", {
-          reference,
-          fulfilled: portal.fulfilled,
-        });
-        return Response.json({ received: true, handled: portal.fulfilled, kind: "portal" });
-      }
-    } catch (e) {
-      console.error("[geniuspay:webhook] échec traitement portail", { reference, error: String(e) });
-      // 500 → GeniusPay ré-essaiera (le traitement est idempotent).
-      return Response.json({ error: "processing failed" }, { status: 500 });
-    }
-  }
+  // Une référence de commande PORTAIL n'est confirmée QUE par la branche 1
+  // ci-dessus (signée avec le secret de l'org). Il exista ici un repli
+  // « historique » qui, sans AUCUNE signature, retrouvait la commande par sa
+  // seule référence et interrogeait GeniusPay avec les clés de l'org :
+  // n'importe qui sur Internet pouvait donc piloter le tunnel de paiement d'une
+  // org (dépense de son quota d'API, écriture de tickets sur son routeur) et
+  // savoir, au drapeau `handled`, si une référence donnée était payée. Aucune
+  // org de production n'en dépendait — toutes ont un webhook `?org=` signé — et
+  // les commandes manquées restent rattrapées par le sondage de /status et le
+  // cron de réconciliation, qui interrogent GeniusPay comme autorité.
 
-  // 3) PLATEFORME (accès distant / auto-setup) : exige une signature HMAC valide
+  // 2) PLATEFORME (accès distant / auto-setup) : exige une signature HMAC valide
   // (GENIUSPAY_WEBHOOK_SECRET).
   if (!verifyGeniusWebhookSignature({ rawBody, signature, timestamp })) {
     console.warn("[geniuspay:webhook] signature invalide", { event, hasSig: Boolean(signature) });

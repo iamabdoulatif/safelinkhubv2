@@ -155,6 +155,14 @@ export function verifyGeniusWebhookSignature(params: {
   const { rawBody, signature, timestamp } = params;
   if (!signature || !timestamp) return false;
 
+  // Fenêtre anti-rejeu de 5 min, comme la vérification par org
+  // (verifyOrgGeniusWebhookSignature). Sans elle, un `payment.success` signé
+  // capturé une fois reste indéfiniment rejouable sur cet endpoint public.
+  const timestampSeconds = Number(timestamp);
+  if (!Number.isFinite(timestampSeconds) || Math.abs(Date.now() / 1000 - timestampSeconds) > 5 * 60) {
+    return false;
+  }
+
   const expected = createHmac("sha256", config.webhookSecret)
     .update(`${timestamp}.${rawBody}`)
     .digest("hex");
