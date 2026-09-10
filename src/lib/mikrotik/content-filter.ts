@@ -172,10 +172,48 @@ export const CONTENT_CATEGORIES: ContentCategory[] = [
   },
 ];
 
+/**
+ * Réglage MÉMORISÉ en base (routers.contentFilter). Ce n'est jamais la vérité —
+ * elle se lit sur le routeur — mais le repli quand celui-ci ne répond pas, et
+ * le seul endroit où survivent les options (mots-clés, forçage DNS, listes
+ * publiques), qui ne laissent aucune trace attribuable sur le routeur.
+ */
+export type SavedContentFilter = {
+  categories: ContentCategoryKey[];
+  keywords: boolean;
+  forceDns: boolean;
+  adlist: boolean;
+  updatedAt: string;
+};
+
 export function findCategory(key: ContentCategoryKey): ContentCategory {
   const c = CONTENT_CATEGORIES.find((x) => x.key === key);
   if (!c) throw new Error(`Catégorie de filtrage inconnue : ${key}`);
   return c;
+}
+
+/**
+ * Commentaire porté par ce qu'une CATÉGORIE pose : « safelinkhub-content-filter
+ * adult ». C'est lui qui rend la dépose chirurgicale — retirer « Torrents »
+ * revient à purger ce commentaire-là, sans toucher aux autres catégories ni au
+ * socle partagé (forçage DNS, coupure du DNS-over-TLS), qui garde le
+ * commentaire NU.
+ *
+ * Le préfixe restant commun, la dépose TOTALE se fait par correspondance de
+ * préfixe (`comment~"^safelinkhub-content-filter"`) : elle emporte donc aussi
+ * les poses antérieures à cette découpe, où tout portait le commentaire nu.
+ */
+export function categoryComment(key: ContentCategoryKey): string {
+  return `${CONTENT_FILTER_COMMENT} ${key}`;
+}
+
+/** Inverse de `categoryComment` : null si le commentaire n'est pas l'un des nôtres. */
+export function commentCategory(comment: string | undefined | null): ContentCategoryKey | null {
+  if (!comment || !comment.startsWith(CONTENT_FILTER_COMMENT)) return null;
+  const suffixe = comment.slice(CONTENT_FILTER_COMMENT.length).trim();
+  return CONTENT_CATEGORIES.some((c) => c.key === suffixe)
+    ? (suffixe as ContentCategoryKey)
+    : null;
 }
 
 // ── Le plan ─────────────────────────────────────────────────────────────────
@@ -194,8 +232,14 @@ export type PlanStep =
       fallback?: Record<string, string>;
     }
   | { kind: "set"; path: string; params: Record<string, string> }
-  /** `remove [find comment="safelinkhub-content-filter"]` */
-  | { kind: "remove-comment"; path: string }
+  /**
+   * `remove [find comment=…]`. SANS `comment`, c'est la purge TOTALE : la
+   * correspondance se fait par PRÉFIXE, donc elle emporte le socle partagé,
+   * chaque catégorie, et les poses héritées d'avant la découpe par catégorie.
+   * AVEC `comment`, la correspondance est EXACTE : on ne retire que ce qui
+   * porte ce commentaire-là — une catégorie, ou le socle partagé.
+   */
+  | { kind: "remove-comment"; path: string; comment?: string }
   | { kind: "remove-where"; path: string; field: string; value: string }
   /** Remonte nos règles en TÊTE de chaîne — voir buildInstallPlan. */
   | { kind: "move-top"; path: string };
@@ -237,6 +281,21 @@ export const supportsAdlist = (v: RouterOsVersion) => atLeast(v, 7, 15);
 /** Le matcher `p2p` a été retiré en RouterOS 7 — il n'existe qu'en v6. */
 export const supportsP2pMatcher = (v: RouterOsVersion) => v.major <= 6;
 
+/**
+ * Associe chaque valeur (domaine, motif SNI) à la PREMIÈRE catégorie qui la
+ * revendique. Dédoublonne — poser deux fois le même domaine ferait échouer la
+ * seconde entrée — tout en gardant à qui elle appartient, seul moyen de la
+ * retirer avec sa catégorie et elle seule.
+ */
+function attribuer(
+  cats: ContentCategory[],
+  valeurs: (c: ContentCategory) => string[],
+): Map<string, ContentCategoryKey> {
+  const m = new Map<string, ContentCategoryKey>();
+  for (const c of cats) for (const v of valeurs(c)) if (!m.has(v)) m.set(v, c.key);
+  return m;
+}
+
 /** Échappe un domaine pour une expression régulière RouterOS (branche v6). */
 function domainRegexp(domain: string): string {
   return `(^|\\.)${domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`;
@@ -249,43 +308,120 @@ const MANAGED_PATHS = [
   "/ip/firewall/nat",
 ] as const;
 
+/** Chemins où une CATÉGORIE pose quelque chose. Le NAT est toujours partagé. */
+const CATEGORY_PATHS = ["/ip/dns/static", "/ip/firewall/filter"] as const;
+
 /**
- * Dépose complète : tout ce qui porte notre commentaire, plus le motif layer7
- * (identifié par son nom) et les listes publiques (identifiées par leur URL —
- * `/ip dns adlist` n'expose pas de champ commentaire fiable selon les
- * versions 7.15+, on ne s'y fie donc pas).
+ * Purge des listes publiques de ces catégories. `/ip dns adlist` n'existe pas
+ * avant 7.15 : émettre sa purge sur un routeur plus ancien ferait échouer le
+ * parse de la ligne pour rien.
+ */
+function adlistRemovalSteps(version: RouterOsVersion, cats: ContentCategory[]): PlanStep[] {
+  if (!supportsAdlist(version)) return [];
+  return cats
+    .filter((c) => c.adlistUrl)
+    .map((c) => ({ kind: "remove-where", path: "/ip/dns/adlist", field: "url", value: c.adlistUrl! }) as PlanStep);
+}
+
+/**
+ * Dépose complète : tout ce qui porte notre commentaire (par PRÉFIXE — donc le
+ * socle partagé, chaque catégorie, et les poses héritées d'avant la découpe),
+ * plus le motif layer7 (identifié par son nom) et les listes publiques
+ * (identifiées par leur URL — `/ip dns adlist` n'expose pas de champ
+ * commentaire fiable selon les versions 7.15+, on ne s'y fie donc pas).
  */
 export function buildRemovalSteps(version: RouterOsVersion): PlanStep[] {
   return [
     ...MANAGED_PATHS.map((path) => ({ kind: "remove-comment", path }) as PlanStep),
     { kind: "remove-where", path: "/ip/firewall/layer7-protocol", field: "name", value: TORRENT_L7_NAME },
-    // `/ip dns adlist` n'existe pas avant 7.15 : émettre sa purge sur un
-    // routeur plus ancien ferait échouer le parse de la ligne pour rien.
-    ...(supportsAdlist(version)
-      ? CONTENT_CATEGORIES.filter((c) => c.adlistUrl).map(
-          (c) => ({ kind: "remove-where", path: "/ip/dns/adlist", field: "url", value: c.adlistUrl! }) as PlanStep,
-        )
-      : []),
+    ...adlistRemovalSteps(version, CONTENT_CATEGORIES),
   ];
 }
 
-export function buildUninstallPlan(rawVersion: string | null | undefined): ContentFilterPlan {
+/**
+ * Dépose CHIRURGICALE : les seules ressources de ces catégories. Rien de ce que
+ * portent les autres catégories, et rien du socle partagé (forçage DNS,
+ * coupure du DNS-over-TLS) — autrement, autoriser « Torrents » rouvrirait le
+ * contournement par DNS public pour toutes les catégories restantes.
+ */
+export function buildCategoryRemovalSteps(
+  version: RouterOsVersion,
+  keys: ContentCategoryKey[],
+): PlanStep[] {
+  const cats = keys.map(findCategory);
+  return [
+    ...cats.flatMap((c) =>
+      CATEGORY_PATHS.map(
+        (path) => ({ kind: "remove-comment", path, comment: categoryComment(c.key) }) as PlanStep,
+      ),
+    ),
+    // Le motif layer7 n'appartient qu'aux torrents ; il n'a pas de commentaire
+    // (le menu n'en a pas), on le retire donc par son nom.
+    ...(keys.includes("torrent")
+      ? [
+          {
+            kind: "remove-where",
+            path: "/ip/firewall/layer7-protocol",
+            field: "name",
+            value: TORRENT_L7_NAME,
+          } as PlanStep,
+        ]
+      : []),
+    ...adlistRemovalSteps(version, cats),
+  ];
+}
+
+/**
+ * Purge du SOCLE partagé (résolveur, redirection du port 53, coupure du DoT) —
+ * commentaire NU, il n'appartient à aucune catégorie. Sert uniquement à
+ * re-poser une catégorie sans doublonner ce socle.
+ */
+function buildSharedRemovalSteps(): PlanStep[] {
+  return MANAGED_PATHS.map(
+    (path) => ({ kind: "remove-comment", path, comment: CONTENT_FILTER_COMMENT }) as PlanStep,
+  );
+}
+
+/**
+ * Dépose. Sans `keys`, elle est TOTALE. Avec `keys`, elle ne retire que ces
+ * catégories-là : les autres restent bloquées et le socle partagé reste posé.
+ */
+export function buildUninstallPlan(
+  rawVersion: string | null | undefined,
+  keys?: ContentCategoryKey[],
+): ContentFilterPlan {
   const version = resolveVersion(rawVersion);
+  const cibles = keys?.length ? keys.map((k) => findCategory(k).label) : null;
   return {
     version,
-    steps: buildRemovalSteps(version),
+    steps: cibles ? buildCategoryRemovalSteps(version, keys!) : buildRemovalSteps(version),
     notes: [
-      "La dépose ne retire QUE ce que SafeLinkHub a posé (commentaire « " +
-        CONTENT_FILTER_COMMENT +
-        " ») : le reste de la configuration du routeur n'est pas touché.",
+      cibles
+        ? `Seule la catégorie « ${cibles.join(" », « ")} » est retirée : les autres restent bloquées, ` +
+          "et le socle partagé (forçage DNS, coupure du DNS-over-TLS) n'est pas touché."
+        : "La dépose ne retire QUE ce que SafeLinkHub a posé (commentaire « " +
+          CONTENT_FILTER_COMMENT +
+          " ») : le reste de la configuration du routeur n'est pas touché.",
     ],
     domainCount: 0,
   };
 }
 
+/**
+ * `scope` décide de ce que la pose purge AVANT d'ajouter :
+ *
+ *   - `"all"` (défaut) : tout le filtre. La pose vaut alors état complet — les
+ *     catégories décochées disparaissent du routeur. C'est ce que fait
+ *     « Ré-appliquer le filtre ».
+ *   - `"selected"` : les seules catégories posées, plus le socle partagé (qui
+ *     est re-posé juste après, donc sans doublon). Les AUTRES catégories déjà
+ *     sur le routeur ne sont pas touchées — c'est ce qui permet de re-bloquer
+ *     une catégorie seule sans rejouer les ~100 entrées DNS des autres.
+ */
 export function buildInstallPlan(
   rawVersion: string | null | undefined,
   opts: ContentFilterOptions,
+  scope: "all" | "selected" = "all",
 ): ContentFilterPlan {
   const version = resolveVersion(rawVersion);
   const keywords = opts.keywords !== false;
@@ -295,12 +431,19 @@ export function buildInstallPlan(
   const notes: string[] = [];
 
   // Ré-appliquer purge d'abord : la pose est rejouable sans doublonner.
-  const steps: PlanStep[] = buildRemovalSteps(version);
+  const steps: PlanStep[] =
+    scope === "all"
+      ? buildRemovalSteps(version)
+      : [...buildCategoryRemovalSteps(version, opts.categories), ...buildSharedRemovalSteps()];
 
   if (categories.length === 0) {
     return { version, steps: [], notes: ["Aucune catégorie sélectionnée."], domainCount: 0 };
   }
 
+  // Commentaire NU : réservé au socle PARTAGÉ (redirection du port 53, coupure
+  // du DNS-over-TLS). Il n'appartient à aucune catégorie et ne doit donc pas
+  // tomber quand on en retire une — sinon autoriser « Torrents » rouvrirait le
+  // contournement par DNS public pour tout le reste.
   const comment = CONTENT_FILTER_COMMENT;
 
   // 1. Résolveur du routeur : sans lui, la redirection DNS n'a rien à servir.
@@ -309,8 +452,15 @@ export function buildInstallPlan(
   }
 
   // 2. Blocage DNS des domaines connus — la forme change avec la branche.
-  const domains = [...new Set(categories.flatMap((c) => c.domains))];
+  //    Chaque entrée porte le commentaire de SA catégorie : c'est ce qui permet
+  //    de retirer « Torrents » sans toucher à « Adultes ». Un domaine revendiqué
+  //    par deux catégories n'est posé qu'une fois, sous la PREMIÈRE (ordre du
+  //    catalogue) — le retirer avec elle est le comportement voulu : la seconde
+  //    catégorie garde ses propres domaines.
+  const domainOwner = attribuer(categories, (c) => c.domains);
+  const domains = [...domainOwner.keys()];
   for (const domain of domains) {
+    const domainComment = categoryComment(domainOwner.get(domain)!);
     steps.push({
       kind: "add",
       path: "/ip/dns/static",
@@ -323,11 +473,11 @@ export function buildInstallPlan(
       // elle pointe sur la boucle locale, seule adresse toujours valide.
       params:
         version.major >= 7
-          ? { name: domain, "match-subdomain": "yes", type: "NXDOMAIN", comment }
-          : { regexp: domainRegexp(domain), address: "127.0.0.1", comment },
+          ? { name: domain, "match-subdomain": "yes", type: "NXDOMAIN", comment: domainComment }
+          : { regexp: domainRegexp(domain), address: "127.0.0.1", comment: domainComment },
       fallback:
         version.major >= 7
-          ? { name: domain, "match-subdomain": "yes", address: "127.0.0.1", comment }
+          ? { name: domain, "match-subdomain": "yes", address: "127.0.0.1", comment: domainComment }
           : undefined,
     });
   }
@@ -354,7 +504,8 @@ export function buildInstallPlan(
 
   // 4. Couche SNI : ce que le DNS ne connaît pas (nouveau domaine, accès direct
   //    par IP, résolveur codé en dur dans l'application).
-  const kwList = keywords ? [...new Set(categories.flatMap((c) => c.keywords))] : [];
+  const kwOwner = attribuer(keywords ? categories : [], (c) => c.keywords);
+  const kwList = [...kwOwner.keys()];
   if (kwList.length > 0) {
     if (supportsTlsHost(version)) {
       for (const kw of kwList) {
@@ -368,7 +519,7 @@ export function buildInstallPlan(
             "tls-host": `*${kw}*`,
             action: "reject",
             "reject-with": "tcp-reset",
-            comment,
+            comment: categoryComment(kwOwner.get(kw)!),
           },
         });
       }
@@ -389,12 +540,13 @@ export function buildInstallPlan(
   }
 
   // 5. Torrents : c'est ici que les deux branches divergent le plus.
+  const torrentComment = categoryComment("torrent");
   if (opts.categories.includes("torrent")) {
     if (supportsP2pMatcher(version)) {
       steps.push({
         kind: "add",
         path: "/ip/firewall/filter",
-        params: { chain: "forward", p2p: "all-p2p", action: "drop", comment },
+        params: { chain: "forward", p2p: "all-p2p", action: "drop", comment: torrentComment },
       });
       notes.push(
         "RouterOS 6 : les torrents sont coupés par le matcher natif « p2p=all-p2p » (reconnaissance intégrée, coût CPU négligeable).",
@@ -412,13 +564,24 @@ export function buildInstallPlan(
       steps.push({
         kind: "add",
         path: "/ip/firewall/filter",
-        params: { chain: "forward", "layer7-protocol": TORRENT_L7_NAME, action: "drop", comment },
+        params: {
+          chain: "forward",
+          "layer7-protocol": TORRENT_L7_NAME,
+          action: "drop",
+          comment: torrentComment,
+        },
       });
       for (const protocol of ["tcp", "udp"]) {
         steps.push({
           kind: "add",
           path: "/ip/firewall/filter",
-          params: { chain: "forward", protocol, "dst-port": "6881-6999", action: "drop", comment },
+          params: {
+            chain: "forward",
+            protocol,
+            "dst-port": "6881-6999",
+            action: "drop",
+            comment: torrentComment,
+          },
         });
       }
       notes.push(
@@ -516,12 +679,16 @@ export function renderStep(step: PlanStep): string {
     case "set":
       return `${base} set ${renderParams(step.params)}`;
     case "remove-comment":
-      return `${base} remove [find comment=${quoteRos(CONTENT_FILTER_COMMENT)}]`;
+      // Sans commentaire explicite : correspondance de PRÉFIXE, qui emporte le
+      // socle partagé, toutes les catégories, et les poses héritées.
+      return step.comment
+        ? `${base} remove [find comment=${quoteRos(step.comment)}]`
+        : `${base} remove [find where comment~${quoteRos(`^${CONTENT_FILTER_COMMENT}`)}]`;
     case "remove-where":
       return `${base} remove [find ${step.field}=${quoteRos(step.value)}]`;
     case "move-top":
       return (
-        `${base} move [find comment=${quoteRos(CONTENT_FILTER_COMMENT)}]` +
+        `${base} move [find where comment~${quoteRos(`^${CONTENT_FILTER_COMMENT}`)}]` +
         ` destination=[:len [${base} find where dynamic=yes]]`
       );
   }
@@ -573,6 +740,25 @@ async function idsWhere(
 }
 
 /**
+ * Ids de tout ce que SafeLinkHub a posé sur ce chemin, quelle que soit la
+ * catégorie. La requête API (`?comment=…`) ne compare qu'à l'identique : le
+ * filtrage par préfixe se fait donc ici, sur un print complet du menu.
+ */
+async function idsWithOurComment(
+  client: RouterOSClient,
+  path: string,
+  timeoutMs: number,
+): Promise<string[]> {
+  const rows = await client
+    .talk([`${path}/print`], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  return rows
+    .filter((r) => (r.comment ?? "").startsWith(CONTENT_FILTER_COMMENT))
+    .map((r) => r[".id"])
+    .filter((id): id is string => Boolean(id));
+}
+
+/**
  * Exécute le plan via l'API. Les échecs sont COLLECTÉS, pas levés : une entrée
  * refusée (menu absent sur une version inattendue, doublon) ne doit pas laisser
  * le routeur à moitié filtré sans que l'admin sache ce qui manque.
@@ -607,18 +793,20 @@ export async function applyPlan(
         }
         case "remove-comment":
         case "remove-where": {
-          const [field, value] =
-            step.kind === "remove-comment"
-              ? ["comment", CONTENT_FILTER_COMMENT]
-              : [step.field, step.value];
-          for (const id of await idsWhere(client, step.path, field, value, timeoutMs)) {
+          const ids =
+            step.kind === "remove-where"
+              ? await idsWhere(client, step.path, step.field, step.value, timeoutMs)
+              : step.comment
+                ? await idsWhere(client, step.path, "comment", step.comment, timeoutMs)
+                : await idsWithOurComment(client, step.path, timeoutMs);
+          for (const id of ids) {
             await client.talk([`${step.path}/remove`, `=numbers=${id}`], timeoutMs).catch(() => {});
           }
           result.applied++;
           break;
         }
         case "move-top": {
-          const ids = await idsWhere(client, step.path, "comment", CONTENT_FILTER_COMMENT, timeoutMs);
+          const ids = await idsWithOurComment(client, step.path, timeoutMs);
           // Destination = la première règle qui n'est ni interne/dynamique ni
           // l'une des nôtres. Viser l'index 0 buterait sur la règle « fasttrack
           // counters » de RouterOS 7 et sur les règles dynamiques du hotspot :
@@ -656,6 +844,20 @@ export type ContentFilterState = {
   adlists: string[];
   /** Le filtre est-il posé sur ce routeur ? */
   installed: boolean;
+  /**
+   * Catégories effectivement bloquées SUR LE ROUTEUR, reconnues au commentaire
+   * qu'elles portent. C'est la vérité affichée : ni ce que la base croit avoir
+   * posé, ni ce que l'écran avait coché.
+   */
+  categories: ContentCategoryKey[];
+  /**
+   * Le routeur porte un filtre posé AVANT la découpe par catégorie : tout y
+   * porte le commentaire nu, donc rien n'y est attribuable. Le retrait
+   * catégorie par catégorie demande une ré-application d'abord.
+   */
+  legacy: boolean;
+  /** Nombre d'entrées DNS par catégorie — pour le détail à l'écran. */
+  dnsByCategory: Partial<Record<ContentCategoryKey, number>>;
 };
 
 /** Lit l'état RÉEL sur le routeur — pas ce que la base croit avoir posé. */
@@ -667,28 +869,53 @@ export async function readContentFilterState(
   const rawVersion = resource[0]?.version ?? "";
   const version = resolveVersion(rawVersion);
 
-  const count = async (path: string) =>
-    (await idsWhere(client, path, "comment", CONTENT_FILTER_COMMENT, timeoutMs)).length;
+  // Print complet puis filtrage ici : la requête API ne compare qu'à
+  // l'identique, or nos commentaires portent maintenant un suffixe de
+  // catégorie. Un print par menu, pas un par catégorie.
+  const ours = async (path: string) =>
+    (await client.talk([`${path}/print`], timeoutMs).catch(() => [])).filter((r) =>
+      (r.comment ?? "").startsWith(CONTENT_FILTER_COMMENT),
+    );
 
-  const dnsEntries = await count("/ip/dns/static");
-  const firewallRules = await count("/ip/firewall/filter");
-  const natRules = await count("/ip/firewall/nat");
+  const dns = await ours("/ip/dns/static");
+  const firewall = await ours("/ip/firewall/filter");
+  const nat = await ours("/ip/firewall/nat");
 
-  const known = new Set(
-    CONTENT_CATEGORIES.map((c) => c.adlistUrl).filter((u): u is string => Boolean(u)),
+  const byUrl = new Map(
+    CONTENT_CATEGORIES.filter((c) => c.adlistUrl).map((c) => [c.adlistUrl!, c.key] as const),
   );
   const adlistRows = supportsAdlist(version)
     ? await client.talk(["/ip/dns/adlist/print"], timeoutMs).catch(() => [])
     : [];
-  const adlists = adlistRows.map((r) => r.url ?? "").filter((u) => known.has(u));
+  const adlists = adlistRows.map((r) => r.url ?? "").filter((u) => byUrl.has(u));
+
+  const trouvees = new Set<ContentCategoryKey>();
+  const dnsByCategory: Partial<Record<ContentCategoryKey, number>> = {};
+  for (const r of dns) {
+    const k = commentCategory(r.comment);
+    if (!k) continue;
+    trouvees.add(k);
+    dnsByCategory[k] = (dnsByCategory[k] ?? 0) + 1;
+  }
+  for (const r of firewall) {
+    const k = commentCategory(r.comment);
+    if (k) trouvees.add(k);
+  }
+  for (const u of adlists) trouvees.add(byUrl.get(u)!);
 
   return {
     rawVersion,
     version,
-    dnsEntries,
-    firewallRules,
-    natRules,
+    dnsEntries: dns.length,
+    firewallRules: firewall.length,
+    natRules: nat.length,
     adlists,
-    installed: dnsEntries + firewallRules + natRules + adlists.length > 0,
+    installed: dns.length + firewall.length + nat.length + adlists.length > 0,
+    categories: [...trouvees],
+    // Une entrée DNS au commentaire nu ne peut venir que d'une pose antérieure
+    // à la découpe : depuis, chacune porte sa catégorie. Les règles de firewall
+    // ne sont PAS un indice — le socle partagé y garde le commentaire nu.
+    legacy: dns.some((r) => commentCategory(r.comment) === null),
+    dnsByCategory,
   };
 }

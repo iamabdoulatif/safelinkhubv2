@@ -11,11 +11,37 @@ import {
   applyPlan,
   buildInstallPlan,
   buildUninstallPlan,
+  findCategory,
   readContentFilterState,
   renderPlanScript,
+  type ContentCategoryKey,
   type ContentFilterOptions,
   type ContentFilterState,
+  type SavedContentFilter,
 } from "./content-filter";
+
+function normaliser(opts: ContentFilterOptions): SavedContentFilter {
+  return {
+    categories: opts.categories,
+    keywords: opts.keywords !== false,
+    forceDns: opts.forceDns !== false,
+    adlist: opts.adlist !== false,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function memoriser(routerId: string, saved: SavedContentFilter) {
+  await getDb().update(routers).set({ contentFilter: saved }).where(eq(routers.id, routerId));
+}
+
+/** Résumé chiffré du filtre tel qu'il est MAINTENANT sur le routeur. */
+function resumer(state: ContentFilterState): string {
+  return (
+    `${state.dnsEntries} domaines au DNS, ${state.firewallRules} règles de firewall, ` +
+    `${state.natRules} règles NAT` +
+    (state.adlists.length > 0 ? `, ${state.adlists.length} liste(s) publique(s)` : "")
+  );
+}
 
 /**
  * Server actions du filtrage de contenu. Elles ne décident rien : tout le
@@ -52,19 +78,36 @@ async function ouvrir(routerId: string): Promise<Acces> {
   }
 }
 
-export async function readRouterContentFilter(
-  routerId: string,
-): Promise<{ error: string } | { state: ContentFilterState }> {
+/**
+ * État du filtre. `state` est la vérité lue SUR le routeur ; `saved` est le
+ * dernier réglage voulu, renvoyé même quand le routeur ne répond pas — sans
+ * lui, l'écran rouvrirait sur ses cases par défaut et un « Ré-appliquer »
+ * distrait re-poserait des catégories que l'admin avait retirées.
+ */
+export async function readRouterContentFilter(routerId: string): Promise<{
+  error?: string;
+  state?: ContentFilterState;
+  saved?: SavedContentFilter | null;
+}> {
+  const saved = await lireMemo(routerId);
   const acces = await ouvrir(routerId);
-  if (!acces.ok) return { error: acces.error };
+  if (!acces.ok) return { error: acces.error, saved };
   const client: RouterOSClient = acces.client;
   try {
-    return { state: await readContentFilterState(client) };
+    return { state: await readContentFilterState(client), saved };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Lecture impossible." };
+    return { error: err instanceof Error ? err.message : "Lecture impossible.", saved };
   } finally {
     client.close();
   }
+}
+
+async function lireMemo(routerId: string): Promise<SavedContentFilter | null> {
+  const session = await getSession();
+  if (!session) return null;
+  const [router] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return null;
+  return router.contentFilter ?? null;
 }
 
 export async function applyRouterContentFilter(routerId: string, opts: ContentFilterOptions) {
@@ -81,6 +124,7 @@ export async function applyRouterContentFilter(routerId: string, opts: ContentFi
     const plan = buildInstallPlan(avant.rawVersion, opts);
     const res = await applyPlan(client, plan);
     const apres = await readContentFilterState(client);
+    await memoriser(routerId, normaliser(opts));
 
     revalidatePath(`/admin/router/${routerId}`);
     return {
@@ -88,12 +132,11 @@ export async function applyRouterContentFilter(routerId: string, opts: ContentFi
       version: avant.rawVersion || `${plan.version.major}.${plan.version.minor}`,
       summary:
         `Filtre posé en RouterOS ${plan.version.major}.${plan.version.minor} : ` +
-        `${apres.dnsEntries} domaines au DNS, ${apres.firewallRules} règles de firewall, ` +
-        `${apres.natRules} règles NAT` +
-        (apres.adlists.length > 0 ? `, ${apres.adlists.length} liste(s) publique(s)` : "") +
+        resumer(apres) +
         ".",
       notes: plan.notes,
       failed: res.failed,
+      state: apres,
     };
   } catch (err) {
     return { error: err instanceof Error ? `Échec de la pose : ${err.message}` : "Échec de la pose." };
@@ -110,6 +153,8 @@ export async function removeRouterContentFilter(routerId: string) {
   try {
     const avant = await readContentFilterState(client);
     const res = await applyPlan(client, buildUninstallPlan(avant.rawVersion));
+    const apres = await readContentFilterState(client);
+    await memoriser(routerId, normaliser({ categories: [] }));
     revalidatePath(`/admin/router/${routerId}`);
     return {
       success: true,
@@ -118,10 +163,102 @@ export async function removeRouterContentFilter(routerId: string) {
         `${avant.natRules} règles NAT, ${avant.adlists.length} liste(s) publique(s)). ` +
         "Le reste de la configuration du routeur n'a pas été touché.",
       failed: res.failed,
+      state: apres,
     };
   } catch (err) {
     return {
       error: err instanceof Error ? `Échec de la dépose : ${err.message}` : "Échec de la dépose.",
+    };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * Autorise ou re-bloque UNE catégorie, sans toucher aux autres.
+ *
+ * `blocked: false` ne purge que les ressources portant le commentaire de cette
+ * catégorie — les autres catégories et le socle partagé (forçage DNS) restent
+ * en place. `blocked: true` re-pose cette seule catégorie : on ne rejoue pas
+ * les ~100 entrées DNS des autres pour en ajouter vingt.
+ *
+ * L'état renvoyé est RELU sur le routeur après l'écriture : c'est lui que
+ * l'écran affiche, jamais ce qu'on croit avoir fait.
+ */
+export async function setRouterContentFilterCategory(
+  routerId: string,
+  key: ContentCategoryKey,
+  blocked: boolean,
+) {
+  const categorie = findCategory(key);
+  const memo = await lireMemo(routerId);
+
+  const acces = await ouvrir(routerId);
+  if (!acces.ok) return { error: acces.error };
+  const client: RouterOSClient = acces.client;
+
+  try {
+    const avant = await readContentFilterState(client);
+    // Filtre posé avant la découpe : tout y porte le commentaire nu. On refuse
+    // les DEUX sens. Retirer une catégorie ne trouverait rien à retirer ; mais
+    // surtout, en re-poser une purgerait d'abord le socle au commentaire nu —
+    // c'est-à-dire, sur ce routeur-là, les domaines de TOUTES les autres
+    // catégories, qui seraient silencieusement débloquées.
+    if (avant.legacy) {
+      return {
+        error:
+          `Ce routeur porte un filtre posé avant la découpe par catégorie : ses entrées ne sont ` +
+          `attribuées à aucune catégorie, donc « ${categorie.label} » ne peut pas être traitée seule. ` +
+          `Cliquez d'abord « Ré-appliquer le filtre » : les catégories cochées seront re-posées, ` +
+          `chacune identifiable, et l'action à l'unité deviendra possible.`,
+      };
+    }
+
+    const options = {
+      keywords: memo?.keywords ?? true,
+      forceDns: memo?.forceDns ?? true,
+      adlist: memo?.adlist ?? true,
+    };
+    const plan = blocked
+      ? buildInstallPlan(avant.rawVersion, { ...options, categories: [key] }, "selected")
+      : buildUninstallPlan(avant.rawVersion, [key]);
+
+    const res = await applyPlan(client, plan);
+    const apres = await readContentFilterState(client);
+
+    // Le mémo suit l'état RÉEL du routeur : sinon un « Ré-appliquer » plus tard
+    // re-poserait la catégorie qu'on vient d'autoriser.
+    await memoriser(routerId, { ...options, categories: apres.categories, updatedAt: new Date().toISOString() });
+    revalidatePath(`/admin/router/${routerId}`);
+
+    const toujoursLa = apres.categories.includes(key);
+    if (blocked !== toujoursLa) {
+      return {
+        error:
+          `Le routeur n'a pas appliqué le changement sur « ${categorie.label} » : ` +
+          (res.failed[0]?.error ?? "aucune commande n'a abouti") +
+          ".",
+        failed: res.failed,
+        state: apres,
+      };
+    }
+
+    return {
+      success: true,
+      summary: blocked
+        ? `« ${categorie.label} » est de nouveau bloquée. Filtre en place : ${resumer(apres)}.`
+        : `« ${categorie.label} » est désormais autorisée sur ce routeur. ` +
+          `Les autres catégories restent bloquées — filtre en place : ${resumer(apres)}.`,
+      notes: plan.notes,
+      failed: res.failed,
+      state: apres,
+    };
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Échec sur « ${categorie.label} » : ${err.message}`
+          : `Échec sur « ${categorie.label} ».`,
     };
   } finally {
     client.close();

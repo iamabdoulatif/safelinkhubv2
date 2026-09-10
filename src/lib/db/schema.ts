@@ -12,6 +12,7 @@ import {
   index,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import type { ContentCategoryKey } from "@/lib/mikrotik/content-filter";
 
 export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -312,6 +313,20 @@ export const routers = pgTable("routers", {
   // organizations.vpn_quota_mode ("free_until" | "unlimited" | "paid").
   vpnQuotaMode: text("vpn_quota_mode"),
   vpnQuotaExpiresAt: timestamp("vpn_quota_expires_at"),
+  // Dernier réglage de filtrage de contenu VOULU sur ce routeur (catégories +
+  // options). La VÉRITÉ reste le routeur — readContentFilterState lit les
+  // commentaires réellement posés — mais elle n'est lisible que si le routeur
+  // répond. Ce mémo sert quand il est hors ligne (l'écran rouvre sur le bon
+  // réglage au lieu du défaut) et pour les options (mots-clés, forçage DNS,
+  // listes publiques), qui ne laissent pas de trace attribuable sur le
+  // routeur. Voir lib/mikrotik/content-filter-actions.ts.
+  contentFilter: jsonb("content_filter").$type<{
+    categories: ContentCategoryKey[];
+    keywords: boolean;
+    forceDns: boolean;
+    adlist: boolean;
+    updatedAt: string;
+  }>(),
 });
 
 // Verrou anti-abus de l'auto-setup : le numéro de série RouterOS d'un MikroTik

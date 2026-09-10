@@ -6,6 +6,8 @@ import {
   TORRENT_L7_NAME,
   buildInstallPlan,
   buildUninstallPlan,
+  categoryComment,
+  commentCategory,
   quoteRos,
   renderPlanScript,
   renderStep,
@@ -207,9 +209,15 @@ describe("échappement console", () => {
   });
 
   it("rend une commande console lisible", () => {
+    // Sans commentaire explicite : préfixe, pour emporter aussi les poses
+    // héritées (commentaire nu) et toutes les catégories d'un coup.
     assert.equal(
       renderStep({ kind: "remove-comment", path: "/ip/firewall/nat" }),
-      `/ip firewall nat remove [find comment=${CONTENT_FILTER_COMMENT}]`,
+      `/ip firewall nat remove [find where comment~"^${CONTENT_FILTER_COMMENT}"]`,
+    );
+    assert.equal(
+      renderStep({ kind: "remove-comment", path: "/ip/dns/static", comment: categoryComment("adult") }),
+      `/ip dns static remove [find comment="${CONTENT_FILTER_COMMENT} adult"]`,
     );
     assert.equal(
       renderStep({ kind: "set", path: "/ip/dns", params: { "allow-remote-requests": "yes" } }),
@@ -260,5 +268,101 @@ describe("catégorie « updates » : couper la distribution, pas le service", ()
   it("n'apporte aucune liste publique (aucune ne vise les mises à jour)", () => {
     const cat = CONTENT_CATEGORIES.find((c) => c.key === "updates")!;
     assert.equal(cat.adlistUrl, undefined);
+  });
+});
+
+/* Retirer « Torrents » ne doit pas rouvrir « Adultes ». Chaque ressource est
+   donc attribuée à SA catégorie par son commentaire, et le socle partagé
+   (forçage DNS) garde le commentaire nu pour ne tomber avec aucune. */
+describe("retrait catégorie par catégorie", () => {
+  const plan = buildInstallPlan("7.23.1", { categories: ALL });
+  const ajouts = plan.steps.filter(
+    (s): s is Extract<PlanStep, { kind: "add" }> => s.kind === "add",
+  );
+
+  it("chaque domaine porte le commentaire de sa catégorie", () => {
+    const dns = ajouts.filter((s) => s.path === "/ip/dns/static");
+    for (const s of dns) {
+      assert.ok(commentCategory(s.params.comment), `commentaire non attribué : ${s.params.comment}`);
+      // Le repli doit porter le MÊME commentaire, sinon une entrée posée par
+      // repli échappe à la dépose de sa catégorie.
+      assert.equal(s.fallback?.comment, s.params.comment);
+    }
+    const pornhub = dns.find((s) => s.params.name === "pornhub.com")!;
+    assert.equal(commentCategory(pornhub.params.comment), "adult");
+    const pirate = dns.find((s) => s.params.name === "thepiratebay.org")!;
+    assert.equal(commentCategory(pirate.params.comment), "torrent");
+  });
+
+  it("le socle partagé (forçage DNS) garde le commentaire NU", () => {
+    // Il ne doit tomber avec AUCUNE catégorie : sans lui, 8.8.8.8 à la main
+    // contourne le blocage de toutes les catégories restées actives.
+    const nat = ajouts.filter((s) => s.path === "/ip/firewall/nat");
+    assert.ok(nat.length > 0);
+    assert.ok(nat.every((s) => s.params.comment === CONTENT_FILTER_COMMENT));
+    const dot = ajouts.find((s) => s.params["dst-port"] === "853")!;
+    assert.equal(dot.params.comment, CONTENT_FILTER_COMMENT);
+  });
+
+  it("la dépose d'une catégorie ne touche qu'elle", () => {
+    const steps = buildUninstallPlan("7.23.1", ["torrent"]).steps;
+    const commentaires = steps
+      .filter((s) => s.kind === "remove-comment")
+      .map((s) => (s as Extract<PlanStep, { kind: "remove-comment" }>).comment);
+    assert.ok(commentaires.length > 0);
+    // Aucune purge par préfixe (elle emporterait tout) ni du commentaire nu
+    // (elle emporterait le socle partagé).
+    assert.ok(commentaires.every((c) => c === categoryComment("torrent")));
+    // Le NAT partagé n'est jamais visé par une dépose de catégorie.
+    assert.ok(!steps.some((s) => s.path === "/ip/firewall/nat"));
+    // Le motif layer7 appartient aux torrents : il part avec eux.
+    assert.ok(steps.some((s) => s.kind === "remove-where" && s.value === TORRENT_L7_NAME));
+  });
+
+  it("retirer une catégorie sans layer7 laisse le motif torrent en place", () => {
+    const steps = buildUninstallPlan("7.23.1", ["gambling"]).steps;
+    assert.ok(!steps.some((s) => s.kind === "remove-where" && s.value === TORRENT_L7_NAME));
+    // Seule la liste publique des paris part, pas celle des sites adultes.
+    const urls = steps.filter((s) => s.path === "/ip/dns/adlist").map((s) => (s as Extract<PlanStep, { kind: "remove-where" }>).value);
+    assert.deepEqual(urls, [CONTENT_CATEGORIES.find((c) => c.key === "gambling")!.adlistUrl]);
+  });
+
+  it("re-bloquer une catégorie seule ne purge pas les autres", () => {
+    const plan = buildInstallPlan("7.23.1", { categories: ["gambling"] }, "selected");
+    const purges = plan.steps.filter((s) => s.kind === "remove-comment") as Extract<
+      PlanStep,
+      { kind: "remove-comment" }
+    >[];
+    // Uniquement la catégorie visée + le socle partagé (re-posé juste après,
+    // donc sans doublon). Jamais de purge par préfixe.
+    assert.ok(purges.length > 0);
+    assert.ok(
+      purges.every(
+        (s) => s.comment === categoryComment("gambling") || s.comment === CONTENT_FILTER_COMMENT,
+      ),
+    );
+    // Aucun domaine d'une autre catégorie n'est re-posé.
+    const noms = plan.steps
+      .filter((s): s is Extract<PlanStep, { kind: "add" }> => s.kind === "add")
+      .filter((s) => s.path === "/ip/dns/static")
+      .map((s) => s.params.name);
+    assert.ok(noms.includes("bet365.com"));
+    assert.ok(!noms.includes("pornhub.com"));
+  });
+
+  it("la ré-application, elle, purge tout (les décochées disparaissent)", () => {
+    const purges = buildInstallPlan("7.23.1", { categories: ["gambling"] }).steps.filter(
+      (s) => s.kind === "remove-comment",
+    ) as Extract<PlanStep, { kind: "remove-comment" }>[];
+    assert.ok(purges.length > 0);
+    assert.ok(purges.every((s) => s.comment === undefined));
+  });
+
+  it("commentCategory ignore ce qui n'est pas à nous", () => {
+    assert.equal(commentCategory("hotspot"), null);
+    assert.equal(commentCategory(undefined), null);
+    // Commentaire nu = pose héritée : reconnue comme nôtre, mais non attribuable.
+    assert.equal(commentCategory(CONTENT_FILTER_COMMENT), null);
+    assert.equal(commentCategory(categoryComment("piracy")), "piracy");
   });
 });

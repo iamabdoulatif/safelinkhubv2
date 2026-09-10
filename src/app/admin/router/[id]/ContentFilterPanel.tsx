@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import {
   ShieldBan,
+  ShieldCheck,
   Loader2,
   RefreshCw,
   Trash2,
@@ -17,11 +18,13 @@ import {
   buildRouterContentFilterScript,
   readRouterContentFilter,
   removeRouterContentFilter,
+  setRouterContentFilterCategory,
 } from "@/lib/mikrotik/content-filter-actions";
 import {
   CONTENT_CATEGORIES,
   type ContentCategoryKey,
   type ContentFilterState,
+  type SavedContentFilter,
 } from "@/lib/mikrotik/content-filter";
 
 /* Par défaut on coche ce qu'un opérateur de hotspot public veut couper le jour
@@ -30,30 +33,142 @@ const DEFAUT: ContentCategoryKey[] = ["adult", "torrent", "gambling"];
 
 type Msg = { ok: boolean; text: string; notes?: string[]; failed?: { step: string; error: string }[] };
 
+/** Les cases cochées disent-elles autre chose que le routeur ? (ordre indifférent) */
+function desaccord(voulues: ContentCategoryKey[], posees: ContentCategoryKey[]): boolean {
+  return (
+    voulues.length !== posees.length || voulues.some((k) => !posees.includes(k))
+  );
+}
+
 function Checkbox({
   checked,
   onChange,
   label,
   hint,
+  children,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
   hint: string;
+  children?: React.ReactNode;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 border border-line bg-paper p-3 transition-colors duration-150 hover:bg-clay rounded-xl">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-brand"
-      />
-      <span>
-        <span className="block text-sm font-bold text-ink">{label}</span>
-        <span className="mt-0.5 block text-xs text-ink-soft">{hint}</span>
+    <div className="flex flex-col border border-line bg-paper transition-colors duration-150 rounded-xl">
+      <label className="flex cursor-pointer items-start gap-3 p-3 hover:bg-clay rounded-xl">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-brand"
+        />
+        <span>
+          <span className="block text-sm font-bold text-ink">{label}</span>
+          <span className="mt-0.5 block text-xs text-ink-soft">{hint}</span>
+        </span>
+      </label>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Pied de carte d'une catégorie : son état RÉEL sur le routeur, et l'action qui
+ * ne concerne qu'elle. La case à cocher au-dessus reste l'intention (ce que
+ * « Ré-appliquer » posera) ; ce pied-là écrit sur le routeur immédiatement.
+ *
+ * Confirmation en deux temps, sur place — même geste que le kill-switch d'un
+ * routeur (RouterLockButton) : autoriser une catégorie rouvre un accès pour
+ * tous les clients de la zone.
+ */
+function CategoryActions({
+  label,
+  blocked,
+  domains,
+  busy,
+  pending,
+  onSet,
+}: {
+  label: string;
+  blocked: boolean;
+  domains: number;
+  busy: boolean;
+  pending: boolean;
+  onSet: (blocked: boolean) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (confirming) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 border-t border-line-soft px-3 py-2">
+        <span className="text-[11px] font-medium text-ink">
+          Voulez-vous vraiment autoriser « {label} » sur ce routeur ? Les autres catégories
+          resteront bloquées.
+        </span>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setConfirming(false);
+            onSet(false);
+          }}
+          className="inline-flex items-center gap-1.5 border border-err bg-err px-2.5 py-1 text-[11px] font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-err disabled:opacity-60 rounded-lg"
+        >
+          Confirmer le retrait
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setConfirming(false)}
+          className="border border-line bg-paper px-2.5 py-1 text-[11px] font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-lg"
+        >
+          Annuler
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft px-3 py-2">
+      <span
+        className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${
+          blocked ? "text-ok" : "text-ink-soft"
+        }`}
+      >
+        {blocked ? (
+          <ShieldBan aria-hidden="true" className="h-3.5 w-3.5" />
+        ) : (
+          <ShieldCheck aria-hidden="true" className="h-3.5 w-3.5" />
+        )}
+        {blocked
+          ? `Bloqué sur le routeur${domains > 0 ? ` · ${domains} domaine(s)` : ""}`
+          : "Autorisé sur le routeur"}
       </span>
-    </label>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => (blocked ? setConfirming(true) : onSet(true))}
+        title={
+          blocked
+            ? `Autoriser « ${label} » sans toucher aux autres catégories`
+            : `Re-bloquer « ${label} » seule`
+        }
+        className={
+          blocked
+            ? "inline-flex items-center gap-1.5 border border-err px-2.5 py-1 text-[11px] font-bold text-err transition-colors duration-150 hover:bg-err/10 disabled:opacity-60 rounded-lg"
+            : "inline-flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1 text-[11px] font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-lg"
+        }
+      >
+        {pending ? (
+          <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
+        ) : blocked ? (
+          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+        ) : (
+          <ShieldBan aria-hidden="true" className="h-3.5 w-3.5" />
+        )}
+        {blocked ? "Retirer" : "Bloquer"}
+      </button>
+    </div>
   );
 }
 
@@ -68,20 +183,34 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
   const [msg, setMsg] = useState<Msg | null>(null);
   const [script, setScript] = useState<{ version: string; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [pending, setPending] = useState<ContentCategoryKey | null>(null);
 
   const [isReading, startRead] = useTransition();
   const [isWriting, startWrite] = useTransition();
 
+  /* Les cases suivent le ROUTEUR quand il répond : après un retrait, la
+     catégorie se décoche d'elle-même. Sinon on retombe sur le dernier réglage
+     mémorisé (routeur hors ligne), et seulement à défaut sur les valeurs par
+     défaut — un filtre entièrement retiré ne doit pas laisser un écran vide où
+     « Injecter » est grisé. */
+  function synchroniser(state: ContentFilterState | undefined, saved: SavedContentFilter | null | undefined) {
+    const vivantes = state?.installed && !state.legacy ? state.categories : null;
+    setCategories(
+      vivantes?.length ? vivantes : saved?.categories.length ? saved.categories : DEFAUT,
+    );
+    if (saved) {
+      setKeywords(saved.keywords);
+      setForceDns(saved.forceDns);
+      setAdlist(saved.adlist);
+    }
+  }
+
   function refresh() {
     startRead(async () => {
-      setStateError(null);
       const res = await readRouterContentFilter(routerId);
-      if ("error" in res) {
-        setStateError(res.error);
-        setState(null);
-        return;
-      }
-      setState(res.state);
+      setStateError(res.error ?? null);
+      setState(res.state ?? null);
+      synchroniser(res.state, res.saved);
     });
   }
 
@@ -112,6 +241,26 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
     });
   }
 
+  /* Retrait / remise d'UNE catégorie. L'état renvoyé est celui relu sur le
+     routeur : le résumé et les cases se recalent sans second aller-retour. */
+  function setCategory(key: ContentCategoryKey, blocked: boolean) {
+    setPending(key);
+    startWrite(async () => {
+      setMsg(null);
+      setScript(null);
+      const res = await setRouterContentFilterCategory(routerId, key, blocked);
+      setPending(null);
+      if (res.state) {
+        setState(res.state);
+        synchroniser(res.state, null);
+      }
+      if ("error" in res && res.error) {
+        return setMsg({ ok: false, text: res.error, failed: res.failed });
+      }
+      setMsg({ ok: true, text: res.summary!, notes: res.notes, failed: res.failed });
+    });
+  }
+
   function showScript(versionOverride?: string) {
     startWrite(async () => {
       setMsg(null);
@@ -128,6 +277,7 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
   }
 
   const busy = isWriting || isReading;
+  const live = state?.categories ?? [];
 
   return (
     <div className="space-y-6">
@@ -166,6 +316,22 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
         </button>
       </div>
 
+      {/* Filtre posé avant la découpe par catégorie : rien n'y est attribuable,
+          donc le retrait à l'unité est impossible tant qu'on n'a pas re-posé. */}
+      {state?.legacy && (
+        <p
+          role="status"
+          className="flex gap-2 border border-warn bg-warn/10 px-4 py-3 text-xs text-ink rounded-xl"
+        >
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+          <span>
+            {`Ce filtre a été posé avant le découpage par catégorie : ses entrées ne sont attribuées à aucune catégorie, donc elles ne peuvent être retirées qu'en bloc. Cliquez « ${
+              state.installed ? "Ré-appliquer" : "Injecter"
+            } le filtre » une fois pour les re-poser catégorie par catégorie — le blocage n'est pas interrompu.`}
+          </span>
+        </p>
+      )}
+
       {/* ── Catégories ── */}
       <div>
         <h3 className="font-display text-base font-bold text-ink">Ce qui est bloqué</h3>
@@ -177,9 +343,28 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
               onChange={() => toggle(c.key)}
               label={c.label}
               hint={c.description}
-            />
+            >
+              {/* Le pied n'apparaît que si un filtre attribuable est en place :
+                  sans lui, « Retirer » n'aurait rien à retirer. */}
+              {state?.installed && !state.legacy && (
+                <CategoryActions
+                  label={c.label}
+                  blocked={live.includes(c.key)}
+                  domains={state.dnsByCategory[c.key] ?? 0}
+                  busy={busy}
+                  pending={pending === c.key}
+                  onSet={(blocked) => setCategory(c.key, blocked)}
+                />
+              )}
+            </Checkbox>
           ))}
         </div>
+        {state?.installed && !state.legacy && desaccord(categories, live) && (
+          <p className="mt-2 text-xs text-ink-soft">
+            Les cases cochées diffèrent de ce qui est posé sur le routeur : « Ré-appliquer le filtre »
+            alignera le routeur sur cette sélection.
+          </p>
+        )}
       </div>
 
       {/* ── Options ── */}
