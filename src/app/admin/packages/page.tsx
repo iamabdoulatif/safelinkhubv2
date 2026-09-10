@@ -23,6 +23,7 @@ export default async function PackagesPage() {
           commissionCents: packages.commissionCents,
           uploadMbps: packages.uploadMbps,
           downloadMbps: packages.downloadMbps,
+          dataCapMb: packages.dataCapMb,
           active: packages.active,
           routerId: packages.routerId,
           routerName: routers.name,

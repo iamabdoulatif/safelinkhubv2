@@ -14,6 +14,7 @@ import {
   SUPPORTED_PROFILE_DURATIONS,
 } from "@/lib/mikrotik/package-voucher-profile";
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
+import { dataCapWords } from "@/lib/mikrotik/voucher-data-cap";
 import { parseExpiryComment, wallToDate, wallKey, type Wall } from "./reconcile";
 import { durationFromProfileName, durationToMs } from "./expiry";
 import { matchPackageForProfile, parseMikhmonVoucherCsv } from "./csv-import";
@@ -69,6 +70,7 @@ export async function generateVouchers(_prevState: unknown, formData: FormData) 
       durationValue: packages.durationValue,
       durationUnit: packages.durationUnit,
       priceCents: packages.priceCents,
+      dataCapMb: packages.dataCapMb,
     })
     .from(packages)
     .where(and(eq(packages.id, packageId), eq(packages.orgId, session.orgId)))
@@ -141,6 +143,8 @@ export async function generateVouchers(_prevState: unknown, formData: FormData) 
               `=name=${code}`,
               `=password=${code}`,
               `=profile=${profileName}`,
+              // Plafond de volume du forfait, s'il en a un (rien émis sinon).
+              ...dataCapWords(pkg.dataCapMb),
             ]);
           }
           const list = createdOn.get(code) ?? [];

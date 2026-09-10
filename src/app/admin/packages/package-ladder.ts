@@ -27,6 +27,8 @@ export type ForfaitBrut = {
   commissionCents: number;
   uploadMbps: number | null;
   downloadMbps: number | null;
+  /** Plafond de volume du ticket, en Mo. null = illimité. */
+  dataCapMb: number | null;
   active: boolean;
   routerId: string | null;
   routerName: string | null;

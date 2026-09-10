@@ -6,6 +6,8 @@ import PriceEditor from "./PriceEditor";
 import StatusToggle from "./StatusToggle";
 import LadderFixButton from "./LadderFixButton";
 import { formatFcfa, libelleDuree, type ZoneCatalogue } from "./package-ladder";
+import DataCapEditor from "./DataCapEditor";
+import { dataCapLabel } from "@/lib/mikrotik/voucher-data-cap";
 
 const TOUTES = "__toutes__";
 
@@ -183,6 +185,16 @@ export default function PackageCatalog({ zones }: { zones: ZoneCatalogue[] }) {
                         {zone.commissionCommune === null &&
                           ` · commission ${formatFcfa(f.commissionCents)}`}
                         {!f.active && " · désactivé"}
+                      </p>
+                      {/* Le débit borne la vitesse, le plafond borne le volume :
+                          sur un lien facturé au gigaoctet, c'est le second qui
+                          décide de la facture. */}
+                      <p className="mt-0.5 text-xs text-ink-soft">
+                        <DataCapEditor
+                          packageId={f.id}
+                          dataCapMb={f.dataCapMb}
+                          label={dataCapLabel(f.dataCapMb)}
+                        />
                       </p>
                       {/* Une grille saine coûte de moins en moins cher par jour à
                           mesure que la durée s'allonge. Quand ce n'est pas le cas,

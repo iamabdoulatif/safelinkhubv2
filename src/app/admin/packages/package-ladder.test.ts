@@ -12,6 +12,7 @@ function forfait(over: Partial<ForfaitBrut>): ForfaitBrut {
     commissionCents: 0,
     uploadMbps: 5,
     downloadMbps: 5,
+    dataCapMb: null,
     active: true,
     routerId: "r1",
     routerName: "HSPT-KALAM",

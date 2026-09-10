@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { dataCapLabel } from "@/lib/mikrotik/voucher-data-cap";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { packages, routers } from "@/lib/db/schema";
@@ -78,6 +79,9 @@ export async function createPackage(_prevState: unknown, formData: FormData) {
   const durationUnit = String(formData.get("durationUnit") ?? "Hours");
   const uploadMbps = Number(formData.get("uploadMbps") ?? 5);
   const downloadMbps = Number(formData.get("downloadMbps") ?? 5);
+  // Plafond de volume, en Mo. Vide = illimité (comportement historique).
+  const dataCapRaw = String(formData.get("dataCapMb") ?? "").replace(/\s/g, "");
+  const dataCapMb = dataCapRaw === "" ? null : Number(dataCapRaw);
   const price = Number(formData.get("price") ?? 0);
   const billingStartsOn = String(
     formData.get("billingStartsOn") ?? "Upon First Use",
@@ -96,6 +100,9 @@ export async function createPackage(_prevState: unknown, formData: FormData) {
   }
   if (!Number.isFinite(price) || price < 500) {
     return { error: "Minimum price: FCFA 500" };
+  }
+  if (dataCapMb !== null && (!Number.isSafeInteger(dataCapMb) || dataCapMb < 0)) {
+    return { error: "Le plafond de données doit être un entier de Mo, ou vide." };
   }
 
   const db = getDb();
@@ -121,6 +128,7 @@ export async function createPackage(_prevState: unknown, formData: FormData) {
     durationUnit,
     uploadMbps,
     downloadMbps,
+    dataCapMb: dataCapMb && dataCapMb > 0 ? dataCapMb : null,
     billingStartsOn,
   });
 
@@ -257,4 +265,50 @@ export async function togglePackageStatus(packageId: string) {
     .where(eq(packages.id, packageId));
 
   revalidatePath("/admin/packages");
+}
+
+/**
+ * Change le plafond de données d'un forfait.
+ *
+ * Contrairement au tarif, RIEN n'est à resynchroniser sur le routeur : le
+ * plafond n'est pas porté par le profil hotspot (RouterOS ne sait pas le faire
+ * à ce niveau) mais posé sur CHAQUE compte à sa création. Le nouveau plafond
+ * vaut donc pour les tickets à venir ; ceux déjà vendus gardent le leur, ce qui
+ * est la seule lecture honnête d'un ticket déjà payé.
+ */
+export async function updatePackageDataCap(_prevState: unknown, formData: FormData) {
+  const session = await requireAdminSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const packageId = String(formData.get("packageId") ?? "");
+  if (!packageId) return { error: "Forfait introuvable." };
+
+  // Vide = pas de plafond. On stocke null plutôt que 0 : « aucune règle » et
+  // « une règle qui vaut zéro » ne se lisent pas pareil dans la base.
+  const raw = String(formData.get("dataCapMb") ?? "").replace(/\s/g, "");
+  let dataCapMb: number | null = null;
+  if (raw !== "") {
+    if (!/^\d+$/.test(raw)) return { error: "Indiquez un plafond entier en Mo, ou laissez vide." };
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n)) return { error: "Plafond hors limites." };
+    dataCapMb = n > 0 ? n : null;
+  }
+
+  const db = getDb();
+  const [pkg] = await db
+    .select({ id: packages.id, dataCapMb: packages.dataCapMb })
+    .from(packages)
+    .where(and(eq(packages.id, packageId), eq(packages.orgId, session.orgId)))
+    .limit(1);
+  if (!pkg) return { error: "Forfait introuvable." };
+
+  await db.update(packages).set({ dataCapMb }).where(eq(packages.id, packageId));
+  revalidatePath("/admin/packages");
+
+  return {
+    success: true,
+    summary: dataCapMb
+      ? `Plafond porté à ${dataCapLabel(dataCapMb)} pour les prochains tickets.`
+      : "Plafond retiré : les prochains tickets sont sans limite de volume.",
+  };
 }

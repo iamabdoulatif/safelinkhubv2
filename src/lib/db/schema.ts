@@ -564,6 +564,13 @@ export const packages = pgTable("packages", {
   durationUnit: text("duration_unit").notNull().default("Hours"),
   uploadMbps: integer("upload_mbps").notNull().default(5),
   downloadMbps: integer("download_mbps").notNull().default(5),
+  // Plafond de données du ticket, en Mo. null / 0 = illimité (comportement
+  // historique). Posé sur le compte hotspot à la création
+  // (`=limit-bytes-total=`, cf. voucher-data-cap.ts) : RouterOS déconnecte le
+  // client et refuse la reconnexion une fois le plafond atteint. Le débit
+  // (upload/downloadMbps) borne la VITESSE, ceci borne le VOLUME — sur un lien
+  // facturé au Go, c'est le second qui compte.
+  dataCapMb: integer("data_cap_mb"),
   commissionCents: integer("commission_cents").notNull().default(0),
   billingStartsOn: text("billing_starts_on").notNull().default("Upon First Use"),
   active: boolean("active").notNull().default(true),

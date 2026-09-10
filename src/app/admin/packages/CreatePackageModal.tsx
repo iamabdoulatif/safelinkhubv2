@@ -189,6 +189,28 @@ export default function CreatePackageModal({
               </div>
 
               <div>
+                <label
+                  className="mb-1 block text-sm font-medium text-ink"
+                  htmlFor="pkg-data-cap"
+                >
+                  Plafond de données (Mo)
+                </label>
+                <input
+                  id="pkg-data-cap"
+                  name="dataCapMb"
+                  type="number"
+                  min={0}
+                  placeholder="Vide = illimité — ex. 3072 pour 3 Go"
+                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                />
+                <p className="mt-1 text-xs text-ink-soft">
+                  Le débit ci-dessus borne la vitesse ; ceci borne le volume total
+                  du ticket. Une fois atteint, la connexion est coupée même s\u2019il
+                  reste du temps.
+                </p>
+              </div>
+
+              <div>
                 <label className="mb-1 block text-sm font-medium text-ink">
                   Prix
                 </label>

@@ -12,6 +12,7 @@ import { isOrgSmsEnabled, sendOrgSms } from "@/lib/sms/send";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
 import { voucherProfileForPackage } from "@/lib/mikrotik/package-voucher-profile";
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
+import { dataCapWords } from "@/lib/mikrotik/voucher-data-cap";
 import { reconcileWalledGardenOnce } from "@/lib/mikrotik/walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "@/lib/mikrotik/walled-garden-config";
 import { ensureHotspotLoginByCode } from "@/lib/mikrotik/hotspot-login-mode";
@@ -147,17 +148,20 @@ export async function fulfillPortalOrder(
   // ajoutée après). Reconstruit depuis le forfait vendu ; null si le forfait a
   // été supprimé → on comptera sur un profil déjà présent.
   let voucherProfile = null as ReturnType<typeof voucherProfileForPackage>;
+  let dataCapMb: number | null = null;
   if (order.packageId) {
     const [pkgRow] = await db
       .select({
         durationValue: packages.durationValue,
         durationUnit: packages.durationUnit,
         priceCents: packages.priceCents,
+        dataCapMb: packages.dataCapMb,
       })
       .from(packages)
       .where(eq(packages.id, order.packageId))
       .limit(1);
     if (pkgRow) {
+      dataCapMb = pkgRow.dataCapMb;
       voucherProfile = voucherProfileForPackage(
         pkgRow.durationValue,
         pkgRow.durationUnit,
@@ -205,6 +209,8 @@ export async function fulfillPortalOrder(
       `=name=${code}`,
       `=password=${code}`,
       `=profile=${profileName}`,
+      // Plafond de volume du forfait, s'il en a un (rien émis sinon).
+      ...dataCapWords(dataCapMb),
       // PAS de `=mac-address=` ici — c'était un bug, pas un oubli.
       //
       // L'intention était d'empêcher le partage d'un code entre appareils. Mais
