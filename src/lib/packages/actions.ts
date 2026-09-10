@@ -296,7 +296,7 @@ export async function updatePackageDataCap(_prevState: unknown, formData: FormDa
 
   const db = getDb();
   const [pkg] = await db
-    .select({ id: packages.id, dataCapMb: packages.dataCapMb })
+    .select({ id: packages.id, dataCapMb: packages.dataCapMb, routerId: packages.routerId })
     .from(packages)
     .where(and(eq(packages.id, packageId), eq(packages.orgId, session.orgId)))
     .limit(1);
@@ -305,10 +305,41 @@ export async function updatePackageDataCap(_prevState: unknown, formData: FormDa
   await db.update(packages).set({ dataCapMb }).where(eq(packages.id, packageId));
   revalidatePath("/admin/packages");
 
-  return {
-    success: true,
-    summary: dataCapMb
-      ? `Plafond porté à ${dataCapLabel(dataCapMb)} pour les prochains tickets.`
-      : "Plafond retiré : les prochains tickets sont sans limite de volume.",
-  };
+  const porte = dataCapMb
+    ? `Plafond porté à ${dataCapLabel(dataCapMb)} pour les prochains tickets`
+    : "Plafond retiré : les prochains tickets sont sans limite de volume";
+
+  // La page du portail INSTALLÉE sur le routeur est un instantané, et elle
+  // annonce le volume du forfait. La laisser en l'état ferait promettre
+  // « Illimité » à un client dont le ticket s'arrête à 3 Go — le mensonge est
+  // pire que l'absence de mention. Même geste que pour le tarif.
+  if (!pkg.routerId) {
+    return { success: true, summary: `${porte}. Forfait non rattaché à un routeur : aucun portail à réinstaller.` };
+  }
+  const [router] = await db
+    .select({ id: routers.id, name: routers.name, captiveTemplateId: routers.captiveTemplateId })
+    .from(routers)
+    .where(and(eq(routers.id, pkg.routerId), eq(routers.orgId, session.orgId)))
+    .limit(1);
+  if (!router?.captiveTemplateId) {
+    return { success: true, summary: `${porte}. Aucun portail rattaché à ce routeur.` };
+  }
+  try {
+    const { installTemplateOnRouter } = await import("@/lib/captive-templates/actions");
+    const res = await installTemplateOnRouter(router.id, router.captiveTemplateId);
+    return {
+      success: true,
+      summary:
+        "error" in res
+          ? `${porte}, mais le portail de ${router.name} n'a PAS été réinstallé (${res.error}) : il annonce encore l'ancien volume.`
+          : `${porte}, portail de ${router.name} réinstallé.`,
+    };
+  } catch (e) {
+    return {
+      success: true,
+      summary:
+        `${porte}, mais le portail de ${router.name} n'a PAS été réinstallé ` +
+        `(${e instanceof Error ? e.message : "erreur inconnue"}) : il annonce encore l'ancien volume.`,
+    };
+  }
 }

@@ -16,6 +16,7 @@ const PLAN_COLUMNS = {
   durationValue: packages.durationValue,
   durationUnit: packages.durationUnit,
   payDisabled: packages.portalPayDisabled,
+  dataCapMb: packages.dataCapMb,
 } as const;
 
 /**

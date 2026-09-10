@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { COUNTRIES, countryFlag } from "../intl/countries";
+import { dataCapLabel } from "../mikrotik/voucher-data-cap";
 
 export type PackageFile = {
   path: string;
@@ -27,6 +28,9 @@ export type PortalPlan = {
   // true = affiché mais NON payable en ligne (le clic ne déclenche pas le
   // paiement) — voir packages.portalPayDisabled.
   payDisabled?: boolean;
+  // Plafond de volume du ticket, en Mo. null/absent = illimité. Le portail
+  // ANNONÇAIT « Illimité » en dur : sur un forfait plafonné, c'était faux.
+  dataCapMb?: number | null;
 };
 
 export type PackageBrandingVars = {
@@ -132,6 +136,10 @@ function renderPlansHtml(plans: PortalPlan[] | null | undefined): string {
     .map((plan) => {
       const label = escapeHtml(planDisplayName(plan));
       const priceLabel = escapeHtml(formatFcfa(plan.priceCents));
+      const planVolume = (p: PortalPlan) => {
+        const cap = dataCapLabel(p.dataCapMb);
+        return cap ? escapeHtml(`Jusqu'à ${cap}`) : "Illimité";
+      };
       // Forfait NON payable en ligne : carte sans data-package-id (le binder de
       // paiement l'ignore) → affichée mais inerte (achat auprès d'un vendeur).
       if (plan.payDisabled) {
@@ -146,7 +154,7 @@ function renderPlansHtml(plans: PortalPlan[] | null | undefined): string {
       return `          <div class="plan-card" role="button" tabindex="0" data-plan="${label}" data-price="${priceLabel}" data-price-cents="${plan.priceCents}" data-package-id="${escapeHtml(plan.id)}">
             <div class="plan-info">
               <span class="plan-name">${label}</span>
-              <span class="plan-details">Illimité</span>
+              <span class="plan-details">${planVolume(plan)}</span>
             </div>
             <span class="plan-price">${priceLabel}</span>
           </div>`;
@@ -195,8 +203,14 @@ function renderPriceCardsHtml(plans: PortalPlan[] | null | undefined): string {
       const title = escapeHtml(`Forfait ${planDisplayName(plan)}`);
       const num = escapeHtml(String(plan.durationValue));
       const unitHtml = escapeHtml(unitWord);
+      const cap = dataCapLabel(plan.dataCapMb);
+      const duree = unitWord ? `${plan.durationValue} ${unitWord}` : "Connexion";
       const details = escapeHtml(
-        unitWord ? `${plan.durationValue} ${unitWord} de connexion illimitée` : "Connexion illimitée",
+        cap
+          ? `${duree} — jusqu'à ${cap}`
+          : unitWord
+            ? `${plan.durationValue} ${unitWord} de connexion illimitée`
+            : "Connexion illimitée",
       );
       const priceLabel = escapeHtml(`${plan.priceCents.toLocaleString("fr-FR")} F`);
       const onclickArg = escapeForOnclickArg(plan.name);
@@ -242,6 +256,8 @@ export type PortalPlanDto = {
   durationValue: number;
   durationUnit: string;
   payDisabled: boolean;
+  /** « 3 Go », ou null si le forfait n'est pas plafonné. */
+  capLabel: string | null;
 };
 
 /** Sérialise des forfaits vers la forme attendue par le portail (SLH_PLANS et
@@ -256,6 +272,7 @@ export function portalPlanObjects(plans: PortalPlan[] | null | undefined): Porta
     durationValue: plan.durationValue,
     durationUnit: plan.durationUnit,
     payDisabled: Boolean(plan.payDisabled),
+    capLabel: dataCapLabel(plan.dataCapMb),
   }));
 }
 
@@ -847,7 +864,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
     var items = "";
     for(var i=0;i<list.length;i++){
       var p = list[i];
-      items += '<button type="button" data-slh-pick="' + i + '" style="display:flex;justify-content:space-between;align-items:center;width:100%;gap:10px;padding:13px 14px;margin:0 0 8px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f172a;font:600 15px system-ui,sans-serif;cursor:pointer;text-align:left;"><span>' + esc(p.label) + '</span><span style="color:#dc2626;font-weight:700;white-space:nowrap;">' + esc(p.priceLabel) + '</span></button>';
+      items += '<button type="button" data-slh-pick="' + i + '" style="display:flex;justify-content:space-between;align-items:center;width:100%;gap:10px;padding:13px 14px;margin:0 0 8px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f172a;font:600 15px system-ui,sans-serif;cursor:pointer;text-align:left;"><span>' + esc(p.label) + capLigne(p) + '</span><span style="color:#dc2626;font-weight:700;white-space:nowrap;">' + esc(p.priceLabel) + '</span></button>';
     }
     var o = document.createElement("div");
     o.id = "slh-pick-modal";
@@ -882,8 +899,15 @@ const PORTAL_PAY_SCRIPT = `(function(){
     if(document.getElementById("slh-plan-style")) return;
     var s = document.createElement("style");
     s.id = "slh-plan-style";
-    s.textContent = ".slh-plan-card{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;box-sizing:border-box;margin:0 0 8px;padding:12px 14px;border:1px solid rgba(148,163,184,.45);border-radius:10px;background:rgba(148,163,184,.12);cursor:pointer;font-family:system-ui,sans-serif;}.slh-plan-card .slh-plan-name{font-weight:700;}.slh-plan-card .slh-plan-price{font-weight:800;color:#dc2626;white-space:nowrap;}.slh-plan-card.slh-plan-off{cursor:default;opacity:.72;}";
+    s.textContent = ".slh-plan-card{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;box-sizing:border-box;margin:0 0 8px;padding:12px 14px;border:1px solid rgba(148,163,184,.45);border-radius:10px;background:rgba(148,163,184,.12);cursor:pointer;font-family:system-ui,sans-serif;}.slh-plan-card .slh-plan-name{font-weight:700;}.slh-plan-card .slh-plan-cap{display:block;margin-top:2px;font-size:12px;font-weight:600;opacity:.7;}.slh-plan-card .slh-plan-price{font-weight:800;color:#dc2626;white-space:nowrap;}.slh-plan-card.slh-plan-off{cursor:default;opacity:.72;}";
     (document.head || document.body).appendChild(s);
+  }
+  // Volume du forfait. Un portail installe AVANT cette version recoit un
+  // capLabel qu il ignore : rien ne casse, la ligne n apparait simplement pas
+  // tant que le portail n a pas ete reinstalle.
+  function capLigne(p){
+    if(!p || !p.capLabel) return "";
+    return '<small class="slh-plan-cap">jusqu a ' + esc(p.capLabel) + '</small>';
   }
   function renderInlinePlans(){
     var list = slhPlans(); if(!list.length) return false;
@@ -898,7 +922,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
         // data-package-id -> le binder de paiement l ignore), grisee, avec une
         // mention discrete. Le client l achete aupres d un vendeur.
         html += '<div class="forfait-card plan-card slh-plan-card slh-plan-off">'
-          +   '<span class="forfait-label plan-name slh-plan-name">' + esc(p.label) + '</span>'
+          +   '<span class="forfait-label plan-name slh-plan-name">' + esc(p.label) + capLigne(p) + '</span>'
           +   '<span class="slh-plan-price">' + esc(p.priceLabel) + ' <small style="opacity:.7;font-weight:600;">&middot; vendeur</small></span>'
           + '</div>';
         continue;
@@ -906,7 +930,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       // Classes du portail (forfait-*, plan-*) POUR que sa CSS habille la carte,
       // + slh-plan-* comme repli visuel garanti. data-* -> binder de paiement.
       html += '<div class="forfait-card plan-card slh-plan-card" role="button" tabindex="0" data-package-id="' + esc(p.id) + '" data-plan="' + esc(p.label) + '" data-price="' + esc(p.priceLabel) + '">'
-        +   '<span class="forfait-label plan-name slh-plan-name">' + esc(p.label) + '</span>'
+        +   '<span class="forfait-label plan-name slh-plan-name">' + esc(p.label) + capLigne(p) + '</span>'
         +   '<span class="forfait-price plan-price slh-plan-price">' + esc(p.priceLabel) + '</span>'
         + '</div>';
     }
