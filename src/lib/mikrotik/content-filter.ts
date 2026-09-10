@@ -41,7 +41,13 @@ export const TORRENT_L7_NAME = "safelinkhub-torrent";
 
 // ── Catalogue ───────────────────────────────────────────────────────────────
 
-export type ContentCategoryKey = "adult" | "torrent" | "gambling" | "piracy" | "malware";
+export type ContentCategoryKey =
+  | "adult"
+  | "torrent"
+  | "updates"
+  | "gambling"
+  | "piracy"
+  | "malware";
 
 export type ContentCategory = {
   key: ContentCategoryKey;
@@ -98,6 +104,36 @@ export const CONTENT_CATEGORIES: ContentCategory[] = [
       "qbittorrent.org",
     ],
     keywords: ["torrent", "1337x", "thepiratebay"],
+  },
+  {
+    key: "updates",
+    label: "Mises à jour d'OS, magasins d'applications et jeux",
+    description:
+      "Les téléchargements de fond qu'aucun client n'a demandés : Windows Update, iOS/macOS, Play Store, Steam, PlayStation et Xbox. C'est le premier poste de consommation d'un hotspot — des dizaines de Go par mois, invisibles. Le client garde le web, la messagerie et la vidéo ; il ne peut simplement plus télécharger une mise à jour système derrière votre lien.",
+    // Domaines de DISTRIBUTION uniquement. On ne coupe jamais un domaine
+    // racine (`microsoft.com`, `apple.com`, `google.com`) : le compte, la
+    // messagerie et l'activation passent par là. `match-subdomain=yes` couvre
+    // les sous-domaines, d'où le socle volontairement étroit ci-dessous.
+    domains: [
+      // Windows Update / Microsoft Store
+      "windowsupdate.com", "update.microsoft.com", "delivery.mp.microsoft.com",
+      "windowsupdate.microsoft.com", "au.download.windowsupdate.com",
+      // Apple (iOS/macOS + App Store)
+      "swcdn.apple.com", "swscan.apple.com", "swquery.apple.com", "swdist.apple.com",
+      "mesu.apple.com", "appldnld.apple.com", "updates.cdn-apple.com",
+      "iosapps.itunes.apple.com", "osxapps.itunes.apple.com",
+      // Android / Play Store
+      "android.clients.google.com", "playatoms-pa.googleapis.com",
+      // Steam
+      "steamcontent.com", "client-download.steampowered.com", "cdn.steamstatic.com",
+      // PlayStation / Xbox
+      "dl.playstation.net", "gs2-sec.ww.prod.dl.playstation.net",
+      "dlassets.xboxlive.com", "assets1.xboxlive.com", "d1.xboxlive.com",
+    ],
+    // Motifs SNI VOLONTAIREMENT étroits : un mot-clé large comme « update »
+    // ou « download » rejetterait la moitié du web légitime. Chacun de
+    // ceux-ci ne désigne qu'une infrastructure de distribution.
+    keywords: ["windowsupdate", "steamcontent", "dl.playstation"],
   },
   {
     key: "gambling",

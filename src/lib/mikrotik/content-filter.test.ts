@@ -217,3 +217,48 @@ describe("échappement console", () => {
     );
   });
 });
+
+/* La catégorie « updates » vise le premier poste de consommation d'un hotspot
+   (mises à jour de fond). Elle n'a de valeur que si elle coupe les CDN de
+   distribution SANS couper les domaines racines dont dépendent le compte, la
+   messagerie et l'activation — c'est là qu'une liste trop large casse tout. */
+describe("catégorie « updates » : couper la distribution, pas le service", () => {
+  const dnsNames = (raw: string) =>
+    buildInstallPlan(raw, { categories: ["updates"] })
+      .steps.filter((s): s is Extract<PlanStep, { kind: "add" }> => s.kind === "add")
+      .filter((s) => s.path === "/ip/dns/static")
+      .map((s) => s.params.name);
+
+  it("bloque les CDN de mise à jour", () => {
+    const noms = dnsNames("7.23.1");
+    for (const attendu of [
+      "windowsupdate.com",
+      "swcdn.apple.com",
+      "android.clients.google.com",
+      "steamcontent.com",
+    ]) {
+      assert.ok(noms.includes(attendu), `${attendu} devrait être bloqué`);
+    }
+  });
+
+  it("ne coupe JAMAIS un domaine racine", () => {
+    // match-subdomain=yes : poser « apple.com » couperait iMessage, l'App
+    // Store, l'activation et Find My d'un seul coup.
+    for (const racine of ["microsoft.com", "apple.com", "google.com", "googleapis.com", "xboxlive.com"]) {
+      assert.ok(!dnsNames("7.23.1").includes(racine), `${racine} ne doit pas être bloqué`);
+    }
+  });
+
+  it("garde des motifs SNI étroits", () => {
+    const cat = CONTENT_CATEGORIES.find((c) => c.key === "updates")!;
+    // « update » / « download » seuls rejetteraient une part énorme du web.
+    for (const kw of cat.keywords) {
+      assert.ok(kw.length >= 10, `motif SNI trop large : ${kw}`);
+    }
+  });
+
+  it("n'apporte aucune liste publique (aucune ne vise les mises à jour)", () => {
+    const cat = CONTENT_CATEGORIES.find((c) => c.key === "updates")!;
+    assert.equal(cat.adlistUrl, undefined);
+  });
+});
