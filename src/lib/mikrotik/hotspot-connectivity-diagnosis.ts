@@ -18,6 +18,7 @@
 
 import type { RouterOSClient } from "./client";
 import { HOTSPOT_POOL_NAME } from "./constants";
+import { assessPortalHealth, type PortalHealth } from "./hotspot-portal-health";
 
 /** Taille d'une plage RouterOS « a.b.c.d-e.f.g.h[,…] », en nombre d'adresses. */
 export function poolRangeSize(ranges: string | undefined): number {
@@ -56,6 +57,10 @@ export type HotspotConnectivityDiagnosis = {
   macLoginEnabled: boolean;
   loginBy: string;
   ticket: TicketDiagnosis | null;
+  /** Le portail s'affiche-t-il ? Lu dans le journal — voir hotspot-portal-health.ts. */
+  portal: PortalHealth;
+  /** Nom du serveur hotspot actif, cible de la réparation « relancer ». */
+  serverName: string | null;
   /** Dernières lignes de journal mentionnant le hotspot — la raison exacte. */
   recentLog: string[];
   /** Constats classés, du plus probable au moins probable. */
@@ -139,13 +144,23 @@ export async function diagnoseHotspotConnectivity(
 
   // ── Journal : la raison écrite par RouterOS lui-même ────────────────────
   const log = await safe(["/log/print"], empty);
-  const recentLog = log
-    .filter((row) => /hotspot/i.test(`${row.topics ?? ""} ${row.message ?? ""}`))
+  const hotspotLog = log.filter((row) => /hotspot/i.test(`${row.topics ?? ""} ${row.message ?? ""}`));
+  const recentLog = hotspotLog
     .slice(-12)
     .map((row) => `${row.time ?? ""} ${row.message ?? ""}`.trim());
+  // Sur TOUT le journal conservé, pas les 12 dernières lignes : le verdict
+  // « aucun formulaire » n'a de poids que sur une fenêtre longue.
+  const portal = assessPortalHealth(hotspotLog.map((row) => row.message ?? ""));
 
   // ── Constats, du plus probable au moins probable ────────────────────────
   const findings: string[] = [];
+  if (portal.verdict === "suspect") {
+    findings.push(
+      `Le portail ne s'affiche probablement pas : ${portal.newDevices} nouveaux appareils ont tenté de se connecter ` +
+        `sans qu'UN SEUL formulaire soit soumis (${portal.cookieLogins} reconnexions par cookie seulement). ` +
+        "Signature du proxy DNS du hotspot mort en silence — le ticket n'est pas en cause. Réparation : relancer le serveur hotspot.",
+    );
+  }
   if (ticket && !ticket.found) {
     findings.push(`Le code « ${code} » n'existe pas sur ce routeur.`);
   }
@@ -192,6 +207,8 @@ export async function diagnoseHotspotConnectivity(
     macLoginEnabled,
     loginBy,
     ticket,
+    portal,
+    serverName: servers[0]?.name ?? null,
     recentLog,
     findings,
   };

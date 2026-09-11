@@ -189,6 +189,50 @@ export type TicketDiagnosisResult =
  * support du quotidien, pas une opération de plateforme. Le superadmin y accède
  * sur n'importe quel routeur, comme partout ailleurs.
  */
+/**
+ * Réparation « le portail n'apparaît pas » : relance le serveur hotspot (et
+ * pose l'entrée DNS de la page de connexion si elle manque). Voir
+ * repairHotspotPortal — la seule écriture du diagnostic, confirmée à l'écran.
+ */
+export async function repairTicketPortal(routerId: string): Promise<
+  { error: string } | { success: true; summary: string; repair: import("./hotspot-portal-repair").PortalRepair }
+> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  const { repairHotspotPortal } = await import("./hotspot-portal-repair");
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return { error: err instanceof Error ? `Routeur injoignable : ${err.message}.` : "Routeur injoignable." };
+  }
+  try {
+    const repair = await repairHotspotPortal(client);
+    revalidatePath(`/admin/router/${routerId}`);
+    return {
+      success: true,
+      repair,
+      summary:
+        `Serveur « ${repair.serverName} » relancé (proxy : ${repair.proxyStatus}). ` +
+        `${repair.activeAfter} session(s) revenue(s) sur ${repair.activeBefore}` +
+        (repair.dnsEntryAdded ? ` · entrée DNS posée : ${repair.dnsEntryAdded}` : "") +
+        ". Relancez le diagnostic dans cinq minutes : les premières connexions par formulaire doivent apparaître.",
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? `Réparation impossible : ${err.message}` : "Réparation impossible." };
+  } finally {
+    client.close();
+  }
+}
+
 export async function diagnoseTicketConnectivity(
   routerId: string,
   code: string,
