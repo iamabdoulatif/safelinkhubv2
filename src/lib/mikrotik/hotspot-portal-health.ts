@@ -43,17 +43,24 @@ const MAC = /([0-9A-F]{2}:){5}[0-9A-F]{2}/i;
 
 /**
  * `messages` : le champ `message` des lignes `/log print` du sujet hotspot,
- * dans l'ordre. RouterOS double chaque ligne d'une variante préfixée « ->: »
- * (le sens de la trace) ; on ne compte qu'une fois.
+ * dans l'ordre. RouterOS écrit souvent chaque événement deux fois — une ligne
+ * nue et une variante préfixée « ->: » (le sens de la trace) — mais PAS
+ * toujours : sur KONGASSO (7.19) les formulaires n'existent QUE sous la forme
+ * « ->: », là où FOUANGA (7.23) porte les deux. Sauter la variante comptait
+ * donc 0 formulaire sur un portail qui marchait, et la veille l'a relancé
+ * pour rien (11/09/2026). On normalise le préfixe et on ne fusionne que les
+ * répétitions ADJACENTES : un vrai doublon suit toujours son original.
  */
 export function assessPortalHealth(messages: readonly string[]): PortalHealth {
   const failedMacs = new Set<string>();
   let formLogins = 0;
   let cookieLogins = 0;
+  let precedent = "";
 
-  for (const m of messages) {
-    // Doublon de trace (sens « ->: ») : même événement, déjà compté.
-    if (m.startsWith("->:")) continue;
+  for (const brut of messages) {
+    const m = brut.replace(/^->:\s*/, "").trim();
+    if (m === precedent) continue;
+    precedent = m;
     if (/log in by http-(pap|chap)/.test(m)) formLogins++;
     else if (/log in by mac-cookie/.test(m)) cookieLogins++;
     else if (/login failed/.test(m)) {

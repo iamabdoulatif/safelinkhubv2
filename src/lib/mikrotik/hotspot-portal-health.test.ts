@@ -71,3 +71,26 @@ describe("portail invisible : la signature dans le journal", () => {
     assert.equal(h.verdict, "ok");
   });
 });
+
+/* KONGASSO (RouterOS 7.19) : la ligne de formulaire n'existe QUE sous sa
+   variante « ->: ». Sauter la variante a compté 0 formulaire sur un portail
+   qui marchait, et la veille l'a relancé pour rien (11/09/2026). */
+describe("variante « ->: » : parfois doublon, parfois seule trace", () => {
+  it("un formulaire présent uniquement sous « ->: » compte", () => {
+    const lignes = [
+      ...Array.from({ length: 12 }, (_, i) => macFail(mac(i))).flat(),
+      "->: 3jrzb2 (10.0.3.129): trying to log in by http-pap",
+      "3jrzb2 (10.0.3.130): logged in",
+    ];
+    const h = assessPortalHealth(lignes);
+    assert.equal(h.formLogins, 1);
+    assert.equal(h.verdict, "ok");
+  });
+
+  it("la paire nue + « ->: » ne compte qu'une fois", () => {
+    const h = assessPortalHealth([...form("a"), ...form("b")]);
+    assert.equal(h.formLogins, 2);
+    assert.equal(assessPortalHealth([...cookie("x"), ...cookie("y"), ...cookie("z")]).cookieLogins, 3);
+  });
+});
+
