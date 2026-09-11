@@ -4,6 +4,7 @@ import {
   CONTENT_CATEGORIES,
   CONTENT_FILTER_COMMENT,
   TORRENT_L7_NAME,
+  applyPlan,
   buildInstallPlan,
   buildUninstallPlan,
   categoryComment,
@@ -14,7 +15,9 @@ import {
   supportsAdlist,
   supportsP2pMatcher,
   supportsTlsHost,
+  memePose,
   resolveVersion,
+  type ContentCategoryKey,
   type PlanStep,
 } from "./content-filter";
 
@@ -388,5 +391,66 @@ describe("retrait catégorie par catégorie", () => {
     // Commentaire nu = pose héritée : reconnue comme nôtre, mais non attribuable.
     assert.equal(commentCategory(CONTENT_FILTER_COMMENT), null);
     assert.equal(commentCategory(categoryComment("piracy")), "piracy");
+  });
+});
+
+/* Re-poser un filtre déjà en place purge et repose ~110 entrées DNS et fait
+   redémarrer le résolveur — c'est après une telle ré-application que le proxy
+   DNS du hotspot de HSPT-FOUANGA est mort. Une pose identique se refuse. */
+describe("refus d'une pose identique", () => {
+  const pose = { installed: true, legacy: false, categories: ["adult", "torrent"] as ContentCategoryKey[] };
+  const memo = { keywords: true, forceDns: true, adlist: true };
+
+  it("mêmes catégories, mêmes options → identique", () => {
+    assert.equal(memePose(pose, memo, { categories: ["torrent", "adult"] }), true);
+  });
+
+  it("une catégorie ou une option en plus/en moins → pas identique", () => {
+    assert.equal(memePose(pose, memo, { categories: ["adult"] }), false);
+    assert.equal(memePose(pose, memo, { categories: ["adult", "torrent", "gambling"] }), false);
+    assert.equal(memePose(pose, memo, { categories: ["adult", "torrent"], keywords: false }), false);
+  });
+
+  it("un filtre hérité ou absent n'est jamais « identique » : la pose est utile", () => {
+    // Hérité : le re-poser attribue les entrées à leur catégorie.
+    assert.equal(memePose({ ...pose, legacy: true }, memo, { categories: ["adult", "torrent"] }), false);
+    assert.equal(memePose({ ...pose, installed: false }, memo, { categories: ["adult", "torrent"] }), false);
+    // Sans mémo, on ne connaît pas les options posées : on ne refuse pas.
+    assert.equal(memePose(pose, null, { categories: ["adult", "torrent"] }), false);
+  });
+});
+
+/* Un `/ip dns set` rejoué sans changement fait redémarrer le résolveur que le
+   proxy DNS du hotspot interroge. applyPlan lit avant d'écrire. */
+describe("applyPlan ne rejoue pas un set déjà en place", () => {
+  const faux = (etat: Record<string, string>) => {
+    const commandes: string[][] = [];
+    const client = {
+      talk: async (words: string[]) => {
+        commandes.push(words);
+        return words[0].endsWith("/print") ? [etat] : [];
+      },
+      close() {},
+    } as unknown as import("./client").RouterOSClient;
+    return { client, commandes };
+  };
+  const plan = {
+    version: resolveVersion("7.23.1"),
+    notes: [],
+    domainCount: 0,
+    steps: [{ kind: "set", path: "/ip/dns", params: { "allow-remote-requests": "yes" } } as PlanStep],
+  };
+
+  it("valeur déjà posée : aucun set émis", async () => {
+    const { client, commandes } = faux({ "allow-remote-requests": "yes" });
+    const res = await applyPlan(client, plan);
+    assert.equal(res.applied, 1);
+    assert.ok(!commandes.some((w) => w[0] === "/ip/dns/set"), "un set a été rejoué pour rien");
+  });
+
+  it("valeur différente : le set part", async () => {
+    const { client, commandes } = faux({ "allow-remote-requests": "no" });
+    await applyPlan(client, plan);
+    assert.ok(commandes.some((w) => w[0] === "/ip/dns/set"));
   });
 });

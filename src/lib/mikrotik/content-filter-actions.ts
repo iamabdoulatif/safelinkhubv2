@@ -12,6 +12,7 @@ import {
   buildInstallPlan,
   buildUninstallPlan,
   findCategory,
+  memePose,
   readContentFilterState,
   renderPlanScript,
   type ContentCategoryKey,
@@ -121,11 +122,44 @@ export async function applyRouterContentFilter(routerId: string, opts: ContentFi
     // La version est lue SUR le routeur, jamais supposée : c'est elle qui
     // décide de la forme du blocage DNS et de la façon de couper les torrents.
     const avant = await readContentFilterState(client);
+
+    /* REFUS D'UNE POSE IDENTIQUE. Re-poser un filtre déjà en place ne change
+       rien au blocage, mais purge et repose ~110 entrées DNS et redémarre le
+       résolveur — et c'est après une telle ré-application que le proxy DNS du
+       hotspot de HSPT-FOUANGA est mort, laissant le portail invisible des
+       heures. Une écriture lourde qui ne change rien n'a pas à avoir lieu. */
+    if (memePose(avant, await lireMemo(routerId), opts)) {
+      return {
+        error:
+          "Ce filtre est déjà posé à l'identique sur ce routeur : mêmes catégories, mêmes options. " +
+          "Rien à faire. Pour changer une catégorie, utilisez « Retirer » ou « Bloquer » sur sa carte ; " +
+          "pour tout reposer, retirez d'abord le filtre.",
+        state: avant,
+      };
+    }
+
     const plan = buildInstallPlan(avant.rawVersion, opts);
     const res = await applyPlan(client, plan);
-    const apres = await readContentFilterState(client);
     await memoriser(routerId, normaliser(opts));
 
+    /* RELANCE DU SERVEUR HOTSPOT après l'écriture lourde. On ne sait pas
+       instantanément si le proxy DNS du hotspot a survécu (il faudrait un
+       sniffer), et on a vu qu'il pouvait mourir en silence. Trois secondes de
+       coupure déterministes valent mieux que des heures de portail invisible ;
+       les sessions reviennent seules par cookie. Best-effort : un routeur sans
+       hotspot n'a rien à relancer. On date la relance pour que la veille
+       (hotspot-portal-watch.ts) ne la double pas dans la foulée. */
+    let relance: string | null = null;
+    try {
+      const { repairHotspotPortal } = await import("./hotspot-portal-repair");
+      const r = await repairHotspotPortal(client);
+      await getDb().update(routers).set({ portalRepairedAt: new Date() }).where(eq(routers.id, routerId));
+      relance = `serveur hotspot « ${r.serverName} » relancé, ${r.activeAfter} session(s) revenue(s)`;
+    } catch {
+      // pas de serveur hotspot, ou relance refusée : le filtre est posé quand même.
+    }
+
+    const apres = await readContentFilterState(client);
     revalidatePath(`/admin/router/${routerId}`);
     return {
       success: true,
@@ -133,6 +167,7 @@ export async function applyRouterContentFilter(routerId: string, opts: ContentFi
       summary:
         `Filtre posé en RouterOS ${plan.version.major}.${plan.version.minor} : ` +
         resumer(apres) +
+        (relance ? ` · ${relance}` : "") +
         ".",
       notes: plan.notes,
       failed: res.failed,

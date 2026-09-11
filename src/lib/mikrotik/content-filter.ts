@@ -788,7 +788,18 @@ export async function applyPlan(
     try {
       switch (step.kind) {
         case "set": {
-          await client.talk([`${step.path}/set`, ...apiWords(step.params)], timeoutMs);
+          // On ne pose pas ce qui est déjà posé. Un `/ip dns set`, même sans
+          // changement, fait redémarrer le résolveur — et c'est le résolveur
+          // que le proxy DNS du hotspot interroge. Sur HSPT-FOUANGA, ce proxy
+          // est mort en silence après une ré-application du filtre : les
+          // clients n'avaient plus de DNS, donc plus de portail. Lire avant
+          // d'écrire coûte un print ; écrire pour rien peut coûter le portail.
+          const [current] = await client.talk([`${step.path}/print`], timeoutMs).catch(() => []);
+          const dejaEnPlace =
+            current && Object.entries(step.params).every(([k, v]) => current[k] === v);
+          if (!dejaEnPlace) {
+            await client.talk([`${step.path}/set`, ...apiWords(step.params)], timeoutMs);
+          }
           result.applied++;
           break;
         }
@@ -932,3 +943,26 @@ export async function readContentFilterState(
     dnsByCategory,
   };
 }
+
+/**
+ * La pose demandée est-elle DÉJÀ celle du routeur ? Catégories lues sur la box
+ * (vérité) et options lues dans le mémo (elles ne laissent pas de trace
+ * attribuable). Un filtre hérité (commentaires nus) n'est jamais « identique » :
+ * le re-poser, c'est précisément ce qui le rend gérable par catégorie.
+ */
+export function memePose(
+  state: Pick<ContentFilterState, "installed" | "legacy" | "categories">,
+  memo: Pick<SavedContentFilter, "keywords" | "forceDns" | "adlist"> | null,
+  opts: ContentFilterOptions,
+): boolean {
+  if (!state.installed || state.legacy || !memo) return false;
+  const voulu = new Set(opts.categories);
+  const pose = new Set(state.categories);
+  if (voulu.size !== pose.size || [...voulu].some((k) => !pose.has(k))) return false;
+  return (
+    (opts.keywords !== false) === memo.keywords &&
+    (opts.forceDns !== false) === memo.forceDns &&
+    (opts.adlist !== false) === memo.adlist
+  );
+}
+
