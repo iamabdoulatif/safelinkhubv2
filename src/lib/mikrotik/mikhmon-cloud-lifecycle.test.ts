@@ -91,11 +91,16 @@ describe("un conteneur orphelin ne bloque plus la recréation", () => {
        création, la base n'a aucune instance pour ce routeur — un conteneur
        portant son nom ne peut donc être qu'un orphelin. */
     const s = await source();
-    const bloc = s.slice(s.indexOf("const args = ["));
+    const bloc = s.slice(s.indexOf("export async function provisionCloudMikhmon"));
     const rm = bloc.indexOf("rm -f ${shellArg(containerName)}");
+    const port = bloc.indexOf("cloudMikhmonPort(");
     const run = bloc.indexOf("await input.run(args.join");
     assert.ok(rm > 0, "aucun retrait de l'homonyme");
     assert.ok(rm < run, "le retrait doit précéder la création");
+    /* Et même le CHOIX DU PORT : depuis que celui-ci se lit sur Docker, un
+       homonyme encore présent compterait son port comme pris. Le retirer
+       d'abord le rend. */
+    assert.ok(rm < port, "le retrait doit précéder le choix du port");
   });
 
   it("l'absence de conteneur n'est pas une erreur", () => {
