@@ -333,6 +333,11 @@ export const routers = pgTable("routers", {
   // est hors ligne ; ce mémo est le repli quand le routeur ne répond pas
   // (l'écran rouvre sur le bon réglage) et la référence du pourcentage
   // consommé. Voir lib/mikrotik/quota-guard-actions.ts.
+  // Dernière relance AUTOMATIQUE du serveur hotspot par la veille du portail
+  // (hotspot-portal-watch.ts). Débounce : une relance au plus toutes les six
+  // heures, sinon un routeur où personne n'achète de ticket pendant une nuit
+  // (portail affiché, aucun formulaire) se ferait relancer à chaque sync.
+  portalRepairedAt: timestamp("portal_repaired_at"),
   quotaGuard: jsonb("quota_guard").$type<{
     wanInterface: string;
     capMb: number;

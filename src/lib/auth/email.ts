@@ -147,6 +147,33 @@ export async function sendRouterOfflineEmail(
   return !error;
 }
 
+export async function sendPortalRepairedEmail(
+  to: string,
+  name: string,
+  routerName: string,
+  details: { newDevices: number; cookieLogins: number },
+): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) return false;
+  const url = `${appBaseUrl()}/admin/router`;
+  const safeRouter = escapeHtml(routerName);
+  const html = layout(
+    `🔧 ${safeRouter} : portail relancé automatiquement`,
+    `<p style="font-size:15px;line-height:1.6">Bonjour ${escapeHtml(name)},</p>
+     <p style="font-size:15px;line-height:1.6">Sur <strong>${safeRouter}</strong>, ${details.newDevices} nouveaux appareils ont tenté de se connecter sans qu'un seul formulaire du portail soit soumis (${details.cookieLogins} reconnexions automatiques seulement). C'est la signature d'un portail captif qui ne s'affichait plus&nbsp;: les clients n'obtenaient plus de réponse DNS du routeur.</p>
+     <p style="font-size:15px;line-height:1.6">SafeLinkHub a <strong>relancé le serveur hotspot</strong> du routeur. Les sessions sont revenues seules ; les nouveaux clients doivent revoir le portail. Si l'alerte se répète sur ce routeur, ouvrez son onglet Diagnostic.</p>`,
+    "Voir mes routeurs",
+    url,
+  );
+  const { error } = await resend.emails.send({
+    from: getFrom(),
+    to,
+    subject: `🔧 SafeLinkHub — ${routerName} : portail relancé`,
+    html,
+  });
+  return !error;
+}
+
 export async function sendConversionAlertEmail(
   to: string,
   name: string,

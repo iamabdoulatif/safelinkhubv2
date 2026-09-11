@@ -147,4 +147,13 @@ alter table packages
   add column if not exists data_cap_mb integer;
 `.trim(),
   },
+  {
+    // Débounce de la relance automatique du serveur hotspot par la veille du
+    // portail (hotspot-portal-watch.ts). Miroir : scripts/add-router-portal-repaired-at.sql.
+    id: "0008_router_portal_repaired_at",
+    sql: `
+alter table routers
+  add column if not exists portal_repaired_at timestamp;
+`.trim(),
+  },
 ];

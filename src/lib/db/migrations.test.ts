@@ -41,6 +41,7 @@ describe("registre des migrations", () => {
     "0005_router_quota_guard": "add-quota-guard.sql",
     "0006_router_content_filter": "add-router-content-filter.sql",
     "0007_router_vpn_quota_and_package_cap": "add-router-vpn-quota-and-package-cap.sql",
+    "0008_router_portal_repaired_at": "add-router-portal-repaired-at.sql",
   };
   for (const [id, file] of Object.entries(MIRRORS)) {
     it(`${id} : le miroir scripts/${file} correspond`, () => {

@@ -218,6 +218,23 @@ export async function syncRouterStats(
       }
     }
 
+    // Le portail s'affiche-t-il encore ? Le journal du hotspot porte la
+    // signature d'un proxy DNS mort (nouveaux appareils, aucun formulaire) ;
+    // la veille relance alors le serveur hotspot elle-même, avec un débounce
+    // de six heures. Sur la connexion déjà ouverte, best-effort : voir
+    // hotspot-portal-watch.ts. L'import dynamique évite un cycle.
+    try {
+      const { watchHotspotPortal } = await import("./hotspot-portal-watch");
+      await watchHotspotPortal(client, {
+        id: routerId,
+        name: router.name,
+        orgId: router.orgId,
+        portalRepairedAt: router.portalRepairedAt ?? null,
+      });
+    } catch {
+      // Une veille défaillante ne doit jamais rendre le health-check défaillant.
+    }
+
     // Re-apply tunnel-only service repairs if active forwards exist — NAT,
     // firewall allow rules, or legacy Docker bridge cleanup may have been
     // skipped when a forward was first enabled because the router was
