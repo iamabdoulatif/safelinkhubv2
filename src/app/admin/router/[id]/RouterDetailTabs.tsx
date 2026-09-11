@@ -6,6 +6,7 @@ import ResourcesPanel from "./ResourcesPanel";
 import ServicesWizard from "./ServicesWizard";
 import AuditPanel from "./AuditPanel";
 import ContentFilterPanel from "./ContentFilterPanel";
+import CaptivePortalPanel from "./CaptivePortalPanel";
 import UsagePanel from "./UsagePanel";
 
 export type TabKey = "overview" | "diagnostic" | "filter" | "usage" | "resources" | "services";
@@ -91,7 +92,10 @@ export default function RouterDetailTabs({
             ) : key === "resources" ? (
               <ResourcesPanel routerId={routerId} />
             ) : (
-              <ServicesWizard routerId={routerId} />
+              <>
+                <CaptivePortalPanel routerId={routerId} />
+                <ServicesWizard routerId={routerId} />
+              </>
             ))}
         </div>
       ))}

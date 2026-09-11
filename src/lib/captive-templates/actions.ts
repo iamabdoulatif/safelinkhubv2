@@ -886,3 +886,61 @@ async function uploadPackageTemplateToBridge(
     client.close();
   }
 }
+
+// ── Portail depuis la PAGE DU ROUTEUR ───────────────────────────────────────
+//
+// La page « Portails captifs » n'installe que sur les routeurs de l'org de la
+// session. Un superadmin qui dépanne un routeur CLIENT (HSPT-SATA, org d'un
+// autre compte, servant le portail RouterOS d'usine) n'avait donc aucun
+// chemin depuis la plateforme — seul le client pouvait cliquer. Ces deux
+// actions bornent tout à l'organisation DU ROUTEUR : ses modèles, son
+// installateur, ses forfaits. L'admin de l'org y a accès sur ses routeurs, le
+// superadmin sur tous.
+
+type RouterRow = typeof routers.$inferSelect;
+
+async function routerPourPortail(
+  routerId: string,
+): Promise<{ error: string; router?: undefined } | { error?: undefined; router: RouterRow }> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const [router] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  return { router };
+}
+
+export async function listRouterPortalTemplates(routerId: string): Promise<
+  | { error: string }
+  | {
+      success: true;
+      current: { id: string; name: string } | null;
+      templates: { id: string; name: string; isDefault: boolean }[];
+    }
+> {
+  const acces = await routerPourPortail(routerId);
+  if (acces.error !== undefined) return { error: acces.error };
+  const { router } = acces;
+  const db = getDb();
+  const rows = await db
+    .select({ id: captiveTemplates.id, name: captiveTemplates.name, isDefault: captiveTemplates.isDefault })
+    .from(captiveTemplates)
+    .where(and(eq(captiveTemplates.orgId, router.orgId), eq(captiveTemplates.templateType, "package")))
+    .orderBy(captiveTemplates.name);
+  const current = router.captiveTemplateId
+    ? (rows.find((t) => t.id === router.captiveTemplateId) ?? null)
+    : null;
+  return { success: true, current, templates: rows };
+}
+
+export async function installRouterPortal(routerId: string, templateId: string) {
+  const acces = await routerPourPortail(routerId);
+  if (acces.error !== undefined) return { error: acces.error };
+  // L'installateur est appelé avec l'org DU ROUTEUR, jamais celle de la
+  // session : c'est ce qui permet au superadmin d'agir, et ce qui garantit
+  // que le modèle et les forfaits importés sont ceux du client.
+  const res = await installTemplateOnRouter(routerId, templateId, { orgId: acces.router.orgId });
+  revalidatePath(`/admin/router/${routerId}`);
+  return res;
+}
