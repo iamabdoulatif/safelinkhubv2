@@ -5,6 +5,7 @@ import { routers, organizations, routerReplacements } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/mikrotik/crypto";
 import { allocateVpnPeer } from "@/lib/mikrotik/relay";
 import { hashToken } from "@/lib/mikrotik/install-token";
+import { buildMikhmonResyncRos } from "@/lib/mikrotik/mikhmon-session";
 
 const PEER_LISTEN_PORT = 51821;
 
@@ -162,6 +163,12 @@ function buildScript(opts: {
 # correct IP/credentials — see provisionHotspotStack's matching allowlist.
 /ip service set api address=10.66.0.0/24,11.11.11.0/28
 /ip service enable api
+
+# Le compte API ci-dessus vient d'être RECRÉÉ avec un mot de passe neuf. Un
+# MikHmon déjà installé garde l'ancien dans son config.php et RouterOS refuse
+# alors ses connexions : voir buildMikhmonResyncRos.
+${buildMikhmonResyncRos("SafeLinkHub", "safelinkhub-api", opts.apiPassword)}
+
 :log info "SafeLinkHub VPN tunnel installed successfully"
 
 :delay 2s
