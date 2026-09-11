@@ -1727,6 +1727,56 @@ export async function generateInstallScript(
   return { success: true, routerId: router.id, command };
 }
 
+/**
+ * Renomme un routeur — SUR LA BOX d'abord. Le nom affiché est l'identité
+ * RouterOS : syncRouterStats recopie `/system identity` dans `name` à chaque
+ * synchronisation. Ne changer que la base, c'est voir l'ancien nom revenir au
+ * sync suivant, et un admin qui croit avoir perdu sa modification. On écrit
+ * donc l'identité, puis la base ; un routeur injoignable est refusé, avec la
+ * raison — plutôt qu'un renommage qui ne tiendrait pas.
+ */
+export async function renameRouter(routerId: string, rawName: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  // Une identité RouterOS accepte presque tout ; on borne la longueur et on
+  // refuse les retours à la ligne, qui casseraient l'affichage partout.
+  const name = rawName.replace(/[\r\n\t]+/g, " ").trim();
+  if (name.length < 2) return { error: "Le nom doit faire au moins 2 caractères." };
+  if (name.length > 64) return { error: "Le nom ne doit pas dépasser 64 caractères." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (name === router.name) return { success: true, name };
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 20000);
+  } catch (err) {
+    return {
+      error:
+        "Routeur injoignable : le nom vit sur le routeur (son identité RouterOS) et serait écrasé au " +
+        "prochain sync si on ne changeait que la plateforme. Réessayez quand il est en ligne." +
+        (err instanceof Error ? ` (${err.message})` : ""),
+    };
+  }
+  try {
+    await client.talk(["/system/identity/set", `=name=${name}`], 15000);
+  } catch (err) {
+    client.close();
+    return { error: err instanceof Error ? `Le routeur a refusé le nouveau nom : ${err.message}` : "Le routeur a refusé le nouveau nom." };
+  }
+  client.close();
+
+  await db.update(routers).set({ name }).where(eq(routers.id, routerId));
+  revalidatePath("/admin/router");
+  revalidatePath(`/admin/router/${routerId}`);
+  return { success: true, name };
+}
+
 export async function deleteRouter(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
