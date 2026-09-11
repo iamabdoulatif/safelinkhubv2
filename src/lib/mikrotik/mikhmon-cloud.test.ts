@@ -143,3 +143,82 @@ describe("MikHmon cloud provisioning", () => {
     assert.ok(commands.some((c) => c.includes("config.php")), "la session n'a pas été reposée");
   });
 });
+
+/* Panne HSPT-BELIKORO (11/09/2026) : un conteneur d'un routeur SUPPRIMÉ tenait
+   encore 127.0.0.1:20001 sur le relais, sans plus aucune ligne en base. La base
+   disait [20000, 20002], l'allocateur choisissait 20001, Docker refusait. */
+describe("port choisi d'après Docker, pas seulement d'après la base", () => {
+  const routeur = {
+    id: "0e25d85e-2d1d-44e3-86b0-53740b492503",
+    name: "HSPT-BELIKORO",
+    tunnelIp: "10.66.0.50",
+    username: "api",
+    password: "secret",
+    hotspotName: "BELIKORO",
+    dnsName: "belikoro.ci",
+  };
+  const psSortie = [
+    "127.0.0.1:20000->80/tcp",
+    "127.0.0.1:20001->80/tcp", // l'orphelin : aucune ligne en base
+    "127.0.0.1:20002->80/tcp",
+    "", // le débris « Created » de la tentative ratée : rien de publié
+    "0.0.0.0:443->443/tcp, [::]:443->443/tcp", // Traefik : hors plage, ignoré
+  ].join("\n");
+
+  it("saute le port tenu par un orphelin sans ligne en base", async () => {
+    const commands: string[] = [];
+    const instance = await provisionCloudMikhmon({
+      router: routeur,
+      existing: null,
+      usedPorts: [20_000, 20_002],
+      baseDomain: "mikhmon.safelinkhub.io",
+      run: async (command) => {
+        commands.push(command);
+        return command.includes("docker ps") ? psSortie : "";
+      },
+    });
+    assert.equal(instance.localPort, 20_003);
+    const creation = commands.find((c) => c.includes("docker run -d"))!;
+    assert.ok(creation.includes("127.0.0.1:20003:80"));
+    assert.ok(!creation.includes(":20001:"), "le port de l'orphelin a été redistribué");
+  });
+
+  it("retire d'abord l'homonyme, PUIS lit les ports : un port qu'il tenait redevient libre", async () => {
+    const commands: string[] = [];
+    await provisionCloudMikhmon({
+      router: routeur,
+      existing: null,
+      usedPorts: [],
+      baseDomain: "mikhmon.safelinkhub.io",
+      run: async (command) => {
+        commands.push(command);
+        return "";
+      },
+    });
+    const rm = commands.findIndex((c) => c.includes("rm -f") && c.includes(routeur.id.replace(/-/g, "")));
+    const ps = commands.findIndex((c) => c.includes("docker ps"));
+    assert.ok(rm >= 0 && ps >= 0);
+    assert.ok(rm < ps, "l'homonyme doit être retiré avant la lecture des ports");
+  });
+
+  it("un docker run refusé ne laisse pas de conteneur « Created » derrière lui", async () => {
+    const commands: string[] = [];
+    await assert.rejects(
+      provisionCloudMikhmon({
+        router: routeur,
+        existing: null,
+        usedPorts: [],
+        baseDomain: "mikhmon.safelinkhub.io",
+        run: async (command) => {
+          commands.push(command);
+          if (command.includes("docker run")) throw new Error("Bind for 127.0.0.1:20001 failed: port is already allocated");
+          return "";
+        },
+      }),
+      /port is already allocated/,
+    );
+    // Sinon la tentative suivante bute sur « name is already in use ».
+    const apresRun = commands.slice(commands.findIndex((c) => c.includes("docker run")) + 1);
+    assert.ok(apresRun.some((c) => c.includes("rm -f")), "le débris n'a pas été retiré");
+  });
+});

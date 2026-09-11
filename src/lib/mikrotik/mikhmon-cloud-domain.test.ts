@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { readFile } from "node:fs/promises";
 import {
   cloudMikhmonDomain,
+  parseBoundCloudPorts,
   cloudMikhmonPort,
   routerCloudSlug,
   normalizeCustomSlug,
@@ -122,5 +123,22 @@ describe("le sous-domaine choisi traverse bien jusqu'à la provision", () => {
        l'exploitant : le rouvrir à chaque réactivation casserait ses liens. */
     const cloud = await readFile(new URL("./mikhmon-cloud.ts", import.meta.url), "utf8");
     assert.match(cloud, /slug: existing \? undefined : slugChoisi/);
+  });
+});
+
+describe("parseBoundCloudPorts", () => {
+  it("ne garde que les ports HÔTE de la plage cloud", () => {
+    const sortie = [
+      "127.0.0.1:20001->80/tcp",
+      "127.0.0.1:20005->80/tcp, [::]:20005->80/tcp", // publié deux fois = un seul port
+      "0.0.0.0:443->443/tcp", // Traefik, hors plage
+      "", // conteneur sans publication
+      "127.0.0.1:8080->80/tcp", // hors plage
+    ].join("\n");
+    assert.deepEqual(parseBoundCloudPorts(sortie).sort(), [20_001, 20_005]);
+  });
+
+  it("une sortie vide (relais muet) ne réserve rien", () => {
+    assert.deepEqual(parseBoundCloudPorts(""), []);
   });
 });

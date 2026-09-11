@@ -1,6 +1,7 @@
 import {
   cloudMikhmonDomain,
   cloudMikhmonPort,
+  parseBoundCloudPorts,
   routerCloudSlug,
 } from "./mikhmon-cloud-domain";
 import { eq } from "drizzle-orm";
@@ -149,8 +150,34 @@ export async function provisionCloudMikhmon(input: {
      quoi que ce soit dans une règle Traefik. */
   const slug = input.slug ?? routerCloudSlug(input.router.name, input.router.id);
   const domain = cloudMikhmonDomain(slug, input.baseDomain);
-  const localPort = cloudMikhmonPort(input.usedPorts);
   const containerName = containerNameFor(input.router.id);
+
+  /* ON RETIRE D'ABORD UN ÉVENTUEL HOMONYME.
+     Le nom vient de l'identifiant du routeur : arrivé ici, la base n'a AUCUNE
+     instance pour lui, donc un conteneur portant ce nom ne peut être qu'un
+     orphelin. Deux chemins en produisaient — un provisionnement interrompu
+     après `docker run` (la ligne n'est écrite qu'à la toute fin), et une
+     suppression de routeur qui laissait le conteneur sur le relais. Sans ce
+     nettoyage, `docker run` répondait « container name is already in use » et
+     la recréation était définitivement bloquée : l'écran proposait un bouton
+     qui ne pouvait plus aboutir.
+     `-f` parce qu'un orphelin peut tourner, et `|| true` parce que l'absence
+     de conteneur est le cas NORMAL — la commande ne doit pas échouer pour ça.
+     AVANT le choix du port : si l'homonyme en tenait un, il est rendu. */
+  await input.run(`${DOCKER} rm -f ${shellArg(containerName)} 2>/dev/null || true`);
+
+  /* Le port libre se décide d'après la base ET d'après Docker. Un orphelin
+     d'un AUTRE nom — routeur supprimé pendant que le relais était injoignable,
+     instance d'avant le nettoyage à la suppression — n'a plus de ligne mais
+     tient toujours son port : la base seule le croit libre, et `docker run`
+     répond « Bind for 127.0.0.1:20001 failed: port is already allocated »
+     (HSPT-BELIKORO). `-a` pour compter aussi un conteneur créé mais jamais
+     démarré ; `|| true` parce qu'un relais qui ne répond pas ne doit pas faire
+     échouer la provision ici — elle échouera plus loin, avec la vraie erreur. */
+  const bound = parseBoundCloudPorts(
+    await input.run(`${DOCKER} ps -a --format '{{.Ports}}' 2>/dev/null || true`),
+  );
+  const localPort = cloudMikhmonPort([...input.usedPorts, ...bound]);
   const edition = input.edition ?? "v7";
   // `image` reste prioritaire : elle sert à épingler une version en secours.
   const image = input.image ?? MIKHMON_EDITIONS[edition].image;
@@ -204,20 +231,16 @@ export async function provisionCloudMikhmon(input: {
        La session se pose par config.php, juste après. */
     shellArg(image),
   ];
-  /* ON RETIRE D'ABORD UN ÉVENTUEL HOMONYME.
-     Le nom vient de l'identifiant du routeur : arrivé ici, la base n'a AUCUNE
-     instance pour lui, donc un conteneur portant ce nom ne peut être qu'un
-     orphelin. Deux chemins en produisaient — un provisionnement interrompu
-     après `docker run` (la ligne n'est écrite qu'à la toute fin), et une
-     suppression de routeur qui laissait le conteneur sur le relais. Sans ce
-     nettoyage, `docker run` répondait « container name is already in use » et
-     la recréation était définitivement bloquée : l'écran proposait un bouton
-     qui ne pouvait plus aboutir.
-     `-f` parce qu'un orphelin peut tourner, et `|| true` parce que l'absence
-     de conteneur est le cas NORMAL — la commande ne doit pas échouer pour ça. */
-  await input.run(`${DOCKER} rm -f ${shellArg(containerName)} 2>/dev/null || true`);
-
-  await input.run(args.join(" "));
+  /* `docker run` peut échouer APRÈS avoir créé le conteneur (réseau, port) :
+     il reste alors en état « Created », sans ligne en base, et c'est lui qui
+     fera échouer la tentative suivante — « name is already in use » — même une
+     fois la cause d'origine levée. On ne laisse pas ce débris derrière soi. */
+  try {
+    await input.run(args.join(" "));
+  } catch (cause) {
+    await input.run(`${DOCKER} rm -f ${shellArg(containerName)} 2>/dev/null || true`);
+    throw cause;
+  }
   try {
     await writeCloudMikhmonSession(input.run, containerName, input.router);
   } catch (cause) {

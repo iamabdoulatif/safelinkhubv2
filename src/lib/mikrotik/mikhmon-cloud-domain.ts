@@ -41,6 +41,31 @@ export function cloudMikhmonPort(usedPorts: readonly number[]): number {
 }
 
 /**
+ * Ports de la plage cloud RÉELLEMENT tenus par Docker sur le relais, lus dans
+ * la sortie de `docker ps -a --format '{{.Ports}}'` (une ligne par conteneur,
+ * de la forme « 127.0.0.1:20001->80/tcp », vide pour un conteneur sans
+ * publication).
+ *
+ * La base ne suffit pas à savoir quel port est libre : un conteneur peut lui
+ * survivre — routeur supprimé pendant que le relais était injoignable, ou
+ * instance d'avant le nettoyage à la suppression. Il tient alors son port sans
+ * plus aucune ligne pour le dire, et l'allocateur, qui ne lisait que la base,
+ * le redistribuait : « Bind for 127.0.0.1:20001 failed: port is already
+ * allocated », relevé sur HSPT-BELIKORO. Docker est la vérité sur ce point ;
+ * on lui demande.
+ */
+export function parseBoundCloudPorts(dockerPsPorts: string): number[] {
+  const ports = new Set<number>();
+  // « hôte:PORT->conteneur » : seul le port HÔTE est suivi de « -> ». Un
+  // conteneur publié en double (IPv4 et [::]) répète le même port, d'où le Set.
+  for (const m of dockerPsPorts.matchAll(/:(\d+)->/g)) {
+    const port = Number(m[1]);
+    if (port >= CLOUD_MIKHMON_PORT_START && port <= CLOUD_MIKHMON_PORT_END) ports.add(port);
+  }
+  return [...ports];
+}
+
+/**
  * Étiquettes réservées sous le domaine MikHmon.
  *
  * Le certificat joker couvre *.mikhmon.safelinkhub.io, donc n'importe quelle
