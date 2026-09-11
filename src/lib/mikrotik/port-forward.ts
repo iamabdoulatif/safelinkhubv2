@@ -10,7 +10,7 @@ import {
   organizations,
   walletTransactions,
 } from "@/lib/db/schema";
-import { capVpnAccessExpiry, getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
+import { getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getRouterVpnQuotaFields } from "@/lib/billing/router-vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getSafecoinAccount } from "@/lib/safecoin/ledger";
@@ -334,12 +334,15 @@ export async function enablePortForward(
   // router from the admin account.
   const quotaExpiry = !superadmin && quota.free && quota.expiresAt ? quota.expiresAt : null;
   const temporaryGrantExpiry = gate.reason === "temporary_grant" ? gate.expiresAt : null;
-  const planExpiry = expiresAtFor(billingPeriod);
   const freeExpiry = [quotaExpiry, temporaryGrantExpiry]
     .filter((value): value is Date => Boolean(value))
     .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
-  const effectiveExpiry = capVpnAccessExpiry(planExpiry, freeExpiry);
-  const isFreeCapped = Boolean(freeExpiry && effectiveExpiry.getTime() === freeExpiry.getTime());
+  /* Un accès OFFERT dure toute la période offerte, pas la tranche choisie à
+     l'écran : rien n'est débité, donc « mensuel » n'a aucun sens ici. Avant,
+     un routeur doté de 12 mois gratuits recevait des accès d'un mois que
+     l'exploitant devait réactiver chaque mois (ASSOINDE-HOTSPOT, 11/09/2026). */
+  const isFreeCapped = Boolean(freeExpiry);
+  const effectiveExpiry = freeExpiry ?? expiresAtFor(billingPeriod);
   const freeLabel = temporaryGrantExpiry && (!quotaExpiry || temporaryGrantExpiry <= quotaExpiry)
     ? "temporary_grant"
     : "free_until";
