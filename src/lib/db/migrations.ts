@@ -102,4 +102,15 @@ alter table routers
   add column if not exists location_country text;
 `.trim(),
   },
+  {
+    // Garde-fou quota autonome : mémo du réglage posé sur le routeur
+    // (script + scheduler + file de bridage). La vérité reste le routeur ;
+    // ce mémo sert de repli hors ligne. Voir lib/mikrotik/quota-guard.ts.
+    // Miroir : scripts/add-quota-guard.sql.
+    id: "0005_router_quota_guard",
+    sql: `
+alter table routers
+  add column if not exists quota_guard jsonb;
+`.trim(),
+  },
 ];

@@ -38,6 +38,7 @@ describe("registre des migrations", () => {
     "0002_zone_per_client": "add-zone-per-client.sql",
     "0003_roaming_previous_macs": "add-roaming-previous-macs.sql",
     "0004_router_location": "add-router-location.sql",
+    "0005_router_quota_guard": "add-quota-guard.sql",
   };
   for (const [id, file] of Object.entries(MIRRORS)) {
     it(`${id} : le miroir scripts/${file} correspond`, () => {

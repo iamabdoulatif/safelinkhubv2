@@ -327,6 +327,19 @@ export const routers = pgTable("routers", {
     adlist: boolean;
     updatedAt: string;
   }>(),
+  // Dernier réglage du GARDE-FOU QUOTA autonome VOULU sur ce routeur (quota
+  // WAN + débit de bride + interface + période). Le garde-fou vit SUR le
+  // routeur (script + scheduler + file) et se déclenche même si la plateforme
+  // est hors ligne ; ce mémo est le repli quand le routeur ne répond pas
+  // (l'écran rouvre sur le bon réglage) et la référence du pourcentage
+  // consommé. Voir lib/mikrotik/quota-guard-actions.ts.
+  quotaGuard: jsonb("quota_guard").$type<{
+    wanInterface: string;
+    capMb: number;
+    throttleKbps: number;
+    intervalMinutes: number;
+    updatedAt: string;
+  }>(),
 });
 
 // Verrou anti-abus de l'auto-setup : le numéro de série RouterOS d'un MikroTik

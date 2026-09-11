@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { Gauge, Loader2, RefreshCw, Save, Satellite, Cable, Radio, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { Gauge, Loader2, RefreshCw, Save, Satellite, Cable, Radio, ShieldCheck, TriangleAlert } from "lucide-react";
 import {
   readRouterUsage,
   setRouterLink,
   setZoneUsage,
 } from "@/lib/mikrotik/link-usage-actions";
+import {
+  applyRouterQuotaGuard,
+  buildRouterQuotaGuardScript,
+  readRouterQuotaGuard,
+  removeRouterQuotaGuard,
+  type QuotaGuardView,
+} from "@/lib/mikrotik/quota-guard-actions";
 import { LINK_TYPES, formatBytes, type LinkType } from "@/lib/mikrotik/link-usage";
 import type { RouterUsage, ZoneUsage } from "@/lib/mikrotik/link-usage-reader";
 
@@ -203,6 +210,9 @@ export default function UsagePanel({ routerId }: { routerId: string }) {
         </button>
       </div>
 
+      {/* ── Garde-fou quota autonome (sur le routeur) ── */}
+      <QuotaGuardCard routerId={routerId} onError={setErr} onMsg={(m) => { setMsg(m); refresh(); }} />
+
       {/* ── Zones (VLAN) ── */}
       <div>
         <h3 className="font-display text-base font-bold text-ink">Zones WiFi (VLAN)</h3>
@@ -314,6 +324,210 @@ function ZoneCard({
           Appliquer
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * GARDE-FOU QUOTA AUTONOME — le routeur se bride seul quand le quota WAN du
+ * mois est atteint, même si la plateforme est hors ligne (script + scheduler
+ * posés sur le routeur). C'est le complément du suivi côté plateforme : celui-
+ * ci trace et alerte, le garde-fou tient sans réseau.
+ */
+function QuotaGuardCard({
+  routerId,
+  onError,
+  onMsg,
+}: {
+  routerId: string;
+  onError: (e: string) => void;
+  onMsg: (m: string) => void;
+}) {
+  const [view, setView] = useState<QuotaGuardView | null>(null);
+  const [capGo, setCapGo] = useState("");
+  const [throttle, setThrottle] = useState("10");
+  const [iface, setIface] = useState("");
+  const [script, setScript] = useState<string | null>(null);
+  const [busy, startBusy] = useTransition();
+  const [isReading, startRead] = useTransition();
+  // Hydratation des champs depuis le mémo UNE SEULE FOIS (au 1er chargement) —
+  // dans le callback de lecture, pas dans un effet (setState en effet = renders
+  // en cascade).
+  const hydrated = useRef(false);
+
+  function refresh() {
+    startRead(async () => {
+      const next = await readRouterQuotaGuard(routerId);
+      setView(next);
+      const saved = next.saved;
+      if (!hydrated.current && saved) {
+        hydrated.current = true;
+        if (saved.capMb > 0) setCapGo(String(Math.round((saved.capMb / 1024) * 100) / 100));
+        if (saved.throttleKbps > 0) setThrottle(String(saved.throttleKbps / 1000));
+        if (saved.wanInterface) setIface(saved.wanInterface);
+      }
+    });
+  }
+
+  useEffect(refresh, [routerId]);
+
+  const installed = view?.state?.installed ?? false;
+  const throttled = view?.state?.throttled ?? false;
+  const used = view?.state?.usedBytes ?? null;
+  const pct = view?.pct ?? null;
+
+  function apply() {
+    startBusy(async () => {
+      setScript(null);
+      const res = await applyRouterQuotaGuard(routerId, {
+        capGo: Number(capGo),
+        throttleMbps: Number(throttle),
+        wanInterface: iface.trim() || undefined,
+      });
+      if ("error" in res && res.error) return onError(res.error);
+      onMsg(res.summary ?? "Garde-fou posé.");
+      refresh();
+    });
+  }
+
+  function remove() {
+    startBusy(async () => {
+      setScript(null);
+      const res = await removeRouterQuotaGuard(routerId);
+      if ("error" in res && res.error) return onError(res.error);
+      onMsg(res.summary ?? "Garde-fou retiré.");
+      refresh();
+    });
+  }
+
+  function showScript() {
+    startBusy(async () => {
+      const res = await buildRouterQuotaGuardScript(routerId, {
+        capGo: Number(capGo),
+        throttleMbps: Number(throttle),
+        wanInterface: iface.trim(),
+      });
+      if ("error" in res && res.error) return onError(res.error);
+      setScript(res.script ?? null);
+    });
+  }
+
+  return (
+    <div className="border border-line bg-paper p-5 rounded-xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-display text-base font-bold text-ink">
+          Garde-fou quota (autonome sur le routeur)
+        </h3>
+        <span
+          className={`border px-3 py-1 text-xs font-bold rounded-full ${
+            installed
+              ? throttled
+                ? "border-err bg-err/10 text-err"
+                : "border-ok bg-ok/10 text-ok"
+              : "border-line bg-clay text-ink-soft"
+          }`}
+        >
+          {installed ? (throttled ? "Quota atteint — lien bridé" : "Actif sur le routeur") : "Non posé"}
+        </span>
+      </div>
+      <p className="mt-1.5 text-[12px] text-ink-soft">
+        Le routeur vérifie sa propre consommation toutes les 15 min et brise le lien au débit choisi
+        quand le quota mensuel est atteint — même si SafeLinkHub est injoignable. Le suivi ci-dessus
+        trace et alerte ; celui-ci tient sans réseau.
+      </p>
+
+      {/* Conso vue par le routeur */}
+      {installed && used != null && (
+        <div className="mt-4">
+          <div className="flex items-end justify-between gap-2">
+            <span className="font-display text-2xl font-extrabold text-ink">{formatBytes(used)}</span>
+            <span className="text-sm font-bold text-ink-soft">
+              {pct != null ? `${pct.toFixed(0)} % du quota (cycle « ${view?.state?.cycleMonth ?? "—"} »)` : "cycle en cours"}
+            </span>
+          </div>
+          <div className="mt-2">
+            <QuotaBar pct={pct ?? 0} state={pct == null ? "unlimited" : pct >= 100 ? "over" : pct >= 80 ? "warn" : "ok"} />
+          </div>
+        </div>
+      )}
+      {installed && view?.error && (
+        <p className="mt-3 text-[12px] text-ink-soft">Détail du routeur indisponible : {view.error}</p>
+      )}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <label className="block">
+          <span className="text-xs font-bold text-ink-soft">Quota mensuel (Go)</span>
+          <input
+            type="number"
+            min={1}
+            value={capGo}
+            placeholder="ex. 3000 (3 To)"
+            onChange={(e) => setCapGo(e.target.value)}
+            className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
+          />
+          <span className="mt-0.5 block text-[11px] text-ink-soft">ex. 3000 Go = 3 To — un Starlink classique</span>
+        </label>
+        <label className="block">
+          <span className="text-xs font-bold text-ink-soft">Débit de bride (Mbps)</span>
+          <input
+            type="number"
+            min={0.064}
+            step="0.5"
+            value={throttle}
+            onChange={(e) => setThrottle(e.target.value)}
+            className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
+          />
+          <span className="mt-0.5 block text-[11px] text-ink-soft">débit survivant partagé quand le quota tombe</span>
+        </label>
+        <label className="block">
+          <span className="text-xs font-bold text-ink-soft">Interface WAN (optionnel)</span>
+          <input
+            type="text"
+            value={iface}
+            placeholder="auto (détectée)"
+            onChange={(e) => setIface(e.target.value)}
+            className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
+          />
+          <span className="mt-0.5 block text-[11px] text-ink-soft">ex. ether1 — laisser vide = détection auto</span>
+        </label>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy || !capGo}
+          onClick={apply}
+          className="inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+        >
+          {busy ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <ShieldCheck aria-hidden="true" className="h-4 w-4" />}
+          {installed ? "Re-appliquer le garde-fou" : "Activer le garde-fou"}
+        </button>
+        {installed && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={remove}
+            className="inline-flex items-center gap-2 border border-err bg-paper px-5 py-2.5 text-sm font-bold text-err hover:bg-err hover:text-paper disabled:opacity-60 rounded-full"
+          >
+            Retirer
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={busy || !capGo}
+          onClick={showScript}
+          className="inline-flex items-center gap-2 border border-line bg-paper px-5 py-2.5 text-sm font-bold text-ink hover:bg-clay disabled:opacity-60 rounded-full"
+        >
+          Script à coller
+        </button>
+        {isReading && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin text-ink-soft" />}
+      </div>
+
+      {script && (
+        <pre className="mt-3 max-h-64 overflow-auto border border-line bg-clay p-3 text-[11px] text-ink rounded-lg whitespace-pre-wrap">
+          {script}
+        </pre>
+      )}
     </div>
   );
 }
