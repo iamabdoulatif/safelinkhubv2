@@ -19,6 +19,7 @@ export const adminFr = {
     links: {
       dashboard: "Tableau de bord",
       routers: "Routeurs",
+      backups: "Sauvegardes",
       remoteAccess: "Accès distant",
       roaming: "Roaming",
       mikhmon: "MikHmon Online",

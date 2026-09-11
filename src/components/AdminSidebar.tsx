@@ -72,6 +72,10 @@ const businessGroups: NavGroup[] = [
     links: [
       // Pluriel : la page liste le parc, elle n'en configure pas un seul.
       { href: "/admin/router", key: "routers", need: "routers" },
+      // Une PAGE, pas une action : repliée le 04/09 dans « Plus d'actions » de
+      // la liste des routeurs, elle y est devenue introuvable — « je ne vois
+      // plus la restauration ». Elle vit ici, avec les autres pages du réseau.
+      { href: "/admin/router/backups", key: "backups", need: "routers" },
       { href: "/admin/remote-access", key: "remoteAccess", need: "routers" },
       { href: "/admin/roaming", key: "roaming", need: "routers" },
       // Casse officielle du produit : MikHmon.
@@ -229,6 +233,11 @@ export default function AdminSidebar({
     // « Paramètres » pointe vers /admin/settings/general mais représente TOUT le
     // hub : il doit rester actif sur /admin/settings/gateways, /router-setup…
     if (href.startsWith("/admin/settings")) return Boolean(pathname?.startsWith("/admin/settings"));
+    // « Routeurs » couvre /admin/router/<id> mais pas /admin/router/backups,
+    // qui a sa propre entrée juste en dessous.
+    if (href === "/admin/router") {
+      return Boolean(pathname?.startsWith(href)) && !pathname?.startsWith("/admin/router/backups");
+    }
     return Boolean(pathname?.startsWith(href));
   };
 

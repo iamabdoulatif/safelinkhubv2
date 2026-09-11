@@ -14,6 +14,7 @@ export const adminEn: AdminDictionary = {
     links: {
       dashboard: "Dashboard",
       routers: "Routers",
+      backups: "Backups",
       remoteAccess: "Remote access",
       roaming: "Roaming",
       mikhmon: "MikHmon Online",
