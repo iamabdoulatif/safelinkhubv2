@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import { readFile } from "node:fs/promises";
 import {
   cloudMikhmonDomain,
+  orphanCloudContainers,
   parseBoundCloudPorts,
+  routerIdFromContainerName,
   cloudMikhmonPort,
   routerCloudSlug,
   normalizeCustomSlug,
@@ -140,5 +142,43 @@ describe("parseBoundCloudPorts", () => {
 
   it("une sortie vide (relais muet) ne réserve rien", () => {
     assert.deepEqual(parseBoundCloudPorts(""), []);
+  });
+});
+
+/* Un routeur supprimé pendant que le relais ne répondait pas laisse son
+   conteneur pour toujours : rien ne revenait le chercher. Ce tri décide ce
+   qu'un balayage peut retirer sans risque. */
+describe("orphelins du relais", () => {
+  it("retrouve l'identifiant du routeur depuis le nom du conteneur", () => {
+    assert.equal(
+      routerIdFromContainerName("slh-mikhmon-1e9e25617b3e43219153bb431940251f"),
+      "1e9e2561-7b3e-4321-9153-bb431940251f",
+    );
+    // Pas à nous, ou nom tronqué : on ne touche pas.
+    assert.equal(routerIdFromContainerName("traefik-traefik-1"), null);
+    assert.equal(routerIdFromContainerName("slh-mikhmon-abc"), null);
+    assert.equal(routerIdFromContainerName("slh-app"), null);
+  });
+
+  it("ne retire QUE les conteneurs dont le routeur a disparu", () => {
+    const vivants = new Set(["5f575dc1-9928-4a34-a9d3-8124dcb43600", "0e25d85e-2d1d-44e3-86b0-53740b492503"]);
+    const noms = [
+      "slh-mikhmon-5f575dc199284a34a9d38124dcb43600", // HSPT-ADJA, vivant
+      "slh-mikhmon-1e9e25617b3e43219153bb431940251f", // routeur supprimé : orphelin
+      "slh-mikhmon-0e25d85e2d1d44e386b053740b492503", // belikoro : vivant, même sans ligne (provision en cours)
+      "slh-app", // pas à nous
+      "traefik-traefik-1",
+    ];
+    assert.deepEqual(orphanCloudContainers(noms, vivants), [
+      "slh-mikhmon-1e9e25617b3e43219153bb431940251f",
+    ]);
+  });
+
+  it("un conteneur sans ligne mais dont le routeur existe n'est JAMAIS un orphelin", () => {
+    // C'est la garde contre la course : la ligne d'instance n'est écrite qu'à
+    // la fin de la provision. Retirer sur « pas de ligne » casserait une
+    // activation en cours.
+    const id = "0e25d85e-2d1d-44e3-86b0-53740b492503";
+    assert.deepEqual(orphanCloudContainers(["slh-mikhmon-" + id.replace(/-/g, "")], new Set([id])), []);
   });
 });

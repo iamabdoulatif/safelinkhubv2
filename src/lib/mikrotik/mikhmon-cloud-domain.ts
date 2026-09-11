@@ -127,3 +127,40 @@ export function normalizeCustomSlug(raw: string | null | undefined): SlugVerdict
   }
   return { ok: true, slug };
 }
+
+/** Préfixe des conteneurs MikHmon cloud sur le relais. Le reste du nom est
+ *  l'identifiant du routeur, tirets retirés — voir containerNameFor(). */
+export const CLOUD_CONTAINER_PREFIX = "slh-mikhmon-";
+
+/**
+ * Identifiant du routeur porté par un nom de conteneur, ou null si le nom
+ * n'est pas l'un des nôtres. Inverse exact de containerNameFor() : un UUID
+ * v4 sans ses tirets fait 32 hexadécimaux, qu'on redécoupe en 8-4-4-4-12.
+ */
+export function routerIdFromContainerName(name: string): string | null {
+  if (!name.startsWith(CLOUD_CONTAINER_PREFIX)) return null;
+  const h = name.slice(CLOUD_CONTAINER_PREFIX.length);
+  if (!/^[0-9a-f]{32}$/.test(h)) return null;
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/**
+ * Parmi des noms de conteneurs du relais, ceux qui n'appartiennent à AUCUN
+ * routeur existant — donc à retirer.
+ *
+ * Le critère est l'existence du ROUTEUR, pas celle de la ligne d'instance : un
+ * conteneur sans ligne peut être une provision en cours (la ligne n'est écrite
+ * qu'à la fin), ou une instance arrêtée. Seul un conteneur dont le routeur a
+ * disparu de la plateforme ne peut être que du déchet. Les noms qui ne sont
+ * pas les nôtres sont ignorés : on ne touche jamais à un conteneur qu'on n'a
+ * pas créé.
+ */
+export function orphanCloudContainers(
+  containerNames: readonly string[],
+  liveRouterIds: ReadonlySet<string>,
+): string[] {
+  return containerNames.filter((name) => {
+    const id = routerIdFromContainerName(name.trim());
+    return id !== null && !liveRouterIds.has(id);
+  });
+}

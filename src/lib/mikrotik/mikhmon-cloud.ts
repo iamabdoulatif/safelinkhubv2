@@ -1,12 +1,15 @@
 import {
+  CLOUD_CONTAINER_PREFIX,
   cloudMikhmonDomain,
   cloudMikhmonPort,
+  orphanCloudContainers,
   parseBoundCloudPorts,
   routerCloudSlug,
+  routerIdFromContainerName,
 } from "./mikhmon-cloud-domain";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routerMikhmonCloudInstances } from "@/lib/db/schema";
+import { routerMikhmonCloudInstances, routers } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import { runOnRelay } from "./relay";
 import { buildMikhmonConfigPhp } from "./mikhmon-session";
@@ -321,6 +324,12 @@ export async function ensureCloudMikhmonInstance(
     if (pris) throw new Error(`Le sous-domaine « ${slugChoisi} » est déjà pris.`);
   }
 
+  /* Une nouvelle instance commence par rendre au relais ce que les
+     suppressions passées y ont laissé. Best-effort et silencieux : la
+     provision ne dépend pas du balayage — depuis que le port se choisit
+     d'après Docker, un orphelin ne bloque plus rien, il gaspille. */
+  if (!existing) await sweepOrphanCloudMikhmon((command) => runOnRelay(command, 60_000));
+
   const instance = await provisionCloudMikhmon({
     router: cloudSessionFromRouter(router),
     existing,
@@ -358,11 +367,55 @@ export async function removeCloudMikhmonInstance(routerId: string): Promise<bool
     .from(routerMikhmonCloudInstances)
     .where(eq(routerMikhmonCloudInstances.routerId, routerId))
     .limit(1);
-  if (!existing) return false;
 
-  await runOnRelay(`${DOCKER} rm -f ${shellArg(existing.containerName)}`);
+  /* Le conteneur se retire par son nom DÉRIVÉ de l'identifiant, ligne en base
+     ou pas. La version précédente s'arrêtait à « pas de ligne, rien à faire »
+     — or c'est précisément l'état d'un orphelin : la ligne est partie, le
+     conteneur est resté. Supprimer le routeur devait alors le laisser une
+     seconde fois. `|| true` : l'absence de conteneur est le cas normal. */
+  await runOnRelay(`${DOCKER} rm -f ${shellArg(containerNameFor(routerId))} 2>/dev/null || true`);
+  if (!existing) return false;
   await db.delete(routerMikhmonCloudInstances).where(eq(routerMikhmonCloudInstances.id, existing.id));
   return true;
+}
+
+/**
+ * Retire du relais les conteneurs MikHmon dont le ROUTEUR n'existe plus.
+ *
+ * Un orphelin naît quand la suppression d'un routeur n'a pas pu joindre le
+ * relais (chemin best-effort : on ne bloque pas la suppression pour ça). Il
+ * tient alors un port et sa part de mémoire pour toujours — rien ne revenait
+ * le chercher. Ce balayage court avant chaque provision : le prochain routeur
+ * qui active son MikHmon nettoie ce que les suppressions ont laissé.
+ *
+ * Renvoie les noms retirés. Ne lève jamais : un balayage qui échoue ne doit
+ * pas empêcher la provision qui le suit.
+ */
+export async function sweepOrphanCloudMikhmon(
+  run: CloudRunner = (command) => runOnRelay(command),
+): Promise<string[]> {
+  try {
+    const noms = (
+      await run(`${DOCKER} ps -a --filter ${shellArg(`name=${CLOUD_CONTAINER_PREFIX}`)} --format '{{.Names}}' 2>/dev/null || true`)
+    )
+      .split("\n")
+      .map((n) => n.trim())
+      .filter(Boolean);
+    if (noms.length === 0) return [];
+
+    const ids = noms.map(routerIdFromContainerName).filter((id): id is string => id !== null);
+    const vivants = ids.length
+      ? await getDb().select({ id: routers.id }).from(routers).where(inArray(routers.id, ids))
+      : [];
+    const orphelins = orphanCloudContainers(noms, new Set(vivants.map((r) => r.id)));
+
+    for (const nom of orphelins) {
+      await run(`${DOCKER} rm -f ${shellArg(nom)} 2>/dev/null || true`);
+    }
+    return orphelins;
+  } catch {
+    return [];
+  }
 }
 
 /**
