@@ -39,6 +39,8 @@ describe("registre des migrations", () => {
     "0003_roaming_previous_macs": "add-roaming-previous-macs.sql",
     "0004_router_location": "add-router-location.sql",
     "0005_router_quota_guard": "add-quota-guard.sql",
+    "0006_router_content_filter": "add-router-content-filter.sql",
+    "0007_router_vpn_quota_and_package_cap": "add-router-vpn-quota-and-package-cap.sql",
   };
   for (const [id, file] of Object.entries(MIRRORS)) {
     it(`${id} : le miroir scripts/${file} correspond`, () => {

@@ -113,4 +113,38 @@ alter table routers
   add column if not exists quota_guard jsonb;
 `.trim(),
   },
+  {
+    // Réglage de filtrage de contenu mémorisé par routeur (catégories +
+    // options). La vérité reste le routeur — chaque entrée posée porte le
+    // commentaire de sa catégorie — ; ce mémo est le repli hors ligne et le
+    // seul endroit où survivent les options, sans trace attribuable sur la
+    // box. Voir lib/mikrotik/content-filter-actions.ts.
+    // Miroir : scripts/add-router-content-filter.sql.
+    //
+    // Cette colonne avait été livrée dans drizzle/0012 et appliquée À LA MAIN
+    // en prod (10/09/2026) : elle n'existait dans aucune base neuve. Ici, elle
+    // s'applique au démarrage comme les autres.
+    id: "0006_router_content_filter",
+    sql: `
+alter table routers
+  add column if not exists content_filter jsonb;
+`.trim(),
+  },
+  {
+    // Quota VPN scopé au routeur (surcharge celui de l'organisation ; null =
+    // suit l'org) et plafond de VOLUME d'un forfait en Mo (null = illimité).
+    // Miroir : scripts/add-router-vpn-quota-and-package-cap.sql.
+    //
+    // Même histoire que 0006 : livrées dans drizzle/0010 et 0011 le 10/09/2026
+    // et appliquées à la main. Rattrapées ici pour qu'une base neuve les ait.
+    id: "0007_router_vpn_quota_and_package_cap",
+    sql: `
+alter table routers
+  add column if not exists vpn_quota_mode text,
+  add column if not exists vpn_quota_expires_at timestamp;
+
+alter table packages
+  add column if not exists data_cap_mb integer;
+`.trim(),
+  },
 ];
