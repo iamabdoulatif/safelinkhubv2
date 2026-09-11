@@ -561,16 +561,29 @@ export function buildInstallPlan(
             "^(\\x13bittorrent protocol|azver\\x01$|get /scrape\\?info_hash=|get /announce\\?info_hash=|get /client/bitcomet/|GET /data\\?fid=)|d1:ad2:id20:",
         },
       });
-      steps.push({
-        kind: "add",
-        path: "/ip/firewall/filter",
-        params: {
-          chain: "forward",
-          "layer7-protocol": TORRENT_L7_NAME,
-          action: "drop",
-          comment: torrentComment,
-        },
-      });
+      // Le matcher layer7 lit les 10 premiers paquets de CHAQUE connexion qui
+      // atteint la règle. Sans pré-filtre, il lit aussi tout le TCP/443 — la
+      // majorité des connexions — où le motif ne peut jamais se trouver : la
+      // charge utile TLS est chiffrée. On l'en dispense. L'UDP reste entier :
+      // c'est là que vit le DHT (« d1:ad2:id20: »). Relevé sur KONGASSO-HTSPT,
+      // où la règle nue inspectait le trafic HTTPS de 49 clients pour rien.
+      for (const [protocol, portee] of [
+        ["tcp", { "dst-port": "!443" }],
+        ["udp", {}],
+      ] as const) {
+        steps.push({
+          kind: "add",
+          path: "/ip/firewall/filter",
+          params: {
+            chain: "forward",
+            protocol,
+            ...portee,
+            "layer7-protocol": TORRENT_L7_NAME,
+            action: "drop",
+            comment: torrentComment,
+          },
+        });
+      }
       for (const protocol of ["tcp", "udp"]) {
         steps.push({
           kind: "add",

@@ -120,6 +120,30 @@ describe("torrents : le matcher p2p n'existe qu'en v6", () => {
     assert.ok(s.some((x) => x.params["layer7-protocol"] === TORRENT_L7_NAME));
     assert.equal(s.filter((x) => x.params["dst-port"] === "6881-6999").length, 2);
   });
+
+  it("le layer7 ne lit pas le TCP/443 : chiffré, le motif ne peut pas s'y trouver", () => {
+    // Le matcher inspecte les premiers paquets de chaque connexion atteinte.
+    // Sans pré-filtre il lisait tout le HTTPS — la majorité du trafic — pour
+    // rien (KONGASSO-HTSPT). Une règle qui filtre plus étroit bloque moins,
+    // jamais plus : c'est un resserrement sûr.
+    const l7 = adds("7.23.1").filter((x) => x.params["layer7-protocol"] === TORRENT_L7_NAME);
+    const tcp = l7.find((x) => x.params.protocol === "tcp")!;
+    const udp = l7.find((x) => x.params.protocol === "udp")!;
+    assert.equal(tcp.params["dst-port"], "!443");
+    // L'UDP reste entier : le DHT n'a pas de port fixe.
+    assert.equal(udp.params["dst-port"], undefined);
+    // Aucune règle layer7 sans protocole : elle verrait tout.
+    assert.ok(l7.every((x) => x.params.protocol));
+  });
+
+  it("la négation de port survit au rendu console", () => {
+    const ligne = renderPlanScript(buildInstallPlan("7.23.1", { categories: ["torrent"] }))
+      .split("\n")
+      .find((l) => l.includes("layer7-protocol=safelinkhub-torrent") && l.includes("protocol=tcp"))!;
+    // `!` n'est pas un caractère « nu » pour la console : la valeur doit être
+    // citée, sinon RouterOS la lirait comme un début de commande.
+    assert.ok(ligne.includes('dst-port=\\"!443\\"'), ligne);
+  });
 });
 
 describe("listes publiques et SNI", () => {
