@@ -6,6 +6,7 @@ import ResourcesPanel from "./ResourcesPanel";
 import ServicesWizard from "./ServicesWizard";
 import AuditPanel from "./AuditPanel";
 import ContentFilterPanel from "./ContentFilterPanel";
+import RegulationPanel from "./RegulationPanel";
 import CaptivePortalPanel from "./CaptivePortalPanel";
 import UsagePanel from "./UsagePanel";
 
@@ -14,7 +15,7 @@ export type TabKey = "overview" | "diagnostic" | "filter" | "usage" | "resources
 const TABS: { key: TabKey; label: string; icon: typeof Gauge }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutGrid },
   { key: "diagnostic", label: "Diagnostic", icon: Stethoscope },
-  { key: "filter", label: "Filtrage de contenu", icon: ShieldBan },
+  { key: "filter", label: "Filtrage & régulation", icon: ShieldBan },
   { key: "usage", label: "Consommation", icon: Activity },
   { key: "resources", label: "Ressources", icon: Gauge },
   { key: "services", label: "Configurer les services", icon: SlidersHorizontal },
@@ -86,7 +87,10 @@ export default function RouterDetailTabs({
             ) : key === "diagnostic" ? (
               <AuditPanel routerId={routerId} />
             ) : key === "filter" ? (
-              <ContentFilterPanel routerId={routerId} />
+              <div className="space-y-6">
+                <ContentFilterPanel routerId={routerId} />
+                <RegulationPanel routerId={routerId} />
+              </div>
             ) : key === "usage" ? (
               <UsagePanel routerId={routerId} />
             ) : key === "resources" ? (

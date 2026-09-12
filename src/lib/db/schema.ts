@@ -1664,3 +1664,79 @@ export const routerRestoreJobs = pgTable(
     index("router_restore_jobs_status_idx").on(table.status),
   ],
 );
+
+// ── Régulation du trafic pilotée par n8n ─────────────────────────────────────
+// La DÉCISION (rythme du quota, blocage des téléchargeurs abusifs) vit dans le
+// workflow n8n « Regulation quota » ; la plateforme lui sert de source de
+// vérité pour les SEUILS (édités à l'écran, plus jamais des constantes dans un
+// nœud Code) et de mémoire pour l'ÉTAT (n8n n'a plus de $getWorkflowStaticData,
+// qui se perd à chaque republication). n8n ne parle jamais au routeur : il lit
+// et applique via /api/internal/n8n/regulation, qui passe par le tunnel avec
+// les identifiants déjà en base. Voir lib/mikrotik/regulation.ts.
+export type RegulationState = {
+  /** ok | throttle | critical | block */
+  decision: string;
+  previous: string;
+  /** max-limit RouterOS appliqué (« up/down »), « 0/0 » = illimité. */
+  limit: string;
+  wanInterface: string | null;
+  /** Dernier relevé BRUT rx+tx de l'interface WAN (détection de reboot). */
+  counters: number;
+  monthBytes: number;
+  dayBytes: number;
+  monthKey: string;
+  dayKey: string;
+  at: string;
+  changedAt: string | null;
+  stats?: Record<string, number | string>;
+};
+
+export type RegulationWatchEntry = {
+  bytesOut: number;
+  blockedUntil: number;
+  offenseCount: number;
+  permanent: boolean;
+  address?: string;
+  user?: string;
+};
+
+export const routerRegulation = pgTable("router_regulation", {
+  routerId: uuid("router_id")
+    .primaryKey()
+    .references(() => routers.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  // Seuils du rythme mensuel (lus par n8n). Cible à respecter, plafond absolu,
+  // marge sur le budget du jour, avance tolérée avant de freiner.
+  softCapMb: integer("soft_cap_mb").notNull(),
+  hardCapMb: integer("hard_cap_mb").notNull(),
+  safety: numeric("safety", { precision: 4, scale: 3 }).notNull().default("0.950"),
+  dayCriticalRatio: numeric("day_critical_ratio", { precision: 4, scale: 3 }).notNull().default("1.100"),
+  // Débit plancher quand le plafond absolu est atteint (« up/down » RouterOS).
+  blockLimit: text("block_limit").notNull().default("64k/64k"),
+  // Téléchargeur abusif : volume par passage (Mo) au-delà duquel on bloque,
+  // durée du blocage, nombre d'avertissements avant blocage définitif.
+  abuseThresholdMb: integer("abuse_threshold_mb").notNull().default(1024),
+  abuseBlockMinutes: integer("abuse_block_minutes").notNull().default(180),
+  abuseMaxOffenses: integer("abuse_max_offenses").notNull().default(3),
+  // État écrit par n8n à chaque passage (voir RegulationState) et mémoire des
+  // appareils surveillés (par MAC).
+  state: jsonb("state").$type<RegulationState>(),
+  watch: jsonb("watch").$type<Record<string, RegulationWatchEntry>>(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Journal lisible à l'écran : changements de décision et blocages.
+export const routerRegulationEvents = pgTable(
+  "router_regulation_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    // decision | block | permanent_block
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("router_regulation_events_router_idx").on(t.routerId, t.createdAt)],
+);

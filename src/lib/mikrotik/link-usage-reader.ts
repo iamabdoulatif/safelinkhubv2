@@ -25,7 +25,7 @@ type Router = typeof routers.$inferSelect;
 type Bridge = typeof bridges.$inferSelect;
 
 /** rx-byte + tx-byte d'une interface, ou null si introuvable. */
-async function readIfaceBytes(
+export async function readIfaceBytes(
   client: RouterOSClient,
   name: string,
   timeoutMs: number,

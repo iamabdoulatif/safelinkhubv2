@@ -1,0 +1,312 @@
+{
+  "name": "SafeLinkHub - Régulation (seuils plateforme)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "name": "Toutes les 15 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://safelinkhub.io/api/internal/n8n/regulation/routers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Routeurs à réguler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "SafeLinkHub n8n (Bearer)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Boucle routeurs",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://safelinkhub.io/api/internal/n8n/regulation/routers/{{ $json.routerId }}/read",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        },
+        "method": "POST"
+      },
+      "name": "Lire compteurs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "SafeLinkHub n8n (Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===================== DÉCISION — nœud Code n8n =====================\n// Entrée : la réponse de POST /read (compteurs WAN + sessions actives).\n// Le routeur, ses SEUILS (policy) et son ÉTAT précédent viennent de la\n// plateforme (GET /routers), plus aucune constante ici, plus de\n// $getWorkflowStaticData. Sortie : ce que POST /apply attend + l'email.\nconst MB = 1024 ** 2, GB = 1024 ** 3;\nconst router = $('Boucle routeurs').item.json;\nconst read = $input.first().json;\nconst P = router.policy;\n\nconst now = new Date(read.at || Date.now());\nconst ms = now.getTime();\n\n// ----- Cycle : démarre le billingCycleDay (1-28), pas forcément le 1er -----\nconst day = router.billingCycleDay || 1;\nlet start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day));\nif (start.getTime() > ms) start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, day));\nconst end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, day));\nconst daysInCycle = (end.getTime() - start.getTime()) / 86400000;\nconst elapsedDays = Math.max((ms - start.getTime()) / 86400000, 1 / 96);\nconst remainingDays = Math.max(1, Math.ceil((end.getTime() - ms) / 86400000));\nconst monthKey = start.toISOString().slice(0, 10);\nconst dayKey = now.toISOString().slice(0, 10);\n\n// ----- État précédent (mémorisé par la plateforme) -----\nconst prev = router.state || null;\nconst s = prev\n  ? { ...prev }\n  : { decision: 'ok', previous: 'ok', limit: '0/0', counters: read.counters, monthBytes: 0, dayBytes: 0, monthKey, dayKey, changedAt: null };\nif (s.monthKey !== monthKey) { s.monthKey = monthKey; s.monthBytes = 0; s.dayBytes = 0; }\nif (s.dayKey !== dayKey) { s.dayKey = dayKey; s.dayBytes = 0; }\n\n// Compteur plus petit qu'avant = reboot du routeur → l'écart repart du relevé brut\nconst counters = Number(read.counters || 0);\nconst delta = counters >= (s.counters || 0) ? counters - (s.counters || 0) : counters;\ns.counters = counters;\ns.monthBytes += delta;\ns.dayBytes += delta;\ns.wanInterface = read.wanInterface || s.wanInterface || null;\ns.at = now.toISOString();\n\n// ----- Seuils -----\nconst SOFT = P.softCapMb * MB, HARD = P.hardCapMb * MB;\nconst fmtRate = (bytesPerDay) => {\n  const bps = Math.max(64000, (bytesPerDay * 8) / 86400);\n  return bps >= 1024 * 1024 ? (bps / 1024 / 1024).toFixed(2) + 'M' : Math.round(bps / 1000) + 'k';\n};\nconst usedBeforeToday = s.monthBytes - s.dayBytes;\nconst dailyBudget = (Math.max(0, SOFT - usedBeforeToday) / remainingDays) * P.safety;\nconst projected = (s.monthBytes / elapsedDays) * daysInCycle;\n\nlet decision = 'ok', limit = '0/0';\nif (s.monthBytes >= HARD) {\n  decision = 'block'; limit = P.blockLimit;\n} else if (s.monthBytes >= SOFT) {\n  decision = 'critical';\n  const marginDaily = Math.max(0, HARD - s.monthBytes) / remainingDays;\n  limit = `${fmtRate(marginDaily * 0.5)}/${fmtRate(marginDaily)}`;\n} else if (s.dayBytes > dailyBudget * P.dayCriticalRatio) {\n  decision = 'throttle';\n  limit = `${fmtRate(dailyBudget * 0.5)}/${fmtRate(dailyBudget)}`;\n}\nconst previous = s.decision;\nconst changed = decision !== previous;\ns.previous = previous; s.decision = decision; s.limit = limit;\nif (changed) s.changedAt = now.toISOString();\n\nconst ACTIONS = {\n  ok: 'Débit normal (partage équitable illimité)',\n  throttle: 'Rythme du jour trop rapide : débit lissé, réparti entre utilisateurs',\n  critical: 'Cible mensuelle dépassée : débit réduit vers le plafond absolu',\n  block: 'Plafond absolu atteint : débit plancher',\n};\ns.stats = {\n  todayGB: +(s.dayBytes / GB).toFixed(2),\n  monthGB: +(s.monthBytes / GB).toFixed(2),\n  budgetGB: +(dailyBudget / GB).toFixed(2),\n  projectedGB: +(projected / GB).toFixed(2),\n  softRemainingGB: +(Math.max(0, SOFT - s.monthBytes) / GB).toFixed(2),\n  hardRemainingGB: +(Math.max(0, HARD - s.monthBytes) / GB).toFixed(2),\n};\n\n// ----- Téléchargeurs abusifs (volume sortant par passage, par MAC) -----\nconst watch = { ...(router.watch || {}) };\nconst blocks = [], events = [], seen = new Set();\nconst threshold = P.abuseThresholdMb * MB;\nfor (const u of read.active || []) {\n  if (!u.mac) continue;\n  seen.add(u.mac);\n  const w = watch[u.mac] || { bytesOut: u.bytesOut, blockedUntil: 0, offenseCount: 0, permanent: false };\n  if (w.permanent) { watch[u.mac] = w; continue; }\n  const d = u.bytesOut >= w.bytesOut ? u.bytesOut - w.bytesOut : u.bytesOut;\n  const stillBlocked = w.blockedUntil && ms < w.blockedUntil;\n  const next = { ...w, bytesOut: u.bytesOut, address: u.address, user: u.user };\n  if (d > threshold && !stillBlocked) {\n    next.offenseCount = (w.offenseCount || 0) + 1;\n    const deltaGB = +(d / GB).toFixed(2);\n    if (next.offenseCount >= P.abuseMaxOffenses) {\n      next.permanent = true; next.blockedUntil = Number.MAX_SAFE_INTEGER;\n      blocks.push({ address: u.address, user: u.user, comment: `Blocage DEFINITIF - recidive ${next.offenseCount} (${u.user})` });\n      events.push({ kind: 'permanent_block', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount } });\n    } else {\n      next.blockedUntil = ms + P.abuseBlockMinutes * 60000;\n      blocks.push({ address: u.address, user: u.user, minutes: P.abuseBlockMinutes, comment: `Blocage auto - telechargement excessif (${u.user}) - avertissement ${next.offenseCount}/${P.abuseMaxOffenses}` });\n      events.push({ kind: 'block', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount, unblockAt: new Date(next.blockedUntil).toISOString() } });\n    }\n  } else if (!stillBlocked) {\n    next.blockedUntil = 0;\n  }\n  watch[u.mac] = next;\n}\nfor (const mac of Object.keys(watch)) {\n  const w = watch[mac];\n  if (!seen.has(mac) && !w.permanent && (!w.blockedUntil || ms > w.blockedUntil + 86400000)) delete watch[mac];\n}\nif (changed) events.push({ kind: 'decision', payload: { previous, decision, limit, stats: s.stats } });\n\nconst email = {\n  subject: `[SafeLinkHub] ${router.name} : ${decision.toUpperCase()}`,\n  text: [\n    `Routeur : ${router.name}`,\n    `Decision : ${previous} -> ${decision}`,\n    `Action : ${ACTIONS[decision]}`,\n    `Debit applique (upload/download) : ${limit}`,\n    '',\n    `Aujourd'hui : ${s.stats.todayGB} Go (budget du jour ${s.stats.budgetGB} Go)`,\n    `Ce cycle : ${s.stats.monthGB} Go / ${(SOFT / GB).toFixed(0)} Go cible (reste ${s.stats.softRemainingGB} Go avant cible, ${s.stats.hardRemainingGB} Go avant plafond ${(HARD / GB).toFixed(0)} Go)`,\n    `Projection fin de cycle : ${s.stats.projectedGB} Go`,\n    `Interface WAN : ${s.wanInterface}`,\n    blocks.length ? `Blocages ce passage : ${blocks.length}` : '',\n  ].join('\\n'),\n};\n\nreturn [{ json: { routerId: router.routerId, name: router.name, changed, email, apply: { limit, blocks, state: s, watch, events } } }];\n"
+      },
+      "name": "Décision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://safelinkhub.io/api/internal/n8n/regulation/routers/{{ $json.routerId }}/apply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.apply) }}"
+      },
+      "name": "Appliquer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "SafeLinkHub n8n (Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c0ffee00-0000-4000-8000-000000000001",
+              "leftValue": "={{ $('Décision').item.json.changed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Décision a changé ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1340,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "bambaaboulatif@gmail.com",
+        "subject": "={{ $('Décision').item.json.email.subject }}",
+        "emailType": "text",
+        "message": "={{ $('Décision').item.json.email.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "name": "Email alerte quota",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        0
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_ME",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "name": "Fin",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        -120
+      ]
+    }
+  ],
+  "connections": {
+    "Toutes les 15 min": {
+      "main": [
+        [
+          {
+            "node": "Routeurs à réguler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Routeurs à réguler": {
+      "main": [
+        [
+          {
+            "node": "Boucle routeurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Boucle routeurs": {
+      "main": [
+        [
+          {
+            "node": "Fin",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lire compteurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire compteurs": {
+      "main": [
+        [
+          {
+            "node": "Décision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Boucle routeurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Décision": {
+      "main": [
+        [
+          {
+            "node": "Appliquer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appliquer": {
+      "main": [
+        [
+          {
+            "node": "Décision a changé ?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Boucle routeurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Décision a changé ?": {
+      "main": [
+        [
+          {
+            "node": "Email alerte quota",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Boucle routeurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email alerte quota": {
+      "main": [
+        [
+          {
+            "node": "Boucle routeurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
