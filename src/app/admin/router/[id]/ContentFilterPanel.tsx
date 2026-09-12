@@ -294,15 +294,18 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
             <p className="font-display text-lg font-bold text-ink">
               {state?.installed ? "Filtre de contenu actif" : "Filtre de contenu non posé"}
             </p>
-            <p className="text-sm text-ink-soft">
-              {stateError
-                ? stateError
-                : state
-                  ? `RouterOS ${state.rawVersion || `${state.version.major}.${state.version.minor}`} · ` +
-                    `${state.dnsEntries} domaines DNS · ${state.firewallRules} règles firewall · ` +
-                    `${state.natRules} règles NAT · ${state.adlists.length} liste(s) publique(s)`
-                  : "Lecture de l'état du routeur…"}
-            </p>
+            {!state && !stateError ? (
+              <span aria-hidden="true" className="mt-1 block h-4 w-72 max-w-full animate-pulse rounded bg-clay" />
+            ) : (
+              <p className={`text-sm ${isReading ? "text-ink-soft/60" : "text-ink-soft"}`} aria-busy={isReading}>
+                {stateError
+                  ? stateError
+                  : `RouterOS ${state!.rawVersion || `${state!.version.major}.${state!.version.minor}`} · ` +
+                    `${state!.dnsEntries} domaines DNS · ${state!.firewallRules} règles firewall · ` +
+                    `${state!.natRules} règles NAT · ${state!.adlists.length} liste(s) publique(s)`}
+                {isReading && <span className="ml-2 italic">relecture…</span>}
+              </p>
+            )}
           </div>
         </div>
         <button

@@ -32,6 +32,11 @@ function timeAgo(date: Date | null) {
   return `il y a ${Math.floor(seconds / 86400)} j`;
 }
 
+/** Vrai au-delà de 15 min sans relevé : les compteurs racontent le passé. */
+function isStale(date: Date | null) {
+  return !date || Date.now() - date.getTime() > 15 * 60 * 1000;
+}
+
 function Badge({ tone, children }: { tone: "ok" | "brand" | "muted"; children: React.ReactNode }) {
   return (
     <span
@@ -99,6 +104,9 @@ export default async function RouterDetailPage({
     .where(eq(bridges.routerId, router.id));
 
   const online = router.status === "online";
+  // Au-delà de 15 min sans relevé, les compteurs ci-dessous racontent le passé :
+  // on le dit en tête et sur les cartes, sans obliger à lire la petite ligne.
+  const staleSync = isStale(router.lastSyncAt);
   const configured = routerBridges.length > 0 || Boolean(router.lastAutoSetupConfig);
   const hotspotBridges = routerBridges.filter((b) => b.hotspotEnabled).length;
   const pppoeBridges = routerBridges.filter((b) => !b.hotspotEnabled).length;
@@ -236,20 +244,31 @@ export default async function RouterDetailPage({
             </div>
           </div>
         </div>
-        <HeaderActions routerId={router.id} />
+        <HeaderActions
+          routerId={router.id}
+          routerName={router.name}
+          syncedLabel={timeAgo(router.lastSyncAt)}
+          stale={staleSync}
+        />
       </div>
 
       {/* Cartes métriques */}
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div
+        className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
+        aria-label={staleSync ? `Compteurs relevés ${timeAgo(router.lastSyncAt)}` : undefined}
+      >
         {metrics.map(({ label, value, hint, icon: Icon }) => (
-          <div key={label} className="border border-line bg-paper p-4 hover-lift rounded-xl">
+          <div
+            key={label}
+            className={`border bg-paper p-4 hover-lift rounded-xl ${staleSync ? "border-warn/50" : "border-line"}`}
+          >
             <div className="flex items-center justify-between gap-2">
               <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
                 {label}
               </p>
               <Icon aria-hidden="true" className="h-4 w-4 text-ink-soft" />
             </div>
-            <p className="mt-2 font-display text-2xl font-extrabold text-ink">{value}</p>
+            <p className={`mt-2 font-display text-2xl font-extrabold ${staleSync ? "text-ink-soft" : "text-ink"}`}>{value}</p>
             <p className="mt-1 truncate text-xs text-ink-soft">{hint}</p>
           </div>
         ))}

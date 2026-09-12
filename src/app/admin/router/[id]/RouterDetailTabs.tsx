@@ -12,11 +12,13 @@ import UsagePanel from "./UsagePanel";
 
 export type TabKey = "overview" | "diagnostic" | "filter" | "usage" | "resources" | "services";
 
+/* Ordre = fréquence d'usage : ce qu'on regarde tous les jours d'abord, la
+   configuration (une fois) en dernier. */
 const TABS: { key: TabKey; label: string; icon: typeof Gauge }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutGrid },
+  { key: "usage", label: "Consommation", icon: Activity },
   { key: "diagnostic", label: "Diagnostic", icon: Stethoscope },
   { key: "filter", label: "Filtrage & régulation", icon: ShieldBan },
-  { key: "usage", label: "Consommation", icon: Activity },
   { key: "resources", label: "Ressources", icon: Gauge },
   { key: "services", label: "Configurer les services", icon: SlidersHorizontal },
 ];
@@ -55,9 +57,24 @@ export default function RouterDetailTabs({
               aria-selected={selected}
               aria-controls={`${baseId}-panel-${key}`}
               onClick={() => setActive(key)}
-              className={`flex shrink-0 items-center gap-2 border border-b-0 border-line px-4 py-2 text-sm font-bold transition-colors duration-150 ${
+              tabIndex={selected ? 0 : -1}
+              onKeyDown={(e) => {
+                // Flèches ← → entre onglets (motif ARIA « tablist »), Home/End aux bornes.
+                const i = TABS.findIndex((t) => t.key === key);
+                const next =
+                  e.key === "ArrowRight" ? (i + 1) % TABS.length
+                  : e.key === "ArrowLeft" ? (i - 1 + TABS.length) % TABS.length
+                  : e.key === "Home" ? 0
+                  : e.key === "End" ? TABS.length - 1
+                  : -1;
+                if (next < 0) return;
+                e.preventDefault();
+                setActive(TABS[next].key);
+                document.getElementById(`${baseId}-tab-${TABS[next].key}`)?.focus();
+              }}
+              className={`relative flex shrink-0 items-center gap-2 border border-b-0 border-line px-4 py-2 text-sm font-bold transition-colors duration-150 ${
                 selected
-                  ? "bg-brand text-slate-deep"
+                  ? "bg-brand text-slate-deep after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-slate-deep"
                   : "bg-paper text-ink-soft hover:bg-clay hover:text-ink"
               }`}
             >

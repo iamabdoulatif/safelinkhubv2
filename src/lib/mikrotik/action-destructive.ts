@@ -13,7 +13,7 @@
  * monter d'interface — ce sont eux qui portent la conséquence.
  */
 
-export type ActionDestructive = "reset" | "delete";
+export type ActionDestructive = "reset" | "delete" | "reinstall";
 
 export type Consequence = {
   /** Titre du dialogue. Nomme l'action, pas l'objet. */
@@ -51,6 +51,22 @@ export function consequenceDe(action: ActionDestructive, nomRouteur: string): Co
       ],
       bouton: "Effacer le routeur",
       exigeLeNom: true,
+    };
+  }
+  if (action === "reinstall") {
+    return {
+      titre: "Réinstaller le conteneur MikHmon",
+      resume: `Le conteneur MikHmon de ${nomRouteur} est arrêté, supprimé puis recréé (1 à 3 min : l'image est re-téléchargée).`,
+      effets: [
+        "Le tableau MikHmon est indisponible pendant la réinstallation.",
+        "Les réglages saisis à la main dans MikHmon (session, préférences) sont perdus — SafeLinkHub les repose.",
+      ],
+      conserve: [
+        "Le hotspot, les tickets et les clients connectés : rien n'est coupé côté RouterOS.",
+        "L'historique des ventes MikHmon, stocké sur le routeur.",
+      ],
+      bouton: "Réinstaller MikHmon",
+      exigeLeNom: false,
     };
   }
   return {
