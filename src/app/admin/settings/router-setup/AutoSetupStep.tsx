@@ -176,17 +176,14 @@ export default function AutoSetupStep({
   // une seule source de vérité, resynchronisée en DB au lancement.
   const savedPrefixBits = hotspotBridge?.subnetBits ?? 24;
   const initialClass = classForPrefix(savedPrefixBits);
-  const [hotspotAddress, setHotspotAddress] = useState(
+  const hotspotAddress =
     hotspotBridge?.gatewayIp && hotspotBridge.gatewayIp !== "Not configured"
       ? hotspotBridge.gatewayIp
-      : GATEWAY_IP_PRESETS[0],
-  );
-  const [networkClass, setNetworkClass] = useState<NetworkClass>(initialClass);
-  const [hotspotPrefixBits, setHotspotPrefixBits] = useState(
-    CLASS_PREFIX_OPTIONS[initialClass].includes(savedPrefixBits)
-      ? savedPrefixBits
-      : CLASS_DEFAULT_PREFIX[initialClass],
-  );
+      : GATEWAY_IP_PRESETS[0];
+  const networkClass: NetworkClass = initialClass;
+  const hotspotPrefixBits = CLASS_PREFIX_OPTIONS[initialClass].includes(savedPrefixBits)
+    ? savedPrefixBits
+    : CLASS_DEFAULT_PREFIX[initialClass];
 
   // Le réseau (passerelle/classe/sous-réseau) est saisi UNE SEULE FOIS à
   // l'Étape 2 (topologie / assignation des interfaces au bridge) et hérité ici
@@ -298,9 +295,9 @@ export default function AutoSetupStep({
         if (typeof s.ssidTouched === "boolean") setSsidTouched(s.ssidTouched);
         if (typeof s.dnsName === "string") setDnsName(s.dnsName);
         if (typeof s.dnsTouched === "boolean") setDnsTouched(s.dnsTouched);
-        if (typeof s.hotspotAddress === "string") setHotspotAddress(s.hotspotAddress);
-        if (s.networkClass) setNetworkClass(s.networkClass as NetworkClass);
-        if (typeof s.hotspotPrefixBits === "number") setHotspotPrefixBits(s.hotspotPrefixBits);
+        /* Passerelle/classe/sous-réseau : PAS restaurés depuis l'instantané —
+           l'Étape 2 est la seule source de vérité. Un instantané pris avant
+           un changement de bridge relançait l'auto-setup sur l'ancien réseau. */
         if (typeof s.hasUsbStorage === "boolean") setHasUsbStorage(s.hasUsbStorage);
         if (typeof s.usbTouched === "boolean") setUsbTouched(s.usbTouched);
         if (typeof s.skipMikhmon === "boolean") setSkipMikhmon(s.skipMikhmon);

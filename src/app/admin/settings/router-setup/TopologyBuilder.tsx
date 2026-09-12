@@ -722,6 +722,10 @@ export default function TopologyBuilder({
         : CLASS_DEFAULT_PREFIX[cls];
       setSubnetBits(bits);
       setNetworkClass(cls);
+      /* Sans les ports déjà enregistrés, « Enregistrer » restait grisé
+         (draftPorts vide) : impossible de changer la passerelle d'un bridge
+         existant depuis ce modal. */
+      if (draftPorts.length === 0) setDraftPorts(existing.ports);
     } else {
       setGatewayIp("10.200.5.1");
       setSubnetBits(19);
