@@ -2,12 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Bot, Loader2 } from "lucide-react";
-import {
-  readRouterRegulation,
-  saveRouterRegulation,
-  REGULATION_DEFAULTS,
-  type RegulationForm,
-} from "@/lib/mikrotik/regulation-actions";
+import { readRouterRegulation, saveRouterRegulation } from "@/lib/mikrotik/regulation-actions";
+import { REGULATION_DEFAULTS, type RegulationForm } from "@/lib/mikrotik/regulation-defaults";
 
 type View = Awaited<ReturnType<typeof readRouterRegulation>>;
 
