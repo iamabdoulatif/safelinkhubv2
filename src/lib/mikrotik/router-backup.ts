@@ -801,19 +801,19 @@ export async function restoreBackupToRouter(
     }
 
     if (!opts.dryRun) {
-      const [verifiedProfiles, verifiedUsers] = await Promise.all([
-        client.talk(
-          ["/ip/hotspot/user/profile/print", "=.proplist=.id,name,address-pool,parent-queue"],
-          30000,
-        ),
-        client.talk(
-          [
-            "/ip/hotspot/user/print",
-            `=.proplist=.id,${USER_FIELDS.join(",")}`,
-          ],
-          45000,
-        ),
-      ]);
+      /* SÉQUENTIEL, jamais Promise.all : le flux API n'est pas taggé, deux
+         commandes en vol se partagent les mêmes réponses — la lecture des
+         profils avalait des lignes de tickets et celle des tickets repartait
+         tronquée. Résultat : 32 000 « divergences » fantômes et une
+         restauration interrompue après les tickets (HOTSPOT-NAMOIN, 12/09/2026). */
+      const verifiedProfiles = await client.talk(
+        ["/ip/hotspot/user/profile/print", "=.proplist=.id,name,address-pool,parent-queue"],
+        30000,
+      );
+      const verifiedUsers = await client.talk(
+        ["/ip/hotspot/user/print", `=.proplist=.id,${USER_FIELDS.join(",")}`],
+        45000,
+      );
       const mismatches = findRestoredHotspotBindingMismatches({
         bindings: resolvedHotspot.profileBindings,
         tickets: resolvedHotspot.tickets,
