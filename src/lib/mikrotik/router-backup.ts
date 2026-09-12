@@ -1205,7 +1205,9 @@ export function findRestoredHotspotBindingMismatches(args: {
   tickets: ResolvedHotspotTicket[];
   targetProfiles: BackupSection;
   targetUsers: BackupSection;
+  now?: Date;
 }) {
+  const now = args.now ?? new Date();
   const mismatches: string[] = [];
   const profilesByName = new Map(
     args.targetProfiles.filter((profile) => !!profile.name).map((profile) => [profile.name!, profile]),
@@ -1223,6 +1225,14 @@ export function findRestoredHotspotBindingMismatches(args: {
   );
   for (const ticket of args.tickets) {
     const targetUser = usersByName.get(ticket.name);
+    /* Un ticket DÉJÀ PÉRIMÉ à la restauration est effacé par le balayage du
+       profil (toutes les 2-3 min) avant même la relecture : son absence est
+       le comportement attendu, pas une divergence. Les 22 tickets d'un jour
+       vendus la veille de la sauvegarde bloquaient toute la suite. */
+    if (!targetUser) {
+      const expiry = parseExpiryComment(ticket.fields.comment ?? "");
+      if (expiry && wallToDate(expiry).getTime() <= now.getTime()) continue;
+    }
     if (targetUser?.profile !== ticket.profile) {
       mismatches.push(
         `Le ticket « ${ticket.name} » ne référence pas le profil cible « ${ticket.profile} ».`,

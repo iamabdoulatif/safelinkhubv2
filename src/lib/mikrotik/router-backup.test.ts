@@ -195,6 +195,34 @@ describe("écriture et vérification des liaisons HotSpot restaurées", () => {
       "Le ticket « 5jyw82 » ne référence pas le serveur HotSpot cible « hotspot1 ».",
     ]);
   });
+
+  it("ignore un ticket périmé que le balayage a déjà effacé", () => {
+    const perime: ResolvedHotspotTicket = {
+      ...ticket,
+      name: "1j967578",
+      fields: { ...ticket.fields, name: "1j967578", comment: "sep/05/2026 20:04:55" },
+    };
+    const mismatches = findRestoredHotspotBindingMismatches({
+      bindings: [],
+      tickets: [perime],
+      targetProfiles: [],
+      targetUsers: [],
+      now: new Date("2026-09-12T08:00:00Z"),
+    });
+    assert.deepEqual(mismatches, []);
+    // Le même ticket encore valable doit, lui, être signalé absent.
+    assert.equal(
+      findRestoredHotspotBindingMismatches({
+        bindings: [],
+        tickets: [perime],
+        targetProfiles: [],
+        targetUsers: [],
+        now: new Date("2026-09-01T08:00:00Z"),
+      }).length > 0,
+      true,
+    );
+  });
+
 });
 
 describe("reprise des sessions Hotspot actives", () => {
