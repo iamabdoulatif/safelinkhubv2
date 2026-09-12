@@ -161,7 +161,12 @@ function buildScript(opts: {
 # Restricting to the tunnel subnet alone silently rejects that connection
 # and MikHmon's session settings show "MikroTik Not Connected" even with
 # correct IP/credentials — see provisionHotspotStack's matching allowlist.
-/ip service set api address=10.66.0.0/24,11.11.11.0/28
+# RouterOS 7.24 renomme « address » en « available-from » (l'ancien mot reste
+# accepté avec un avertissement de dépréciation, mais disparaîtra) ; les
+# versions antérieures ne connaissent que « address ». Même astuce que pour
+# wifi/wifiwave2 : le nouveau mot est isolé dans un :parse pour ne pas faire
+# échouer l'import entier sur un routeur plus ancien.
+:do {:local c [:parse "/ip service set api available-from=10.66.0.0/24,11.11.11.0/28"]; $c} on-error={/ip service set api address=10.66.0.0/24,11.11.11.0/28}
 /ip service enable api
 
 # Le compte API ci-dessus vient d'être RECRÉÉ avec un mot de passe neuf. Un
