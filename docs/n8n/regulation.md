@@ -6,7 +6,7 @@ connaît aucun identifiant MikroTik : tout passe par trois routes internes,
 authentifiées par `Authorization: Bearer $N8N_INTERNAL_TOKEN`.
 
 ```
-Schedule 15 min → GET /routers → boucle ┬→ POST /routers/:id/read → Code « Décision »
+Schedule 5 min → GET /routers → boucle ┬→ POST /routers/:id/read → Code « Décision »
                                         │        → POST /routers/:id/apply → changé ? → Gmail
                                         └→ Fin
 ```

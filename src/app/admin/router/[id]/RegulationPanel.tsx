@@ -36,7 +36,7 @@ function Field({
 /**
  * Bridage automatique piloté par n8n : ici on ÉDITE les seuils et on LIT ce
  * que le workflow a décidé. Rien n'est envoyé au routeur depuis cet écran —
- * c'est n8n qui, toutes les 15 min, lit ces seuils et applique.
+ * c'est n8n qui, toutes les 5 min, lit ces seuils et applique.
  */
 export default function RegulationPanel({ routerId }: { routerId: string }) {
   const [view, setView] = useState<View | null>(null);
@@ -59,7 +59,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
       const res = await saveRouterRegulation(routerId, form);
       if ("error" in res && res.error) setMsg({ ok: false, text: res.error });
       else {
-        setMsg({ ok: true, text: form.enabled ? "Seuils enregistrés — n8n les applique au prochain passage (≤ 15 min)." : "Seuils enregistrés, régulation désactivée." });
+        setMsg({ ok: true, text: form.enabled ? "Seuils enregistrés — n8n les applique au prochain passage (≤ 5 min)." : "Seuils enregistrés, régulation désactivée." });
         setView(await readRouterRegulation(routerId));
       }
     });
@@ -76,7 +76,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
             <Bot aria-hidden="true" className="h-5 w-5" /> Bridage automatique (n8n)
           </h3>
           <p className="mt-1 text-sm text-ink-soft">
-            Toutes les 15 min, le workflow n8n lit ces seuils, relève le WAN et les sessions, puis lisse le
+            Toutes les 5 min, le workflow n8n lit ces seuils, relève le WAN et les sessions, puis lisse le
             débit sur le mois et bloque les téléchargeurs abusifs. Les seuils vivent ici, pas dans n8n.
           </p>
         </div>
@@ -101,7 +101,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
         <Field label="Débit plancher (up/down)" hint="format RouterOS, ex. 64k/64k" type="text" value={form.blockLimit} onChange={set("blockLimit")} />
         <Field label="Marge de sécurité" hint="part du budget du jour réellement dépensable" step={0.01} value={form.safety} onChange={set("safety")} />
         <Field label="Avance tolérée" hint="1,10 = 10 % au-dessus du budget du jour avant de freiner" step={0.01} min={1} value={form.dayCriticalRatio} onChange={set("dayCriticalRatio")} />
-        <Field label="Téléchargement abusif (Go / 15 min)" step={0.1} value={form.abuseThresholdGo} onChange={set("abuseThresholdGo")} />
+        <Field label="Téléchargement abusif (Go / 5 min)" step={0.1} value={form.abuseThresholdGo} onChange={set("abuseThresholdGo")} />
         <Field label="Durée du blocage (min)" value={form.abuseBlockMinutes} onChange={set("abuseBlockMinutes")} />
         <Field label="Avertissements avant blocage définitif" min={1} value={form.abuseMaxOffenses} onChange={set("abuseMaxOffenses")} />
       </div>
