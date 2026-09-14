@@ -6,6 +6,7 @@ import {
   restoreResolvedHotspotUsers,
   selectRecoverableHotspotSessions,
   selectMikhmonSchedulers,
+  selectPurgeRows,
   type BackupSection,
 } from "./router-backup";
 import type { ResolvedHotspotTicket } from "./hotspot-restore-reconciliation";
@@ -274,5 +275,31 @@ describe("reprise des sessions Hotspot actives", () => {
     );
 
     assert.deepEqual(sessions, []);
+  });
+});
+
+describe("remplacer : ce que le vidage de la cible retire", () => {
+  it("retire tickets et profils sauf les intégrés, et seulement les balayages des profils", () => {
+    const sel = selectPurgeRows(
+      [{ ".id": "*1", name: "default-trial", default: "true" }, { ".id": "*2", name: "abc12", profile: "5h" }],
+      [{ ".id": "*1", name: "default", default: "true" }, { ".id": "*2", name: "5h" }],
+      [{ ".id": "*1", name: "5h" }, { ".id": "*2", name: "MIKHMON_BOOT" }, { ".id": "*3", name: "abc12" }],
+    );
+    assert.deepEqual(sel.users.map((u) => u.name), ["abc12"]);
+    assert.deepEqual(sel.profiles.map((p) => p.name), ["5h"]);
+    assert.deepEqual(sel.schedulers.map((s) => s.name), ["5h"]);
+  });
+});
+
+describe("cookies hotspot : même relais MAC que les sessions actives", () => {
+  it("un cookie (user + mac-address) donne un accès MAC borné par le ticket ; cookie et session du même client ne comptent qu'une fois", () => {
+    const users: BackupSection = [{ name: "2h87265", profile: "02-HEURES", comment: "jan/01/2030 10:00:00 debut sep/14/2026 09:00:00" }];
+    const profiles: BackupSection = [{ ".id": "*2", name: "02-HEURES" }];
+    const cookie = { user: "2h87265", "mac-address": "9a:7e:f0:28:2c:ed", "expires-in": "52w10h" };
+    const active = { user: "2h87265", "mac-address": "9A:7E:F0:28:2C:ED", server: "hotspot1" };
+    const sessions = selectRecoverableHotspotSessions([active, cookie], profiles, users, profiles, new Date("2026-09-14T00:00:00Z"));
+    assert.equal(sessions.length, 1);
+    assert.equal(sessions[0].macAddress, "9A:7E:F0:28:2C:ED");
+    assert.equal(sessions[0].profile, "02-HEURES");
   });
 });

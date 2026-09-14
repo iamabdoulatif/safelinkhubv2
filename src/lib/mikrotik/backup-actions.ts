@@ -54,6 +54,7 @@ export async function restoreBackup(
   backupId: string,
   targetRouterId: string,
   dryRun: boolean,
+  purgeTarget = false,
 ) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
@@ -73,7 +74,7 @@ export async function restoreBackup(
     .limit(1);
   if (!target) return { error: "Routeur cible introuvable." };
 
-  const result = await restoreBackupToRouter(backupId, targetRouterId, { dryRun });
+  const result = await restoreBackupToRouter(backupId, targetRouterId, { dryRun, purgeTarget });
 
   // Le portail captif est la dernière étape, et elle est indispensable : ses
   // fichiers ne sont pas dans la sauvegarde (ils vivent sur la flash), donc sans
@@ -112,7 +113,7 @@ export async function restoreBackup(
  * tourne dans after(), hors du cycle requête/réponse. La simulation (dryRun) et le
  * scan restent synchrones : ce sont des lectures brèves, bien en deçà des 100 s.
  */
-export async function startRestoreJob(backupId: string, targetRouterId: string) {
+export async function startRestoreJob(backupId: string, targetRouterId: string, purgeTarget = false) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
@@ -168,7 +169,7 @@ export async function startRestoreJob(backupId: string, targetRouterId: string) 
   // longue tourne alors sans qu'aucune requête HTTP ne l'attende. orgId est
   // capturée ici et passée explicitement (le cookie de session n'existera plus
   // dans le job).
-  after(() => runRestoreJob(job.id, backupId, targetRouterId, session.orgId));
+  after(() => runRestoreJob(job.id, backupId, targetRouterId, session.orgId, purgeTarget));
 
   return { success: true as const, jobId: job.id };
 }
@@ -184,6 +185,7 @@ async function runRestoreJob(
   backupId: string,
   targetRouterId: string,
   orgId: string,
+  purgeTarget = false,
 ) {
   const db = getDb();
   let lastWrite = 0;
@@ -222,6 +224,7 @@ async function runRestoreJob(
   try {
     const result = await restoreBackupToRouter(backupId, targetRouterId, {
       dryRun: false,
+      purgeTarget,
       onProgress: (p: RestoreProgress) => persist({ progress: p }),
     });
 
@@ -258,6 +261,27 @@ async function runRestoreJob(
         install && "error" in install && install.error
           ? { installed: false, error: install.error }
           : { installed: true, templateName: plan?.portal.templateName ?? null };
+    }
+
+    // « Remplacer » : la cible a pris l'identité, le SSID et le nom DNS de
+    // l'ancien ; le prochain sync renommera sa ligne. Sans ceci, le parc
+    // afficherait DEUX routeurs du même nom — on retire l'ancien, comme le fait
+    // la reprise de routeur (router-recovery-service).
+    if (purgeTarget) {
+      const [src] = await db
+        .select({ routerId: routerBackups.routerId })
+        .from(routerBackups)
+        .where(eq(routerBackups.id, backupId))
+        .limit(1);
+      if (src?.routerId && src.routerId !== targetRouterId) {
+        await db
+          .update(routers)
+          .set({ status: "replaced" })
+          .where(and(eq(routers.id, src.routerId), eq(routers.orgId, orgId)))
+          .catch(() => {
+            /* best-effort : la restauration est faite, le statut se corrige à la main */
+          });
+      }
     }
 
     const usersReport = reports.find((r) => r.section === "hotspotUsers");

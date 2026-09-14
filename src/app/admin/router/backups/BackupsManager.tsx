@@ -53,12 +53,13 @@ type Plan = {
 };
 
 const SECTION_LABELS: Record<string, string> = {
+  purgeTarget: "vidage du routeur cible (remplacer)",
   hotspotUsers: "tickets",
   hotspotUserProfiles: "profils",
   hotspotUserProfileLinks: "liens ticket → profil",
   hotspotTargetBindings: "liaisons serveur et pool des profils",
   hotspotRestoreVerification: "vérification des tickets et profils",
-  activeSessionHandover: "reprise des sessions actives",
+  activeSessionHandover: "reprise des sessions actives et des cookies",
   mikhmonSchedulers: "expiration des tickets",
   mikhmonSales: "recettes MikHmon",
   walledGarden: "walled-garden",
@@ -88,6 +89,10 @@ export default function BackupsManager({
   const [target, setTarget] = useState<Record<string, string>>(
     initialJob ? { [initialJob.backupId]: initialJob.targetRouterId } : {},
   );
+  // « Remplacer » : vider les profils, tickets et cookies de la cible avant de
+  // reposer la sauvegarde — pour un rechange qui prend la place d'un routeur
+  // défaillant, dont les anciens tickets n'ont plus de client.
+  const [purge, setPurge] = useState<Record<string, boolean>>({});
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [reports, setReports] = useState<{
     backupId: string;
@@ -239,8 +244,16 @@ export default function BackupsManager({
     // millisecondes ; l'écriture des milliers de tickets se poursuit côté serveur
     // hors de toute requête HTTP (sinon Cloudflare couperait à ~100 s).
     if (!dryRun) {
+      if (
+        purge[backup.id] &&
+        !window.confirm(
+          "Remplacer : TOUS les tickets, profils, sessions et cookies actuels du routeur cible seront supprimés avant la restauration, puis l'ancien routeur sera marqué « remplacé » dans le parc. Continuer ?",
+        )
+      ) {
+        return;
+      }
       startTransition(async () => {
-        const res = await startRestoreJob(backup.id, targetId);
+        const res = await startRestoreJob(backup.id, targetId, !!purge[backup.id]);
         if (res && "error" in res && res.error) {
           // Un refus immédiat (déjà un job en cours) ne crée pas de sondage.
           setFeedback({ kind: "err", text: res.error });
@@ -261,7 +274,7 @@ export default function BackupsManager({
 
     // Simulation (dryRun) : lecture brève, reste synchrone.
     startTransition(async () => {
-      const res = await restoreBackup(backup.id, targetId, true);
+      const res = await restoreBackup(backup.id, targetId, true, !!purge[backup.id]);
       if (res && "error" in res && res.error) {
         // Un refus pour blocage rapporte quand même le plan : c'est lui qui dit
         // ce qu'il faut corriger sur le rechange avant de réessayer.
@@ -399,6 +412,15 @@ export default function BackupsManager({
                   .join(" · ") || "aucune donnée restaurable"}
               </p>
 
+              <label className="mt-3 flex items-center gap-2 text-sm text-ink-soft">
+                <input
+                  type="checkbox"
+                  checked={!!purge[b.id]}
+                  onChange={(e) => setPurge((p) => ({ ...p, [b.id]: e.target.checked }))}
+                  disabled={busy}
+                />
+                Remplacer : vider d&apos;abord les tickets, profils et cookies du routeur cible, puis marquer l&apos;ancien routeur « remplacé »
+              </label>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                 <select
                   value={target[b.id] ?? ""}

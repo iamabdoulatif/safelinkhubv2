@@ -146,6 +146,16 @@ const SECTIONS: {
     cmd: "/ip/hotspot/active/print",
     proplist: ["user", "mac-address", "server", "session-time-left", "login-by"],
   },
+  // Les cookies (« je reviens sur le WiFi sans retaper mon code ») : le menu
+  // n'a pas de `add` — vérifié : « bad command name add » — donc ils ne se
+  // réinjectent pas non plus. Même `user` + `mac-address` que les sessions
+  // actives : ils alimentent le MÊME relais MAC temporaire, qui rend le même
+  // confort jusqu'à l'expiration du ticket.
+  {
+    key: "hotspotCookies",
+    cmd: "/ip/hotspot/cookie/print",
+    proplist: ["user", "mac-address", "expires-in"],
+  },
   { key: "walledGarden", cmd: "/ip/hotspot/walled-garden/print", restorable: true },
   { key: "walledGardenIp", cmd: "/ip/hotspot/walled-garden/ip/print", restorable: true },
   /**
@@ -537,6 +547,8 @@ export type RestoreReport = {
   skipped: number;
   /** Existait déjà et a été RÉALIGNÉ sur la sauvegarde — voir PROFILE_SYNC_FIELDS. */
   updated: number;
+  /** Retiré de la cible AVANT restauration (option « remplacer »). */
+  removed?: number;
   failed: { name: string; error: string }[];
 };
 
@@ -549,6 +561,7 @@ export type RestoreReport = {
 export type RestoreProgress = {
   phase:
     | "remodel"
+    | "purgeTarget"
     | "hotspotUserProfiles"
     | "hotspotUserProfileLinks"
     | "hotspotTargetBindings"
@@ -592,6 +605,13 @@ export async function restoreBackupToRouter(
   opts: {
     dryRun?: boolean;
     force?: boolean;
+    /**
+     * REMPLACER au lieu de fusionner : retire d'abord tous les tickets, profils
+     * (hors `default`), balayages MikHmon, sessions et cookies de la cible. Pour
+     * un rechange qui reprend la place d'un routeur défaillant, dont les
+     * anciens tickets n'ont plus de client.
+     */
+    purgeTarget?: boolean;
     /** Notifié après chaque section, et toutes les ~200 écritures de tickets. */
     onProgress?: (p: RestoreProgress) => void | Promise<void>;
   } = {},
@@ -702,6 +722,10 @@ export async function restoreBackupToRouter(
 
   try {
     await applyRemodel(client, snapshot, plan, opts.dryRun);
+    if (opts.purgeTarget) {
+      reports.push(await purgeTargetHotspot(client, opts.dryRun));
+      await emit({ phase: "purgeTarget", reports: [...reports] });
+    }
     // Ordre imposé par les dépendances : un ticket référence son profil, donc
     // les profils doivent exister d'abord, sinon RouterOS refuse le ticket.
     const profileReport = await restoreNamed(client, {
@@ -850,17 +874,17 @@ export async function restoreBackupToRouter(
     );
     await emit({ phase: "mikhmonSchedulers", reports: [...reports] });
 
-    // Les clients réellement connectés au moment de la capture peuvent revenir
-    // sur le nouveau routeur sans retaper leur code. RouterOS ne permet pas de
-    // réinsérer une ligne /ip/hotspot/cookie (lecture seule), donc on crée à la
-    // place un compte MAC temporaire, sans on-login, qui s'efface à la MÊME
-    // date d'expiration que le ticket source. Les sessions sans expiration
-    // explicite restent volontairement ignorées : ne jamais transformer une
-    // restauration en accès illimité.
+    // Les clients connectés au moment de la capture ET ceux qui détiennent un
+    // cookie peuvent revenir sur le nouveau routeur sans retaper leur code.
+    // RouterOS ne permet pas de réinsérer une session ni un cookie (lecture
+    // seule), donc on crée à la place un compte MAC temporaire, sans on-login,
+    // qui s'efface à la MÊME date d'expiration que le ticket source. Les
+    // sessions sans expiration explicite restent volontairement ignorées : ne
+    // jamais transformer une restauration en accès illimité.
     reports.push(
       await restoreActiveSessionHandover(
         client,
-        snapshot.sections.hotspotActive ?? [],
+        [...(snapshot.sections.hotspotActive ?? []), ...(snapshot.sections.hotspotCookies ?? [])],
         snapshot.sections.hotspotUsers ?? [],
         snapshot.sections.hotspotUserProfiles ?? [],
         opts.dryRun,
@@ -1511,6 +1535,70 @@ export function selectMikhmonSchedulers(
     profileRows.map((p) => p.name).filter((n): n is string => !!n && n !== "default"),
   );
   return schedulerRows.filter((r) => !!r.name && profileNames.has(r.name));
+}
+
+/**
+ * Ce que « remplacer » retire de la cible. Pure, pour être testée sans routeur.
+ *
+ * Restent en place : le ticket et le profil `default` (RouterOS les protège), et
+ * les schedulers qui ne portent pas le nom d'un profil — MIKHMON_BOOT, CLEAN_JOB
+ * et les autres jobs de l'auto-setup n'appartiennent pas aux tickets.
+ */
+export function selectPurgeRows(
+  users: BackupSection,
+  profiles: BackupSection,
+  schedulers: BackupSection,
+): { users: BackupSection; profiles: BackupSection; schedulers: BackupSection } {
+  const keptProfiles = profiles.filter((p) => !!p.name && p.name !== "default" && p.default !== "true");
+  return {
+    users: users.filter((u) => !!u.name && u.default !== "true"),
+    profiles: keptProfiles,
+    schedulers: selectMikhmonSchedulers(schedulers, keptProfiles),
+  };
+}
+
+/**
+ * Vide le hotspot de la cible avant d'y reposer la sauvegarde. Sessions et
+ * cookies d'abord (ils tiennent aux tickets), tickets avant profils (un profil
+ * référencé refuse d'être retiré), balayages en dernier.
+ */
+async function purgeTargetHotspot(client: RouterOSClient, dryRun?: boolean): Promise<RestoreReport> {
+  const report: RestoreReport = { section: "purgeTarget", created: 0, skipped: 0, updated: 0, removed: 0, failed: [] };
+  const list = (cmd: string) => client.talk([cmd], 45000).catch(() => [] as Record<string, string>[]);
+  const [users, profiles, schedulers, actives, cookies] = await Promise.all([
+    list("/ip/hotspot/user/print"),
+    list("/ip/hotspot/user/profile/print"),
+    list("/system/scheduler/print"),
+    list("/ip/hotspot/active/print"),
+    list("/ip/hotspot/cookie/print"),
+  ]);
+  const sel = selectPurgeRows(users, profiles, schedulers);
+  const batches: [string, BackupSection][] = [
+    ["/ip/hotspot/active/remove", actives],
+    ["/ip/hotspot/cookie/remove", cookies],
+    ["/ip/hotspot/user/remove", sel.users],
+    ["/ip/hotspot/user/profile/remove", sel.profiles],
+    ["/system/scheduler/remove", sel.schedulers],
+  ];
+  for (const [cmd, rows] of batches) {
+    const ids = rows.map((r) => r[".id"]).filter((id): id is string => !!id);
+    if (dryRun) {
+      report.removed! += ids.length;
+      continue;
+    }
+    // ponytail: par paquets de 100 ids, une commande par paquet — RouterOS
+    // refuse les lignes de commande trop longues sur 5 000 tickets.
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      try {
+        await client.talk([cmd, `=numbers=${chunk.join(",")}`], 60000);
+        report.removed! += chunk.length;
+      } catch (err) {
+        report.failed.push({ name: `${cmd} (${chunk.length})`, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+  }
+  return report;
 }
 
 async function restoreMikhmonSchedulers(
