@@ -38,6 +38,7 @@ type Report = {
   created: number;
   skipped: number;
   updated: number;
+  removed?: number;
   failed: { name: string; error: string }[];
 };
 type Plan = {
@@ -561,9 +562,15 @@ export default function BackupsManager({
 
                   {reports.rows.map((r) => (
                     <p key={r.section} className="mt-1 text-xs text-ink-soft">
-                      {SECTION_LABELS[r.section] ?? r.section} : {r.created} créé(s), {r.skipped} déjà
-                      présent(s)
-                      {r.updated > 0 && <>, {r.updated} réaligné(s) sur la sauvegarde</>}
+                      {SECTION_LABELS[r.section] ?? r.section} :{" "}
+                      {r.section === "purgeTarget" ? (
+                        <>{r.removed ?? 0} élément(s) retiré(s) de la cible (sessions, cookies, tickets, profils, balayages)</>
+                      ) : (
+                        <>
+                          {r.created} créé(s), {r.skipped} déjà présent(s)
+                          {r.updated > 0 && <>, {r.updated} réaligné(s) sur la sauvegarde</>}
+                        </>
+                      )}
                       {r.failed.length > 0 && (
                         <span className="text-err">, {r.failed.length} en échec</span>
                       )}
