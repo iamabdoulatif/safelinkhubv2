@@ -222,11 +222,45 @@ async function runRestoreJob(
   };
 
   try {
+    // Annulation : le bouton passe le job en « cancelled » ; le moteur le relit
+    // à chaque tick (au plus toutes les 5 s) et s'arrête au tick suivant.
+    let lastStatusRead = 0;
+    let cancelled = false;
+    const shouldStop = async () => {
+      if (cancelled) return true;
+      const now = Date.now();
+      if (now - lastStatusRead < 5000) return false;
+      lastStatusRead = now;
+      const [row] = await db
+        .select({ status: routerRestoreJobs.status })
+        .from(routerRestoreJobs)
+        .where(eq(routerRestoreJobs.id, jobId))
+        .limit(1)
+        .catch(() => [] as { status: string }[]);
+      cancelled = row?.status === "cancelled";
+      return cancelled;
+    };
+
     const result = await restoreBackupToRouter(backupId, targetRouterId, {
       dryRun: false,
       purgeTarget,
       onProgress: (p: RestoreProgress) => persist({ progress: p }),
+      shouldStop,
     });
+
+    if (cancelled) {
+      await persist(
+        {
+          status: "cancelled",
+          error: "Restauration annulée par l'opérateur — ce qui était déjà écrit reste sur le routeur, un nouveau passage le réaligne.",
+          progress: { phase: "done", reports: "reports" in result ? result.reports : [], plan: "plan" in result ? result.plan : null },
+          finishedAt: new Date(),
+        },
+        true,
+      );
+      markRevalidated();
+      return;
+    }
 
     if ("error" in result && result.error) {
       // Refus pour blocage, connexion perdue, restauration interrompue… tout ce
@@ -313,6 +347,26 @@ async function runRestoreJob(
     );
     markRevalidated();
   }
+}
+
+/** Demande l'arrêt d'une restauration en cours ; effectif au tick suivant du moteur (≤ ~200 tickets). */
+export async function cancelRestoreJob(jobId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+  const db = getDb();
+  const [job] = await db
+    .update(routerRestoreJobs)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(
+      and(
+        eq(routerRestoreJobs.id, jobId),
+        eq(routerRestoreJobs.orgId, session.orgId),
+        eq(routerRestoreJobs.status, "running"),
+      ),
+    )
+    .returning({ id: routerRestoreJobs.id });
+  if (!job) return { error: "Aucune restauration en cours à annuler." };
+  return { success: true as const };
 }
 
 /**

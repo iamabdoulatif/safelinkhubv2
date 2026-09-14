@@ -582,6 +582,9 @@ export type RestoreProgress = {
   salesTotal?: number;
 };
 
+/** Message d'une restauration arrêtée par l'opérateur (voir opts.shouldStop). */
+export const RESTORE_CANCELLED = "annulée par l'opérateur";
+
 /** Un tick de progression tous les N tickets : assez pour une barre fluide sans
  * inonder la base (chaque persistance = une requête HTTP neon). */
 const PROGRESS_EVERY = 200;
@@ -614,6 +617,12 @@ export async function restoreBackupToRouter(
     purgeTarget?: boolean;
     /** Notifié après chaque section, et toutes les ~200 écritures de tickets. */
     onProgress?: (p: RestoreProgress) => void | Promise<void>;
+    /**
+     * Interrogé aux mêmes points que onProgress : vrai ⇒ la restauration
+     * s'arrête là (erreur RESTORE_CANCELLED). Ce qui est déjà écrit reste ;
+     * un nouveau passage le réaligne, c'est idempotent.
+     */
+    shouldStop?: () => boolean | Promise<boolean>;
   } = {},
 ) {
   const db = getDb();
@@ -684,12 +693,15 @@ export async function restoreBackupToRouter(
   // Notifie l'avancement sans jamais faire échouer la restauration : une erreur
   // de persistance du progrès ne doit pas interrompre l'écriture des tickets.
   const emit = async (p: Omit<RestoreProgress, "plan">) => {
-    if (!opts.onProgress) return;
-    try {
-      await opts.onProgress({ ...p, plan });
-    } catch {
-      /* le suivi est best-effort */
+    if (opts.onProgress) {
+      try {
+        await opts.onProgress({ ...p, plan });
+      } catch {
+        /* le suivi est best-effort */
+      }
     }
+    // Hors du try : l'annulation, elle, doit remonter jusqu'au catch du moteur.
+    if (opts.shouldStop && (await opts.shouldStop())) throw new Error(RESTORE_CANCELLED);
   };
 
   const sourceProfiles = snapshot.sections.hotspotUserProfiles ?? [];

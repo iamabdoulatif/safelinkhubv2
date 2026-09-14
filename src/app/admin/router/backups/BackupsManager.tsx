@@ -8,6 +8,7 @@ import {
   restoreBackup,
   startRestoreJob,
   getRestoreJob,
+  cancelRestoreJob,
   deleteBackup,
   scanTargetForRestore,
 } from "@/lib/mikrotik/backup-actions";
@@ -182,6 +183,15 @@ export default function BackupsManager({
             ? `Tickets restaurés, mais portail NON réinstallé : ${portal?.error ?? "erreur"}.`
             : "Restauration terminée.",
         });
+      } else if (res.status === "cancelled") {
+        setReports({
+          backupId: activeJob.backupId,
+          dryRun: false,
+          outcome: "failed",
+          rows: (progress?.reports ?? []) as Report[],
+          plan: (progress?.plan ?? null) as Plan | null,
+        });
+        setFeedback({ kind: "err", text: res.error ?? "Restauration annulée." });
       } else {
         if (progress?.plan) {
           setReports({
@@ -304,6 +314,15 @@ export default function BackupsManager({
           text: "Simulation terminée — rien n'a été écrit sur le routeur.",
         });
       }
+    });
+  }
+
+  function cancelActive() {
+    if (!activeJob) return;
+    startTransition(async () => {
+      const res = await cancelRestoreJob(activeJob.jobId);
+      if (res && "error" in res && res.error) setFeedback({ kind: "err", text: res.error });
+      else setFeedback({ kind: "ok", text: "Annulation demandée — la restauration s'arrête au prochain tick (quelques secondes)." });
     });
   }
 
@@ -475,6 +494,16 @@ export default function BackupsManager({
                     </>
                   )}
                 </button>
+                {activeJob?.backupId === b.id && (
+                  <button
+                    type="button"
+                    onClick={cancelActive}
+                    disabled={pending}
+                    className="rounded-md border border-line px-3 py-2 text-sm font-medium text-err hover:border-err disabled:opacity-60"
+                  >
+                    Annuler
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => remove(b.id)}
