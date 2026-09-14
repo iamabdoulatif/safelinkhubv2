@@ -1564,14 +1564,17 @@ export function selectPurgeRows(
  */
 async function purgeTargetHotspot(client: RouterOSClient, dryRun?: boolean): Promise<RestoreReport> {
   const report: RestoreReport = { section: "purgeTarget", created: 0, skipped: 0, updated: 0, removed: 0, failed: [] };
-  const list = (cmd: string) => client.talk([cmd], 45000).catch(() => [] as Record<string, string>[]);
-  const [users, profiles, schedulers, actives, cookies] = await Promise.all([
-    list("/ip/hotspot/user/print"),
-    list("/ip/hotspot/user/profile/print"),
-    list("/system/scheduler/print"),
-    list("/ip/hotspot/active/print"),
-    list("/ip/hotspot/cookie/print"),
-  ]);
+  // EN SÉQUENCE, jamais en parallèle : la connexion API n'est pas taguée (voir
+  // client.ts), deux print simultanés mélangent leurs réponses — mesuré sur un
+  // vidage réel : la liste des cookies a reçu des ids de tickets. Et ids seuls :
+  // 6 000 tickets avec tous leurs champs sur un hAP ax², c'est long pour rien.
+  const list = (cmd: string, proplist: string) =>
+    client.talk([cmd, `=.proplist=${proplist}`], 60000).catch(() => [] as Record<string, string>[]);
+  const actives = await list("/ip/hotspot/active/print", ".id");
+  const cookies = await list("/ip/hotspot/cookie/print", ".id");
+  const users = await list("/ip/hotspot/user/print", ".id,name,default");
+  const profiles = await list("/ip/hotspot/user/profile/print", ".id,name,default");
+  const schedulers = await list("/system/scheduler/print", ".id,name");
   const sel = selectPurgeRows(users, profiles, schedulers);
   const batches: [string, BackupSection][] = [
     ["/ip/hotspot/active/remove", actives],
