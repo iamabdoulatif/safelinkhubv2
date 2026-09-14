@@ -1,0 +1,560 @@
+{
+  "name": "SafeLinkHub - Provisionning Dual WAN Starlink",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slh-dualwan-starlink",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "slh-dualwan-starlink",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "SafeLinkHub n8n (Bearer)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalise et valide la demande SafeLinkHub. Un échec ici = rien n'a touché le routeur.\nconst b = $input.first().json.body || {};\nconst MODELS = {\n  STANDARD_V4: { key: 'STANDARD_V4', label: 'Standard V4', short: 'Standard', mbps: 400 },\n  MINI: { key: 'MINI', label: 'Mini', short: 'Mini', mbps: 150 },\n};\nconst CAS = { cas1: ['STANDARD_V4', 'MINI'], cas2: ['STANDARD_V4', 'STANDARD_V4'], cas3: ['MINI', 'MINI'] };\nconst errors = [];\nfor (const k of ['router_id', 'router_host', 'router_user', 'router_pass']) if (!b[k]) errors.push(k + ' manquant');\nif (!CAS[b.cas]) errors.push('cas invalide (' + b.cas + ') : cas1 | cas2 | cas3');\nif (!['complet', 'complement'].includes(b.mode)) errors.push('mode invalide (' + b.mode + ') : complet | complement');\nif (b.mode === 'complement' && !b.lan_interface) errors.push('lan_interface requis en mode complement (ex. bridge-LAN)');\nconst ident = /^[A-Za-z0-9_.-]+$/;\nfor (const k of ['lan_interface', 'wan1_interface', 'wan2_interface']) if (b[k] && !ident.test(b[k])) errors.push(k + \" : nom d'interface invalide\");\nif (errors.length) throw new Error('Demande invalide : ' + errors.join(' ; '));\nconst [k1, k2] = CAS[b.cas];\nconst mbps = (v, d) => (Number(v) > 0 ? Number(v) : d);\nconst stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');\nconst req = {\n  router_id: String(b.router_id), site_name: b.site_name || '', cas: b.cas, mode: b.mode,\n  router_host: b.router_host, router_port: Number(b.router_port) || 22, router_user: b.router_user, router_pass: b.router_pass,\n  lan_interface: b.lan_interface || '', wan1_interface: b.wan1_interface || 'E1-WAN-FAI', wan2_interface: b.wan2_interface || 'E2-WAN-FAI',\n  wan1: { ...MODELS[k1], mbps: mbps(b.wan1_mbps, MODELS[k1].mbps) }, wan2: { ...MODELS[k2], mbps: mbps(b.wan2_mbps, MODELS[k2].mbps) },\n  detach_wan2_from_bridge: b.detach_wan2_from_bridge === true,\n  dry_run: b.dry_run === true, // simulation : pré-vérification + génération, rien d'écrit sur le routeur\n  callback_url: b.callback_url || 'https://safelinkhub.io/api/v1/notifications',\n  backup_file: 'backup-slh-dualwan-avant-' + stamp,\n};\nconsole.log(JSON.stringify({ step: 'request', router_id: req.router_id, cas: req.cas, mode: req.mode, dry_run: req.dry_run, host: req.router_host }));\nreturn [{ json: req }];\n"
+      },
+      "name": "Valider la demande",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Mode simulation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "password",
+        "resource": "command",
+        "operation": "execute",
+        "command": "=\n/export file={{ $json.backup_file }}\n/file print terse where name=\"{{ $json.backup_file }}.rsc\"",
+        "cwd": "/"
+      },
+      "name": "Sauvegarde /export",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        660,
+        100
+      ],
+      "credentials": {
+        "sshPassword": {
+          "id": "REPLACE_ME",
+          "name": "Routeur SafeLinkHub (dynamique)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// La sauvegarde doit exister sur le routeur avant de toucher à quoi que ce soit.\nconst req = $('Valider la demande').first().json;\nconst r = $input.first().json;\nconst out = (r.stdout || '') + '\\n' + (r.stderr || '');\nconst ERR = /(failure:|input does not match|bad command name|syntax error|expected end of command|expected command name|no such item|invalid value|ambiguous|not enough permissions|already have)/i;\nif (ERR.test(out) || !out.includes('name=' + req.backup_file + '.rsc')) {\n  throw new Error('Sauvegarde /export non confirmée : ' + out.slice(0, 300));\n}\nconsole.log(JSON.stringify({ step: 'backup', router_id: req.router_id, file: req.backup_file + '.rsc' }));\nreturn [{ json: req }];\n"
+      },
+      "name": "Contrôle sauvegarde",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "password",
+        "resource": "command",
+        "operation": "execute",
+        "command": "=\n:put \"##VERSION\"\n/system resource print\n:put \"##IFACE\"\n/interface print terse\n:put \"##BRIDGEPORT\"\n/interface bridge port print terse\n:put \"##DHCP\"\n/ip dhcp-client print terse\n:put \"##NAT\"\n/ip firewall nat print terse\n:put \"##MANGLE\"\n/ip firewall mangle print terse\n:put \"##ROUTE\"\n/ip route print terse\n:put \"##RTABLE\"\n/routing table print terse\n:put \"##FILTER\"\n/ip firewall filter print terse\n:put \"##ALIST\"\n/ip firewall address-list print terse where list=\"slh-pcc-exclude\"\n:put \"##DNS\"\n/ip dns print\n:put \"##END\"",
+        "cwd": "/"
+      },
+      "name": "Pré-vérification",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        0
+      ],
+      "credentials": {
+        "sshPassword": {
+          "id": "REPLACE_ME",
+          "name": "Routeur SafeLinkHub (dynamique)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============ GÉNÉRATEUR DUAL WAN STARLINK — nœud Code n8n ============\n// Miroir de docs/n8n/dualwan-workflow.json (nœud « Générer la config »),\n// exécuté tel quel par test/n8n-dualwan-generator.test.mjs.\n// Entrée : $input = sortie SSH « Pré-vérification » (stdout balisé ##…),\n//          $('Valider la demande') = demande normalisée.\n// Sortie : le script RouterOS en forme « exec » (UNE commande complète par\n// ligne, c'est ce que le canal exec SSH de RouterOS accepte — un « /ip\n// firewall mangle » seul sur sa ligne n'ouvre PAS de contexte), déjà\n// dédupliqué contre ce qui existe sur le routeur (rejouable).\nconst req = $('Valider la demande').first().json;\nconst pre = $input.first().json;\nconst raw = String(pre.stdout || '') + '\\n' + String(pre.stderr || '');\n\n// ---------- lecture de la pré-vérification ----------\nconst sections = {};\nlet cur = null;\nfor (const line of raw.split('\\n')) {\n  const m = line.match(/^##([A-Z]+)\\s*$/);\n  if (m) { cur = m[1]; sections[cur] = []; continue; }\n  if (cur && line.trim()) sections[cur].push(line.trim());\n}\nconst need = ['VERSION', 'IFACE', 'BRIDGEPORT', 'DHCP', 'NAT', 'MANGLE', 'ROUTE', 'RTABLE', 'FILTER', 'ALIST', 'DNS'];\nconst absent = need.filter((s) => !sections[s]);\nif (absent.length) throw new Error(`Pré-vérification incomplète (sections ${absent.join(', ')}) : ${raw.slice(0, 300)}`);\nconst ver = (sections.VERSION.join(' ').match(/version:\\s*(\\d+)\\.(\\d+)/) || []).slice(1).map(Number);\nif (!ver.length) throw new Error('Version RouterOS illisible dans la pré-vérification');\nconst v7 = ver[0] >= 7;\n\nconst esc = (s) => String(s).replace(/[.*+?^${}()|[\\]\\\\\\/]/g, '\\\\$&');\nconst has = (sec, test) => (sections[sec] || []).some((l) => (test instanceof RegExp ? test.test(l) : test(l)));\n// « print terse » n'entoure pas les commentaires de guillemets : on ancre sur\n// le mot-clé suivant pour ne pas confondre « NAT WAN1 » et « NAT WAN1 bis ».\nconst byComment = (c) => new RegExp(`(^|\\\\s)comment=${esc(c)}(\\\\s+[\\\\w-]+=|$)`);\nconst kv = (k, v) => new RegExp(`(^|\\\\s)${k}=${esc(v)}(\\\\s|$)`);\nconst field = (l, k) => (l.match(new RegExp(`(^|\\\\s)${k}=(\\\\S+)`)) || [])[2];\n\n// ---------- modèles, ratio, seaux ----------\n// Parts proportionnelles aux débits, plafonnées à 8 seaux : 400/150 → 3:1\n// (4 seaux), 400/400 → 1:1 (2 seaux), 150/400 → 1:3.\nconst m1 = req.wan1.mbps, m2 = req.wan2.mbps;\nconst r = Math.min(7, Math.max(1, Math.round(Math.max(m1, m2) / Math.min(m1, m2))));\nconst buckets = r + 1;\nconst wan1Buckets = m1 >= m2 ? r : 1;\nconst assign = Array.from({ length: buckets }, (_, i) => (i < wan1Buckets ? 1 : 2));\nconst ratio = `${wan1Buckets}:${buckets - wan1Buckets}`;\nconst same = req.wan1.key === req.wan2.key;\nconst wans = [\n  { n: 1, name: req.wan1_interface, src: 'ether1', model: req.wan1 },\n  { n: 2, name: req.wan2_interface, src: 'ether2', model: req.wan2 },\n].map((w) => ({\n  ...w,\n  ifaceComment: same ? `Starlink ${w.model.label} #${w.n}` : `Starlink ${w.model.label}`,\n  dhcpComment: same ? `WAN${w.n} ${w.model.short} #${w.n}` : `WAN${w.n} ${w.model.short} ${w.model.mbps}M`,\n}));\n\n// ---------- état des interfaces ----------\nconst ifaces = sections.IFACE.map((l) => ({ name: field(l, 'name'), def: field(l, 'default-name') })).filter((i) => i.name);\nconst bridgePorts = sections.BRIDGEPORT.map((l) => field(l, 'interface')).filter(Boolean);\nconst complet = req.mode === 'complet';\nconst lanMatch = req.lan_interface ? `in-interface=${req.lan_interface}` : 'in-interface-list=LAN';\nif (req.lan_interface && !ifaces.some((i) => i.name === req.lan_interface)) {\n  throw new Error(`Interface LAN « ${req.lan_interface} » introuvable sur le routeur`);\n}\nfor (const w of wans) {\n  const phys = complet ? ifaces.find((i) => i.def === w.src) : ifaces.find((i) => i.name === w.name);\n  if (!phys) {\n    throw new Error(complet\n      ? `Port ${w.src} introuvable (pas un hAP ax2 ?)`\n      : `Interface WAN${w.n} « ${w.name} » absente : en mode complement, le port doit déjà être sorti du bridge et renommé (ex. /interface bridge port remove [find interface=ether2] ; /interface ethernet set [find default-name=ether2] name=${w.name})`);\n  }\n  w.current = phys.name;\n  w.inBridge = bridgePorts.includes(phys.name);\n  if (w.inBridge && !(complet && req.detach_wan2_from_bridge)) {\n    throw new Error(`« ${phys.name} » est encore un port du bridge : retirez-le (/interface bridge port remove [find interface=${phys.name}])${complet ? ' ou relancez avec detach_wan2_from_bridge=true' : ''}`);\n  }\n}\n\n// ---------- génération ----------\nconst lines = [];\nconst H = (t) => lines.push({ text: `# ---------- ${t} ----------`, hdr: true });\nconst emit = (text, skip) => lines.push({ text, skip: skip ? 'déjà présent' : null });\nconst toApply = (w) => complet || w.n === 2; // complement : on n'ajoute que WAN2\n\nif (complet) {\n  H('0. Renommage interfaces');\n  for (const w of wans) {\n    if (w.inBridge) emit(`/interface bridge port remove [find interface=${w.current}]`);\n    emit(`/interface ethernet set [find default-name=${w.src}] name=${w.name} comment=\"${w.ifaceComment}\"`, w.current === w.name);\n  }\n}\n\nH('1. WAN : DHCP clients');\nfor (const w of wans.filter(toApply)) {\n  emit(`/ip dhcp-client add interface=${w.name} disabled=no add-default-route=yes use-peer-dns=no default-route-distance=${w.n} comment=\"${w.dhcpComment}\"`,\n    has('DHCP', kv('interface', w.name)));\n}\n\nH('2. NAT');\nfor (const w of wans.filter(toApply)) {\n  emit(`/ip firewall nat add chain=srcnat out-interface=${w.name} action=masquerade comment=\"NAT WAN${w.n}\"`,\n    has('NAT', byComment(`NAT WAN${w.n}`)) || has('NAT', (l) => /action=masquerade/.test(l) && kv('out-interface', w.name).test(l)));\n}\n\nH(`3. PCC - ratio ${ratio} (${buckets} seaux)`);\n// RouterOS refuse un dst-address= répété dans une même règle (« expected end\n// of command ») : l'exclusion des destinations privées (CGNAT Starlink\n// 100.64.0.0/10 inclus) passe par une address-list, même sémantique.\nconst LIST = 'slh-pcc-exclude';\nfor (const net of ['192.168.0.0/16', '10.0.0.0/8', '100.64.0.0/10', '172.16.0.0/12']) {\n  emit(`/ip firewall address-list add list=${LIST} address=${net} comment=\"PCC exclusion\"`,\n    has('ALIST', (l) => kv('list', LIST).test(l) && kv('address', net).test(l)));\n}\nif (v7) {\n  for (const n of [1, 2]) emit(`/routing table add name=to-WAN${n} fib`, has('RTABLE', kv('name', `to-WAN${n}`)));\n}\nconst pccComments = assign.map((x, i) => `PCC ${i + 1}/${buckets} -> WAN${x}`);\nconst foreign = sections.MANGLE.filter((l) => /per-connection-classifier=/.test(l) && !pccComments.some((c) => byComment(c).test(l)));\nif (foreign.length) {\n  throw new Error(`${foreign.length} règle(s) PCC étrangère(s) au plan ${ratio} déjà en place — retirez-les avant de relancer : ${foreign.map((l) => l.slice(0, 90)).join(' | ')}`);\n}\nassign.forEach((x, i) => {\n  emit(`/ip firewall mangle add chain=prerouting connection-mark=no-mark dst-address-list=!${LIST} ${lanMatch} per-connection-classifier=both-addresses-and-ports:${buckets}/${i} action=mark-connection new-connection-mark=WAN${x} passthrough=yes comment=\"${pccComments[i]}\"`,\n    has('MANGLE', byComment(pccComments[i])));\n});\nfor (const n of [1, 2]) {\n  emit(`/ip firewall mangle add chain=prerouting connection-mark=WAN${n} action=mark-routing new-routing-mark=to-WAN${n} passthrough=yes`,\n    has('MANGLE', (l) => /action=mark-routing/.test(l) && kv('new-routing-mark', `to-WAN${n}`).test(l)));\n}\n\nH('4. Routes + failover');\n// RouterOS 7 : « routing-mark= » n'existe plus sur /ip route, c'est routing-table=\nconst rt = v7 ? 'routing-table' : 'routing-mark';\nfor (const [gw, table, dist, c] of [\n  [wans[0].name, 'to-WAN1', 1, 'Marquee WAN1'], [wans[1].name, 'to-WAN1', 2, 'Backup WAN1'],\n  [wans[1].name, 'to-WAN2', 1, 'Marquee WAN2'], [wans[0].name, 'to-WAN2', 2, 'Backup WAN2'],\n]) {\n  emit(`/ip route add gateway=${gw} ${rt}=${table} check-gateway=ping distance=${dist} comment=\"${c}\"`,\n    has('ROUTE', byComment(c)) || has('ROUTE', (l) => kv(rt, table).test(l) && kv('gateway', gw).test(l) && kv('distance', String(dist)).test(l)));\n}\n\nif (complet) {\n  H('5. FastTrack');\n  emit('/ip firewall filter add chain=forward action=fasttrack-connection connection-state=established,related comment=\"FastTrack\"',\n    has('FILTER', /action=fasttrack-connection/));\n}\n\nH('6. DNS');\nemit('/ip dns set servers=1.1.1.1,9.9.9.9 allow-remote-requests=yes',\n  has('DNS', /servers:\\s*1\\.1\\.1\\.1,9\\.9\\.9\\.9(\\s|$)/) && has('DNS', /allow-remote-requests:\\s*yes/));\n\nconst applied = lines.filter((l) => !l.hdr && !l.skip).map((l) => l.text);\nconst skipped = lines.filter((l) => l.skip).map((l) => l.text);\nconst script = lines.filter((l) => l.hdr || !l.skip).map((l) => l.text).join('\\n');\nconst plan = { cas: req.cas, mode: req.mode, ratio, buckets, assign: assign.map((x) => `WAN${x}`), wan1: wans[0].name, wan2: wans[1].name, lan: lanMatch, routeros: ver.join('.') };\nconsole.log(JSON.stringify({ step: 'generate', router_id: req.router_id, plan, to_apply: applied.length, skipped: skipped.length }));\nreturn [{ json: { ...req, plan, script, to_apply: applied.length, applied, skipped, expected: { pcc: buckets, routes: 4, nat: 2, dhcp: 2 } } }];\n"
+      },
+      "name": "Générer la config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.to_apply > 0 && !$json.dry_run }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Quelque chose à appliquer ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "password",
+        "resource": "command",
+        "operation": "execute",
+        "command": "=\n{{ $json.script }}",
+        "cwd": "/"
+      },
+      "name": "Appliquer",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        -100
+      ],
+      "credentials": {
+        "sshPassword": {
+          "id": "REPLACE_ME",
+          "name": "Routeur SafeLinkHub (dynamique)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// RouterOS continue après une ligne en erreur (code de sortie 0) : on relit la sortie.\nconst g = $('Générer la config').first().json;\nconst r = $input.first().json;\nconst out = (r.stdout || '') + '\\n' + (r.stderr || '');\nconst ERR = /(failure:|input does not match|bad command name|syntax error|expected end of command|expected command name|no such item|invalid value|ambiguous|not enough permissions|already have)/i;\nconst errs = out.split('\\n').filter((l) => ERR.test(l));\nif (errs.length) throw new Error('RouterOS a refusé ' + errs.length + ' commande(s) (application PARTIELLE, sauvegarde ' + g.backup_file + '.rsc) : ' + errs.join(' | ').slice(0, 600));\nconsole.log(JSON.stringify({ step: 'apply', router_id: g.router_id, applied: g.to_apply }));\nreturn [{ json: g }];\n"
+      },
+      "name": "Contrôle application",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "password",
+        "resource": "command",
+        "operation": "execute",
+        "command": "=\n:put \"##DHCP\"\n/ip dhcp-client print terse\n:put \"##ROUTE\"\n/ip route print terse where comment~\"^(Marquee|Backup) WAN[12]$\"\n:put \"##MANGLE\"\n/ip firewall mangle print terse\n:put \"##NAT\"\n/ip firewall nat print terse where action=masquerade\n:put \"##CONN\"\n:put (\"WAN1=\" . [:len [/ip firewall connection find connection-mark=\"WAN1\"]])\n:put (\"WAN2=\" . [:len [/ip firewall connection find connection-mark=\"WAN2\"]])\n:put \"##END\"",
+        "cwd": "/"
+      },
+      "name": "Vérification post-application",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        0
+      ],
+      "credentials": {
+        "sshPassword": {
+          "id": "REPLACE_ME",
+          "name": "Routeur SafeLinkHub (dynamique)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Vérification post-application : 2 DHCP avec IP, 4 routes marquées, N règles PCC, 2 NAT.\nconst g = $('Générer la config').first().json;\nconst r = $input.first().json;\nconst raw = (r.stdout || '') + '\\n' + (r.stderr || '');\nconst sections = {};\nlet cur = null;\nfor (const line of raw.split('\\n')) {\n  const m = line.match(/^##([A-Z]+)\\s*$/);\n  if (m) { cur = m[1]; sections[cur] = []; continue; }\n  if (cur && line.trim()) sections[cur].push(line.trim());\n}\nconst S = (k) => sections[k] || [];\nconst field = (l, k) => (l.match(new RegExp('(^|\\\\s)' + k + '=(\\\\S+)')) || [])[2];\nconst active = (l) => /^\\d+\\s+[A-Za-z+]*A[A-Za-z+]*\\s/.test(l);\nconst wans = [g.wan1_interface, g.wan2_interface];\nconst dhcp = wans.map((w) => {\n  const l = S('DHCP').find((x) => field(x, 'interface') === w);\n  return { interface: w, bound: !!l && field(l, 'status') === 'bound', address: l ? field(l, 'address') || null : null };\n});\nconst routes = S('ROUTE').filter((l) => /comment=(Marquee|Backup) WAN[12](\\s|$)/.test(l));\nconst pcc = S('MANGLE').filter((l) => /per-connection-classifier=/.test(l)).length;\nconst markRouting = S('MANGLE').filter((l) => /action=mark-routing/.test(l)).length;\nconst nat = S('NAT').filter((l) => /action=masquerade/.test(l) && wans.includes(field(l, 'out-interface'))).length;\nconst conn = Object.fromEntries(S('CONN').map((l) => l.split('=')).filter((p) => p.length === 2).map(([k, v]) => [k, Number(v)]));\nconst checks = {\n  dhcp_bound: dhcp.every((d) => d.bound && d.address),\n  routes: routes.length === g.expected.routes,\n  routes_active: routes.filter(active).length >= 2,\n  pcc: pcc === g.expected.pcc,\n  mark_routing: markRouting === 2,\n  nat: nat === g.expected.nat,\n};\nconst failed = Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k);\nconst notification = {\n  router_id: g.router_id, cas: g.cas, mode: g.mode,\n  status: g.dry_run ? 'dry_run' : failed.length ? 'error' : 'ok',\n  details: {\n    site_name: g.site_name, dry_run: g.dry_run, plan: g.plan, checks, failed,\n    dhcp, routes: routes.length, routes_active: routes.filter(active).length, pcc, mark_routing: markRouting, nat,\n    connections: conn, applied: g.applied, skipped: g.skipped, script: g.script,\n  },\n  backup_file: g.backup_file + '.rsc',\n};\nconsole.log(JSON.stringify({ step: 'verify', router_id: g.router_id, status: notification.status, failed, connections: conn }));\nreturn [{ json: { callback_url: g.callback_url, notification } }];\n"
+      },
+      "name": "Bilan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.notification) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Notifier SafeLinkHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "SafeLinkHub n8n (Bearer)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Branche Échec : notifie SafeLinkHub avec le message brut et s'arrête.\nlet req = {}; try { req = $('Valider la demande').first().json || {}; } catch (e) {}\nlet body = {}; try { body = $('Webhook').first().json.body || {}; } catch (e) {}\nconst j = $input.first().json || {};\nconst e = j.error;\nconst message = (e && e.message) || (typeof e === 'string' ? e : null) || j.message || j.stderr || JSON.stringify(j).slice(0, 500);\nconst notification = {\n  router_id: req.router_id || body.router_id || null, cas: req.cas || body.cas || null, mode: req.mode || body.mode || null,\n  status: 'error',\n  details: { step: $prevNode.name, message: String(message), stdout: j.stdout || null, stderr: j.stderr || null },\n  backup_file: req.backup_file ? req.backup_file + '.rsc' : null,\n};\nconsole.error(JSON.stringify({ step: 'failed', ...notification }));\nreturn [{ json: { callback_url: req.callback_url || body.callback_url || 'https://safelinkhub.io/api/v1/notifications', notification } }];\n"
+      },
+      "name": "Échec",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        400
+      ],
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.notification) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Notifier l'échec",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "SafeLinkHub n8n (Bearer)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Valider la demande",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider la demande": {
+      "main": [
+        [
+          {
+            "node": "Mode simulation ?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mode simulation ?": {
+      "main": [
+        [
+          {
+            "node": "Pré-vérification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sauvegarde /export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sauvegarde /export": {
+      "main": [
+        [
+          {
+            "node": "Contrôle sauvegarde",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contrôle sauvegarde": {
+      "main": [
+        [
+          {
+            "node": "Pré-vérification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pré-vérification": {
+      "main": [
+        [
+          {
+            "node": "Générer la config",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Générer la config": {
+      "main": [
+        [
+          {
+            "node": "Quelque chose à appliquer ?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quelque chose à appliquer ?": {
+      "main": [
+        [
+          {
+            "node": "Appliquer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Vérification post-application",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appliquer": {
+      "main": [
+        [
+          {
+            "node": "Contrôle application",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contrôle application": {
+      "main": [
+        [
+          {
+            "node": "Vérification post-application",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vérification post-application": {
+      "main": [
+        [
+          {
+            "node": "Bilan",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bilan": {
+      "main": [
+        [
+          {
+            "node": "Notifier SafeLinkHub",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Échec": {
+      "main": [
+        [
+          {
+            "node": "Notifier l'échec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false,
+    "executionTimeout": 300
+  },
+  "pinData": {}
+}
