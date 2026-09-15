@@ -28,7 +28,7 @@ function JobRow({ job }: { job: Job }) {
   const d = job.result?.details ?? {};
   const applied = Array.isArray(d.applied) ? (d.applied as string[]) : [];
   const skipped = Array.isArray(d.skipped) ? (d.skipped as string[]) : [];
-  const tone = job.status === "error" || job.status === "stale" ? "text-red-700" : job.status === "running" ? "text-ink-soft" : "text-green-700";
+  const tone = job.status === "error" || job.status === "stale" ? "text-err" : job.status === "running" ? "text-ink-soft" : "text-ok";
   return (
     <li className="border border-line bg-clay p-3 rounded-lg text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -40,7 +40,7 @@ function JobRow({ job }: { job: Job }) {
       </div>
       <p className="text-[11px] text-ink-soft">{new Date(job.at).toLocaleString("fr-FR")}</p>
       {job.status === "error" && (
-        <p className="mt-1 text-red-700">
+        <p className="mt-1 text-err">
           {d.step ? `${d.step} : ` : ""}
           {d.message ?? (Array.isArray(d.failed) && d.failed.length ? `contrôles en échec : ${d.failed.join(", ")}` : "erreur inconnue")}
         </p>
@@ -175,7 +175,7 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
           {pending || running ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
           {form.dryRun ? "Simuler" : "Provisionner"}
         </button>
-        {msg && <p className={`text-sm ${msg.ok ? "text-green-700" : "text-red-700"}`}>{msg.text}</p>}
+        {msg && <p className={`text-sm ${msg.ok ? "text-ok" : "text-err"}`}>{msg.text}</p>}
       </div>
 
       {jobs.length > 0 && (
