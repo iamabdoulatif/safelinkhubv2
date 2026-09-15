@@ -119,6 +119,28 @@ absente » (ether2 est encore un port du bridge HOTSPOT, avec un lien actif),
 callback 404 (endpoint SafeLinkHub pas encore créé) sans casser l'exécution.
 Simulation hors-ligne avec ether2 libéré : 19 commandes (voir plus bas).
 
+## Intégration SaaS (15/09/2026)
+
+Onglet « Configurer les services » de la page routeur → panneau « Dual WAN
+Starlink (n8n) » ([DualWanPanel.tsx](../../src/app/admin/router/[id]/DualWanPanel.tsx)).
+
+- `startDualWan` ([dualwan-actions.ts](../../src/lib/mikrotik/dualwan-actions.ts))
+  : crée une ligne `router_dualwan_jobs` (migration `0010`), POSTe le webhook
+  avec `router_host` = relais public du shard, `router_port` = le forward SSH
+  **actif** du routeur (`router_port_forwards`, sinon refus : « activez l'accès
+  distant SSH »), le compte RouterOS déchiffré, et
+  `callback_url = <NEXT_PUBLIC_APP_URL>/api/internal/n8n/dualwan/<jobId>`.
+- Callback ([route.ts](../../src/app/api/internal/n8n/dualwan/[jobId]/route.ts))
+  : Bearer `N8N_INTERNAL_TOKEN`, vérifie `router_id`, écrit `status` + la
+  notification brute dans `result`. Première notification gagnante (n8n peut
+  rappeler deux fois : bilan puis branche Échec).
+- Un `running` de plus de 10 min sans callback est affiché « Sans réponse » et
+  n'empêche plus un nouveau lancement. Un seul job en cours par routeur.
+- Env : `N8N_INTERNAL_TOKEN` (requis, déjà en place pour la régulation),
+  `N8N_DUALWAN_WEBHOOK_URL` (optionnel, défaut = le webhook n8n cloud ci-dessus).
+- Le workflow n8n doit être **activé** ; sinon le webhook répond 404 et le job
+  passe tout de suite en erreur « Le workflow est-il activé ? ».
+
 ## Choix techniques (vérifiés sur HSPT-LEGRAND, RouterOS 7.21.1)
 
 - **Application par le canal exec SSH, sans transfert de fichier.** Le nœud

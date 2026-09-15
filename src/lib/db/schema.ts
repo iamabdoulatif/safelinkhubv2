@@ -1725,6 +1725,28 @@ export const routerRegulation = pgTable("router_regulation", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Provisionnement dual WAN Starlink délégué à n8n (docs/n8n/dualwan.md) : une
+// ligne par lancement. La plateforme POSTe le webhook avec callback_url
+// = /api/internal/n8n/dualwan/<id>, n8n y renvoie la notification finale.
+export const routerDualwanJobs = pgTable(
+  "router_dualwan_jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    routerId: uuid("router_id")
+      .notNull()
+      .references(() => routers.id, { onDelete: "cascade" }),
+    // Paramètres envoyés (sans les identifiants routeur).
+    request: jsonb("request").notNull(),
+    // running | ok | dry_run | error
+    status: text("status").notNull().default("running"),
+    // Notification n8n brute : { cas, mode, status, details, backup_file }.
+    result: jsonb("result"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (t) => [index("router_dualwan_jobs_router_idx").on(t.routerId, t.createdAt)],
+);
+
 // Journal lisible à l'écran : changements de décision et blocages.
 export const routerRegulationEvents = pgTable(
   "router_regulation_events",
