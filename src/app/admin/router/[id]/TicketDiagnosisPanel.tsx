@@ -103,9 +103,9 @@ export default function TicketDiagnosisPanel({ routerId }: { routerId: string })
                 Le portail ne s&apos;affiche probablement pas
               </p>
               <p className="mt-1.5 text-xs leading-5 text-ink-soft">
-                {result.portal.newDevices} nouveaux appareils ont tenté de se connecter sans qu&apos;un
-                seul formulaire soit soumis ({result.portal.cookieLogins} reconnexions par cookie
-                seulement). C&apos;est la signature du proxy DNS du hotspot mort en silence : les
+                {result.portal.newDevices} nouveaux appareils ont tenté de se connecter pour{" "}
+                {result.portal.formLogins} formulaire(s) soumis ({result.portal.cookieLogins}{" "}
+                reconnexions par cookie). C&apos;est la signature du proxy DNS du hotspot mort en silence : les
                 clients n&apos;ont plus de DNS, donc jamais de page. Relancer le serveur «{" "}
                 {result.serverName ?? "hotspot"} » le ressuscite. Les sessions tombent trois secondes
                 et reviennent seules par cookie.

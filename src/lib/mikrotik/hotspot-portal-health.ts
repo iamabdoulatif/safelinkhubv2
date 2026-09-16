@@ -22,6 +22,16 @@
 
 /** Nouveaux appareils distincts à partir desquels « aucun formulaire » devient un verdict, pas un hasard. */
 export const PORTAL_MIN_NEW_DEVICES = 8;
+/**
+ * Nouveaux appareils tolérés PAR formulaire soumis avant de suspecter le
+ * portail. FOUANGA (16/09/2026) : 67 nouveaux appareils pour 2 formulaires en
+ * 2 h 30, proxy DNS mort — « au moins un formulaire » l'innocentait. Le même
+ * routeur, sain, tourne autour de 18-20 appareils par formulaire (portail à
+ * vendeurs, peu de codes en main) ; KONGASSO sain : 12 pour 1.
+ * ponytail: seuil unique pour tout le parc — un seuil par routeur (médiane
+ * glissante) si un portail à forte affluence de fond déclenche à tort.
+ */
+export const PORTAL_MAX_NEW_DEVICES_PER_FORM = 30;
 
 export type PortalHealth = {
   /** Appareils distincts ayant échoué l'auto-login MAC = nouveaux venus. */
@@ -31,10 +41,11 @@ export type PortalHealth = {
   /** Reconnexions automatiques d'appareils déjà connus. */
   cookieLogins: number;
   /**
-   * `suspect` : assez de nouveaux appareils et pas un seul formulaire — le
-   * portail ne s'affiche probablement pas.
-   * `ok` : au moins un formulaire soumis, la page est atteinte.
-   * `unknown` : trop peu de nouveaux appareils pour trancher.
+   * `suspect` : assez de nouveaux appareils et pas un seul formulaire, ou
+   * plus de PORTAL_MAX_NEW_DEVICES_PER_FORM appareils par formulaire — le
+   * portail ne s'affiche probablement pas (ou plus pour la plupart).
+   * `ok` : les formulaires suivent le flux de nouveaux appareils.
+   * `unknown` : ni formulaire ni assez de nouveaux appareils pour trancher.
    */
   verdict: "ok" | "suspect" | "unknown";
 };
@@ -73,7 +84,13 @@ export function assessPortalHealth(messages: readonly string[]): PortalHealth {
 
   const newDevices = failedMacs.size;
   const verdict: PortalHealth["verdict"] =
-    formLogins > 0 ? "ok" : newDevices >= PORTAL_MIN_NEW_DEVICES ? "suspect" : "unknown";
+    newDevices > formLogins * PORTAL_MAX_NEW_DEVICES_PER_FORM
+      ? newDevices >= PORTAL_MIN_NEW_DEVICES
+        ? "suspect"
+        : "unknown"
+      : formLogins > 0 || newDevices >= PORTAL_MIN_NEW_DEVICES
+        ? "ok"
+        : "unknown";
 
   return { newDevices, formLogins, cookieLogins, verdict };
 }

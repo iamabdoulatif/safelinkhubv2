@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { PORTAL_MIN_NEW_DEVICES, assessPortalHealth } from "./hotspot-portal-health";
+import { PORTAL_MAX_NEW_DEVICES_PER_FORM, PORTAL_MIN_NEW_DEVICES, assessPortalHealth } from "./hotspot-portal-health";
 
 /* Lignes telles que RouterOS les écrit — dont la variante « ->: » qui double
    chacune. Ce sont celles de HSPT-FOUANGA, le 11/09/2026. */
@@ -35,13 +35,33 @@ describe("portail invisible : la signature dans le journal", () => {
     assert.equal(h.verdict, "suspect");
   });
 
-  it("un seul formulaire soumis suffit à innocenter le portail", () => {
+  it("un formulaire pour 24 nouveaux appareils innocente le portail", () => {
     const lignes = [
       ...Array.from({ length: 24 }, (_, i) => macFail(mac(i))).flat(),
       ...form("4j276382"),
     ];
     assert.equal(assessPortalHealth(lignes).verdict, "ok");
     assert.equal(assessPortalHealth([...lignes, ...form("abass", "http-pap")]).formLogins, 2);
+  });
+
+  it("FOUANGA 16/09 : 67 appareils pour 2 formulaires → suspect malgré les formulaires", () => {
+    const lignes = [
+      ...Array.from({ length: 67 }, (_, i) => macFail(mac(i))).flat(),
+      ...form("5hsmw627"),
+      ...form("5h2311584"),
+    ];
+    const h = assessPortalHealth(lignes);
+    assert.equal(h.formLogins, 2);
+    assert.equal(h.verdict, "suspect");
+    // Un troisième formulaire ramène sous le seuil (67 ≤ 3 × 30).
+    assert.equal(assessPortalHealth([...lignes, ...form("abass")]).verdict, "ok");
+  });
+
+  it("le seuil est un ratio : exactement N appareils par formulaire reste ok", () => {
+    const n = PORTAL_MAX_NEW_DEVICES_PER_FORM;
+    const appareils = Array.from({ length: n }, (_, i) => macFail(mac(i))).flat();
+    assert.equal(assessPortalHealth([...appareils, ...form("a")]).verdict, "ok");
+    assert.equal(assessPortalHealth([...appareils, ...macFail(mac(n)), ...form("a")]).verdict, "suspect");
   });
 
   it("trop peu de nouveaux appareils : on ne tranche pas", () => {

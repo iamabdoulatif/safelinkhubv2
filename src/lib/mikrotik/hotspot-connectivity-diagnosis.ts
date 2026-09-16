@@ -157,7 +157,7 @@ export async function diagnoseHotspotConnectivity(
   if (portal.verdict === "suspect") {
     findings.push(
       `Le portail ne s'affiche probablement pas : ${portal.newDevices} nouveaux appareils ont tenté de se connecter ` +
-        `sans qu'UN SEUL formulaire soit soumis (${portal.cookieLogins} reconnexions par cookie seulement). ` +
+        `pour ${portal.formLogins} formulaire(s) soumis (${portal.cookieLogins} reconnexions par cookie). ` +
         "Signature du proxy DNS du hotspot mort en silence — le ticket n'est pas en cause. Réparation : relancer le serveur hotspot.",
     );
   }
