@@ -236,6 +236,6 @@ emit('/ip dns set servers=1.1.1.1,9.9.9.9 allow-remote-requests=yes',
 const applied = lines.filter((l) => !l.hdr && !l.skip).map((l) => l.text);
 const skipped = lines.filter((l) => l.skip).map((l) => l.text);
 const script = lines.filter((l) => l.hdr || !l.skip).map((l) => l.text).join('\n');
-const plan = { cas: req.cas, mode: req.mode, ratio, buckets, assign: assign.map((x) => `WAN${x}`), wan1: wans[0].name, wan2: wans[1].name, lan: lanMatch, routeros: ver.join('.') };
+const plan = { cas: req.cas, mode: req.mode, ratio, buckets, assign: assign.map((x) => `WAN${x}`), wan1: wans[0].name, wan2: wans[1].name, lan: lanMatch, hotspot, routeros: ver.join('.') };
 console.log(JSON.stringify({ step: 'generate', router_id: req.router_id, plan, to_apply: applied.length, skipped: skipped.length }));
 return [{ json: { ...req, plan, script, to_apply: applied.length, applied, skipped, expected: { pcc: buckets, routes: 6, nat: 2, dhcp: 2 } } }];

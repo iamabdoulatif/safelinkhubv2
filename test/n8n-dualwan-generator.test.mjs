@@ -16,6 +16,11 @@ function runGenerate(req, stdout) {
   return fn(() => ({ first: () => ({ json: req }) }), { first: () => ({ json: { stdout, stderr: "", code: 0 } }) }, { log() {} })[0].json;
 }
 
+function runBilan(g, stdout) {
+  const fn = new Function("$", "$input", "console", node("Bilan").parameters.jsCode);
+  return fn(() => ({ first: () => ({ json: g }) }), { first: () => ({ json: { stdout, stderr: "", code: 0 } }) }, { log() {} })[0].json.notification;
+}
+
 // Sortie « print terse » d'un hAP ax2 (forme relevée sur HSPT-LEGRAND, RouterOS 7.21).
 const sec = (parts) => Object.entries(parts).map(([k, v]) => `##${k}\n${v}`).join("\n") + "\n##END";
 const IF_FRESH = `0 R name=ether1 default-name=ether1 type=ether mtu=1500\n1 R name=ether2 default-name=ether2 type=ether mtu=1500\n2 R name=bridge type=bridge`;
@@ -164,6 +169,25 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
     const fixed = sec({ ...base, IFACE: IF_UNIWAN, NAT: "0 D chain=hotspot action=jump jump-target=pre-hotspot",
       MANGLE: "0 comment=PCC DNS local udp chain=prerouting action=accept protocol=udp in-interface=HOTSPOT dst-port=53\n1 comment=PCC DNS local tcp chain=prerouting action=accept protocol=tcp in-interface=HOTSPOT dst-port=53\n2 comment=PCC 1/2 -> WAN1 chain=prerouting action=mark-connection new-connection-mark=WAN1 hotspot=auth in-interface=HOTSPOT per-connection-classifier=both-addresses-and-ports:2/0\n3 comment=PCC 2/2 -> WAN2 chain=prerouting action=mark-connection new-connection-mark=WAN2 hotspot=auth in-interface=HOTSPOT per-connection-classifier=both-addresses-and-ports:2/1\n4 chain=prerouting action=mark-routing new-routing-mark=to-WAN1 passthrough=yes connection-mark=WAN1 in-interface=HOTSPOT\n5 chain=prerouting action=mark-routing new-routing-mark=to-WAN2 passthrough=yes connection-mark=WAN2 in-interface=HOTSPOT" });
     assert.ok(!runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT", wan1_mbps: 400, wan2_mbps: 400 }), fixed).applied.some((l) => l.includes("mangle")));
+  });
+
+  it("Bilan : les gardes PCC+hotspot sont un contrôle bloquant, et la vérification compte les TCP établies", () => {
+    const hs = sec({ ...base, IFACE: IF_UNIWAN, NAT: "0 D chain=hotspot action=jump jump-target=pre-hotspot" });
+    const g = runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT", wan1_mbps: 400, wan2_mbps: 400 }), hs);
+    assert.equal(g.plan.hotspot, true);
+    const post = (mangle) => sec({ DHCP: "0 interface=E1-WAN-FAI status=bound address=192.168.1.2/24\n1 interface=E2-WAN-FAI status=bound address=100.64.0.2/10",
+      ROUTE: Array.from({ length: 6 }, (_, i) => `${i} As comment=${["Main WAN1", "Main WAN2", "Marquee WAN1", "Backup WAN1", "Marquee WAN2", "Backup WAN2"][i]} dst-address=0.0.0.0/0`).join("\n"),
+      MANGLE: mangle, NAT: "0 chain=srcnat action=masquerade out-interface=E1-WAN-FAI\n1 chain=srcnat action=masquerade out-interface=E2-WAN-FAI", CONN: "WAN1=10\nWAN2=8\nEST1=5\nEST2=4\nSYNRECV=1" });
+    const bad = "0 comment=PCC 1/2 -> WAN1 chain=prerouting action=mark-connection per-connection-classifier=both-addresses-and-ports:2/0 in-interface=HOTSPOT\n1 comment=PCC 2/2 -> WAN2 chain=prerouting action=mark-connection per-connection-classifier=both-addresses-and-ports:2/1 in-interface=HOTSPOT\n2 chain=prerouting action=mark-routing new-routing-mark=to-WAN1 connection-mark=WAN1\n3 chain=prerouting action=mark-routing new-routing-mark=to-WAN2 connection-mark=WAN2";
+    const good = "0 comment=PCC DNS local udp chain=prerouting action=accept protocol=udp in-interface=HOTSPOT dst-port=53\n1 comment=PCC DNS local tcp chain=prerouting action=accept protocol=tcp in-interface=HOTSPOT dst-port=53\n2 comment=PCC 1/2 -> WAN1 chain=prerouting action=mark-connection hotspot=auth per-connection-classifier=both-addresses-and-ports:2/0 in-interface=HOTSPOT\n3 comment=PCC 2/2 -> WAN2 chain=prerouting action=mark-connection hotspot=auth per-connection-classifier=both-addresses-and-ports:2/1 in-interface=HOTSPOT\n4 chain=prerouting action=mark-routing new-routing-mark=to-WAN1 connection-mark=WAN1 in-interface=HOTSPOT\n5 chain=prerouting action=mark-routing new-routing-mark=to-WAN2 connection-mark=WAN2 in-interface=HOTSPOT";
+    const ko = runBilan(g, post(bad));
+    assert.equal(ko.status, "error");
+    assert.deepEqual(ko.details.failed, ["pcc_guards"]);
+    assert.deepEqual(ko.details.guards, { mark_routing_lan: false, pcc_auth: false, dns_bypass: false });
+    const ok = runBilan(g, post(good));
+    assert.equal(ok.status, "ok");
+    assert.deepEqual(ok.details.connections, { WAN1: 10, WAN2: 8, EST1: 5, EST2: 4, SYNRECV: 1 });
+    assert.match(node("Vérification post-application").parameters.command, /EST1=.*tcp-state="established"/);
   });
 
   it("dry_run : la demande le porte, le générateur le propage, l'If d'application le respecte", () => {
