@@ -21,6 +21,7 @@ const STATUS_LABEL: Record<Job["status"], string> = {
   error: "Échec",
   stale: "Sans réponse",
   removed: "Retirée",
+  removed_dry_run: "Retrait simulé",
 };
 
 const input = "mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg";
@@ -49,8 +50,8 @@ function JobRow({ job, onApply, onRemove, busy }: { job: Job; onApply: (form: Du
     <li className="border border-line bg-clay p-3 rounded-lg text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-bold text-ink">
-          {job.status === "removed"
-            ? `retrait de la config dual WAN${job.request.return_to_bridge ? ` · WAN2 remis dans ${String(job.request.return_to_bridge)}` : ""}`
+          {job.status === "removed" || job.status === "removed_dry_run"
+            ? `retrait de la config dual WAN${job.request.dry_run ? " · simulation" : ""}${job.request.return_to_bridge ? ` · WAN2 remis dans ${String(job.request.return_to_bridge)}` : ""}`
             : `${String(job.request.mode)} · ${CAS_LABEL[job.request.cas as DualWanForm["cas"]] ?? String(job.request.cas)}${job.request.dry_run ? " · simulation" : ""}`}
         </span>
         <span className="flex items-center gap-2">
@@ -69,7 +70,7 @@ function JobRow({ job, onApply, onRemove, busy }: { job: Job; onApply: (form: Du
           {d.message ?? (Array.isArray(d.failed) && d.failed.length ? `contrôles en échec : ${d.failed.join(", ")}` : "erreur inconnue")}
         </p>
       )}
-      {job.status === "removed" && (
+      {(job.status === "removed" || job.status === "removed_dry_run") && (
         <p className="mt-1 text-ink-soft">
           {Object.entries(d).filter(([, v]) => typeof v === "number").map(([k, v]) => `${k} ${v}`).join(" · ") || "rien à retirer"}
         </p>
@@ -157,11 +158,11 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
     start(async () => {
       const bridge = removeBridge ? form.lanInterface.trim() : "";
       if (removeBridge && !bridge) return setMsg({ ok: false, text: "Indiquez l'interface LAN (bridge) pour y remettre le port WAN2." });
-      if (!window.confirm(`Retirer la configuration dual WAN de ce routeur ? PCC, routes, tables, NAT WAN2, client DHCP WAN2 seront supprimés${bridge ? `, et ${form.wan2Interface} remis dans ${bridge}` : ""}. WAN1 reste en service.`)) return;
+      if (!form.dryRun && !window.confirm(`Retirer la configuration dual WAN de ce routeur ? PCC, routes, tables, NAT WAN2, client DHCP WAN2 seront supprimés${bridge ? `, et ${form.wan2Interface} remis dans ${bridge}` : ""}. WAN1 reste en service.`)) return;
       setMsg(null);
-      const res = await removeDualWan(routerId, { wan2Interface: form.wan2Interface, returnWan2ToBridge: bridge });
+      const res = await removeDualWan(routerId, { wan2Interface: form.wan2Interface, returnWan2ToBridge: bridge, dryRun: form.dryRun });
       if (res.error) setMsg({ ok: false, text: res.error });
-      else setMsg({ ok: true, text: "Configuration dual WAN retirée — détail dans l'historique." });
+      else setMsg({ ok: true, text: form.dryRun ? "Retrait simulé — ce qui serait retiré est dans l'historique." : "Configuration dual WAN retirée — détail dans l'historique." });
       await refresh();
     });
 
@@ -258,8 +259,9 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
           disabled={pending || running}
           className="mt-3 inline-flex items-center gap-2 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-err rounded-lg hover:bg-clay disabled:opacity-60"
         >
-          Retirer la configuration
+          {form.dryRun ? "Simuler le retrait" : "Retirer la configuration"}
         </button>
+        {form.dryRun && <span className="ml-2 text-xs text-ink-soft">(case « Simulation seulement » cochée : rien ne sera écrit)</span>}
       </details>
 
       {jobs.length > 0 && (

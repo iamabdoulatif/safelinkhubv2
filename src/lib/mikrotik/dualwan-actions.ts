@@ -50,7 +50,7 @@ export async function readDualWanJobs(routerId: string) {
   return {
     jobs: jobs.map((j) => ({
       id: j.id,
-      status: isStale(j) ? ("stale" as const) : (j.status as "running" | "ok" | "dry_run" | "error" | "removed"),
+      status: isStale(j) ? ("stale" as const) : (j.status as "running" | "ok" | "dry_run" | "error" | "removed" | "removed_dry_run"),
       request: j.request as Record<string, unknown>,
       result: (j.result ?? null) as null | {
         details?: Record<string, unknown> & { message?: string; step?: string; failed?: string[] };
@@ -162,7 +162,7 @@ export async function clearDualWanJobs(routerId: string) {
  * de passage par n8n : rien à générer, juste défaire par clé). Journalisé
  * comme un job « removed » pour que l'historique raconte aussi le retour arrière.
  */
-export async function removeDualWan(routerId: string, f: { wan2Interface: string; returnWan2ToBridge: string }) {
+export async function removeDualWan(routerId: string, f: { wan2Interface: string; returnWan2ToBridge: string; dryRun?: boolean }) {
   const router = await autorise(routerId);
   if (!router) return { error: "Routeur introuvable." };
   const wan2 = f.wan2Interface.trim() || "E2-WAN-FAI";
@@ -175,11 +175,11 @@ export async function removeDualWan(routerId: string, f: { wan2Interface: string
     return { error: `Routeur injoignable : ${e instanceof Error ? e.message : String(e)}` };
   }
   try {
-    const report = await removeDualWanConfig(client, { wan2Interface: wan2, returnWan2ToBridge: bridge || undefined });
+    const report = await removeDualWanConfig(client, { wan2Interface: wan2, returnWan2ToBridge: bridge || undefined, dryRun: f.dryRun });
     await getDb().insert(routerDualwanJobs).values({
       routerId,
-      request: { mode: "retrait", wan2_interface: wan2, return_to_bridge: bridge || null },
-      status: "removed",
+      request: { mode: "retrait", wan2_interface: wan2, return_to_bridge: bridge || null, dry_run: Boolean(f.dryRun) },
+      status: f.dryRun ? "removed_dry_run" : "removed",
       result: { status: "removed", details: report },
       finishedAt: new Date(),
     });

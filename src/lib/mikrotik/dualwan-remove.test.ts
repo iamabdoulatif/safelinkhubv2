@@ -25,5 +25,11 @@ describe("removeDualWanConfig", () => {
     assert.ok(calls.some((c) => c[0] === "/ip/dhcp-client/set" && c.includes("=numbers=*d1") && c.includes("=script=")));
     assert.ok(calls.some((c) => c[0] === "/interface/ethernet/set" && c.includes("=name=ether2")));
     assert.ok(calls.some((c) => c[0] === "/interface/bridge/port/add" && c.includes("=bridge=HOTSPOT") && c.includes("=interface=ether2")));
+
+    // Simulation : même rapport, aucune écriture.
+    calls.length = 0;
+    const dry = await removeDualWanConfig(client, { wan2Interface: "E2-WAN-FAI", returnWan2ToBridge: "HOTSPOT", dryRun: true });
+    assert.deepEqual(dry, report);
+    assert.ok(calls.every((c) => c[0].endsWith("/print")), calls.map((c) => c[0]).join(","));
   });
 });

@@ -16,16 +16,19 @@ export type RemoveDualWanOptions = {
   wan2Interface: string;
   /** Bridge LAN où remettre le port WAN2 (et lui rendre son nom d'usine) ; vide = on le laisse tel quel. */
   returnWan2ToBridge?: string;
+  /** Simulation : même repérage, même rapport, aucune écriture. */
+  dryRun?: boolean;
 };
 
 export type RemoveDualWanReport = Record<string, number>;
 
 export async function removeDualWanConfig(client: RouterOSClient, opts: RemoveDualWanOptions, timeoutMs = 15000): Promise<RemoveDualWanReport> {
   const report: RemoveDualWanReport = {};
+  const write = (words: string[]) => (opts.dryRun ? Promise.resolve([]) : client.talk(words, timeoutMs));
   const removeWhere = async (path: string, keep: (r: Record<string, string>) => boolean, label: string) => {
     const rows = await client.talk([`${path}/print`], timeoutMs).catch(() => []);
     const ids = rows.filter((r) => r[".id"] && keep(r)).map((r) => r[".id"]);
-    if (ids.length) await client.talk([`${path}/remove`, `=numbers=${ids.join(",")}`], timeoutMs);
+    if (ids.length) await write([`${path}/remove`, `=numbers=${ids.join(",")}`]);
     report[label] = ids.length;
   };
 
@@ -42,7 +45,7 @@ export async function removeDualWanConfig(client: RouterOSClient, opts: RemoveDu
   const dhcp = await client.talk(["/ip/dhcp-client/print"], timeoutMs).catch(() => []);
   const wan1 = dhcp.find((r) => r.interface !== opts.wan2Interface && (r.script ?? "").includes("Sonde WAN1"));
   if (wan1?.[".id"]) {
-    await client.talk(["/ip/dhcp-client/set", `=numbers=${wan1[".id"]}`, "=default-route-distance=1", "=script="], timeoutMs);
+    await write(["/ip/dhcp-client/set", `=numbers=${wan1[".id"]}`, "=default-route-distance=1", "=script="]);
     report.dhcp_wan1_restored = 1;
   }
 
@@ -50,9 +53,9 @@ export async function removeDualWanConfig(client: RouterOSClient, opts: RemoveDu
     const [eth] = await client.talk(["/interface/ethernet/print", `?name=${opts.wan2Interface}`], timeoutMs).catch(() => []);
     if (eth?.[".id"]) {
       const name = eth["default-name"] || opts.wan2Interface;
-      if (name !== opts.wan2Interface) await client.talk(["/interface/ethernet/set", `=numbers=${eth[".id"]}`, `=name=${name}`, "=comment="], timeoutMs);
+      if (name !== opts.wan2Interface) await write(["/interface/ethernet/set", `=numbers=${eth[".id"]}`, `=name=${name}`, "=comment="]);
       const ports = await client.talk(["/interface/bridge/port/print", `?interface=${name}`], timeoutMs).catch(() => []);
-      if (!ports.length) await client.talk(["/interface/bridge/port/add", `=bridge=${opts.returnWan2ToBridge}`, `=interface=${name}`], timeoutMs);
+      if (!ports.length) await write(["/interface/bridge/port/add", `=bridge=${opts.returnWan2ToBridge}`, `=interface=${name}`]);
       report.wan2_bridged = 1;
     }
   }
