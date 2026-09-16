@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerDualwanJobs, routerPortForwards, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
@@ -135,4 +135,22 @@ export async function startDualWan(routerId: string, f: DualWanForm) {
     return { error: message };
   }
   return { ok: true as const, jobId: job.id };
+}
+
+/** Retire une ligne d'historique (jamais un job en cours : son callback arriverait dans le vide). */
+export async function deleteDualWanJob(routerId: string, jobId: string) {
+  if (!(await autorise(routerId))) return { error: "Routeur introuvable." };
+  await getDb()
+    .delete(routerDualwanJobs)
+    .where(and(eq(routerDualwanJobs.id, jobId), eq(routerDualwanJobs.routerId, routerId), ne(routerDualwanJobs.status, "running")));
+  return { ok: true as const };
+}
+
+/** Vide l'historique terminé du routeur. */
+export async function clearDualWanJobs(routerId: string) {
+  if (!(await autorise(routerId))) return { error: "Routeur introuvable." };
+  await getDb()
+    .delete(routerDualwanJobs)
+    .where(and(eq(routerDualwanJobs.routerId, routerId), ne(routerDualwanJobs.status, "running")));
+  return { ok: true as const };
 }

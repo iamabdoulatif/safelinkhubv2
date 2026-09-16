@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { Loader2, Split } from "lucide-react";
-import { readDualWanJobs, startDualWan } from "@/lib/mikrotik/dualwan-actions";
+import { Loader2, Split, X } from "lucide-react";
+import { clearDualWanJobs, deleteDualWanJob, readDualWanJobs, startDualWan } from "@/lib/mikrotik/dualwan-actions";
 import { DUALWAN_DEFAULTS, type DualWanForm } from "@/lib/mikrotik/dualwan-defaults";
 
 type Jobs = NonNullable<Awaited<ReturnType<typeof readDualWanJobs>>["jobs"]>;
@@ -39,7 +39,7 @@ function formOf(r: Record<string, unknown>, dryRun: boolean): DualWanForm {
   };
 }
 
-function JobRow({ job, onApply, busy }: { job: Job; onApply: (form: DualWanForm) => void; busy: boolean }) {
+function JobRow({ job, onApply, onRemove, busy }: { job: Job; onApply: (form: DualWanForm) => void; onRemove: () => void; busy: boolean }) {
   const d = job.result?.details ?? {};
   const applied = Array.isArray(d.applied) ? (d.applied as string[]) : [];
   const skipped = Array.isArray(d.skipped) ? (d.skipped as string[]) : [];
@@ -51,7 +51,14 @@ function JobRow({ job, onApply, busy }: { job: Job; onApply: (form: DualWanForm)
           {String(job.request.mode)} · {CAS_LABEL[job.request.cas as DualWanForm["cas"]] ?? String(job.request.cas)}
           {job.request.dry_run ? " · simulation" : ""}
         </span>
-        <span className={`font-bold ${tone}`}>{STATUS_LABEL[job.status]}</span>
+        <span className="flex items-center gap-2">
+          <span className={`font-bold ${tone}`}>{STATUS_LABEL[job.status]}</span>
+          {job.status !== "running" && (
+            <button type="button" onClick={onRemove} disabled={busy} aria-label="Retirer de l'historique" title="Retirer de l'historique" className="text-ink-soft hover:text-ink disabled:opacity-60">
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          )}
+        </span>
       </div>
       <p className="text-[11px] text-ink-soft">{new Date(job.at).toLocaleString("fr-FR")}</p>
       {job.status === "error" && (
@@ -130,6 +137,14 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
 
   // « Appliquer ce plan » : reprend les paramètres exacts de la simulation
   // (ce que l'écran affiche peut avoir été modifié depuis) et écrit pour de bon.
+  const remove = (jobId: string) => start(async () => { await deleteDualWanJob(routerId, jobId); await refresh(); });
+  const clearAll = () =>
+    start(async () => {
+      if (!window.confirm("Retirer tout l'historique terminé de ce routeur ?")) return;
+      await clearDualWanJobs(routerId);
+      await refresh();
+    });
+
   const applyPlan = (f: DualWanForm) => {
     if (!window.confirm("Appliquer ce plan sur le routeur ? Une sauvegarde /export est faite avant, mais le port WAN2 sera sorti du bridge si demandé.")) return;
     setForm(f);
@@ -209,11 +224,19 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
       </div>
 
       {jobs.length > 0 && (
-        <ul className="mt-4 space-y-2">
-          {jobs.map((j) => (
-            <JobRow key={j.id} job={j} onApply={applyPlan} busy={pending || running} />
-          ))}
-        </ul>
+        <>
+          <div className="mt-4 flex items-center justify-between">
+            <span className="text-xs font-bold text-ink-soft">Historique</span>
+            <button type="button" onClick={clearAll} disabled={pending} className="text-xs text-ink-soft underline hover:text-ink disabled:opacity-60">
+              Vider l&apos;historique
+            </button>
+          </div>
+          <ul className="mt-2 space-y-2">
+            {jobs.map((j) => (
+              <JobRow key={j.id} job={j} onApply={applyPlan} onRemove={() => remove(j.id)} busy={pending || running} />
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );
