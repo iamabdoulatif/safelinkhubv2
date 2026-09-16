@@ -19,7 +19,7 @@ function runGenerate(req, stdout) {
 // Sortie « print terse » d'un hAP ax2 (forme relevée sur HSPT-LEGRAND, RouterOS 7.21).
 const sec = (parts) => Object.entries(parts).map(([k, v]) => `##${k}\n${v}`).join("\n") + "\n##END";
 const IF_FRESH = `0 R name=ether1 default-name=ether1 type=ether mtu=1500\n1 R name=ether2 default-name=ether2 type=ether mtu=1500\n2 R name=bridge type=bridge`;
-const IF_UNIWAN = `0 R name=E1-WAN-FAI default-name=ether1 type=ether\n1 R name=E2-WAN-FAI default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
+const IF_UNIWAN = `0 R comment=Starlink Standard V4 name=E1-WAN-FAI default-name=ether1 type=ether\n1 R comment=Starlink Mini name=E2-WAN-FAI default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
 const base = { VERSION: "version: 7.21.1 (stable)\nboard-name: hAP ax^2", BRIDGEPORT: "", LISTM: "", DHCP: "", NAT: "", MANGLE: "", ROUTE: "", RTABLE: "", FILTER: "", ALIST: "", DNS: "servers=8.8.8.8\nallow-remote-requests=false" };
 const fresh = sec({ ...base, IFACE: IF_FRESH });
 
@@ -95,8 +95,17 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
     assert.ok(runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT" }), half).applied.includes('/ip route set [find comment="Main WAN1"] dst-address=0.0.0.0/0 check-gateway=ping distance=1 target-scope=11 gateway=1.1.1.1'));
   });
 
+  it("commentaire manquant sur un WAN déjà bien nommé → posé sans renommer, dans les deux modes", () => {
+    const IF_NOCOMMENT = `0 R name=E1-WAN-FAI default-name=ether1 type=ether\n1 R comment=Starlink Mini name=E2-WAN-FAI default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
+    for (const mode of ["complement", "complet"]) {
+      const g = runGenerate(req({ mode, lan_interface: "HOTSPOT" }), sec({ ...base, IFACE: IF_NOCOMMENT }));
+      assert.ok(g.applied.includes('/interface ethernet set [find default-name=ether1] comment="Starlink Standard V4"'), mode);
+      assert.ok(!g.applied.some((l) => /default-name=ether1\] name=/.test(l) || /default-name=ether2\] comment=/.test(l)), mode);
+    }
+  });
+
   it("complement + detach : ether2 encore d'usine dans le bridge → sorti, renommé, puis WAN2 seulement", () => {
-    const IF_HOTSPOT = `0 R name=E1-WAN-FAI default-name=ether1 type=ether\n1 R name=ether2 default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
+    const IF_HOTSPOT = `0 R comment=Starlink Standard V4 name=E1-WAN-FAI default-name=ether1 type=ether\n1 R name=ether2 default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
     const hotspot = sec({ ...base, IFACE: IF_HOTSPOT, BRIDGEPORT: "0 I interface=ether2 bridge=HOTSPOT" });
     assert.throws(() => runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT" }), hotspot), /E2-WAN-FAI » absente.*detach_wan2_from_bridge=true/);
     const g = runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT", detach_wan2_from_bridge: true }), hotspot);

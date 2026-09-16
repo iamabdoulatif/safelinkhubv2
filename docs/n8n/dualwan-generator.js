@@ -87,12 +87,17 @@ const H = (t) => lines.push({ text: `# ---------- ${t} ----------`, hdr: true })
 const emit = (text, skip) => lines.push({ text, skip: skip ? 'déjà présent' : null });
 const toApply = (w) => complet || w.n === 2; // complement : on n'ajoute que WAN2
 
-const toRename = wans.filter((w) => complet || (w.n === 2 && w.current !== w.name));
-if (toRename.length) {
-  H('0. Renommage interfaces');
-  for (const w of toRename) {
+// Nom ET commentaire (« Starlink Standard V4 », « Starlink Mini ») sur les
+// deux WAN, dans les deux modes : un port déjà bien nommé reçoit juste son
+// commentaire s'il lui manque (WAN1 d'un uniwan repris en complement compris).
+H('0. Interfaces WAN : nom et commentaire');
+for (const w of wans) {
+  if (w.current !== w.name) {
     if (w.inBridge) emit(`/interface bridge port remove [find interface=${w.current}]`);
-    emit(`/interface ethernet set [find default-name=${w.src}] name=${w.name} comment="${w.ifaceComment}"`, w.current === w.name);
+    emit(`/interface ethernet set [find default-name=${w.src}] name=${w.name} comment="${w.ifaceComment}"`);
+  } else {
+    emit(`/interface ethernet set [find default-name=${w.src}] comment="${w.ifaceComment}"`,
+      has('IFACE', (l) => kv('name', w.name).test(l) && byComment(w.ifaceComment).test(l)));
   }
 }
 
