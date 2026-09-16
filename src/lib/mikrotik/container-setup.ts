@@ -675,18 +675,32 @@ async function provisionDockerStack(
         "=start-on-boot=yes",
         ...(mikhmonEnvlist ? [`=envlist=${mikhmonEnvlist}`] : []),
       ];
-      let containerAdded = await run(
-        containerAddCommand,
-        "container image install (auto-start on boot enabled)",
-      );
-      if (!containerAdded.ok && mikhmonEnvlist && isUnsupportedEnvlistError(containerAdded.error)) {
-        log.push(
-          "WARN: cette version de RouterOS ignore =envlist= sur /container/add — installation sans pré-remplissage de la session MikHmon (à configurer manuellement).",
+      const addContainer = async () => {
+        let added = await run(containerAddCommand, "container image install (auto-start on boot enabled)");
+        if (!added.ok && mikhmonEnvlist && isUnsupportedEnvlistError(added.error)) {
+          log.push(
+            "WARN: cette version de RouterOS ignore =envlist= sur /container/add — installation sans pré-remplissage de la session MikHmon (à configurer manuellement).",
+          );
+          added = await run(withoutEnvlist(containerAddCommand), "container image install (sans envlist)");
+        }
+        return added;
+      };
+      let containerAdded = await addContainer();
+      // Routeur réinitialisé (reset-configuration) : la table des conteneurs est
+      // vide mais le store « flash/mikhmon-app » a survécu sur la NAND, et
+      // RouterOS refuse de créer un conteneur sur un root-dir existant
+      // (« root-dir /flash/mikhmon-app already exists », HTSPT-BETON 7.24). On
+      // retire le store orphelin (et son _work) puis on recrée ; les layers
+      // restent, donc pas de re-pull.
+      if (!containerAdded.ok && /root-dir .*already exists/i.test(containerAdded.error)) {
+        const stale = (await client.talk(["/file/print", "=.proplist=.id,name,type"]).catch(() => [] as Sentence[])).filter(
+          (f) => f.name === containerRootDir || f.name === `${containerRootDir}_work`,
         );
-        containerAdded = await run(
-          withoutEnvlist(containerAddCommand),
-          "container image install (sans envlist)",
-        );
+        for (const f of stale) {
+          if (f[".id"]) await run(["/file/remove", `=numbers=${f[".id"]}`], `stale container store removed (${f.name})`);
+        }
+        log.push(`OK: store de conteneur orphelin retiré (${stale.map((f) => f.name).join(", ") || "aucun"}) — routeur réinitialisé, conteneur recréé`);
+        containerAdded = await addContainer();
       }
       if (!containerAdded.ok) return { status: "failed", message: containerAdded.error };
     }
