@@ -24,7 +24,22 @@ const STATUS_LABEL: Record<Job["status"], string> = {
 
 const input = "mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg";
 
-function JobRow({ job }: { job: Job }) {
+/** Reconstitue le formulaire depuis la demande mémorisée (snake_case du webhook). */
+function formOf(r: Record<string, unknown>, dryRun: boolean): DualWanForm {
+  return {
+    mode: r.mode as DualWanForm["mode"],
+    cas: r.cas as DualWanForm["cas"],
+    lanInterface: String(r.lan_interface ?? ""),
+    wan1Interface: String(r.wan1_interface ?? DUALWAN_DEFAULTS.wan1Interface),
+    wan2Interface: String(r.wan2_interface ?? DUALWAN_DEFAULTS.wan2Interface),
+    wan1Mbps: Number(r.wan1_mbps) > 0 ? Number(r.wan1_mbps) : "",
+    wan2Mbps: Number(r.wan2_mbps) > 0 ? Number(r.wan2_mbps) : "",
+    detachWan2FromBridge: r.detach_wan2_from_bridge === true,
+    dryRun,
+  };
+}
+
+function JobRow({ job, onApply, busy }: { job: Job; onApply: (form: DualWanForm) => void; busy: boolean }) {
   const d = job.result?.details ?? {};
   const applied = Array.isArray(d.applied) ? (d.applied as string[]) : [];
   const skipped = Array.isArray(d.skipped) ? (d.skipped as string[]) : [];
@@ -48,10 +63,19 @@ function JobRow({ job }: { job: Job }) {
       {job.status === "stale" && <p className="mt-1 text-ink-soft">n8n n&apos;a pas rappelé la plateforme — voir l&apos;exécution dans n8n.</p>}
       {(job.status === "ok" || job.status === "dry_run") && (
         <p className="mt-1 text-ink-soft">
-          {applied.length} commande{applied.length > 1 ? "s" : ""} {job.status === "ok" ? "appliquée" : "à appliquer"}
-          {applied.length > 1 ? "s" : ""}, {skipped.length} déjà en place
+          {applied.length} commande{applied.length > 1 ? "s" : ""} {job.status === "ok" ? `appliquée${applied.length > 1 ? "s" : ""}` : "à appliquer"}, {skipped.length} déjà en place
           {job.result?.backup_file ? ` · sauvegarde ${job.result.backup_file}` : ""}
         </p>
+      )}
+      {job.status === "dry_run" && applied.length > 0 && (
+        <button
+          type="button"
+          onClick={() => onApply(formOf(job.request, false))}
+          disabled={busy}
+          className="mt-2 inline-flex items-center gap-2 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-ink rounded-lg hover:bg-clay disabled:opacity-60"
+        >
+          Appliquer ce plan ({applied.length} commande{applied.length > 1 ? "s" : ""})
+        </button>
       )}
       {applied.length > 0 && (
         <details className="mt-1">
@@ -95,14 +119,22 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
 
   const set = <K extends keyof DualWanForm>(k: K, v: DualWanForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  const launch = () =>
+  const launch = (f: DualWanForm = form) =>
     start(async () => {
       setMsg(null);
-      const res = await startDualWan(routerId, form);
+      const res = await startDualWan(routerId, f);
       if (res.error) setMsg({ ok: false, text: res.error });
-      else setMsg({ ok: true, text: form.dryRun ? "Simulation lancée — le plan arrive dans un instant." : "Provisionnement lancé — sauvegarde, application, vérification." });
+      else setMsg({ ok: true, text: f.dryRun ? "Simulation lancée — le plan arrive dans un instant." : "Provisionnement lancé — sauvegarde, application, vérification." });
       await refresh();
     });
+
+  // « Appliquer ce plan » : reprend les paramètres exacts de la simulation
+  // (ce que l'écran affiche peut avoir été modifié depuis) et écrit pour de bon.
+  const applyPlan = (f: DualWanForm) => {
+    if (!window.confirm("Appliquer ce plan sur le routeur ? Une sauvegarde /export est faite avant, mais le port WAN2 sera sorti du bridge si demandé.")) return;
+    setForm(f);
+    launch(f);
+  };
 
   return (
     <section className="mt-6 border border-line bg-paper p-4 rounded-xl">
@@ -166,7 +198,7 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={launch}
+          onClick={() => launch()}
           disabled={pending || running}
           className="inline-flex items-center gap-2 bg-brand px-4 py-2 text-sm font-bold text-slate-deep rounded-lg disabled:opacity-60"
         >
@@ -179,7 +211,7 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
       {jobs.length > 0 && (
         <ul className="mt-4 space-y-2">
           {jobs.map((j) => (
-            <JobRow key={j.id} job={j} />
+            <JobRow key={j.id} job={j} onApply={applyPlan} busy={pending || running} />
           ))}
         </ul>
       )}
