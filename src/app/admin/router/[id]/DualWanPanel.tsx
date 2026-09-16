@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { Loader2, Split, X } from "lucide-react";
-import { clearDualWanJobs, deleteDualWanJob, readDualWanJobs, startDualWan } from "@/lib/mikrotik/dualwan-actions";
+import { clearDualWanJobs, deleteDualWanJob, readDualWanJobs, removeDualWan, startDualWan } from "@/lib/mikrotik/dualwan-actions";
 import { DUALWAN_DEFAULTS, type DualWanForm } from "@/lib/mikrotik/dualwan-defaults";
 
 type Jobs = NonNullable<Awaited<ReturnType<typeof readDualWanJobs>>["jobs"]>;
@@ -20,6 +20,7 @@ const STATUS_LABEL: Record<Job["status"], string> = {
   dry_run: "Simulation OK",
   error: "Échec",
   stale: "Sans réponse",
+  removed: "Retirée",
 };
 
 const input = "mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg";
@@ -48,8 +49,9 @@ function JobRow({ job, onApply, onRemove, busy }: { job: Job; onApply: (form: Du
     <li className="border border-line bg-clay p-3 rounded-lg text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-bold text-ink">
-          {String(job.request.mode)} · {CAS_LABEL[job.request.cas as DualWanForm["cas"]] ?? String(job.request.cas)}
-          {job.request.dry_run ? " · simulation" : ""}
+          {job.status === "removed"
+            ? `retrait de la config dual WAN${job.request.return_to_bridge ? ` · WAN2 remis dans ${String(job.request.return_to_bridge)}` : ""}`
+            : `${String(job.request.mode)} · ${CAS_LABEL[job.request.cas as DualWanForm["cas"]] ?? String(job.request.cas)}${job.request.dry_run ? " · simulation" : ""}`}
         </span>
         <span className="flex items-center gap-2">
           <span className={`font-bold ${tone}`}>{STATUS_LABEL[job.status]}</span>
@@ -65,6 +67,11 @@ function JobRow({ job, onApply, onRemove, busy }: { job: Job; onApply: (form: Du
         <p className="mt-1 text-err">
           {d.step ? `${d.step} : ` : ""}
           {d.message ?? (Array.isArray(d.failed) && d.failed.length ? `contrôles en échec : ${d.failed.join(", ")}` : "erreur inconnue")}
+        </p>
+      )}
+      {job.status === "removed" && (
+        <p className="mt-1 text-ink-soft">
+          {Object.entries(d).filter(([, v]) => typeof v === "number").map(([k, v]) => `${k} ${v}`).join(" · ") || "rien à retirer"}
         </p>
       )}
       {job.status === "stale" && <p className="mt-1 text-ink-soft">n8n n&apos;a pas rappelé la plateforme — voir l&apos;exécution dans n8n.</p>}
@@ -145,6 +152,19 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
       await refresh();
     });
 
+  const [removeBridge, setRemoveBridge] = useState(false);
+  const removeConfig = () =>
+    start(async () => {
+      const bridge = removeBridge ? form.lanInterface.trim() : "";
+      if (removeBridge && !bridge) return setMsg({ ok: false, text: "Indiquez l'interface LAN (bridge) pour y remettre le port WAN2." });
+      if (!window.confirm(`Retirer la configuration dual WAN de ce routeur ? PCC, routes, tables, NAT WAN2, client DHCP WAN2 seront supprimés${bridge ? `, et ${form.wan2Interface} remis dans ${bridge}` : ""}. WAN1 reste en service.`)) return;
+      setMsg(null);
+      const res = await removeDualWan(routerId, { wan2Interface: form.wan2Interface, returnWan2ToBridge: bridge });
+      if (res.error) setMsg({ ok: false, text: res.error });
+      else setMsg({ ok: true, text: "Configuration dual WAN retirée — détail dans l'historique." });
+      await refresh();
+    });
+
   const applyPlan = (f: DualWanForm) => {
     if (!window.confirm("Appliquer ce plan sur le routeur ? Une sauvegarde /export est faite avant, mais le port WAN2 sera sorti du bridge si demandé.")) return;
     setForm(f);
@@ -178,12 +198,10 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
             ))}
           </select>
         </label>
-        {form.mode === "complement" && (
-          <label className="block sm:col-span-2">
-            <span className="text-xs font-bold text-ink-soft">Interface LAN (bridge du hotspot)</span>
-            <input value={form.lanInterface} onChange={(e) => set("lanInterface", e.target.value)} placeholder="bridge-LAN, HOTSPOT…" className={input} />
-          </label>
-        )}
+        <label className="block sm:col-span-2">
+          <span className="text-xs font-bold text-ink-soft">Interface LAN (bridge du hotspot){form.mode === "complet" ? " — optionnel, sinon la liste LAN" : ""}</span>
+          <input value={form.lanInterface} onChange={(e) => set("lanInterface", e.target.value)} placeholder="bridge-LAN, HOTSPOT…" className={input} />
+        </label>
         <label className="block">
           <span className="text-xs font-bold text-ink-soft">Interface WAN1</span>
           <input value={form.wan1Interface} onChange={(e) => set("wan1Interface", e.target.value)} className={input} />
@@ -222,6 +240,27 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
         </button>
         {msg && <p className={`text-sm ${msg.ok ? "text-ok" : "text-err"}`}>{msg.text}</p>}
       </div>
+
+      <details className="mt-4 border border-line bg-clay p-3 rounded-lg text-sm">
+        <summary className="cursor-pointer font-bold text-ink">Retirer la configuration dual WAN</summary>
+        <p className="mt-2 text-ink-soft">
+          Défait ce que le workflow a posé (repéré par ses commentaires et marques, jamais par numéro) : PCC, marques de routage,
+          sondes et routes, tables to-WAN*, liste d&apos;exclusion, NAT et client DHCP de WAN2, liste WAN. Le client DHCP WAN1 retrouve
+          ses réglages, NAT WAN1, FastTrack et DNS restent. Rejouable sans doublon.
+        </p>
+        <label className="mt-2 flex items-center gap-2 text-ink">
+          <input type="checkbox" checked={removeBridge} onChange={(e) => setRemoveBridge(e.target.checked)} />
+          Remettre {form.wan2Interface || "WAN2"} dans le bridge LAN ({form.lanInterface.trim() || "interface LAN à renseigner ci-dessus"}) et lui rendre son nom d&apos;usine
+        </label>
+        <button
+          type="button"
+          onClick={removeConfig}
+          disabled={pending || running}
+          className="mt-3 inline-flex items-center gap-2 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-err rounded-lg hover:bg-clay disabled:opacity-60"
+        >
+          Retirer la configuration
+        </button>
+      </details>
 
       {jobs.length > 0 && (
         <>

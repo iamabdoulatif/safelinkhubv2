@@ -7,6 +7,8 @@ import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { decryptSecret } from "./crypto";
 import { getRelayPublicHost } from "./relay";
+import { connectToRouter } from "./router-sync";
+import { removeDualWanConfig } from "./dualwan-remove";
 import type { DualWanForm } from "./dualwan-defaults";
 
 /**
@@ -48,7 +50,7 @@ export async function readDualWanJobs(routerId: string) {
   return {
     jobs: jobs.map((j) => ({
       id: j.id,
-      status: isStale(j) ? ("stale" as const) : (j.status as "running" | "ok" | "dry_run" | "error"),
+      status: isStale(j) ? ("stale" as const) : (j.status as "running" | "ok" | "dry_run" | "error" | "removed"),
       request: j.request as Record<string, unknown>,
       result: (j.result ?? null) as null | {
         details?: Record<string, unknown> & { message?: string; step?: string; failed?: string[] };
@@ -153,4 +155,38 @@ export async function clearDualWanJobs(routerId: string) {
     .delete(routerDualwanJobs)
     .where(and(eq(routerDualwanJobs.routerId, routerId), ne(routerDualwanJobs.status, "running")));
   return { ok: true as const };
+}
+
+/**
+ * Retire la configuration dual WAN par l'API RouterOS à travers le tunnel (pas
+ * de passage par n8n : rien à générer, juste défaire par clé). Journalisé
+ * comme un job « removed » pour que l'historique raconte aussi le retour arrière.
+ */
+export async function removeDualWan(routerId: string, f: { wan2Interface: string; returnWan2ToBridge: string }) {
+  const router = await autorise(routerId);
+  if (!router) return { error: "Routeur introuvable." };
+  const wan2 = f.wan2Interface.trim() || "E2-WAN-FAI";
+  const bridge = f.returnWan2ToBridge.trim();
+  for (const v of [wan2, bridge]) if (v && !IDENT.test(v)) return { error: `Nom d'interface invalide : « ${v} ».` };
+  let client;
+  try {
+    client = await connectToRouter(router, 20000);
+  } catch (e) {
+    return { error: `Routeur injoignable : ${e instanceof Error ? e.message : String(e)}` };
+  }
+  try {
+    const report = await removeDualWanConfig(client, { wan2Interface: wan2, returnWan2ToBridge: bridge || undefined });
+    await getDb().insert(routerDualwanJobs).values({
+      routerId,
+      request: { mode: "retrait", wan2_interface: wan2, return_to_bridge: bridge || null },
+      status: "removed",
+      result: { status: "removed", details: report },
+      finishedAt: new Date(),
+    });
+    return { ok: true as const, report };
+  } catch (e) {
+    return { error: `Retrait interrompu : ${e instanceof Error ? e.message : String(e)}` };
+  } finally {
+    client.close();
+  }
 }
