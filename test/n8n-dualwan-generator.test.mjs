@@ -135,6 +135,37 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
     assert.equal(g2.skipped.length, g1.applied.length);
   });
 
+  /* HSPT-FOUANGA (16/09/2026) : mark-routing sans in-interface renvoyait les
+     réponses au WAN (385 TCP en syn-recv, 0 établie) et les redirections du
+     hotspot vers le routeur (DNS, page de connexion) partaient au WAN → plus
+     de pop-up. */
+  it("routeur à hotspot : PCC réservé aux clients connectés, DNS soustrait, mark-routing borné au LAN", () => {
+    const hs = sec({ ...base, IFACE: IF_UNIWAN, NAT: "0 D chain=hotspot action=jump jump-target=pre-hotspot\n1 D chain=hotspot action=redirect to-ports=64872 protocol=udp dst-port=53" });
+    const g = runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT" }), hs);
+    assert.ok(g.applied.filter((l) => l.includes("per-connection-classifier")).every((l) => l.includes(" in-interface=HOTSPOT hotspot=auth ")));
+    assert.ok(g.applied.includes('/ip firewall mangle add chain=prerouting in-interface=HOTSPOT protocol=udp dst-port=53 action=accept comment="PCC DNS local udp"'));
+    assert.ok(g.applied.includes("/ip firewall mangle add chain=prerouting connection-mark=WAN2 in-interface=HOTSPOT action=mark-routing new-routing-mark=to-WAN2 passthrough=yes"));
+    // Le DNS passe AVANT le PCC dans le script.
+    assert.ok(g.applied.findIndex((l) => l.includes("PCC DNS local udp")) < g.applied.findIndex((l) => l.includes("per-connection-classifier")));
+    // Sans hotspot : pas de hotspot=auth (le matcher ne matcherait rien, le PCC serait mort).
+    const g2 = runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT" }), sec({ ...base, IFACE: IF_UNIWAN }));
+    assert.ok(g2.applied.filter((l) => l.includes("per-connection-classifier")).every((l) => !l.includes("hotspot=")));
+  });
+
+  it("migration FOUANGA : règles PCC déjà posées sans garde → set, DNS placé devant", () => {
+    const old = sec({ ...base, IFACE: IF_UNIWAN, NAT: "0 D chain=hotspot action=jump jump-target=pre-hotspot",
+      MANGLE: "0 comment=PCC 1/2 -> WAN1 chain=prerouting action=mark-connection new-connection-mark=WAN1 passthrough=yes dst-address-list=!slh-pcc-exclude connection-mark=no-mark in-interface=HOTSPOT per-connection-classifier=both-addresses-and-ports:2/0\n1 comment=PCC 2/2 -> WAN2 chain=prerouting action=mark-connection new-connection-mark=WAN2 passthrough=yes dst-address-list=!slh-pcc-exclude connection-mark=no-mark in-interface=HOTSPOT per-connection-classifier=both-addresses-and-ports:2/1\n2 chain=prerouting action=mark-routing new-routing-mark=to-WAN1 passthrough=yes connection-mark=WAN1\n3 chain=prerouting action=mark-routing new-routing-mark=to-WAN2 passthrough=yes connection-mark=WAN2" });
+    const g = runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT", wan1_mbps: 400, wan2_mbps: 400 }), old);
+    assert.ok(g.applied.includes('/ip firewall mangle set [find comment="PCC 1/2 -> WAN1"] hotspot=auth'));
+    assert.ok(g.applied.includes("/ip firewall mangle set [find action=mark-routing new-routing-mark=to-WAN2] in-interface=HOTSPOT"));
+    assert.ok(g.applied.includes('/ip firewall mangle add chain=prerouting in-interface=HOTSPOT protocol=tcp dst-port=53 action=accept place-before=[find comment="PCC 1/2 -> WAN1"] comment="PCC DNS local tcp"'));
+    assert.ok(!g.applied.some((l) => l.includes("per-connection-classifier")));
+    // Rejouer sur le routeur réparé : plus rien à faire.
+    const fixed = sec({ ...base, IFACE: IF_UNIWAN, NAT: "0 D chain=hotspot action=jump jump-target=pre-hotspot",
+      MANGLE: "0 comment=PCC DNS local udp chain=prerouting action=accept protocol=udp in-interface=HOTSPOT dst-port=53\n1 comment=PCC DNS local tcp chain=prerouting action=accept protocol=tcp in-interface=HOTSPOT dst-port=53\n2 comment=PCC 1/2 -> WAN1 chain=prerouting action=mark-connection new-connection-mark=WAN1 hotspot=auth in-interface=HOTSPOT per-connection-classifier=both-addresses-and-ports:2/0\n3 comment=PCC 2/2 -> WAN2 chain=prerouting action=mark-connection new-connection-mark=WAN2 hotspot=auth in-interface=HOTSPOT per-connection-classifier=both-addresses-and-ports:2/1\n4 chain=prerouting action=mark-routing new-routing-mark=to-WAN1 passthrough=yes connection-mark=WAN1 in-interface=HOTSPOT\n5 chain=prerouting action=mark-routing new-routing-mark=to-WAN2 passthrough=yes connection-mark=WAN2 in-interface=HOTSPOT" });
+    assert.ok(!runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT", wan1_mbps: 400, wan2_mbps: 400 }), fixed).applied.some((l) => l.includes("mangle")));
+  });
+
   it("dry_run : la demande le porte, le générateur le propage, l'If d'application le respecte", () => {
     const r = req({ dry_run: true });
     assert.equal(r.dry_run, true);

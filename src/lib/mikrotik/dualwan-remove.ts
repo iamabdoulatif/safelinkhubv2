@@ -33,7 +33,7 @@ export async function removeDualWanConfig(client: RouterOSClient, opts: RemoveDu
   };
 
   // Ordre : ce qui référence avant ce qui est référencé (marques → routes → tables).
-  await removeWhere("/ip/firewall/mangle", (r) => /^PCC \d+\/\d+ -> WAN[12]$/.test(r.comment ?? "") || (r.action === "mark-routing" && TABLES.has(r["new-routing-mark"] ?? "")), "mangle");
+  await removeWhere("/ip/firewall/mangle", (r) => /^PCC (\d+\/\d+ -> WAN[12]|DNS local (udp|tcp))$/.test(r.comment ?? "") || (r.action === "mark-routing" && TABLES.has(r["new-routing-mark"] ?? "")), "mangle");
   await removeWhere("/ip/route", (r) => ROUTE_COMMENTS.has(r.comment ?? ""), "routes");
   await removeWhere("/routing/table", (r) => TABLES.has(r.name ?? ""), "tables");
   await removeWhere("/ip/firewall/nat", (r) => r.comment === "NAT WAN2" || (r.action === "masquerade" && r["out-interface"] === opts.wan2Interface), "nat");

@@ -158,13 +158,40 @@ const foreign = sections.MANGLE.filter((l) => /per-connection-classifier=/.test(
 if (foreign.length) {
   throw new Error(`${foreign.length} règle(s) PCC étrangère(s) au plan ${ratio} déjà en place — retirez-les avant de relancer : ${foreign.map((l) => l.slice(0, 90)).join(' | ')}`);
 }
+// HSPT-FOUANGA, 16/09/2026 : 385 connexions TCP en syn-recv, 0 établie, plus
+// de pop-up de portail. Deux fuites de la même cause — un paquet marqué est
+// routé par la table to-WANx, qui n'a qu'une route par défaut :
+// 1. mark-routing sans in-interface marquait aussi les RÉPONSES arrivant du
+//    WAN → renvoyées au WAN au lieu du client (d'où ${lanMatch}).
+// 2. Un paquet marqué puis redirigé par le hotspot vers le routeur (DNS
+//    53→64872, HTTP 80→64874 des clients non connectés) partait au WAN au
+//    lieu d'être livré localement → ni page de connexion ni pop-up. D'où
+//    hotspot=auth (seuls les clients connectés sont répartis, le walled-garden
+//    passe par main) et le DNS soustrait au PCC en tête de chaîne.
+const hotspot = has('NAT', /(^|\s)chain=hotspot(\s|$)/);
+const pccAuth = hotspot ? ' hotspot=auth' : '';
+const dnsBypass = (proto) => `/ip firewall mangle add chain=prerouting ${lanMatch} protocol=${proto} dst-port=53 action=accept comment="PCC DNS local ${proto}"`;
+const firstPcc = sections.MANGLE.some((l) => byComment(pccComments[0]).test(l));
+for (const proto of ['udp', 'tcp']) {
+  // Routeur déjà réparti : la règle doit passer DEVANT le PCC existant.
+  const placed = firstPcc ? dnsBypass(proto).replace(' comment=', ` place-before=[find comment="${pccComments[0]}"] comment=`) : dnsBypass(proto);
+  emit(placed, has('MANGLE', byComment(`PCC DNS local ${proto}`)));
+}
 assign.forEach((x, i) => {
-  emit(`/ip firewall mangle add chain=prerouting connection-mark=no-mark dst-address-list=!${LIST} ${lanMatch} per-connection-classifier=both-addresses-and-ports:${buckets}/${i} action=mark-connection new-connection-mark=WAN${x} passthrough=yes comment="${pccComments[i]}"`,
-    has('MANGLE', byComment(pccComments[i])));
+  const l = sections.MANGLE.find((x) => byComment(pccComments[i]).test(x));
+  if (l && hotspot && !kv('hotspot', 'auth').test(l)) {
+    return emit(`/ip firewall mangle set [find comment="${pccComments[i]}"] hotspot=auth`);
+  }
+  emit(`/ip firewall mangle add chain=prerouting connection-mark=no-mark dst-address-list=!${LIST} ${lanMatch}${pccAuth} per-connection-classifier=both-addresses-and-ports:${buckets}/${i} action=mark-connection new-connection-mark=WAN${x} passthrough=yes comment="${pccComments[i]}"`, !!l);
 });
 for (const n of [1, 2]) {
-  emit(`/ip firewall mangle add chain=prerouting connection-mark=WAN${n} action=mark-routing new-routing-mark=to-WAN${n} passthrough=yes`,
-    has('MANGLE', (l) => /action=mark-routing/.test(l) && kv('new-routing-mark', `to-WAN${n}`).test(l)));
+  const l = sections.MANGLE.find((x) => /action=mark-routing/.test(x) && kv('new-routing-mark', `to-WAN${n}`).test(x));
+  const [k, v] = lanMatch.split('=');
+  if (l && !kv(k, v).test(l)) {
+    emit(`/ip firewall mangle set [find action=mark-routing new-routing-mark=to-WAN${n}] ${lanMatch}`);
+  } else {
+    emit(`/ip firewall mangle add chain=prerouting connection-mark=WAN${n} ${lanMatch} action=mark-routing new-routing-mark=to-WAN${n} passthrough=yes`, !!l);
+  }
 }
 
 H('4. Routes + failover (passerelles récursives, sondées par ping)');

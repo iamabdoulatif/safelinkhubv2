@@ -195,6 +195,25 @@ Starlink (n8n) » ([DualWanPanel.tsx](../../src/app/admin/router/[id]/DualWanPan
    — le durcissement raw/filter de l'auto-setup filtre `in-interface-list=WAN`.
 6. PCC, seaux, marques, FastTrack, DNS : identiques (DNS relu par
    `:put [:tostr [/ip dns get servers]]`, `print` replie la liste en 7.24).
+7. **PCC et hotspot ne cohabitent qu'avec trois gardes** (HSPT-FOUANGA,
+   16/09/2026 : 385 connexions TCP en `syn-recv`, 0 établie, plus de pop-up de
+   portail, 363 kbit/s vers 45 clients). Un paquet marqué est routé par la
+   table `to-WANx`, qui n'a qu'une route par défaut — il n'y a PAS de repli
+   vers `main` en v7, même pour une destination locale (conntrack : la requête
+   DNS redirigée vers `10.0.0.1:64872` ressort masquée par le WAN2).
+   - `mark-routing … in-interface=<LAN>` : sinon les RÉPONSES venant du WAN
+     sont marquées et renvoyées au WAN au lieu du client.
+   - `mark-connection … hotspot=auth` (si `chain=hotspot` existe dans le NAT) :
+     les sondes HTTP des clients non connectés, redirigées vers la page de
+     connexion, sortaient par le WAN → ni page ni pop-up. Le walled-garden
+     passe alors par `main`.
+   - `action=accept protocol=udp|tcp dst-port=53` en tête (`PCC DNS local`) :
+     le DNS des clients connectés vers 1.1.1.1 est lui aussi redirigé sur le
+     proxy local du hotspot.
+   Diagnostic sans sniffer : `/ip firewall connection print detail`, compter
+   `tcp-state=established` par `connection-mark` et les entrées
+   `reply-src-port=6487x` avec le drapeau `S`. Le générateur migre les règles
+   déjà posées (`set`), le retrait enlève aussi les deux règles DNS.
 
 Point à surveiller en labo (pas modifié) : FastTrack court-circuite le mangle
 pour les paquets suivants d'une connexion ; si `torch` sur E2 ne montre pas de
