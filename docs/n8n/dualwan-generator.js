@@ -107,7 +107,9 @@ const PROBE = { 1: '1.1.1.1', 2: '9.9.9.9' };
 const probeComment = (n) => `Sonde WAN${n}`;
 const dhcpScript = (n) => `:if (\\$bound=1) do={ /ip route set [find comment=\\"${probeComment(n)}\\"] gateway=\\$\\"gateway-address\\" }`;
 const dhcpLine = (w) => sections.DHCP.find((l) => kv('interface', w.name).test(l));
-const dhcpGateway = (w) => { const l = dhcpLine(w); return l && field(l, 'status') === 'bound' ? field(l, 'gateway') : null; };
+// La passerelle du bail suit « status=bound » ; ne JAMAIS prendre le premier
+// gateway= de la ligne : le script du client contient gateway=$"gateway-address".
+const dhcpGateway = (w) => { const l = dhcpLine(w); const m = l && l.match(/\sstatus=bound\b.*?\sgateway=(\d+\.\d+\.\d+\.\d+)(\s|$)/); return m ? m[1] : null; };
 
 H('1. WAN : DHCP clients (route par défaut en secours lointain, sonde mise à jour à chaque bail)');
 for (const w of wans) {
@@ -169,7 +171,8 @@ const rt = v7 ? 'routing-table' : 'routing-mark';
 const route = (c, attrs, gw) => {
   const l = sections.ROUTE.find((x) => byComment(c).test(x));
   if (!l) return emit(`/ip route add ${attrs} gateway=${gw} comment="${c}"`);
-  emit(`/ip route set [find comment="${c}"] ${attrs} gateway=${gw}`, field(l, 'gateway') === gw);
+  const same = `${attrs} gateway=${gw}`.split(' ').every((kv) => { const [k, v] = kv.split('='); return field(l, k) === v; });
+  emit(`/ip route set [find comment="${c}"] ${attrs} gateway=${gw}`, same);
 };
 for (const w of wans) {
   // Sonde : passerelle = celle du bail si connu, sinon l'interface en attendant le script DHCP.
@@ -180,7 +183,10 @@ for (const [n, table, dist, c] of [
   [1, 'to-WAN1', 1, 'Marquee WAN1'], [2, 'to-WAN1', 2, 'Backup WAN1'],
   [2, 'to-WAN2', 1, 'Marquee WAN2'], [1, 'to-WAN2', 2, 'Backup WAN2'],
 ]) {
-  route(c, `dst-address=0.0.0.0/0${table === 'main' ? '' : ` ${rt}=${table}`} check-gateway=ping distance=${dist}`, PROBE[n]);
+  // target-scope=11 : en v7 la passerelle récursive ne se résout que par une
+  // route de scope STRICTEMENT inférieur (sonde scope=10) — à 10 (défaut) la
+  // route reste inactive, vérifié sur 7.24.
+  route(c, `dst-address=0.0.0.0/0${table === 'main' ? '' : ` ${rt}=${table}`} check-gateway=ping distance=${dist} target-scope=11`, PROBE[n]);
 }
 
 if (complet) {

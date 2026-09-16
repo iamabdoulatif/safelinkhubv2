@@ -48,8 +48,8 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
     assert.ok(g.applied.includes('/routing table add name=to-WAN1 fib'));
     // Sondes récursives : route hôte par WAN (passerelle = l'interface tant que le bail est inconnu), défauts vers 1.1.1.1 / 9.9.9.9.
     assert.ok(g.applied.includes('/ip route add dst-address=9.9.9.9/32 scope=10 gateway=E2-WAN-FAI comment="Sonde WAN2"'));
-    assert.ok(g.applied.includes('/ip route add dst-address=0.0.0.0/0 check-gateway=ping distance=2 gateway=9.9.9.9 comment="Main WAN2"'));
-    assert.ok(g.applied.includes('/ip route add dst-address=0.0.0.0/0 routing-table=to-WAN1 check-gateway=ping distance=2 gateway=9.9.9.9 comment="Backup WAN1"'));
+    assert.ok(g.applied.includes('/ip route add dst-address=0.0.0.0/0 check-gateway=ping distance=2 target-scope=11 gateway=9.9.9.9 comment="Main WAN2"'));
+    assert.ok(g.applied.includes('/ip route add dst-address=0.0.0.0/0 routing-table=to-WAN1 check-gateway=ping distance=2 target-scope=11 gateway=9.9.9.9 comment="Backup WAN1"'));
     assert.equal(g.applied.filter((l) => l.startsWith("/ip route add dst-address=0.0.0.0/0")).length, 6);
     assert.equal(g.expected.routes, 6);
     assert.ok(g.applied.some((l) => l.includes("action=fasttrack-connection")));
@@ -85,11 +85,14 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
       RTABLE: "0 name=to-WAN1 fib\n1 name=to-WAN2 fib",
       ROUTE: "3 Is comment=Marquee WAN1 dst-address=0.0.0.0/0 routing-table=to-WAN1 gateway=E1-WAN-FAI check-gateway=ping distance=1\n4 Is comment=Backup WAN1 dst-address=0.0.0.0/0 routing-table=to-WAN1 gateway=E2-WAN-FAI check-gateway=ping distance=2" });
     const g = runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT" }), old);
-    assert.ok(g.applied.includes('/ip route set [find comment="Marquee WAN1"] dst-address=0.0.0.0/0 routing-table=to-WAN1 check-gateway=ping distance=1 gateway=1.1.1.1'));
-    assert.ok(g.applied.includes('/ip route set [find comment="Backup WAN1"] dst-address=0.0.0.0/0 routing-table=to-WAN1 check-gateway=ping distance=2 gateway=9.9.9.9'));
-    assert.ok(g.applied.includes('/ip route add dst-address=0.0.0.0/0 routing-table=to-WAN2 check-gateway=ping distance=1 gateway=9.9.9.9 comment="Marquee WAN2"'));
+    assert.ok(g.applied.includes('/ip route set [find comment="Marquee WAN1"] dst-address=0.0.0.0/0 routing-table=to-WAN1 check-gateway=ping distance=1 target-scope=11 gateway=1.1.1.1'));
+    assert.ok(g.applied.includes('/ip route set [find comment="Backup WAN1"] dst-address=0.0.0.0/0 routing-table=to-WAN1 check-gateway=ping distance=2 target-scope=11 gateway=9.9.9.9'));
+    assert.ok(g.applied.includes('/ip route add dst-address=0.0.0.0/0 routing-table=to-WAN2 check-gateway=ping distance=1 target-scope=11 gateway=9.9.9.9 comment="Marquee WAN2"'));
     assert.ok(!g.applied.some((l) => l.startsWith("/ip route add") && l.includes('comment="Marquee WAN1"')));
     assert.ok(!g.applied.some((l) => l.includes("routing table add")));
+    const half = sec({ ...base, IFACE: IF_UNIWAN, RTABLE: "0 name=to-WAN1 fib\n1 name=to-WAN2 fib",
+      ROUTE: "7 Is comment=Main WAN1 dst-address=0.0.0.0/0 routing-table=main gateway=1.1.1.1 check-gateway=ping distance=1 scope=30 target-scope=10" });
+    assert.ok(runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT" }), half).applied.includes('/ip route set [find comment="Main WAN1"] dst-address=0.0.0.0/0 check-gateway=ping distance=1 target-scope=11 gateway=1.1.1.1'));
   });
 
   it("complement + detach : ether2 encore d'usine dans le bridge → sorti, renommé, puis WAN2 seulement", () => {
@@ -100,6 +103,13 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
     assert.deepEqual(g.applied.slice(0, 2), ["/interface bridge port remove [find interface=ether2]", '/interface ethernet set [find default-name=ether2] name=E2-WAN-FAI comment="Starlink Mini"']);
     assert.ok(!g.applied.some((l) => /default-name=ether1|NAT WAN1|fasttrack/.test(l)));
     assert.ok(g.applied.some((l) => l.startsWith('/ip dhcp-client add interface=E2-WAN-FAI disabled=no use-peer-dns=no add-default-route=yes default-route-distance=12 script=')));
+  });
+
+  it("la passerelle du bail vient d'après status=bound, jamais du script du client DHCP", () => {
+    const line = `0 name=client1 interface=E1-WAN-FAI add-default-route=yes default-route-distance=11 script=:if ($bound=1) do={ /ip route set [find comment="Sonde WAN1"] gateway=$"gateway-address" } status=bound address=192.168.1.46/24 gateway=192.168.1.1 dhcp-server=192.168.1.1`;
+    const g = runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT" }), sec({ ...base, IFACE: IF_UNIWAN, DHCP: line, ROUTE: "2 Is comment=Sonde WAN1 dst-address=1.1.1.1/32 routing-table=main gateway=0.0.0.0 scope=10 target-scope=10" }));
+    assert.ok(g.applied.includes('/ip route set [find comment="Sonde WAN1"] dst-address=1.1.1.1/32 scope=10 gateway=192.168.1.1'));
+    assert.ok(!g.applied.some((l) => l.includes("gateway-address\" }") && l.startsWith("/ip route")));
   });
 
   it("rejeu : tout ce qui existe est sauté, rien à appliquer", () => {
