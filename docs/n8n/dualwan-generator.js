@@ -61,17 +61,23 @@ const lanMatch = req.lan_interface ? `in-interface=${req.lan_interface}` : 'in-i
 if (req.lan_interface && !ifaces.some((i) => i.name === req.lan_interface)) {
   throw new Error(`Interface LAN « ${req.lan_interface} » introuvable sur le routeur`);
 }
+// detach_wan2_from_bridge : en complet, les deux ports peuvent encore être dans
+// le bridge ; en complement seul WAN2 est concerné (WAN1 est déjà l'uplink) et
+// on accepte alors qu'il porte encore son nom d'usine (ether2) — on le sort du
+// bridge et on le renomme, comme en complet.
+const detachable = (w) => req.detach_wan2_from_bridge && (complet || w.n === 2);
 for (const w of wans) {
-  const phys = complet ? ifaces.find((i) => i.def === w.src) : ifaces.find((i) => i.name === w.name);
+  let phys = complet ? ifaces.find((i) => i.def === w.src) : ifaces.find((i) => i.name === w.name);
+  if (!phys && detachable(w)) phys = ifaces.find((i) => i.def === w.src);
   if (!phys) {
     throw new Error(complet
       ? `Port ${w.src} introuvable (pas un hAP ax2 ?)`
-      : `Interface WAN${w.n} « ${w.name} » absente : en mode complement, le port doit déjà être sorti du bridge et renommé (ex. /interface bridge port remove [find interface=ether2] ; /interface ethernet set [find default-name=ether2] name=${w.name})`);
+      : `Interface WAN${w.n} « ${w.name} » absente : en mode complement, le port doit déjà être sorti du bridge et renommé (ex. /interface bridge port remove [find interface=ether2] ; /interface ethernet set [find default-name=ether2] name=${w.name})${w.n === 2 ? ', ou relancez avec detach_wan2_from_bridge=true' : ''}`);
   }
   w.current = phys.name;
   w.inBridge = bridgePorts.includes(phys.name);
-  if (w.inBridge && !(complet && req.detach_wan2_from_bridge)) {
-    throw new Error(`« ${phys.name} » est encore un port du bridge : retirez-le (/interface bridge port remove [find interface=${phys.name}])${complet ? ' ou relancez avec detach_wan2_from_bridge=true' : ''}`);
+  if (w.inBridge && !detachable(w)) {
+    throw new Error(`« ${phys.name} » est encore un port du bridge : retirez-le (/interface bridge port remove [find interface=${phys.name}])${complet || w.n === 2 ? ' ou relancez avec detach_wan2_from_bridge=true' : ''}`);
   }
 }
 
@@ -81,9 +87,10 @@ const H = (t) => lines.push({ text: `# ---------- ${t} ----------`, hdr: true })
 const emit = (text, skip) => lines.push({ text, skip: skip ? 'déjà présent' : null });
 const toApply = (w) => complet || w.n === 2; // complement : on n'ajoute que WAN2
 
-if (complet) {
+const toRename = wans.filter((w) => complet || (w.n === 2 && w.current !== w.name));
+if (toRename.length) {
   H('0. Renommage interfaces');
-  for (const w of wans) {
+  for (const w of toRename) {
     if (w.inBridge) emit(`/interface bridge port remove [find interface=${w.current}]`);
     emit(`/interface ethernet set [find default-name=${w.src}] name=${w.name} comment="${w.ifaceComment}"`, w.current === w.name);
   }

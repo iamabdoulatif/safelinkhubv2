@@ -153,12 +153,10 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
           <span className="text-xs font-bold text-ink-soft">Débit WAN2 (Mbit/s)</span>
           <input type="number" min={1} value={form.wan2Mbps} onChange={(e) => set("wan2Mbps", e.target.value === "" ? "" : Number(e.target.value))} placeholder="selon le kit" className={input} />
         </label>
-        {form.mode === "complet" && (
-          <label className="flex items-center gap-2 text-sm text-ink sm:col-span-2">
-            <input type="checkbox" checked={form.detachWan2FromBridge} onChange={(e) => set("detachWan2FromBridge", e.target.checked)} />
-            Sortir le port WAN2 du bridge s&apos;il y est encore
-          </label>
-        )}
+        <label className="flex items-center gap-2 text-sm text-ink sm:col-span-2">
+          <input type="checkbox" checked={form.detachWan2FromBridge} onChange={(e) => set("detachWan2FromBridge", e.target.checked)} />
+          Sortir le port WAN2 du bridge s&apos;il y est encore (ether2 d&apos;usine → renommé)
+        </label>
         <label className="flex items-center gap-2 text-sm text-ink sm:col-span-2">
           <input type="checkbox" checked={form.dryRun} onChange={(e) => set("dryRun", e.target.checked)} />
           Simulation seulement (rien n&apos;est écrit sur le routeur)

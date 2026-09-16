@@ -107,7 +107,7 @@ export async function startDualWan(routerId: string, f: DualWanForm) {
     wan2_interface: f.wan2Interface.trim() || undefined,
     wan1_mbps: Number(f.wan1Mbps) > 0 ? Number(f.wan1Mbps) : undefined,
     wan2_mbps: Number(f.wan2Mbps) > 0 ? Number(f.wan2Mbps) : undefined,
-    detach_wan2_from_bridge: f.mode === "complet" && f.detachWan2FromBridge,
+    detach_wan2_from_bridge: f.detachWan2FromBridge,
     dry_run: f.dryRun,
   };
   const [job] = await db.insert(routerDualwanJobs).values({ routerId, request }).returning();

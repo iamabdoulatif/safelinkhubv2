@@ -71,6 +71,16 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
     assert.equal(g.applied.filter((l) => l.startsWith("/ip route add")).length, 4);
   });
 
+  it("complement + detach : ether2 encore d'usine dans le bridge → sorti, renommé, puis WAN2 seulement", () => {
+    const IF_HOTSPOT = `0 R name=E1-WAN-FAI default-name=ether1 type=ether\n1 R name=ether2 default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
+    const hotspot = sec({ ...base, IFACE: IF_HOTSPOT, BRIDGEPORT: "0 I interface=ether2 bridge=HOTSPOT" });
+    assert.throws(() => runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT" }), hotspot), /E2-WAN-FAI » absente.*detach_wan2_from_bridge=true/);
+    const g = runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT", detach_wan2_from_bridge: true }), hotspot);
+    assert.deepEqual(g.applied.slice(0, 2), ["/interface bridge port remove [find interface=ether2]", '/interface ethernet set [find default-name=ether2] name=E2-WAN-FAI comment="Starlink Mini"']);
+    assert.ok(!g.applied.some((l) => /default-name=ether1|NAT WAN1|fasttrack/.test(l)));
+    assert.ok(g.applied.includes('/ip dhcp-client add interface=E2-WAN-FAI disabled=no add-default-route=yes use-peer-dns=no default-route-distance=2 comment="WAN2 Mini 150M"'));
+  });
+
   it("rejeu : tout ce qui existe est sauté, rien à appliquer", () => {
     const g1 = runGenerate(req({}), fresh);
     // Reconstitue un « print terse » à partir de ce qui vient d'être posé.

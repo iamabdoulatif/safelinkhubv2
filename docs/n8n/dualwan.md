@@ -49,7 +49,7 @@ Réponse immédiate (le résultat arrive par le callback).
 | `lan_interface` | complement | | ex. `bridge-LAN`, `HOTSPOT` → `in-interface=` des règles PCC (sinon `in-interface-list=LAN`) |
 | `wan1_interface` / `wan2_interface` | non | `E1-WAN-FAI` / `E2-WAN-FAI` | noms cibles (complet) ou existants (complement) |
 | `wan1_mbps` / `wan2_mbps` | non | selon le cas (400 / 150) | débits réels → ratio recalculé |
-| `detach_wan2_from_bridge` | non | `false` | complet seulement : sort un port WAN encore dans le bridge |
+| `detach_wan2_from_bridge` | non | `false` | sort un port WAN encore dans le bridge (complet : les deux ; complement : WAN2 seul, accepté sous son nom d'usine `ether2` puis renommé) |
 | `dry_run` | non | `false` | simulation : pré-vérification + génération + bilan, **rien d'écrit** (ni sauvegarde, ni application) ; `status: "dry_run"` |
 | `callback_url` | non | `https://safelinkhub.io/api/v1/notifications` | |
 
