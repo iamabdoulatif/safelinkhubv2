@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
 import type { RouterOSClient } from "./client";
-import { detectUplinkInterface } from "./router-lock";
+import { detectUplinkInterfaces } from "./router-lock";
 import {
   accumulate,
   mbpsToKbps,
@@ -30,15 +30,20 @@ export async function readIfaceBytes(
   name: string,
   timeoutMs: number,
 ): Promise<number | null> {
-  const rows = await client
-    .talk(["/interface/print", "=stats=", `?name=${name}`], timeoutMs)
-    .catch(() => [] as Record<string, string>[]);
-  const r = rows[0];
-  if (!r) return null;
-  const rx = Number(r["rx-byte"] ?? 0);
-  const tx = Number(r["tx-byte"] ?? 0);
-  if (!Number.isFinite(rx) || !Number.isFinite(tx)) return null;
-  return rx + tx;
+  // « E1-WAN-FAI,E2-WAN-FAI » (dual WAN) : somme des liens ; un seul illisible = relevé nul.
+  let total = 0;
+  for (const one of name.split(",").map((n) => n.trim()).filter(Boolean)) {
+    const rows = await client
+      .talk(["/interface/print", "=stats=", `?name=${one}`], timeoutMs)
+      .catch(() => [] as Record<string, string>[]);
+    const r = rows[0];
+    if (!r) return null;
+    const rx = Number(r["rx-byte"] ?? 0);
+    const tx = Number(r["tx-byte"] ?? 0);
+    if (!Number.isFinite(rx) || !Number.isFinite(tx)) return null;
+    total += rx + tx;
+  }
+  return total;
 }
 
 /**
@@ -241,7 +246,9 @@ export async function updateRouterUsage(
   const billingDay = router.billingCycleDay ?? 1;
 
   // ── WAN ──
-  const wanIface = await detectUplinkInterface(client, timeoutMs);
+  // Dual WAN : les deux liens comptent dans le quota (« E1-WAN-FAI,E2-WAN-FAI »,
+  // cible valide telle quelle pour la file de bridage).
+  const wanIface = (await detectUplinkInterfaces(client, timeoutMs)).join(",") || null;
   const wanState: RouterUsage["wan"] = {
     interface: wanIface,
     usedBytes: router.wanUsedBytes ?? 0,

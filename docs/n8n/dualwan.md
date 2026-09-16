@@ -178,7 +178,23 @@ Starlink (n8n) » ([DualWanPanel.tsx](../../src/app/admin/router/[id]/DualWanPan
    Sur v6 le générateur remet `routing-mark=` et n'ajoute pas de table.
 3. Renommage par `[find default-name=ether1]` (fonctionne aussi au rejeu et si
    le port a déjà un autre nom) ; commentaires `Marquee` en ASCII partout.
-4. PCC, seaux, marques, routes/failover, FastTrack, DNS : identiques.
+4. **Routes/failover en passerelles récursives** (16/09/2026, relevé sur
+   HTSPT-BETON 7.24) : la forme de référence `gateway=<interface>` +
+   `check-gateway=ping` laisse les 4 routes `to-WAN*` INACTIVES sur un WAN
+   Ethernet (rien à pinger) → PCC sans effet, tout passait par le main. Et
+   pinger la box Starlink (192.168.1.1) ne dit rien de l'Internet derrière.
+   Désormais : une route hôte par WAN (« Sonde WAN1 » 1.1.1.1/32, « Sonde
+   WAN2 » 9.9.9.9/32, `scope=10`, passerelle = celle du bail DHCP, tenue à
+   jour par le `script` du client DHCP), et 6 routes par défaut
+   `gateway=1.1.1.1|9.9.9.9 check-gateway=ping` : « Main WAN1/2 » (table
+   main, distances 1/2 — le DNS du hotspot et le tunnel basculent aussi) +
+   « Marquee/Backup WAN1/2 ». Les routes par défaut des clients DHCP restent
+   en secours lointain (distances 11/12). Une route déjà posée sous l'ancienne
+   forme est migrée par `set` (repérage par commentaire).
+5. `E2-WAN-FAI` (et `E1` en complet) rejoint `/interface list member list=WAN`
+   — le durcissement raw/filter de l'auto-setup filtre `in-interface-list=WAN`.
+6. PCC, seaux, marques, FastTrack, DNS : identiques (DNS relu par
+   `:put [:tostr [/ip dns get servers]]`, `print` replie la liste en 7.24).
 
 Point à surveiller en labo (pas modifié) : FastTrack court-circuite le mangle
 pour les paquets suivants d'une connexion ; si `torch` sur E2 ne montre pas de
@@ -199,7 +215,7 @@ trafic alors que `connections.WAN2 > 0`, désactiver la règle « FastTrack ».
    /ip dhcp-client print            → 2 lignes, status bound, 2 adresses
    /routing table print             → to-WAN1, to-WAN2 (fib)
    /ip firewall mangle print        → 4 PCC (4/0..4/3) + 2 mark-routing
-   /ip route print where routing-table~"to-WAN"   → 4 routes, 2 actives (A)
+   /ip route print where comment~"Sonde|Main|Marquee|Backup"  → 2 sondes + 6 défauts, ≥ 3 actives (A)
    /ip firewall nat print where action=masquerade → NAT WAN1, NAT WAN2
    /ip firewall address-list print where list=slh-pcc-exclude → 4 entrées
    /ip dns print

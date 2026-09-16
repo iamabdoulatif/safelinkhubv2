@@ -11,7 +11,7 @@
  *   - applyRegulation      : file de bridage partagée (PCQ) + listes de blocage.
  */
 import type { RouterOSClient } from "./client";
-import { detectUplinkInterface } from "./router-lock";
+import { detectUplinkInterfaces } from "./router-lock";
 import { readIfaceBytes } from "./link-usage-reader";
 
 /** File simple posée par la régulation (mère des profils hotspot). */
@@ -42,7 +42,7 @@ export async function readRegulationInputs(
   wanInterface: string | null,
   timeoutMs = 15000,
 ): Promise<RegulationInputs> {
-  const wan = wanInterface || (await detectUplinkInterface(client, timeoutMs));
+  const wan = wanInterface || (await detectUplinkInterfaces(client, timeoutMs)).join(",") || null;
   const counters = wan ? await readIfaceBytes(client, wan, timeoutMs) : null;
   const rows = await client.talk(["/ip/hotspot/active/print"], timeoutMs).catch(() => []);
   const active: ActiveSession[] = rows

@@ -19,7 +19,7 @@ for (const line of raw.split('\n')) {
   if (m) { cur = m[1]; sections[cur] = []; continue; }
   if (cur && line.trim()) sections[cur].push(line.trim());
 }
-const need = ['VERSION', 'IFACE', 'BRIDGEPORT', 'DHCP', 'NAT', 'MANGLE', 'ROUTE', 'RTABLE', 'FILTER', 'ALIST', 'DNS'];
+const need = ['VERSION', 'IFACE', 'BRIDGEPORT', 'LISTM', 'DHCP', 'NAT', 'MANGLE', 'ROUTE', 'RTABLE', 'FILTER', 'ALIST', 'DNS'];
 const absent = need.filter((s) => !sections[s]);
 if (absent.length) throw new Error(`Pré-vérification incomplète (sections ${absent.join(', ')}) : ${raw.slice(0, 300)}`);
 const ver = (sections.VERSION.join(' ').match(/version:\s*(\d+)\.(\d+)/) || []).slice(1).map(Number);
@@ -96,10 +96,36 @@ if (toRename.length) {
   }
 }
 
-H('1. WAN : DHCP clients');
+// Sondes de bascule : chaque WAN a SA route hôte vers un résolveur public
+// (1.1.1.1 par WAN1, 9.9.9.9 par WAN2, scope=10) et les routes par défaut
+// pointent sur ces IP (passerelle récursive) avec check-gateway=ping. Un
+// « gateway=<interface> » + ping ne marche pas sur un WAN Ethernet (relevé sur
+// HTSPT-BETON : les 4 routes restaient inactives, PCC sans effet) et pinger la
+// box Starlink ne dit rien de l'Internet derrière. Le client DHCP renseigne la
+// passerelle de sa sonde à chaque bail (script), donc pas d'IP en dur.
+const PROBE = { 1: '1.1.1.1', 2: '9.9.9.9' };
+const probeComment = (n) => `Sonde WAN${n}`;
+const dhcpScript = (n) => `:if (\\$bound=1) do={ /ip route set [find comment=\\"${probeComment(n)}\\"] gateway=\\$\\"gateway-address\\" }`;
+const dhcpLine = (w) => sections.DHCP.find((l) => kv('interface', w.name).test(l));
+const dhcpGateway = (w) => { const l = dhcpLine(w); return l && field(l, 'status') === 'bound' ? field(l, 'gateway') : null; };
+
+H('1. WAN : DHCP clients (route par défaut en secours lointain, sonde mise à jour à chaque bail)');
+for (const w of wans) {
+  const l = dhcpLine(w);
+  const settings = `add-default-route=yes default-route-distance=${10 + w.n} script="${dhcpScript(w.n)}"`;
+  if (!l) {
+    if (toApply(w)) emit(`/ip dhcp-client add interface=${w.name} disabled=no use-peer-dns=no ${settings} comment="${w.dhcpComment}"`);
+    continue;
+  }
+  // Client existant (uniwan compris) : on aligne seulement distance + script.
+  emit(`/ip dhcp-client set [find interface=${w.name}] ${settings}`,
+    kv('default-route-distance', String(10 + w.n)).test(l) && l.includes(probeComment(w.n)));
+}
+
+H('1b. Liste WAN (durcissement raw/filter en in-interface-list=WAN)');
 for (const w of wans.filter(toApply)) {
-  emit(`/ip dhcp-client add interface=${w.name} disabled=no add-default-route=yes use-peer-dns=no default-route-distance=${w.n} comment="${w.dhcpComment}"`,
-    has('DHCP', kv('interface', w.name)));
+  emit(`/interface list member add list=WAN interface=${w.name}`,
+    has('LISTM', (l) => kv('list', 'WAN').test(l) && kv('interface', w.name).test(l)));
 }
 
 H('2. NAT');
@@ -134,15 +160,27 @@ for (const n of [1, 2]) {
     has('MANGLE', (l) => /action=mark-routing/.test(l) && kv('new-routing-mark', `to-WAN${n}`).test(l)));
 }
 
-H('4. Routes + failover');
+H('4. Routes + failover (passerelles récursives, sondées par ping)');
 // RouterOS 7 : « routing-mark= » n'existe plus sur /ip route, c'est routing-table=
 const rt = v7 ? 'routing-table' : 'routing-mark';
-for (const [gw, table, dist, c] of [
-  [wans[0].name, 'to-WAN1', 1, 'Marquee WAN1'], [wans[1].name, 'to-WAN1', 2, 'Backup WAN1'],
-  [wans[1].name, 'to-WAN2', 1, 'Marquee WAN2'], [wans[0].name, 'to-WAN2', 2, 'Backup WAN2'],
+// Une route est repérée par son commentaire : absente → add ; présente avec
+// une autre passerelle (ancienne forme gateway=<interface>, ou bail DHCP qui a
+// changé de box) → set. Rejouable, et migre les routeurs déjà configurés.
+const route = (c, attrs, gw) => {
+  const l = sections.ROUTE.find((x) => byComment(c).test(x));
+  if (!l) return emit(`/ip route add ${attrs} gateway=${gw} comment="${c}"`);
+  emit(`/ip route set [find comment="${c}"] ${attrs} gateway=${gw}`, field(l, 'gateway') === gw);
+};
+for (const w of wans) {
+  // Sonde : passerelle = celle du bail si connu, sinon l'interface en attendant le script DHCP.
+  route(probeComment(w.n), `dst-address=${PROBE[w.n]}/32 scope=10`, dhcpGateway(w) || w.name);
+}
+for (const [n, table, dist, c] of [
+  [1, 'main', 1, 'Main WAN1'], [2, 'main', 2, 'Main WAN2'],
+  [1, 'to-WAN1', 1, 'Marquee WAN1'], [2, 'to-WAN1', 2, 'Backup WAN1'],
+  [2, 'to-WAN2', 1, 'Marquee WAN2'], [1, 'to-WAN2', 2, 'Backup WAN2'],
 ]) {
-  emit(`/ip route add gateway=${gw} ${rt}=${table} check-gateway=ping distance=${dist} comment="${c}"`,
-    has('ROUTE', byComment(c)) || has('ROUTE', (l) => kv(rt, table).test(l) && kv('gateway', gw).test(l) && kv('distance', String(dist)).test(l)));
+  route(c, `dst-address=0.0.0.0/0${table === 'main' ? '' : ` ${rt}=${table}`} check-gateway=ping distance=${dist}`, PROBE[n]);
 }
 
 if (complet) {
@@ -152,12 +190,14 @@ if (complet) {
 }
 
 H('6. DNS');
+// Pré-vérification en « :put [/ip dns get …] » : « print » replie la liste
+// des serveurs sur plusieurs lignes selon la version (7.24), imprévisible.
 emit('/ip dns set servers=1.1.1.1,9.9.9.9 allow-remote-requests=yes',
-  has('DNS', /servers:\s*1\.1\.1\.1,9\.9\.9\.9(\s|$)/) && has('DNS', /allow-remote-requests:\s*yes/));
+  has('DNS', /^servers=1\.1\.1\.1;9\.9\.9\.9$/) && has('DNS', /^allow-remote-requests=true$/));
 
 const applied = lines.filter((l) => !l.hdr && !l.skip).map((l) => l.text);
 const skipped = lines.filter((l) => l.skip).map((l) => l.text);
 const script = lines.filter((l) => l.hdr || !l.skip).map((l) => l.text).join('\n');
 const plan = { cas: req.cas, mode: req.mode, ratio, buckets, assign: assign.map((x) => `WAN${x}`), wan1: wans[0].name, wan2: wans[1].name, lan: lanMatch, routeros: ver.join('.') };
 console.log(JSON.stringify({ step: 'generate', router_id: req.router_id, plan, to_apply: applied.length, skipped: skipped.length }));
-return [{ json: { ...req, plan, script, to_apply: applied.length, applied, skipped, expected: { pcc: buckets, routes: 4, nat: 2, dhcp: 2 } } }];
+return [{ json: { ...req, plan, script, to_apply: applied.length, applied, skipped, expected: { pcc: buckets, routes: 6, nat: 2, dhcp: 2 } } }];

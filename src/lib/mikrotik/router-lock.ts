@@ -53,9 +53,11 @@ async function wanKeepNames(
       keep.add(name);
     }
   }
-  const uplink = await detectUplinkInterface(client, timeoutMs);
-  if (uplink) keep.add(uplink);
-  return { keep, uplink };
+  // Dual WAN : chaque lien porteur d'un client DHCP est un uplink à garder,
+  // sinon le verrou couperait le 2ᵉ Starlink (E2-WAN-FAI).
+  const uplinks = await detectUplinkInterfaces(client, timeoutMs);
+  for (const u of uplinks) keep.add(u);
+  return { keep, uplink: uplinks[0] ?? null };
 }
 
 /**
@@ -93,11 +95,24 @@ export async function detectUplinkInterface(
   client: RouterOSClient,
   timeoutMs: number,
 ): Promise<string | null> {
+  return (await detectUplinkInterfaces(client, timeoutMs))[0] ?? null;
+}
+
+/**
+ * Tous les liens Internet, le lien actif (bail DHCP « bound ») en premier.
+ * Dual WAN Starlink = deux clients DHCP (E1-WAN-FAI, E2-WAN-FAI) ; un lien
+ * débranché reste listé (client actif, bail « stopped ») pour que le verrou
+ * ne le coupe pas et que les compteurs le suivent dès qu'il revient.
+ */
+export async function detectUplinkInterfaces(
+  client: RouterOSClient,
+  timeoutMs: number,
+): Promise<string[]> {
   const dhcp = await client.talk(["/ip/dhcp-client/print"], timeoutMs).catch(() => []);
-  const boundDhcp = dhcp.find(
-    (d) => d.interface && d.disabled !== "true" && (d.status === "bound" || !d.status),
-  );
-  if (boundDhcp?.interface) return boundDhcp.interface;
+  const clients = dhcp.filter((d) => d.interface && d.disabled !== "true");
+  const bound = clients.filter((d) => d.status === "bound" || !d.status).map((d) => d.interface!);
+  const rest = clients.filter((d) => !bound.includes(d.interface!)).map((d) => d.interface!);
+  if (bound.length) return [...new Set([...bound, ...rest])];
 
   const routes = await client
     .talk(["/ip/route/print", "?dst-address=0.0.0.0/0", "?active=yes"], timeoutMs)
@@ -106,10 +121,10 @@ export async function detectUplinkInterface(
     const gw = r["immediate-gw"] || r.gateway || "";
     // "192.168.1.1%ether1" -> ether1 ; ou directement un nom d'interface.
     const viaPercent = /%([^,%\s]+)\s*$/.exec(gw);
-    if (viaPercent) return viaPercent[1];
-    if (gw && /^(ether|sfp|wlan|wifi|bridge)/i.test(gw)) return gw.split(",")[0];
+    if (viaPercent) return [viaPercent[1]];
+    if (gw && /^(ether|sfp|wlan|wifi|bridge)/i.test(gw)) return [gw.split(",")[0]];
   }
-  return null;
+  return [];
 }
 
 /**
