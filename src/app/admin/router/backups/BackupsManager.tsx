@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Save, RotateCcw, Trash2, AlertTriangle, ScanLine, Loader2 } from "lucide-react";
 import {
-  backupRouterNow,
+  startBackupJob,
   restoreBackup,
   startRestoreJob,
   getRestoreJob,
@@ -224,23 +224,39 @@ export default function BackupsManager({
     setFeedback(null);
     setReports(null);
     startTransition(async () => {
-      const res = await backupRouterNow(sourceRouter);
-      if (res && "error" in res && res.error) {
-        setFeedback({ kind: "err", text: res.error });
+      // Tâche de fond + sondage (voir startBackupJob) : lire un millier de
+      // tickets sur un routeur chargé dépasse la coupure ~100 s de Cloudflare.
+      const start = await startBackupJob(sourceRouter);
+      if (!start || !("jobId" in start) || !start.jobId) {
+        setFeedback({ kind: "err", text: (start && "error" in start && start.error) || "Sauvegarde impossible." });
         return;
       }
-      if (res && "success" in res && res.success) {
-        const t = res.counts?.hotspotUsers ?? 0;
-        const base = `Sauvegarde créée : ${t} ticket(s), ${res.counts?.hotspotUserProfiles ?? 0} profil(s) — ${formatSize(res.compressedBytes ?? 0)} compressés.`;
+      const jobId = start.jobId;
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const res = await getRestoreJob(jobId);
+        if (!res || ("error" in res && res.error)) {
+          setFeedback({ kind: "err", text: (res && "error" in res && res.error) || "Suivi de la sauvegarde impossible." });
+          return;
+        }
+        if (res.status === "running" && !res.stale) continue;
+        if (res.status !== "done") {
+          setFeedback({ kind: "err", text: res.error ?? "Sauvegarde interrompue (le serveur a redémarré). Relancez-la." });
+          return;
+        }
+        const backup = (res.progress as { backup?: { counts?: Record<string, number>; warnings?: string[]; compressedBytes?: number } } | null)?.backup;
+        const t = backup?.counts?.hotspotUsers ?? 0;
+        const base = `Sauvegarde créée : ${t} ticket(s), ${backup?.counts?.hotspotUserProfiles ?? 0} profil(s) — ${formatSize(backup?.compressedBytes ?? 0)} compressés.`;
         // Une section illisible ne fait pas échouer la capture, mais la taire
         // ferait passer une sauvegarde amputée pour complète.
-        const warnings = res.warnings ?? [];
+        const warnings = backup?.warnings ?? [];
         setFeedback(
           warnings.length > 0
             ? { kind: "err", text: `${base} Sections incomplètes : ${warnings.join(" ; ")}` }
             : { kind: "ok", text: base },
         );
         navRouter.refresh();
+        return;
       }
     });
   }

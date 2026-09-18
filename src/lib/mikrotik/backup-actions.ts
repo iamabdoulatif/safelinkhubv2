@@ -22,14 +22,24 @@ const PAGE = "/admin/router/backups";
 // signale et autorise une relance (la restauration est idempotente).
 const RESTORE_JOB_STALE_MS = 120_000;
 
-/** Sauvegarde immédiate d'un routeur (bouton « Sauvegarder maintenant »). */
-export async function backupRouterNow(routerId: string) {
+/**
+ * Sauvegarde manuelle en TÂCHE DE FOND, suivie par getRestoreJob.
+ *
+ * Pourquoi : lire ~1 000 tickets sur un routeur chargé (DIAK-HSPT, L009 à
+ * 95 % de CPU) dépasse les ~100 s au-delà desquels Cloudflare coupe la réponse
+ * (524) — la Server Action synchrone mourait en plein vol et
+ * l'UI affichait une erreur générique. Même remède que la restauration :
+ * réponse immédiate, travail dans after(), sondage côté navigateur.
+ *
+ * ponytail: réutilise router_restore_jobs (backupId null, targetRouterId =
+ * routeur sauvegardé, progress.phase = "backup") plutôt qu'une table dédiée ;
+ * ajouter une colonne `kind` si un jour il faut lister les jobs par type.
+ */
+export async function startBackupJob(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
   const db = getDb();
-  // Garde d'org : sans elle, un routerId deviné suffirait à siphonner les
-  // tickets d'un autre opérateur.
   const [router] = await db
     .select({ id: routers.id })
     .from(routers)
@@ -37,11 +47,52 @@ export async function backupRouterNow(routerId: string) {
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 
-  const result = await captureRouterBackup(routerId, { trigger: "manual" });
-  if ("error" in result && result.error) return { error: result.error };
+  // Une seule opération vivante par routeur (sauvegarde OU restauration) : deux
+  // lectures complètes en parallèle sur un boîtier déjà à 95 % de CPU
+  // étrangleraient le portail des clients connectés.
+  const [running] = await db
+    .select({ id: routerRestoreJobs.id, updatedAt: routerRestoreJobs.updatedAt })
+    .from(routerRestoreJobs)
+    .where(
+      and(eq(routerRestoreJobs.targetRouterId, routerId), eq(routerRestoreJobs.status, "running")),
+    )
+    .orderBy(desc(routerRestoreJobs.updatedAt))
+    .limit(1);
+  if (running && Date.now() - running.updatedAt.getTime() < RESTORE_JOB_STALE_MS) {
+    return { error: "Une opération est déjà en cours sur ce routeur — attendez qu'elle finisse." };
+  }
 
-  revalidatePath(PAGE);
-  return result;
+  const [job] = await db
+    .insert(routerRestoreJobs)
+    .values({
+      orgId: session.orgId,
+      backupId: null,
+      targetRouterId: routerId,
+      status: "running",
+      progress: { phase: "backup" },
+    })
+    .returning({ id: routerRestoreJobs.id });
+
+  after(async () => {
+    // captureRouterBackup ne jette pas : toute erreur revient dans `error`.
+    const result = await captureRouterBackup(routerId, { trigger: "manual" });
+    const failed = "error" in result && !!result.error;
+    await db
+      .update(routerRestoreJobs)
+      .set({
+        status: failed ? "error" : "done",
+        error: failed ? result.error : null,
+        progress: { phase: "done", backup: failed ? null : result },
+        updatedAt: new Date(),
+        finishedAt: new Date(),
+      })
+      .where(eq(routerRestoreJobs.id, job.id))
+      .catch(() => {
+        /* best-effort : la sauvegarde est en base même si le suivi échoue */
+      });
+  });
+
+  return { success: true as const, jobId: job.id };
 }
 
 /**
