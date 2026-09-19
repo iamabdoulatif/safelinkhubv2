@@ -13,6 +13,7 @@ import {
   scanTargetForRestore,
 } from "@/lib/mikrotik/backup-actions";
 import RestoreTopology from "./RestoreTopology";
+import RestoreLive, { type LiveProgress, type LiveStatus } from "./RestoreLive";
 import {
   buildTopologyChannels,
   sourceNode,
@@ -115,6 +116,19 @@ export default function BackupsManager({
     initialJob ? { backupId: initialJob.backupId, jobId: initialJob.jobId } : null,
   );
   const [jobProgress, setJobProgress] = useState<{ done?: number; total?: number } | null>(null);
+  // Tableau de bord vivant (RestoreLive) : dernier avancement sondé, conservé
+  // après la fin pour laisser les chiffres finaux à l'écran.
+  const [live, setLive] = useState<{
+    backupId: string;
+    targetRouterId: string;
+    status: LiveStatus;
+    progress: LiveProgress | null;
+    startedAt: number;
+  } | null>(
+    initialJob
+      ? { backupId: initialJob.backupId, targetRouterId: initialJob.targetRouterId, status: "running", progress: null, startedAt: Date.now() }
+      : null,
+  );
 
   // Sondage du job : chaque requête est brève (bien en deçà des 100 s), donc
   // jamais coupée. S'arrête au premier état terminal, ou si le heartbeat est figé
@@ -135,6 +149,7 @@ export default function BackupsManager({
       if (cancelled) return;
 
       if (!res || ("error" in res && res.error)) {
+        setLive((l) => (l ? { ...l, status: "error" } : l));
         setFeedback({
           kind: "err",
           text: (res && "error" in res && res.error) || "Suivi de la restauration impossible.",
@@ -143,6 +158,7 @@ export default function BackupsManager({
         return;
       }
       if ("stale" in res && res.stale) {
+        setLive((l) => (l ? { ...l, status: "error" } : l));
         setFeedback({
           kind: "err",
           text: "Restauration interrompue (le serveur a redémarré). Relancez-la : les tickets seront réalignés sur la sauvegarde.",
@@ -160,9 +176,14 @@ export default function BackupsManager({
         portal?: { installed: boolean; templateName?: string | null; error?: string };
       } | null;
 
+      const liveStatus: LiveStatus =
+        res.status === "running" || res.status === "done" || res.status === "cancelled" ? res.status : "error";
+      setLive((l) => (l ? { ...l, status: liveStatus, progress: progress as LiveProgress | null } : l));
+
       if (res.status === "running") {
         setJobProgress({ done: progress?.ticketsDone, total: progress?.ticketsTotal });
-        timer = setTimeout(poll, 2500);
+        // Les salves partent toutes les ~1 s : sonder plus vite ne montrerait rien de plus.
+        timer = setTimeout(poll, 1500);
         return;
       }
 
@@ -266,6 +287,7 @@ export default function BackupsManager({
     if (!targetId || pending || activeJob) return;
     setFeedback(null);
     setReports(null);
+    setLive(null);
 
     // Restauration RÉELLE → job de fond + sondage. Le clic répond en quelques
     // millisecondes ; l'écriture des milliers de tickets se poursuit côté serveur
@@ -288,6 +310,7 @@ export default function BackupsManager({
         }
         if (res && "success" in res && res.jobId) {
           setJobProgress(null);
+          setLive({ backupId: backup.id, targetRouterId: targetId, status: "running", progress: null, startedAt: Date.now() });
           setFlowing(backup.id);
           setActiveJob({ backupId: backup.id, jobId: res.jobId });
           setFeedback({
@@ -335,6 +358,7 @@ export default function BackupsManager({
 
   function cancelActive() {
     if (!activeJob) return;
+    if (!window.confirm("Arrêter la restauration ? Ce qui est déjà écrit reste sur le rechange ; un nouveau passage le réalignera.")) return;
     startTransition(async () => {
       const res = await cancelRestoreJob(activeJob.jobId);
       if (res && "error" in res && res.error) setFeedback({ kind: "err", text: res.error });
@@ -347,6 +371,7 @@ export default function BackupsManager({
     if (!targetId || busy) return;
     setFeedback(null);
     setReports(null);
+    setLive(null);
     startTransition(async () => {
       const res = await scanTargetForRestore(backup.id, targetId);
       if (res && "error" in res && res.error) {
@@ -500,7 +525,7 @@ export default function BackupsManager({
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       {jobProgress?.total
-                        ? `Restauration ${jobProgress.done ?? 0}/${jobProgress.total}`
+                        ? `Tickets ${jobProgress.done ?? 0}/${jobProgress.total}`
                         : "Restauration…"}
                     </>
                   ) : (
@@ -531,7 +556,18 @@ export default function BackupsManager({
                 </button>
               </div>
 
-              {target[b.id] && (
+              {live?.backupId === b.id ? (
+                <RestoreLive
+                  source={{ name: b.routerName, model: b.model }}
+                  target={routers.find((r) => r.id === live.targetRouterId) ?? { name: "?", model: null }}
+                  counts={b.counts}
+                  progress={live.progress}
+                  status={live.status}
+                  startedAt={live.startedAt}
+                  onCancel={cancelActive}
+                  cancelling={pending}
+                />
+              ) : target[b.id] && (
                 <RestoreTopology
                   source={sourceNode(b)}
                   target={targetNode(

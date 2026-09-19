@@ -103,3 +103,65 @@ describe("RouterOSClient.talk — grosses réponses", () => {
     assert.equal(rows.length, 50);
   });
 });
+
+// --- décodage minimal (côté "routeur" simulé) pour relire le tag envoyé -------
+
+function decodeWords(buf: Buffer): string[] {
+  const words: string[] = [];
+  let off = 0;
+  while (off < buf.length) {
+    let len = buf[off];
+    if (len < 0x80) off += 1;
+    else if ((len & 0xc0) === 0x80) {
+      len = ((len & 0x3f) << 8) | buf[off + 1];
+      off += 2;
+    } else break;
+    if (len === 0) continue;
+    words.push(buf.subarray(off, off + len).toString("utf8"));
+    off += len;
+  }
+  return words;
+}
+
+describe("RouterOSClient.talkBatch — commandes taguées", () => {
+  it("attribue chaque réponse à sa commande, même hors ordre, et isole les !trap", async () => {
+    // Routeur qui répond aux commandes dans l'ordre INVERSE d'arrivée, et
+    // refuse tout ce qui contient « dup ».
+    const stream = new Duplex({
+      read() {},
+      write(chunk, _enc, cb) {
+        const words = decodeWords(Buffer.from(chunk));
+        if (words[0] === "/login") {
+          stream.push(encodeSentence(["!done"]));
+        } else {
+          const tag = words.find((w) => w.startsWith(".tag="))!;
+          const reply = words.some((w) => w.includes("dup"))
+            ? [encodeSentence(["!trap", "=message=already have user", tag]), encodeSentence(["!done", tag])]
+            : [encodeSentence(["!re", `=ret=${words[1]}`, tag]), encodeSentence(["!done", tag])];
+          setTimeout(() => reply.forEach((r) => stream.push(r)), 10 - Number(tag.slice(5)) * 3);
+        }
+        cb();
+      },
+    });
+    const client = new RouterOSClient();
+    await client.connectViaStream(stream, "admin", "pw");
+
+    const results = await client.talkBatch(
+      [
+        ["/ip/hotspot/user/add", "=name=a"],
+        ["/ip/hotspot/user/add", "=name=dup"],
+        ["/ip/hotspot/user/add", "=name=c"],
+      ],
+      1000,
+    );
+
+    assert.deepEqual(
+      results.map((r) => (r.status === "fulfilled" ? r.value : `KO:${(r.reason as Error).message}`)),
+      [[{ ret: "=name=a" }], "KO:already have user", [{ ret: "=name=c" }]],
+    );
+    // La connexion reste saine : un talk() ordinaire fonctionne après la salve.
+    assert.deepEqual(await client.talkBatch([["/x", "=name=z"]], 1000), [
+      { status: "fulfilled", value: [{ ret: "=name=z" }] },
+    ]);
+  });
+});

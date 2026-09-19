@@ -170,6 +170,156 @@ body {
    iso-packet et iso-led restent au-dessus — ils servent encore à
    /admin/router/backups (RestoreTopology). */
 
+/* ── Restauration en direct (/admin/router/backups, RestoreLive) ──────
+   Deux photos produit sur une scène 3D CSS (perspective + oscillation),
+   un convoi de paquets entre elles (iso-packet) et des compteurs à barre
+   « comète ». Tout suit les jetons de thème. */
+.rl-root {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--paper);
+  padding: 1rem;
+}
+.rl-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+@media (min-width: 640px) {
+  .rl-grid { grid-template-columns: 150px 1fr 150px; }
+}
+.rl-device { text-align: center; min-width: 0; }
+.rl-stage {
+  position: relative;
+  height: 150px;
+  perspective: 900px;
+  display: grid;
+  place-items: center;
+}
+.rl-photo {
+  position: relative;
+  z-index: 1;
+  width: 130px;
+  height: 130px;
+  object-fit: contain;
+  transform-style: preserve-3d;
+  transform: rotateY(-16deg) rotateX(6deg);
+  filter: drop-shadow(0 14px 18px rgb(0 0 0 / 0.28));
+  transition: transform 0.6s ease;
+}
+.rl-video { border-radius: 0.75rem; }
+.rl-photo-generic {
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--clay);
+}
+.rl-device-target .rl-photo { transform: rotateY(16deg) rotateX(6deg); }
+.rl-device.is-active .rl-photo { animation: rl-hover 5.5s ease-in-out infinite; }
+.rl-device-target.is-active .rl-photo { animation-name: rl-hover-mirror; animation-delay: -2.75s; }
+@keyframes rl-hover {
+  0%, 100% { transform: rotateY(-18deg) rotateX(7deg) translateY(0); }
+  50%      { transform: rotateY(-8deg)  rotateX(3deg) translateY(-9px); }
+}
+@keyframes rl-hover-mirror {
+  0%, 100% { transform: rotateY(18deg) rotateX(7deg) translateY(0); }
+  50%      { transform: rotateY(8deg)  rotateX(3deg) translateY(-9px); }
+}
+/* Ombre au sol qui respire à l'inverse de la hauteur. */
+.rl-floor {
+  position: absolute;
+  bottom: 6px;
+  width: 96px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.28), transparent);
+}
+.rl-device.is-active .rl-floor { animation: rl-floor 5.5s ease-in-out infinite; }
+.rl-device-target.is-active .rl-floor { animation-delay: -2.75s; }
+@keyframes rl-floor {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  50%      { transform: scaleX(0.8); opacity: 0.6; }
+}
+/* Anneau de réception autour du rechange pendant l'écriture. */
+.rl-device-target.is-active .rl-stage::before {
+  content: "";
+  position: absolute;
+  inset: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--brand);
+  opacity: 0;
+  animation: pulse-ring 2.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.rl-lane { min-width: 0; }
+.rl-wire { display: block; width: 100%; height: 24px; }
+.rl-counters { display: grid; gap: 0.6rem; margin-top: 0.25rem; }
+.rl-track {
+  position: relative;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--clay);
+  overflow: hidden;
+}
+.rl-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rl-counter.is-done .rl-fill { background: var(--ok); }
+.rl-counter.is-failed .rl-fill { background: var(--err); }
+.rl-counter.is-idle { opacity: 0.55; }
+/* Comète : reflet qui balaie la barre en cours. */
+.rl-counter.is-running .rl-fill {
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand) 55%, #fff8 75%, var(--brand) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+.rl-counter.is-running .rl-track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(234 179 8 / 0.25), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2.2s linear infinite;
+}
+
+.rl-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.rl-steps li { display: inline-flex; align-items: center; gap: 0.35rem; }
+.rl-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-soft);
+  color: var(--paper);
+}
+.rl-steps li.is-done { color: var(--ink); }
+.rl-steps li.is-done .rl-dot { background: var(--ok); border-color: var(--ok); }
+.rl-steps li.is-running { color: var(--ink); font-weight: 700; }
+.rl-steps li.is-running .rl-dot {
+  border-color: var(--brand);
+  background: var(--brand);
+  animation: iso-led 1.2s ease-in-out infinite;
+}
+.rl-root.is-error { border-color: var(--err); }
+.rl-root.is-cancelled { border-color: var(--warn); }
+
 /* ============================================
    ANIMATIONS ENTRANCE / UI
    ============================================ */

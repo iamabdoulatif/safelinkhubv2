@@ -74,8 +74,22 @@ export async function startBackupJob(routerId: string) {
     .returning({ id: routerRestoreJobs.id });
 
   after(async () => {
+    // Battement de cœur : la capture n'a pas d'étapes persistées, or au-delà de
+    // RESTORE_JOB_STALE_MS sans écriture getRestoreJob la déclare « périmée »
+    // et l'UI accuse un redémarrage du serveur. Lire ~1 000 tickets et des
+    // dizaines de milliers de recettes MikHmon dépasse ces 2 min (DIAK-HSPT-ROXY).
+    const heartbeat = setInterval(() => {
+      db.update(routerRestoreJobs)
+        .set({ updatedAt: new Date() })
+        .where(eq(routerRestoreJobs.id, job.id))
+        .catch(() => {
+          /* best-effort */
+        });
+    }, 30_000);
     // captureRouterBackup ne jette pas : toute erreur revient dans `error`.
-    const result = await captureRouterBackup(routerId, { trigger: "manual" });
+    const result = await captureRouterBackup(routerId, { trigger: "manual" }).finally(() =>
+      clearInterval(heartbeat),
+    );
     const failed = "error" in result && !!result.error;
     await db
       .update(routerRestoreJobs)

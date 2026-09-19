@@ -46,6 +46,16 @@ function encodeSentence(words: string[]): Buffer {
   return Buffer.concat(parts);
 }
 
+/** Mots `=clé=valeur` d'une phrase !re → objet ; les mots d'attribut (`.tag=`) sont ignorés. */
+function parseReply(reply: string[]): Sentence {
+  const sentence: Sentence = {};
+  for (const word of reply.slice(1)) {
+    const eq = word.indexOf("=", 1);
+    if (word.startsWith("=") && eq > 0) sentence[word.slice(1, eq)] = word.slice(eq + 1);
+  }
+  return sentence;
+}
+
 type SentenceWaiter = {
   resolve: (words: string[]) => void;
   reject: (err: Error) => void;
@@ -319,19 +329,66 @@ export class RouterOSClient {
         trapMessage = message ? message.replace("=message=", "") : "RouterOS command failed";
         continue;
       }
-      if (type === "!re") {
-        const sentence: Sentence = {};
-        for (const word of reply.slice(1)) {
-          const eq = word.indexOf("=", 1);
-          if (word.startsWith("=") && eq > 0) {
-            sentence[word.slice(1, eq)] = word.slice(eq + 1);
-          }
-        }
-        results.push(sentence);
-      }
+      if (type === "!re") results.push(parseReply(reply));
     }
     if (trapMessage !== null) throw new Error(trapMessage);
     return results;
+  }
+
+  /**
+   * Envoie plusieurs commandes D'UN COUP et démultiplexe leurs réponses par
+   * `.tag` (le mot d'attribut prévu par le protocole pour ça). Pourquoi : écrire
+   * un ticket = un aller-retour à travers le tunnel WireGuard (~100–200 ms) pour
+   * ~5 ms de travail sur le routeur ; à 1 000 tickets, talk() en série passait
+   * son temps à attendre le réseau. Ici les N commandes partent ensemble, le
+   * routeur les traite à la chaîne et on lit jusqu'au dernier !done.
+   *
+   * Une commande refusée (!trap) ne fait pas échouer les autres : chaque
+   * résultat est rendu à sa place, réussi ou rejeté. Les timeouts et !fatal
+   * restent globaux (connexion poisonnée, comme pour talk()).
+   */
+  async talkBatch(commands: string[][], timeoutMs = 30000): Promise<PromiseSettledResult<Sentence[]>[]> {
+    if (!this.conn) throw new Error("Not connected");
+    if (this.desynced) throw new Error(ROUTEROS_DESYNC_MESSAGE);
+    if (commands.length === 0) return [];
+
+    for (const [i, words] of commands.entries()) this.conn.write([...words, `.tag=${i}`]);
+
+    const rows = commands.map(() => [] as Sentence[]);
+    const traps = new Map<number, string>();
+    let remaining = commands.length;
+    while (remaining > 0) {
+      let reply: string[];
+      try {
+        reply = await this.conn.readSentence(timeoutMs);
+      } catch (err) {
+        this.desynced = true;
+        throw err;
+      }
+      const type = reply[0];
+      if (type === "!fatal") {
+        throw new Error(reply.slice(1).join(" ") || "RouterOS connection terminated");
+      }
+      const tagWord = reply.find((w) => w.startsWith(".tag="));
+      const tag = tagWord ? Number(tagWord.slice(5)) : NaN;
+      if (!(tag >= 0 && tag < commands.length)) {
+        // Une phrase sans tag connu appartient à une commande antérieure :
+        // le flux est décalé, on ne peut plus rien attribuer avec certitude.
+        this.desynced = true;
+        throw new Error(ROUTEROS_DESYNC_MESSAGE);
+      }
+      if (type === "!done") remaining--;
+      else if (type === "!trap") {
+        const message = reply.find((w) => w.startsWith("=message="));
+        traps.set(tag, message ? message.replace("=message=", "") : "RouterOS command failed");
+      } else if (type === "!re") rows[tag].push(parseReply(reply));
+    }
+
+    return commands.map((_, i) =>
+      traps.has(i)
+        ? { status: "rejected", reason: new Error(traps.get(i)) }
+        : { status: "fulfilled", value: rows[i] },
+    );
   }
 
   close() {

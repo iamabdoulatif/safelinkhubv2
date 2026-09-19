@@ -585,9 +585,32 @@ export type RestoreProgress = {
 /** Message d'une restauration arrêtée par l'opérateur (voir opts.shouldStop). */
 export const RESTORE_CANCELLED = "annulée par l'opérateur";
 
-/** Un tick de progression tous les N tickets : assez pour une barre fluide sans
- * inonder la base (chaque persistance = une requête HTTP neon). */
-const PROGRESS_EVERY = 200;
+/**
+ * Tickets et ventes partent par salves de N commandes taguées (voir
+ * RouterOSClient.talkBatch) : un seul aller-retour tunnel par salve au lieu
+ * d'un par ligne. Un tick de progression — et un contrôle d'annulation — par
+ * salve. ponytail: 25 = assez pour amortir la latence, assez petit pour qu'un
+ * « Annuler » réponde en une seconde ; monter si le tunnel reste le goulot.
+ */
+const WRITE_BATCH = 25;
+
+type RouterOSTalker = Pick<RouterOSClient, "talk"> & Partial<Pick<RouterOSClient, "talkBatch">>;
+
+/** Salve taguée si le client la sait faire, sinon en série (doubles de test). */
+async function talkMany(client: RouterOSTalker, commands: string[][], timeoutMs: number) {
+  if (client.talkBatch) return client.talkBatch(commands, timeoutMs);
+  const out: PromiseSettledResult<Record<string, string>[]>[] = [];
+  for (const words of commands) {
+    try {
+      out.push({ status: "fulfilled", value: await client.talk(words, timeoutMs) });
+    } catch (reason) {
+      out.push({ status: "rejected", reason });
+    }
+  }
+  return out;
+}
+
+const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : "Erreur inconnue");
 
 /**
  * Rejoue une sauvegarde sur un routeur (typiquement le rechange).
@@ -1027,7 +1050,7 @@ async function restoreNamed(
      */
     updateFields?: readonly string[];
     updateCmd?: string;
-    /** Appelé tous les PROGRESS_EVERY éléments traités (créés + ignorés). */
+    /** Appelé après chaque salve écrite, avec le nombre de lignes traitées (créées + ignorées). */
     onProgress?: (processed: number) => void | Promise<void>;
   },
 ): Promise<RestoreReport> {
@@ -1049,10 +1072,13 @@ async function restoreNamed(
     if (r.name) known.set(r.name, r[".id"]);
   }
 
+  // Décision d'abord (sans réseau), écriture ensuite par salves.
+  const writes: { name: string; words: string[]; update: boolean }[] = [];
   let processed = 0;
   for (const row of args.rows) {
     const name = row.name;
     if (!name) continue;
+    processed++;
     // Le profil "default" est livré avec RouterOS : il existe toujours, et
     // tenter de le recréer échoue systématiquement.
     if (name === "default") {
@@ -1067,30 +1093,28 @@ async function restoreNamed(
       } else if (args.dryRun) {
         report.updated++;
       } else {
-        try {
-          await client.talk([args.updateCmd, `=numbers=${id}`, ...words], 30000);
-          report.updated++;
-        } catch (err) {
-          report.failed.push({
-            name,
-            error: err instanceof Error ? err.message : "Erreur inconnue",
-          });
-        }
+        writes.push({ name, words: [args.updateCmd, `=numbers=${id}`, ...words], update: true });
       }
     } else if (args.dryRun) {
       report.created++;
       known.set(name, undefined);
     } else {
-      try {
-        await client.talk([args.addCmd, ...pick(row, args.fields)], 30000);
-        report.created++;
-        known.set(name, undefined);
-      } catch (err) {
-        report.failed.push({ name, error: err instanceof Error ? err.message : "Erreur inconnue" });
-      }
+      writes.push({ name, words: [args.addCmd, ...pick(row, args.fields)], update: false });
+      known.set(name, undefined);
     }
-    processed++;
-    if (args.onProgress && processed % PROGRESS_EVERY === 0) await args.onProgress(processed);
+  }
+
+  processed -= writes.length;
+  for (let i = 0; i < writes.length; i += WRITE_BATCH) {
+    const slice = writes.slice(i, i + WRITE_BATCH);
+    const settled = await talkMany(client, slice.map((w) => w.words), 30000);
+    settled.forEach((r, k) => {
+      if (r.status === "rejected") report.failed.push({ name: slice[k].name, error: errorText(r.reason) });
+      else if (slice[k].update) report.updated++;
+      else report.created++;
+    });
+    processed += slice.length;
+    if (args.onProgress) await args.onProgress(processed);
   }
   return report;
 }
@@ -1111,7 +1135,6 @@ function mergeProjectedHotspotProfiles(targetProfiles: BackupSection, sourceProf
   return [...projected.values()];
 }
 
-type RouterOSTalker = Pick<RouterOSClient, "talk">;
 
 /**
  * Refixe un profil sur les objets *déjà existants* du routeur cible. Cette
@@ -1204,33 +1227,30 @@ export async function restoreResolvedHotspotUsers(
     existing.filter((user) => !!user.name && !!user[".id"]).map((user) => [user.name!, user[".id"]!]),
   );
 
-  let processed = 0;
-  for (const ticket of tickets) {
+  const writes = tickets.map((ticket) => {
     const id = idByName.get(ticket.name);
-    if (dryRun) {
-      if (id) report.updated++;
+    return {
+      name: ticket.name,
+      update: !!id,
+      words: id
+        ? ["/ip/hotspot/user/set", `=numbers=${id}`, ...fieldsAsWords(ticket.fields, true)]
+        : ["/ip/hotspot/user/add", ...fieldsAsWords(ticket.fields)],
+    };
+  });
+  if (dryRun) {
+    for (const w of writes) if (w.update) report.updated++; else report.created++;
+    return report;
+  }
+
+  for (let i = 0; i < writes.length; i += WRITE_BATCH) {
+    const slice = writes.slice(i, i + WRITE_BATCH);
+    const settled = await talkMany(client, slice.map((w) => w.words), 30000);
+    settled.forEach((r, k) => {
+      if (r.status === "rejected") report.failed.push({ name: slice[k].name, error: errorText(r.reason) });
+      else if (slice[k].update) report.updated++;
       else report.created++;
-    } else {
-      try {
-        if (id) {
-          await client.talk(
-            ["/ip/hotspot/user/set", `=numbers=${id}`, ...fieldsAsWords(ticket.fields, true)],
-            30000,
-          );
-          report.updated++;
-        } else {
-          await client.talk(["/ip/hotspot/user/add", ...fieldsAsWords(ticket.fields)], 30000);
-          report.created++;
-        }
-      } catch (err) {
-        report.failed.push({
-          name: ticket.name,
-          error: err instanceof Error ? err.message : "Erreur inconnue",
-        });
-      }
-    }
-    processed++;
-    if (onProgress && processed % PROGRESS_EVERY === 0) await onProgress(processed);
+    });
+    if (onProgress) await onProgress(i + slice.length);
   }
   return report;
 }
