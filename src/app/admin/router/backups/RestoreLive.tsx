@@ -59,6 +59,8 @@ export function deviceImage(model: string | null | undefined): string | null {
   if (m.includes("5009")) return "/mikrotik/rb5009.webp";
   if (/rb260|css106/.test(m)) return "/mikrotik/rb260gs.webp";
   if (/l41g|ax[ -]?lite/.test(m)) return /lte6|fg621/.test(m) ? "/mikrotik/hap-ax-lite-lte6.webp" : "/mikrotik/hap-ax-lite.webp";
+  if (/be[ -]?lite/.test(m)) return "/mikrotik/hap-be-lite.webp";
+  if (/be\^?3|be3/.test(m)) return "/mikrotik/hap-be3-media.webp";
   if (/c52|ax\^?2\b/.test(m)) return "/mikrotik/hap-ax2.webp";
   if (/c53|ax\^?3\b/.test(m)) return "/mikrotik/hap-ax3.webp";
   if (m.includes("chateau") || m.includes("chato")) return "/mikrotik/chato.webp";
@@ -100,26 +102,18 @@ function Device({
   active: boolean;
 }) {
   const src = deviceImage(model);
-  // Boucle vidéo (rendu Higgsfield) si elle est déposée à côté de la photo ;
-  // sinon, ou si elle manque (404), la photo animée en CSS prend le relais.
-  const [video, setVideo] = useState<string | null>(src ? src.replace(/\.webp$/, ".mp4") : null);
+  // Boucle vidéo DÉTOURÉE (rendu Higgsfield, chromakey → alpha) : WebM VP9
+  // pour Chrome/Firefox, HEVC hvc1 pour Safari. Si aucune source ne se lit,
+  // le navigateur laisse le poster — la photo — que le CSS anime de toute façon.
+  const base = src?.replace(/\.webp$/, "");
   return (
     <div className={`rl-device rl-device-${side}${active ? " is-active" : ""}`}>
       <div className="rl-stage">
-        {video && src ? (
-          <video
-            className="rl-photo rl-video"
-            src={video}
-            poster={src}
-            autoPlay
-            muted
-            loop
-            playsInline
-            aria-label={model ?? name}
-            onError={() => setVideo(null)}
-          />
-        ) : src ? (
-          <Image src={src} alt={model ?? name} width={220} height={220} className="rl-photo" priority />
+        {src ? (
+          <video className="rl-photo rl-video" poster={src} autoPlay muted loop playsInline aria-label={model ?? name}>
+            <source src={`${base}.mov`} type='video/mp4; codecs="hvc1"' />
+            <source src={`${base}.webm`} type='video/webm; codecs="vp9"' />
+          </video>
         ) : (
           <div className="rl-photo rl-photo-generic">
             <Image src="/logo-mikrotik.webp" alt="MikroTik" width={72} height={24} />

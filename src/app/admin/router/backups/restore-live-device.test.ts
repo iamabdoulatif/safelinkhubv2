@@ -13,5 +13,7 @@ it("associe chaque board-name RouterOS à sa photo, sans confondre les hAP ax", 
   assert.equal(deviceImage("hAP ax^2"), "/mikrotik/hap-ax2.webp");
   assert.equal(deviceImage("C52iG-5HaxD2HaxD"), "/mikrotik/hap-ax2.webp");
   assert.equal(deviceImage("hAP ax^3"), "/mikrotik/hap-ax3.webp");
+  assert.equal(deviceImage("hAP be^3 Media"), "/mikrotik/hap-be3-media.webp");
+  assert.equal(deviceImage("hAP be lite"), "/mikrotik/hap-be-lite.webp");
   assert.equal(deviceImage("RB951Ui-2HnD"), null);
 });
