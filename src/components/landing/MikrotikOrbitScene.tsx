@@ -232,6 +232,38 @@ export function MikrotikOrbitScene({
     router.renderOrder = 3;
     routerGroup.add(router);
 
+    // Vraie animation 3D du routeur : boucle vidéo détourée (alpha) rendue
+    // par Higgsfield, plaquée à la place de la photo dès qu'elle est lisible.
+    // WebM VP9 alpha (Chrome/Firefox), HEVC alpha (Safari) ; si aucun ne joue,
+    // la photo reste — rien à casser.
+    const video = document.createElement("video");
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    for (const [src, type] of [
+      ["/mikrotik/chato-turn.mov", 'video/mp4; codecs="hvc1"'],
+      ["/mikrotik/chato-turn.webm", 'video/webm; codecs="vp9"'],
+    ]) {
+      const source = document.createElement("source");
+      source.src = src;
+      source.type = type;
+      video.appendChild(source);
+    }
+    let videoTexture: THREE.VideoTexture | null = null;
+    const onVideoReady = () => {
+      if (!sceneActive || videoTexture) return;
+      videoTexture = new THREE.VideoTexture(video);
+      videoTexture.colorSpace = THREE.SRGBColorSpace;
+      routerMaterial.map = videoTexture;
+      routerMaterial.needsUpdate = true;
+      void video.play().catch(() => {
+        /* autoplay refusé : la photo reste */
+      });
+    };
+    video.addEventListener("canplay", onVideoReady, { once: true });
+    video.load();
+
     const makeParticleField = (
       count: number,
       radius: number,
@@ -318,6 +350,7 @@ export function MikrotikOrbitScene({
     const stop = () => {
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
+      video.pause();
     };
     const animate = (time: number) => {
       frame = requestAnimationFrame(animate);
@@ -325,6 +358,7 @@ export function MikrotikOrbitScene({
     };
     const start = () => {
       if (!reducedMotion && visible && !frame) frame = requestAnimationFrame(animate);
+      if (videoTexture && visible && video.paused) void video.play().catch(() => {});
     };
 
     const resize = () => {
@@ -356,6 +390,9 @@ export function MikrotikOrbitScene({
       stop();
       resizeObserver.disconnect();
       visibilityObserver.disconnect();
+      video.pause();
+      video.removeAttribute("src");
+      videoTexture?.dispose();
       routerTexture.dispose();
       glowTexture.dispose();
       dotTexture.dispose();
