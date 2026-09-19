@@ -12,6 +12,8 @@
  * et les variables de thème, donc pas de couleur en dur : le mode sombre suit.
  */
 
+import { deviceImage } from "./RestoreLive";
+
 export type ChannelState = "idle" | "planned" | "done" | "blocked" | "failed" | "skipped";
 
 export type TopologyChannel = {
@@ -117,30 +119,42 @@ function Device({
   blocked?: boolean;
 }) {
   const border = blocked ? "var(--err)" : "var(--ink)";
+  // Photo produit du modèle (subtitle = board-name RouterOS) ; l'ancien boîtier
+  // dessiné ne sert plus que si le modèle est inconnu.
+  const photo = deviceImage(node.subtitle);
   return (
     <g>
-      <rect
-        x={x}
-        y={60}
-        width={180}
-        height={180}
-        fill={accent ? "var(--clay)" : "var(--paper)"}
-        stroke={border}
-        strokeWidth="2.5"
-      />
-      {/* Bandeau de façade + LED : signature visuelle du routeur, comme sur le landing. */}
-      <rect x={x} y={60} width={180} height={22} fill={border} />
-      <circle cx={x + 12} cy={71} r="3.5" fill="var(--brand)" className={accent ? "iso-led" : ""} />
-      <text x={x + 26} y={75} fontSize="10" fontWeight="700" fill="var(--paper)">
-        MIKROTIK
-      </text>
-      <text x={x + 12} y={112} fontSize="13" fontWeight="800" fill="var(--ink)">
+      {photo ? (
+        <>
+          <ellipse cx={x + 90} cy={166} rx={62} ry={7} fill="var(--ink)" opacity="0.18" className="topo-floor" />
+          <image
+            href={photo}
+            x={x + 15}
+            y={50}
+            width={150}
+            height={118}
+            preserveAspectRatio="xMidYMid meet"
+            className={`topo-photo${accent ? " is-target" : ""}`}
+          />
+          {blocked && <rect x={x} y={44} width={180} height={130} fill="none" stroke={border} strokeWidth="2" rx="8" />}
+        </>
+      ) : (
+        <>
+          <rect x={x + 30} y={60} width={120} height={100} fill={accent ? "var(--clay)" : "var(--paper)"} stroke={border} strokeWidth="2.5" />
+          <rect x={x + 30} y={60} width={120} height={22} fill={border} />
+          <circle cx={x + 42} cy={71} r="3.5" fill="var(--brand)" className={accent ? "iso-led" : ""} />
+          <text x={x + 56} y={75} fontSize="10" fontWeight="700" fill="var(--paper)">
+            MIKROTIK
+          </text>
+        </>
+      )}
+      <text x={x + 90} y={196} textAnchor="middle" fontSize="13" fontWeight="800" fill="var(--ink)">
         {node.title.length > 21 ? `${node.title.slice(0, 20)}…` : node.title}
       </text>
-      <text x={x + 12} y={140} fontSize="11" fill="var(--ink-soft)">
+      <text x={x + 90} y={216} textAnchor="middle" fontSize="11" fill="var(--ink-soft)">
         {node.subtitle.length > 27 ? `${node.subtitle.slice(0, 26)}…` : node.subtitle}
       </text>
-      <text x={x + 12} y={164} fontSize="11" fill="var(--ink-soft)">
+      <text x={x + 90} y={234} textAnchor="middle" fontSize="11" fill="var(--ink-soft)">
         {node.meta.length > 27 ? `${node.meta.slice(0, 26)}…` : node.meta}
       </text>
     </g>

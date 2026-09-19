@@ -317,6 +317,19 @@ body {
   background: var(--brand);
   animation: iso-led 1.2s ease-in-out infinite;
 }
+/* Photos dans le schéma SVG (RestoreTopology) : flottement + faux pivot 3D. */
+.topo-photo {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 10px 10px rgb(0 0 0 / 0.25));
+  animation: topo-float 6s ease-in-out infinite;
+}
+.topo-photo.is-target { animation-delay: -3s; }
+.topo-floor { transform-box: fill-box; transform-origin: 50% 50%; animation: rl-floor 6s ease-in-out infinite; }
+@keyframes topo-float {
+  0%, 100% { transform: translateY(0) scaleX(1); }
+  50%      { transform: translateY(-6px) scaleX(0.94); }
+}
 .rl-root.is-error { border-color: var(--err); }
 .rl-root.is-cancelled { border-color: var(--warn); }
 
