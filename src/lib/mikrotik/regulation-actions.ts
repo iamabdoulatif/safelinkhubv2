@@ -36,6 +36,7 @@ export async function readRouterRegulation(routerId: string) {
         abuseThresholdGo: row.abuseThresholdMb / 1024,
         abuseBlockMinutes: row.abuseBlockMinutes,
         abuseMaxOffenses: row.abuseMaxOffenses,
+        profileThrottlePct: row.profileThrottlePct,
       }
     : REGULATION_DEFAULTS;
   return {
@@ -69,6 +70,7 @@ export async function saveRouterRegulation(routerId: string, f: RegulationForm) 
     abuseThresholdMb: Math.max(1, Math.round(f.abuseThresholdGo * 1024)),
     abuseBlockMinutes: Math.max(1, Math.round(f.abuseBlockMinutes)),
     abuseMaxOffenses: Math.max(1, Math.round(f.abuseMaxOffenses)),
+    profileThrottlePct: Math.min(100, Math.max(0, Math.round(f.profileThrottlePct ?? 0))),
     updatedAt: new Date(),
   };
   await getDb()

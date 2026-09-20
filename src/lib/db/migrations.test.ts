@@ -43,6 +43,7 @@ describe("registre des migrations", () => {
     "0007_router_vpn_quota_and_package_cap": "add-router-vpn-quota-and-package-cap.sql",
     "0008_router_portal_repaired_at": "add-router-portal-repaired-at.sql",
     "0009_router_regulation": "add-router-regulation.sql",
+    "0011_regulation_profile_throttle": "add-regulation-profile-throttle.sql",
   };
   for (const [id, file] of Object.entries(MIRRORS)) {
     it(`${id} : le miroir scripts/${file} correspond`, () => {

@@ -210,4 +210,14 @@ create index if not exists router_dualwan_jobs_router_idx
   on router_dualwan_jobs (router_id, created_at);
 `.trim(),
   },
+  {
+    // Bridage des PROFILS pendant un freinage de la régulation : pourcentage du
+    // débit de chaque forfait conservé (0 = désactivé). Voir
+    // lib/mikrotik/regulation.ts. Miroir : scripts/add-regulation-profile-throttle.sql.
+    id: "0011_regulation_profile_throttle",
+    sql: `
+alter table router_regulation
+  add column if not exists profile_throttle_pct integer not null default 0;
+`.trim(),
+  },
 ];

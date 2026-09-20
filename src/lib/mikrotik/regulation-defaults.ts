@@ -11,6 +11,8 @@ export type RegulationForm = {
   abuseThresholdGo: number;
   abuseBlockMinutes: number;
   abuseMaxOffenses: number;
+  /** % du débit de chaque forfait conservé pendant un freinage ; 0 = désactivé. */
+  profileThrottlePct: number;
 };
 
 export const REGULATION_DEFAULTS: RegulationForm = {
@@ -23,5 +25,6 @@ export const REGULATION_DEFAULTS: RegulationForm = {
   abuseThresholdGo: 1,
   abuseBlockMinutes: 180,
   abuseMaxOffenses: 3,
+  profileThrottlePct: 0,
 };
 

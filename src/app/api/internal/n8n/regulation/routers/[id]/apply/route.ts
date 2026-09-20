@@ -59,7 +59,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
   try {
-    const result = await applyRegulation(client, { limit: body.limit, blocks });
+    const result = await applyRegulation(client, {
+      limit: body.limit,
+      blocks,
+      profileThrottlePct: row.regulation.profileThrottlePct,
+      profileLimits: body.state.profileLimits ?? row.regulation.state?.profileLimits,
+    });
+    // La mémoire des rate-limits d'origine vit dans l'état : n8n la renvoie
+    // telle quelle au passage suivant, on la met à jour après la pose.
+    await db
+      .update(routerRegulation)
+      .set({ state: { ...body.state, profileLimits: result.profileLimits } })
+      .where(eq(routerRegulation.routerId, id));
     return Response.json({ applied: true, ...result });
   } catch (err) {
     return Response.json(

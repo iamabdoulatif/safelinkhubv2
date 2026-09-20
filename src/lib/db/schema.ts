@@ -1689,6 +1689,8 @@ export type RegulationState = {
   at: string;
   changedAt: string | null;
   stats?: Record<string, number | string>;
+  /** rate-limit d'origine de chaque profil hotspot bridé (nom → « up/down »), pour le rétablir. */
+  profileLimits?: Record<string, string>;
 };
 
 export type RegulationWatchEntry = {
@@ -1718,6 +1720,9 @@ export const routerRegulation = pgTable("router_regulation", {
   abuseThresholdMb: integer("abuse_threshold_mb").notNull().default(1024),
   abuseBlockMinutes: integer("abuse_block_minutes").notNull().default(180),
   abuseMaxOffenses: integer("abuse_max_offenses").notNull().default(3),
+  // Pendant un freinage, chaque profil hotspot garde ce % de son rate-limit
+  // (0 = les profils ne bougent pas, seule la file partagée bride).
+  profileThrottlePct: integer("profile_throttle_pct").notNull().default(0),
   // État écrit par n8n à chaque passage (voir RegulationState) et mémoire des
   // appareils surveillés (par MAC).
   state: jsonb("state").$type<RegulationState>(),

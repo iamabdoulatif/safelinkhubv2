@@ -20,7 +20,8 @@ Routeurs dont la régulation est **activée** (table `router_regulation.enabled`
   "routerId": "uuid", "name": "HSPT-FOUANGA", "online": true, "billingCycleDay": 1,
   "policy": { "softCapMb": 4718592, "hardCapMb": 5242880, "safety": 0.95,
               "dayCriticalRatio": 1.1, "blockLimit": "64k/64k",
-              "abuseThresholdMb": 1024, "abuseBlockMinutes": 180, "abuseMaxOffenses": 3 },
+              "abuseThresholdMb": 1024, "abuseBlockMinutes": 180, "abuseMaxOffenses": 3,
+              "profileThrottlePct": 0 },
   "state": { "decision": "ok", "previous": "ok", "limit": "0/0", "wanInterface": "E1-WAN-FAI",
              "counters": 0, "monthBytes": 0, "dayBytes": 0, "monthKey": "2026-09-01",
              "dayKey": "2026-09-12", "at": "…", "changedAt": null, "stats": {} } | null,
@@ -48,6 +49,13 @@ puis la pose est tentée (`503` routeur injoignable → n8n réessaie au passage
 Côté routeur : file simple `slh-quota` (PCQ, mère des profils hotspot) ; listes
 `slh-blocked-download` (timeout) / `slh-permanent-blocked` + règles drop en tête
 du forward. `limit = 0/0` retire la file et détache les profils.
+
+**Bridage des profils** (`policy.profileThrottlePct`, 0 = désactivé) : pendant
+un freinage, chaque profil hotspot passe à ce % de son `rate-limit` d'origine
+(forme simple `up/down` uniquement), mémorisé dans `state.profileLimits` — n8n
+renvoie l'état tel quel, la plateforme le met à jour après la pose et rétablit
+l'origine au retour à `0/0`. Le cycle repart de zéro au `billingCycleDay`
+(`state.monthKey`), sans intervention.
 
 ## Table `router_regulation` (migration `0009_router_regulation`)
 Une ligne par routeur : `enabled`, seuils (`soft_cap_mb`, `hard_cap_mb`, `safety`,

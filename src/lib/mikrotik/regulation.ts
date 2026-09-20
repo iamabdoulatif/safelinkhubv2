@@ -69,7 +69,67 @@ export type RegulationApply = {
   /** max-limit « up/down » ; « 0/0 » retire la bride. */
   limit: string;
   blocks: RegulationBlock[];
+  /** % du rate-limit de chaque profil hotspot conservé pendant un freinage (0 = profils intacts). */
+  profileThrottlePct?: number;
+  /** rate-limit d'origine des profils déjà bridés (état mémorisé par la plateforme). */
+  profileLimits?: Record<string, string>;
 };
+
+const RATE_RE = /^(\d+(?:\.\d+)?)([kMG]?)$/;
+const UNIT: Record<string, number> = { "": 1, k: 1e3, M: 1e6, G: 1e9 };
+
+/** « 4M/3M » × pct % → « 2000k/1500k » ; null si la forme n'est pas un simple up/down. */
+export function scaleRateLimit(rateLimit: string, pct: number): string | null {
+  const parts = rateLimit.trim().split("/");
+  if (parts.length !== 2) return null;
+  const out: string[] = [];
+  for (const part of parts) {
+    const m = RATE_RE.exec(part);
+    if (!m) return null;
+    const bps = Number(m[1]) * UNIT[m[2]];
+    if (!(bps > 0)) return null;
+    out.push(`${Math.max(64, Math.round((bps * pct) / 100 / 1000))}k`);
+  }
+  return out.join("/");
+}
+
+/**
+ * Bride ou rétablit les profils hotspot. Pendant un freinage (limit ≠ 0/0) et
+ * si pct > 0, chaque profil passe à pct % de son rate-limit D'ORIGINE (mémorisé
+ * dans `profileLimits`, donc rejouable sans dégrader deux fois) ; au retour à
+ * la normale, l'origine est reposée et la mémoire vidée. Les profils sans
+ * rate-limit, ou à forme étendue (burst), ne sont pas touchés.
+ */
+async function throttleProfiles(
+  client: RouterOSClient,
+  limit: string,
+  pct: number,
+  remembered: Record<string, string>,
+  timeoutMs: number,
+): Promise<Record<string, string>> {
+  const profiles = await client
+    .talk(["/ip/hotspot/user/profile/print", "=.proplist=.id,name,rate-limit"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  const next: Record<string, string> = {};
+  const throttling = limit !== "0/0" && pct > 0 && pct < 100;
+  for (const p of profiles) {
+    const name = p.name;
+    const id = p[".id"];
+    if (!name || !id) continue;
+    const original = remembered[name] ?? p["rate-limit"] ?? "";
+    if (throttling) {
+      const scaled = scaleRateLimit(original, pct);
+      if (!scaled) continue;
+      next[name] = original;
+      if (p["rate-limit"] !== scaled) {
+        await client.talk(["/ip/hotspot/user/profile/set", `=numbers=${id}`, `=rate-limit=${scaled}`], timeoutMs).catch(() => {});
+      }
+    } else if (remembered[name] && p["rate-limit"] !== remembered[name]) {
+      await client.talk(["/ip/hotspot/user/profile/set", `=numbers=${id}`, `=rate-limit=${remembered[name]}`], timeoutMs).catch(() => {});
+    }
+  }
+  return next;
+}
 
 async function ensureDropRule(
   client: RouterOSClient,
@@ -98,7 +158,7 @@ export async function applyRegulation(
   client: RouterOSClient,
   apply: RegulationApply,
   timeoutMs = 15000,
-): Promise<{ queue: "removed" | "set" | "added"; blocked: number }> {
+): Promise<{ queue: "removed" | "set" | "added"; blocked: number; profileLimits: Record<string, string> }> {
   // ── File de bridage partagée ──
   const hotspots = await client.talk(["/ip/hotspot/print"], timeoutMs).catch(() => []);
   const target = hotspots[0]?.interface || "0.0.0.0/0";
@@ -138,6 +198,15 @@ export async function applyRegulation(
     }
   }
 
+  // ── Profils : bridés au prorata pendant le freinage, rétablis ensuite ──
+  const profileLimits = await throttleProfiles(
+    client,
+    apply.limit,
+    apply.profileThrottlePct ?? 0,
+    apply.profileLimits ?? {},
+    timeoutMs,
+  );
+
   // ── Téléchargeurs abusifs ──
   if (apply.blocks.length) {
     await ensureDropRule(client, ABUSE_LIST, ABUSE_RULE_COMMENT, timeoutMs);
@@ -155,5 +224,5 @@ export async function applyRegulation(
     await client.talk(words, timeoutMs);
     blocked++;
   }
-  return { queue, blocked };
+  return { queue, blocked, profileLimits };
 }

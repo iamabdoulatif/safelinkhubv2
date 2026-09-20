@@ -34,5 +34,6 @@ export function policyOf(r: typeof routerRegulation.$inferSelect) {
     abuseThresholdMb: r.abuseThresholdMb,
     abuseBlockMinutes: r.abuseBlockMinutes,
     abuseMaxOffenses: r.abuseMaxOffenses,
+    profileThrottlePct: r.profileThrottlePct,
   };
 }

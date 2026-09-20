@@ -104,6 +104,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
         <Field label="Téléchargement abusif (Go / 5 min)" step={0.1} value={form.abuseThresholdGo} onChange={set("abuseThresholdGo")} />
         <Field label="Durée du blocage (min)" value={form.abuseBlockMinutes} onChange={set("abuseBlockMinutes")} />
         <Field label="Avertissements avant blocage définitif" min={1} value={form.abuseMaxOffenses} onChange={set("abuseMaxOffenses")} />
+        <Field label="Bridage des forfaits pendant un freinage (%)" hint="0 = forfaits intacts ; 50 = chaque forfait à la moitié de son débit, rétabli au retour à la normale" min={0} value={form.profileThrottlePct} onChange={set("profileThrottlePct")} />
       </div>
 
       <div className="mt-4 flex items-center gap-3">
