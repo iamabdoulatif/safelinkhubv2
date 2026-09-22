@@ -1700,6 +1700,10 @@ export type RegulationWatchEntry = {
   permanent: boolean;
   /** Fin du bridage individuel (ms epoch) ; 0 = pas bridé. */
   throttledUntil?: number;
+  /** Instant du relevé qui a donné `bytesOut` (ms epoch) — sert à mesurer un
+   *  DÉBIT et non un volume brut : sans lui, une interruption de la régulation
+   *  ferait passer l'accumulation du trou pour un téléchargement abusif. */
+  at?: number;
   /** Code suspendu définitivement : le ticket lui-même est désactivé. */
   suspended?: boolean;
   address?: string;

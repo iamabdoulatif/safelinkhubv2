@@ -46,8 +46,17 @@ const MAC = "AA:BB:CC:DD:EE:01";
 const session = (bytesOut: number) => [
   { mac: MAC, address: "10.1.0.5", user: "1j1", bytesOut, bytesIn: 0 },
 ];
+/** Un appareil déjà vu, par défaut au passage précédent (il y a 5 min). */
 const vu = (e: Partial<RegulationWatchEntry>): Record<string, RegulationWatchEntry> => ({
-  [MAC]: { bytesOut: 0, blockedUntil: 0, offenseCount: 0, permanent: false, throttledUntil: 0, ...e },
+  [MAC]: {
+    bytesOut: 0,
+    blockedUntil: 0,
+    offenseCount: 0,
+    permanent: false,
+    throttledUntil: 0,
+    at: Date.parse(T0) - 300 * 1000,
+    ...e,
+  },
 });
 
 describe("régulation — cascade anti-téléchargement", () => {
@@ -67,6 +76,28 @@ describe("régulation — cascade anti-téléchargement", () => {
     assert.equal(out.events.at(-1)!.kind, "throttle");
   });
 
+  it("mesure un DÉBIT, pas un volume : une longue interruption ne punit personne", () => {
+    // Cas réel du 22/09/2026 : la régulation s'est arrêtée 17 h, et au retour
+    // le premier passage a vu 0,5 Go de cumul par client — une vitesse de
+    // 8 ko/s, soit de la navigation, pas un téléchargement abusif.
+    const out = decide({
+      watch: vu({ bytesOut: 0, at: Date.parse(T0) - 17 * 3600 * 1000 }),
+      active: session(500 * MB),
+    });
+    assert.deepEqual(out.throttles, []);
+    assert.deepEqual(out.blocks, []);
+    assert.equal(out.watch[MAC].offenseCount, 0);
+  });
+
+  it("la même quantité en cinq minutes, elle, est bien un abus", () => {
+    const out = decide({
+      watch: vu({ bytesOut: 0, at: Date.parse(T0) - 300 * 1000 }),
+      active: session(500 * MB),
+    });
+    assert.equal(out.throttles.length, 1);
+    assert.equal(out.watch[MAC].offenseCount, 1);
+  });
+
   it("le client bridé qui reste sage n'accumule rien", () => {
     const out = decide({
       watch: vu({ bytesOut: 2 * GB, offenseCount: 1, throttledUntil: Date.parse(T0) + 120 * 60000 }),
@@ -79,10 +110,11 @@ describe("régulation — cascade anti-téléchargement", () => {
   });
 
   it("2e dépassement : blocage de 2 h, bridage maintenu", () => {
+    const T1 = "2026-09-10T13:00:00.000Z"; // la pause de 2 h est passée
     const out = decide({
-      watch: vu({ bytesOut: 2 * GB, offenseCount: 1 }),
+      watch: vu({ bytesOut: 2 * GB, offenseCount: 1, at: Date.parse(T1) - 300 * 1000 }),
       active: session(5 * GB),
-      at: "2026-09-10T13:00:00.000Z",
+      at: T1,
     });
     assert.equal(out.blocks.length, 1);
     assert.equal(out.blocks[0].minutes, 120);

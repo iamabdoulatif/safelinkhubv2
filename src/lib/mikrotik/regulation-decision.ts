@@ -59,6 +59,8 @@ export type RegulationDecisionOutput = {
 
 const MB = 1024 ** 2;
 const GB = 1024 ** 3;
+/** Cadence nominale d'un passage : le seuil de l'exploitant s'y rapporte. */
+const PASSAGE_MS = 300_000;
 
 const ACTIONS: Record<string, string> = {
   ok: "Débit normal (partage équitable illimité)",
@@ -200,11 +202,22 @@ export function decideRegulation(input: RegulationDecisionInput): RegulationDeci
       bytesOut: u.bytesOut,
       address: u.address,
       user: u.user,
+      at: ms,
     };
-    if (d > threshold && !stillBlocked) {
+    // UN DÉBIT, PAS UN VOLUME. Le seuil est exprimé « par passage de 5 min »
+    // parce que c'est ainsi que l'exploitant le pense, mais on le compare à la
+    // vitesse réelle sur l'intervalle écoulé. Sinon, après toute interruption
+    // de la régulation, le premier passage voit le cumul du trou et punit tout
+    // le monde : le 22/09/2026, huit clients de FOUANGA ont été bridés pour
+    // 0,35 à 0,87 Go étalés sur dix-sept heures — rien d'abusif.
+    const ecouleS = Math.max(30, (ms - (w.at ?? ms - PASSAGE_MS)) / 1000);
+    const debit = d / ecouleS;
+    const seuilDebit = threshold / (PASSAGE_MS / 1000);
+    if (debit > seuilDebit && !stillBlocked) {
       next.offenseCount = (w.offenseCount || 0) + 1;
       next.throttledUntil = ms + P.abuseBlockMinutes * 60000;
       const deltaGB = +(d / GB).toFixed(2);
+      const debitMoMin = +((debit * 60) / MB).toFixed(1);
       if (next.offenseCount >= P.abuseMaxOffenses) {
         next.suspended = true;
         next.permanent = true;
@@ -212,12 +225,12 @@ export function decideRegulation(input: RegulationDecisionInput): RegulationDeci
         suspensions.push({ user: u.user, reason: `${next.offenseCount}e dépassement (${deltaGB} Go)` });
         events.push({
           kind: "permanent_block",
-          payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount, suspended: true },
+          payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, debitMoMin, offenseCount: next.offenseCount, suspended: true },
         });
       } else if (next.offenseCount === 1) {
         events.push({
           kind: "throttle",
-          payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, limit: P.abuseThrottleLimit },
+          payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, debitMoMin, limit: P.abuseThrottleLimit },
         });
       } else {
         next.blockedUntil = ms + P.abuseBlockMinutes * 60000;
@@ -234,6 +247,7 @@ export function decideRegulation(input: RegulationDecisionInput): RegulationDeci
             address: u.address,
             user: u.user,
             deltaGB,
+            debitMoMin,
             offenseCount: next.offenseCount,
             unblockAt: new Date(next.blockedUntil).toISOString(),
           },
