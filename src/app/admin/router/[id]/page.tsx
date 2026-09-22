@@ -5,7 +5,6 @@ import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import SerialLockPanel from "./SerialLockPanel";
-import TicketDiagnosisPanel from "./TicketDiagnosisPanel";
 import HeaderActions from "./HeaderActions";
 import { linkTypeLabel } from "@/lib/mikrotik/link-usage";
 import RouterDetailTabs from "./RouterDetailTabs";
@@ -64,6 +63,7 @@ export const maxDuration = 120;
 function parseTab(value: string | undefined) {
   return value === "diagnostic" ||
     value === "filter" ||
+    value === "regulation" ||
     value === "usage" ||
     value === "resources" ||
     value === "services"
@@ -280,10 +280,9 @@ export default async function RouterDetailPage({
           n'a de sens que pour le superadmin, et il n'est utile que lorsque le
           routeur est justement hors ligne. */}
       {isSuperAdmin(session?.role) && !online && <SerialLockPanel routerId={router.id} />}
-
-      {/* Outil de support du quotidien : utile seulement si le routeur répond,
-          puisque tout y est lu en direct. */}
-      {online && <TicketDiagnosisPanel routerId={router.id} />}
+      {/* Le diagnostic de tickets a rejoint l'onglet « Diagnostic » : rendu en
+          bas de CHAQUE onglet, il s'affichait aussi sous « Filtrage » ou
+          « Régulation », où il n'a aucun sens (audit UI/UX du 22/09/2026). */}
     </div>
   );
 }

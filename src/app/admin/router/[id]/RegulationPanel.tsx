@@ -98,18 +98,43 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
         </div>
       )}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <Field label="Cible mensuelle (Go)" hint="4608 = 4,5 To" value={form.softCapGo} onChange={set("softCapGo")} />
-        <Field label="Plafond absolu (Go)" hint="jamais dépassé" value={form.hardCapGo} onChange={set("hardCapGo")} />
-        <Field label="Débit plancher (up/down)" hint="format RouterOS, ex. 64k/64k" type="text" value={form.blockLimit} onChange={set("blockLimit")} />
-        <Field label="Marge de sécurité" hint="part du budget du jour réellement dépensable" step={0.01} value={form.safety} onChange={set("safety")} />
-        <Field label="Avance tolérée" hint="1,10 = 10 % au-dessus du budget du jour avant de freiner" step={0.01} min={1} value={form.dayCriticalRatio} onChange={set("dayCriticalRatio")} />
-        <Field label="Téléchargement abusif (Go / 5 min)" step={0.1} value={form.abuseThresholdGo} onChange={set("abuseThresholdGo")} />
-        <Field label="Débit du contrevenant bridé" hint="1er dépassement : le débit tombe à ce plancher, la navigation passe mais le téléchargement n'aboutit pas" type="text" value={form.abuseThrottleLimit} onChange={set("abuseThrottleLimit")} />
-        <Field label="Durée du blocage (min)" value={form.abuseBlockMinutes} onChange={set("abuseBlockMinutes")} />
-        <Field label="Avertissements avant blocage définitif" min={1} value={form.abuseMaxOffenses} onChange={set("abuseMaxOffenses")} />
-        <Field label="Bridage des forfaits pendant un freinage (%)" hint="0 = forfaits intacts ; 50 = chaque forfait à la moitié de son débit, rétabli au retour à la normale" min={0} value={form.profileThrottlePct} onChange={set("profileThrottlePct")} />
-      </div>
+      {/* Dix seuils à plat ne se relisent pas : ils sont regroupés par QUESTION
+          — combien de budget, quand freiner, que faire du contrevenant —
+          chacune avec son intitulé. L'ordre des champs ne change pas au sein
+          de leur groupe (audit UI/UX du 22/09/2026). */}
+      <fieldset className="mt-5">
+        <legend className="text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+          Budget du mois
+        </legend>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="Cible mensuelle (Go)" hint="4608 = 4,5 To" value={form.softCapGo} onChange={set("softCapGo")} />
+          <Field label="Plafond absolu (Go)" hint="jamais dépassé" value={form.hardCapGo} onChange={set("hardCapGo")} />
+          <Field label="Marge de sécurité" hint="part du budget du jour réellement dépensable" step={0.01} value={form.safety} onChange={set("safety")} />
+          <Field label="Avance tolérée" hint="1,10 = 10 % au-dessus du budget du jour avant de freiner" step={0.01} min={1} value={form.dayCriticalRatio} onChange={set("dayCriticalRatio")} />
+        </div>
+      </fieldset>
+
+      <fieldset className="mt-5">
+        <legend className="text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+          Téléchargeurs abusifs
+        </legend>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="Téléchargement abusif (Go / 5 min)" step={0.1} value={form.abuseThresholdGo} onChange={set("abuseThresholdGo")} />
+          <Field label="Débit du contrevenant bridé" hint="1er dépassement : la navigation passe, le téléchargement n'aboutit pas" type="text" value={form.abuseThrottleLimit} onChange={set("abuseThrottleLimit")} />
+          <Field label="Durée du blocage (min)" value={form.abuseBlockMinutes} onChange={set("abuseBlockMinutes")} />
+          <Field label="Avertissements avant blocage définitif" min={1} value={form.abuseMaxOffenses} onChange={set("abuseMaxOffenses")} />
+        </div>
+      </fieldset>
+
+      <fieldset className="mt-5">
+        <legend className="text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+          En dernier recours
+        </legend>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <Field label="Débit plancher (up/down)" hint="format RouterOS, ex. 64k/64k — quand le plafond absolu est atteint" type="text" value={form.blockLimit} onChange={set("blockLimit")} />
+          <Field label="Bridage des forfaits pendant un freinage (%)" hint="0 = forfaits intacts ; 50 = chaque forfait à la moitié de son débit, rétabli au retour à la normale" min={0} value={form.profileThrottlePct} onChange={set("profileThrottlePct")} />
+        </div>
+      </fieldset>
 
       <div className="mt-4 flex items-center gap-3">
         <button type="button" onClick={save} disabled={pending} className="flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60">
@@ -122,7 +147,11 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
       </div>
 
       {events.length > 0 && (
-        <ul className="mt-5 divide-y divide-line border border-line text-sm rounded-lg">
+        <>
+          <h4 className="mt-6 text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+            Journal des décisions
+          </h4>
+          <ul className="mt-2 divide-y divide-line border border-line text-sm rounded-lg">
           {events.map((e) => {
             const p = e.payload as Record<string, unknown>;
             return (
@@ -154,7 +183,8 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
               </li>
             );
           })}
-        </ul>
+          </ul>
+        </>
       )}
     </section>
   );

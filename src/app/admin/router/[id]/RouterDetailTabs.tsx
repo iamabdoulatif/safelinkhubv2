@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Gauge, SlidersHorizontal, LayoutGrid, Stethoscope, ShieldBan, Activity } from "lucide-react";
+import { Gauge, SlidersHorizontal, LayoutGrid, Stethoscope, ShieldBan, Activity, Bot } from "lucide-react";
 import ResourcesPanel from "./ResourcesPanel";
 import ServicesWizard from "./ServicesWizard";
 import AuditPanel from "./AuditPanel";
@@ -11,16 +11,23 @@ import CaptivePortalPanel from "./CaptivePortalPanel";
 import UsagePanel from "./UsagePanel";
 import DualWanPanel from "./DualWanPanel";
 import WanStealthPanel from "./WanStealthPanel";
+import TicketDiagnosisPanel from "./TicketDiagnosisPanel";
 
-export type TabKey = "overview" | "diagnostic" | "filter" | "usage" | "resources" | "services";
+export type TabKey = "overview" | "diagnostic" | "filter" | "regulation" | "usage" | "resources" | "services";
 
 /* Ordre = fréquence d'usage : ce qu'on regarde tous les jours d'abord, la
-   configuration (une fois) en dernier. */
+   configuration (une fois) en dernier.
+   « Filtrage » et « Régulation » sont DEUX onglets depuis l'audit UI/UX du
+   22/09/2026 : empilés, ils formaient un défilement sans fin où le formulaire
+   de seuils n8n se perdait sous les catégories de filtrage. Et le diagnostic
+   de tickets vit dans « Diagnostic » — il était rendu en bas de CHAQUE onglet,
+   y compris ceux où il n'a aucun sens. */
 const TABS: { key: TabKey; label: string; icon: typeof Gauge }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutGrid },
   { key: "usage", label: "Consommation", icon: Activity },
   { key: "diagnostic", label: "Diagnostic", icon: Stethoscope },
-  { key: "filter", label: "Filtrage & régulation", icon: ShieldBan },
+  { key: "filter", label: "Filtrage", icon: ShieldBan },
+  { key: "regulation", label: "Régulation", icon: Bot },
   { key: "resources", label: "Ressources", icon: Gauge },
   { key: "services", label: "Configurer les services", icon: SlidersHorizontal },
 ];
@@ -104,12 +111,14 @@ export default function RouterDetailTabs({
                 Le routeur doit être en ligne pour lire ses informations en direct.
               </p>
             ) : key === "diagnostic" ? (
-              <AuditPanel routerId={routerId} />
-            ) : key === "filter" ? (
               <div className="space-y-6">
-                <ContentFilterPanel routerId={routerId} />
-                <RegulationPanel routerId={routerId} />
+                <AuditPanel routerId={routerId} />
+                <TicketDiagnosisPanel routerId={routerId} />
               </div>
+            ) : key === "filter" ? (
+              <ContentFilterPanel routerId={routerId} />
+            ) : key === "regulation" ? (
+              <RegulationPanel routerId={routerId} />
             ) : key === "usage" ? (
               <UsagePanel routerId={routerId} />
             ) : key === "resources" ? (
