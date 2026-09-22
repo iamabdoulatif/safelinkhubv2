@@ -130,6 +130,21 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
                 <span className="text-ink-soft">{new Date(e.at).toLocaleString("fr-FR")}</span>
                 {e.kind === "decision" ? (
                   <span>Décision : {String(p.previous)} → <strong>{String(p.decision)}</strong> ({String(p.limit)})</span>
+                ) : e.kind === "notice" ? (
+                  /* Le SEUL endroit où l'on voit qu'un client n'a PAS pu être
+                     prévenu : sans numéro (code vendu par un agent), il se
+                     présentera au guichet sans savoir pourquoi son code est mort. */
+                  <span className={p.notified ? "" : "text-warn"}>
+                    {Number(p.remaining) > 0 ? "Avertissement" : "Suspension définitive"} :{" "}
+                    <strong>{String(p.user)}</strong>{" "}
+                    {p.notified
+                      ? `— client prévenu par SMS au ${String(p.phone)}`
+                      : "— CLIENT NON PRÉVENU : aucun numéro connu (code vendu hors portail)"}
+                  </span>
+                ) : e.kind === "throttle" ? (
+                  <span>
+                    Bridage : {String(p.user)} ({String(p.address)}) — {String(p.deltaGB)} Go en 5 min, débit ramené à {String(p.limit)}
+                  </span>
                 ) : (
                   <span>
                     {e.kind === "permanent_block" ? "Blocage définitif" : "Blocage"} : {String(p.user)} ({String(p.address)}) — {String(p.deltaGB)} Go

@@ -88,6 +88,17 @@ function Kpi({
   );
 }
 
+/**
+ * Le badge était vert EN DUR : un code suspendu par la cascade anti-abus
+ * s'affichait donc comme un ticket en pleine forme, et personne au guichet ne
+ * comprenait pourquoi il ne passait plus.
+ */
+function tonStatut(status: string): string {
+  if (status === "SUSPENDED") return "bg-err-soft text-err";
+  if (status === "EXPIRED" || status === "DELETED") return "bg-clay text-ink-soft";
+  return "bg-ok-soft text-ok";
+}
+
 export default function VoucherTable({
   activeVouchers,
   trashedVouchers,
@@ -459,9 +470,9 @@ export default function VoucherTable({
                     {voucher.validity && <div className="mt-0.5 text-xs text-ink-soft">{voucher.validity}</div>}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-ok-soft px-2.5 py-1 text-xs font-semibold text-ok">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${tonStatut(voucher.status)}`}>
                       <i className="h-1.5 w-1.5 rounded-full bg-current" />
-                      {voucher.status}
+                      {voucher.status === "SUSPENDED" ? "SUSPENDU" : voucher.status}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-ink-soft">

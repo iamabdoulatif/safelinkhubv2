@@ -100,14 +100,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .where(and(eq(vouchers.orgId, row.router.orgId), inArray(vouchers.username, suspendus)))
         .catch(() => {});
     }
-    const notifies = await notifierClients(
-      row.router.orgId,
-      [
-        ...(body.warnings ?? []).map((w) => ({ user: w.user, remaining: w.remaining })),
-        ...suspendus.map((user) => ({ user, remaining: 0 })),
-      ],
-    );
-    return Response.json({ applied: true, ...result, notifies });
+    const avis = await notifierClients(row.router.orgId, [
+      ...(body.warnings ?? []).map((w) => ({ user: w.user, remaining: w.remaining })),
+      ...suspendus.map((user) => ({ user, remaining: 0 })),
+    ]);
+    // Un code suspendu SANS numéro connu (vendu par un agent, pas au portail)
+    // ne laisse aucune trace ailleurs : le client se présentera au guichet sans
+    // savoir pourquoi. On l'écrit au journal pour que l'exploitant le voie.
+    if (avis.length > 0) {
+      await db
+        .insert(routerRegulationEvents)
+        .values(
+          avis.map((a) => ({
+            routerId: id,
+            kind: "notice",
+            payload: { user: a.user, remaining: a.remaining, notified: a.notified, phone: a.phone },
+          })),
+        )
+        .catch(() => {});
+    }
+    return Response.json({
+      applied: true,
+      ...result,
+      notifies: avis.filter((a) => a.notified).length,
+      unnotified: avis.filter((a) => !a.notified).map((a) => a.user),
+    });
   } catch (err) {
     return Response.json(
       { applied: false, error: err instanceof Error ? err.message : "Application impossible." },
@@ -125,14 +142,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
  * pas : on ne prétend pas l'avoir joint). Best-effort : un SMS qui ne part pas
  * n'annule ni le bridage ni la suspension.
  */
-async function notifierClients(
-  orgId: string,
-  cibles: { user: string; remaining: number }[],
-): Promise<number> {
-  if (cibles.length === 0) return 0;
+type Avis = { user: string; remaining: number; notified: boolean; phone: string | null };
+
+async function notifierClients(orgId: string, cibles: { user: string; remaining: number }[]): Promise<Avis[]> {
+  if (cibles.length === 0) return [];
   const db = getDb();
-  let envoyes = 0;
+  const avis: Avis[] = [];
   for (const cible of cibles) {
+    let phone: string | null = null;
+    let notified = false;
     try {
       const [ligne] = await db
         .select({ phone: portalOrders.phone })
@@ -140,16 +158,19 @@ async function notifierClients(
         .innerJoin(vouchers, eq(vouchers.id, portalOrders.voucherId))
         .where(and(eq(vouchers.username, cible.user), eq(vouchers.orgId, orgId)))
         .limit(1);
-      if (!ligne?.phone) continue;
-      const contenu =
-        cible.remaining > 0
-          ? `Votre code ${cible.user} telecharge trop vite : debit reduit. Encore ${cible.remaining} depassement(s) et il sera suspendu definitivement.`
-          : `Votre code ${cible.user} est suspendu definitivement apres 10 depassements de telechargement.`;
-      const res = await sendOrgSms({ orgId, to: ligne.phone, content: contenu });
-      if (res && !("error" in res && res.error)) envoyes++;
+      phone = ligne?.phone ?? null;
+      if (phone) {
+        const contenu =
+          cible.remaining > 0
+            ? `Votre code ${cible.user} telecharge trop vite : debit reduit. Encore ${cible.remaining} depassement(s) et il sera suspendu definitivement.`
+            : `Votre code ${cible.user} est suspendu definitivement apres 10 depassements de telechargement.`;
+        const res = await sendOrgSms({ orgId, to: phone, content: contenu });
+        notified = Boolean(res) && !("error" in res && res.error);
+      }
     } catch {
-      /* best-effort */
+      /* best-effort : l'échec d'un SMS n'annule ni le bridage ni la suspension */
     }
+    avis.push({ user: cible.user, remaining: cible.remaining, notified, phone });
   }
-  return envoyes;
+  return avis;
 }
