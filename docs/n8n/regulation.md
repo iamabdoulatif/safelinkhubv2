@@ -1,4 +1,23 @@
-# Régulation du trafic pilotée par n8n
+# Régulation du trafic
+
+> **Depuis le 22/09/2026, la DÉCISION vit dans la plateforme**, pas dans n8n :
+> `src/lib/mikrotik/regulation-decision.ts` (fonction pure, testée) exécutée
+> par `/api/cron/regulation`, que le cron du VPS appelle toutes les 5 minutes
+> (`*/5 * * * * slh-cron regulation`).
+>
+> **Pourquoi ce déménagement.** Le compte n8n Cloud a cessé d'exécuter quoi que
+> ce soit ce jour-là — quota mensuel épuisé — et la régulation de tout le parc
+> s'est arrêtée seize heures durant sans qu'aucune alerte ne parte : le seul
+> signe visible était l'absence de nouveaux relevés. Un mécanisme qui bride le
+> débit de milliers de clients et suspend des codes payants ne peut pas
+> dépendre d'un service tiers qui s'arrête en silence.
+>
+> Le workflow n8n est **désactivé** et conservé comme secours documenté : les
+> routes internes ci-dessous restent en service et son nœud « Décision »
+> (`regulation-decision.js`) reste le miroir de la logique. Toute modification
+> de la cascade se fait dans le TypeScript ; le JS n8n n'est plus la source.
+
+## Historique : le contrat n8n (toujours valable)
 
 n8n **décide**, la plateforme **sait** (seuils, état) et **agit** (routeur).
 Le workflow n'a plus de constantes ni de `$getWorkflowStaticData`, et ne
