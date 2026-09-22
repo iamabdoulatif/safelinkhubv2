@@ -30,12 +30,20 @@ export const maxDuration = 300;
  * Appelée par le cron du VPS (`slh-cron regulation`, toutes les 5 min), qui
  * frappe le conteneur en direct : ni Cloudflare ni sa coupure à ~100 s.
  *
- * Budget de temps borné : le parc est parcouru EN SÉRIE (chaque routeur = une
- * session par le tunnel) et on s'arrête proprement avant la limite de la
- * route, en disant combien restent. Le passage suivant, cinq minutes plus
- * tard, reprend là où il en est — l'ordre repart des relevés les plus anciens.
+ * Budget de temps borné, et un PETIT groupe de travailleurs. En série, un
+ * passage ne couvrait que onze routeurs en 240 s (~22 s chacun : ouverture du
+ * tunnel, lectures, pose) — le parc n'était donc revu que toutes les vingt-cinq
+ * minutes, cinq fois moins souvent que la cadence annoncée. Quatre travailleurs
+ * suffisent à tenir les cinq minutes ; au-delà, les sessions SSH se disputent
+ * le relais (1 vCPU) et se bornent mutuellement en délais d'attente — c'est la
+ * limite déjà retenue pour le contrôle de santé.
+ *
+ * Ce qui reste couvert si le parc dépasse le budget : la file est ordonnée du
+ * relevé le plus ancien au plus récent, donc le passage suivant reprend ceux
+ * qui ont été laissés.
  */
 const BUDGET_MS = 240_000;
+const CONCURRENCE = 4;
 
 export async function GET(request: NextRequest) {
   if (request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -66,11 +74,21 @@ export async function GET(request: NextRequest) {
     restants: 0,
   };
 
-  for (const [index, ligne] of file.entries()) {
-    if (Date.now() > echeance) {
-      bilan.restants = file.length - index;
-      break;
-    }
+  let curseur = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCE, file.length) }, async () => {
+      while (curseur < file.length) {
+        if (Date.now() > echeance) break;
+        const ligne = file[curseur++];
+        await traiter(ligne);
+      }
+    }),
+  );
+  bilan.restants = Math.max(0, file.length - curseur);
+
+  return Response.json({ ok: true, ...bilan });
+
+  async function traiter(ligne: (typeof file)[number]) {
     const { router, regulation } = ligne;
 
     let client: RouterOSClient;
@@ -78,7 +96,7 @@ export async function GET(request: NextRequest) {
       client = await connectToRouter(router, 12000);
     } catch {
       bilan.injoignables.push(router.name);
-      continue;
+      return;
     }
 
     try {
@@ -170,6 +188,4 @@ export async function GET(request: NextRequest) {
       client.close();
     }
   }
-
-  return Response.json({ ok: true, ...bilan });
 }
