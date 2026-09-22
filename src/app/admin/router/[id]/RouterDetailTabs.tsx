@@ -10,6 +10,7 @@ import RegulationPanel from "./RegulationPanel";
 import CaptivePortalPanel from "./CaptivePortalPanel";
 import UsagePanel from "./UsagePanel";
 import DualWanPanel from "./DualWanPanel";
+import WanStealthPanel from "./WanStealthPanel";
 
 export type TabKey = "overview" | "diagnostic" | "filter" | "usage" | "resources" | "services";
 
@@ -118,6 +119,7 @@ export default function RouterDetailTabs({
                 <CaptivePortalPanel routerId={routerId} />
                 <ServicesWizard routerId={routerId} />
                 <DualWanPanel routerId={routerId} />
+                <WanStealthPanel routerId={routerId} />
               </>
             ))}
         </div>
