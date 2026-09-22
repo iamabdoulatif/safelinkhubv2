@@ -1,8 +1,9 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
+import { revalidatePath } from "next/cache";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
 import { detectUplinkInterfaces } from "./router-lock";
@@ -316,4 +317,109 @@ export async function restoreWanIdentity(routerId: string) {
   } finally {
     client.close();
   }
+}
+
+/**
+ * Budget d'un passage, sous la coupure Cloudflare (~100 s → 524). Le parc se
+ * traite en SÉRIE : sans borne, la Server Action serait tuée en vol et
+ * l'opérateur n'apprendrait ni ce qui a été posé, ni ce qui reste. Même motif
+ * que fixAllRoutersTicketExpiryFormat.
+ */
+const BUDGET_FLOTTE_MS = 70_000;
+
+export type FleetStealthResult = {
+  success: true;
+  /** Routeurs effectivement traités (joignables). */
+  traites: number;
+  /** « NOM (3 réglages) » pour ceux qui ont changé. */
+  masques: string[];
+  /** Déjà discrets : rien à poser. */
+  dejaDiscrets: string[];
+  injoignables: string[];
+  /** Non traités faute de temps — relancer pour les reprendre. */
+  restants: number;
+};
+
+/**
+ * Même discrétion, sur TOUT LE PARC de l'organisation (tout le parc pour un
+ * superadmin).
+ *
+ * `spoofMac` est FAUX par défaut, et c'est délibéré : changer la MAC renégocie
+ * le bail et coupe le WAN de chaque site quelques secondes. Les trois autres
+ * réglages (nom annoncé, découverte, DDNS) ne coupent rien et peuvent passer
+ * en pleine journée. Idempotent : un routeur déjà discret ne produit aucune
+ * commande, donc relancer après le retour d'un routeur hors ligne ne retouche
+ * que lui.
+ */
+export async function applyWanStealthFleet(opts: {
+  label?: string;
+  spoofMac: boolean;
+  hideUpstream: boolean;
+}): Promise<{ error: string } | FleetStealthResult> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const label = opts.label?.trim() ?? "";
+  if (label && !nomFaiValide(label)) {
+    return { error: "Nom refusé : lettres, chiffres et tirets uniquement (32 caractères max)." };
+  }
+
+  const db = getDb();
+  const parc = await db
+    .select()
+    .from(routers)
+    .where(isSuperAdmin(session.role) ? isNotNull(routers.id) : eq(routers.orgId, session.orgId));
+  if (parc.length === 0) return { error: "Aucun routeur enregistré." };
+
+  const masques: string[] = [];
+  const dejaDiscrets: string[] = [];
+  const injoignables: string[] = [];
+  const echeance = Date.now() + BUDGET_FLOTTE_MS;
+  let vus = 0;
+
+  for (const router of parc) {
+    if (Date.now() > echeance) break;
+    vus++;
+    let client: RouterOSClient;
+    try {
+      client = await connectToRouter(router, 10000);
+    } catch {
+      injoignables.push(router.name);
+      continue;
+    }
+    try {
+      const etat = await lireEtat(client, 10000);
+      if (etat.links.length === 0) {
+        dejaDiscrets.push(router.name);
+        continue;
+      }
+      const steps = buildWanStealthPlan(etat, {
+        label,
+        spoofMac: opts.spoofMac,
+        hideUpstream: opts.hideUpstream,
+        seed: router.id,
+        existingOptions: etat.existingOptions,
+      });
+      if (steps.length === 0) {
+        dejaDiscrets.push(router.name);
+        continue;
+      }
+      const { faits, echecs } = await executer(client, steps);
+      if (faits.length > 0) masques.push(`${router.name} (${faits.length})`);
+      if (echecs.length > 0 && faits.length === 0) injoignables.push(router.name);
+    } catch {
+      injoignables.push(router.name);
+    } finally {
+      client.close();
+    }
+  }
+
+  revalidatePath("/admin/router");
+  return {
+    success: true as const,
+    traites: vus - injoignables.length,
+    masques,
+    dejaDiscrets,
+    injoignables,
+    restants: parc.length - vus,
+  };
 }

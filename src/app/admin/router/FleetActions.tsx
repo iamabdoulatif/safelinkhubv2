@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Save, Wrench } from "lucide-react";
 import SyncAllButton from "./SyncAllButton";
 import UnbindMacTicketsButton from "./UnbindMacTicketsButton";
 import TicketExpiryFleetButton from "./TicketExpiryFleetButton";
+import WanStealthFleetButton from "./WanStealthFleetButton";
 import type { RouterDictionary } from "./router-row";
 
 /**
@@ -77,6 +78,10 @@ export function FleetActions({
           <li className="p-3">
             <TicketExpiryFleetButton t={actions} />
             <p className="mt-2 text-xs leading-5 text-ink-soft">{actions.ticketExpiryHelp}</p>
+          </li>
+          <li className="p-3">
+            <WanStealthFleetButton t={actions} />
+            <p className="mt-2 text-xs leading-5 text-ink-soft">{actions.stealthHelp}</p>
           </li>
         </ul>
 
