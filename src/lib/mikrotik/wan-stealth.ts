@@ -152,7 +152,7 @@ export function inspectWanStealth(input: WanStealthInput): StealthLeak[] {
       id: "cloud",
       label: "DDNS MikroTik actif",
       detail:
-        "/ip cloud publie l'adresse publique du lien sous « …sn.mynetname.net » chez MikroTik, et signe le routeur comme un MikroTik.",
+        "/ip cloud publie l'adresse publique du lien sous « …sn.mynetname.net » chez MikroTik : un nom public qui signe le routeur comme un MikroTik.",
       fixable: true,
     });
   }
@@ -172,7 +172,12 @@ export function inspectWanStealth(input: WanStealthInput): StealthLeak[] {
 export type StealthStep = { label: string; words: string[] };
 
 export type WanStealthOptions = {
-  /** Nom à présenter au FAI ; vide = on ne touche pas au nom d'hôte. */
+  /**
+   * Nom à présenter au FAI, commun à tous les liens. VIDE = chaque lien
+   * annonce son PROPRE nom d'interface : un modem par câble, chacun sa ligne
+   * dans l'application du fournisseur — « E1-WAN-FAI » chez le premier,
+   * « E2-WAN-FAI » chez le second.
+   */
   label?: string;
   /** Remplacer la MAC d'usine par une MAC localement administrée. */
   spoofMac: boolean;
@@ -204,38 +209,37 @@ export function buildWanStealthPlan(
   }
 
   if (input.cloudDdns) {
+    // « auto » et PAS « no » : RouterOS 7.23 refuse `no` sur cette propriété
+    // (« syntax error » sur la valeur, relevé sur un hAP ax² en 7.23.1). En
+    // « auto », le nom …sn.mynetname.net cesse d'être publié tant que Back To
+    // Home ne le réclame pas — c'est exactement l'effet recherché.
     steps.push({
-      label: "DDNS MikroTik coupé",
-      words: ["/ip/cloud/set", "=ddns-enabled=no", "=update-time=no"],
+      label: "Nom DDNS MikroTik retiré (/ip cloud en « auto »)",
+      words: ["/ip/cloud/set", "=ddns-enabled=auto", "=update-time=no"],
     });
   }
 
   const label = opts.label?.trim();
-  if (label && nomFaiValide(label)) {
-    for (const link of input.links) {
-      if (!link.dhcpId) continue;
-      const optionName = wanNameOption(link.name);
-      const existing = opts.existingOptions.find((o) => o.name === optionName);
-      steps.push({
-        label: `${link.name} : nom annoncé « ${label} »`,
-        words: existing
-          ? ["/ip/dhcp-client/option/set", `=numbers=${existing.id}`, `=value='${label}'`]
-          : [
-              "/ip/dhcp-client/option/add",
-              `=name=${optionName}`,
-              "=code=12",
-              `=value='${label}'`,
-            ],
-      });
-      steps.push({
-        label: `${link.name} : option 12 remplacée`,
-        words: [
-          "/ip/dhcp-client/set",
-          `=numbers=${link.dhcpId}`,
-          `=dhcp-options=${optionName},clientid`,
-        ],
-      });
-    }
+  for (const link of input.links) {
+    if (!link.dhcpId) continue;
+    const nom = label || link.name;
+    if (!nomFaiValide(nom)) continue;
+    const optionName = wanNameOption(link.name);
+    const existing = opts.existingOptions.find((o) => o.name === optionName);
+    steps.push({
+      label: `${link.name} : nom annoncé « ${nom} »`,
+      words: existing
+        ? ["/ip/dhcp-client/option/set", `=numbers=${existing.id}`, `=value='${nom}'`]
+        : ["/ip/dhcp-client/option/add", `=name=${optionName}`, "=code=12", `=value='${nom}'`],
+    });
+    steps.push({
+      label: `${link.name} : option 12 remplacée`,
+      words: [
+        "/ip/dhcp-client/set",
+        `=numbers=${link.dhcpId}`,
+        `=dhcp-options=${optionName},clientid`,
+      ],
+    });
   }
 
   if (opts.spoofMac) {

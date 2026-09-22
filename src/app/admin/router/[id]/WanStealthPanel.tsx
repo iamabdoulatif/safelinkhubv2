@@ -35,9 +35,6 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
         return;
       }
       setLecture(res);
-      // Nom proposé par défaut : celui du premier lien WAN — c'est ce que
-      // l'exploitant lit sur son schéma, pas une invention de plus.
-      setLabel((l) => l || (res.links[0]?.name ?? ""));
     });
   }, [routerId]);
 
@@ -165,7 +162,9 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
 
       <div className="mt-4 flex flex-col gap-3 border-t border-line-soft pt-3 sm:flex-row sm:items-end">
         <label className="flex-1">
-          <span className="text-xs font-bold text-ink-soft">Nom à présenter au fournisseur</span>
+          <span className="text-xs font-bold text-ink-soft">
+            Nom à présenter au fournisseur <span className="font-normal">(facultatif)</span>
+          </span>
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
@@ -173,6 +172,8 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
             className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
           />
           <span className="mt-0.5 block text-[11px] text-ink-soft">
+            Laissé vide, chaque lien annonce son propre nom d&apos;interface
+            {lecture?.links.length ? ` (${lecture.links.map((l) => l.name).join(", ")})` : ""}.
             Lettres, chiffres et tirets. Remplace l&apos;identité système dans l&apos;option DHCP 12
             — le nom du routeur dans SafeLinkHub ne change pas.
           </span>

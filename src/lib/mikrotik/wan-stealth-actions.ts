@@ -109,7 +109,14 @@ async function lireEtat(client: RouterOSClient, timeoutMs = 15000): Promise<Etat
     links,
     discoverList: decouverte["discover-interface-list"] ?? "",
     discoverProtocols: decouverte.protocol ?? "",
-    cloudDdns: cloud["ddns-enabled"] === "true",
+    // Le DDNS MikroTik est une fuite… SAUF quand l'exploitant s'en sert : le
+    // VPN « Back To Home » l'allume lui-même et en dépend (back-to-home.ts).
+    // On ne le signale ni ne le coupe tant que ce VPN est en service.
+    // `ddns-enabled` est une ÉNUMÉRATION (« yes | auto »), pas un booléen : la
+    // comparer à "true" ne matcherait jamais. Seul « yes » publie le nom.
+    cloudDdns:
+      ["yes", "true"].includes((cloud["ddns-enabled"] ?? "").toLowerCase()) &&
+      cloud["back-to-home-vpn"] !== "enabled",
     interfaceLists: listes.map((l) => l.name!).filter(Boolean),
     // Un service d'administration à l'écoute sans `address=` répond sur toutes
     // les interfaces, WAN comprise. Les services dynamiques (hotspot, resolver)

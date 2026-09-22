@@ -97,6 +97,8 @@ describe("buildWanStealthPlan", () => {
     const cmds = steps.map((s) => s.words[0]);
     assert.equal(cmds[0], "/ip/neighbor/discovery-settings/set");
     assert.equal(cmds[1], "/ip/cloud/set");
+    // « auto », pas « no » : RouterOS 7.23 refuse `no` sur ddns-enabled.
+    assert.ok(steps[1].words.includes("=ddns-enabled=auto"));
     // La MAC (et le renouvellement du bail) ne viennent qu'après le reste :
     // elles coupent le WAN, donc le tunnel par lequel on parle au routeur.
     const premiereMac = cmds.indexOf("/interface/ethernet/set");
@@ -125,6 +127,14 @@ describe("buildWanStealthPlan", () => {
       ),
     );
     assert.ok(!rejoue.some((s) => s.words.includes("=name=slh-E1-WAN-FAI")));
+  });
+
+  it("sans nom saisi, chaque lien annonce son propre nom d'interface", () => {
+    const steps = buildWanStealthPlan(FOUANGA, { ...opts, label: "" });
+    const valeurs = steps
+      .flatMap((s) => s.words)
+      .filter((w) => w.startsWith("=value="));
+    assert.deepEqual(valeurs, ["=value='E1-WAN-FAI'", "=value='E2-WAN-FAI'"]);
   });
 
   it("refuse un nom invalide plutôt que de l'injecter dans la commande", () => {
