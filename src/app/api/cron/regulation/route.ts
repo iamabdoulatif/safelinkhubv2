@@ -57,11 +57,21 @@ export async function GET(request: NextRequest) {
     .innerJoin(routers, eq(routers.id, routerRegulation.routerId))
     .where(eq(routerRegulation.enabled, true));
 
-  // Le plus anciennement relevé d'abord : sur un parc plus grand que le budget,
-  // c'est ce qui garantit que tout le monde finit par passer.
+  // LES ROUTEURS EN LIGNE D'ABORD, puis les autres du relevé le plus ancien au
+  // plus récent. Un routeur injoignable coûte les 12 s de son délai de
+  // connexion pour rien : au premier passage automatique, cinq d'entre eux ont
+  // mangé le budget et un seul routeur a été régulé sur cinquante-six. En
+  // ligne d'abord, tout ce qui sert des clients passe à chaque tour ; le reste
+  // du budget tente les endormis par rotation, et un routeur revenu finit par
+  // être repris — son relevé étant alors le plus ancien de la file.
   const file = lignes
-    .filter((l) => l.router.status !== "pending")
-    .sort((a, b) => (a.regulation.updatedAt?.getTime() ?? 0) - (b.regulation.updatedAt?.getTime() ?? 0));
+    .filter((l) => l.router.status !== "pending" && l.router.status !== "replaced")
+    .sort((a, b) => {
+      const rang = (s: string | null) => (s === "online" ? 0 : 1);
+      const parStatut = rang(a.router.status) - rang(b.router.status);
+      if (parStatut !== 0) return parStatut;
+      return (a.regulation.updatedAt?.getTime() ?? 0) - (b.regulation.updatedAt?.getTime() ?? 0);
+    });
 
   const echeance = Date.now() + BUDGET_MS;
   const bilan = {
