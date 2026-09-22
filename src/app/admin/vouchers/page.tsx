@@ -34,9 +34,11 @@ function formatDate(date: Date | null) {
   }).format(date);
 }
 
+/* « 1 000 FCFA », pas « FCFA 1,000 » : l'interface est française, le prix se
+ * lit montant d'abord, groupement à la française (espace fine insécable). */
 function formatPrice(cents: number | null | undefined) {
   if (cents == null) return null;
-  return `FCFA ${cents.toLocaleString("en-US")}`;
+  return `${cents.toLocaleString("fr-FR")} FCFA`;
 }
 
 export default async function VouchersPage() {

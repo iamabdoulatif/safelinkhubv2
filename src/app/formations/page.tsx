@@ -46,7 +46,6 @@ const ILLUSTRATIONS = [
   "/photos/illustration-baie.jpg",
 ] as const;
 import { listPublishedPosts } from "@/lib/blog/queries";
-import Testimonials from "@/components/landing/Testimonials";
 
 /* Page « Formations ».
  *
@@ -410,10 +409,11 @@ export async function TrainingPageContent({ locale }: { locale: Locale }) {
           </div>
         </section>
 
-        {/* Les avis viennent de la MÊME source que la landing — composant et
-            données uniques. En écrire un second jeu ici aurait produit deux
-            vitrines de témoignages à faire vivre en parallèle. */}
-        <Testimonials dict={dict} locale={locale} />
+        {/* Pas de témoignages ici : la page porte déjà parcours, articles et
+            présentation des auteurs — huit sections dont un formulaire de
+            soumission d'avis diluaient son objectif (s'inscrire à un parcours).
+            La vitrine d'avis et son formulaire restent sur la landing, seul
+            endroit où ils convertissent (audit UI/UX du 22/09/2026). */}
 
         <section className="bg-paper px-4 py-14 sm:px-6">
           <div className="mx-auto max-w-6xl rounded-3xl bg-brand px-6 py-12 text-center sm:px-12">

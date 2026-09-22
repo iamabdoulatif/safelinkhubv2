@@ -84,6 +84,10 @@ export type DashboardViewProps = {
  * « 12 janv. » / « 12 Jan ». */
 function formatters(locale: Locale) {
   const fcfa = new Intl.NumberFormat(HTML_LANG[locale]);
+  const compact = new Intl.NumberFormat(HTML_LANG[locale], {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
   const jour = new Intl.DateTimeFormat(HTML_LANG[locale], { day: "2-digit", month: "short" });
   const horodatage = new Intl.DateTimeFormat(HTML_LANG[locale], {
     dateStyle: "medium",
@@ -91,6 +95,14 @@ function formatters(locale: Locale) {
   });
   return {
     formatFcfa: (cents: number) => `${fcfa.format(cents)} FCFA`,
+    /* Tuiles KPI : « 4,8 M FCFA » au-delà du million — sept chiffres collés ne
+       se lisent pas d'un coup d'œil, et c'est un coup d'œil qu'on demande à
+       une tuile. La valeur exacte reste au survol (title) et dans les écrans
+       de détail, qui gardent le format long. */
+    formatFcfaCompact: (cents: number) =>
+      Math.abs(cents) >= 1_000_000
+        ? `${compact.format(cents)} FCFA`
+        : `${fcfa.format(cents)} FCFA`,
     formatNumber: (n: number) => fcfa.format(n),
     formatDay: (day: string) => {
       const [y, m, d] = day.split("-").map(Number);
@@ -151,6 +163,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 function StatTile({
   label,
   value,
+  fullValue,
   hint,
   href,
   more,
@@ -160,6 +173,8 @@ function StatTile({
 }: {
   label: string;
   value: string;
+  /** Valeur exacte, montrée au survol quand `value` est abrégée (« 4,8 M »). */
+  fullValue?: string;
   hint: string;
   href: string;
   more: string;
@@ -191,7 +206,12 @@ function StatTile({
           <Icon aria-hidden="true" className="h-4 w-4 text-ink" />
         </span>
       </div>
-      <p className="mt-3 text-2xl font-bold tabular-nums tracking-tight text-ink">{value}</p>
+      <p
+        title={fullValue}
+        className="mt-3 text-2xl font-bold tabular-nums tracking-tight text-ink"
+      >
+        {value}
+      </p>
       {children}
       <p className="mt-1 text-xs text-ink-soft">{hint}</p>
       <span className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-semibold text-brand-deep">
@@ -203,7 +223,7 @@ function StatTile({
 }
 
 export default function DashboardView({ kpis, monthly, daily, recentSales, safecoin, countries, reseller, rangeLabel, picker, t, locale }: DashboardViewProps) {
-  const { formatFcfa, formatNumber, formatDay, formatDateTime } = formatters(locale);
+  const { formatFcfa, formatFcfaCompact, formatNumber, formatDay, formatDateTime } = formatters(locale);
   /* « 2026-08 » → « août ». Le libellé d'axe doit rester court : six barres
      partagent la largeur d'une carte de graphique. */
   const moisCourt = new Intl.DateTimeFormat(HTML_LANG[locale], { month: "short" });
@@ -212,6 +232,13 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
     return moisCourt.format(new Date(y, m - 1, 1));
   };
   const data = kpis ? { kpis, daily, recentSales } : null;
+  /* Une tuile monétaire = valeur compacte affichée + valeur exacte au survol,
+     calculées depuis UNE seule lecture du compteur : répéter `kpis.xxxCents`
+     dans deux props ferait double emploi (cf. test dashboard-tiles). */
+  const fcfaTile = (cents: number) => ({
+    value: formatFcfaCompact(cents),
+    fullValue: formatFcfa(cents),
+  });
   const hasSales = (kpis?.salesCount ?? 0) > 0;
   const hasAnyData = hasSales || (kpis?.expenseCents ?? 0) > 0;
   const offline = kpis?.routersOffline ?? [];
@@ -304,7 +331,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label={t.tiles.gross}
-          value={formatFcfa(data?.kpis.grossCents ?? 0)}
+          {...fcfaTile(data?.kpis.grossCents ?? 0)}
           hint={t.tiles.grossHint(rangeLabel)}
           href="/admin/sales"
           more={t.tiles.more}
@@ -313,7 +340,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
         />
         <StatTile
           label={t.tiles.net}
-          value={formatFcfa(data?.kpis.netCents ?? 0)}
+          {...fcfaTile(data?.kpis.netCents ?? 0)}
           hint={t.tiles.netHint}
           href="/admin/sales"
           more={t.tiles.more}
@@ -331,7 +358,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
         />
         <StatTile
           label={t.tiles.commissions}
-          value={formatFcfa(data?.kpis.commissionCents ?? 0)}
+          {...fcfaTile(data?.kpis.commissionCents ?? 0)}
           hint={t.tiles.commissionsHint}
           href="/admin/transactions"
           more={t.tiles.more}
@@ -340,7 +367,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
         />
         <StatTile
           label={t.tiles.expenses}
-          value={formatFcfa(data?.kpis.expenseCents ?? 0)}
+          {...fcfaTile(data?.kpis.expenseCents ?? 0)}
           hint={t.tiles.expensesHint}
           href="/admin/expenses"
           more={t.tiles.more}
@@ -349,7 +376,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
         />
         <StatTile
           label={t.tiles.credit}
-          value={formatFcfa(data?.kpis.creditCents ?? 0)}
+          {...fcfaTile(data?.kpis.creditCents ?? 0)}
           hint={t.tiles.creditHint}
           href="/admin/billing"
           more={t.tiles.more}
