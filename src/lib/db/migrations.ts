@@ -220,4 +220,14 @@ alter table router_regulation
   add column if not exists profile_throttle_pct integer not null default 0;
 `.trim(),
   },
+  {
+    // Cascade anti-téléchargement abusif : débit laissé au contrevenant pendant
+    // son bridage. Voir lib/mikrotik/regulation.ts.
+    // Miroir : scripts/add-regulation-abuse-throttle.sql.
+    id: "0012_regulation_abuse_throttle",
+    sql: `
+alter table router_regulation
+  add column if not exists abuse_throttle_limit text not null default '256k/256k';
+`.trim(),
+  },
 ];

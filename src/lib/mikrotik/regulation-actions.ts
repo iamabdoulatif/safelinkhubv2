@@ -37,6 +37,7 @@ export async function readRouterRegulation(routerId: string) {
         abuseBlockMinutes: row.abuseBlockMinutes,
         abuseMaxOffenses: row.abuseMaxOffenses,
         profileThrottlePct: row.profileThrottlePct,
+        abuseThrottleLimit: row.abuseThrottleLimit,
       }
     : REGULATION_DEFAULTS;
   return {
@@ -54,8 +55,12 @@ export async function saveRouterRegulation(routerId: string, f: RegulationForm) 
   if (!(f.softCapGo > 0) || !(f.hardCapGo >= f.softCapGo)) {
     return { error: "Le plafond absolu doit être supérieur ou égal à la cible mensuelle." };
   }
-  if (!/^(\d+(?:\.\d+)?[kMG]?)\/(\d+(?:\.\d+)?[kMG]?)$/.test(f.blockLimit.trim())) {
+  const DEBIT = /^(\d+(?:\.\d+)?[kMG]?)\/(\d+(?:\.\d+)?[kMG]?)$/;
+  if (!DEBIT.test(f.blockLimit.trim())) {
     return { error: "Débit plancher attendu au format RouterOS « 64k/64k »." };
+  }
+  if (!DEBIT.test((f.abuseThrottleLimit ?? "").trim())) {
+    return { error: "Débit du bridage attendu au format RouterOS « 256k/256k »." };
   }
   if (!(f.safety > 0 && f.safety <= 1) || !(f.dayCriticalRatio >= 1)) {
     return { error: "Marge entre 0 et 1, avance tolérée ≥ 1." };
@@ -71,6 +76,7 @@ export async function saveRouterRegulation(routerId: string, f: RegulationForm) 
     abuseBlockMinutes: Math.max(1, Math.round(f.abuseBlockMinutes)),
     abuseMaxOffenses: Math.max(1, Math.round(f.abuseMaxOffenses)),
     profileThrottlePct: Math.min(100, Math.max(0, Math.round(f.profileThrottlePct ?? 0))),
+    abuseThrottleLimit: (f.abuseThrottleLimit ?? "256k/256k").trim(),
     updatedAt: new Date(),
   };
   await getDb()

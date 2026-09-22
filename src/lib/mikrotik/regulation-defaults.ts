@@ -13,6 +13,8 @@ export type RegulationForm = {
   abuseMaxOffenses: number;
   /** % du débit de chaque forfait conservé pendant un freinage ; 0 = désactivé. */
   profileThrottlePct: number;
+  /** Débit laissé au téléchargeur abusif pendant son bridage (« 256k/256k »). */
+  abuseThrottleLimit: string;
 };
 
 export const REGULATION_DEFAULTS: RegulationForm = {
@@ -23,8 +25,11 @@ export const REGULATION_DEFAULTS: RegulationForm = {
   dayCriticalRatio: 1.1,
   blockLimit: "64k/64k",
   abuseThresholdGo: 1,
-  abuseBlockMinutes: 180,
-  abuseMaxOffenses: 3,
+  // Une pause de 2 h par dépassement, dix avant la suspension définitive :
+  // la cascade demandée par l'exploitation (voir RegulationPanel).
+  abuseBlockMinutes: 120,
+  abuseMaxOffenses: 10,
   profileThrottlePct: 0,
+  abuseThrottleLimit: "256k/256k",
 };
 

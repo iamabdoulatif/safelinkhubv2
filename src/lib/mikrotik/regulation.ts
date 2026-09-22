@@ -16,6 +16,8 @@ import { readIfaceBytes } from "./link-usage-reader";
 
 /** File simple posée par la régulation (mère des profils hotspot). */
 export const REGULATION_QUEUE = "slh-quota";
+/** Préfixe des files individuelles posées sur un téléchargeur abusif. */
+export const ABUSE_QUEUE_PREFIX = "slh-abuse-";
 export const ABUSE_LIST = "slh-blocked-download";
 export const ABUSE_PERMANENT_LIST = "slh-permanent-blocked";
 const ABUSE_RULE_COMMENT = "slh-block-download-rule";
@@ -65,10 +67,22 @@ export type RegulationBlock = {
   comment: string;
 };
 
+/** Un contrevenant bridé individuellement : sa navigation passe, pas son téléchargement. */
+export type RegulationThrottle = { address: string; user: string };
+
+/** Un code suspendu définitivement — le ticket lui-même, pas seulement l'IP. */
+export type RegulationSuspension = { user: string; reason?: string };
+
 export type RegulationApply = {
   /** max-limit « up/down » ; « 0/0 » retire la bride. */
   limit: string;
   blocks: RegulationBlock[];
+  /** ENSEMBLE COMPLET des bridages voulus : ce qui n'y est plus est retiré. */
+  throttles?: RegulationThrottle[];
+  /** Débit laissé au contrevenant bridé (« 256k/256k »). */
+  throttleLimit?: string;
+  /** Codes à désactiver définitivement (10e récidive). */
+  suspensions?: RegulationSuspension[];
   /** % du rate-limit de chaque profil hotspot conservé pendant un freinage (0 = profils intacts). */
   profileThrottlePct?: number;
   /** rate-limit d'origine des profils déjà bridés (état mémorisé par la plateforme). */
@@ -158,7 +172,15 @@ export async function applyRegulation(
   client: RouterOSClient,
   apply: RegulationApply,
   timeoutMs = 15000,
-): Promise<{ queue: "removed" | "set" | "added"; blocked: number; profileLimits: Record<string, string> }> {
+): Promise<{
+  queue: "removed" | "set" | "added";
+  blocked: number;
+  profileLimits: Record<string, string>;
+  /** Contrevenants bridés individuellement à l'issue du passage. */
+  throttled: number;
+  /** Codes désactivés définitivement pendant ce passage. */
+  suspended: number;
+}> {
   // ── File de bridage partagée ──
   const hotspots = await client.talk(["/ip/hotspot/print"], timeoutMs).catch(() => []);
   const target = hotspots[0]?.interface || "0.0.0.0/0";
@@ -207,6 +229,47 @@ export async function applyRegulation(
     timeoutMs,
   );
 
+  // ── Bridage individuel des téléchargeurs ──
+  // Réconciliation d'un ENSEMBLE : on pose ce qui manque, on retire ce qui
+  // n'a plus lieu d'être. Une file simple n'a pas de délai d'expiration —
+  // sans ce retrait, un contrevenant d'hier resterait bridé à vie.
+  const throttled = await throttleAbusers(
+    client,
+    apply.throttles ?? [],
+    apply.throttleLimit ?? "256k/256k",
+    timeoutMs,
+  );
+
+  // ── Codes suspendus définitivement ──
+  let suspended = 0;
+  for (const s of apply.suspensions ?? []) {
+    try {
+      const [user] = await client.talk(
+        ["/ip/hotspot/user/print", "=.proplist=.id", `?name=${s.user}`],
+        timeoutMs,
+      );
+      if (!user?.[".id"]) continue;
+      await client.talk(
+        ["/ip/hotspot/user/set", `=numbers=${user[".id"]}`, "=disabled=yes"],
+        timeoutMs,
+      );
+      // Le désactiver ne coupe pas la session en cours : on la ferme aussi.
+      const actives = await client
+        .talk(["/ip/hotspot/active/print", "=.proplist=.id", `?user=${s.user}`], timeoutMs)
+        .catch(() => []);
+      for (const a of actives) {
+        if (a[".id"]) {
+          await client
+            .talk(["/ip/hotspot/active/remove", `=numbers=${a[".id"]}`], timeoutMs)
+            .catch(() => {});
+        }
+      }
+      suspended++;
+    } catch {
+      /* un code introuvable (déjà supprimé) ne fait pas échouer le passage */
+    }
+  }
+
   // ── Téléchargeurs abusifs ──
   if (apply.blocks.length) {
     await ensureDropRule(client, ABUSE_LIST, ABUSE_RULE_COMMENT, timeoutMs);
@@ -224,5 +287,61 @@ export async function applyRegulation(
     await client.talk(words, timeoutMs);
     blocked++;
   }
-  return { queue, blocked, profileLimits };
+  return { queue, blocked, profileLimits, throttled, suspended };
+}
+
+/**
+ * Pose / retire les files individuelles des contrevenants.
+ *
+ * La file doit passer DEVANT la file dynamique que le hotspot crée pour chaque
+ * client : les files simples sont ordonnées, la première qui matche gagne.
+ * D'où le `place-before` sur la première file existante.
+ */
+async function throttleAbusers(
+  client: RouterOSClient,
+  voulus: RegulationThrottle[],
+  limite: string,
+  timeoutMs: number,
+): Promise<number> {
+  const existantes = await client
+    .talk(["/queue/simple/print", "=.proplist=.id,name,target,max-limit"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  const nôtres = existantes.filter((q) => q.name?.startsWith(ABUSE_QUEUE_PREFIX));
+  const attendus = new Map(voulus.map((t) => [`${ABUSE_QUEUE_PREFIX}${t.user}`, t]));
+
+  for (const q of nôtres) {
+    if (!attendus.has(q.name!) && q[".id"]) {
+      await client.talk(["/queue/simple/remove", `=numbers=${q[".id"]}`], timeoutMs).catch(() => {});
+    }
+  }
+
+  const premiere = existantes[0]?.[".id"];
+  let posees = 0;
+  for (const [name, t] of attendus) {
+    const deja = nôtres.find((q) => q.name === name);
+    if (deja?.[".id"]) {
+      if (deja["max-limit"] !== limite) {
+        await client
+          .talk(["/queue/simple/set", `=numbers=${deja[".id"]}`, `=max-limit=${limite}`], timeoutMs)
+          .catch(() => {});
+      }
+      posees++;
+      continue;
+    }
+    const words = [
+      "/queue/simple/add",
+      `=name=${name}`,
+      `=target=${t.address}`,
+      `=max-limit=${limite}`,
+      "=comment=SafeLinkHub abus telechargement",
+    ];
+    if (premiere) words.push(`=place-before=${premiere}`);
+    await client
+      .talk(words, timeoutMs)
+      .then(() => {
+        posees++;
+      })
+      .catch(() => {});
+  }
+  return posees;
 }

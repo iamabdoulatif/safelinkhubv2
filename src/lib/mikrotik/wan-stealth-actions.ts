@@ -20,13 +20,23 @@ import {
   type WanStealthInput,
 } from "./wan-stealth";
 
-/** Un /24 RFC1918 se bloque en entier ; hors RFC1918 (CGNAT 100.64/10), on ne
- *  vise QUE la passerelle — le reste de la plage appartient à l'opérateur. */
+/**
+ * Ce qu'on bloque en amont d'un lien : le petit réseau privé de la box, ou à
+ * défaut sa seule passerelle.
+ *
+ * DEUX GARDE-FOUS, et ils comptent sur un parc entier :
+ *   - hors RFC1918 (CGNAT 100.64/10), on ne vise QUE la passerelle — le reste
+ *     de la plage appartient à l'opérateur ;
+ *   - un préfixe LARGE ne se bloque jamais en bloc. Un FAI qui sert du
+ *     10.0.0.0/8 nous ferait autrement couper 10/8… c'est-à-dire le hotspot
+ *     lui-même, sur tous les sites à la fois.
+ */
 function cibleAmont(address: string | undefined, gateway: string): string | null {
   if (!gateway) return null;
-  const reseau = address?.split("/")[0] ?? "";
-  const prive = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(reseau);
-  if (!prive) return `${gateway}/32`;
+  const [reseau, bits] = (address ?? "").split("/");
+  const prefixe = Number(bits);
+  const prive = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(reseau ?? "");
+  if (!prive || !Number.isInteger(prefixe) || prefixe < 22) return `${gateway}/32`;
   const [a, b, c] = reseau.split(".");
   return `${a}.${b}.${c}.0/24`;
 }

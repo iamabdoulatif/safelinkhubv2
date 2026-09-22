@@ -52,7 +52,10 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
   }, [routerId]);
 
   const set = (k: keyof RegulationForm) => (v: string) =>
-    setForm((f) => ({ ...f, [k]: k === "blockLimit" ? v : Number(v) }));
+    setForm((f) => ({
+      ...f,
+      [k]: k === "blockLimit" || k === "abuseThrottleLimit" ? v : Number(v),
+    }));
 
   const save = () =>
     start(async () => {
@@ -102,6 +105,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
         <Field label="Marge de sécurité" hint="part du budget du jour réellement dépensable" step={0.01} value={form.safety} onChange={set("safety")} />
         <Field label="Avance tolérée" hint="1,10 = 10 % au-dessus du budget du jour avant de freiner" step={0.01} min={1} value={form.dayCriticalRatio} onChange={set("dayCriticalRatio")} />
         <Field label="Téléchargement abusif (Go / 5 min)" step={0.1} value={form.abuseThresholdGo} onChange={set("abuseThresholdGo")} />
+        <Field label="Débit du contrevenant bridé" hint="1er dépassement : le débit tombe à ce plancher, la navigation passe mais le téléchargement n'aboutit pas" type="text" value={form.abuseThrottleLimit} onChange={set("abuseThrottleLimit")} />
         <Field label="Durée du blocage (min)" value={form.abuseBlockMinutes} onChange={set("abuseBlockMinutes")} />
         <Field label="Avertissements avant blocage définitif" min={1} value={form.abuseMaxOffenses} onChange={set("abuseMaxOffenses")} />
         <Field label="Bridage des forfaits pendant un freinage (%)" hint="0 = forfaits intacts ; 50 = chaque forfait à la moitié de son débit, rétabli au retour à la normale" min={0} value={form.profileThrottlePct} onChange={set("profileThrottlePct")} />

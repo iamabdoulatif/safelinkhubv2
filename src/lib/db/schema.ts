@@ -1698,6 +1698,10 @@ export type RegulationWatchEntry = {
   blockedUntil: number;
   offenseCount: number;
   permanent: boolean;
+  /** Fin du bridage individuel (ms epoch) ; 0 = pas bridé. */
+  throttledUntil?: number;
+  /** Code suspendu définitivement : le ticket lui-même est désactivé. */
+  suspended?: boolean;
   address?: string;
   user?: string;
 };
@@ -1723,6 +1727,9 @@ export const routerRegulation = pgTable("router_regulation", {
   // Pendant un freinage, chaque profil hotspot garde ce % de son rate-limit
   // (0 = les profils ne bougent pas, seule la file partagée bride).
   profileThrottlePct: integer("profile_throttle_pct").notNull().default(0),
+  // Débit laissé au téléchargeur abusif pendant son bridage, AVANT tout
+  // blocage : « le téléchargement lourd n'aboutit pas », la navigation passe.
+  abuseThrottleLimit: text("abuse_throttle_limit").notNull().default("256k/256k"),
   // État écrit par n8n à chaque passage (voir RegulationState) et mémoire des
   // appareils surveillés (par MAC).
   state: jsonb("state").$type<RegulationState>(),

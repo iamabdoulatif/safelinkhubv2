@@ -20,8 +20,8 @@ Routeurs dont la régulation est **activée** (table `router_regulation.enabled`
   "routerId": "uuid", "name": "HSPT-FOUANGA", "online": true, "billingCycleDay": 1,
   "policy": { "softCapMb": 4718592, "hardCapMb": 5242880, "safety": 0.95,
               "dayCriticalRatio": 1.1, "blockLimit": "64k/64k",
-              "abuseThresholdMb": 1024, "abuseBlockMinutes": 180, "abuseMaxOffenses": 3,
-              "profileThrottlePct": 0 },
+              "abuseThresholdMb": 300, "abuseBlockMinutes": 120, "abuseMaxOffenses": 10,
+              "profileThrottlePct": 0, "abuseThrottleLimit": "256k/256k" },
   "state": { "decision": "ok", "previous": "ok", "limit": "0/0", "wanInterface": "E1-WAN-FAI",
              "counters": 0, "monthBytes": 0, "dayBytes": 0, "monthKey": "2026-09-01",
              "dayKey": "2026-09-12", "at": "…", "changedAt": null, "stats": {} } | null,
@@ -41,11 +41,26 @@ Corps = `apply` produit par le nœud Décision. L'état est **toujours** mémori
 puis la pose est tentée (`503` routeur injoignable → n8n réessaie au passage suivant).
 ```json
 { "limit": "0/0" | "1.20M/2.40M", 
-  "blocks": [{ "address": "10.0.0.5", "user": "1j1", "minutes": 180, "comment": "…" }],
+  "blocks": [{ "address": "10.0.0.5", "user": "1j1", "minutes": 120, "comment": "…" }],
+  "throttles": [{ "address": "10.0.0.5", "user": "1j1" }],
+  "suspensions": [{ "user": "1j1", "reason": "10e depassement (5.2 Go)" }],
+  "warnings": [{ "user": "1j1", "remaining": 1 }],
   "state": { …RegulationState }, "watch": { … },
-  "events": [{ "kind": "decision|block|permanent_block", "payload": { … } }] }
-→ { "applied": true, "queue": "removed|set|added", "blocked": 1 }
+  "events": [{ "kind": "decision|throttle|block|permanent_block", "payload": { … } }] }
+→ { "applied": true, "queue": "removed|set|added", "blocked": 1,
+    "throttled": 1, "suspended": 0, "notifies": 1 }
 ```
+
+**Cascade anti-téléchargement** (par MAC, un palier par passage au-dessus de
+`abuseThresholdMb`) : 1er dépassement → **bridage seul** (file simple
+`slh-abuse-<code>` à `abuseThrottleLimit`, posée DEVANT la file dynamique du
+hotspot) ; 2e à l'avant-dernier → bridage + **blocage de `abuseBlockMinutes`** ;
+avant-dernier → **SMS d'avertissement** au numéro qui a acheté le code ;
+`abuseMaxOffenses` → **suspension définitive du CODE** (ticket désactivé,
+session fermée, `vouchers.status = SUSPENDED`) + SMS. Un client bridé ne peut
+plus dépasser le seuil : le compteur n'avance donc que s'il recommence après
+l'expiration. `throttles` est un ENSEMBLE COMPLET — ce qui n'y figure plus est
+retiré, une file simple n'ayant pas de délai d'expiration.
 Côté routeur : file simple `slh-quota` (PCQ, mère des profils hotspot) ; listes
 `slh-blocked-download` (timeout) / `slh-permanent-blocked` + règles drop en tête
 du forward. `limit = 0/0` retire la file et détache les profils.

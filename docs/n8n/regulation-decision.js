@@ -80,38 +80,59 @@ s.stats = {
   hardRemainingGB: +(Math.max(0, HARD - s.monthBytes) / GB).toFixed(2),
 };
 
-// ----- Téléchargeurs abusifs (volume sortant par passage, par MAC) -----
+// ----- Téléchargeurs abusifs : bridage, puis blocages de 2 h, puis suspension -----
+// CASCADE (par MAC, un palier par passage qui dépasse le seuil) :
+//   1er dépassement        -> BRIDAGE seul : le débit tombe au plancher, la
+//                             navigation passe, le gros téléchargement n'aboutit pas.
+//   2e .. (max-1)          -> bridage MAINTENU + blocage de `abuseBlockMinutes`.
+//   avant-dernier          -> SMS d'avertissement au numéro qui a acheté le code.
+//   `abuseMaxOffenses`     -> SUSPENSION DÉFINITIVE du code (ticket désactivé).
+// Un client bridé ne peut plus dépasser le seuil : le compteur n'avance donc
+// QUE lorsqu'il recommence une fois le bridage expiré. C'est bien « il persiste ».
 const watch = { ...(router.watch || {}) };
-const blocks = [], events = [], seen = new Set();
+const blocks = [], throttles = [], suspensions = [], warnings = [], events = [], seen = new Set();
 const threshold = P.abuseThresholdMb * MB;
 for (const u of read.active || []) {
   if (!u.mac) continue;
   seen.add(u.mac);
-  const w = watch[u.mac] || { bytesOut: u.bytesOut, blockedUntil: 0, offenseCount: 0, permanent: false };
-  if (w.permanent) { watch[u.mac] = w; continue; }
+  const w = watch[u.mac] || { bytesOut: u.bytesOut, blockedUntil: 0, offenseCount: 0, permanent: false, throttledUntil: 0 };
+  if (w.suspended) { watch[u.mac] = w; continue; }
   const d = u.bytesOut >= w.bytesOut ? u.bytesOut - w.bytesOut : u.bytesOut;
   const stillBlocked = w.blockedUntil && ms < w.blockedUntil;
   const next = { ...w, bytesOut: u.bytesOut, address: u.address, user: u.user };
   if (d > threshold && !stillBlocked) {
     next.offenseCount = (w.offenseCount || 0) + 1;
+    next.throttledUntil = ms + P.abuseBlockMinutes * 60000;
     const deltaGB = +(d / GB).toFixed(2);
     if (next.offenseCount >= P.abuseMaxOffenses) {
-      next.permanent = true; next.blockedUntil = Number.MAX_SAFE_INTEGER;
-      blocks.push({ address: u.address, user: u.user, comment: `Blocage DEFINITIF - recidive ${next.offenseCount} (${u.user})` });
-      events.push({ kind: 'permanent_block', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount } });
+      // 10e : le CODE est suspendu, pas seulement l'IP — il ne resservira
+      // nulle part, sur aucun appareil.
+      next.suspended = true; next.permanent = true; next.blockedUntil = Number.MAX_SAFE_INTEGER;
+      suspensions.push({ user: u.user, reason: `10e depassement (${deltaGB} Go)` });
+      events.push({ kind: 'permanent_block', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount, suspended: true } });
+    } else if (next.offenseCount === 1) {
+      // Premier dépassement : on BRIDE, on ne bloque pas.
+      events.push({ kind: 'throttle', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, limit: P.abuseThrottleLimit } });
     } else {
       next.blockedUntil = ms + P.abuseBlockMinutes * 60000;
-      blocks.push({ address: u.address, user: u.user, minutes: P.abuseBlockMinutes, comment: `Blocage auto - telechargement excessif (${u.user}) - avertissement ${next.offenseCount}/${P.abuseMaxOffenses}` });
+      blocks.push({ address: u.address, user: u.user, minutes: P.abuseBlockMinutes, comment: `Blocage auto - telechargement excessif (${u.user}) - ${next.offenseCount}/${P.abuseMaxOffenses}` });
       events.push({ kind: 'block', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount, unblockAt: new Date(next.blockedUntil).toISOString() } });
+      if (next.offenseCount === P.abuseMaxOffenses - 1) {
+        warnings.push({ user: u.user, remaining: 1 });
+      }
     }
   } else if (!stillBlocked) {
     next.blockedUntil = 0;
+  }
+  // Le bridage court tant que sa fenêtre n'est pas écoulée.
+  if (next.throttledUntil && ms < next.throttledUntil && !next.suspended && u.address) {
+    throttles.push({ address: u.address, user: u.user });
   }
   watch[u.mac] = next;
 }
 for (const mac of Object.keys(watch)) {
   const w = watch[mac];
-  if (!seen.has(mac) && !w.permanent && (!w.blockedUntil || ms > w.blockedUntil + 86400000)) delete watch[mac];
+  if (!seen.has(mac) && !w.permanent && !w.suspended && (!w.blockedUntil || ms > w.blockedUntil + 86400000)) delete watch[mac];
 }
 if (changed) events.push({ kind: 'decision', payload: { previous, decision, limit, stats: s.stats } });
 
@@ -127,8 +148,10 @@ const email = {
     `Ce cycle : ${s.stats.monthGB} Go / ${(SOFT / GB).toFixed(0)} Go cible (reste ${s.stats.softRemainingGB} Go avant cible, ${s.stats.hardRemainingGB} Go avant plafond ${(HARD / GB).toFixed(0)} Go)`,
     `Projection fin de cycle : ${s.stats.projectedGB} Go`,
     `Interface WAN : ${s.wanInterface}`,
+    throttles.length ? `Clients brides : ${throttles.length}` : '',
     blocks.length ? `Blocages ce passage : ${blocks.length}` : '',
+    suspensions.length ? `Codes SUSPENDUS definitivement : ${suspensions.map((s) => s.user).join(', ')}` : '',
   ].join('\n'),
 };
 
-return [{ json: { routerId: router.routerId, name: router.name, changed, email, apply: { limit, blocks, state: s, watch, events } } }];
+return [{ json: { routerId: router.routerId, name: router.name, changed, email, apply: { limit, blocks, throttles, suspensions, warnings, state: s, watch, events } } }];

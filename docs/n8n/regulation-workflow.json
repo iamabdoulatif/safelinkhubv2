@@ -6,8 +6,7 @@
         "rule": {
           "interval": [
             {
-              "field": "minutes",
-              "minutesInterval": 5
+              "field": "minutes"
             }
           ]
         }
@@ -18,7 +17,8 @@
       "position": [
         0,
         0
-      ]
+      ],
+      "id": "de20c53c-3b91-4a29-b18b-7ad193ed4cfe"
     },
     {
       "parameters": {
@@ -33,12 +33,13 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        220,
+        224,
         0
       ],
+      "id": "c29ec79b-bf6e-41e7-ba55-aa797ddf85fa",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "REPLACE_ME",
+          "id": "2C1ovo0IxaBA2sbn",
           "name": "SafeLinkHub n8n (Bearer)"
         }
       }
@@ -51,30 +52,32 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        440,
+        448,
         0
-      ]
+      ],
+      "id": "3ca7b694-cf78-4fa2-99df-2eb9962d9233"
     },
     {
       "parameters": {
+        "method": "POST",
         "url": "=https://safelinkhub.io/api/internal/n8n/regulation/routers/{{ $json.routerId }}/read",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
           "timeout": 60000
-        },
-        "method": "POST"
+        }
       },
       "name": "Lire compteurs",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        680,
-        100
+        688,
+        112
       ],
+      "id": "fd78eadd-3e24-4094-834f-eccadcab4076",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "REPLACE_ME",
+          "id": "2C1ovo0IxaBA2sbn",
           "name": "SafeLinkHub n8n (Bearer)"
         }
       },
@@ -82,39 +85,41 @@
     },
     {
       "parameters": {
-        "jsCode": "// ===================== DÉCISION — nœud Code n8n =====================\n// Entrée : la réponse de POST /read (compteurs WAN + sessions actives).\n// Le routeur, ses SEUILS (policy) et son ÉTAT précédent viennent de la\n// plateforme (GET /routers), plus aucune constante ici, plus de\n// $getWorkflowStaticData. Sortie : ce que POST /apply attend + l'email.\nconst MB = 1024 ** 2, GB = 1024 ** 3;\nconst router = $('Boucle routeurs').item.json;\nconst read = $input.first().json;\nconst P = router.policy;\n\nconst now = new Date(read.at || Date.now());\nconst ms = now.getTime();\n\n// ----- Cycle : démarre le billingCycleDay (1-28), pas forcément le 1er -----\nconst day = router.billingCycleDay || 1;\nlet start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day));\nif (start.getTime() > ms) start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, day));\nconst end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, day));\nconst daysInCycle = (end.getTime() - start.getTime()) / 86400000;\nconst elapsedDays = Math.max((ms - start.getTime()) / 86400000, 1 / 96);\nconst remainingDays = Math.max(1, Math.ceil((end.getTime() - ms) / 86400000));\nconst monthKey = start.toISOString().slice(0, 10);\nconst dayKey = now.toISOString().slice(0, 10);\n\n// ----- État précédent (mémorisé par la plateforme) -----\nconst prev = router.state || null;\nconst s = prev\n  ? { ...prev }\n  : { decision: 'ok', previous: 'ok', limit: '0/0', counters: read.counters, monthBytes: 0, dayBytes: 0, monthKey, dayKey, changedAt: null };\nif (s.monthKey !== monthKey) { s.monthKey = monthKey; s.monthBytes = 0; s.dayBytes = 0; }\nif (s.dayKey !== dayKey) { s.dayKey = dayKey; s.dayBytes = 0; }\n\n// Compteur plus petit qu'avant = reboot du routeur → l'écart repart du relevé brut\nconst counters = Number(read.counters || 0);\nconst delta = counters >= (s.counters || 0) ? counters - (s.counters || 0) : counters;\ns.counters = counters;\ns.monthBytes += delta;\ns.dayBytes += delta;\ns.wanInterface = read.wanInterface || s.wanInterface || null;\ns.at = now.toISOString();\n\n// ----- Seuils -----\nconst SOFT = P.softCapMb * MB, HARD = P.hardCapMb * MB;\nconst fmtRate = (bytesPerDay) => {\n  const bps = Math.max(64000, (bytesPerDay * 8) / 86400);\n  return bps >= 1024 * 1024 ? (bps / 1024 / 1024).toFixed(2) + 'M' : Math.round(bps / 1000) + 'k';\n};\nconst usedBeforeToday = s.monthBytes - s.dayBytes;\nconst dailyBudget = (Math.max(0, SOFT - usedBeforeToday) / remainingDays) * P.safety;\nconst projected = (s.monthBytes / elapsedDays) * daysInCycle;\n\nlet decision = 'ok', limit = '0/0';\nif (s.monthBytes >= HARD) {\n  decision = 'block'; limit = P.blockLimit;\n} else if (s.monthBytes >= SOFT) {\n  decision = 'critical';\n  const marginDaily = Math.max(0, HARD - s.monthBytes) / remainingDays;\n  limit = `${fmtRate(marginDaily * 0.5)}/${fmtRate(marginDaily)}`;\n} else if (s.dayBytes > dailyBudget * P.dayCriticalRatio) {\n  decision = 'throttle';\n  limit = `${fmtRate(dailyBudget * 0.5)}/${fmtRate(dailyBudget)}`;\n}\nconst previous = s.decision;\nconst changed = decision !== previous;\ns.previous = previous; s.decision = decision; s.limit = limit;\nif (changed) s.changedAt = now.toISOString();\n\nconst ACTIONS = {\n  ok: 'Débit normal (partage équitable illimité)',\n  throttle: 'Rythme du jour trop rapide : débit lissé, réparti entre utilisateurs',\n  critical: 'Cible mensuelle dépassée : débit réduit vers le plafond absolu',\n  block: 'Plafond absolu atteint : débit plancher',\n};\ns.stats = {\n  todayGB: +(s.dayBytes / GB).toFixed(2),\n  monthGB: +(s.monthBytes / GB).toFixed(2),\n  budgetGB: +(dailyBudget / GB).toFixed(2),\n  projectedGB: +(projected / GB).toFixed(2),\n  softRemainingGB: +(Math.max(0, SOFT - s.monthBytes) / GB).toFixed(2),\n  hardRemainingGB: +(Math.max(0, HARD - s.monthBytes) / GB).toFixed(2),\n};\n\n// ----- Téléchargeurs abusifs (volume sortant par passage, par MAC) -----\nconst watch = { ...(router.watch || {}) };\nconst blocks = [], events = [], seen = new Set();\nconst threshold = P.abuseThresholdMb * MB;\nfor (const u of read.active || []) {\n  if (!u.mac) continue;\n  seen.add(u.mac);\n  const w = watch[u.mac] || { bytesOut: u.bytesOut, blockedUntil: 0, offenseCount: 0, permanent: false };\n  if (w.permanent) { watch[u.mac] = w; continue; }\n  const d = u.bytesOut >= w.bytesOut ? u.bytesOut - w.bytesOut : u.bytesOut;\n  const stillBlocked = w.blockedUntil && ms < w.blockedUntil;\n  const next = { ...w, bytesOut: u.bytesOut, address: u.address, user: u.user };\n  if (d > threshold && !stillBlocked) {\n    next.offenseCount = (w.offenseCount || 0) + 1;\n    const deltaGB = +(d / GB).toFixed(2);\n    if (next.offenseCount >= P.abuseMaxOffenses) {\n      next.permanent = true; next.blockedUntil = Number.MAX_SAFE_INTEGER;\n      blocks.push({ address: u.address, user: u.user, comment: `Blocage DEFINITIF - recidive ${next.offenseCount} (${u.user})` });\n      events.push({ kind: 'permanent_block', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount } });\n    } else {\n      next.blockedUntil = ms + P.abuseBlockMinutes * 60000;\n      blocks.push({ address: u.address, user: u.user, minutes: P.abuseBlockMinutes, comment: `Blocage auto - telechargement excessif (${u.user}) - avertissement ${next.offenseCount}/${P.abuseMaxOffenses}` });\n      events.push({ kind: 'block', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount, unblockAt: new Date(next.blockedUntil).toISOString() } });\n    }\n  } else if (!stillBlocked) {\n    next.blockedUntil = 0;\n  }\n  watch[u.mac] = next;\n}\nfor (const mac of Object.keys(watch)) {\n  const w = watch[mac];\n  if (!seen.has(mac) && !w.permanent && (!w.blockedUntil || ms > w.blockedUntil + 86400000)) delete watch[mac];\n}\nif (changed) events.push({ kind: 'decision', payload: { previous, decision, limit, stats: s.stats } });\n\nconst email = {\n  subject: `[SafeLinkHub] ${router.name} : ${decision.toUpperCase()}`,\n  text: [\n    `Routeur : ${router.name}`,\n    `Decision : ${previous} -> ${decision}`,\n    `Action : ${ACTIONS[decision]}`,\n    `Debit applique (upload/download) : ${limit}`,\n    '',\n    `Aujourd'hui : ${s.stats.todayGB} Go (budget du jour ${s.stats.budgetGB} Go)`,\n    `Ce cycle : ${s.stats.monthGB} Go / ${(SOFT / GB).toFixed(0)} Go cible (reste ${s.stats.softRemainingGB} Go avant cible, ${s.stats.hardRemainingGB} Go avant plafond ${(HARD / GB).toFixed(0)} Go)`,\n    `Projection fin de cycle : ${s.stats.projectedGB} Go`,\n    `Interface WAN : ${s.wanInterface}`,\n    blocks.length ? `Blocages ce passage : ${blocks.length}` : '',\n  ].join('\\n'),\n};\n\nreturn [{ json: { routerId: router.routerId, name: router.name, changed, email, apply: { limit, blocks, state: s, watch, events } } }];\n"
+        "jsCode": "// ===================== DÉCISION — nœud Code n8n =====================\n// Entrée : la réponse de POST /read (compteurs WAN + sessions actives).\n// Le routeur, ses SEUILS (policy) et son ÉTAT précédent viennent de la\n// plateforme (GET /routers), plus aucune constante ici, plus de\n// $getWorkflowStaticData. Sortie : ce que POST /apply attend + l'email.\nconst MB = 1024 ** 2, GB = 1024 ** 3;\nconst router = $('Boucle routeurs').item.json;\nconst read = $input.first().json;\nconst P = router.policy;\n\nconst now = new Date(read.at || Date.now());\nconst ms = now.getTime();\n\n// ----- Cycle : démarre le billingCycleDay (1-28), pas forcément le 1er -----\nconst day = router.billingCycleDay || 1;\nlet start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day));\nif (start.getTime() > ms) start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, day));\nconst end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, day));\nconst daysInCycle = (end.getTime() - start.getTime()) / 86400000;\nconst elapsedDays = Math.max((ms - start.getTime()) / 86400000, 1 / 96);\nconst remainingDays = Math.max(1, Math.ceil((end.getTime() - ms) / 86400000));\nconst monthKey = start.toISOString().slice(0, 10);\nconst dayKey = now.toISOString().slice(0, 10);\n\n// ----- État précédent (mémorisé par la plateforme) -----\nconst prev = router.state || null;\nconst s = prev\n  ? { ...prev }\n  : { decision: 'ok', previous: 'ok', limit: '0/0', counters: read.counters, monthBytes: 0, dayBytes: 0, monthKey, dayKey, changedAt: null };\nif (s.monthKey !== monthKey) { s.monthKey = monthKey; s.monthBytes = 0; s.dayBytes = 0; }\nif (s.dayKey !== dayKey) { s.dayKey = dayKey; s.dayBytes = 0; }\n\n// Compteur plus petit qu'avant = reboot du routeur → l'écart repart du relevé brut\nconst counters = Number(read.counters || 0);\nconst delta = counters >= (s.counters || 0) ? counters - (s.counters || 0) : counters;\ns.counters = counters;\ns.monthBytes += delta;\ns.dayBytes += delta;\ns.wanInterface = read.wanInterface || s.wanInterface || null;\ns.at = now.toISOString();\n\n// ----- Seuils -----\nconst SOFT = P.softCapMb * MB, HARD = P.hardCapMb * MB;\nconst fmtRate = (bytesPerDay) => {\n  const bps = Math.max(64000, (bytesPerDay * 8) / 86400);\n  return bps >= 1024 * 1024 ? (bps / 1024 / 1024).toFixed(2) + 'M' : Math.round(bps / 1000) + 'k';\n};\nconst usedBeforeToday = s.monthBytes - s.dayBytes;\nconst dailyBudget = (Math.max(0, SOFT - usedBeforeToday) / remainingDays) * P.safety;\nconst projected = (s.monthBytes / elapsedDays) * daysInCycle;\n\nlet decision = 'ok', limit = '0/0';\nif (s.monthBytes >= HARD) {\n  decision = 'block'; limit = P.blockLimit;\n} else if (s.monthBytes >= SOFT) {\n  decision = 'critical';\n  const marginDaily = Math.max(0, HARD - s.monthBytes) / remainingDays;\n  limit = `${fmtRate(marginDaily * 0.5)}/${fmtRate(marginDaily)}`;\n} else if (s.dayBytes > dailyBudget * P.dayCriticalRatio) {\n  decision = 'throttle';\n  limit = `${fmtRate(dailyBudget * 0.5)}/${fmtRate(dailyBudget)}`;\n}\nconst previous = s.decision;\nconst changed = decision !== previous;\ns.previous = previous; s.decision = decision; s.limit = limit;\nif (changed) s.changedAt = now.toISOString();\n\nconst ACTIONS = {\n  ok: 'Débit normal (partage équitable illimité)',\n  throttle: 'Rythme du jour trop rapide : débit lissé, réparti entre utilisateurs',\n  critical: 'Cible mensuelle dépassée : débit réduit vers le plafond absolu',\n  block: 'Plafond absolu atteint : débit plancher',\n};\ns.stats = {\n  todayGB: +(s.dayBytes / GB).toFixed(2),\n  monthGB: +(s.monthBytes / GB).toFixed(2),\n  budgetGB: +(dailyBudget / GB).toFixed(2),\n  projectedGB: +(projected / GB).toFixed(2),\n  softRemainingGB: +(Math.max(0, SOFT - s.monthBytes) / GB).toFixed(2),\n  hardRemainingGB: +(Math.max(0, HARD - s.monthBytes) / GB).toFixed(2),\n};\n\n// ----- Téléchargeurs abusifs : bridage, puis blocages de 2 h, puis suspension -----\n// CASCADE (par MAC, un palier par passage qui dépasse le seuil) :\n//   1er dépassement        -> BRIDAGE seul : le débit tombe au plancher, la\n//                             navigation passe, le gros téléchargement n'aboutit pas.\n//   2e .. (max-1)          -> bridage MAINTENU + blocage de `abuseBlockMinutes`.\n//   avant-dernier          -> SMS d'avertissement au numéro qui a acheté le code.\n//   `abuseMaxOffenses`     -> SUSPENSION DÉFINITIVE du code (ticket désactivé).\n// Un client bridé ne peut plus dépasser le seuil : le compteur n'avance donc\n// QUE lorsqu'il recommence une fois le bridage expiré. C'est bien « il persiste ».\nconst watch = { ...(router.watch || {}) };\nconst blocks = [], throttles = [], suspensions = [], warnings = [], events = [], seen = new Set();\nconst threshold = P.abuseThresholdMb * MB;\nfor (const u of read.active || []) {\n  if (!u.mac) continue;\n  seen.add(u.mac);\n  const w = watch[u.mac] || { bytesOut: u.bytesOut, blockedUntil: 0, offenseCount: 0, permanent: false, throttledUntil: 0 };\n  if (w.suspended) { watch[u.mac] = w; continue; }\n  const d = u.bytesOut >= w.bytesOut ? u.bytesOut - w.bytesOut : u.bytesOut;\n  const stillBlocked = w.blockedUntil && ms < w.blockedUntil;\n  const next = { ...w, bytesOut: u.bytesOut, address: u.address, user: u.user };\n  if (d > threshold && !stillBlocked) {\n    next.offenseCount = (w.offenseCount || 0) + 1;\n    next.throttledUntil = ms + P.abuseBlockMinutes * 60000;\n    const deltaGB = +(d / GB).toFixed(2);\n    if (next.offenseCount >= P.abuseMaxOffenses) {\n      // 10e : le CODE est suspendu, pas seulement l'IP — il ne resservira\n      // nulle part, sur aucun appareil.\n      next.suspended = true; next.permanent = true; next.blockedUntil = Number.MAX_SAFE_INTEGER;\n      suspensions.push({ user: u.user, reason: `10e depassement (${deltaGB} Go)` });\n      events.push({ kind: 'permanent_block', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount, suspended: true } });\n    } else if (next.offenseCount === 1) {\n      // Premier dépassement : on BRIDE, on ne bloque pas.\n      events.push({ kind: 'throttle', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, limit: P.abuseThrottleLimit } });\n    } else {\n      next.blockedUntil = ms + P.abuseBlockMinutes * 60000;\n      blocks.push({ address: u.address, user: u.user, minutes: P.abuseBlockMinutes, comment: `Blocage auto - telechargement excessif (${u.user}) - ${next.offenseCount}/${P.abuseMaxOffenses}` });\n      events.push({ kind: 'block', payload: { mac: u.mac, address: u.address, user: u.user, deltaGB, offenseCount: next.offenseCount, unblockAt: new Date(next.blockedUntil).toISOString() } });\n      if (next.offenseCount === P.abuseMaxOffenses - 1) {\n        warnings.push({ user: u.user, remaining: 1 });\n      }\n    }\n  } else if (!stillBlocked) {\n    next.blockedUntil = 0;\n  }\n  // Le bridage court tant que sa fenêtre n'est pas écoulée.\n  if (next.throttledUntil && ms < next.throttledUntil && !next.suspended && u.address) {\n    throttles.push({ address: u.address, user: u.user });\n  }\n  watch[u.mac] = next;\n}\nfor (const mac of Object.keys(watch)) {\n  const w = watch[mac];\n  if (!seen.has(mac) && !w.permanent && !w.suspended && (!w.blockedUntil || ms > w.blockedUntil + 86400000)) delete watch[mac];\n}\nif (changed) events.push({ kind: 'decision', payload: { previous, decision, limit, stats: s.stats } });\n\nconst email = {\n  subject: `[SafeLinkHub] ${router.name} : ${decision.toUpperCase()}`,\n  text: [\n    `Routeur : ${router.name}`,\n    `Decision : ${previous} -> ${decision}`,\n    `Action : ${ACTIONS[decision]}`,\n    `Debit applique (upload/download) : ${limit}`,\n    '',\n    `Aujourd'hui : ${s.stats.todayGB} Go (budget du jour ${s.stats.budgetGB} Go)`,\n    `Ce cycle : ${s.stats.monthGB} Go / ${(SOFT / GB).toFixed(0)} Go cible (reste ${s.stats.softRemainingGB} Go avant cible, ${s.stats.hardRemainingGB} Go avant plafond ${(HARD / GB).toFixed(0)} Go)`,\n    `Projection fin de cycle : ${s.stats.projectedGB} Go`,\n    `Interface WAN : ${s.wanInterface}`,\n    throttles.length ? `Clients brides : ${throttles.length}` : '',\n    blocks.length ? `Blocages ce passage : ${blocks.length}` : '',\n    suspensions.length ? `Codes SUSPENDUS definitivement : ${suspensions.map((s) => s.user).join(', ')}` : '',\n  ].join('\\n'),\n};\n\nreturn [{ json: { routerId: router.routerId, name: router.name, changed, email, apply: { limit, blocks, throttles, suspensions, warnings, state: s, watch, events } } }];\n"
       },
       "name": "Décision",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        900,
-        100
-      ]
+        912,
+        112
+      ],
+      "id": "8f48d065-e895-4245-83fd-48ad9585d04a"
     },
     {
       "parameters": {
+        "method": "POST",
         "url": "=https://safelinkhub.io/api/internal/n8n/regulation/routers/{{ $json.routerId }}/apply",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {
-          "timeout": 60000
-        },
-        "method": "POST",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.apply) }}"
+        "jsonBody": "={{ JSON.stringify($json.apply) }}",
+        "options": {
+          "timeout": 60000
+        }
       },
       "name": "Appliquer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1120,
-        100
+        112
       ],
+      "id": "5f1f7b3f-5a00-4ecd-af36-f5d454774247",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "REPLACE_ME",
+          "id": "2C1ovo0IxaBA2sbn",
           "name": "SafeLinkHub n8n (Bearer)"
         }
       },
@@ -132,7 +137,7 @@
           "conditions": [
             {
               "id": "c0ffee00-0000-4000-8000-000000000001",
-              "leftValue": "={{ $('Décision').item.json.changed }}",
+              "leftValue": "={{ $('Décision').item.json.notify }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -145,13 +150,37 @@
         },
         "options": {}
       },
-      "name": "Décision a changé ?",
+      "name": "Notifier ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1340,
-        100
-      ]
+        1344,
+        112
+      ],
+      "id": "8dd9fb1c-1789-4166-98b2-5ec874f96c7d"
+    },
+    {
+      "parameters": {
+        "chatId": "safelinkhub_bot",
+        "text": "={{ $('Décision').item.json.telegram }}",
+        "additionalFields": {}
+      },
+      "name": "Telegram alerte",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1568,
+        0
+      ],
+      "id": "a1b2c3d4-1111-4000-8000-0000000000a1",
+      "webhookId": "da83d690-879c-41cf-ad28-5572a2e5384b",
+      "credentials": {
+        "telegramApi": {
+          "id": "kpxFBRjB4ab10dQF",
+          "name": "Telegram account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -167,15 +196,193 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        1560,
+        1792,
         0
       ],
+      "id": "6c79b991-9696-469d-8d67-1a80d4f09e3c",
+      "webhookId": "832a0f4e-171e-4608-9b1d-3912de07fd43",
       "credentials": {
         "gmailOAuth2": {
-          "id": "REPLACE_ME",
+          "id": "XCR9g5O7iN68rjX4",
           "name": "Gmail account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aplati les evenements de Decision en lignes pour le journal Sheets.\nconst d = $('Décision').item.json;\nconst now = new Date().toISOString();\nconst rows = (d.apply.events || []).map(e => ({ json: {\n  date: now,\n  routeur: d.name,\n  type: e.kind,\n  details: JSON.stringify(e.payload),\n}}));\n// Ne jamais renvoyer 0 item dans une boucle SplitInBatches.\nreturn rows.length ? rows : [{ json: { date: now, routeur: d.name, type: 'info', details: '' } }];"
+      },
+      "name": "Journaliser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        0
+      ],
+      "id": "a1b2c3d4-4444-4000-8000-0000000000d1"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "MTWYNbTIiYFKqgRe",
+          "mode": "list",
+          "cachedResultName": "Journal SafeLinkHub"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "name": "Journal Data Table",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        0
+      ],
+      "id": "a1b2c3d4-4444-4000-8000-0000000000d3",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============ PANNE ROUTEUR v2.3 ============\n// - Seuil configurable PAR routeur : policy.failAlertThreshold (defaut 3)\n// - Mode maintenance : router.maintenance === true OU router.maintenanceUntil (date ISO future)\n// - Alerte au Nieme echec consecutif, UNE SEULE FOIS, Telegram + Email.\nconst router = $('Boucle routeurs').item.json;\nconst err = $input.first().json;\nconst sd = $getWorkflowStaticData('global');\nsd.fail = sd.fail || {};\n\n// ----- Mode maintenance : on ignore silencieusement -----\nconst mUntil = router.maintenanceUntil ? new Date(router.maintenanceUntil).getTime() : 0;\nconst maintenance = router.maintenance === true || (mUntil && mUntil > Date.now());\nif (maintenance) {\n  delete sd.fail[router.routerId];\n  return [{ json: { routerId: router.routerId, name: router.name, alert: false, telegram: '', email: null, failCount: 0 } }];\n}\n\nconst f = sd.fail[router.routerId] || { count: 0, alerted: false };\nf.count += 1;\nf.lastAt = new Date().toISOString();\nf.lastError = (err && (err.error || err.message)) ? String(err.error || err.message).slice(0, 300) : 'timeout / erreur HTTP';\nconst THRESHOLD = Number((router.policy && router.policy.failAlertThreshold) || 3);\nlet alert = false, telegram = '', email = null;\nif (f.count >= THRESHOLD && !f.alerted) {\n  f.alerted = true;\n  alert = true;\n  telegram = [\n    `[PANNE] *${router.name}* INJOIGNABLE`,\n    `${f.count} lectures de compteurs ont echoue de suite (~${f.count * 5} min).`,\n    `Derniere erreur : \\`${f.lastError}\\``,\n    `La regulation est suspendue pour ce routeur tant que /read ne repond pas.`,\n    `Verifiez : alimentation, tunnel/VPN, API SafeLinkHub.`,\n  ].join('\\n');\n  email = {\n    subject: `[SafeLinkHub] PANNE ${router.name} : routeur injoignable`,\n    text: [\n      `Le routeur ${router.name} ne repond plus a l'API.`,\n      '',\n      `Echecs consecutifs : ${f.count} (~${f.count * 5} minutes)`,\n      `Derniere erreur : ${f.lastError}`,\n      `Dernier essai : ${f.lastAt}`,\n      '',\n      `La regulation est suspendue pour ce routeur tant que /read ne repond pas.`,\n      `Verifiez : alimentation, tunnel/VPN, API SafeLinkHub.`,\n      '',\n      `Astuce : pour suspendre ces alertes pendant une intervention, passez le`,\n      `routeur en maintenance (maintenance=true ou maintenanceUntil cote SaaS).`,\n    ].join('\\n'),\n  };\n}\nsd.fail[router.routerId] = f;\nreturn [{ json: { routerId: router.routerId, name: router.name, alert, telegram, email, failCount: f.count } }];"
+      },
+      "name": "Erreur lecture",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        320
+      ],
+      "id": "a1b2c3d4-3333-4000-8000-0000000000c1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c0ffee00-0000-4000-8000-000000000002",
+              "leftValue": "={{ $json.alert }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Panne routeur ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        320
+      ],
+      "id": "a1b2c3d4-3333-4000-8000-0000000000c2"
+    },
+    {
+      "parameters": {
+        "chatId": "=safelinkhub_bot",
+        "text": "={{ $json.telegram }}",
+        "additionalFields": {}
+      },
+      "name": "Telegram panne",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1344,
+        288
+      ],
+      "id": "a1b2c3d4-3333-4000-8000-0000000000c3",
+      "webhookId": "4f7166db-29d9-4eed-8c81-ae4655cdd0ce",
+      "credentials": {
+        "telegramApi": {
+          "id": "fzuXOCwno4dtIKTE",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "bambaaboulatif@gmail.com",
+        "subject": "={{ $('Erreur lecture').item.json.email.subject }}",
+        "emailType": "text",
+        "message": "={{ $('Erreur lecture').item.json.email.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "name": "Email panne",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1568,
+        288
+      ],
+      "id": "a1b2c3d4-3333-4000-8000-0000000000c5",
+      "webhookId": "b4766bc5-e765-4192-89c1-5cd8d6c6204b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "XCR9g5O7iN68rjX4",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Une ligne de journal pour une alerte panne (branche erreur /read).\nconst e = $('Erreur lecture').item.json;\nreturn [{ json: {\n  date: new Date().toISOString(),\n  routeur: e.name,\n  type: 'outage',\n  details: JSON.stringify({ failCount: e.failCount }),\n}}];"
+      },
+      "name": "Journaliser panne",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        288
+      ],
+      "id": "a1b2c3d4-4444-4000-8000-0000000000d2"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "MTWYNbTIiYFKqgRe",
+          "mode": "list",
+          "cachedResultName": "Journal SafeLinkHub"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "name": "Journal Data Table panne",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        2016,
+        288
+      ],
+      "id": "a1b2c3d4-4444-4000-8000-0000000000d4",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {},
@@ -183,9 +390,163 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        680,
-        -120
-      ]
+        688,
+        -128
+      ],
+      "id": "586e2106-fc15-4bf5-a549-c7eb1ef6b792"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Résumé quotidien 07h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        480
+      ],
+      "id": "a1b2c3d4-2222-4000-8000-0000000000b1"
+    },
+    {
+      "parameters": {
+        "url": "https://safelinkhub.io/api/internal/n8n/regulation/routers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Récap : routeurs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        480
+      ],
+      "id": "a1b2c3d4-2222-4000-8000-0000000000b2",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2C1ovo0IxaBA2sbn",
+          "name": "SafeLinkHub n8n (Bearer)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Récap : boucle",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        448,
+        480
+      ],
+      "id": "a1b2c3d4-2222-4000-8000-0000000000b3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://safelinkhub.io/api/internal/n8n/regulation/routers/{{ $json.routerId }}/read",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Récap : lire compteurs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        688,
+        624
+      ],
+      "id": "a1b2c3d4-2222-4000-8000-0000000000b4",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2C1ovo0IxaBA2sbn",
+          "name": "SafeLinkHub n8n (Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============ RECAP QUOTIDIEN ============\n// Utilise l'etat sauvegarde (state.stats, state.wan) pour les volumes du cycle.\nconst router = $('Récap : boucle').item.json;\nconst read = $input.first().json;\nconst GB = 1024 ** 3;\nconst d = new Date(read.at || Date.now());\nconst dateStr = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });\nconst st = (router.state && router.state.stats) || {};\nconst wan = (router.state && router.state.wan) || {};\nconst P = router.policy || {};\nconst softGB = P.softCapMb ? (P.softCapMb / 1024).toFixed(0) : '?';\nconst lines = [`[RECAP] *${router.name}* - ${dateStr}`, ''];\nconst wanKeys = Object.keys(wan);\nif (wanKeys.length) {\n  for (const k of wanKeys) lines.push(`- ${k} : ${(Number(wan[k].monthBytes || 0) / GB).toFixed(1)} Go ce cycle`);\n}\nif (st.monthGB != null) {\n  const pct = P.softCapMb ? Math.round(100 * st.monthGB / (P.softCapMb / 1024)) : null;\n  lines.push(`Total ce cycle : *${st.monthGB} Go* / ${softGB} Go${pct != null ? ' (' + pct + '%)' : ''}`);\n  lines.push(`Aujourd'hui : ${st.todayGB} Go - projection fin de cycle : ${st.projectedGB} Go`);\n}\nlines.push(`Sessions actives : ${(read.active || []).length}`);\nlines.push(`Decision en cours : ${(router.state && router.state.decision) || 'ok'} (debit ${(router.state && router.state.limit) || '0/0'})`);\nreturn [{ json: { chatId: 'TELEGRAM_CHAT_ID', text: lines.join('\\n') } }];"
+      },
+      "name": "Récap : formater",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        624
+      ],
+      "id": "a1b2c3d4-2222-4000-8000-0000000000b5"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Récap : formater').item.json.chatId }}",
+        "text": "={{ $('Récap : formater').item.json.text }}",
+        "additionalFields": {}
+      },
+      "name": "Récap : envoyer Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        624
+      ],
+      "id": "a1b2c3d4-2222-4000-8000-0000000000b6",
+      "webhookId": "21523699-5d9e-4bad-9ed9-c31f5193201f",
+      "credentials": {
+        "telegramApi": {
+          "id": "fzuXOCwno4dtIKTE",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "TELEGRAM_CHAT_ID",
+        "text": "=⚠️ *{{ $('Récap : boucle').item.json.name }}* : lecture des compteurs impossible pendant le récap quotidien.",
+        "additionalFields": {}
+      },
+      "name": "Récap : alerte panne",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        912,
+        768
+      ],
+      "id": "a1b2c3d4-3333-4000-8000-0000000000c4",
+      "webhookId": "da43324f-308f-4c0b-91da-89243e2c6a23",
+      "credentials": {
+        "telegramApi": {
+          "id": "fzuXOCwno4dtIKTE",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "name": "Récap : fin",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        688,
+        448
+      ],
+      "id": "a1b2c3d4-2222-4000-8000-0000000000b7"
     }
   ],
   "connections": {
@@ -240,7 +601,7 @@
         ],
         [
           {
-            "node": "Boucle routeurs",
+            "node": "Erreur lecture",
             "type": "main",
             "index": 0
           }
@@ -262,7 +623,7 @@
       "main": [
         [
           {
-            "node": "Décision a changé ?",
+            "node": "Notifier ?",
             "type": "main",
             "index": 0
           }
@@ -276,7 +637,25 @@
         ]
       ]
     },
-    "Décision a changé ?": {
+    "Notifier ?": {
+      "main": [
+        [
+          {
+            "node": "Telegram alerte",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Boucle routeurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram alerte": {
       "main": [
         [
           {
@@ -284,6 +663,50 @@
             "type": "main",
             "index": 0
           }
+        ]
+      ]
+    },
+    "Email alerte quota": {
+      "main": [
+        [
+          {
+            "node": "Journaliser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Journaliser": {
+      "main": [
+        [
+          {
+            "node": "Journal Data Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur lecture": {
+      "main": [
+        [
+          {
+            "node": "Panne routeur ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Panne routeur ?": {
+      "main": [
+        [
+          {
+            "node": "Telegram panne",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
           {
@@ -294,7 +717,142 @@
         ]
       ]
     },
-    "Email alerte quota": {
+    "Telegram panne": {
+      "main": [
+        [
+          {
+            "node": "Email panne",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email panne": {
+      "main": [
+        [
+          {
+            "node": "Journaliser panne",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Journaliser panne": {
+      "main": [
+        [
+          {
+            "node": "Journal Data Table panne",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Résumé quotidien 07h": {
+      "main": [
+        [
+          {
+            "node": "Récap : routeurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récap : routeurs": {
+      "main": [
+        [
+          {
+            "node": "Récap : boucle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récap : boucle": {
+      "main": [
+        [
+          {
+            "node": "Récap : fin",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Récap : lire compteurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récap : lire compteurs": {
+      "main": [
+        [
+          {
+            "node": "Récap : formater",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Récap : alerte panne",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récap : formater": {
+      "main": [
+        [
+          {
+            "node": "Récap : envoyer Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récap : envoyer Telegram": {
+      "main": [
+        [
+          {
+            "node": "Récap : boucle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récap : alerte panne": {
+      "main": [
+        [
+          {
+            "node": "Récap : boucle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Journal Data Table": {
+      "main": [
+        [
+          {
+            "node": "Boucle routeurs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Journal Data Table panne": {
       "main": [
         [
           {
@@ -307,6 +865,9 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate",
+    "timezone": "Africa/Dakar"
   }
 }
