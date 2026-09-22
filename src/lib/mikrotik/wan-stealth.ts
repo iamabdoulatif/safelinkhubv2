@@ -44,7 +44,13 @@ export type WanLink = {
   sentHostname?: string | null;
 };
 
-export type StealthLeakId = "mac-vendor" | "hostname" | "discovery" | "cloud" | "services";
+export type StealthLeakId =
+  | "mac-vendor"
+  | "hostname"
+  | "discovery"
+  | "cloud"
+  | "services"
+  | "upstream";
 
 export type StealthLeak = {
   id: StealthLeakId;
@@ -68,7 +74,44 @@ export type WanStealthInput = {
   interfaceLists: string[];
   /** Services à l'écoute SANS restriction d'adresse (`address=` vide). */
   openServices: string[];
+  /** L'équipement du fournisseur, vu depuis les clients (voir upstreamManquants). */
+  upstream: {
+    /** Réseaux d'administration du FAI joignables : antenne, box, passerelle. */
+    targets: string[];
+    /** Règles « slh-hide-upstream » déjà posées. */
+    rules: { id: string; dst: string }[];
+    /** `.id` de la 1re règle du forward : les blocages se posent DEVANT elle. */
+    firstRuleId: string | null;
+  };
 };
+
+/**
+ * Réseau d'administration de l'antenne Starlink — et de beaucoup de box FAI.
+ * Il ne dépend pas du bail : c'est une constante du matériel.
+ */
+export const UPSTREAM_CPE_NET = "192.168.100.0/24";
+
+/** Commentaire qui identifie nos règles de blocage, pour les relire et les retirer. */
+export const UPSTREAM_RULE_COMMENT = "slh-hide-upstream";
+
+/**
+ * RouterOS range une adresse seule SANS son `/32` (« 100.64.0.1/32 » ressort
+ * « 100.64.0.1 »). Comparer les chaînes telles quelles reposerait la règle à
+ * chaque passage — d'où cette normalisation des deux côtés.
+ */
+const memeCible = (dst: string) => dst.trim().replace(/\/32$/, "");
+
+/** Cibles encore joignables par les clients (ordre stable, sans doublon). */
+export function upstreamManquants(input: WanStealthInput): string[] {
+  const posees = new Set(input.upstream.rules.map((r) => memeCible(r.dst)));
+  const vues = new Set<string>();
+  return input.upstream.targets.filter((t) => {
+    const clef = memeCible(t);
+    if (posees.has(clef) || vues.has(clef)) return false;
+    vues.add(clef);
+    return true;
+  });
+}
 
 /**
  * Listes d'interfaces qui englobent forcément le WAN. `static` est le défaut
@@ -157,6 +200,16 @@ export function inspectWanStealth(input: WanStealthInput): StealthLeak[] {
     });
   }
 
+  const manquants = upstreamManquants(input);
+  if (manquants.length > 0) {
+    leaks.push({
+      id: "upstream",
+      label: "Équipement du fournisseur joignable par les clients",
+      detail: `N'importe quel client du hotspot peut ouvrir ${manquants.join(", ")} — tableau de bord de l'antenne, numéro de série, administration de la box. C'est ce qui dit à ton client quel opérateur tu revends.`,
+      fixable: true,
+    });
+  }
+
   if (input.openServices.length > 0) {
     leaks.push({
       id: "services",
@@ -181,6 +234,8 @@ export type WanStealthOptions = {
   label?: string;
   /** Remplacer la MAC d'usine par une MAC localement administrée. */
   spoofMac: boolean;
+  /** Couper l'accès des clients à l'équipement du fournisseur. */
+  hideUpstream?: boolean;
   /** Graine de la MAC (id du routeur) — la rend stable d'une pose à l'autre. */
   seed: string;
   /** Options DHCP déjà déclarées sur le routeur (noms), pour add vs set. */
@@ -242,6 +297,23 @@ export function buildWanStealthPlan(
     });
   }
 
+  if (opts.hideUpstream) {
+    // En TÊTE du forward : la chaîne commence par un fasttrack et un accept
+    // « established,related ». Une règle posée après eux ne verrait jamais
+    // passer la connexion qu'elle doit refuser.
+    for (const dst of upstreamManquants(input)) {
+      const words = [
+        "/ip/firewall/filter/add",
+        "=chain=forward",
+        "=action=drop",
+        `=dst-address=${dst}`,
+        `=comment=${UPSTREAM_RULE_COMMENT}`,
+      ];
+      if (input.upstream.firstRuleId) words.push(`=place-before=${input.upstream.firstRuleId}`);
+      steps.push({ label: `Accès des clients à ${dst} coupé`, words });
+    }
+  }
+
   if (opts.spoofMac) {
     for (const link of input.links) {
       if (!macDUsine(link)) continue;
@@ -268,6 +340,12 @@ export function buildWanStealthPlan(
 /** Retour à l'identité d'usine : MAC d'origine et nom d'hôte système. */
 export function buildWanRestorePlan(input: WanStealthInput): StealthStep[] {
   const steps: StealthStep[] = [];
+  for (const r of input.upstream.rules) {
+    steps.push({
+      label: `Accès des clients à ${r.dst} rouvert`,
+      words: ["/ip/firewall/filter/remove", `=numbers=${r.id}`],
+    });
+  }
   for (const link of input.links) {
     if (link.dhcpId && link.dhcpOptions && !link.dhcpOptions.split(",").includes("hostname")) {
       steps.push({

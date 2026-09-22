@@ -36,6 +36,11 @@ const FOUANGA: WanStealthInput = {
   cloudDdns: true,
   interfaceLists: ["all", "none", "dynamic", "static", "WAN", "LAN"],
   openServices: ["ssh", "winbox", "www"],
+  upstream: {
+    targets: ["192.168.100.0/24", "192.168.1.0/24", "100.64.0.1/32"],
+    rules: [],
+    firstRuleId: "*A",
+  },
 };
 
 describe("inspectWanStealth", () => {
@@ -43,7 +48,7 @@ describe("inspectWanStealth", () => {
     const leaks = inspectWanStealth(FOUANGA);
     assert.deepEqual(
       leaks.map((l) => l.id),
-      ["mac-vendor", "hostname", "discovery", "cloud", "services"],
+      ["mac-vendor", "hostname", "discovery", "cloud", "upstream", "services"],
     );
     assert.deepEqual(leaks[0].interfaces, ["E1-WAN-FAI", "E2-WAN-FAI"]);
     assert.equal(leaks.find((l) => l.id === "services")!.fixable, false);
@@ -65,6 +70,7 @@ describe("inspectWanStealth", () => {
       discoverList: "LAN",
       cloudDdns: false,
       openServices: [],
+      upstream: { ...FOUANGA.upstream, rules: FOUANGA.upstream.targets.map((dst, i) => ({ id: `*${i}`, dst })) },
     });
     assert.deepEqual(leaks, []);
   });
@@ -91,6 +97,42 @@ describe("macLocale", () => {
 
 describe("buildWanStealthPlan", () => {
   const opts = { label: "E1-WAN-FAI", spoofMac: true, seed: "r1", existingOptions: [] };
+
+  it("coupe l'accès des clients à l'amont, en TÊTE du forward, sans doublon", () => {
+    const steps = buildWanStealthPlan(FOUANGA, { ...opts, hideUpstream: true });
+    const drops = steps.filter((s) => s.words[0] === "/ip/firewall/filter/add");
+    assert.deepEqual(
+      drops.map((d) => d.words.find((w) => w.startsWith("=dst-address="))),
+      ["=dst-address=192.168.100.0/24", "=dst-address=192.168.1.0/24", "=dst-address=100.64.0.1/32"],
+    );
+    assert.ok(drops.every((d) => d.words.includes("=place-before=*A")));
+    // Une cible déjà bloquée n'est pas reposée — y compris quand RouterOS a
+    // rangé l'adresse sans son /32 (« 100.64.0.1/32 » → « 100.64.0.1 »).
+    const rejoue = buildWanStealthPlan(
+      {
+        ...FOUANGA,
+        upstream: {
+          ...FOUANGA.upstream,
+          rules: [
+            { id: "*9", dst: "192.168.100.0/24" },
+            { id: "*A", dst: "100.64.0.1" },
+          ],
+        },
+      },
+      { ...opts, hideUpstream: true },
+    );
+    assert.deepEqual(
+      rejoue
+        .filter((s) => s.words[0] === "/ip/firewall/filter/add")
+        .map((d) => d.words.find((w) => w.startsWith("=dst-address="))),
+      ["=dst-address=192.168.1.0/24"],
+    );
+  });
+
+  it("sans hideUpstream, aucune règle de pare-feu n'est posée", () => {
+    const steps = buildWanStealthPlan(FOUANGA, opts);
+    assert.ok(!steps.some((s) => s.words[0] === "/ip/firewall/filter/add"));
+  });
 
   it("coupe la découverte et le DDNS, renomme, et garde la MAC pour la fin", () => {
     const steps = buildWanStealthPlan(FOUANGA, opts);
@@ -162,6 +204,7 @@ describe("buildWanStealthPlan", () => {
       ],
       discoverList: "LAN",
       cloudDdns: false,
+      upstream: { ...FOUANGA.upstream, rules: FOUANGA.upstream.targets.map((dst, i) => ({ id: `*${i}`, dst })) },
     };
     const steps = buildWanStealthPlan(deja, {
       ...opts,
@@ -196,6 +239,14 @@ describe("buildWanRestorePlan", () => {
       ["/ip/dhcp-client/set", "/interface/ethernet/set", "/ip/dhcp-client/renew"],
     );
     assert.ok(steps[1].words.includes("=mac-address=D0:EA:11:81:09:99"));
+  });
+
+  it("rouvre l'amont en retirant les règles posées", () => {
+    const steps = buildWanRestorePlan({
+      ...FOUANGA,
+      upstream: { ...FOUANGA.upstream, rules: [{ id: "*9", dst: "192.168.100.0/24" }] },
+    });
+    assert.deepEqual(steps[0].words, ["/ip/firewall/filter/remove", "=numbers=*9"]);
   });
 
   it("ne fait rien sur un routeur resté d'usine", () => {

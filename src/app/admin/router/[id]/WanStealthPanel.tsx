@@ -23,6 +23,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
   const [resultat, setResultat] = useState<Resultat | null>(null);
   const [label, setLabel] = useState("");
   const [spoofMac, setSpoofMac] = useState(false);
+  const [hideUpstream, setHideUpstream] = useState(false);
 
   const analyser = useCallback(() => {
     startTransition(async () => {
@@ -54,7 +55,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
     setErreur(null);
     setResultat(null);
     startTransition(async () => {
-      const res = await applyWanStealth(routerId, { label, spoofMac });
+      const res = await applyWanStealth(routerId, { label, spoofMac, hideUpstream });
       if (!res || "error" in res) {
         setErreur((res && "error" in res && res.error) || "Pose impossible.");
         return;
@@ -202,6 +203,26 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
             C&apos;est le seul réglage qui change le nom affiché par l&apos;application du
             fournisseur — mais il renégocie le bail DHCP : coupure de quelques secondes, réversible
             à tout moment.
+          </span>
+        </span>
+      </label>
+
+      <label className="mt-2 flex items-start gap-2 text-sm text-ink-soft">
+        <input
+          type="checkbox"
+          checked={hideUpstream}
+          onChange={(e) => setHideUpstream(e.target.checked)}
+          className="mt-0.5 h-4 w-4"
+        />
+        <span>
+          Couper l&apos;accès des clients à l&apos;équipement du fournisseur.
+          <span className="block text-[11px]">
+            Sans cela, n&apos;importe quel client du hotspot ouvre le tableau de bord de
+            l&apos;antenne et y lit le numéro de série
+            {lecture?.upstreamTargets?.length
+              ? ` (${lecture.upstreamTargets.join(", ")})`
+              : ""}
+            . Règles de rejet en tête du forward, retirées par «&nbsp;Rétablir&nbsp;».
           </span>
         </span>
       </label>

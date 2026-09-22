@@ -12,10 +12,23 @@ import {
   buildWanStealthPlan,
   inspectWanStealth,
   nomFaiValide,
+  UPSTREAM_CPE_NET,
+  UPSTREAM_RULE_COMMENT,
   type StealthStep,
   type WanLink,
   type WanStealthInput,
 } from "./wan-stealth";
+
+/** Un /24 RFC1918 se bloque en entier ; hors RFC1918 (CGNAT 100.64/10), on ne
+ *  vise QUE la passerelle — le reste de la plage appartient à l'opérateur. */
+function cibleAmont(address: string | undefined, gateway: string): string | null {
+  if (!gateway) return null;
+  const reseau = address?.split("/")[0] ?? "";
+  const prive = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(reseau);
+  if (!prive) return `${gateway}/32`;
+  const [a, b, c] = reseau.split(".");
+  return `${a}.${b}.${c}.0/24`;
+}
 
 /**
  * Lecture et pose de la discrétion côté FAI (voir wan-stealth.ts pour ce qui
@@ -61,7 +74,7 @@ async function lireEtat(client: RouterOSClient, timeoutMs = 15000): Promise<Etat
     )
     .catch(() => [] as Record<string, string>[]);
   const dhcp = await client
-    .talk(["/ip/dhcp-client/print", "=.proplist=.id,interface,dhcp-options"], timeoutMs)
+    .talk(["/ip/dhcp-client/print", "=.proplist=.id,interface,dhcp-options,gateway"], timeoutMs)
     .catch(() => [] as Record<string, string>[]);
   const options = await client
     .talk(["/ip/dhcp-client/option/print", "=.proplist=.id,name,code,raw-value"], timeoutMs)
@@ -72,6 +85,12 @@ async function lireEtat(client: RouterOSClient, timeoutMs = 15000): Promise<Etat
   const cloud = (await client.talk(["/ip/cloud/print"], timeoutMs).catch(() => []))[0] ?? {};
   const services = await client
     .talk(["/ip/service/print", "=.proplist=name,address,disabled"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  const adresses = await client
+    .talk(["/ip/address/print", "=.proplist=address,interface"], timeoutMs)
+    .catch(() => [] as Record<string, string>[]);
+  const filtres = await client
+    .talk(["/ip/firewall/filter/print", "=.proplist=.id,chain,dst-address,comment"], timeoutMs)
     .catch(() => [] as Record<string, string>[]);
 
   /**
@@ -105,8 +124,28 @@ async function lireEtat(client: RouterOSClient, timeoutMs = 15000): Promise<Etat
     });
   }
 
+  // Ce que les clients peuvent joindre en amont : l'antenne (constante) et,
+  // par lien, le réseau de la box ou sa passerelle.
+  const cibles = [UPSTREAM_CPE_NET];
+  for (const link of links) {
+    const d = dhcp.find((row) => row.interface === link.name);
+    const cible = cibleAmont(
+      adresses.find((a) => a.interface === link.name)?.address,
+      d?.gateway ?? "",
+    );
+    if (cible) cibles.push(cible);
+  }
+  const forward = filtres.filter((f) => f.chain === "forward");
+
   return {
     links,
+    upstream: {
+      targets: cibles,
+      rules: forward
+        .filter((f) => f.comment === UPSTREAM_RULE_COMMENT && f["dst-address"])
+        .map((f) => ({ id: f[".id"]!, dst: f["dst-address"]! })),
+      firstRuleId: forward[0]?.[".id"] ?? null,
+    },
     discoverList: decouverte["discover-interface-list"] ?? "",
     discoverProtocols: decouverte.protocol ?? "",
     // Le DDNS MikroTik est une fuite… SAUF quand l'exploitant s'en sert : le
@@ -157,6 +196,7 @@ export async function readWanStealth(routerId: string) {
     return {
       success: true as const,
       leaks: inspectWanStealth(etat),
+      upstreamTargets: etat.upstream.targets,
       links: etat.links.map((l) => ({
         name: l.name,
         mac: l.mac,
@@ -199,7 +239,7 @@ async function executer(client: RouterOSClient, steps: StealthStep[]) {
 
 export async function applyWanStealth(
   routerId: string,
-  opts: { label: string; spoofMac: boolean },
+  opts: { label: string; spoofMac: boolean; hideUpstream?: boolean },
 ) {
   const router = await autorise(routerId);
   if (!router) return { error: "Routeur introuvable." };
@@ -230,6 +270,7 @@ export async function applyWanStealth(
     const steps = buildWanStealthPlan(etat, {
       label,
       spoofMac: opts.spoofMac,
+      hideUpstream: opts.hideUpstream,
       seed: routerId,
       existingOptions: etat.existingOptions,
     });
