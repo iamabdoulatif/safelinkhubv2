@@ -12,7 +12,8 @@
 > débit de milliers de clients et suspend des codes payants ne peut pas
 > dépendre d'un service tiers qui s'arrête en silence.
 >
-> Le workflow n8n est **désactivé** et conservé comme secours documenté : les
+> Le workflow n8n est **désactivé** (un seul chef : deux moteurs écrivant le
+> même état compteraient le trafic en double) et conservé comme secours documenté : les
 > routes internes ci-dessous restent en service et son nœud « Décision »
 > (`regulation-decision.js`) reste le miroir de la logique. Toute modification
 > de la cascade se fait dans le TypeScript ; le JS n8n n'est plus la source.
@@ -96,6 +97,25 @@ Une ligne par routeur : `enabled`, seuils (`soft_cap_mb`, `hard_cap_mb`, `safety
 `day_critical_ratio`, `block_limit`, `abuse_*`), `state` et `watch` (jsonb écrits
 par n8n). `router_regulation_events` = journal (décisions, blocages) affiché à
 l'écran.
+
+## Cadence
+
+`*/5 * * * * flock -n /tmp/slh-regulation.lock /usr/local/bin/slh-cron regulation`
+
+Le `flock` n'est pas décoratif : un passage parcourt le parc EN SÉRIE et peut
+dépasser cinq minutes, deux passages simultanés compteraient chacun le même
+delta. Le budget interne (240 s) s'arrête avant la fin de la route et rend
+`restants` ; la file étant ordonnée du relevé le plus ancien au plus récent,
+le passage suivant reprend ceux qui ont été laissés.
+
+### Le seuil d'abus est un DÉBIT
+
+`abuseThresholdMb` se lit « X Mo par passage de 5 min » parce que c'est ainsi
+que l'exploitant le pense, mais il est comparé à la VITESSE de l'intervalle
+réellement écoulé (`watch[mac].at`). Sans cela, toute interruption de la
+régulation ferait passer le cumul du trou pour un téléchargement abusif —
+relevé le 22/09/2026, huit clients bridés après dix-sept heures d'arrêt pour
+une moyenne de 8 ko/s.
 
 ## Mise en place
 1. Sur le VPS : `N8N_INTERNAL_TOKEN=<aléatoire>` dans l'env de `slh-app`
