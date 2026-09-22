@@ -210,10 +210,18 @@ export function decideRegulation(input: RegulationDecisionInput): RegulationDeci
     // de la régulation, le premier passage voit le cumul du trou et punit tout
     // le monde : le 22/09/2026, huit clients de FOUANGA ont été bridés pour
     // 0,35 à 0,87 Go étalés sur dix-sept heures — rien d'abusif.
-    const ecouleS = Math.max(30, (ms - (w.at ?? ms - PASSAGE_MS)) / 1000);
-    const debit = d / ecouleS;
+    //
+    // SANS INSTANT DE RÉFÉRENCE, ON NE JUGE PAS. Un relevé mémorisé avant que
+    // ce champ n'existe ne dit pas sur combien de temps il porte ; le supposer
+    // long serait laxiste, le supposer court a puni quarante-quatre clients à
+    // des vitesses de 45 Mbit/s qu'aucun forfait ne permet (22/09/2026, une
+    // heure après le correctif précédent). On enregistre la référence et on
+    // attend le passage suivant — exactement ce qu'on fait d'un nouvel appareil.
+    const referenceConnue = typeof w.at === "number" && w.at > 0;
+    const ecouleS = referenceConnue ? Math.max(30, (ms - w.at!) / 1000) : 0;
+    const debit = referenceConnue ? d / ecouleS : 0;
     const seuilDebit = threshold / (PASSAGE_MS / 1000);
-    if (debit > seuilDebit && !stillBlocked) {
+    if (referenceConnue && debit > seuilDebit && !stillBlocked) {
       next.offenseCount = (w.offenseCount || 0) + 1;
       next.throttledUntil = ms + P.abuseBlockMinutes * 60000;
       const deltaGB = +(d / GB).toFixed(2);

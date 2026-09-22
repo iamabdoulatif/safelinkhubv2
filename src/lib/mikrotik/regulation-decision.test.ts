@@ -98,6 +98,21 @@ describe("régulation — cascade anti-téléchargement", () => {
     assert.equal(out.watch[MAC].offenseCount, 1);
   });
 
+  it("un relevé sans instant de référence ne juge pas : il sert de référence", () => {
+    // Cas des entrées mémorisées avant l'ajout du champ `at` : l'intervalle
+    // est inconnu, le supposer court a bridé 44 clients à des vitesses
+    // impossibles (45 Mbit/s sur des forfaits à 10).
+    const sansAt: Record<string, RegulationWatchEntry> = {
+      [MAC]: { bytesOut: 0, blockedUntil: 0, offenseCount: 0, permanent: false, throttledUntil: 0 },
+    };
+    const out = decide({ watch: sansAt, active: session(2 * GB) });
+    assert.deepEqual(out.throttles, []);
+    assert.deepEqual(out.blocks, []);
+    assert.equal(out.watch[MAC].offenseCount, 0);
+    // …et le passage suivant, lui, dispose de la référence.
+    assert.equal(typeof out.watch[MAC].at, "number");
+  });
+
   it("le client bridé qui reste sage n'accumule rien", () => {
     const out = decide({
       watch: vu({ bytesOut: 2 * GB, offenseCount: 1, throttledUntil: Date.parse(T0) + 120 * 60000 }),
