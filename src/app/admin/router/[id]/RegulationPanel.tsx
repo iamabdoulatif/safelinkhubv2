@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Bot, Loader2 } from "lucide-react";
 import { readRouterRegulation, saveRouterRegulation } from "@/lib/mikrotik/regulation-actions";
 import { REGULATION_DEFAULTS, type RegulationForm } from "@/lib/mikrotik/regulation-defaults";
+import { buttonClass } from "@/components/ui/Button";
 
 type View = Awaited<ReturnType<typeof readRouterRegulation>>;
 
@@ -19,14 +20,14 @@ function Field({
 }: { label: string; hint?: string; value: string | number; onChange: (v: string) => void; step?: number | string; min?: number; type?: string }) {
   return (
     <label className="block">
-      <span className="text-xs font-bold text-ink-soft">{label}</span>
+      <span className="text-[13px] font-medium text-ink">{label}</span>
       <input
         type={type}
         step={step}
         min={min}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
+        className="field mt-1"
       />
       {hint && <span className="mt-0.5 block text-xs text-ink-soft">{hint}</span>}
     </label>
@@ -34,9 +35,11 @@ function Field({
 }
 
 /**
- * Bridage automatique piloté par n8n : ici on ÉDITE les seuils et on LIT ce
- * que le workflow a décidé. Rien n'est envoyé au routeur depuis cet écran —
- * c'est n8n qui, toutes les 5 min, lit ces seuils et applique.
+ * Bridage automatique : ici on ÉDITE les seuils, on ACTIVE ou DÉSACTIVE la
+ * régulation, et on LIT ce que le passage régulier a décidé. Rien n'est envoyé
+ * au routeur depuis cet écran : /api/cron/regulation, toutes les 5 min,
+ * applique — ou, régulation coupée, LIBÈRE le routeur (files de bridage,
+ * clients bloqués, profils réduits).
  */
 export default function RegulationPanel({ routerId }: { routerId: string }) {
   const [view, setView] = useState<View | null>(null);
@@ -57,37 +60,88 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
       [k]: k === "blockLimit" || k === "abuseThrottleLimit" ? v : Number(v),
     }));
 
+  // Bascule immédiate, sans passer par « Enregistrer les seuils » : couper la
+  // régulation ne doit jamais dépendre d'un second clic.
+  const basculer = (enabled: boolean) =>
+    start(async () => {
+      const res = await saveRouterRegulation(routerId, { ...form, enabled });
+      if ("error" in res && res.error) setMsg({ ok: false, text: res.error });
+      else {
+        setForm((f) => ({ ...f, enabled }));
+        setMsg({
+          ok: true,
+          text: enabled
+            ? "Régulation activée — appliquée au prochain passage (≤ 5 min)."
+            : "Régulation désactivée — le routeur sera libéré au prochain passage (≤ 5 min).",
+        });
+        setView(await readRouterRegulation(routerId));
+      }
+    });
+
   const save = () =>
     start(async () => {
       const res = await saveRouterRegulation(routerId, form);
       if ("error" in res && res.error) setMsg({ ok: false, text: res.error });
       else {
-        setMsg({ ok: true, text: form.enabled ? "Seuils enregistrés — n8n les applique au prochain passage (≤ 5 min)." : "Seuils enregistrés, régulation désactivée." });
+        setMsg({ ok: true, text: form.enabled ? "Seuils enregistrés — appliqués au prochain passage (≤ 5 min)." : "Seuils enregistrés, régulation toujours désactivée." });
         setView(await readRouterRegulation(routerId));
       }
     });
 
   const state = view && "state" in view ? view.state : null;
+  // L'état ENREGISTRÉ (pas la saisie en cours) : c'est lui que le passage lit.
+  const enregistre = Boolean(view && "form" in view && view.form?.enabled);
+  const configured = Boolean(view && "configured" in view && view.configured);
   const events = (view && "events" in view && view.events) || [];
   const usedPct = state && form.softCapGo > 0 ? Math.min(999, (state.monthBytes / (form.softCapGo * 1024 ** 3)) * 100) : null;
 
   return (
-    <section className="border border-line bg-paper p-4 rounded-xl">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="flex items-center gap-2 text-base font-bold text-ink">
-            <Bot aria-hidden="true" className="h-5 w-5" /> Bridage automatique (n8n)
-          </h3>
-          <p className="mt-1 text-sm text-ink-soft">
-            Toutes les 5 min, le workflow n8n lit ces seuils, relève le WAN et les sessions, puis lisse le
-            débit sur le mois et bloque les téléchargeurs abusifs. Les seuils vivent ici, pas dans n8n.
+    <section className="rounded-xl border border-line bg-paper p-4 sm:p-5">
+      <h3 className="flex items-center gap-2 text-base font-semibold text-ink">
+        <Bot aria-hidden="true" className="h-5 w-5" /> Régulation du débit (bridage automatique)
+      </h3>
+      <p className="mt-1 text-sm text-ink-soft">
+        Toutes les 5 min, la plateforme relève le WAN et les sessions, lisse le débit sur le mois
+        et bride ou bloque les téléchargeurs abusifs, selon les seuils ci-dessous.
+      </p>
+
+      {/* L'état et l'interrupteur, en tête et sans ambiguïté : la case
+          « Activé » d'avant, perdue dans un coin, ne prenait effet qu'après
+          « Enregistrer les seuils ». */}
+      {view && (
+        <div
+          className={`mt-4 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
+            enregistre ? "border-ok/30 bg-ok-soft" : "border-line bg-clay/60"
+          }`}
+        >
+          <span
+            className={`inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ${
+              enregistre ? "bg-paper text-ok" : "bg-paper text-ink-soft"
+            }`}
+          >
+            <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${enregistre ? "bg-ok" : "bg-line-strong"}`} />
+            {enregistre ? "Régulation active" : "Régulation désactivée"}
+          </span>
+          <p className="min-w-0 flex-1 text-[13px] text-ink-soft">
+            {enregistre
+              ? "Le débit de ce routeur est régulé ; les téléchargeurs abusifs peuvent être bridés ou bloqués."
+              : state?.released
+                ? `Routeur libéré le ${new Date(state.released).toLocaleString("fr-FR")} : aucune file de bridage, aucun client bloqué.`
+                : configured
+                  ? "Libération en attente : le routeur sera nettoyé au prochain passage, dès qu'il est joignable."
+                  : "Aucun bridage ni blocage n'est appliqué à ce routeur."}
           </p>
+          <button
+            type="button"
+            onClick={() => basculer(!enregistre)}
+            disabled={pending}
+            className={buttonClass({ variant: enregistre ? "outline" : "secondary", size: "sm" })}
+          >
+            {pending && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />}
+            {enregistre ? "Désactiver la régulation" : "Activer la régulation"}
+          </button>
         </div>
-        <label className="flex shrink-0 items-center gap-2 text-sm font-medium text-ink">
-          <input type="checkbox" checked={form.enabled} onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))} className="h-4 w-4" />
-          Activé
-        </label>
-      </div>
+      )}
 
       {state && (
         <div className="mt-4 grid gap-2 border border-line bg-clay p-3 text-sm rounded-lg sm:grid-cols-4">

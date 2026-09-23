@@ -49,7 +49,7 @@ export function MeterCell({ percent, label }: { percent: number | null; label?: 
   return (
     <span className="flex items-center gap-2 whitespace-nowrap">
       {label && <span className="w-8 text-xs text-ink-soft">{label}</span>}
-      <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-line-soft">
+      <span aria-hidden="true" className="h-1.5 w-10 shrink-0 overflow-hidden rounded-full bg-line-soft">
         <span
           className={`block h-full rounded-full ${high ? "bg-warn" : "bg-brand-deep"}`}
           style={{ width: `${clamped}%` }}

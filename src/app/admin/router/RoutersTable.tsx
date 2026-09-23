@@ -7,6 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, Link2, MapPin, Router as RouterIcon, Search } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
 import { LockedBadge, MeterCell, StatusBadge } from "./RouterBadges";
+import RouterThumb from "@/components/RouterThumb";
 import RouterRowActions from "./RouterRowActions";
 import { FleetActions } from "./FleetActions";
 import { FleetAttention } from "./FleetAttention";
@@ -281,7 +282,7 @@ export default function RoutersTable({
                   {table.cpu} · {table.ram}
                 </Th>
                 <Th numeric>{table.users}</Th>
-                <Th className="whitespace-nowrap">{table.lastSync}</Th>
+                <Th>{table.lastSync}</Th>
                 <Th>
                   <span className="sr-only">{table.actions}</span>
                 </Th>
@@ -293,7 +294,9 @@ export default function RoutersTable({
                 return (
                   <Tr key={r.id}>
                     <Td>
-                      <Link href={`/admin/router/${r.id}`} className="group block max-w-[16rem]">
+                      <div className="flex items-center gap-3">
+                      <RouterThumb model={r.model} />
+                      <Link href={`/admin/router/${r.id}`} className="group block min-w-0 max-w-[11rem]" title={r.name}>
                         <span className="block truncate font-semibold text-ink group-hover:text-brand-deep">
                           {r.name}
                         </span>
@@ -310,6 +313,7 @@ export default function RoutersTable({
                           </span>
                         )}
                       </Link>
+                      </div>
                     </Td>
                     <Td>
                       <div className="flex flex-wrap items-center gap-1.5">

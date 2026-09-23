@@ -14,10 +14,13 @@ export const KYC_STATUS_LABELS: Record<string, string> = {
   rejected: "Refusé",
 };
 
+// Mêmes quatre statuts que le reste du SaaS (ok / info / warn / err) : le
+// lime plein de « Validé » se confondait avec un bouton d'action.
 export function statusTone(status: string): string {
-  if (status === "approved") return "bg-brand text-slate-deep";
+  if (status === "approved") return "bg-ok-soft text-ok";
   if (status === "rejected") return "bg-err-soft text-err";
-  if (status === "under_review") return "bg-clay text-brand-deep";
+  if (status === "under_review") return "bg-warn-soft text-warn";
+  if (status === "documents_sent" || status === "agreement_signed") return "bg-info-soft text-info";
   return "bg-clay text-ink-soft";
 }
 

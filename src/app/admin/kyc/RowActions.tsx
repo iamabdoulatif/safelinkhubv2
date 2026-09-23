@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { Check, MoreHorizontal, X } from "lucide-react";
 import { decideVerification } from "@/lib/kyc/actions";
 
 /**
@@ -45,12 +45,14 @@ export default function RowActions({
 
   return (
     <details ref={ref} className="relative inline-block [&>summary::-webkit-details-marker]:hidden">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-ink hover:bg-clay">
-        Action
-        <ChevronDown className="h-3.5 w-3.5" />
+      <summary
+        aria-label={`Autres actions pour ${orgName}`}
+        className="btn btn-sm btn-ghost w-8 cursor-pointer list-none px-0"
+      >
+        <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
       </summary>
 
-      <div className="absolute right-0 z-20 mt-1 w-48 border border-line bg-paper p-1 shadow-menu">
+      <div className="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-line bg-paper p-1 text-left shadow-menu">
         {decidable ? (
           <form
             action={decideVerification}
@@ -66,26 +68,28 @@ export default function RowActions({
             <button
               name="decision"
               value="approved"
-              className="block w-full px-3 py-2 text-left text-xs font-semibold text-ink hover:bg-brand hover:text-slate-deep"
+              className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-medium text-ink hover:bg-clay"
             >
+              <Check aria-hidden="true" className="h-4 w-4 text-ok" />
               Valider
             </button>
             <button
               name="decision"
               value="rejected"
-              className="block w-full px-3 py-2 text-left text-xs font-semibold text-err hover:bg-err-soft"
+              className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-medium text-err hover:bg-err-soft"
             >
+              <X aria-hidden="true" className="h-4 w-4" />
               Refuser
             </button>
           </form>
         ) : (
-          <p className="px-3 py-2 text-xs leading-4 text-ink-soft">
+          <p className="px-3 py-2 text-xs leading-5 text-ink-soft">
             Dossier non soumis : rien à décider.
           </p>
         )}
         <Link
           href={`/admin/kyc/${orgId}`}
-          className="mt-1 block border-t border-line-soft px-3 py-2 text-xs font-semibold text-ink hover:bg-clay"
+          className="mt-1 flex h-9 items-center rounded-lg border-t border-line-soft px-3 text-sm font-medium text-ink hover:bg-clay"
         >
           Voir le détail
         </Link>
