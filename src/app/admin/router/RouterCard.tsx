@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { ArrowUpRight, MapPin } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
+import { buttonClass } from "@/components/ui/Button";
+import { LockedBadge, StatusBadge } from "./RouterBadges";
 import { isOfflineRouter } from "./fleet-health";
-import { isConfiguringRouter } from "./router-portfolio";
 import { timeAgo, type RouterDictionary, type RouterRow } from "./router-row";
 
 /** Métrique lisible d'un coup d'œil : le nombre domine, l'intitulé s'efface. */
@@ -36,33 +37,21 @@ export function RouterCard({
   canLock: boolean;
 }) {
   const table = t.table;
-  const online = r.status === "online";
-  const configuring = isConfiguringRouter(r.status);
   const offline = isOfflineRouter(r.status);
 
   return (
-    <li className="slate-card bg-paper p-4">
+    <li className="rounded-xl border border-line bg-paper p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           {/* L'état ne repose pas sur la seule pastille : le mot est écrit à
               côté, pour qui ne distingue pas le vert du rouge. */}
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide">
-            <span
-              aria-hidden="true"
-              className={`h-2 w-2 shrink-0 rounded-full ${online ? "bg-ok" : configuring ? "bg-warn" : "bg-err"}`}
-            />
-            <span className={online ? "text-ok" : configuring ? "text-warn" : "text-err"}>
-              {online ? table.online : configuring ? table.configuring : table.offline}
-            </span>
-            {r.locked && (
-              <span className="ml-1 rounded-full bg-err px-2 py-0.5 text-xs font-semibold text-white">
-                {table.locked}
-              </span>
-            )}
-          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge status={r.status} t={table} />
+            {r.locked && <LockedBadge t={table} />}
+          </div>
           <Link
             href={`/admin/router/${r.id}`}
-            className="mt-1 block truncate font-display text-base font-semibold text-ink hover:text-brand-deep"
+            className="mt-2 block truncate text-base font-semibold text-ink hover:text-brand-deep"
           >
             {r.name}
           </Link>
@@ -105,9 +94,7 @@ export function RouterCard({
 
       <Link
         href={offline ? `/admin/router/${r.id}?tab=diagnostic` : `/admin/router/${r.id}`}
-        className={`mt-3 flex min-h-11 items-center justify-center gap-1.5 px-4 text-sm slate-btn ${
-          offline ? "slate-btn-dark" : "slate-btn-ghost"
-        }`}
+        className={buttonClass({ variant: offline ? "secondary" : "outline", block: true, className: "mt-3" })}
       >
         {offline ? t.fleet.diagnose : t.fleet.details}
         <ArrowUpRight aria-hidden="true" className="h-4 w-4" />

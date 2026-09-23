@@ -56,8 +56,8 @@ export function FleetActions({
   table: RouterDictionary["table"];
 }) {
   return (
-    <details className="group w-full sm:w-auto">
-      <summary className="slate-btn slate-btn-ghost flex min-h-11 cursor-pointer list-none items-center justify-center gap-2 px-4 text-sm marker:hidden [&::-webkit-details-marker]:hidden sm:w-fit">
+    <details className="group relative w-full sm:w-auto">
+      <summary className="btn btn-md btn-outline w-full list-none marker:hidden sm:w-auto [&::-webkit-details-marker]:hidden">
         <Wrench aria-hidden="true" className="h-4 w-4" />
         {t.moreActions}
         <ChevronDown
@@ -66,7 +66,7 @@ export function FleetActions({
         />
       </summary>
 
-      <div className="slate-card mt-2 w-full overflow-hidden bg-paper sm:w-[32rem]">
+      <div className="mt-2 w-full overflow-hidden rounded-xl border border-line bg-paper sm:absolute sm:right-0 sm:z-30 sm:w-[32rem] sm:shadow-menu">
         <ul className="divide-y divide-line-soft" role="list">
           <li className="p-3">
             <SyncAllButton t={actions} />
@@ -87,7 +87,7 @@ export function FleetActions({
 
         <Link
           href="/admin/router/backups"
-          className="flex min-h-11 items-center gap-2 border-t border-line bg-clay px-4 py-3 text-sm font-bold text-ink transition-colors duration-150 hover:bg-line-soft"
+          className="flex min-h-11 items-center gap-2 border-t border-line bg-clay px-4 py-3 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-line-soft"
         >
           <Save aria-hidden="true" className="h-4 w-4" />
           {table.backups}

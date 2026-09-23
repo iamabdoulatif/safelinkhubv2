@@ -35,7 +35,7 @@ export function FleetAttention({
 
   if (health.attention.length === 0) {
     return (
-      <section className="slate-card flex items-start gap-3 bg-ok-soft px-4 py-3">
+      <section className="flex items-start gap-3 rounded-xl border border-ok/20 bg-ok-soft px-4 py-3">
         <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink">{t.allGood}</p>
@@ -56,7 +56,7 @@ export function FleetAttention({
       : t.attentionMany.replace("{count}", String(health.attention.length));
 
   return (
-    <section aria-label={titre} className="slate-card overflow-hidden bg-err-soft">
+    <section aria-label={titre} className="overflow-hidden rounded-xl border border-err/25 bg-err-soft">
       <p className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-ink">
         <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0 text-err" />
         {titre}
@@ -78,7 +78,7 @@ export function FleetAttention({
             </div>
             <Link
               href={`/admin/router/${r.id}?tab=diagnostic`}
-              className="slate-btn slate-btn-dark inline-flex min-h-11 shrink-0 items-center gap-1.5 px-3 text-xs"
+              className="btn btn-md btn-secondary shrink-0"
             >
               {t.diagnose}
               <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />

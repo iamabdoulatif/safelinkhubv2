@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Table, Td, Th, Tr } from "@/components/ui/Table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Link2, Lock, MapPin, Router as RouterIcon, Search } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Link2, MapPin, Router as RouterIcon, Search } from "lucide-react";
+import { buttonClass } from "@/components/ui/Button";
+import { LockedBadge, MeterCell, StatusBadge } from "./RouterBadges";
 import RouterRowActions from "./RouterRowActions";
 import { FleetActions } from "./FleetActions";
 import { FleetAttention } from "./FleetAttention";
@@ -24,43 +26,6 @@ type StatusFilter = RouterTableStatusFilter;
 
 function isStatusFilter(value: string | null): value is StatusFilter {
   return value === "all" || value === "online" || value === "offline" || value === "config";
-}
-
-function StatusBadge({ status, t }: { status: string; t: RouterDictionary["table"] }) {
-  const config = isConfiguringRouter(status);
-  const online = status === "online";
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink">
-      <span
-        aria-hidden="true"
-        className={`h-2 w-2 rounded-full ${online ? "bg-ok" : config ? "bg-warn" : "bg-err"}`}
-      />
-      {online ? t.online : config ? t.configuring : t.offline}
-    </span>
-  );
-}
-
-/** Chip « Verrouillé » : routeur paralysé par le kill-switch (ports coupés sauf ether1). */
-function LockedBadge({ t }: { t: RouterDictionary["table"] }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-err px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
-      <Lock aria-hidden="true" className="h-3 w-3" />
-      {t.locked}
-    </span>
-  );
-}
-
-/** Petite jauge : barre fine, remplissage de marque. */
-function MeterCell({ percent }: { percent: number }) {
-  const clamped = Math.max(0, Math.min(100, percent));
-  return (
-    <span className="flex items-center gap-2">
-      <span aria-hidden="true" className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-clay">
-        <span className="block h-full rounded-full bg-brand-deep" style={{ width: `${clamped}%` }} />
-      </span>
-      <span className="tabular-nums text-ink-soft">{clamped}%</span>
-    </span>
-  );
 }
 
 type RoutersTableProps = {
@@ -161,23 +126,45 @@ export default function RoutersTable({
     return true;
   });
 
+  const displayed = table.displayed
+    .replace("{count}", String(filtered.length))
+    .replace("{router}", filtered.length > 1 ? t.clients.routerPlural : t.clients.router)
+    .replace("{plural}", filtered.length > 1 ? "s" : "");
+
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* En-tête : un seul niveau de titre, une phrase. */}
-      <div>
-        {backHref && (
-          <Link
-            href={backHref}
-            className="mb-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-ink-soft transition-colors duration-150 hover:text-ink"
+      {/* En-tête : titre à gauche, actions à droite — la disposition de toutes
+          les pages de l'administration. UNE action principale (lier un
+          MikroTik), les actions de parc repliées dans un menu. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          {backHref && (
+            <Link
+              href={backHref}
+              className="mb-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-ink-soft transition-colors duration-150 hover:text-ink"
+            >
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              {backLabel ?? table.back}
+            </Link>
+          )}
+          <Heading
+            className={`font-semibold tracking-tight text-ink ${
+              headingLevel === "h1" ? "text-2xl" : "text-lg sm:text-xl"
+            }`}
           >
-            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-            {backLabel ?? table.back}
-          </Link>
+            {title ?? table.title}
+          </Heading>
+          <p className="mt-1 text-sm text-ink-soft">{description ?? table.description}</p>
+        </div>
+        {showFleetActions && (
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+            <FleetActions t={fleet} actions={actions} table={table} />
+            <Link href="/admin/settings/router-setup?new=1" className={buttonClass({ variant: "primary" })}>
+              <Link2 aria-hidden="true" className="h-4 w-4" />
+              {table.linkMikrotik}
+            </Link>
+          </div>
         )}
-        <Heading className="font-display text-xl font-semibold tracking-tight text-ink sm:text-2xl">
-          {title ?? table.title}
-        </Heading>
-        <p className="mt-1 text-sm text-ink-soft">{description ?? table.description}</p>
       </div>
 
       {health.total > 0 && <FleetPulse health={health} t={fleet} table={table} />}
@@ -189,25 +176,11 @@ export default function RoutersTable({
         onShowOffline={() => setFilter("offline")}
       />
 
-      {/* Barre d'action : UNE action principale, le reste replié. */}
-      {showFleetActions && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-          <Link
-            href="/admin/settings/router-setup?new=1"
-            className="slate-btn slate-btn-primary flex min-h-11 items-center justify-center gap-2 px-4 text-sm"
-          >
-            <Link2 aria-hidden="true" className="h-4 w-4" />
-            {table.linkMikrotik}
-          </Link>
-          <FleetActions t={fleet} actions={actions} table={table} />
-        </div>
-      )}
-
-      {/* Recherche puis filtres : on cherche un nom bien plus souvent qu'on ne
-          trie par état, et les filtres portent leur compteur juste dessous. */}
-      <div>
-        <div className="relative">
-          <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+      {/* Barre d'outils : recherche puis filtres, sur une ligne dès la
+          tablette. On cherche un nom bien plus souvent qu'on ne trie par état. */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+        <div className="relative md:max-w-md md:flex-1">
+          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
           <input
             type="search"
             name="router-search"
@@ -215,63 +188,60 @@ export default function RoutersTable({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={table.search}
             aria-label={table.search}
-            className="h-11 w-full rounded-full border border-line bg-paper pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            className="field pl-9"
           />
         </div>
 
-        {/* Défilement horizontal plutôt qu'un retour à la ligne : quatre chips
-            sur deux étages repoussaient le premier routeur d'autant. Les
-            marges négatives laissent le défilement filer jusqu'au bord. */}
-        <div
-          role="group"
-          aria-label={table.filterByStatus}
-          className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
-        >
-          {(
-            [
-              ["all", statusLabels.all],
-              ["online", statusLabels.online],
-              ["offline", statusLabels.offline],
-              ["config", statusLabels.config],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={filter === key}
-              onClick={() => setFilter(key)}
-              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors duration-150 ${
-                filter === key
-                  ? "border-ink bg-ink text-paper"
-                  : "border-line bg-paper text-ink-soft hover:bg-clay hover:text-ink"
-              }`}
-            >
-              {label}
-              <span
-                className={`rounded-full px-1.5 text-xs tabular-nums ${
-                  filter === key ? "bg-paper/20 text-paper" : "bg-clay text-ink-soft"
+        {/* Contrôle segmenté ; défilement horizontal sur téléphone plutôt
+            qu'un retour à la ligne qui repousserait le premier routeur. */}
+        <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+          <div
+            role="group"
+            aria-label={table.filterByStatus}
+            className="inline-flex gap-1 rounded-full bg-line-soft p-1"
+          >
+            {(
+              [
+                ["all", statusLabels.all],
+                ["online", statusLabels.online],
+                ["offline", statusLabels.offline],
+                ["config", statusLabels.config],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={filter === key}
+                onClick={() => setFilter(key)}
+                className={`flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] transition-colors duration-150 ${
+                  filter === key
+                    ? "border-line bg-paper font-semibold text-ink"
+                    : "border-transparent font-medium text-ink-soft hover:text-ink"
                 }`}
               >
-                {counts[key]}
-              </span>
-            </button>
-          ))}
+                {label}
+                <span className="tabular-nums text-ink-soft">{counts[key]}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="slate-card bg-paper px-4 py-12 text-center">
-          <RouterIcon aria-hidden="true" className="mx-auto h-8 w-8 text-ink-soft" />
-          <p className="mt-3 font-display text-base font-semibold text-ink">
+        <div className="rounded-xl border border-dashed border-line-strong/50 bg-paper px-4 py-12 text-center">
+          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-clay">
+            <RouterIcon aria-hidden="true" className="h-5 w-5 text-brand-deep" />
+          </span>
+          <p className="mt-3 text-sm font-semibold text-ink">
             {routers.length === 0 ? table.emptyFleet : table.emptySearch}
           </p>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-ink-soft">
+          <p className="mx-auto mt-1 max-w-sm text-[13px] text-ink-soft">
             {routers.length === 0 ? table.emptyFleetText : table.emptySearchText}
           </p>
           {routers.length === 0 ? (
             <Link
               href="/admin/settings/router-setup?new=1"
-              className="slate-btn slate-btn-primary mt-5 inline-flex min-h-11 items-center gap-2 px-4 text-sm"
+              className={buttonClass({ variant: "primary", className: "mt-5" })}
             >
               <Link2 aria-hidden="true" className="h-4 w-4" />
               {table.linkMikrotik}
@@ -285,7 +255,7 @@ export default function RoutersTable({
                 setQuery("");
                 setFilter("all");
               }}
-              className="slate-btn slate-btn-ghost mt-5 inline-flex min-h-11 items-center gap-2 px-4 text-sm"
+              className={buttonClass({ variant: "outline", className: "mt-5" })}
             >
               {fleet.resetFilters}
             </button>
@@ -303,30 +273,35 @@ export default function RoutersTable({
           {/* Desktop / tablette : table — on y compare des lignes entre elles,
               ce que des cartes côte à côte font moins bien. */}
           <Table className="hidden md:block" caption={t.page.title}>
-              <thead>
-                <tr>
-                  <Th>{table.router}</Th>
-                  <Th>{table.identity}</Th>
-                  <Th>{table.status}</Th>
-                  <Th>{table.cpu}</Th>
-                  <Th>{table.ram}</Th>
-                  <Th numeric>{table.users}</Th>
-                  <Th>{table.lastSync}</Th>
-                  <Th>
-                    <span className="sr-only">{table.actions}</span>
-                  </Th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
+            <thead>
+              <tr>
+                <Th>{table.router}</Th>
+                <Th>{table.status}</Th>
+                <Th className="whitespace-nowrap">
+                  {table.cpu} · {table.ram}
+                </Th>
+                <Th numeric>{table.users}</Th>
+                <Th className="whitespace-nowrap">{table.lastSync}</Th>
+                <Th>
+                  <span className="sr-only">{table.actions}</span>
+                </Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => {
+                const offline = isOfflineRouter(r.status);
+                return (
                   <Tr key={r.id}>
                     <Td>
-                      <Link href={`/admin/router/${r.id}`} className="group block max-w-[18rem]">
+                      <Link href={`/admin/router/${r.id}`} className="group block max-w-[16rem]">
                         <span className="block truncate font-semibold text-ink group-hover:text-brand-deep">
                           {r.name}
                         </span>
-                        <span className="block truncate font-mono text-xs text-ink-soft">
-                          {r.host ? `${r.host}:${r.apiPort ?? 8728}` : "—"}
+                        {/* Le modèle rejoint l'adresse : une colonne à lui seul
+                            faisait déborder le tableau dès 1280 px. */}
+                        <span className="block truncate text-xs text-ink-soft">
+                          {r.model ?? "—"}
+                          {r.host && <span className="font-mono"> · {r.host}:{r.apiPort ?? 8728}</span>}
                         </span>
                         {r.location && (
                           <span className="mt-0.5 flex items-center gap-1 text-xs text-ink-soft">
@@ -336,34 +311,41 @@ export default function RoutersTable({
                         )}
                       </Link>
                     </Td>
-                    <Td className="whitespace-nowrap font-mono text-xs text-ink">{r.model ?? "—"}</Td>
                     <Td>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusBadge status={r.status} t={table} />
                         {r.locked && <LockedBadge t={table} />}
                       </div>
                     </Td>
+                    {/* Un routeur muet ne publie pas de mesure crédible :
+                        « 0 % » ferait passer une absence de mesure pour une
+                        mesure (même règle que les cartes mobiles). */}
                     <Td>
-                      <MeterCell percent={r.cpuLoad ?? 0} />
+                      {offline ? (
+                        <MeterCell percent={null} />
+                      ) : (
+                        <span className="flex flex-col gap-1">
+                          <MeterCell label={table.cpu} percent={r.cpuLoad ?? 0} />
+                          <MeterCell label={table.ram} percent={Number(r.memoryUsage ?? 0)} />
+                        </span>
+                      )}
                     </Td>
-                    <Td>
-                      <MeterCell percent={Math.round(Number(r.memoryUsage ?? 0))} />
+                    <Td numeric className={offline ? "text-ink-soft" : "text-ink"}>
+                      {offline ? "—" : (r.activeUsers ?? 0)}
                     </Td>
-                    <Td numeric className="text-ink">{r.activeUsers ?? 0}</Td>
-                    <Td suppressHydrationWarning className="text-ink-soft">
+                    <Td
+                      suppressHydrationWarning
+                      className={`whitespace-nowrap ${offline ? "font-medium text-err" : "text-ink-soft"}`}
+                    >
                       {timeAgo(r.lastSyncAtMs, table)}
                     </Td>
                     <Td>
                       <div className="flex items-center justify-end gap-1">
                         <Link
-                          href={
-                            isOfflineRouter(r.status)
-                              ? `/admin/router/${r.id}?tab=diagnostic`
-                              : `/admin/router/${r.id}`
-                          }
-                          className="btn btn-sm btn-outline flex items-center gap-1"
+                          href={offline ? `/admin/router/${r.id}?tab=diagnostic` : `/admin/router/${r.id}`}
+                          className={buttonClass({ variant: "outline", size: "sm" })}
                         >
-                          {isOfflineRouter(r.status) ? fleet.diagnose : table.details}
+                          {offline ? fleet.diagnose : table.details}
                           <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
                         </Link>
                         <RouterRowActions
@@ -376,16 +358,12 @@ export default function RoutersTable({
                       </div>
                     </Td>
                   </Tr>
-                ))}
-              </tbody>
+                );
+              })}
+            </tbody>
           </Table>
 
-          <p className="text-xs text-ink-soft">
-            {table.displayed
-              .replace("{count}", String(filtered.length))
-              .replace("{router}", filtered.length > 1 ? t.clients.routerPlural : t.clients.router)
-              .replace("{plural}", filtered.length > 1 ? "s" : "")}
-          </p>
+          <p className="text-xs text-ink-soft">{displayed}</p>
         </>
       )}
     </div>
