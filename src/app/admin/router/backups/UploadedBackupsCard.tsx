@@ -89,8 +89,8 @@ export default function UploadedBackupsCard({
   }
 
   return (
-    <div className="mt-8">
-      <h2 className="font-display text-base font-bold text-ink">
+    <div className="rounded-xl border border-line bg-paper p-4 sm:p-5">
+      <h2 className="text-[15px] font-semibold text-ink">
         Restaurer depuis un fichier de sauvegarde (.backup)
       </h2>
       <p className="mt-1 text-sm text-ink-soft">
@@ -102,7 +102,7 @@ export default function UploadedBackupsCard({
       </p>
 
       {/* Upload */}
-      <div className="mt-4 border border-line bg-paper p-4 rounded-xl">
+      <div className="mt-4">
         <label className="flex cursor-pointer items-center gap-2 text-sm font-bold text-ink">
           <input
             ref={fileRef}

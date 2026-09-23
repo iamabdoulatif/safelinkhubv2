@@ -85,8 +85,8 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
   }
 
   return (
-    <div className="mt-8">
-      <h2 className="font-display text-base font-bold text-ink">
+    <div className="rounded-xl border border-line bg-paper p-4 sm:p-5">
+      <h2 className="text-[15px] font-semibold text-ink">
         Transférer les tickets d’un ancien routeur (.rsc)
       </h2>
       <p className="mt-1 text-sm leading-6 text-ink-soft">
@@ -96,7 +96,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
         pas touchée.
       </p>
 
-      <div className="mt-4 space-y-4 rounded-xl border border-line bg-paper p-4">
+      <div className="mt-4 space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <label className="cursor-pointer">
             <input

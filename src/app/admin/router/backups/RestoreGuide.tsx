@@ -40,12 +40,12 @@ export default function RestoreGuide() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="mt-6 border border-line bg-paper">
+    <div className="rounded-xl border border-line bg-paper">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
+        className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-left hover:bg-clay/60"
       >
         <span className="flex items-center gap-2 text-sm font-semibold text-ink">
           <HelpCircle className="h-4 w-4" />

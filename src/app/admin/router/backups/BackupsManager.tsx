@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Save, RotateCcw, Trash2, AlertTriangle, ScanLine, Loader2 } from "lucide-react";
+import { Save, RotateCcw, Trash2, AlertTriangle, ScanLine, Loader2, ChevronDown } from "lucide-react";
+import { buttonClass } from "@/components/ui/Button";
 import {
   startBackupJob,
   restoreBackup,
@@ -96,6 +97,9 @@ export default function BackupsManager({
   // reposer la sauvegarde — pour un rechange qui prend la place d'un routeur
   // défaillant, dont les anciens tickets n'ont plus de client.
   const [purge, setPurge] = useState<Record<string, boolean>>({});
+  // Panneau de restauration déplié (un seul à la fois) et filtre par routeur.
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [routerFilter, setRouterFilter] = useState("");
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [reports, setReports] = useState<{
     backupId: string;
@@ -398,16 +402,30 @@ export default function BackupsManager({
     });
   }
 
+  // Un seul panneau de restauration ouvert à la fois ; celui d'une
+  // restauration en cours (ou de son rapport) reste ouvert d'office.
+  const ouvert = (id: string) =>
+    openId === id || live?.backupId === id || activeJob?.backupId === id || reports?.backupId === id;
+  // Une sauvegarde de routeur supprimé n'a plus d'identifiant : clé à part.
+  const cleRouteur = (b: { routerId: string | null }) => b.routerId ?? "__supprime";
+  const routeursSauvegardes = Array.from(new Map(backups.map((b) => [cleRouteur(b), b.routerName])));
+  const visibles = routerFilter ? backups.filter((b) => cleRouteur(b) === routerFilter) : backups;
+  const fmtDate = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" });
+
   return (
-    <div className="mt-6">
-      <div className="border border-line bg-paper p-4 rounded-xl">
+    <div className="space-y-5">
+      {/* Sauvegarde manuelle : l'action courante, en tête. */}
+      <section className="rounded-xl border border-line bg-paper p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium text-ink">Routeur à sauvegarder</label>
+            <label htmlFor="backup-source" className="mb-1.5 block text-[13px] font-medium text-ink">
+              Sauvegarder un routeur maintenant
+            </label>
             <select
+              id="backup-source"
               value={sourceRouter}
               onChange={(e) => setSourceRouter(e.target.value)}
-              className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+              className="field"
             >
               {routers.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -421,248 +439,325 @@ export default function BackupsManager({
             type="button"
             onClick={runBackup}
             disabled={busy || !sourceRouter}
-            className="btn btn-md btn-secondary flex items-center justify-center gap-2"
+            className={buttonClass({ variant: "secondary" })}
           >
-            <Save className="h-4 w-4" />
+            {pending ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Save aria-hidden="true" className="h-4 w-4" />}
             {pending ? "En cours…" : "Sauvegarder maintenant"}
           </button>
         </div>
-
+        <p className="mt-2 text-xs text-ink-soft">
+          Lire plusieurs milliers de tickets charge le routeur quelques secondes (100 % de CPU sur
+          un RB951) : en pleine journée, le portail peut ralentir brièvement.
+        </p>
         {feedback && (
           <p
+            role="status"
             className={`mt-3 rounded-lg px-3 py-2 text-sm ${
-              feedback.kind === "ok" ? "bg-clay text-ok" : "bg-err-soft text-err"
+              feedback.kind === "ok" ? "bg-ok-soft text-ok" : "bg-err-soft text-err"
             }`}
           >
             {feedback.text}
           </p>
         )}
-      </div>
+      </section>
 
-      {backups.length === 0 ? (
-        <p className="mt-6 rounded-lg border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
-          Aucune sauvegarde pour l&apos;instant — lancez-en une, ou attendez la capture automatique
-          de cette nuit.
-        </p>
-      ) : (
-        <div className="mt-6 space-y-3">
-          {backups.map((b) => (
-            <div key={b.id} className="border border-line bg-paper p-4 rounded-xl">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <div>
-                  <span className="text-sm font-semibold text-ink">{b.routerName}</span>
-                  {b.model && <span className="ml-2 text-xs text-ink-soft">{b.model}</span>}
-                  {b.rosVersion && <span className="ml-2 text-xs text-ink-soft">RouterOS {b.rosVersion}</span>}
-                  {b.orphan && (
-                    <span className="ml-2 inline-flex items-center gap-1 rounded bg-warn-soft px-1.5 py-0.5 text-xs font-medium text-warn">
-                      <AlertTriangle className="h-3 w-3" />
-                      routeur supprimé — sauvegarde conservée
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs text-ink-soft">
-                  {new Date(b.createdAt).toLocaleString("fr-FR")} · {b.trigger === "auto" ? "auto" : "manuelle"} ·{" "}
-                  {formatSize(b.sizeBytes)}
-                </span>
-              </div>
+      <section>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-ink">Sauvegardes disponibles</h2>
+            <p className="text-[13px] text-ink-soft">
+              {backups.length} sauvegarde{backups.length > 1 ? "s" : ""} · les plus récentes en premier
+            </p>
+          </div>
+          {routeursSauvegardes.length > 1 && (
+            <div>
+              <label htmlFor="backup-filter" className="sr-only">
+                Filtrer par routeur
+              </label>
+              <select
+                id="backup-filter"
+                value={routerFilter}
+                onChange={(e) => setRouterFilter(e.target.value)}
+                className="field h-9 w-auto min-w-48 text-[13px] sm:h-9"
+              >
+                <option value="">Tous les routeurs</option>
+                {routeursSauvegardes.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
 
-              <p className="mt-1 text-xs text-ink-soft">
-                {Object.entries(SECTION_LABELS)
+        {backups.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-line-strong/50 bg-paper px-4 py-8 text-center text-sm text-ink-soft">
+            Aucune sauvegarde pour l&apos;instant — lancez-en une, ou attendez la capture
+            automatique de cette nuit (02:30).
+          </p>
+        ) : (
+          <ul role="list" className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line bg-paper">
+            {visibles.map((b) => {
+              const contenu =
+                Object.entries(SECTION_LABELS)
                   .filter(([k]) => (b.counts[k] ?? 0) > 0)
                   .map(([k, label]) => `${b.counts[k]} ${label}`)
-                  .join(" · ") || "aucune donnée restaurable"}
-              </p>
-
-              <label className="mt-3 flex items-center gap-2 text-sm text-ink-soft">
-                <input
-                  type="checkbox"
-                  checked={!!purge[b.id]}
-                  onChange={(e) => setPurge((p) => ({ ...p, [b.id]: e.target.checked }))}
-                  disabled={busy}
-                />
-                Remplacer : vider d&apos;abord les tickets, profils et cookies du routeur cible, puis marquer l&apos;ancien routeur « remplacé »
-              </label>
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <select
-                  value={target[b.id] ?? ""}
-                  onChange={(e) => setTarget((t) => ({ ...t, [b.id]: e.target.value }))}
-                  className="flex-1 rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
-                >
-                  <option value="">Restaurer vers…</option>
-                  {routers.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                      {r.id === b.routerId ? " (routeur d'origine)" : ""}
-                      {r.status === "online" ? "" : ` — ${r.status}`}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => runScan(b)}
-                  disabled={busy || !target[b.id]}
-                  title="Lit le matériel du rechange (interfaces, WiFi, stockage) sans rien écrire"
-                  className="flex items-center justify-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
-                >
-                  <ScanLine className="h-4 w-4" />
-                  Scanner
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runRestore(b, true)}
-                  disabled={busy || !target[b.id]}
-                  className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
-                >
-                  Simuler
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runRestore(b, false)}
-                  disabled={busy || !target[b.id]}
-                  className="flex items-center justify-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
-                >
-                  {activeJob?.backupId === b.id ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {jobProgress?.total
-                        ? `Tickets ${jobProgress.done ?? 0}/${jobProgress.total}`
-                        : "Restauration…"}
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw className="h-4 w-4" />
-                      Restaurer
-                    </>
-                  )}
-                </button>
-                {activeJob?.backupId === b.id && (
-                  <button
-                    type="button"
-                    onClick={cancelActive}
-                    disabled={pending}
-                    className="btn btn-md btn-outline"
-                  >
-                    Annuler
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => remove(b.id)}
-                  disabled={busy}
-                  aria-label="Supprimer la sauvegarde"
-                  className="rounded-lg border border-line px-3 py-2 text-ink-soft hover:border-err hover:text-err disabled:opacity-60"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-
-              {live?.backupId === b.id ? (
-                <RestoreLive
-                  source={{ name: b.routerName, model: b.model }}
-                  target={routers.find((r) => r.id === live.targetRouterId) ?? { name: "?", model: null }}
-                  counts={b.counts}
-                  progress={live.progress}
-                  status={live.status}
-                  startedAt={live.startedAt}
-                  onCancel={cancelActive}
-                  cancelling={pending}
-                />
-              ) : target[b.id] && (
-                <RestoreTopology
-                  source={sourceNode(b)}
-                  target={targetNode(
-                    routers.find((r) => r.id === target[b.id]) ?? {
-                      name: "?",
-                      model: null,
-                      status: "?",
-                    },
-                  )}
-                  channels={buildTopologyChannels(
-                    b,
-                    reports?.backupId === b.id ? (reports.plan as PlanLike | null) : null,
-                    reports?.backupId === b.id && !reports.dryRun
-                      ? reports.outcome === "done"
-                        ? "done"
-                        : "failed"
-                      : reports?.backupId === b.id && reports.plan
-                        ? "planned"
-                        : "idle",
-                  )}
-                  flowing={flowing === b.id}
-                  blocked={
-                    reports?.backupId === b.id && (reports.plan?.blockers.length ?? 0) > 0
-                  }
-                  failed={reports?.backupId === b.id && reports.outcome === "failed"}
-                />
-              )}
-
-              {reports?.backupId === b.id && (
-                <div className="mt-3 rounded-lg border border-line-soft bg-clay p-3">
-                  <p className="text-xs font-medium text-ink">
-                    {reports.dryRun
-                      ? "Simulation — aucune écriture"
-                      : reports.outcome === "failed"
-                        ? "Restauration interrompue — corrections requises"
-                        : "Résultat de la restauration"}
-                  </p>
-
-                  {reports.plan && (
-                    <div className="mb-2 mt-1 border-b border-line-soft pb-2">
-                      <p className="text-xs text-ink-soft">
-                        {reports.plan.identity.from ?? "?"} → {reports.plan.identity.to ?? "?"}
-                        {reports.plan.wifi.targetApi !== "none" && (
-                          <span className="ml-1">
-                            · WiFi {reports.plan.wifi.sourceApi ?? "?"} → {reports.plan.wifi.targetApi}
-                            {reports.plan.wifi.radios.length > 0 &&
-                              ` (${reports.plan.wifi.radios.join(", ")})`}
-                          </span>
-                        )}
-                        {reports.plan.mikhmon.sourceLabel && (
-                          <span className="ml-1">
-                            · MikHmon {reports.plan.mikhmon.sourceLabel} → {reports.plan.mikhmon.targetLabel}
-                          </span>
-                        )}
-                        {reports.plan.hotspot?.validated && (
-                          <span className="ml-1">
-                            · HotSpot {reports.plan.hotspot.server} → pool {reports.plan.hotspot.addressPool}
-                          </span>
-                        )}
+                  .join(" · ") || "aucune donnée restaurable";
+              const estOuvert = ouvert(b.id);
+              return (
+                <li key={b.id} className={estOuvert ? "bg-clay/40" : undefined}>
+                  <div className="grid gap-2 px-4 py-3.5 sm:px-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_auto] md:items-center md:gap-5">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-ink">{b.routerName}</p>
+                      <p className="truncate text-xs text-ink-soft">
+                        {[b.model, b.rosVersion && `RouterOS ${b.rosVersion}`].filter(Boolean).join(" · ") || "—"}
                       </p>
-                      {reports.plan.blockers.map((b) => (
-                        <p key={b} className="mt-1 text-xs font-medium text-err">
-                          ⛔ {b}
-                        </p>
-                      ))}
-                      {reports.plan.adjustments.map((a) => (
-                        <p key={a} className="mt-0.5 text-xs text-ink-soft">
-                          • {a}
-                        </p>
-                      ))}
+                      {b.orphan && (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-xs font-semibold text-warn">
+                          <AlertTriangle aria-hidden="true" className="h-3 w-3" />
+                          routeur supprimé — sauvegarde conservée
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 text-[13px]">
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink">
+                        <span className="tabular-nums">{fmtDate.format(new Date(b.createdAt))}</span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            b.trigger === "auto" ? "bg-line-soft text-ink-soft" : "bg-info-soft text-info"
+                          }`}
+                        >
+                          {b.trigger === "auto" ? "Auto" : "Manuelle"}
+                        </span>
+                        <span className="text-xs text-ink-soft">{formatSize(b.sizeBytes)}</span>
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-ink-soft" title={contenu}>
+                        {contenu}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 md:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setOpenId(estOuvert && openId === b.id ? null : b.id)}
+                        aria-expanded={estOuvert}
+                        className={buttonClass({ variant: "outline", size: "sm" })}
+                      >
+                        <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
+                        Restaurer…
+                        <ChevronDown
+                          aria-hidden="true"
+                          className={`h-3.5 w-3.5 transition-transform ${estOuvert ? "rotate-180" : ""}`}
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(b.id)}
+                        disabled={busy}
+                        aria-label={`Supprimer la sauvegarde de ${b.routerName} du ${fmtDate.format(new Date(b.createdAt))}`}
+                        className="btn btn-sm btn-ghost w-8 px-0 text-ink-soft hover:text-err"
+                      >
+                        <Trash2 aria-hidden="true" className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {estOuvert && (
+                    <div className="border-t border-line-soft px-4 pb-5 pt-4 sm:px-5">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                        <div>
+                          <label htmlFor={`target-${b.id}`} className="mb-1.5 block text-[13px] font-medium text-ink">
+                            Restaurer vers
+                          </label>
+                          <select
+                            id={`target-${b.id}`}
+                            value={target[b.id] ?? ""}
+                            onChange={(e) => setTarget((t) => ({ ...t, [b.id]: e.target.value }))}
+                            className="field"
+                          >
+                            <option value="">Choisir le routeur cible…</option>
+                            {routers.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                                {r.id === b.routerId ? " (routeur d'origine)" : ""}
+                                {r.status === "online" ? "" : ` — ${r.status}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        {/* Du plus prudent au plus engageant : lire, simuler, écrire. */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => runScan(b)}
+                            disabled={busy || !target[b.id]}
+                            title="Lit le matériel du rechange (interfaces, WiFi, stockage) sans rien écrire"
+                            className={buttonClass({ variant: "ghost" })}
+                          >
+                            <ScanLine aria-hidden="true" className="h-4 w-4" />
+                            Scanner
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => runRestore(b, true)}
+                            disabled={busy || !target[b.id]}
+                            className={buttonClass({ variant: "outline" })}
+                          >
+                            Simuler
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => runRestore(b, false)}
+                            disabled={busy || !target[b.id]}
+                            className={buttonClass({ variant: "primary" })}
+                          >
+                            {activeJob?.backupId === b.id ? (
+                              <>
+                                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                                {jobProgress?.total
+                                  ? `Tickets ${jobProgress.done ?? 0}/${jobProgress.total}`
+                                  : "Restauration…"}
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw aria-hidden="true" className="h-4 w-4" />
+                                Restaurer
+                              </>
+                            )}
+                          </button>
+                          {activeJob?.backupId === b.id && (
+                            <button type="button" onClick={cancelActive} disabled={pending} className={buttonClass({ variant: "outline" })}>
+                              Annuler
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <label className="mt-3 flex items-start gap-2 text-[13px] text-ink-soft">
+                        <input
+                          type="checkbox"
+                          checked={!!purge[b.id]}
+                          onChange={(e) => setPurge((p) => ({ ...p, [b.id]: e.target.checked }))}
+                          disabled={busy}
+                          className="mt-0.5 h-4 w-4 accent-[var(--slate-deep)]"
+                        />
+                        <span>
+                          <strong className="font-semibold text-ink">Remplacer</strong> : vider d&apos;abord
+                          les tickets, profils et cookies du routeur cible, puis marquer l&apos;ancien
+                          routeur « remplacé ». Sans cette case, les tickets sont fusionnés (rien
+                          n&apos;est écrasé).
+                        </span>
+                      </label>
+
+                      {live?.backupId === b.id ? (
+                        <RestoreLive
+                          source={{ name: b.routerName, model: b.model }}
+                          target={routers.find((r) => r.id === live.targetRouterId) ?? { name: "?", model: null }}
+                          counts={b.counts}
+                          progress={live.progress}
+                          status={live.status}
+                          startedAt={live.startedAt}
+                          onCancel={cancelActive}
+                          cancelling={pending}
+                        />
+                      ) : (
+                        target[b.id] && (
+                          <RestoreTopology
+                            source={sourceNode(b)}
+                            target={targetNode(
+                              routers.find((r) => r.id === target[b.id]) ?? {
+                                name: "?",
+                                model: null,
+                                status: "?",
+                              },
+                            )}
+                            channels={buildTopologyChannels(
+                              b,
+                              reports?.backupId === b.id ? (reports.plan as PlanLike | null) : null,
+                              reports?.backupId === b.id && !reports.dryRun
+                                ? reports.outcome === "done"
+                                  ? "done"
+                                  : "failed"
+                                : reports?.backupId === b.id && reports.plan
+                                  ? "planned"
+                                  : "idle",
+                            )}
+                            flowing={flowing === b.id}
+                            blocked={reports?.backupId === b.id && (reports.plan?.blockers.length ?? 0) > 0}
+                            failed={reports?.backupId === b.id && reports.outcome === "failed"}
+                          />
+                        )
+                      )}
+
+                      {reports?.backupId === b.id && (
+                        <div className="mt-3 rounded-xl border border-line bg-paper p-4">
+                          <p className="text-[13px] font-semibold text-ink">
+                            {reports.dryRun
+                              ? "Simulation — aucune écriture"
+                              : reports.outcome === "failed"
+                                ? "Restauration interrompue — corrections requises"
+                                : "Résultat de la restauration"}
+                          </p>
+
+                          {reports.plan && (
+                            <div className="mb-2 mt-1 border-b border-line-soft pb-2">
+                              <p className="text-xs text-ink-soft">
+                                {reports.plan.identity.from ?? "?"} → {reports.plan.identity.to ?? "?"}
+                                {reports.plan.wifi.targetApi !== "none" && (
+                                  <span className="ml-1">
+                                    · WiFi {reports.plan.wifi.sourceApi ?? "?"} → {reports.plan.wifi.targetApi}
+                                    {reports.plan.wifi.radios.length > 0 && ` (${reports.plan.wifi.radios.join(", ")})`}
+                                  </span>
+                                )}
+                                {reports.plan.mikhmon.sourceLabel && (
+                                  <span className="ml-1">
+                                    · MikHmon {reports.plan.mikhmon.sourceLabel} → {reports.plan.mikhmon.targetLabel}
+                                  </span>
+                                )}
+                                {reports.plan.hotspot?.validated && (
+                                  <span className="ml-1">
+                                    · HotSpot {reports.plan.hotspot.server} → pool {reports.plan.hotspot.addressPool}
+                                  </span>
+                                )}
+                              </p>
+                              {reports.plan.blockers.map((bl) => (
+                                <p key={bl} className="mt-1 flex items-start gap-1.5 text-xs font-medium text-err">
+                                  <AlertTriangle aria-hidden="true" className="mt-0.5 h-3 w-3 shrink-0" />
+                                  {bl}
+                                </p>
+                              ))}
+                              {reports.plan.adjustments.map((a) => (
+                                <p key={a} className="mt-0.5 text-xs text-ink-soft">
+                                  • {a}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+
+                          {reports.rows.map((r) => (
+                            <p key={r.section} className="mt-1 text-xs text-ink-soft">
+                              {SECTION_LABELS[r.section] ?? r.section} :{" "}
+                              {r.section === "purgeTarget" ? (
+                                <>{r.removed ?? 0} élément(s) retiré(s) de la cible (sessions, cookies, tickets, profils, balayages)</>
+                              ) : (
+                                <>
+                                  {r.created} créé(s), {r.skipped} déjà présent(s)
+                                  {r.updated > 0 && <>, {r.updated} réaligné(s) sur la sauvegarde</>}
+                                </>
+                              )}
+                              {r.failed.length > 0 && <span className="text-err">, {r.failed.length} en échec</span>}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
-
-                  {reports.rows.map((r) => (
-                    <p key={r.section} className="mt-1 text-xs text-ink-soft">
-                      {SECTION_LABELS[r.section] ?? r.section} :{" "}
-                      {r.section === "purgeTarget" ? (
-                        <>{r.removed ?? 0} élément(s) retiré(s) de la cible (sessions, cookies, tickets, profils, balayages)</>
-                      ) : (
-                        <>
-                          {r.created} créé(s), {r.skipped} déjà présent(s)
-                          {r.updated > 0 && <>, {r.updated} réaligné(s) sur la sauvegarde</>}
-                        </>
-                      )}
-                      {r.failed.length > 0 && (
-                        <span className="text-err">, {r.failed.length} en échec</span>
-                      )}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerRestoreJobs, routers } from "@/lib/db/schema";
@@ -80,28 +78,18 @@ export default async function RouterBackupsPage() {
   const uploadedBackups = session ? await getOrgUploadedBackups().catch(() => []) : [];
 
   return (
-    <div className="mx-auto max-w-5xl animate-fade-in-up">
-      <Link
-        href="/admin/router"
-        className="btn btn-sm btn-outline mb-4 inline-flex items-center gap-1.5"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Revenir aux routeurs
-      </Link>
-
-      <h1 className="text-ink text-2xl font-semibold tracking-tight">Sauvegardes des routeurs</h1>
-      <p className="mt-1 text-sm text-ink-soft">
-        Chaque sauvegarde capture les tickets vendus (code, mot de passe, profil et date
-        d&apos;expiration), les profils tarifaires et le walled-garden. Si un MikroTik meurt, sa
-        sauvegarde survit et se restaure sur le routeur de rechange — même d&apos;un autre modèle.
-        Une capture automatique a lieu chaque nuit à 02:30 ; les 7 dernières sont conservées par
-        routeur.
-      </p>
-      <p className="mt-2 text-xs text-ink-soft">
-        Lire plusieurs milliers de tickets charge le routeur quelques secondes — mesuré à 100 % de
-        CPU sur un RB951. C&apos;est sans conséquence à 02:30, mais une sauvegarde manuelle en
-        pleine journée peut ralentir brièvement le portail de vos clients connectés.
-      </p>
+    <div className="mx-auto max-w-5xl space-y-5">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Sauvegardes des routeurs</h1>
+        <p className="mt-1 max-w-3xl text-sm text-ink-soft">
+          Tickets vendus, profils tarifaires et walled-garden de chaque MikroTik. Si un routeur
+          meurt, sa sauvegarde se restaure sur le rechange — même d&apos;un autre modèle.
+        </p>
+        <ul className="mt-3 flex flex-wrap gap-2 text-xs text-ink-soft" role="list">
+          <li className="rounded-full border border-line bg-paper px-3 py-1">Capture automatique chaque nuit à 02:30</li>
+          <li className="rounded-full border border-line bg-paper px-3 py-1">7 dernières conservées par routeur</li>
+        </ul>
+      </div>
 
       <RestoreGuide />
 
@@ -122,6 +110,15 @@ export default async function RouterBackupsPage() {
         initialJob={initialJob}
       />
 
+      {/* Outils ponctuels, sous la liste : on s'en sert lors d'une migration,
+          pas au quotidien. */}
+      <section className="space-y-4 pt-2">
+        <div>
+          <h2 className="text-base font-semibold text-ink">Autres outils</h2>
+          <p className="text-[13px] text-ink-soft">
+            Transfert d&apos;une configuration exportée et fichiers .backup RouterOS.
+          </p>
+        </div>
       <RscTransferCard routers={orgRouters} />
       <UploadedBackupsCard
         routers={orgRouters}
@@ -134,6 +131,7 @@ export default async function RouterBackupsPage() {
           createdAt: b.createdAt.toISOString(),
         }))}
       />
+      </section>
     </div>
   );
 }
