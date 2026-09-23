@@ -5,6 +5,9 @@ import {
   Coins,
   Percent,
   Receipt,
+  ChevronRight,
+  Link2,
+  UserPlus,
   Router as RouterIcon,
   ShoppingBag,
   Ticket,
@@ -25,6 +28,8 @@ import { formatSc } from "@/lib/safecoin/pricing";
 import DateRangePicker from "./DateRangePicker";
 import LineChart from "@/components/charts/LineChart";
 import BarChart from "@/components/charts/BarChart";
+import { buttonClass } from "@/components/ui/Button";
+import { Table, Td, Th, Tr } from "@/components/ui/Table";
 import type { AdminDictionary } from "@/lib/i18n/admin/fr";
 import { type Locale, HTML_LANG } from "@/lib/i18n/config";
 
@@ -76,8 +81,19 @@ export type DashboardViewProps = {
   picker: { from: string; to: string; activePreset: string | null };
   /* Le dictionnaire arrive en PROP, comme les données : l'écran doit rester
      rendable par un banc d'essai sans session ni cookie. */
+  /** Raccourcis autorisés pour ce rôle (filtrés par la page). */
+  quickActions: QuickAction[];
   t: AdminDictionary["dashboard"];
   locale: Locale;
+};
+
+export type QuickAction = "router" | "packages" | "expense" | "members";
+
+const QUICK_ACTIONS: Record<QuickAction, { href: string; icon: typeof Coins }> = {
+  router: { href: "/admin/settings/router-setup?new=1", icon: Link2 },
+  packages: { href: "/admin/packages", icon: Ticket },
+  expense: { href: "/admin/expenses", icon: Receipt },
+  members: { href: "/admin/members", icon: UserPlus },
 };
 
 /* Les formats de nombre et de date suivent la langue : « 4 000 » / « 4,000 »,
@@ -201,7 +217,7 @@ function StatTile({
   return (
     <Link
       href={href}
-      className={`tile-hover flex h-full flex-col rounded-xl border border-line border-t-4 border-t-line bg-paper transition-colors ${compact ? "p-3.5" : "p-5"} ${accents[accent]}`}
+      className={`tile-hover flex h-full flex-col rounded-xl border border-line border-t-4 border-t-line bg-paper transition-colors ${compact ? "p-3.5" : "p-4 sm:p-5"} ${accents[accent]}`}
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-[13px] font-medium text-ink-soft">{label}</p>
@@ -213,7 +229,7 @@ function StatTile({
       </div>
       <p
         title={fullValue}
-        className={`tabular-nums tracking-tight text-ink ${compact ? "mt-1.5 text-lg font-semibold" : "mt-3 text-[28px] font-semibold leading-8"}`}
+        className={`tabular-nums tracking-tight text-ink ${compact ? "mt-1.5 text-lg font-semibold" : "mt-3 text-xl font-semibold leading-7 sm:text-[28px] sm:leading-8"}`}
       >
         {value}
       </p>
@@ -227,7 +243,7 @@ function StatTile({
   );
 }
 
-export default function DashboardView({ kpis, monthly, daily, recentSales, safecoin, countries, reseller, rangeLabel, picker, t, locale }: DashboardViewProps) {
+export default function DashboardView({ kpis, monthly, daily, recentSales, safecoin, countries, reseller, rangeLabel, picker, quickActions, t, locale }: DashboardViewProps) {
   const { formatFcfa, formatFcfaCompact, formatNumber, formatDay, formatDateTime } = formatters(locale);
   /* « 2026-08 » → « août ». Le libellé d'axe doit rester court : six barres
      partagent la largeur d'une carte de graphique. */
@@ -250,50 +266,47 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
   const total = kpis?.routersTotal ?? 0;
   const online = kpis?.routersOnline ?? 0;
 
+  // Rail de droite du bloc « activité » : n'existe que pour le superadmin.
+  const superRail = countries.length > 0 || Boolean(safecoin);
+
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-ink text-2xl font-semibold tracking-tight">{t.title}</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <DateRangePicker from={picker.from} to={picker.to} activePreset={picker.activePreset} />
-          {/* Les deux actions vivaient dans le bandeau héros, que la grille de
-              tuiles remplace. Elles remontent près du titre plutôt que de
-              disparaître avec lui. */}
-          <Link
-            href="/admin/vouchers"
-            className="btn btn-md btn-primary inline-flex items-center gap-2"
-          >
+    <div className="space-y-6">
+      {/* En-tête : titre et période à gauche, UNE action principale à droite ;
+          le sélecteur de période dessous, à pleine largeur utile. */}
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">{t.title}</h1>
+            <p className="mt-1 text-sm text-ink-soft">{t.period(rangeLabel)}</p>
+          </div>
+          <Link href="/admin/vouchers" className={buttonClass({ variant: "primary" })}>
             <Ticket aria-hidden="true" className="h-4 w-4" />
             {t.cashed.generateVouchers}
           </Link>
         </div>
+        <DateRangePicker from={picker.from} to={picker.to} activePreset={picker.activePreset} />
       </div>
 
-      {/* Ce qui exige une action passe AVANT les chiffres. L'écran précédent
-          affichait « 11/14 en ligne » noyé dans une carte parmi quatre, sans
-          jamais nommer les routeurs tombés ni proposer d'y aller. */}
+      {/* Ce qui exige une action passe AVANT les chiffres : les routeurs tombés
+          sont nommés, avec un accès direct au diagnostic. */}
       {offline.length > 0 && (
         <Link
           href="/admin/router?status=offline"
-          className="mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-err bg-err-soft px-4 py-3.5 transition-colors hover:bg-err-soft/70"
+          className="flex flex-wrap items-center gap-3 rounded-xl border border-err/30 bg-err-soft px-4 py-3 transition-colors hover:border-err/50"
         >
           <AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-err" />
-          <p className="text-sm font-semibold text-err">
-            {t.offline.count(offline.length)}
-          </p>
+          <p className="text-sm font-semibold text-err">{t.offline.count(offline.length)}</p>
           <p className="min-w-0 flex-1 truncate font-mono text-xs text-ink-soft">
             {offline.join(" · ")}
           </p>
-          <span className="text-xs font-semibold text-err">{t.offline.cta}</span>
+          <span className={buttonClass({ variant: "outline", size: "sm" })}>{t.offline.cta}</span>
         </Link>
       )}
 
       {reseller?.pendingPayment && (
-        <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-brand-deep bg-brand/15 px-4 py-4">
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-brand-deep/30 bg-brand/15 px-4 py-4">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-ink">
-              {t.reseller.pendingTitle}
-            </p>
+            <p className="text-sm font-semibold text-ink">{t.reseller.pendingTitle}</p>
             <p className="mt-1 text-xs leading-5 text-ink-soft">
               {t.reseller.pendingText(
                 formatNumber(RESELLER_PACK_FCFA),
@@ -302,17 +315,14 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
               )}
             </p>
           </div>
-          <Link
-            href="/admin/billing?pack=revendeur"
-            className="btn btn-md btn-primary inline-flex shrink-0 items-center gap-2"
-          >
+          <Link href="/admin/billing?pack=revendeur" className={buttonClass({ variant: "secondary" })}>
             {t.reseller.pendingCta}
           </Link>
         </div>
       )}
 
       {reseller?.active && (
-        <p className="mt-4 text-xs text-ink-soft">
+        <p className="text-xs text-ink-soft">
           {t.reseller.active(reseller.quotaLeft, reseller.quotaTotal)}
           {reseller.expiresAt
             ? t.reseller.activeUntil(
@@ -325,118 +335,284 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
         </p>
       )}
 
-      {/* Huit compteurs, sur la disposition du modèle : libellé, chiffre,
-          accès. Le bandeau héros et la carte Parc ont fondu dedans — les
-          garder aurait fait lire l'encaissé et le parc deux fois sur le même
-          écran. La barre segmentée du parc, elle, survit DANS sa tuile : elle
-          montre d'un coup d'œil combien de routeurs sont tombés. */}
-      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-ink-soft">
-        {t.tiles.title}
-      </h2>
-      {/* Deux rangs, pas huit tuiles égales : l'encaissé et le parc se lisent
-          avant les commissions. Les huit restent cliquables. */}
-      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label={t.tiles.gross}
-          {...fcfaTile(data?.kpis.grossCents ?? 0)}
-          hint={t.tiles.grossHint(rangeLabel)}
-          href="/admin/sales"
-          more={t.tiles.more}
-          icon={Coins}
-          accent="brand"
-        />
-        <StatTile
-          label={t.tiles.net}
-          {...fcfaTile(data?.kpis.netCents ?? 0)}
-          hint={t.tiles.netHint}
-          href="/admin/sales"
-          more={t.tiles.more}
-          icon={TrendingUp}
-          accent="ok"
-        />
-        <StatTile
-          label={t.tiles.routers}
-          value={total > 0 ? `${online}` : "—"}
-          hint={total > 0 ? t.tiles.routersHint(total) : t.tiles.routersEmpty}
-          href={total > 0 ? "/admin/router" : "/admin/settings/router-setup?new=1"}
-          more={total > 0 ? t.tiles.more : t.fleet.link}
-          icon={RouterIcon}
-          accent={offline.length > 0 ? "err" : "ok"}
-        >
-          {total > 0 && (
-            <span className="mt-2 flex gap-1" aria-hidden="true">
-              {Array.from({ length: total }).map((_, i) => (
-                <span
-                  key={i}
-                  className={`h-1.5 flex-1 rounded-full ${i < online ? "bg-ok" : "bg-err"}`}
-                />
-              ))}
-            </span>
+      {/* 1. KPI : quatre chiffres majeurs, puis quatre compteurs compacts.
+          Les huit restent cliquables vers leur écran. */}
+      <section>
+        <h2 className="sr-only">{t.tiles.title}</h2>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <StatTile
+            label={t.tiles.gross}
+            {...fcfaTile(data?.kpis.grossCents ?? 0)}
+            hint={t.tiles.grossHint(rangeLabel)}
+            href="/admin/sales"
+            more={t.tiles.more}
+            icon={Coins}
+            accent="brand"
+          />
+          <StatTile
+            label={t.tiles.net}
+            {...fcfaTile(data?.kpis.netCents ?? 0)}
+            hint={t.tiles.netHint}
+            href="/admin/sales"
+            more={t.tiles.more}
+            icon={TrendingUp}
+            accent="ok"
+          />
+          <StatTile
+            label={t.tiles.routers}
+            value={total > 0 ? `${online}` : "—"}
+            hint={total > 0 ? t.tiles.routersHint(total) : t.tiles.routersEmpty}
+            href={total > 0 ? "/admin/router" : "/admin/settings/router-setup?new=1"}
+            more={total > 0 ? t.tiles.more : t.fleet.link}
+            icon={RouterIcon}
+            accent={offline.length > 0 ? "err" : "ok"}
+          >
+            {total > 0 && (
+              <span className="mt-2 flex gap-1" aria-hidden="true">
+                {Array.from({ length: total }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={`h-1.5 flex-1 rounded-full ${i < online ? "bg-ok" : "bg-err"}`}
+                  />
+                ))}
+              </span>
+            )}
+          </StatTile>
+          <StatTile
+            label={t.tiles.sessions}
+            value={formatNumber(data?.kpis.activeUsers ?? 0)}
+            hint={t.tiles.sessionsHint}
+            href="/admin/usage-analytics"
+            more={t.tiles.more}
+            icon={Wifi}
+            accent="ink"
+          />
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <StatTile
+            compact
+            label={t.tiles.sales}
+            value={formatNumber(data?.kpis.salesCount ?? 0)}
+            hint={t.tiles.salesHint}
+            href="/admin/sales"
+            more={t.tiles.more}
+            icon={ShoppingBag}
+            accent="brand"
+          />
+          <StatTile
+            compact
+            label={t.tiles.commissions}
+            {...fcfaTile(data?.kpis.commissionCents ?? 0)}
+            hint={t.tiles.commissionsHint}
+            href="/admin/transactions"
+            more={t.tiles.more}
+            icon={Percent}
+            accent="ink"
+          />
+          <StatTile
+            compact
+            label={t.tiles.expenses}
+            {...fcfaTile(data?.kpis.expenseCents ?? 0)}
+            hint={t.tiles.expensesHint}
+            href="/admin/expenses"
+            more={t.tiles.more}
+            icon={Receipt}
+            accent="err"
+          />
+          <StatTile
+            compact
+            label={t.tiles.credit}
+            {...fcfaTile(data?.kpis.creditCents ?? 0)}
+            hint={t.tiles.creditHint}
+            href="/admin/billing"
+            more={t.tiles.more}
+            icon={WalletCards}
+            accent="ok"
+          />
+        </div>
+        {/* fin de la grille des compteurs */}
+      </section>
+
+      {/* 2. Tendance de la période + 3. actions : ce qu'on regarde, puis ce
+          qu'on fait. */}
+      <div
+        className="stagger grid grid-cols-1 gap-4 lg:grid-cols-3"
+        style={{ "--stagger-step": "45ms" } as React.CSSProperties}
+      >
+        <Card className="reveal p-5 lg:col-span-2">
+          {/* LineChart rend déjà sa légende (qui bascule sur les valeurs du
+              jour au survol) : en poser une seconde ferait doublon. */}
+          <h2 className="text-base font-semibold text-ink">{t.chart.title}</h2>
+          {hasAnyData && data ? (
+            <DailyChart daily={data.daily} t={t.chart} formatDay={formatDay} />
+          ) : (
+            <div className="mt-4 flex h-48 flex-col items-center justify-center rounded-lg border border-dashed border-line-strong/50 text-center">
+              <p className="text-sm font-medium text-ink">{t.chart.noDataTitle}</p>
+              <p className="mt-1 max-w-xs text-xs text-ink-soft">{t.chart.noDataText}</p>
+            </div>
           )}
-        </StatTile>
-        <StatTile
-          label={t.tiles.sessions}
-          value={formatNumber(data?.kpis.activeUsers ?? 0)}
-          hint={t.tiles.sessionsHint}
-          href="/admin/usage-analytics"
-          more={t.tiles.more}
-          icon={Wifi}
-          accent="ink"
-        />
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <StatTile
-          compact
-          label={t.tiles.sales}
-          value={formatNumber(data?.kpis.salesCount ?? 0)}
-          hint={t.tiles.salesHint}
-          href="/admin/sales"
-          more={t.tiles.more}
-          icon={ShoppingBag}
-          accent="brand"
-        />
-        <StatTile
-          compact
-          label={t.tiles.commissions}
-          {...fcfaTile(data?.kpis.commissionCents ?? 0)}
-          hint={t.tiles.commissionsHint}
-          href="/admin/transactions"
-          more={t.tiles.more}
-          icon={Percent}
-          accent="ink"
-        />
-        <StatTile
-          compact
-          label={t.tiles.expenses}
-          {...fcfaTile(data?.kpis.expenseCents ?? 0)}
-          hint={t.tiles.expensesHint}
-          href="/admin/expenses"
-          more={t.tiles.more}
-          icon={Receipt}
-          accent="err"
-        />
-        <StatTile
-          compact
-          label={t.tiles.credit}
-          {...fcfaTile(data?.kpis.creditCents ?? 0)}
-          hint={t.tiles.creditHint}
-          href="/admin/billing"
-          more={t.tiles.more}
-          icon={WalletCards}
-          accent="ok"
-        />
+        </Card>
+
+        {quickActions.length > 0 && (
+          <Card className="reveal p-5">
+            <h2 className="text-base font-semibold text-ink">{t.quick.title}</h2>
+            <ul className="mt-2 divide-y divide-line-soft" role="list">
+              {quickActions.map((key) => {
+                const { href, icon: Icon } = QUICK_ACTIONS[key];
+                return (
+                  <li key={key}>
+                    <Link href={href} className="group flex min-h-14 items-center gap-3 py-2">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-clay">
+                        <Icon aria-hidden="true" className="h-4 w-4 text-ink" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-ink group-hover:text-brand-deep">
+                          {t.quick[key]}
+                        </span>
+                        <span className="block truncate text-xs text-ink-soft">
+                          {t.quick[`${key}Hint`]}
+                        </span>
+                      </span>
+                      <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-soft" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        )}
       </div>
 
-      {/* Histogrammes mensuels, comme le modèle : un compteur par carte, les
-          mois en abscisse. Ils IGNORENT le sélecteur de période — sinon la
-          vue par défaut (le mois en cours) n'afficherait qu'une seule barre
-          par graphique, ce qui ne compare rien. */}
+      {/* 4. Activité récente + détail superadmin (pays, Safecoin) en rail. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <section className={superRail ? "lg:col-span-2" : "lg:col-span-3"}>
+          <div className="mb-3 flex items-baseline justify-between gap-2">
+            <h2 className="text-base font-semibold text-ink">{t.recent.title}</h2>
+            {hasSales && (
+              <Link href="/admin/sales" className="text-[13px] font-semibold text-brand-deep hover:underline">
+                {t.recent.seeAll}
+              </Link>
+            )}
+          </div>
+          {hasSales && data ? (
+            <Table caption={t.recent.title}>
+              <thead>
+                <tr>
+                  <Th>{t.recent.colPackage}</Th>
+                  <Th>{t.recent.colUser}</Th>
+                  <Th numeric>{t.recent.colAmount}</Th>
+                  <Th numeric className="hidden sm:table-cell">
+                    {t.recent.colDate}
+                  </Th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentSales.map((s) => (
+                  <Tr key={s.id}>
+                    <Td className="font-medium text-ink">
+                      <span className="block max-w-[14rem] truncate">{s.packageName}</span>
+                    </Td>
+                    <Td className="font-mono text-xs text-ink-soft">
+                      <span className="block max-w-[10rem] truncate">{s.username}</span>
+                    </Td>
+                    <Td numeric className="whitespace-nowrap font-semibold text-ink">
+                      {formatFcfa(s.priceCents)}
+                    </Td>
+                    <Td numeric className="hidden whitespace-nowrap text-ink-soft sm:table-cell">
+                      {formatDateTime(s.createdAt)}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          ) : (
+            <p className="rounded-xl border border-dashed border-line-strong/50 bg-paper px-4 py-8 text-center text-sm text-ink-soft">
+              {t.recent.empty}
+            </p>
+          )}
+        </section>
+
+        {superRail && (
+          <div className="space-y-4">
+            {countries.length > 0 && (
+              <Card className="p-5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="text-base font-semibold text-ink">{t.countries.title}</h2>
+                  <span className="text-xs text-ink-soft">
+                    {t.countries.total(countries.reduce((n, c) => n + c.accounts, 0))}
+                  </span>
+                </div>
+                <ul className="mt-3 space-y-2.5" role="list">
+                  {countries.map((c) => (
+                    <li key={c.iso2 ?? "inconnu"}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="flex min-w-0 items-baseline gap-2">
+                          <span aria-hidden="true">{c.flag}</span>
+                          <span className={`truncate text-sm ${c.iso2 ? "text-ink" : "italic text-ink-soft"}`}>
+                            {c.label}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
+                          {c.accounts}
+                          <span className="ml-1.5 text-xs font-normal text-ink-soft">
+                            {Math.round(c.share * 100)}&nbsp;%
+                          </span>
+                        </span>
+                      </div>
+                      {/* Même information que le pourcentage : aria-hidden. */}
+                      <div aria-hidden="true" className="mt-1 h-1.5 rounded-full bg-line-soft">
+                        <div
+                          className={`h-full rounded-full ${c.iso2 ? "bg-brand-deep" : "bg-line-strong"}`}
+                          style={{ width: `${Math.max(c.share * 100, 2)}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
+            {/* Safecoin : information de superadmin, dans le rail, jamais au
+                -dessus des revenus. */}
+            {safecoin && (
+              <Link
+                href="/admin/safecoin"
+                className="block rounded-xl bg-slate-deep p-5 text-white transition-colors hover:bg-slate-deep/90"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-brand">{t.safecoin.title}</p>
+                  <span className="font-mono text-xs text-white/70">
+                    {t.safecoin.rate(formatNumber(safecoin.rateFcfaPerSc))}
+                  </span>
+                </div>
+                <dl className="mt-4 space-y-2.5">
+                  {[
+                    [t.safecoin.issued, safecoin.kpis.issued],
+                    [t.safecoin.spent, safecoin.kpis.spent],
+                    [t.safecoin.circulating, safecoin.kpis.circulating],
+                  ].map(([label, value]) => (
+                    <div key={label as string} className="flex items-baseline justify-between gap-3">
+                      <dt className="text-sm text-white/70">{label}</dt>
+                      <dd className="font-mono text-sm font-semibold tabular-nums text-white">
+                        {formatSc(value as number)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="mt-4 text-xs font-semibold text-brand">{t.safecoin.open}</p>
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 5. Détail : histogrammes des six derniers mois. Ils IGNORENT le
+          sélecteur de période — sinon la vue par défaut (le mois en cours)
+          n'afficherait qu'une barre par graphique, ce qui ne compare rien. */}
       {monthly && (
-        <>
-          <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-ink-soft">
-            {t.charts.title}
-          </h2>
-          <p className="mt-1 text-xs text-ink-soft">{t.charts.subtitle}</p>
+        <section>
+          <h2 className="text-base font-semibold text-ink">{t.charts.title}</h2>
+          <p className="mt-1 text-[13px] text-ink-soft">{t.charts.subtitle}</p>
           <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {(
               [
@@ -457,146 +633,12 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
                   ariaLabel={titre}
                   emptyLabel={t.chart.empty}
                 />
-                <p className="mt-1 text-center text-xs italic text-ink-soft">
-                  {t.charts.month}
-                </p>
+                <p className="mt-1 text-center text-xs text-ink-soft">{t.charts.month}</p>
               </Card>
             ))}
           </div>
-        </>
+        </section>
       )}
-
-      <div className="stagger mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3" style={{ "--stagger-step": "45ms" } as React.CSSProperties}>
-        <Card className="reveal p-5 lg:col-span-2">
-          {/* Pas de légende ajoutée ici : LineChart en rend déjà une, avec les
-              bonnes couleurs, et qui bascule sur les valeurs du jour au survol.
-              En poser une seconde ferait doublon et perdrait ce comportement. */}
-          <h2 className="font-semibold text-ink">{t.chart.title}</h2>
-
-          {hasAnyData && data ? (
-            <DailyChart daily={data.daily} t={t.chart} formatDay={formatDay} />
-          ) : (
-            <div className="mt-4 flex h-48 flex-col items-center justify-center rounded-lg border border-line bg-clay text-center">
-              <p className="text-sm font-medium text-ink">{t.chart.noDataTitle}</p>
-              <p className="mt-1 max-w-xs text-xs text-ink-soft">{t.chart.noDataText}</p>
-            </div>
-          )}
-
-          {/* La ventilation du bas de carte a disparu : ses quatre valeurs sont
-              désormais lues ailleurs — brut et net dans le bandeau d'en-tête,
-              commissions et dépenses dans les tuiles, où elles mènent en plus
-              vers leur écran. La garder aurait fait lire les mêmes chiffres
-              trois fois sur un seul écran. */}
-        </Card>
-
-        <div className="reveal space-y-4">
-          <Card className="p-5">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold text-ink">{t.recent.title}</h2>
-              {hasSales && (
-                <Link href="/admin/sales" className="text-xs font-semibold text-brand-deep hover:underline">
-                  {t.recent.seeAll}
-                </Link>
-              )}
-            </div>
-            {hasSales && data ? (
-              <ul className="mt-3 divide-y divide-line" role="list">
-                {data.recentSales.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink">{s.packageName}</p>
-                      <p className="truncate font-mono text-xs text-ink-soft">
-                        {s.username} · {formatDateTime(s.createdAt)}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-sm font-semibold tabular-nums text-ok">
-                      {formatFcfa(s.priceCents)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-4 text-sm text-ink-soft">{t.recent.empty}</p>
-            )}
-          </Card>
-
-          {countries.length > 0 && (
-            <Card className="p-5">
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 className="font-semibold text-ink">{t.countries.title}</h2>
-                <span className="text-xs text-ink-soft">
-                  {t.countries.total(countries.reduce((n, c) => n + c.accounts, 0))}
-                </span>
-              </div>
-              <ul className="mt-3 space-y-2.5" role="list">
-                {countries.map((c) => (
-                  <li key={c.iso2 ?? "inconnu"}>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="flex min-w-0 items-baseline gap-2">
-                        <span aria-hidden="true">{c.flag}</span>
-                        <span
-                          className={`truncate text-sm ${c.iso2 ? "text-ink" : "italic text-ink-soft"}`}
-                        >
-                          {c.label}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
-                        {c.accounts}
-                        <span className="ml-1.5 text-xs font-normal text-ink-soft">
-                          {Math.round(c.share * 100)}&nbsp;%
-                        </span>
-                      </span>
-                    </div>
-                    {/* La barre porte la même information que le pourcentage :
-                        elle sert à comparer d'un coup d'œil, pas à l'énoncer.
-                        D'où aria-hidden — la lire deux fois n'aide personne. */}
-                    <div aria-hidden="true" className="mt-1 h-1.5 rounded-full bg-clay">
-                      <div
-                        className={`h-full rounded-full ${c.iso2 ? "bg-brand" : "bg-line"}`}
-                        style={{ width: `${Math.max(c.share * 100, 2)}%` }}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-
-          {/* Safecoin passe du bandeau pleine largeur au rail : c'est une
-              information de superadmin, elle ne doit pas dominer les revenus.
-              Le fond en dur #1c1917 devient le vert profond de la charte. */}
-          {safecoin && (
-            <Link
-              href="/admin/safecoin"
-              className="block rounded-xl bg-slate-deep p-5 text-white transition-colors hover:bg-[#0C2415]"
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-brand">
-                  {t.safecoin.title}
-                </p>
-                <span className="font-mono text-xs text-white/60">
-                  {t.safecoin.rate(formatNumber(safecoin.rateFcfaPerSc))}
-                </span>
-              </div>
-              <dl className="mt-4 space-y-2.5">
-                {[
-                  [t.safecoin.issued, safecoin.kpis.issued],
-                  [t.safecoin.spent, safecoin.kpis.spent],
-                  [t.safecoin.circulating, safecoin.kpis.circulating],
-                ].map(([label, value]) => (
-                  <div key={label as string} className="flex items-baseline justify-between gap-3">
-                    <dt className="text-sm text-white/65">{label}</dt>
-                    <dd className="font-mono text-sm font-bold tabular-nums text-white">
-                      {formatSc(value as number)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="mt-4 text-xs font-semibold text-brand">{t.safecoin.open}</p>
-            </Link>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

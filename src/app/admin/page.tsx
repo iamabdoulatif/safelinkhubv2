@@ -1,4 +1,5 @@
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 import { getDashboardData } from "@/lib/dashboard/queries";
 import { getMonthlySeries } from "@/lib/dashboard/monthly";
 import { getSafecoinReport } from "@/lib/safecoin/queries";
@@ -7,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations } from "@/lib/db/schema";
 import { resellerState } from "@/lib/billing/reseller";
-import DashboardView from "./DashboardView";
+import DashboardView, { type QuickAction } from "./DashboardView";
 import { getAdminDict } from "@/lib/i18n/admin";
 import { getLocale } from "@/lib/i18n/server";
 import { HTML_LANG } from "@/lib/i18n/config";
@@ -95,6 +96,19 @@ export default async function DashboardPage({
         .catch(() => [])
     : [];
 
+  // Raccourcis filtrés par capacité, comme la barre latérale : un raccourci
+  // qui mène à « accès refusé » apprend à se méfier de tous les autres.
+  const quickActions = (
+    [
+      ["router", "routers"],
+      ["packages", "packages"],
+      ["expense", "billing"],
+      ["members", "members"],
+    ] as const
+  )
+    .filter(([, need]) => can(session?.role, need))
+    .map(([key]) => key satisfies QuickAction);
+
   const [locale, adminDict] = await Promise.all([getLocale(), getAdminDict()]);
   const fmt = new Intl.DateTimeFormat(HTML_LANG[locale], { dateStyle: "medium" });
 
@@ -113,6 +127,7 @@ export default async function DashboardPage({
       reseller={orgRow ? resellerState(orgRow) : null}
       rangeLabel={`${fmt.format(from)} – ${fmt.format(to)}`}
       picker={{ from: fromParam, to: toParamStr, activePreset }}
+      quickActions={quickActions}
       t={adminDict.dashboard}
       locale={locale}
     />
