@@ -35,7 +35,7 @@ export default function ChangePasswordForm() {
           type="password"
           required
           autoComplete="current-password"
-          className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
+          className="field w-full"
         />
       </div>
       <div>
@@ -53,7 +53,7 @@ export default function ChangePasswordForm() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder={passwordExample}
-            className="w-full rounded-lg border border-line-soft px-3 py-2 pr-10 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
+            className="w-full rounded-lg border border-line-soft px-3 py-2 pr-10 text-sm focus:border-ink"
           />
           <button
             type="button"
@@ -71,7 +71,7 @@ export default function ChangePasswordForm() {
         <button
           type="submit"
           disabled={pending}
-          className="flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn btn-md btn-secondary flex items-center gap-1.5"
         >
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {pending ? "Mise à jour..." : "Changer le mot de passe"}

@@ -97,7 +97,7 @@ export default function DetectedModelBadge({
   });
 
   return (
-    <div className="mt-4 rounded-md border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
+    <div className="mt-4 rounded-lg border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
         <Cpu className="h-4 w-4 text-ink-soft" />
@@ -123,7 +123,7 @@ export default function DetectedModelBadge({
           onClick={refresh}
           disabled={refreshing}
           title="Revérifier l'état du routeur"
-          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-ink-soft hover:bg-clay hover:text-ink-soft disabled:opacity-50"
+          className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs text-ink-soft hover:bg-clay hover:text-ink-soft disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
         </button>
@@ -250,7 +250,7 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
   }
 
   return (
-    <div id="device-mode-unlock" className="mt-2 rounded-md bg-clay px-3 py-2 text-warn">
+    <div id="device-mode-unlock" className="mt-2 rounded-lg bg-clay px-3 py-2 text-warn">
       <p className="font-medium">
         Container désactivé par le mode RouterOS — le matériel le supporte, mais la fonctionnalité
         est verrouillée par défaut (vrai pour tous les modes sauf ROSE).
@@ -274,7 +274,7 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
           type="button"
           onClick={copyCommand}
           title="Copier la commande"
-          className="absolute right-1.5 top-1.5 rounded-md bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
+          className="absolute right-1.5 top-1.5 rounded-lg bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
@@ -290,12 +290,12 @@ function DeviceModeUnlock({ routerId }: { routerId: string }) {
         type="button"
         disabled={pending}
         onClick={run}
-        className="mt-1 flex items-center gap-2 rounded-md bg-warn px-3 py-1.5 text-xs font-medium text-white hover:bg-ink disabled:opacity-60"
+        className="mt-1 flex items-center gap-2 rounded-lg bg-warn px-3 py-1.5 text-xs font-medium text-white hover:bg-ink disabled:opacity-60"
       >
         {pending ? <ButtonLoader size="xs" color="white" /> : <Unlock className="h-3.5 w-3.5" />}
         {pending ? "Envoi de la demande..." : "Envoyer la demande de déverrouillage"}
       </button>
-      <p className="mt-1 text-[11px] text-warn">
+      <p className="mt-1 text-xs text-warn">
         Dans les deux cas, la confirmation physique reste obligatoire. Une fois confirmé, le
         routeur redémarre seul — attendez ~1 minute, puis cliquez sur l&apos;icône{" "}
         <RefreshCw className="inline h-3 w-3" /> en haut de cet encart pour revérifier l&apos;état

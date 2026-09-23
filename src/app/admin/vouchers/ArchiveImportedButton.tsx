@@ -44,7 +44,7 @@ export default function ArchiveImportedButton({ count }: { count: number }) {
         onClick={archiveImported}
         disabled={pending || count === 0}
         title="Archive uniquement dans SafeLinkHub, sans supprimer les utilisateurs MikroTik"
-        className="inline-flex items-center gap-2 rounded-sm border border-paper/40 bg-paper/10 px-3 py-2 text-sm font-bold text-paper transition-colors hover:border-brand hover:bg-brand hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-sm border border-paper/40 bg-paper/10 px-3 py-2 text-sm font-semibold text-paper transition-colors hover:border-brand hover:bg-brand hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
       >
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
         Retirer les importés ({count})

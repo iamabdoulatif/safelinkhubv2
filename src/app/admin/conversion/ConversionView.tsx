@@ -110,7 +110,7 @@ export default function ConversionView({
 
   const enTete = (
     <header>
-      <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
+      <h1 className="text-ink text-2xl font-semibold tracking-tight">
         Conversion du portail captif
       </h1>
       <p className="mt-1 text-sm text-ink-soft">
@@ -124,7 +124,7 @@ export default function ConversionView({
     return (
       <div className="mx-auto max-w-4xl">
         {enTete}
-        <div className="mt-8 rounded-2xl border border-dashed border-line-soft bg-paper p-10 text-center">
+        <div className="mt-8 rounded-xl border border-dashed border-line-soft bg-paper p-10 text-center">
           <p className="font-display text-lg font-bold text-ink">Aucune commande sur la période</p>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-soft">
             Dès qu&apos;un client lancera un achat depuis un portail captif, vous verrez ici où il
@@ -140,7 +140,7 @@ export default function ConversionView({
       {enTete}
 
       {/* ── Le chiffre qui compte, et l'entonnoir qui l'explique ───────────── */}
-      <section className="mt-6 rounded-2xl border border-line bg-paper">
+      <section className="mt-6 rounded-xl border border-line bg-paper">
         <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 border-b border-line-soft p-5 sm:p-6">
           <div>
             <p className="text-sm text-ink-soft">Commandes menées jusqu&apos;au paiement</p>

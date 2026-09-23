@@ -47,7 +47,7 @@ function VideoBlock({ block }: { block: Extract<Block, { kind: "video" }> }) {
 
   if (block.provider === "file") {
     return (
-      <figure className="mt-8 overflow-hidden rounded-2xl border border-line bg-ink shadow-lg">
+      <figure className="mt-8 overflow-hidden rounded-xl border border-line bg-ink shadow-menu">
         <video controls preload="metadata" className="aspect-video w-full" src={block.url} />
       </figure>
     );
@@ -71,7 +71,7 @@ function VideoBlock({ block }: { block: Extract<Block, { kind: "video" }> }) {
   }
 
   return (
-    <figure className="mt-8 overflow-hidden rounded-2xl border border-line bg-ink shadow-lg">
+    <figure className="mt-8 overflow-hidden rounded-xl border border-line bg-ink shadow-menu">
       <iframe
         src={embed}
         title="Vidéo de l'article"

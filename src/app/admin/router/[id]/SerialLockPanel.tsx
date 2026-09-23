@@ -38,7 +38,7 @@ export default function SerialLockPanel({ routerId }: { routerId: string }) {
       <div className="flex items-center gap-2">
         <ScanLine className="h-4.5 w-4.5 text-ink" aria-hidden="true" />
         <h2 className="font-display text-base font-bold text-ink">Verrou de numéro de série</h2>
-        <span className="ml-auto rounded-sm bg-clay px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-ink-soft">
+        <span className="ml-auto rounded-sm bg-clay px-2 py-0.5 font-mono text-xs font-bold uppercase tracking-wider text-ink-soft">
           Superadmin
         </span>
       </div>
@@ -110,7 +110,7 @@ export default function SerialLockPanel({ routerId }: { routerId: string }) {
                   type="button"
                   disabled={pending}
                   onClick={() => setConfirming(true)}
-                  className="mt-3 flex items-center gap-2 border border-line bg-brand px-3 py-1.5 text-xs font-bold text-slate-deep hover:opacity-90 disabled:opacity-60 rounded-full"
+                  className="mt-3 flex items-center gap-2 border border-line bg-brand px-3 py-1.5 text-xs font-semibold text-slate-deep hover:opacity-90 disabled:opacity-60 rounded-full"
                 >
                   <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
                   Transférer le boîtier vers ce routeur

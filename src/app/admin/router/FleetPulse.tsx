@@ -38,7 +38,7 @@ export function FleetPulse({
       <dl className={`grid divide-y divide-line sm:divide-x sm:divide-y-0 ${cells.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
         {cells.map((cell) => (
           <div key={cell.key} className="px-3 py-3 sm:px-5 sm:py-4">
-            <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-soft">
+            <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-soft">
               {cell.dot && <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${cell.dot}`} />}
               <span className="truncate">{cell.label}</span>
             </dt>
@@ -52,7 +52,7 @@ export function FleetPulse({
       {health.availability !== null && (
         <div className="border-t border-line px-3 py-3 sm:px-5">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-soft">
+            <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">
               {t.availability}
             </span>
             <span className="font-display text-sm font-semibold tabular-nums text-ink">

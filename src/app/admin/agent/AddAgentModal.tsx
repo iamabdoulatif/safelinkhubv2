@@ -46,7 +46,7 @@ export default function AddAgentModal() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex shrink-0 items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand"
+        className="flex shrink-0 items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand"
       >
         + Ajouter un agent
       </button>
@@ -78,7 +78,7 @@ export default function AddAgentModal() {
 
             <div className="mt-4" aria-live="polite">
               {state?.error && (
-                <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+                <p className="rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
                   <span className="flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {state.error}
@@ -86,7 +86,7 @@ export default function AddAgentModal() {
                 </p>
               )}
               {state?.success && (
-                <p className="rounded-md bg-clay px-3 py-2 text-sm text-ok">
+                <p className="rounded-lg bg-clay px-3 py-2 text-sm text-ok">
                   <span className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     Agent ajouté avec succès.
@@ -103,7 +103,7 @@ export default function AddAgentModal() {
                   name="name"
                   required
                   placeholder="Aïcha Koné"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="field w-full"
                 />
               </div>
               <div>
@@ -113,7 +113,7 @@ export default function AddAgentModal() {
                   type="email"
                   required
                   placeholder="aicha@example.com"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="field w-full"
                 />
               </div>
               <div>
@@ -126,7 +126,7 @@ export default function AddAgentModal() {
                   required
                   minLength={8}
                   placeholder="Au moins 8 caractères"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="field w-full"
                 />
                 <p className="mt-1 text-xs text-ink-soft">
                   L&apos;agent pourra s&apos;en servir pour se connecter plus tard si vous lui
@@ -139,14 +139,14 @@ export default function AddAgentModal() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Ajout..." : "Ajouter l'agent"}
               </button>

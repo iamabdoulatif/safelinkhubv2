@@ -76,7 +76,7 @@ export default function DownloadVouchersModal({
       <button
         onClick={() => setOpen(true)}
         disabled={count === 0}
-        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-40"
+        className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-40"
       >
         Télécharger la sélection
       </button>
@@ -114,7 +114,7 @@ export default function DownloadVouchersModal({
                         : "border-line-soft hover:border-line"
                     }`}
                   >
-                    <div className="mb-2 flex h-16 items-stretch overflow-hidden rounded-md bg-clay p-1">
+                    <div className="mb-2 flex h-16 items-stretch overflow-hidden rounded-lg bg-clay p-1">
                       <Thumb />
                     </div>
                     <p className="text-sm font-medium text-ink">{t.name}</p>
@@ -124,7 +124,7 @@ export default function DownloadVouchersModal({
                         {t.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="rounded bg-clay px-1.5 py-0.5 text-[10px] text-ink-soft"
+                            className="rounded bg-clay px-1.5 py-0.5 text-xs text-ink-soft"
                           >
                             {tag}
                           </span>
@@ -139,14 +139,14 @@ export default function DownloadVouchersModal({
             <div className="mt-6 flex items-center justify-end gap-2">
               <button
                 onClick={() => setOpen(false)}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
               >
                 Annuler
               </button>
               <button
                 onClick={handleDownload}
                 disabled={busy}
-                className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="btn btn-md btn-secondary inline-flex items-center gap-2"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                 {busy ? "Préparation…" : "Télécharger"}

@@ -45,12 +45,12 @@ export default function RowActions({
 
   return (
     <details ref={ref} className="relative inline-block [&>summary::-webkit-details-marker]:hidden">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-ink hover:bg-clay">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-ink hover:bg-clay">
         Action
         <ChevronDown className="h-3.5 w-3.5" />
       </summary>
 
-      <div className="absolute right-0 z-20 mt-1 w-48 border border-line bg-paper p-1 shadow-lg">
+      <div className="absolute right-0 z-20 mt-1 w-48 border border-line bg-paper p-1 shadow-menu">
         {decidable ? (
           <form
             action={decideVerification}
@@ -79,7 +79,7 @@ export default function RowActions({
             </button>
           </form>
         ) : (
-          <p className="px-3 py-2 text-[11px] leading-4 text-ink-soft">
+          <p className="px-3 py-2 text-xs leading-4 text-ink-soft">
             Dossier non soumis : rien à décider.
           </p>
         )}

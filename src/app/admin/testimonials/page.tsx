@@ -30,7 +30,7 @@ export default async function AdminTestimonialsPage() {
 
   return (
     <div className="animate-fade-in-up">
-      <h1 className="text-2xl font-bold text-ink">Témoignages</h1>
+      <h1 className="text-ink text-2xl font-semibold tracking-tight">Témoignages</h1>
       <p className="mt-1 text-sm text-ink-soft">
         Avis soumis depuis la landing publique. Seuls les témoignages « publiés » apparaissent sur
         le site
@@ -92,7 +92,7 @@ export default async function AdminTestimonialsPage() {
                       <input type="hidden" name="status" value="approved" />
                       <button
                         type="submit"
-                        className="border border-line bg-brand px-3 py-1.5 text-xs font-bold text-slate-deep hover:bg-ink hover:text-paper rounded-full"
+                        className="btn btn-sm btn-primary"
                       >
                         Publier
                       </button>

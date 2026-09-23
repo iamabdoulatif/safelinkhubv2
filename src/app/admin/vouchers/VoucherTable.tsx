@@ -74,13 +74,13 @@ function Kpi({
 }) {
   const dot = tone === "lead" ? "bg-ok" : tone === "muted" ? "bg-ink-soft" : null;
   return (
-    <div className={`relative rounded-2xl border border-line-soft bg-paper p-[18px] shadow-sm ${tone === "lead" ? "pl-[22px]" : ""}`}>
+    <div className={`relative rounded-xl border border-line-soft bg-paper p-[18px] shadow-sm ${tone === "lead" ? "pl-[22px]" : ""}`}>
       {tone === "lead" && <span aria-hidden="true" className="absolute bottom-4 left-0 top-4 w-[3px] rounded bg-brand" />}
-      <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">{label}</p>
+      <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">{label}</p>
       <p className="mt-2 text-[34px] font-extrabold leading-none tracking-tight tabular-nums text-ink">
         {value.toLocaleString("fr-FR")}
       </p>
-      <p className="mt-2 flex items-center gap-1.5 text-[12.5px] text-ink-soft">
+      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-ink-soft">
         {dot && <span aria-hidden="true" className={`h-[7px] w-[7px] rounded-full ${dot}`} />}
         {hint}
       </p>
@@ -261,11 +261,11 @@ export default function VoucherTable({
       <section>
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
-            <span className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">
+            <span className="inline-flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
               <span aria-hidden="true" className="h-2 w-2 rounded-[2px] bg-brand" />
               Console d&apos;accès
             </span>
-            <h1 className="mt-2.5 font-display text-3xl font-extrabold tracking-tight text-ink md:text-[34px]">
+            <h1 className="mt-2.5 text-ink text-2xl font-semibold tracking-tight">
               Station Tickets
             </h1>
             <p className="mt-1.5 max-w-xl text-sm text-ink-soft">
@@ -285,7 +285,7 @@ export default function VoucherTable({
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-line-soft bg-paper shadow-sm">
+      <section className="overflow-hidden rounded-xl border border-line-soft bg-paper shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-4 py-3 md:px-5">
           <div className="inline-flex gap-1 rounded-xl bg-clay p-1" role="tablist" aria-label="Vue des tickets">
             <button
@@ -298,7 +298,7 @@ export default function VoucherTable({
               }`}
             >
               Tickets actifs
-              <span className={`rounded-full px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums ${view === "active" ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"}`}>
+              <span className={`rounded-full px-1.5 py-0.5 font-mono text-xs font-bold tabular-nums ${view === "active" ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"}`}>
                 {stats.active}
               </span>
             </button>
@@ -312,7 +312,7 @@ export default function VoucherTable({
               }`}
             >
               Corbeille
-              <span className={`rounded-full px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums ${view === "trash" ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"}`}>
+              <span className={`rounded-full px-1.5 py-0.5 font-mono text-xs font-bold tabular-nums ${view === "trash" ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"}`}>
                 {stats.trashed}
               </span>
             </button>
@@ -327,7 +327,7 @@ export default function VoucherTable({
                 onChange={(e) => setQuery(e.target.value)}
                 aria-label="Rechercher un ticket"
                 placeholder="Rechercher un code, une note…"
-                className="w-56 max-w-[44vw] rounded-lg border border-line bg-paper py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-soft focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand"
+                className="w-56 max-w-[44vw] rounded-lg border border-line bg-paper py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-soft focus:border-ink"
               />
             </div>
             {selected.size > 0 && (
@@ -337,7 +337,7 @@ export default function VoucherTable({
                   view === "active" ? archive([...selected]) : restore([...selected])
                 }
                 disabled={pending}
-                className="inline-flex items-center gap-2 rounded-sm bg-ink px-3 py-2 text-sm font-bold text-paper hover:bg-brand hover:text-ink disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-sm bg-ink px-3 py-2 text-sm font-semibold text-paper hover:bg-brand hover:text-ink disabled:opacity-50"
               >
                 {pending && busyId === "bulk" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -410,7 +410,7 @@ export default function VoucherTable({
 
         <div className="overflow-x-auto table-mobile-wrapper">
           <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="border-b border-line-soft bg-paper font-mono text-[10.5px] font-semibold uppercase tracking-[0.11em] text-ink-soft">
+            <thead className="border-b border-line-soft bg-paper font-mono text-xs font-semibold uppercase tracking-[0.11em] text-ink-soft">
               <tr>
                 <th className="w-10 px-4 py-3">
                   <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Tout sélectionner" />
@@ -461,7 +461,7 @@ export default function VoucherTable({
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded-md bg-clay px-2 py-1 font-mono text-[13px] font-bold tracking-wide text-ink">
+                    <span className="rounded-lg bg-clay px-2 py-1 font-mono text-[13px] font-bold tracking-wide text-ink">
                       {voucher.username}
                     </span>
                   </td>

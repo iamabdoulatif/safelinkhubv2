@@ -78,7 +78,7 @@ export default function DateRangePicker({
           value={from}
           max={to}
           onChange={(e) => apply(e.target.value, to)}
-          className="border border-line bg-paper px-2 py-1 font-mono text-xs text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
+          className="border border-line bg-paper px-2 py-1 font-mono text-xs text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
         />
       </label>
       <label className="flex items-center gap-1.5 text-xs font-medium text-ink-soft">
@@ -89,7 +89,7 @@ export default function DateRangePicker({
           value={to}
           min={from}
           onChange={(e) => apply(from, e.target.value)}
-          className="border border-line bg-paper px-2 py-1 font-mono text-xs text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
+          className="border border-line bg-paper px-2 py-1 font-mono text-xs text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
         />
       </label>
     </div>

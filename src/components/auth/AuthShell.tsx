@@ -58,7 +58,7 @@ export default async function AuthShell({
                   <dt className="font-display text-xl font-bold text-ink">
                     {metric.value}
                   </dt>
-                  <dd className="mt-1 text-[11px] font-semibold uppercase leading-4 text-ink-soft">
+                  <dd className="mt-1 text-xs font-semibold uppercase leading-4 text-ink-soft">
                     {metric.label}
                   </dd>
                 </div>

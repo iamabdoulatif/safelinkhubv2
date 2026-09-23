@@ -24,7 +24,7 @@ export default async function EditBlogPostPage({
 
   return (
     <div className="animate-fade-in-up">
-      <h1 className="text-2xl font-bold text-ink">Modifier l&apos;article</h1>
+      <h1 className="text-ink text-2xl font-semibold tracking-tight">Modifier l&apos;article</h1>
       <p className="mt-1 text-sm text-ink-soft">
         {post.published
           ? "Cet article est publié — les modifications seront visibles immédiatement sur /blog."

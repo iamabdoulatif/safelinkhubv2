@@ -83,7 +83,7 @@ export default function BarChart({
         {/* Axe des ordonnées — quatre graduations, comme le modèle. */}
         <div
           aria-hidden="true"
-          className="flex h-32 w-12 shrink-0 flex-col justify-between text-right text-[10px] tabular-nums text-ink-soft"
+          className="flex h-32 w-12 shrink-0 flex-col justify-between text-right text-xs tabular-nums text-ink-soft"
         >
           {graduations.map((g) => (
             <span key={g} className="-translate-y-1">
@@ -133,7 +133,7 @@ export default function BarChart({
                   }}
                 />
                 {hover === i && (
-                  <span className="pointer-events-none absolute -top-1 z-10 -translate-y-full whitespace-nowrap rounded-md border border-line bg-paper px-2 py-1 text-[11px] font-semibold tabular-nums text-ink shadow-lg">
+                  <span className="pointer-events-none absolute -top-1 z-10 -translate-y-full whitespace-nowrap rounded-lg border border-line bg-paper px-2 py-1 text-xs font-semibold tabular-nums text-ink shadow-menu">
                     {format(value)}
                   </span>
                 )}
@@ -145,7 +145,7 @@ export default function BarChart({
             {labels.map((label, i) => (
               <span
                 key={label + i}
-                className="flex-1 truncate text-center text-[10px] text-ink-soft"
+                className="flex-1 truncate text-center text-xs text-ink-soft"
               >
                 {label}
               </span>

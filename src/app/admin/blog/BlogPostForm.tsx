@@ -49,7 +49,7 @@ export default function BlogPostForm({
       {post && <input type="hidden" name="id" value={post.id} />}
 
       {state?.error && (
-        <p className="mb-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+        <p className="mb-4 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
           {state.error}
         </p>
       )}
@@ -66,7 +66,7 @@ export default function BlogPostForm({
             onChange={(e) => setTitle(e.target.value)}
             required
             placeholder="Ex : Monétiser son hotspot Wi-Fi avec le mobile money"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
           />
         </div>
 
@@ -80,7 +80,7 @@ export default function BlogPostForm({
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             placeholder="monetiser-son-hotspot-wifi"
-            className="w-full rounded-md border border-line-soft px-3 py-2 font-mono text-sm focus:border-line-soft focus:outline-none"
+            className="w-full rounded-lg border border-line-soft px-3 py-2 font-mono text-sm focus:border-ink"
           />
         </div>
 
@@ -94,7 +94,7 @@ export default function BlogPostForm({
             list="blog-category-suggestions"
             defaultValue={post?.category ?? ""}
             placeholder="Ex : MikroTik, Mobile Money, Tutoriels"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+            className="field w-full"
           />
           <datalist id="blog-category-suggestions">
             {categories.map((c) => (
@@ -113,7 +113,7 @@ export default function BlogPostForm({
             value={coverImageUrl}
             onChange={(e) => setCoverImageUrl(e.target.value)}
             placeholder="/blog/mobile-money.svg"
-            className="w-full rounded-md border border-line-soft px-3 py-2 font-mono text-sm focus:border-line-soft focus:outline-none"
+            className="w-full rounded-lg border border-line-soft px-3 py-2 font-mono text-sm focus:border-ink"
           />
         </div>
 
@@ -128,7 +128,7 @@ export default function BlogPostForm({
             value={excerpt}
             onChange={(e) => setExcerpt(e.target.value)}
             placeholder="Résumé en une ou deux phrases."
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
           />
         </div>
 
@@ -199,7 +199,7 @@ export default function BlogPostForm({
           <button
             type="submit"
             disabled={pending}
-            className="border border-line bg-brand px-5 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+            className="btn btn-md btn-primary"
           >
             {pending ? "Enregistrement…" : "Enregistrer"}
           </button>

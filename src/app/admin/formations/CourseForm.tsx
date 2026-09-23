@@ -19,7 +19,7 @@ type Course = {
 } | null;
 
 const input =
-  "mt-1 w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
+  "mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand";
 const label = "block text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft";
 
 export default function CourseForm({ course }: { course: Course }) {
@@ -105,16 +105,16 @@ export default function CourseForm({ course }: { course: Course }) {
       </label>
 
       {state && "error" in state && state.error && (
-        <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
+        <p className="rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
       )}
       {state && "success" in state && state.success && course && (
-        <p className="rounded-md bg-clay px-3 py-2 text-sm text-ok">Enregistré.</p>
+        <p className="rounded-lg bg-clay px-3 py-2 text-sm text-ok">Enregistré.</p>
       )}
 
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+        className="btn btn-md btn-secondary"
       >
         {pending ? "Enregistrement…" : course ? "Enregistrer" : "Créer la formation"}
       </button>

@@ -175,23 +175,23 @@ function BridgeNode({
           {bridge.ports.map((p) => (
             <span
               key={p}
-              className="rounded bg-clay px-2 py-1 text-[11px] font-medium text-ok"
+              className="rounded bg-clay px-2 py-1 text-xs font-medium text-ok"
             >
               {p}
             </span>
           ))}
         </div>
       ) : (
-        <div className="mt-4 rounded-md border border-dashed border-ok bg-clay/40 py-4 text-center text-xs font-medium text-ok">
+        <div className="mt-4 rounded-lg border border-dashed border-ok bg-clay/40 py-4 text-center text-xs font-medium text-ok">
           Déposez une interface ici
         </div>
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <span className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-semibold text-ink">
+        <span className="rounded-full bg-brand px-2.5 py-1 text-xs font-semibold text-ink">
           {bridge.hotspotEnabled ? "Hotspot" : "Pas de Hotspot"}
         </span>
-        <span className="rounded-full bg-clay px-2.5 py-1 text-[11px] font-semibold text-ink-soft">
+        <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-semibold text-ink-soft">
           Pas de PPPoE
         </span>
       </div>
@@ -205,7 +205,7 @@ function DockerBridgeNode({ ports, nodeRef }: { ports: string[]; nodeRef: (el: H
       ref={nodeRef}
       className="relative w-64 shrink-0 rounded-xl border border-line-soft bg-paper p-5"
     >
-      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-clay px-2.5 py-0.5 text-[10px] font-semibold text-brand-deep">
+      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-clay px-2.5 py-0.5 text-xs font-semibold text-brand-deep">
         Géré automatiquement
       </span>
 
@@ -227,14 +227,14 @@ function DockerBridgeNode({ ports, nodeRef }: { ports: string[]; nodeRef: (el: H
         {ports.map((p) => (
           <span
             key={p}
-            className="rounded bg-clay px-2 py-1 text-[11px] font-medium text-brand-deep"
+            className="rounded bg-clay px-2 py-1 text-xs font-medium text-brand-deep"
           >
             {p}
           </span>
         ))}
       </div>
 
-      <p className="mt-4 text-[11px] text-ink-soft">
+      <p className="mt-4 text-xs text-ink-soft">
         Conteneur MikHmon — créé par l&apos;auto-setup, voir plus bas.
       </p>
     </div>
@@ -307,7 +307,7 @@ function InterfaceTile({
               ? "Appuyez sur Entrée pour connecter à SAFELINKHUB-BRIDGE"
               : undefined
       }
-      className={`relative flex h-16 w-[72px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border text-[11px] ${
+      className={`relative flex h-16 w-[72px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border text-xs ${
         port.disabled
           ? "cursor-not-allowed border-line-soft bg-clay text-clay"
           : isVeth
@@ -320,12 +320,12 @@ function InterfaceTile({
       }`}
     >
       {selected && (
-        <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded bg-warn px-1.5 py-0.5 text-[9px] font-semibold text-white whitespace-nowrap">
+        <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded bg-warn px-1.5 py-0.5 text-xs font-semibold text-white whitespace-nowrap">
           Entrée pour connecter
         </span>
       )}
       {port.name === "ether1" && (
-        <span className="absolute -top-2 rounded bg-clay px-1 py-0.5 text-[9px] font-semibold text-warn">
+        <span className="absolute -top-2 rounded bg-clay px-1 py-0.5 text-xs font-semibold text-warn">
           WAN
         </span>
       )}
@@ -360,7 +360,7 @@ function RouterDeviceCard({
     <div className="absolute left-1/2 top-7 w-[min(98%,1100px)] -translate-x-1/2 border border-line bg-paper/95 p-5 rounded-xl">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-line-soft pb-4">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-ink text-sm font-bold text-white">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-sm font-bold text-white">
             M
           </span>
           <span className="rounded bg-clay px-2.5 py-1.5 text-sm text-ink-soft">
@@ -506,7 +506,7 @@ function TopologyCanvas({
         <button
           type="button"
           onClick={() => setKeyboardMode(!keyboardMode)}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
             keyboardMode
               ? "bg-brand text-ink hover:bg-brand-deep"
               : "border border-line-soft bg-paper text-ink-soft hover:bg-clay"
@@ -529,7 +529,7 @@ function TopologyCanvas({
           <button
             type="button"
             onClick={onAddBridge}
-            className="mt-6 w-full rounded-md bg-ink px-4 py-3.5 text-sm font-semibold text-white hover:bg-slate-deep-line"
+            className="mt-6 w-full rounded-lg bg-ink px-4 py-3.5 text-sm font-semibold text-white hover:bg-slate-deep-line"
           >
             + Ajouter un bridge
           </button>
@@ -583,14 +583,14 @@ function TopologyCanvas({
                         value={port.name}
                         disabled={disabled}
                         defaultChecked={used}
-                        className="h-4 w-4 rounded border-line-soft text-ok focus:ring-ink focus:outline-none"
+                        className="h-4 w-4 rounded border-line-soft text-ok"
                       />
                       <span className="text-sm text-ink">{interfaceLabel(port, ports)}</span>
                       {port.disabled && (
-                        <span className="ml-auto text-[10px] text-ink-soft">(désactivé)</span>
+                        <span className="ml-auto text-xs text-ink-soft">(désactivé)</span>
                       )}
                       {isVeth && (
-                        <span className="ml-auto text-[10px] text-brand-deep">(Docker)</span>
+                        <span className="ml-auto text-xs text-brand-deep">(Docker)</span>
                       )}
                     </label>
                   );
@@ -607,7 +607,7 @@ function TopologyCanvas({
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-brand"
+                  className="btn btn-md btn-secondary"
                 >
                   Enregistrer les modifications
                 </button>
@@ -814,13 +814,13 @@ export default function TopologyBuilder({
 
   if (loadError) {
     return (
-      <div className="flex items-center justify-between gap-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+      <div className="flex items-center justify-between gap-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
         <span>{loadError}</span>
         <button
           type="button"
           onClick={() => setRetryCount((c) => c + 1)}
           disabled={retrying}
-          className="shrink-0 rounded-md border border-err bg-paper px-3 py-1.5 text-sm font-medium text-err hover:bg-err-soft disabled:opacity-60"
+          className="shrink-0 rounded-lg border border-err bg-paper px-3 py-1.5 text-sm font-medium text-err hover:bg-err-soft disabled:opacity-60"
         >
           {retrying ? "Connexion..." : "Réessayer"}
         </button>
@@ -864,7 +864,7 @@ export default function TopologyBuilder({
             role="dialog"
             aria-modal="true"
             aria-labelledby="bridge-config-title"
-            className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-paper p-4 sm:p-8"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-xl bg-paper p-4 sm:p-8"
           >
             <input type="hidden" name="routerId" value={routerId} />
             {draftPorts.map((p) => (
@@ -879,7 +879,7 @@ export default function TopologyBuilder({
                 type="button"
                 onClick={() => setConfiguring(false)}
                 aria-label="Fermer"
-                className="rounded-md p-1 hover:bg-clay focus-visible:ring-2 focus-visible:ring-ink focus-visible:outline-none"
+                className="rounded-lg p-1 hover:bg-clay focus-visible:ring-2 focus-visible:ring-ink focus-visible:outline-none"
               >
                 <X className="h-5 w-5 text-ink-soft" />
               </button>
@@ -890,7 +890,7 @@ export default function TopologyBuilder({
             </p>
 
             {draftPorts.length === 0 && (
-              <p className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-warn">
+              <p className="mt-4 rounded-lg bg-clay px-3 py-2 text-sm text-warn">
                 Aucune interface assignée pour le moment. Annulez et glissez
                 un port sur le bridge d&apos;abord, ou enregistrez maintenant et
                 ajoutez des ports plus tard.
@@ -898,7 +898,7 @@ export default function TopologyBuilder({
             )}
 
             {state?.error && (
-              <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+              <p className="mt-4 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
                 {state.error}
               </p>
             )}
@@ -913,7 +913,7 @@ export default function TopologyBuilder({
                     name="name"
                     defaultValue="SAFELINKHUB-BRIDGE"
                     disabled
-                    className="w-full rounded-lg border border-line-soft bg-clay px-4 py-2.5 text-base text-ink-soft disabled:cursor-not-allowed"
+                    className="field w-full bg-clay text-ink-soft"
                   />
                   <p className="mt-1.5 text-sm text-ink-soft">
                     Le bridge principal ne peut pas être renommé.
@@ -933,7 +933,7 @@ export default function TopologyBuilder({
                     placeholder="10.200.5.1"
                     value={gatewayIp}
                     onChange={(e) => setGatewayIp(e.target.value)}
-                    className="w-full rounded-lg border border-line-soft px-4 py-2.5 text-base placeholder:text-ink-soft focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                    className="w-full rounded-lg border border-line-soft px-4 py-2.5 text-base placeholder:text-ink-soft focus:border-ink"
                   />
                   {/* Sélecteur et non plus une rangée de pastilles : la liste
                       partagée est passée de 7 à 17 adresses, et les groupes
@@ -945,7 +945,7 @@ export default function TopologyBuilder({
                     onChange={(e) => {
                       if (e.target.value) setGatewayIp(e.target.value);
                     }}
-                    className="mt-2 w-full rounded-lg border border-line-soft px-3 py-2 text-sm text-ink-soft focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                    className="mt-2 w-full rounded-lg border border-line-soft px-3 py-2 text-sm text-ink-soft focus:border-ink"
                   >
                     <option value="">Passerelles courantes…</option>
                     {GATEWAY_IP_PRESET_GROUPS.map((group) => (
@@ -973,7 +973,7 @@ export default function TopologyBuilder({
                         name="network-class"
                         checked={networkClass === c}
                         onChange={() => changeNetworkClass(c)}
-                        className="h-4 w-4 border-line-soft text-ok focus:ring-ink focus:outline-none"
+                        className="h-4 w-4 border-line-soft text-ok"
                       />
                       {c === "any" ? "Toutes" : `Classe ${c}`}
                     </label>
@@ -989,7 +989,7 @@ export default function TopologyBuilder({
                   name="subnetBits"
                   value={subnetBits}
                   onChange={(e) => setSubnetBits(Number(e.target.value))}
-                  className="flex-1 rounded-lg border border-line-soft px-4 py-2.5 text-base focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="flex-1 rounded-lg border border-line-soft px-4 py-2.5 text-base focus:border-ink"
                 >
                   {CLASS_PREFIX_OPTIONS[networkClass].map((bits) => (
                     <option key={bits} value={bits}>
@@ -1021,7 +1021,7 @@ export default function TopologyBuilder({
                     type="checkbox"
                     name="preventSharing"
                     defaultChecked
-                    className="h-4 w-4 rounded border-line-soft text-ok focus:ring-ink focus:outline-none"
+                    className="h-4 w-4 rounded border-line-soft text-ok"
                   />
                   Empêcher le partage du hotspot (TTL=1)
                 </label>
@@ -1038,7 +1038,7 @@ export default function TopologyBuilder({
                   <ToggleSwitch name="pppoeEnabled" disabled />
                 </div>
 
-                <p className="mt-3 rounded-md bg-clay px-3 py-2 text-sm text-warn">
+                <p className="mt-3 rounded-lg bg-clay px-3 py-2 text-sm text-warn">
                   <span className="font-medium">Le PPPoE n&apos;est pas activé pour votre organisation.</span>{" "}
                   Veuillez contacter le support pour activer cette fonctionnalité.
                 </p>
@@ -1056,7 +1056,7 @@ export default function TopologyBuilder({
               <button
                 type="submit"
                 disabled={pending || draftPorts.length === 0}
-                className="rounded-lg bg-ink px-5 py-2.5 text-base font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Enregistrement..." : "Enregistrer les modifications"}
               </button>

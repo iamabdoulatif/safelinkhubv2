@@ -165,7 +165,7 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
                 <h3 className="flex items-center gap-2 font-display text-sm font-bold text-ink">
                   {theme.name}
                   {created && (
-                    <span className="flex items-center gap-1 bg-brand px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase text-slate-deep rounded-full">
+                    <span className="flex items-center gap-1 bg-brand px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-slate-deep rounded-full">
                       <Check aria-hidden="true" className="h-3 w-3" />
                       Créé
                     </span>
@@ -184,7 +184,7 @@ export default function ThemeGallery({ existingNames }: { existingNames: string[
                     type="button"
                     disabled={isPending}
                     onClick={() => applyTheme(theme)}
-                    className="flex items-center gap-1 border border-line bg-brand px-2 py-1 text-xs font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-50 rounded-full"
+                    className="flex items-center gap-1 border border-line bg-brand px-2 py-1 text-xs font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:opacity-50 rounded-full"
                   >
                     {busy ? (
                       <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />

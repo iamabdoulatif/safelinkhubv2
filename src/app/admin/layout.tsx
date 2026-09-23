@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { eq } from "drizzle-orm";
 import AdminSidebar from "@/components/AdminSidebar";
+import AdminTopbar from "@/components/AdminTopbar";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { isMemberRole } from "@/lib/auth/roles";
 import { getDb } from "@/lib/db";
@@ -80,11 +81,14 @@ export default async function AdminLayout({
       {/* La top bar mobile fixe (h-14, visible < lg) impose un pt de
           dégagement jusqu'au breakpoint lg inclus — md:p-6 seul l'écrasait
           et le contenu passait sous la barre entre 768 et 1023px. */}
-      <main className="flex-1 w-full overflow-y-auto p-4 pt-[4.5rem] md:p-6 md:pt-[4.5rem] lg:p-8 lg:pt-8">
-        {children}
-        {/* Un seul observateur pour toutes les vues d'administration. */}
-        <Reveal />
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AdminTopbar orgName={org?.name ?? "Organisation"} superadmin={superadmin} nav={nav} />
+        <main className="flex-1 w-full overflow-y-auto p-4 pt-[4.5rem] md:p-6 md:pt-[4.5rem] lg:p-8 lg:pt-8">
+          {children}
+          {/* Un seul observateur pour toutes les vues d'administration. */}
+          <Reveal />
+        </main>
+      </div>
     </div>
   );
 }

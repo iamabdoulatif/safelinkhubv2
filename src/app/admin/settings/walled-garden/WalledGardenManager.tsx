@@ -132,7 +132,7 @@ export default function WalledGardenManager({
           type="button"
           onClick={save}
           disabled={pending || !dirty}
-          className="border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep transition-colors duration-150 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 rounded-full"
+          className="btn btn-md btn-primary"
         >
           {pending ? "Enregistrement…" : "Enregistrer la sélection"}
         </button>

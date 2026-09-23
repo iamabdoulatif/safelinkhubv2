@@ -72,7 +72,7 @@ export default function RestoreGuide() {
               </li>
             ))}
           </ol>
-          <p className="mt-3 rounded-md bg-clay px-3 py-2 text-xs text-ink-soft">
+          <p className="mt-3 rounded-lg bg-clay px-3 py-2 text-xs text-ink-soft">
             Bon à savoir : restaurer sur un routeur qui a déjà ses propres tickets les{" "}
             <strong>fusionne</strong> (ajout par nom, rien n&apos;est écrasé). Prévu pour un
             rechange vierge ; la simulation vous montre le nombre de créations avant d&apos;agir.

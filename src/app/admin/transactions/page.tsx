@@ -36,7 +36,7 @@ export default async function TransactionsPage() {
   if (!session) {
     return (
       <div className="mx-auto max-w-5xl">
-        <h1 className="text-2xl font-bold text-ink">{t.title}</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">{t.title}</h1>
       </div>
     );
   }
@@ -93,7 +93,7 @@ export default async function TransactionsPage() {
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <ArrowLeftRight className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">{t.title}</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">{t.title}</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
         {t.description}

@@ -44,7 +44,7 @@ export default function CreatePackageModal({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand"
+        className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand"
       >
         + Créer un forfait
       </button>
@@ -78,7 +78,7 @@ export default function CreatePackageModal({
 
             <div className="mt-4" aria-live="polite">
               {state?.error && (
-                <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+                <p className="rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
                   <span className="flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {state.error}
@@ -86,7 +86,7 @@ export default function CreatePackageModal({
                 </p>
               )}
               {state?.success && (
-                <p className="rounded-md bg-clay px-3 py-2 text-sm text-ok">
+                <p className="rounded-lg bg-clay px-3 py-2 text-sm text-ok">
                   <span className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     Forfait créé avec succès.
@@ -105,7 +105,7 @@ export default function CreatePackageModal({
                   name="name"
                   required
                   placeholder="test123"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="field w-full"
                 />
               </div>
 
@@ -116,7 +116,7 @@ export default function CreatePackageModal({
                 <select
                   name="routerId"
                   defaultValue=""
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="field w-full"
                 >
                   <option value="">Tous les routeurs (global)</option>
                   {routers.map((r) => (
@@ -143,11 +143,11 @@ export default function CreatePackageModal({
                     min={1}
                     required
                     defaultValue={5}
-                    className="w-20 rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                    className="field w-20"
                   />
                   <select
                     name="durationUnit"
-                    className="flex-1 rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                    className="field flex-1"
                   >
                     <option value="Minutes">Minutes</option>
                     <option value="Hours">Heures</option>
@@ -170,7 +170,7 @@ export default function CreatePackageModal({
                       type="number"
                       min={1}
                       defaultValue={4}
-                      className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                      className="field w-full"
                     />
                   </div>
                   <div>
@@ -182,7 +182,7 @@ export default function CreatePackageModal({
                       type="number"
                       min={1}
                       defaultValue={4}
-                      className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                      className="field w-full"
                     />
                   </div>
                 </div>
@@ -201,7 +201,7 @@ export default function CreatePackageModal({
                   type="number"
                   min={0}
                   placeholder="Vide = illimité — ex. 3072 pour 3 Go"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="field w-full"
                 />
                 <p className="mt-1 text-xs text-ink-soft">
                   Le débit ci-dessus borne la vitesse ; ceci borne le volume total
@@ -220,7 +220,7 @@ export default function CreatePackageModal({
                   min={500}
                   required
                   placeholder="Min 500"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="field w-full placeholder:text-ink-soft"
                 />
                 <p className="mt-1 text-xs text-ink-soft">
                   Prix minimum : FCFA 500
@@ -233,7 +233,7 @@ export default function CreatePackageModal({
                 </label>
                 <select
                   name="billingStartsOn"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="field w-full"
                 >
                   <option value="Upon First Use">À la première utilisation</option>
                   <option value="Upon Purchase">À l&apos;achat</option>
@@ -245,14 +245,14 @@ export default function CreatePackageModal({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Création..." : "Créer le forfait"}
               </button>

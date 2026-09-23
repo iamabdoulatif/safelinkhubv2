@@ -4,12 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Router,
-  Ticket,
-  Coins,
-  Users,
-  CreditCard,
-  ShieldCheck,
   ArrowUpRight,
   ChevronDown,
   Menu,
@@ -23,129 +17,17 @@ import { setLocale } from "@/lib/i18n/actions";
 import type { Locale } from "@/lib/i18n/config";
 import type { AdminDictionary } from "@/lib/i18n/admin/fr";
 import { KYC_TABS } from "@/lib/kyc/statuses";
-import { can, type Capability } from "@/lib/auth/roles";
-import { groupeOuvert } from "./admin-nav";
-
-/* La tranche `nav` traverse la frontière serveur/client : elle ne doit donc
- * porter que des chaînes. `pendingBadge` est une fonction d'interpolation —
- * le layout la déroule côté serveur et n'envoie que le texte fini. */
-type NavDict = Omit<AdminDictionary["nav"], "pendingBadge">;
-
-/**
- * Navigation d'administration, GROUPÉE PAR MÉTIER ET REPLIABLE.
- *
- * Les groupes suivent ce que fait l'opérateur, pas l'ordre d'arrivée des
- * fonctionnalités. Le tableau de bord reste seul en tête : c'est la page
- * d'atterrissage, elle n'appartient à aucune catégorie.
- *
- * UN SEUL GROUPE OUVERT À LA FOIS. Tout déplié, la barre comptait jusqu'à
- * trente entrées — donc du défilement, donc des libellés qu'on relit à chaque
- * visite. Repliée, elle tient en un écran : six intitulés de métier, et le
- * détail du seul métier où l'on travaille. Le groupe de la page courante
- * s'ouvre tout seul ; on ne peut pas se retrouver perdu dans une barre fermée.
- *
- * Les ICÔNES ne vivent plus que sur les groupes. Trente icônes empilées ne se
- * distinguaient plus les unes des autres — six, si.
- *
- * Une seule entrée « Paramètres » : la navigation interne du hub (Général,
- * Configuration routeur, Passerelles…) appartient aux onglets SettingsTabs —
- * pas de deuxième système de navigation concurrent dans la sidebar.
- */
-/* Les libellés ne vivent plus ici : la structure porte une CLÉ stable, le
- * texte vient du dictionnaire. Renommer une route ne peut donc plus faire
- * perdre sa traduction à une entrée. */
-type NavKey = keyof NavDict["links"];
-type SectionKey = keyof NavDict["sections"];
-/* `need` = capacité exigée pour VOIR l'entrée. Absente = visible par tous les
-   membres, y compris un Lecteur : ce sont les écrans de consultation. Masquer
-   plutôt que laisser cliquer vers un refus — un menu qui mène à « accès
-   refusé » apprend à se méfier de tout le menu. */
-type NavLink = { href: string; key: NavKey; need?: Capability };
-type NavGroup = { key: SectionKey; icon: typeof LayoutDashboard; links: NavLink[] };
-
-const dashboard: NavLink = { href: "/admin", key: "dashboard" };
-
-const businessGroups: NavGroup[] = [
-  {
-    key: "network",
-    icon: Router,
-    links: [
-      // Pluriel : la page liste le parc, elle n'en configure pas un seul.
-      { href: "/admin/router", key: "routers", need: "routers" },
-      // Une PAGE, pas une action : repliée le 04/09 dans « Plus d'actions » de
-      // la liste des routeurs, elle y est devenue introuvable — « je ne vois
-      // plus la restauration ». Elle vit ici, avec les autres pages du réseau.
-      { href: "/admin/router/backups", key: "backups", need: "routers" },
-      { href: "/admin/remote-access", key: "remoteAccess", need: "routers" },
-      { href: "/admin/roaming", key: "roaming", need: "routers" },
-      // Casse officielle du produit : MikHmon.
-      { href: "/admin/mikhmon-online", key: "mikhmon", need: "routers" },
-      // Utilisateurs actifs + routeurs en ligne : de la supervision réseau,
-      // pas de l'analyse commerciale (à ne pas confondre avec « Analyse
-      // commerciale », côté superadmin — d'où le renommage).
-      { href: "/admin/usage-analytics", key: "supervision" },
-    ],
-  },
-  {
-    key: "sales",
-    icon: Ticket,
-    links: [
-      { href: "/admin/packages", key: "packages", need: "packages" },
-      // « Vouchers » était le seul libellé anglais de la sidebar, alors que la
-      // page elle-même s'intitule « Station Tickets » et compte des « tickets ».
-      { href: "/admin/vouchers", key: "tickets", need: "tickets" },
-      { href: "/admin/agent", key: "agents", need: "tickets" },
-      { href: "/admin/sales", key: "sales" },
-      // La page est l'entonnoir des commandes du portail captif (combien
-      // atteignent le checkout, combien paient). « Conversion paiement »
-      // laissait croire à un réglage de moyens de paiement.
-      { href: "/admin/conversion", key: "conversion" },
-    ],
-  },
-  {
-    key: "finance",
-    icon: Coins,
-    links: [
-      { href: "/admin/transactions", key: "transactions" },
-      { href: "/admin/float", key: "float", need: "billing" },
-      { href: "/admin/expenses", key: "expenses", need: "billing" },
-    ],
-  },
-  {
-    key: "org",
-    icon: Users,
-    links: [
-      { href: "/admin/users", key: "users" },
-      { href: "/admin/members", key: "members", need: "members" },
-      { href: "/admin/router-transfers", key: "transfers", need: "routers" },
-      { href: "/admin/verification", key: "verification" },
-      { href: "/admin/settings/general", key: "settings", need: "settings" },
-    ],
-  },
-];
-
-const accountLinks: NavLink[] = [
-  { href: "/admin/billing", key: "billing", need: "billing" },
-  { href: "/admin/support", key: "support" },
-];
-
-// Sections réservées au superadmin — le lien n'est qu'un raccourci visuel,
-// chaque page/action vérifie elle-même isSuperAdmin côté serveur.
-// Réordonné : ce sur quoi on AGIT d'abord (Autorisations porte un badge de
-// demandes en attente — il était en septième position), le contenu éditorial
-// ensuite, puisqu'on s'y rend par intention et non par urgence.
-const superadminLinks: NavLink[] = [
-  { href: "/admin/authorizations", key: "authorizations" },
-  { href: "/admin/kyc", key: "kyc" },
-  { href: "/admin/vpn-access", key: "vpnAccess" },
-  { href: "/admin/analytics", key: "analytics" },
-  { href: "/admin/safecoin", key: "safecoin" },
-  { href: "/admin/contact", key: "contact" },
-  { href: "/admin/testimonials", key: "testimonials" },
-  { href: "/admin/blog", key: "blog" },
-  { href: "/admin/formations", key: "training" },
-  { href: "/admin/marketing", key: "marketing" },
-];
+import { can } from "@/lib/auth/roles";
+import {
+  dashboard,
+  groupeOuvert,
+  isNavActive,
+  navGroups,
+  type NavDict,
+  type NavGroup,
+  type NavLink,
+  type SectionKey,
+} from "./admin-nav";
 
 /** Lien de page. La pastille tient lieu de puce ET de marqueur d'état : pleine
  * et moutarde sur la page courante, effacée ailleurs. Aucune icône — les
@@ -186,7 +68,7 @@ function PageLink({
       {badge && badge > 0 ? (
         <span
           title={badgeTitle}
-          className="ml-auto rounded-full bg-warn px-1.5 py-0.5 text-[10px] font-bold text-white"
+          className="ml-auto rounded-full bg-warn px-1.5 py-0.5 text-xs font-bold text-white"
         >
           {badge}
           <span className="sr-only"> — {badgeTitle}</span>
@@ -226,29 +108,10 @@ export default function AdminSidebar({
   const [mobileOpen, setMobileOpen] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
 
-  const isActive = (href: string) => {
-    // Le tableau de bord ne doit s'allumer que sur /admin exactement, sinon il
-    // resterait actif sur toutes les sous-pages.
-    if (href === "/admin") return pathname === "/admin";
-    // « Paramètres » pointe vers /admin/settings/general mais représente TOUT le
-    // hub : il doit rester actif sur /admin/settings/gateways, /router-setup…
-    if (href.startsWith("/admin/settings")) return Boolean(pathname?.startsWith("/admin/settings"));
-    // « Routeurs » couvre /admin/router/<id> mais pas /admin/router/backups,
-    // qui a sa propre entrée juste en dessous.
-    if (href === "/admin/router") {
-      return Boolean(pathname?.startsWith(href)) && !pathname?.startsWith("/admin/router/backups");
-    }
-    return Boolean(pathname?.startsWith(href));
-  };
+  const isActive = (href: string) => isNavActive(href, pathname);
 
   const visible = (link: NavLink) => !link.need || can(role, link.need);
-  const groups: NavGroup[] = [
-    ...businessGroups,
-    { key: "account" as SectionKey, icon: CreditCard, links: accountLinks },
-    ...(superadmin
-      ? [{ key: "superadmin" as SectionKey, icon: ShieldCheck, links: superadminLinks }]
-      : []),
-  ]
+  const groups: NavGroup[] = navGroups(superadmin)
     .map((group) => ({ ...group, links: group.links.filter(visible) }))
     // Un rôle restreint peut vider un groupe entier : un intitulé sans rien
     // dessous n'est pas une catégorie, c'est une impasse.
@@ -342,7 +205,7 @@ export default function AdminSidebar({
         }`}
       >
         {/* Mobile close button inside sidebar */}
-        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-5">
           <Link
             href="/"
             onClick={closeMobile}
@@ -366,7 +229,7 @@ export default function AdminSidebar({
             title={orgName}
             className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-sm font-semibold text-ink hover:bg-clay"
           >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-ink font-display text-[10px] font-bold text-paper">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-ink font-display text-xs font-bold text-paper">
               {orgName.slice(0, 2).toUpperCase()}
             </span>
             <span className="min-w-0 truncate">{orgName}</span>
@@ -418,7 +281,7 @@ export default function AdminSidebar({
                   {!open && pending > 0 && (
                     <span
                       title={pendingLabel}
-                      className="rounded-full bg-warn px-1.5 py-0.5 text-[10px] font-bold text-white"
+                      className="rounded-full bg-warn px-1.5 py-0.5 text-xs font-bold text-white"
                     >
                       {pending}
                       <span className="sr-only"> — {pendingLabel}</span>
@@ -456,7 +319,7 @@ export default function AdminSidebar({
                                 <Link
                                   href={`/admin/kyc?statut=${t.key}`}
                                   onClick={closeMobile}
-                                  className="block rounded-md px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-clay hover:text-ink"
+                                  className="block rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-clay hover:text-ink"
                                 >
                                   {t.label}
                                 </Link>

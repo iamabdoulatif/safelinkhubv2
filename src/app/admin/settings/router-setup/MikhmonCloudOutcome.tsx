@@ -47,7 +47,7 @@ export default function MikhmonCloudOutcome({ routerId }: { routerId: string }) 
   }
 
   return (
-    <div className="mt-4 rounded-md border border-brand-deep bg-brand/10 p-4">
+    <div className="mt-4 rounded-lg border border-brand-deep bg-brand/10 p-4">
       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
         <CloudCog className="h-4 w-4 text-brand-deep" />
         Cette carte ne peut pas héberger MikHmon
@@ -60,7 +60,7 @@ export default function MikhmonCloudOutcome({ routerId }: { routerId: string }) 
 
       {domaine ? (
         <p className="mt-3">
-          <span className="block text-[11px] text-ink-soft">Domaine dédié</span>
+          <span className="block text-xs text-ink-soft">Domaine dédié</span>
           <a
             href={`https://${domaine}`}
             target="_blank"
@@ -76,7 +76,7 @@ export default function MikhmonCloudOutcome({ routerId }: { routerId: string }) 
           type="button"
           onClick={creer}
           disabled={pending}
-          className="mt-3 inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+          className="btn btn-md btn-secondary mt-3 inline-flex items-center gap-2"
         >
           {pending && <Loader2 className="h-4 w-4 animate-spin" />}
           {pending ? "Création de l'instance…" : "Créer l'accès MikHmon Online"}

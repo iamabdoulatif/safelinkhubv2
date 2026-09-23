@@ -14,10 +14,10 @@ export default function RenameOrgForm({ currentName }: { currentName: string }) 
       </p>
 
       {state?.error && (
-        <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
+        <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
       )}
       {state?.success && (
-        <p className="mt-3 rounded-md bg-clay px-3 py-2 text-sm text-ok">
+        <p className="mt-3 rounded-lg bg-clay px-3 py-2 text-sm text-ok">
           Nom mis à jour.
         </p>
       )}
@@ -27,12 +27,12 @@ export default function RenameOrgForm({ currentName }: { currentName: string }) 
           name="name"
           required
           defaultValue={currentName}
-          className="flex-1 rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+          className="field flex-1"
         />
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+          className="btn btn-md btn-secondary"
         >
           {pending ? "Enregistrement..." : "Enregistrer"}
         </button>

@@ -67,7 +67,7 @@ export default function ShareStatusPanel({
                 <input type="hidden" name="channel" value={channel} />
                 <button
                   type="submit"
-                  className="rounded-full border border-line px-4 py-1.5 text-xs font-semibold text-ink hover:bg-clay"
+                  className="btn btn-sm btn-outline"
                 >
                   {row?.status === "sent" ? "Rediffuser" : "Relancer"}
                 </button>

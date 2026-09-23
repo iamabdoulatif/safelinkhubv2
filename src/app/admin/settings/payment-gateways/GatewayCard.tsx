@@ -137,12 +137,12 @@ export default function GatewayCard({
       </p>
 
       {state?.success && (
-        <p className="mt-3 flex items-center gap-1.5 rounded-md bg-clay px-3 py-2 text-xs text-ok">
+        <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-clay px-3 py-2 text-xs text-ok">
           <Check className="h-3.5 w-3.5" /> Enregistré
         </p>
       )}
       {state?.error && (
-        <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-xs text-err">
+        <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-xs text-err">
           {state.error}
         </p>
       )}
@@ -157,10 +157,10 @@ export default function GatewayCard({
             defaultValue={merchantId ?? ""}
             placeholder={fields.idPlaceholder}
             autoComplete="off"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
+            className="field w-full"
           />
           {fields.idHint && (
-            <p className="mt-1 text-[11px] text-ink-soft">{fields.idHint}</p>
+            <p className="mt-1 text-xs text-ink-soft">{fields.idHint}</p>
           )}
         </div>
         <div>
@@ -172,16 +172,16 @@ export default function GatewayCard({
             type="password"
             placeholder={hasApiKey ? "••••••••••••" : fields.keyPlaceholder}
             autoComplete="off"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
+            className="field w-full"
           />
-          <p className="mt-1 text-[11px] text-ink-soft">{fields.keyHint}</p>
+          <p className="mt-1 text-xs text-ink-soft">{fields.keyHint}</p>
         </div>
       </div>
 
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-deep-line disabled:opacity-60"
+        className="btn btn-md btn-secondary mt-4 w-full"
       >
         {pending ? "Enregistrement..." : "Enregistrer"}
       </button>

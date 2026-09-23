@@ -11,7 +11,7 @@ export default async function SmsSettingsPage() {
     <div className="mx-auto max-w-4xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <MessageSquare className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">SMS</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">SMS</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
         Connectez une passerelle SMS pour envoyer automatiquement les codes voucher,
@@ -36,7 +36,7 @@ export default async function SmsSettingsPage() {
       {/* Ce que « Activée » change VRAIMENT, écrit noir sur blanc : sans cette
           phrase, décocher la case ressemble à une panne, alors que c'est un
           mode de vente à part entière. */}
-      <div className="mt-6 space-y-3 rounded-md bg-clay px-4 py-3 text-xs leading-5 text-ink-soft">
+      <div className="mt-6 space-y-3 rounded-lg bg-clay px-4 py-3 text-xs leading-5 text-ink-soft">
         <p>
           <strong className="font-semibold text-ink">Passerelle activée :</strong> le portail
           demande un code par SMS avant le paiement, et le code du ticket part par SMS après

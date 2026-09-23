@@ -54,7 +54,7 @@ export default function RemoteAccessTabs() {
           {method === "wireguard" ? <GenerateScriptForm /> : <GenerateOpenvpnScriptForm />}
         </div>
 
-        <div className="mt-4 rounded-md bg-clay px-3 py-2.5 text-xs text-warn">
+        <div className="mt-4 rounded-lg bg-clay px-3 py-2.5 text-xs text-warn">
           <p className="font-medium">
             Note : Si vous obtenez une erreur &quot;not allowed by device mode&quot;, exécutez
             cette commande sur le routeur, puis confirmez physiquement dans les 10 minutes

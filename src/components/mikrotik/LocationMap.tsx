@@ -164,7 +164,7 @@ export default function LocationMap({
       ref={hote}
       // z-0 : les panneaux Leaflet montent jusqu'à z-index 800 et passeraient
       // au-dessus des menus et modales de l'administration.
-      className="relative z-0 h-64 w-full overflow-hidden rounded-md border border-line-soft"
+      className="relative z-0 h-64 w-full overflow-hidden rounded-lg border border-line-soft"
     />
   );
 }

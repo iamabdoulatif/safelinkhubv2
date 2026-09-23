@@ -72,7 +72,7 @@ export default function FeatureAccessRequestModal({
 
         {done ? (
           <div className="mt-4">
-            <div className="flex items-start gap-2 rounded-md bg-ok-soft p-3">
+            <div className="flex items-start gap-2 rounded-lg bg-ok-soft p-3">
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ok" />
               <div className="text-sm text-ok">
                 <p className="font-medium">Demande envoyée !</p>
@@ -85,7 +85,7 @@ export default function FeatureAccessRequestModal({
                   href={done.whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-brand-deep px-3 py-1.5 text-xs font-medium text-white"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand-deep px-3 py-1.5 text-xs font-medium text-white"
                 >
                   Prévenir via WhatsApp <ExternalLink className="h-3.5 w-3.5" />
                 </a>
@@ -94,7 +94,7 @@ export default function FeatureAccessRequestModal({
             <div className="mt-4 flex justify-end">
               <button
                 onClick={onClose}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Fermer
               </button>
@@ -105,13 +105,13 @@ export default function FeatureAccessRequestModal({
             <p className="mt-2 text-sm text-ink-soft">{featureAccessDescription(feature)}</p>
 
             {latestStatus === "pending" && (
-              <p className="mt-3 rounded-md bg-warn-soft px-3 py-2 text-sm text-warn">
+              <p className="mt-3 rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">
                 Une demande est déjà <strong>en attente de validation</strong>. Vous pouvez en
                 renvoyer une si besoin.
               </p>
             )}
             {latestStatus === "rejected" && (
-              <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+              <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
                 Votre dernière demande a été <strong>refusée</strong>. Vous pouvez en renvoyer une.
               </p>
             )}
@@ -127,26 +127,26 @@ export default function FeatureAccessRequestModal({
                   rows={3}
                   maxLength={1000}
                   placeholder="Ex : je souhaite configurer mon MikroTik pour mon hotspot."
-                  className="mt-1 w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-line-soft px-3 py-2 text-sm"
                 />
               </label>
             </div>
 
             {error && (
-              <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
+              <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
             )}
 
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={onClose}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Annuler
               </button>
               <button
                 onClick={submit}
                 disabled={pending}
-                className="inline-flex items-center gap-2 rounded-md bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-lg bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
                 {pending && <Loader2 className="h-4 w-4 animate-spin" />}
                 Envoyer la demande d&apos;accès

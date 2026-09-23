@@ -50,7 +50,7 @@ export default async function PackagesPage() {
     <div className="animate-fade-in-up">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Forfaits</h1>
+          <h1 className="text-ink text-2xl font-semibold tracking-tight">Forfaits</h1>
           {orgPackages.length === 0 ? (
             <p className="mt-1 text-sm text-ink-soft">
               Ce que le client achète au portail : un prix, une durée, un débit.

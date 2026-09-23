@@ -46,7 +46,7 @@ export default function TemplatesManager({
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line"
+            className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line"
           >
             <Plus className="h-4 w-4" />
             Nouveau modèle
@@ -55,11 +55,11 @@ export default function TemplatesManager({
       </div>
 
       {error && (
-        <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
+        <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
       )}
 
       {templates.length === 0 ? (
-        <p className="mt-4 rounded-md border border-dashed border-line-soft px-4 py-10 text-center text-sm text-ink-soft">
+        <p className="mt-4 rounded-lg border border-dashed border-line-soft px-4 py-10 text-center text-sm text-ink-soft">
           Aucun modèle pour le moment. Créez-en un pour personnaliser la page
           que vos clients voient en se connectant au Wi-Fi.
         </p>
@@ -97,13 +97,13 @@ export default function TemplatesManager({
                 <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
                   {t.name}
                   {t.isDefault && (
-                    <span className="flex items-center gap-1 rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-warn">
+                    <span className="flex items-center gap-1 rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-warn">
                       <Star className="h-3 w-3" />
                       Par défaut
                     </span>
                   )}
                   {t.templateType === "package" && (
-                    <span className="flex items-center gap-1 rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-brand-deep">
+                    <span className="flex items-center gap-1 rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-brand-deep">
                       <Package className="h-3 w-3" />
                       Package
                     </span>
@@ -116,7 +116,7 @@ export default function TemplatesManager({
                   <button
                     type="button"
                     onClick={() => setEditingBranding(t)}
-                    className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+                    className="flex items-center gap-1 rounded-lg border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Coordonnées
@@ -125,7 +125,7 @@ export default function TemplatesManager({
                   <button
                     type="button"
                     onClick={() => setEditing(t)}
-                    className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+                    className="flex items-center gap-1 rounded-lg border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Modifier
@@ -141,7 +141,7 @@ export default function TemplatesManager({
                       else router.refresh();
                     })
                   }
-                  className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+                  className="flex items-center gap-1 rounded-lg border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   Dupliquer
@@ -157,7 +157,7 @@ export default function TemplatesManager({
                         else goBackIfRetour();
                       })
                     }
-                    className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+                    className="flex items-center gap-1 rounded-lg border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                   >
                     <Star className="h-3.5 w-3.5" />
                     Par défaut
@@ -180,14 +180,14 @@ export default function TemplatesManager({
                           }
                         })
                       }
-                      className="rounded-md bg-err px-2 py-1 text-xs font-medium text-white hover:bg-ink"
+                      className="rounded-lg bg-err px-2 py-1 text-xs font-medium text-white hover:bg-ink"
                     >
                       Confirmer
                     </button>
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteId(null)}
-                      className="rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+                      className="rounded-lg border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                     >
                       Annuler
                     </button>
@@ -196,7 +196,7 @@ export default function TemplatesManager({
                   <button
                     type="button"
                     onClick={() => setConfirmDeleteId(t.id)}
-                    className="flex items-center gap-1 rounded-md border border-err px-2 py-1 text-xs font-medium text-err hover:bg-err-soft"
+                    className="flex items-center gap-1 rounded-lg border border-err px-2 py-1 text-xs font-medium text-err hover:bg-err-soft"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Supprimer

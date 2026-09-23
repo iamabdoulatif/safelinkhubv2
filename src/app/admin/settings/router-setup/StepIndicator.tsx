@@ -40,7 +40,7 @@ export default function StepIndicator({
               ? "bg-brand text-ink"
               : "bg-clay text-ink-soft"
         } ${clickable ? "hover:ring-2 hover:ring-ink/40" : ""}`;
-        const labelClass = `hidden sm:block text-[10px] font-medium tracking-wide uppercase ${
+        const labelClass = `hidden sm:block text-xs font-medium tracking-wide uppercase ${
           active ? "text-ink" : done ? "text-ink-soft" : "text-ink-soft/60"
         } ${clickable ? "group-hover:text-ink" : ""}`;
 

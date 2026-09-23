@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { updateSocialSharing } from "@/lib/social/actions";
 
 const field =
-  "w-full rounded-lg border border-line bg-paper px-3 py-2.5 text-sm text-ink placeholder:text-ink-soft/60 focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand";
+  "w-full rounded-lg border border-line bg-paper px-3 py-2.5 text-sm text-ink placeholder:text-ink-soft/60 focus:border-slate-deep";
 const label = "mb-1.5 block text-sm font-medium text-ink";
 
 export default function SocialSharingForm({
@@ -139,7 +139,7 @@ export default function SocialSharingForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-6 inline-flex items-center justify-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60"
+        className="btn btn-md btn-primary mt-6 inline-flex items-center justify-center gap-2"
       >
         {pending ? "Enregistrement…" : "Enregistrer la diffusion"}
       </button>

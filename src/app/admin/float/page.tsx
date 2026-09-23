@@ -37,7 +37,7 @@ export default async function FloatPage() {
     <div className="mx-auto max-w-4xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <Droplet className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">Solde flottant</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">Solde flottant</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
         Suivez la liquidité disponible pour payer les commissions et gérer

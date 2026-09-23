@@ -66,7 +66,7 @@ export default function LabelScanButton({
         type="button"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
-        className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-line-soft bg-clay px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-ink disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line-soft bg-clay px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-ink disabled:opacity-60"
       >
         {busy ? (
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />

@@ -98,7 +98,7 @@ export function ClientPortfolioBrowser({
             onChange={(e) => setQuery(e.target.value)}
             aria-label={t.searchLabel}
             placeholder={t.searchPlaceholder}
-            className="w-full rounded-full border border-line bg-paper py-2.5 pl-10 pr-10 text-sm text-ink placeholder:text-ink-soft focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand"
+            className="w-full rounded-full border border-line bg-paper py-2.5 pl-10 pr-10 text-sm text-ink placeholder:text-ink-soft focus:border-ink"
           />
           {query && (
             <button
@@ -118,7 +118,7 @@ export function ClientPortfolioBrowser({
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as PortfolioSort)}
-            className="rounded-full border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand"
+            className="rounded-full border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink focus:border-ink"
           >
             <option value="name">{t.sortName}</option>
             <option value="routers">{t.sortRouters}</option>
@@ -216,7 +216,7 @@ function SummaryTile({
   const valueColor = tone === "ok" ? "text-ok" : tone === "err" ? "text-err" : "text-ink";
   return (
     <div className="border border-line bg-paper p-4 rounded-xl">
-      <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
+      <dt className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-ink-soft">
         <Icon aria-hidden="true" className="h-4 w-4" />
         {label}
       </dt>

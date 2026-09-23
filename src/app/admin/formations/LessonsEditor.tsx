@@ -63,7 +63,7 @@ export default function LessonsEditor({
                 <button
                   disabled={i === 0}
                   aria-label={`Monter « ${l.title} »`}
-                  className="rounded-md border border-line p-1.5 text-ink hover:bg-clay disabled:opacity-30"
+                  className="rounded-lg border border-line p-1.5 text-ink hover:bg-clay disabled:opacity-30"
                 >
                   <ArrowUp className="h-3.5 w-3.5" />
                 </button>
@@ -74,7 +74,7 @@ export default function LessonsEditor({
                 <button
                   disabled={i === lessons.length - 1}
                   aria-label={`Descendre « ${l.title} »`}
-                  className="rounded-md border border-line p-1.5 text-ink hover:bg-clay disabled:opacity-30"
+                  className="rounded-lg border border-line p-1.5 text-ink hover:bg-clay disabled:opacity-30"
                 >
                   <ArrowDown className="h-3.5 w-3.5" />
                 </button>
@@ -83,13 +83,13 @@ export default function LessonsEditor({
               {confirme === l.id ? (
                 <form action={deleteLesson} className="flex gap-1.5">
                   <input type="hidden" name="id" value={l.id} />
-                  <button className="rounded-md bg-err px-2.5 py-1.5 text-xs font-bold text-white">
+                  <button className="btn btn-sm btn-destructive">
                     Retirer
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirme(null)}
-                    className="rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft"
+                    className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-soft"
                   >
                     Annuler
                   </button>
@@ -99,7 +99,7 @@ export default function LessonsEditor({
                   type="button"
                   onClick={() => setConfirme(l.id)}
                   title="Retirer de la formation — l'article n'est pas supprimé"
-                  className="rounded-md border border-line p-1.5 text-err hover:bg-err-soft"
+                  className="rounded-lg border border-line p-1.5 text-err hover:bg-err-soft"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -124,7 +124,7 @@ export default function LessonsEditor({
             name="postId"
             required
             defaultValue=""
-            className="mt-1 w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="field mt-1 w-full"
           >
             <option value="" disabled>
               {disponibles.length ? "Choisir…" : "Tous vos articles sont déjà dans ce parcours"}
@@ -140,12 +140,12 @@ export default function LessonsEditor({
         <button
           type="submit"
           disabled={pending || disponibles.length === 0}
-          className="rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+          className="btn btn-md btn-secondary"
         >
           {pending ? "Ajout…" : "Rattacher"}
         </button>
         {state && "error" in state && state.error && (
-          <p className="w-full rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
+          <p className="w-full rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
         )}
       </form>
     </section>

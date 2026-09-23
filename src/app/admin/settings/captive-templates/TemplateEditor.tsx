@@ -57,7 +57,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
+        className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
       />
     </div>
   );
@@ -107,7 +107,7 @@ export default function TemplateEditor({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-full max-w-4xl max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-paper">
+      <div className="flex w-full max-w-4xl max-h-[90vh] flex-col overflow-hidden rounded-xl bg-paper">
         <div className="flex items-center justify-between border-b border-line-soft px-6 py-4">
           <h2 className="text-lg font-semibold text-ink">
             {isEdit ? "Modifier le modèle" : "Nouveau modèle de portail captif"}
@@ -120,7 +120,7 @@ export default function TemplateEditor({
         <div className="grid flex-1 grid-cols-1 gap-6 overflow-y-auto p-6 md:grid-cols-2">
           <form action={formAction} className="space-y-4">
             {state?.error && (
-              <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+              <p className="rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
                 {state.error}
               </p>
             )}
@@ -157,7 +157,7 @@ export default function TemplateEditor({
                   type="color"
                   value={form.primaryColor}
                   onChange={(e) => set("primaryColor", e.target.value)}
-                  className="h-10 w-full rounded-md border border-line-soft"
+                  className="h-10 w-full rounded-lg border border-line-soft"
                 />
               </div>
               <div>
@@ -169,7 +169,7 @@ export default function TemplateEditor({
                   type="color"
                   value={form.backgroundColor}
                   onChange={(e) => set("backgroundColor", e.target.value)}
-                  className="h-10 w-full rounded-md border border-line-soft"
+                  className="h-10 w-full rounded-lg border border-line-soft"
                 />
               </div>
             </div>
@@ -211,7 +211,7 @@ export default function TemplateEditor({
               onChange={(v) => set("footerText", v)}
             />
 
-            <label className="flex items-center gap-2 rounded-md border border-line-soft px-3 py-2.5 text-sm text-ink">
+            <label className="flex items-center gap-2 rounded-lg border border-line-soft px-3 py-2.5 text-sm text-ink">
               <input
                 type="checkbox"
                 name="mobileMoneyEnabled"
@@ -222,7 +222,7 @@ export default function TemplateEditor({
               Afficher les boutons de paiement mobile money (Wave, Orange
               Money, Moov Money) sur le portail
             </label>
-            <p className="text-[11px] text-ink-soft">
+            <p className="text-xs text-ink-soft">
               Maquette d&apos;interface uniquement pour l&apos;instant — voir{" "}
               <a
                 href="/admin/settings/payment-gateways"
@@ -237,14 +237,14 @@ export default function TemplateEditor({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Enregistrement..." : "Enregistrer"}
               </button>

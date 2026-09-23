@@ -45,7 +45,7 @@ export function OrganizationFocusPanel({ focus, compact = false }: OrganizationF
           {focus.routerTableHref && (
             <Link
               href={focus.routerTableHref}
-              className="inline-flex items-center gap-2 border border-line bg-brand px-3 py-2 text-sm font-bold text-ink transition-colors hover:bg-ink hover:text-paper"
+              className="btn btn-md btn-primary inline-flex items-center gap-2"
             >
               Voir la table technique <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
             </Link>

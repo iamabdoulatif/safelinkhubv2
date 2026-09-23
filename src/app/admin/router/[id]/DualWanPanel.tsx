@@ -64,7 +64,7 @@ function JobRow({ job, onApply, onRemove, busy }: { job: Job; onApply: (form: Du
           )}
         </span>
       </div>
-      <p className="text-[11px] text-ink-soft">{new Date(job.at).toLocaleString("fr-FR")}</p>
+      <p className="text-xs text-ink-soft">{new Date(job.at).toLocaleString("fr-FR")}</p>
       {job.status === "error" && (
         <p className="mt-1 text-err">
           {d.step ? `${d.step} : ` : ""}
@@ -96,7 +96,7 @@ function JobRow({ job, onApply, onRemove, busy }: { job: Job; onApply: (form: Du
       {applied.length > 0 && (
         <details className="mt-1">
           <summary className="cursor-pointer text-xs text-ink-soft">Commandes</summary>
-          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] text-ink">{applied.join("\n")}</pre>
+          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-xs text-ink">{applied.join("\n")}</pre>
         </details>
       )}
     </li>
@@ -235,7 +235,7 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
           type="button"
           onClick={() => launch()}
           disabled={pending || running}
-          className="inline-flex items-center gap-2 bg-brand px-4 py-2 text-sm font-bold text-slate-deep rounded-lg disabled:opacity-60"
+          className="inline-flex items-center gap-2 bg-brand px-4 py-2 text-sm font-semibold text-slate-deep rounded-lg disabled:opacity-60"
         >
           {pending || running ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
           {form.dryRun ? "Simuler" : "Provisionner"}
@@ -258,7 +258,7 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
           type="button"
           onClick={removeConfig}
           disabled={pending || running}
-          className="mt-3 inline-flex items-center gap-2 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-err rounded-lg hover:bg-clay disabled:opacity-60"
+          className="btn btn-sm btn-outline mt-3 inline-flex items-center gap-2"
         >
           {form.dryRun ? "Simuler le retrait" : "Retirer la configuration"}
         </button>

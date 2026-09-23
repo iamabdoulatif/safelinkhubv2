@@ -33,7 +33,7 @@ export default function TrialBadge({
         <Sparkles className="h-3.5 w-3.5" />
         {activeLabel}
         {typeof daysRemaining === "number" && (
-          <span className="rounded-full bg-paper/25 px-1.5 py-0.5 text-[11px] font-medium">
+          <span className="rounded-full bg-paper/25 px-1.5 py-0.5 text-xs font-medium">
             {humanizeDaysRemaining(daysRemaining)}
           </span>
         )}

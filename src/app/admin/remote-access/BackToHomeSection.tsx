@@ -84,7 +84,7 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
           type="button"
           onClick={handleEnable}
           disabled={pending || router.status !== "online"}
-          className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
+          className="btn btn-sm btn-secondary flex items-center gap-1.5"
         >
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {pending ? "Activation..." : "Activer Back To Home"}
@@ -124,7 +124,7 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
                 />
               )}
               <div className="relative">
-                <pre className="code-block p-2 pr-8 text-[10px]">
+                <pre className="code-block p-2 pr-8 text-xs">
                   {result.wgConfig}
                 </pre>
                 <button
@@ -172,7 +172,7 @@ export default function BackToHomeSection({ routers }: { routers: RouterRow[] })
         ))}
       </div>
 
-      <p className="mt-4 rounded-md bg-clay px-3 py-2 text-xs text-ink">
+      <p className="mt-4 rounded-lg bg-clay px-3 py-2 text-xs text-ink">
         Nécessite un routeur à processeur ARM/ARM64/TILE avec RouterOS 7.12
         ou plus récent. La configuration WireGuard générée fonctionne aussi
         directement avec l&apos;app WireGuard classique, sans passer par

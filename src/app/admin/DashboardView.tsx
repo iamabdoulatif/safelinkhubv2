@@ -169,6 +169,7 @@ function StatTile({
   more,
   icon: Icon,
   accent = "brand",
+  compact = false,
   children,
 }: {
   label: string;
@@ -180,6 +181,8 @@ function StatTile({
   more: string;
   icon: typeof WalletCards;
   accent?: "brand" | "ok" | "err" | "ink";
+  /** Rang secondaire : même structure, chiffre plus petit, sans pastille. */
+  compact?: boolean;
   /** Complément sous la valeur — la barre segmentée du parc, par exemple. */
   children?: React.ReactNode;
 }) {
@@ -198,17 +201,19 @@ function StatTile({
   return (
     <Link
       href={href}
-      className={`tile-hover flex flex-col rounded-xl border border-line border-t-4 border-t-line bg-paper p-4 transition-colors ${accents[accent]}`}
+      className={`tile-hover flex h-full flex-col rounded-xl border border-line border-t-4 border-t-line bg-paper transition-colors ${compact ? "p-3.5" : "p-5"} ${accents[accent]}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">{label}</p>
-        <span className="tile-hover-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-clay">
-          <Icon aria-hidden="true" className="h-4 w-4 text-ink" />
-        </span>
+        <p className="text-[13px] font-medium text-ink-soft">{label}</p>
+        {!compact && (
+          <span className="tile-hover-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-clay">
+            <Icon aria-hidden="true" className="h-4 w-4 text-ink" />
+          </span>
+        )}
       </div>
       <p
         title={fullValue}
-        className="mt-3 text-2xl font-bold tabular-nums tracking-tight text-ink"
+        className={`tabular-nums tracking-tight text-ink ${compact ? "mt-1.5 text-lg font-semibold" : "mt-3 text-[28px] font-semibold leading-8"}`}
       >
         {value}
       </p>
@@ -248,7 +253,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink">{t.title}</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">{t.title}</h1>
         <div className="flex flex-wrap items-center gap-2">
           <DateRangePicker from={picker.from} to={picker.to} activePreset={picker.activePreset} />
           {/* Les deux actions vivaient dans le bandeau héros, que la grille de
@@ -256,7 +261,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
               disparaître avec lui. */}
           <Link
             href="/admin/vouchers"
-            className="inline-flex items-center gap-2 rounded-full border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper"
+            className="btn btn-md btn-primary inline-flex items-center gap-2"
           >
             <Ticket aria-hidden="true" className="h-4 w-4" />
             {t.cashed.generateVouchers}
@@ -299,7 +304,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
           </div>
           <Link
             href="/admin/billing?pack=revendeur"
-            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper"
+            className="btn btn-md btn-primary inline-flex shrink-0 items-center gap-2"
           >
             {t.reseller.pendingCta}
           </Link>
@@ -325,9 +330,11 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
           garder aurait fait lire l'encaissé et le parc deux fois sur le même
           écran. La barre segmentée du parc, elle, survit DANS sa tuile : elle
           montre d'un coup d'œil combien de routeurs sont tombés. */}
-      <h2 className="mt-8 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+      <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-ink-soft">
         {t.tiles.title}
       </h2>
+      {/* Deux rangs, pas huit tuiles égales : l'encaissé et le parc se lisent
+          avant les commissions. Les huit restent cliquables. */}
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label={t.tiles.gross}
@@ -345,42 +352,6 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
           href="/admin/sales"
           more={t.tiles.more}
           icon={TrendingUp}
-          accent="ok"
-        />
-        <StatTile
-          label={t.tiles.sales}
-          value={formatNumber(data?.kpis.salesCount ?? 0)}
-          hint={t.tiles.salesHint}
-          href="/admin/sales"
-          more={t.tiles.more}
-          icon={ShoppingBag}
-          accent="brand"
-        />
-        <StatTile
-          label={t.tiles.commissions}
-          {...fcfaTile(data?.kpis.commissionCents ?? 0)}
-          hint={t.tiles.commissionsHint}
-          href="/admin/transactions"
-          more={t.tiles.more}
-          icon={Percent}
-          accent="ink"
-        />
-        <StatTile
-          label={t.tiles.expenses}
-          {...fcfaTile(data?.kpis.expenseCents ?? 0)}
-          hint={t.tiles.expensesHint}
-          href="/admin/expenses"
-          more={t.tiles.more}
-          icon={Receipt}
-          accent="err"
-        />
-        <StatTile
-          label={t.tiles.credit}
-          {...fcfaTile(data?.kpis.creditCents ?? 0)}
-          hint={t.tiles.creditHint}
-          href="/admin/billing"
-          more={t.tiles.more}
-          icon={WalletCards}
           accent="ok"
         />
         <StatTile
@@ -413,6 +384,48 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
           accent="ink"
         />
       </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatTile
+          compact
+          label={t.tiles.sales}
+          value={formatNumber(data?.kpis.salesCount ?? 0)}
+          hint={t.tiles.salesHint}
+          href="/admin/sales"
+          more={t.tiles.more}
+          icon={ShoppingBag}
+          accent="brand"
+        />
+        <StatTile
+          compact
+          label={t.tiles.commissions}
+          {...fcfaTile(data?.kpis.commissionCents ?? 0)}
+          hint={t.tiles.commissionsHint}
+          href="/admin/transactions"
+          more={t.tiles.more}
+          icon={Percent}
+          accent="ink"
+        />
+        <StatTile
+          compact
+          label={t.tiles.expenses}
+          {...fcfaTile(data?.kpis.expenseCents ?? 0)}
+          hint={t.tiles.expensesHint}
+          href="/admin/expenses"
+          more={t.tiles.more}
+          icon={Receipt}
+          accent="err"
+        />
+        <StatTile
+          compact
+          label={t.tiles.credit}
+          {...fcfaTile(data?.kpis.creditCents ?? 0)}
+          hint={t.tiles.creditHint}
+          href="/admin/billing"
+          more={t.tiles.more}
+          icon={WalletCards}
+          accent="ok"
+        />
+      </div>
 
       {/* Histogrammes mensuels, comme le modèle : un compteur par carte, les
           mois en abscisse. Ils IGNORENT le sélecteur de période — sinon la
@@ -420,7 +433,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
           par graphique, ce qui ne compare rien. */}
       {monthly && (
         <>
-          <h2 className="mt-8 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+          <h2 className="mt-8 text-xs font-semibold uppercase tracking-wider text-ink-soft">
             {t.charts.title}
           </h2>
           <p className="mt-1 text-xs text-ink-soft">{t.charts.subtitle}</p>
@@ -444,7 +457,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
                   ariaLabel={titre}
                   emptyLabel={t.chart.empty}
                 />
-                <p className="mt-1 text-center text-[10px] italic text-ink-soft">
+                <p className="mt-1 text-center text-xs italic text-ink-soft">
                   {t.charts.month}
                 </p>
               </Card>
@@ -558,10 +571,10 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
               className="block rounded-xl bg-slate-deep p-5 text-white transition-colors hover:bg-[#0C2415]"
             >
               <div className="flex items-baseline justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-brand">
+                <p className="text-xs font-semibold uppercase tracking-wider text-brand">
                   {t.safecoin.title}
                 </p>
-                <span className="font-mono text-[11px] text-white/60">
+                <span className="font-mono text-xs text-white/60">
                   {t.safecoin.rate(formatNumber(safecoin.rateFcfaPerSc))}
                 </span>
               </div>

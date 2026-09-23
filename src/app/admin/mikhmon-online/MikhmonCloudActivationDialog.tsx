@@ -83,7 +83,7 @@ export default function MikhmonCloudActivationDialog({
           if (event.target === event.currentTarget && !pending) onClose();
         }}
       >
-        <div className="mx-auto my-3 w-full max-w-6xl overflow-hidden rounded-2xl border border-line bg-paper shadow-2xl sm:my-8">
+        <div className="mx-auto my-3 w-full max-w-6xl overflow-hidden rounded-xl border border-line bg-paper shadow-modal sm:my-8">
           <header className="flex items-center justify-between border-b border-line-soft bg-white px-5 py-4 sm:px-7">
             <Logo />
             <button
@@ -105,7 +105,7 @@ export default function MikhmonCloudActivationDialog({
 
           <div className={`grid lg:grid-cols-[220px_minmax(0,1fr)] ${activated ? "" : "xl:grid-cols-[220px_minmax(0,1fr)_258px]"}`}>
             <aside className="bg-[#12301D] px-5 py-6 text-paper sm:px-6 lg:min-h-[580px]">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-brand">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand">
                 Nouvelle liaison
               </p>
               <h2 className="mt-2 text-lg leading-tight text-white" style={titleStyle}>
@@ -124,7 +124,7 @@ export default function MikhmonCloudActivationDialog({
                     <li key={number} className="relative grid grid-cols-[25px_1fr] gap-2.5">
                       {index < 3 && <i className="absolute left-[11px] top-6 h-8 w-px bg-white/25" />}
                       <span
-                        className={`relative z-10 grid h-[23px] w-[23px] place-items-center rounded-full border text-[10px] font-bold ${
+                        className={`relative z-10 grid h-[23px] w-[23px] place-items-center rounded-full border text-xs font-bold ${
                           active
                             ? "border-brand bg-brand text-[#12301D]"
                             : "border-white/40 text-white/70"
@@ -134,14 +134,14 @@ export default function MikhmonCloudActivationDialog({
                       </span>
                       <span>
                         <strong className="block pt-0.5 text-xs text-white">{label}</strong>
-                        <small className="mt-1 block text-[10px] text-white/65">{note}</small>
+                        <small className="mt-1 block text-xs text-white/65">{note}</small>
                       </span>
                     </li>
                   );
                 })}
               </ol>
 
-              <p className="mt-9 border-t border-white/25 pt-4 text-[11px] leading-5 text-white/75">
+              <p className="mt-9 border-t border-white/25 pt-4 text-xs leading-5 text-white/75">
                 La configuration de ce routeur reste inchangée : aucun Container, VETH ou NAT MikHmon ne sera ajouté.
               </p>
             </aside>
@@ -162,14 +162,14 @@ export default function MikhmonCloudActivationDialog({
                   <button
                     type="button"
                     onClick={() => window.location.reload()}
-                    className="mt-7 rounded-full border border-[#12301D] bg-brand px-5 py-2.5 text-sm font-bold text-[#12301D] transition hover:brightness-95"
+                    className="mt-7 rounded-full border border-[#12301D] bg-brand px-5 py-2.5 text-sm font-semibold text-[#12301D] transition hover:brightness-95"
                   >
                     Voir MikHmon Online
                   </button>
                 </div>
               ) : (
                 <>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-brand-deep">MikHmon Online</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-deep">MikHmon Online</p>
                   <h1 id={`mikhmon-cloud-title-${router.id}`} className="mt-2 text-2xl leading-tight text-[#12301D] sm:text-3xl" style={titleStyle}>
                     Raccordez ce routeur à MikHmon.
                   </h1>
@@ -193,7 +193,7 @@ export default function MikhmonCloudActivationDialog({
                   </div>
 
                   <div className="mt-7">
-                    <div className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.13em] text-ink-soft">
+                    <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.13em] text-ink-soft">
                       Liaison détectée <i className="h-px flex-1 bg-line-soft" />
                     </div>
                     <div className="mt-3 divide-y divide-line-soft border-y border-line-soft">
@@ -213,7 +213,7 @@ export default function MikhmonCloudActivationDialog({
                   <div className="mt-7">
                     <label
                       htmlFor={`slug-${router.id}`}
-                      className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.13em] text-ink-soft"
+                      className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.13em] text-ink-soft"
                     >
                       Adresse du tableau <i className="h-px flex-1 bg-line-soft" />
                     </label>
@@ -240,7 +240,7 @@ export default function MikhmonCloudActivationDialog({
                   </div>
 
                   <div className="mt-7">
-                    <div className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.13em] text-ink-soft">
+                    <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.13em] text-ink-soft">
                       Édition de MikHmon <i className="h-px flex-1 bg-line-soft" />
                     </div>
                     <div className="mt-3 divide-y divide-line-soft border-y border-line-soft">
@@ -263,7 +263,7 @@ export default function MikhmonCloudActivationDialog({
                             <span>
                               <strong className="block text-sm text-ink">
                                 {e.label}{" "}
-                                <span className="font-mono text-[11px] font-normal text-brand-deep">
+                                <span className="font-mono text-xs font-normal text-brand-deep">
                                   {e.routerOs}
                                 </span>
                               </strong>
@@ -306,7 +306,7 @@ export default function MikhmonCloudActivationDialog({
                       type="button"
                       onClick={startActivation}
                       disabled={!tunnel.ready || pending || !verdictSlug.ok}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#12301D] bg-brand px-5 py-2.5 text-sm font-bold text-[#12301D] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="btn btn-md btn-primary inline-flex items-center gap-2"
                     >
                       {pending && <Loader2 className="h-4 w-4 animate-spin" />}
                       {superadmin ? "Activer le domaine" : "Continuer vers la facturation"}
@@ -322,7 +322,7 @@ export default function MikhmonCloudActivationDialog({
             {!activated && (
               <aside className="border-t border-line bg-clay px-5 py-6 xl:border-l xl:border-t-0">
                 <i className="block h-1 w-7 bg-brand" />
-                <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-ink-soft">
+                <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-ink-soft">
                   Ce qui sera créé
                 </p>
                 <h2 className="mt-2 text-base leading-tight text-[#12301D]" style={titleStyle}>
@@ -345,8 +345,8 @@ export default function MikhmonCloudActivationDialog({
 
                 {superadmin && (
                   <div className="mt-5 border border-[#12301D] bg-white p-3">
-                    <strong className="block text-[11px] text-ink">Vous êtes superadmin</strong>
-                    <p className="mt-1 text-[11px] leading-5 text-ink-soft">
+                    <strong className="block text-xs text-ink">Vous êtes superadmin</strong>
+                    <p className="mt-1 text-xs leading-5 text-ink-soft">
                       L’accès reste activable sans paiement ; la confirmation sert simplement à
                       tracer le déploiement.
                     </p>
@@ -389,7 +389,7 @@ function ProtocolRow({ title, detail, selected }: { title: string; detail: strin
         <strong className="block text-sm text-ink">{title}</strong>
         <small className="mt-1 block text-xs leading-5 text-ink-soft">{detail}</small>
       </span>
-      {selected && <span className="mt-0.5 bg-brand px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#12301D]">Détecté</span>}
+      {selected && <span className="mt-0.5 bg-brand px-2 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-[#12301D]">Détecté</span>}
     </div>
   );
 }
@@ -399,7 +399,7 @@ function Fait({ titre, children }: { titre: string; children: React.ReactNode })
   return (
     <div className="border-t border-line-soft py-4 first:border-t-[#12301D]">
       <dt className="text-xs font-bold text-ink">{titre}</dt>
-      <dd className="mt-1 text-[11px] leading-5 text-ink-soft">{children}</dd>
+      <dd className="mt-1 text-xs leading-5 text-ink-soft">{children}</dd>
     </div>
   );
 }

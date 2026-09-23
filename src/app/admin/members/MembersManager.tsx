@@ -55,7 +55,7 @@ export default function MembersManager({
               type="email"
               required
               placeholder="collegue@exemple.com"
-              className="mt-1 w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="field mt-1 w-full"
             />
           </label>
           <label className="sm:w-56">
@@ -65,7 +65,7 @@ export default function MembersManager({
             <select
               name="role"
               defaultValue="editor"
-              className="mt-1 w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+              className="field mt-1 w-full"
             >
               {ROLES.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -76,7 +76,7 @@ export default function MembersManager({
           </label>
           <button
             disabled={invitePending}
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60"
+            className="btn btn-md btn-primary inline-flex items-center justify-center gap-2"
           >
             {invitePending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
             Envoyer
@@ -92,10 +92,10 @@ export default function MembersManager({
         </ul>
 
         {etat?.error && (
-          <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{etat.error}</p>
+          <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{etat.error}</p>
         )}
         {etat?.success && (
-          <div className="mt-3 rounded-md bg-ok-soft px-3 py-2 text-sm text-ok">
+          <div className="mt-3 rounded-lg bg-ok-soft px-3 py-2 text-sm text-ok">
             Invitation créée.
             {/* Sans Resend configuré l'envoi échoue en silence : le lien reste
                 affiché pour être transmis à la main, sinon l'invitation serait
@@ -154,7 +154,7 @@ export default function MembersManager({
                             fd.set("role", e.target.value);
                             agir(changeMemberRole, fd);
                           }}
-                          className="min-h-11 rounded-md border border-line-soft bg-paper px-2 py-1 text-sm text-ink sm:min-h-0"
+                          className="min-h-11 rounded-lg border border-line-soft bg-paper px-2 py-1 text-sm text-ink sm:min-h-0"
                         >
                           {ROLES.map((r) => (
                             <option key={r.id} value={r.id}>
@@ -176,7 +176,7 @@ export default function MembersManager({
                             fd.set("userId", m.id);
                             agir(removeMember, fd);
                           }}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-line-soft text-ink-soft transition hover:border-err hover:text-err disabled:opacity-50 sm:h-9 sm:w-9"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-line-soft text-ink-soft transition hover:border-err hover:text-err disabled:opacity-50 sm:h-9 sm:w-9"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

@@ -42,7 +42,7 @@ export default function RouterResetButton({
           type="button"
           onClick={handleConfirm}
           disabled={pending}
-          className="rounded-md bg-err px-3 py-1.5 text-sm font-medium text-white hover:bg-ink disabled:opacity-60"
+          className="btn btn-sm btn-destructive"
         >
           {pending ? <ButtonLoader size="sm" color="white" /> : "Oui, supprimer"}
         </button>
@@ -50,7 +50,7 @@ export default function RouterResetButton({
           type="button"
           onClick={() => setConfirming(false)}
           disabled={pending}
-          className="rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-clay"
+          className="rounded-lg border border-line-soft px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-clay"
         >
           Annuler
         </button>
@@ -64,7 +64,7 @@ export default function RouterResetButton({
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="flex items-center gap-1.5 rounded-md border border-err px-3 py-1.5 text-sm font-medium text-err hover:bg-err-soft"
+        className="flex items-center gap-1.5 rounded-lg border border-err px-3 py-1.5 text-sm font-medium text-err hover:bg-err-soft"
       >
         <Trash2 className="h-4 w-4" />
         {label}

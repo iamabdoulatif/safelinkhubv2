@@ -89,7 +89,7 @@ function Kpi({
 function Lien({ href, label }: { href: string; label: string }) {
   return (
     <span className="block">
-      <span className="block text-[11px] text-ink-soft">{label}</span>
+      <span className="block text-xs text-ink-soft">{label}</span>
       <a
         href={href}
         target="_blank"
@@ -164,7 +164,7 @@ function GestionInstance({
           <div>
             <label
               htmlFor={`slug-${router.id}`}
-              className="block text-[11px] font-semibold uppercase tracking-wider text-ink-soft"
+              className="block text-xs font-semibold uppercase tracking-wider text-ink-soft"
             >
               Adresse du tableau
             </label>
@@ -173,7 +173,7 @@ function GestionInstance({
                 id={`slug-${router.id}`}
                 value={nouveauSlug}
                 onChange={(e) => setNouveauSlug(e.target.value)}
-                className="w-44 rounded-md border border-line-soft px-2 py-1 font-mono text-xs focus:outline-none"
+                className="w-44 rounded-lg border border-line-soft px-2 py-1 font-mono text-xs"
               />
               <span className="font-mono text-xs text-ink-soft">.{baseDomain ?? "…"}</span>
               <button
@@ -185,16 +185,16 @@ function GestionInstance({
                     "Adresse changée.",
                   )
                 }
-                className="rounded-md border border-line px-2.5 py-1 text-xs font-semibold text-ink disabled:opacity-40"
+                className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink disabled:opacity-40"
               >
                 Enregistrer
               </button>
             </div>
             {!verdict.ok && nouveauSlug.length > 0 && (
-              <p className="mt-1 text-[11px] text-err">{verdict.erreur}</p>
+              <p className="mt-1 text-xs text-err">{verdict.erreur}</p>
             )}
             {slugChange && (
-              <p className="mt-1 text-[11px] leading-4 text-ink-soft">
+              <p className="mt-1 text-xs leading-4 text-ink-soft">
                 Le tableau sera recréé : l&apos;ancienne adresse cessera de répondre
                 immédiatement, la nouvelle en une minute environ.
               </p>
@@ -209,7 +209,7 @@ function GestionInstance({
                 onClick={() =>
                   lancer(() => desactiverMikhmonCloud(router.id), "Tableau désactivé.")
                 }
-                className="rounded-md border border-line px-2.5 py-1 text-xs font-semibold text-ink disabled:opacity-40"
+                className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink disabled:opacity-40"
               >
                 Désactiver
               </button>
@@ -218,7 +218,7 @@ function GestionInstance({
                 type="button"
                 disabled={pending}
                 onClick={() => lancer(() => activerMikhmonCloud(router.id), "Tableau réactivé.")}
-                className="rounded-md border border-[#12301D] bg-brand px-2.5 py-1 text-xs font-bold text-[#12301D] disabled:opacity-40"
+                className="rounded-lg border border-[#12301D] bg-brand px-2.5 py-1 text-xs font-semibold text-[#12301D] disabled:opacity-40"
               >
                 Réactiver
               </button>
@@ -226,7 +226,7 @@ function GestionInstance({
           </div>
 
           <div className="border-t border-line-soft pt-2.5">
-            <p className="text-[11px] leading-4 text-ink-soft">
+            <p className="text-xs leading-4 text-ink-soft">
               Supprimer détruit le tableau et libère l&apos;adresse. Vos tickets ne
               sont pas touchés : ils vivent sur le routeur.{" "}
               Tapez <span className="font-mono font-semibold text-ink">{slugActuel}</span> pour
@@ -237,7 +237,7 @@ function GestionInstance({
                 value={confirmation}
                 onChange={(e) => setConfirmation(e.target.value)}
                 aria-label="Confirmation de suppression"
-                className="w-44 rounded-md border border-line-soft px-2 py-1 font-mono text-xs focus:outline-none"
+                className="w-44 rounded-lg border border-line-soft px-2 py-1 font-mono text-xs"
               />
               <button
                 type="button"
@@ -245,7 +245,7 @@ function GestionInstance({
                 onClick={() =>
                   lancer(() => supprimerMikhmonCloud(router.id), "Tableau supprimé.")
                 }
-                className="rounded-md border border-err px-2.5 py-1 text-xs font-semibold text-err disabled:opacity-40"
+                className="rounded-lg border border-err px-2.5 py-1 text-xs font-semibold text-err disabled:opacity-40"
               >
                 Supprimer
               </button>
@@ -290,7 +290,7 @@ function CarteCloud({
                  mène à une erreur 404 est pire que pas de lien — il fait
                  croire à une panne alors que c'est un choix de l'exploitant. */
               <div>
-                <span className="block text-[11px] text-ink-soft">Domaine dédié (désactivé)</span>
+                <span className="block text-xs text-ink-soft">Domaine dédié (désactivé)</span>
                 <span className="block break-all font-mono text-sm text-ink-soft line-through">
                   {router.cloudDomain}
                 </span>
@@ -356,7 +356,7 @@ function CarteConteneur({ router }: { router: MikhmonRouter }) {
             type="button"
             onClick={chercher}
             disabled={pending || router.status !== "online"}
-            className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-clay disabled:opacity-50"
+            className="btn btn-sm btn-outline inline-flex items-center gap-1.5"
           >
             {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {pending ? "Recherche…" : "Vérifier l’accès"}
@@ -450,7 +450,7 @@ export default function MikhmonOnlineConsole({
   if (routers.length === 0) {
     return (
       <div className="mx-auto max-w-5xl">
-        <h1 className="text-2xl font-bold text-ink">MikHmon Online</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">MikHmon Online</h1>
         <p className="mt-4 bg-clay px-3 py-2.5 text-sm text-ink-soft">
           Aucun routeur lié pour le moment — ajoutez-en un depuis la page Routeurs.
         </p>
@@ -462,7 +462,7 @@ export default function MikhmonOnlineConsole({
     <div className="mx-auto max-w-5xl">
       <div className="flex items-center gap-2">
         <Globe className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">MikHmon Online</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">MikHmon Online</h1>
       </div>
       <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-soft">
         MikHmon ne vit pas au même endroit selon le matériel. Les cartes compatibles RouterOS

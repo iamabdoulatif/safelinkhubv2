@@ -40,7 +40,7 @@ const ETAPE_PAR_STATUT: Record<string, number> = {
 };
 
 const champ =
-  "mt-1 w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
+  "mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand";
 const etiquette = "block text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft";
 
 export default function VerificationCenter({
@@ -64,7 +64,7 @@ export default function VerificationCenter({
     <div className="mx-auto max-w-4xl">
       <div className="flex items-center gap-2">
         <ShieldCheck className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">Vérification d&apos;identité</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">Vérification d&apos;identité</h1>
       </div>
       <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-soft">
         Une organisation vérifiée peut encaisser sans plafond et débloque les demandes
@@ -171,14 +171,14 @@ export default function VerificationCenter({
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-line px-4 py-2.5 text-sm font-semibold text-ink hover:bg-clay"
+                className="btn btn-md btn-outline inline-flex w-full items-center justify-center gap-2"
               >
                 <MessageCircle className="h-4 w-4" />
                 Envoyer mes pièces
               </a>
               <button
                 type="submit"
-                className="w-full rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line"
+                className="btn btn-md btn-secondary w-full"
               >
                 {atteinte > 0 ? "Mettre à jour" : "J'ai envoyé mes pièces"}
               </button>
@@ -233,12 +233,12 @@ export default function VerificationCenter({
                 />
               </label>
               {state && "error" in state && state.error && (
-                <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
+                <p className="rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
               )}
               <button
                 type="submit"
                 disabled={pending || atteinte < 1 || restantes === 0}
-                className="w-full rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
+                className="btn btn-md btn-secondary w-full"
               >
                 {pending ? "Envoi…" : "Soumettre le dossier"}
               </button>

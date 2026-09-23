@@ -126,7 +126,7 @@ export default function BootstrapModal({
 
         {installed ? (
           <>
-            <div className="mt-4 rounded-md bg-clay px-4 py-3 text-sm text-ok" aria-live="polite">
+            <div className="mt-4 rounded-lg bg-clay px-4 py-3 text-sm text-ok" aria-live="polite">
               <span className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 Service installé avec succès sur le routeur. Le portail captif est prêt.
@@ -137,7 +137,7 @@ export default function BootstrapModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand"
+                className="btn btn-md btn-secondary"
               >
                 Continuer
               </button>
@@ -152,13 +152,13 @@ export default function BootstrapModal({
             </p>
 
             <div className="relative mt-3">
-              <pre className="code-block p-3 pr-10 text-[11px]">
+              <pre className="code-block p-3 pr-10 text-xs">
                 {command}
               </pre>
               <button
                 type="button"
                 onClick={copyCommand}
-                className="absolute right-2 top-2 rounded-md bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
+                className="absolute right-2 top-2 rounded-lg bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
                 title="Copier la commande"
                 aria-label="Copier la commande"
               >
@@ -169,7 +169,7 @@ export default function BootstrapModal({
             <button
               type="button"
               onClick={copyCommand}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink hover:bg-clay"
+              className="btn btn-md btn-outline mt-3 flex w-full items-center justify-center gap-2"
             >
               {copied ? (
                 <>
@@ -182,7 +182,7 @@ export default function BootstrapModal({
               )}
             </button>
 
-            <p className="mt-3 rounded-md bg-clay px-3 py-2 text-xs text-ink">
+            <p className="mt-3 rounded-lg bg-clay px-3 py-2 text-xs text-ink">
               Ce script ajoute les règles de portail captif (walled garden)
               et confirme l&apos;installation auprès de SafeLinkHub.
             </p>
@@ -203,7 +203,7 @@ export default function BootstrapModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Fermer
               </button>
@@ -211,7 +211,7 @@ export default function BootstrapModal({
                 type="button"
                 onClick={handleRanIt}
                 disabled={checking}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {checking ? "Vérification..." : "J'ai exécuté la commande"}
               </button>

@@ -31,7 +31,7 @@ export default function LadderFixButton({
       <input type="hidden" name="priceCents" value={prixMax} />
       <button
         disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-clay disabled:opacity-60"
+        className="btn btn-sm btn-outline inline-flex items-center gap-1.5"
       >
         {pending ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />

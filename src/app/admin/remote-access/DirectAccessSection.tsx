@@ -141,17 +141,17 @@ function SshFileZillaTutorial({
   }, []);
 
   return (
-    <div className="mt-2 rounded-md border border-line-soft bg-paper">
+    <div className="mt-2 rounded-lg border border-line-soft bg-paper">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-2.5 py-2 text-left text-[11px] font-medium text-ink-soft"
+        className="flex w-full items-center justify-between px-2.5 py-2 text-left text-xs font-medium text-ink-soft"
       >
         Configurer FileZilla (SFTP)
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="border-t border-line-soft px-2.5 py-2 text-[11px] text-ink-soft">
+        <div className="border-t border-line-soft px-2.5 py-2 text-xs text-ink-soft">
           <p className="font-medium text-ink">
             Étape 1 (une seule fois par ordinateur) — faire de FileZilla le gestionnaire par
             défaut du lien <code className="rounded bg-clay px-1">sftp://</code>
@@ -172,7 +172,7 @@ function SshFileZillaTutorial({
                 Ouvrez PowerShell et lancez (ajustez le chemin si FileZilla n&apos;est pas
                 installé dans <code className="rounded bg-clay px-1">Program Files</code>) :
               </p>
-              <pre className="mt-1.5 code-block px-3 py-2 text-[11px]">
+              <pre className="mt-1.5 code-block px-3 py-2 text-xs">
                 {`reg add "HKCU\\Software\\Classes\\sftp" /ve /d "URL:SFTP Protocol" /f
 reg add "HKCU\\Software\\Classes\\sftp" /v "URL Protocol" /d "" /f
 reg add "HKCU\\Software\\Classes\\sftp\\shell\\open\\command" /ve /d "\\"C:\\Program Files\\FileZilla FTP Client\\filezilla.exe\\" \\"%1\\"" /f`}
@@ -186,7 +186,7 @@ reg add "HKCU\\Software\\Classes\\sftp\\shell\\open\\command" /ve /d "\\"C:\\Pro
           ) : (
             <>
               <p className="mt-1.5 text-ink-soft">Dans le Terminal :</p>
-              <pre className="mt-1.5 code-block px-3 py-2 text-[11px]">
+              <pre className="mt-1.5 code-block px-3 py-2 text-xs">
                 brew install duti{"\n"}duti -s org.filezilla-project.filezilla sftp all
               </pre>
               <p className="mt-1 text-ink-soft">
@@ -420,7 +420,7 @@ function RouterDirectAccess({
           />
           <span className="text-sm font-medium text-ink">{router.name}</span>
           {hasActiveAccess && (
-            <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-ok">
+            <span className="rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-ok">
               {activeServices.size} actif{activeServices.size > 1 ? "s" : ""}
             </span>
           )}
@@ -435,7 +435,7 @@ function RouterDirectAccess({
               type="button"
               disabled={pending}
               onClick={(event) => requestEnableAll(event.currentTarget)}
-              className="flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-slate-deep hover:bg-brand-deep disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-xs font-semibold text-slate-deep hover:bg-brand-deep disabled:opacity-60"
             >
               {pending && pendingService && (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -466,7 +466,7 @@ function RouterDirectAccess({
               : BILLING_PERIOD_LABELS[(forward.billingPeriod as BillingPeriod) ?? "monthly"]
             : null;
           return (
-            <div key={service} className="rounded-md px-0 py-1">
+            <div key={service} className="rounded-lg px-0 py-1">
               <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-ink-soft">{SERVICE_LABELS[service]}</span>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -486,7 +486,7 @@ function RouterDirectAccess({
                       }
                       disabled={busy}
                       title="Plan de facturation (paiement non encore activé)"
-                      className="rounded-md border border-line bg-paper px-1.5 py-1 text-[11px] text-ink-soft focus:border-line-soft focus:outline-none disabled:opacity-50"
+                      className="rounded-lg border border-line bg-paper px-1.5 py-1 text-xs text-ink-soft focus:border-ink disabled:opacity-50"
                     >
                       {quotaExpiresAt ? (
                         <option value="__quota__">Accès gratuit jusqu&apos;au {formatExpiry(quotaExpiresAt)}</option>
@@ -540,7 +540,7 @@ function RouterDirectAccess({
                 </div>
               </div>
               {isPublic && (
-                <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-ink-soft">
+                <p className="mt-0.5 flex items-center justify-end gap-1 text-xs text-ink-soft">
                   <CreditCard className="h-3 w-3" />
                   {unlimited ? (
                     "Forfait illimité"
@@ -556,14 +556,14 @@ function RouterDirectAccess({
           );
         })}
       </div>
-      <p className="mt-2 text-[11px] text-ink-soft">
+      <p className="mt-2 text-xs text-ink-soft">
         {hasActiveAccess
           ? "Connectez-vous directement avec ces adresses, sans VPN ni app à installer."
           : "Aucun accès direct actif."}
       </p>
 
       {hasActiveAccess && (
-        <div className="mt-3 rounded-md border border-line-soft bg-clay/60 p-3">
+        <div className="mt-3 rounded-lg border border-line-soft bg-clay/60 p-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {forwards.map((forward) => {
               // Browser services are served over HTTPS on their public port by
@@ -577,7 +577,7 @@ function RouterDirectAccess({
                 : serviceUrl(forward.service, address, router.username);
               return (
                 <div key={forward.id} className="min-w-0">
-                  <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-paper px-2.5 py-2 text-xs">
+                  <div className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-paper px-2.5 py-2 text-xs">
                     <div className="min-w-0">
                       <p className="font-medium text-ink">
                         {SERVICE_LABELS[forward.service] ?? forward.service}
@@ -609,11 +609,11 @@ function RouterDirectAccess({
             })}
           </div>
 
-          <div className="mt-3 rounded-md border border-line-soft bg-paper">
+          <div className="mt-3 rounded-lg border border-line-soft bg-paper">
             <button
               type="button"
               onClick={() => setShowDetails((v) => !v)}
-              className="flex w-full items-center justify-between px-2.5 py-2 text-left text-[11px] font-medium text-ink-soft"
+              className="flex w-full items-center justify-between px-2.5 py-2 text-left text-xs font-medium text-ink-soft"
             >
               {showDetails ? "Masquer les détails du routeur" : "Afficher les détails du routeur"}
               <ChevronDown
@@ -621,7 +621,7 @@ function RouterDirectAccess({
               />
             </button>
             {showDetails && (
-              <div className="grid grid-cols-1 gap-x-4 gap-y-2 border-t border-line-soft p-3 text-[11px] sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-x-4 gap-y-2 border-t border-line-soft p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
                 {(
                   [
                     [
@@ -679,7 +679,7 @@ function RouterDirectAccess({
             if (event.target === event.currentTarget) closeConfirmation();
           }}
         >
-          <div className="w-full max-w-md rounded-xl border border-line-soft bg-paper p-5 shadow-xl">
+          <div className="w-full max-w-md rounded-xl border border-line-soft bg-paper p-5 shadow-modal">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-deep">
               Confirmation requise
             </p>
@@ -694,7 +694,7 @@ function RouterDirectAccess({
                   : `L’accès ${SERVICE_LABELS[confirmation.service] ?? confirmation.service} de ${router.name} deviendra joignable depuis Internet.`}
             </p>
             {confirmation.kind !== "disable" && (
-              <p className="mt-2 rounded-md bg-clay px-3 py-2 text-xs leading-5 text-ink-soft">
+              <p className="mt-2 rounded-lg bg-clay px-3 py-2 text-xs leading-5 text-ink-soft">
                 Vérifiez le mot de passe du routeur avant de continuer. Cette action peut engager la durée de l’accès sélectionnée.
               </p>
             )}
@@ -786,7 +786,7 @@ export default function DirectAccessSection({
         quel PC, téléphone, ou WinBox.
       </p>
 
-      <p className="mt-3 flex items-start gap-1.5 rounded-md bg-clay px-3 py-2 text-xs text-ink">
+      <p className="mt-3 flex items-start gap-1.5 rounded-lg bg-clay px-3 py-2 text-xs text-ink">
         <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         {vpnTrial?.quotaMode === "free_until" && vpnTrial.endsAt
           ? `Ce quota gratuit borne chaque accès jusqu'au ${formatExpiry(vpnTrial.endsAt)}.`
@@ -819,7 +819,7 @@ export default function DirectAccessSection({
         ))}
       </div>
 
-      <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-xs text-err">
+      <p className="mt-4 rounded-lg bg-err-soft px-3 py-2 text-xs text-err">
         Attention : ce port devient joignable par quiconque connaît
         l&apos;adresse — seule l&apos;authentification du routeur protège
         l&apos;accès. Utilisez un mot de passe fort sur le routeur avant

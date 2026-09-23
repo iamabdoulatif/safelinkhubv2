@@ -28,7 +28,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
       />
-      {hint && <span className="mt-0.5 block text-[11px] text-ink-soft">{hint}</span>}
+      {hint && <span className="mt-0.5 block text-xs text-ink-soft">{hint}</span>}
     </label>
   );
 }
@@ -91,10 +91,10 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
 
       {state && (
         <div className="mt-4 grid gap-2 border border-line bg-clay p-3 text-sm rounded-lg sm:grid-cols-4">
-          <div><span className="block text-[11px] text-ink-soft">Décision</span><strong>{DECISION_LABEL[state.decision] ?? state.decision}</strong></div>
-          <div><span className="block text-[11px] text-ink-soft">Débit appliqué</span><strong>{state.limit}</strong></div>
-          <div><span className="block text-[11px] text-ink-soft">Ce cycle</span><strong>{(state.monthBytes / 1024 ** 3).toFixed(1)} Go{usedPct != null ? ` (${usedPct.toFixed(0)} %)` : ""}</strong></div>
-          <div><span className="block text-[11px] text-ink-soft">Dernier passage</span><strong>{new Date(state.at).toLocaleString("fr-FR")}</strong></div>
+          <div><span className="block text-xs text-ink-soft">Décision</span><strong>{DECISION_LABEL[state.decision] ?? state.decision}</strong></div>
+          <div><span className="block text-xs text-ink-soft">Débit appliqué</span><strong>{state.limit}</strong></div>
+          <div><span className="block text-xs text-ink-soft">Ce cycle</span><strong>{(state.monthBytes / 1024 ** 3).toFixed(1)} Go{usedPct != null ? ` (${usedPct.toFixed(0)} %)` : ""}</strong></div>
+          <div><span className="block text-xs text-ink-soft">Dernier passage</span><strong>{new Date(state.at).toLocaleString("fr-FR")}</strong></div>
         </div>
       )}
 
@@ -103,7 +103,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
           chacune avec son intitulé. L'ordre des champs ne change pas au sein
           de leur groupe (audit UI/UX du 22/09/2026). */}
       <fieldset className="mt-5">
-        <legend className="text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+        <legend className="text-xs font-bold uppercase tracking-wider text-ink-soft">
           Budget du mois
         </legend>
         <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -115,7 +115,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
       </fieldset>
 
       <fieldset className="mt-5">
-        <legend className="text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+        <legend className="text-xs font-bold uppercase tracking-wider text-ink-soft">
           Téléchargeurs abusifs
         </legend>
         <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -127,7 +127,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
       </fieldset>
 
       <fieldset className="mt-5">
-        <legend className="text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+        <legend className="text-xs font-bold uppercase tracking-wider text-ink-soft">
           En dernier recours
         </legend>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -137,7 +137,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
       </fieldset>
 
       <div className="mt-4 flex items-center gap-3">
-        <button type="button" onClick={save} disabled={pending} className="flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60">
+        <button type="button" onClick={save} disabled={pending} className="btn btn-md btn-secondary flex items-center gap-2">
           {pending && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />}
           Enregistrer les seuils
         </button>
@@ -148,7 +148,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
 
       {events.length > 0 && (
         <>
-          <h4 className="mt-6 text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+          <h4 className="mt-6 text-xs font-bold uppercase tracking-wider text-ink-soft">
             Journal des décisions
           </h4>
           <ul className="mt-2 divide-y divide-line border border-line text-sm rounded-lg">

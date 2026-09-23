@@ -62,7 +62,7 @@ export default async function RouterSetupPage({
   return (
     <div className={`mx-auto ${isOnline ? "max-w-6xl" : "max-w-3xl"}`}>
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-ink">
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">
           Configuration automatique du routeur
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-ink-soft">
@@ -77,7 +77,7 @@ export default async function RouterSetupPage({
           <StepIndicator steps={[1, 2, 3, 4]} currentStep={1} />
 
           {forceNew && onlineRouter && (
-            <div className="mt-4 rounded-md border border-line-soft bg-clay px-4 py-2.5 text-sm text-ink-soft">
+            <div className="mt-4 rounded-lg border border-line-soft bg-clay px-4 py-2.5 text-sm text-ink-soft">
               Vous liez un nouvel appareil. &quot;{onlineRouter.name}&quot; reste
               configuré —{" "}
               <a
@@ -91,7 +91,7 @@ export default async function RouterSetupPage({
           )}
 
           {bannerRouter && (
-            <div className="mt-4 flex items-center justify-between rounded-md border border-line-soft bg-clay px-4 py-2.5">
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-line-soft bg-clay px-4 py-2.5">
               <span className="text-sm text-ink-soft">
                 Configuration en cours pour &quot;{bannerRouter.name}&quot;
                 {bannerRouter.status === "pending" || bannerRouter.status === "installing"

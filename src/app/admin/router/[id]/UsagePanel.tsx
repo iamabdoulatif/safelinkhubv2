@@ -59,7 +59,7 @@ function MbField({
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
       />
-      <span className="mt-0.5 block text-[11px] text-ink-soft">{gb ? `≈ ${gb} Go` : "vide = illimité"}</span>
+      <span className="mt-0.5 block text-xs text-ink-soft">{gb ? `≈ ${gb} Go` : "vide = illimité"}</span>
     </label>
   );
 }
@@ -143,7 +143,7 @@ export default function UsagePanel({ routerId }: { routerId: string }) {
                 <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
                   <span className="block text-sm font-bold">{t.label}</span>
-                  <span className={`mt-0.5 block text-[11px] ${on ? "text-slate-deep/80" : "text-ink-soft"}`}>{t.hint}</span>
+                  <span className={`mt-0.5 block text-xs ${on ? "text-slate-deep/80" : "text-ink-soft"}`}>{t.hint}</span>
                 </span>
               </button>
             );
@@ -162,7 +162,7 @@ export default function UsagePanel({ routerId }: { routerId: string }) {
             <div className="mt-2">
               <QuotaBar pct={wan.pct} state={wan.state} />
             </div>
-            <p className="mt-1.5 text-[11px] text-ink-soft">
+            <p className="mt-1.5 text-xs text-ink-soft">
               {wan.interface ? `Interface ${wan.interface}` : "WAN non identifié"}
               {wan.throttled && <span className="ml-2 font-bold text-err">· débit bridé (quota atteint)</span>}
               {wan.cycleStartedAt && ` · cycle depuis le ${new Date(wan.cycleStartedAt).toLocaleDateString("fr-FR")}`}
@@ -183,7 +183,7 @@ export default function UsagePanel({ routerId }: { routerId: string }) {
               onChange={(e) => setCycleDay(e.target.value)}
               className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
             />
-            <span className="mt-0.5 block text-[11px] text-ink-soft">1–28 du mois</span>
+            <span className="mt-0.5 block text-xs text-ink-soft">1–28 du mois</span>
           </label>
           <label className="block">
             <span className="text-xs font-bold text-ink-soft">Bridage au dépassement (Mbps)</span>
@@ -195,7 +195,7 @@ export default function UsagePanel({ routerId }: { routerId: string }) {
               onChange={(e) => setThrottleMbps(e.target.value)}
               className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
             />
-            <span className="mt-0.5 block text-[11px] text-ink-soft">vide = alerte seule</span>
+            <span className="mt-0.5 block text-xs text-ink-soft">vide = alerte seule</span>
           </label>
         </div>
 
@@ -203,7 +203,7 @@ export default function UsagePanel({ routerId }: { routerId: string }) {
           type="button"
           disabled={isSaving}
           onClick={saveLink}
-          className="mt-4 inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-primary mt-4 inline-flex items-center gap-2"
         >
           {isSaving ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Save aria-hidden="true" className="h-4 w-4" />}
           Enregistrer le lien
@@ -298,7 +298,7 @@ function ZoneCard({
             onChange={(e) => setCap(e.target.value)}
             className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
           />
-          <span className="mt-0.5 block text-[11px] text-ink-soft">plafond partagé par toute la zone</span>
+          <span className="mt-0.5 block text-xs text-ink-soft">plafond partagé par toute la zone</span>
         </label>
         <label className="block">
           <span className="text-xs font-bold text-ink-soft">Débit par client (Mbps)</span>
@@ -310,7 +310,7 @@ function ZoneCard({
             onChange={(e) => setPerClient(e.target.value)}
             className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
           />
-          <span className="mt-0.5 block text-[11px] text-ink-soft">plafond de CHAQUE appareil (PCQ)</span>
+          <span className="mt-0.5 block text-xs text-ink-soft">plafond de CHAQUE appareil (PCQ)</span>
         </label>
       </div>
       <div className="mt-3 flex justify-end">
@@ -318,7 +318,7 @@ function ZoneCard({
           type="button"
           disabled={isSaving}
           onClick={save}
-          className="inline-flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-primary inline-flex items-center gap-2"
         >
           {isSaving ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Gauge aria-hidden="true" className="h-4 w-4" />}
           Appliquer
@@ -430,7 +430,7 @@ function QuotaGuardCard({
           {installed ? (throttled ? "Quota atteint — lien bridé" : "Actif sur le routeur") : "Non posé"}
         </span>
       </div>
-      <p className="mt-1.5 text-[12px] text-ink-soft">
+      <p className="mt-1.5 text-xs text-ink-soft">
         Le routeur vérifie sa propre consommation toutes les 15 min et brise le lien au débit choisi
         quand le quota mensuel est atteint — même si SafeLinkHub est injoignable. Le suivi ci-dessus
         trace et alerte ; celui-ci tient sans réseau.
@@ -451,7 +451,7 @@ function QuotaGuardCard({
         </div>
       )}
       {installed && view?.error && (
-        <p className="mt-3 text-[12px] text-ink-soft">Détail du routeur indisponible : {view.error}</p>
+        <p className="mt-3 text-xs text-ink-soft">Détail du routeur indisponible : {view.error}</p>
       )}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -465,7 +465,7 @@ function QuotaGuardCard({
             onChange={(e) => setCapGo(e.target.value)}
             className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
           />
-          <span className="mt-0.5 block text-[11px] text-ink-soft">ex. 3000 Go = 3 To — un Starlink classique</span>
+          <span className="mt-0.5 block text-xs text-ink-soft">ex. 3000 Go = 3 To — un Starlink classique</span>
         </label>
         <label className="block">
           <span className="text-xs font-bold text-ink-soft">Débit de bride (Mbps)</span>
@@ -477,7 +477,7 @@ function QuotaGuardCard({
             onChange={(e) => setThrottle(e.target.value)}
             className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
           />
-          <span className="mt-0.5 block text-[11px] text-ink-soft">débit survivant partagé quand le quota tombe</span>
+          <span className="mt-0.5 block text-xs text-ink-soft">débit survivant partagé quand le quota tombe</span>
         </label>
         <label className="block">
           <span className="text-xs font-bold text-ink-soft">Interface WAN (optionnel)</span>
@@ -488,7 +488,7 @@ function QuotaGuardCard({
             onChange={(e) => setIface(e.target.value)}
             className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
           />
-          <span className="mt-0.5 block text-[11px] text-ink-soft">ex. ether1 — laisser vide = détection auto</span>
+          <span className="mt-0.5 block text-xs text-ink-soft">ex. ether1 — laisser vide = détection auto</span>
         </label>
       </div>
 
@@ -497,7 +497,7 @@ function QuotaGuardCard({
           type="button"
           disabled={busy || !capGo}
           onClick={apply}
-          className="inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-primary inline-flex items-center gap-2"
         >
           {busy ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <ShieldCheck aria-hidden="true" className="h-4 w-4" />}
           {installed ? "Re-appliquer le garde-fou" : "Activer le garde-fou"}
@@ -516,7 +516,7 @@ function QuotaGuardCard({
           type="button"
           disabled={busy || !capGo}
           onClick={showScript}
-          className="inline-flex items-center gap-2 border border-line bg-paper px-5 py-2.5 text-sm font-bold text-ink hover:bg-clay disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-outline inline-flex items-center gap-2"
         >
           Script à coller
         </button>
@@ -524,7 +524,7 @@ function QuotaGuardCard({
       </div>
 
       {script && (
-        <pre className="mt-3 max-h-64 overflow-auto border border-line bg-clay p-3 text-[11px] text-ink rounded-lg whitespace-pre-wrap">
+        <pre className="mt-3 max-h-64 overflow-auto border border-line bg-clay p-3 text-xs text-ink rounded-lg whitespace-pre-wrap">
           {script}
         </pre>
       )}

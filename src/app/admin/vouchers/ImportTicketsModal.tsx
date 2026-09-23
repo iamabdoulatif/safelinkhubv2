@@ -119,7 +119,7 @@ export default function ImportTicketsModal({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-sm bg-brand px-4 py-2 text-sm font-bold text-ink hover:bg-paper"
+        className="inline-flex items-center gap-2 rounded-sm bg-brand px-4 py-2 text-sm font-semibold text-ink hover:bg-paper"
       >
         <Upload className="h-4 w-4" />
         Importer
@@ -234,7 +234,7 @@ export default function ImportTicketsModal({
                     <input
                       name="note"
                       placeholder="ex : import MikHmon juillet"
-                      className="w-full border border-line-soft bg-paper px-3 py-2 text-sm outline-none focus:border-ink focus:ring-2 focus:ring-brand rounded-lg"
+                      className="field w-full"
                     />
                   </div>
                 </div>
@@ -252,7 +252,7 @@ export default function ImportTicketsModal({
                         name="routerId"
                         required
                         defaultValue=""
-                        className="w-full border border-line-soft bg-paper px-3 py-2 text-sm outline-none focus:border-ink focus:ring-2 focus:ring-brand rounded-lg"
+                        className="field w-full"
                       >
                         <option value="" disabled>Choisir le routeur</option>
                         {routers.map((router) => (
@@ -288,9 +288,9 @@ export default function ImportTicketsModal({
                       ) : (
                         <>
                           <div className="grid grid-cols-3 divide-x divide-line-soft border-b border-line-soft bg-clay text-center">
-                            <div className="px-2 py-3"><strong className="block font-mono text-xl text-ink">{csvPreview.validRows}</strong><span className="text-[10px] font-bold uppercase tracking-wide text-ink-soft">prêts</span></div>
-                            <div className="px-2 py-3"><strong className="block font-mono text-xl text-ink">{csvPreview.invalidRows}</strong><span className="text-[10px] font-bold uppercase tracking-wide text-ink-soft">ignorés</span></div>
-                            <div className="px-2 py-3"><strong className="block font-mono text-xl text-warn">{csvPreview.unmatchedProfiles}</strong><span className="text-[10px] font-bold uppercase tracking-wide text-ink-soft">à associer</span></div>
+                            <div className="px-2 py-3"><strong className="block font-mono text-xl text-ink">{csvPreview.validRows}</strong><span className="text-xs font-bold uppercase tracking-wide text-ink-soft">prêts</span></div>
+                            <div className="px-2 py-3"><strong className="block font-mono text-xl text-ink">{csvPreview.invalidRows}</strong><span className="text-xs font-bold uppercase tracking-wide text-ink-soft">ignorés</span></div>
+                            <div className="px-2 py-3"><strong className="block font-mono text-xl text-warn">{csvPreview.unmatchedProfiles}</strong><span className="text-xs font-bold uppercase tracking-wide text-ink-soft">à associer</span></div>
                           </div>
                           <div className="divide-y divide-line-soft">
                             {csvPreview.sample.map((row) => (
@@ -320,7 +320,7 @@ export default function ImportTicketsModal({
                 <button
                   type="submit"
                   disabled={pending || routers.length === 0 || (mode === "csv" && Boolean(csvPreview && "error" in csvPreview))}
-                  className="inline-flex items-center gap-2 bg-ink px-4 py-2 text-sm font-bold text-paper hover:bg-brand hover:text-ink disabled:opacity-50"
+                  className="btn btn-md btn-secondary inline-flex items-center gap-2"
                 >
                   {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                   {pending ? "Import en cours..." : "Importer les tickets"}

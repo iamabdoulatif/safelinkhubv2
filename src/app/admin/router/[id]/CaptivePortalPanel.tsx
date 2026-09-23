@@ -111,7 +111,7 @@ export default function CaptivePortalPanel({ routerId }: { routerId: string }) {
                 type="button"
                 disabled={pending || !templateId}
                 onClick={install}
-                className="inline-flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+                className="btn btn-md btn-primary inline-flex items-center gap-2"
               >
                 {pending ? (
                   <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />

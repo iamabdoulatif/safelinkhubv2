@@ -46,7 +46,7 @@ export default async function EditCoursePage({ params }: { params: Promise<{ id:
         ← Formations
       </Link>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink">{course.title}</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">{course.title}</h1>
         {course.published && (
           <Link
             href={`/formations/${course.slug}`}

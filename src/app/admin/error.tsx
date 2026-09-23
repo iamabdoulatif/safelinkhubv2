@@ -63,7 +63,7 @@ export default function AdminError({
         </p>
 
         {error.digest && (
-          <p className="mt-3 rounded-md bg-clay px-3 py-1.5 font-mono text-xs text-ink-soft">
+          <p className="mt-3 rounded-lg bg-clay px-3 py-1.5 font-mono text-xs text-ink-soft">
             {error.digest}
           </p>
         )}
@@ -72,14 +72,14 @@ export default function AdminError({
           <button
             type="button"
             onClick={reset}
-            className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-slate-deep-line"
+            className="btn btn-md btn-secondary flex items-center gap-2"
           >
             <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
             Réessayer
           </button>
           <Link
             href="/admin"
-            className="rounded-full border border-line-soft px-4 py-2 text-sm font-semibold text-ink hover:bg-clay"
+            className="btn btn-md btn-outline"
           >
             Tableau de bord
           </Link>

@@ -61,7 +61,7 @@ export default function UserMenu({
           </div>
 
           <span
-            className={`mx-3 mt-2 inline-flex items-center gap-1 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest ${
+            className={`mx-3 mt-2 inline-flex items-center gap-1 px-2 py-0.5 font-mono text-xs font-semibold uppercase tracking-widest ${
               superadmin ? "bg-ink text-brand" : "bg-clay text-ink-soft"
             }`}
           >
@@ -118,7 +118,7 @@ export default function UserMenu({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-bold text-ink">{userName}</span>
-          <span className="block truncate font-mono text-[10px] uppercase tracking-widest text-ink-soft">
+          <span className="block truncate font-mono text-xs uppercase tracking-widest text-ink-soft">
             {superadmin ? "Superadmin" : "Admin"}
           </span>
         </span>

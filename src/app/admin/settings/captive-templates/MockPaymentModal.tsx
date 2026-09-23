@@ -44,7 +44,7 @@ export default function MockPaymentModal({
           </button>
         </div>
 
-        <p className="mt-1 rounded-md bg-clay px-2.5 py-1.5 text-[11px] text-warn">
+        <p className="mt-1 rounded-lg bg-clay px-2.5 py-1.5 text-xs text-warn">
           Maquette — aucun débit réel n&apos;est effectué.
         </p>
 
@@ -61,12 +61,12 @@ export default function MockPaymentModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder={isCard ? "client@email.com" : "07 00 00 00 00"}
-                className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+                className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
               />
             </div>
             <button
               type="submit"
-              className="w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
+              className="btn btn-md btn-secondary w-full"
             >
               {isCard ? "Continuer vers le paiement" : "Envoyer la demande de paiement"}
             </button>
@@ -100,7 +100,7 @@ export default function MockPaymentModal({
             <button
               type="button"
               onClick={onClose}
-              className="mt-2 rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+              className="btn btn-md btn-outline mt-2"
             >
               Fermer
             </button>

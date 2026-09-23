@@ -77,7 +77,7 @@ export default function BridgeAssignments({
                         router.refresh();
                       })
                     }
-                    className="rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-line-soft focus:outline-none"
+                    className="rounded-lg border border-line-soft px-2 py-1.5 text-sm focus:border-ink"
                   >
                     <option value="">
                       Par défaut

@@ -11,7 +11,7 @@ import { timeAgo, type RouterDictionary, type RouterRow } from "./router-row";
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[11px] uppercase tracking-wide text-ink-soft">{label}</p>
+      <p className="text-xs uppercase tracking-wide text-ink-soft">{label}</p>
       <p className="font-display text-lg font-semibold tabular-nums text-ink">{value}</p>
     </div>
   );
@@ -46,7 +46,7 @@ export function RouterCard({
         <div className="min-w-0">
           {/* L'état ne repose pas sur la seule pastille : le mot est écrit à
               côté, pour qui ne distingue pas le vert du rouge. */}
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide">
             <span
               aria-hidden="true"
               className={`h-2 w-2 shrink-0 rounded-full ${online ? "bg-ok" : configuring ? "bg-warn" : "bg-err"}`}
@@ -55,7 +55,7 @@ export function RouterCard({
               {online ? table.online : configuring ? table.configuring : table.offline}
             </span>
             {r.locked && (
-              <span className="ml-1 rounded-full bg-err px-2 py-0.5 text-[10px] font-semibold text-white">
+              <span className="ml-1 rounded-full bg-err px-2 py-0.5 text-xs font-semibold text-white">
                 {table.locked}
               </span>
             )}

@@ -83,13 +83,13 @@ export default async function RouterBackupsPage() {
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <Link
         href="/admin/router"
-        className="mb-4 inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-clay px-3 py-1.5 text-sm font-medium text-ink hover:border-ok"
+        className="btn btn-sm btn-outline mb-4 inline-flex items-center gap-1.5"
       >
         <ArrowLeft className="h-4 w-4" />
         Revenir aux routeurs
       </Link>
 
-      <h1 className="text-xl font-semibold text-ink">Sauvegardes des routeurs</h1>
+      <h1 className="text-ink text-2xl font-semibold tracking-tight">Sauvegardes des routeurs</h1>
       <p className="mt-1 text-sm text-ink-soft">
         Chaque sauvegarde capture les tickets vendus (code, mot de passe, profil et date
         d&apos;expiration), les profils tarifaires et le walled-garden. Si un MikroTik meurt, sa

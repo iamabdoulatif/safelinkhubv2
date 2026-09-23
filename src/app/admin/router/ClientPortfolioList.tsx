@@ -18,7 +18,7 @@ export function ClientPortfolioList({
     <div className="overflow-x-auto border border-line bg-paper rounded-xl">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line bg-clay">
-          <tr className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
+          <tr className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
             <th className="px-4 py-3">{t.organization}</th>
             <th className="px-4 py-3">{t.users}</th>
             <th className="px-4 py-3">{t.routers}</th>
@@ -63,7 +63,7 @@ export function ClientPortfolioList({
                   </Link>
                   <Link
                     href={`/admin/router?scope=clients&org=${c.id}`}
-                    className="inline-flex items-center gap-1 border border-line bg-brand px-2.5 py-1.5 text-xs font-bold text-slate-deep hover:bg-ink hover:text-paper rounded-full"
+                    className="btn btn-sm btn-primary inline-flex items-center gap-1"
                   >
                     {t.viewRouters}
                     <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />

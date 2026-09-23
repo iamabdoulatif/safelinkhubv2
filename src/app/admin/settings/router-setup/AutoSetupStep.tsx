@@ -87,7 +87,7 @@ const DURATION_UNIT_FROM_PACKAGE: Record<string, DurationUnit> = {
 function UnlockCommandBlock() {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="mt-2 rounded-md bg-clay px-3 py-2.5">
+    <div className="mt-2 rounded-lg bg-clay px-3 py-2.5">
       <p className="text-xs font-medium text-warn">
         Container verrouillé par le mode RouterOS — collez cette commande dans le terminal
         Winbox/SSH, puis confirmez en appuyant sur le bouton reset/mode (ou en
@@ -107,7 +107,7 @@ function UnlockCommandBlock() {
             setTimeout(() => setCopied(false), 2000);
           }}
           title="Copier la commande"
-          className="absolute right-1.5 top-1.5 rounded-md bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
+          className="absolute right-1.5 top-1.5 rounded-lg bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
@@ -389,6 +389,10 @@ export default function AutoSetupStep({
           adminPortalUser,
           adminPortalPassword,
           selectedTemplateId,
+          // Libellé seul, pour l'écran d'installation qui l'affiche pendant
+          // l'attente : il ne relit pas la liste des modèles.
+          selectedTemplateName:
+            packageTemplates.find((t) => t.id === selectedTemplateId)?.name ?? null,
           customProfiles,
           customProfileMeta,
           customAmount,
@@ -424,6 +428,7 @@ export default function AutoSetupStep({
     adminPortalUser,
     adminPortalPassword,
     selectedTemplateId,
+    packageTemplates,
     customProfiles,
     customProfileMeta,
     customAmount,
@@ -699,14 +704,14 @@ export default function AutoSetupStep({
       </div>
 
       {!hotspotBridge && (
-        <p className="mt-3 rounded-md bg-clay px-3 py-2 text-sm text-warn">
+        <p className="mt-3 rounded-lg bg-clay px-3 py-2 text-sm text-warn">
           Configurez d&apos;abord un bridge hotspot à l&apos;Étape 2 (Topologie réseau) — ses
           ports seront réutilisés ici, et le réseau choisi ci-dessous y sera resynchronisé.
         </p>
       )}
 
       {/* ── Réseau du hotspot : hérité de l'Étape 2, non ré-éditable ici ── */}
-      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+      <div className="mt-5 rounded-lg border border-line-soft bg-paper p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-ink">Réseau du hotspot</p>
@@ -718,12 +723,12 @@ export default function AutoSetupStep({
           <button
             type="button"
             onClick={onBack}
-            className="shrink-0 rounded-md border border-line-soft px-3 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-clay"
+            className="btn btn-sm btn-outline shrink-0"
           >
             Modifier à l&apos;Étape 2
           </button>
         </div>
-        <p className="mt-3 rounded-md bg-clay px-3 py-2.5 text-sm text-ink-soft">
+        <p className="mt-3 rounded-lg bg-clay px-3 py-2.5 text-sm text-ink-soft">
           Passerelle :{" "}
           <span className="font-semibold text-ink">
             {hotspotAddress}/{hotspotPrefixBits}
@@ -733,7 +738,7 @@ export default function AutoSetupStep({
       </div>
 
       {/* ── Compte administrateur du portail (accès internet) ────────── */}
-      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+      <div className="mt-5 rounded-lg border border-line-soft bg-paper p-4 sm:p-5">
         <p className="text-sm font-semibold text-ink">Compte administrateur du portail</p>
         <p className="mt-1 text-sm leading-relaxed text-ink-soft">
           Optionnel — crée un identifiant pour vous connecter au WiFi via le portail sans acheter de
@@ -751,7 +756,7 @@ export default function AutoSetupStep({
               value={adminPortalUser}
               onChange={(e) => setAdminPortalUser(e.target.value)}
               placeholder="admin"
-              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
+              className="w-full rounded-lg border border-line-soft px-3 py-2.5 text-sm focus:border-ink transition-colors"
             />
           </div>
           <div>
@@ -765,14 +770,14 @@ export default function AutoSetupStep({
               value={adminPortalPassword}
               onChange={(e) => setAdminPortalPassword(e.target.value)}
               placeholder="défaut : identique à l'identifiant"
-              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
+              className="w-full rounded-lg border border-line-soft px-3 py-2.5 text-sm focus:border-ink transition-colors"
             />
           </div>
         </div>
       </div>
 
       {/* ── Identité du hotspot ─────────────────────────────────────── */}
-      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+      <div className="mt-5 rounded-lg border border-line-soft bg-paper p-4 sm:p-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label htmlFor="as-hotspot-name" className="mb-1.5 block text-sm font-medium text-ink-soft">
@@ -783,7 +788,7 @@ export default function AutoSetupStep({
               value={hotspotName}
               onChange={(e) => onHotspotNameChange(e.target.value)}
               placeholder="MIRADOR-WIFI"
-              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
+              className="w-full rounded-lg border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ink transition-colors"
             />
           </div>
           {hasWifi && (
@@ -800,7 +805,7 @@ export default function AutoSetupStep({
                   setSsid(e.target.value);
                 }}
                 placeholder="Identique au nom du hotspot"
-                className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
+                className="w-full rounded-lg border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ink transition-colors"
               />
             </div>
           )}
@@ -818,7 +823,7 @@ export default function AutoSetupStep({
               }}
               onBlur={(e) => verifyDomain(e.target.value)}
               placeholder="mirador.ci"
-              className="w-full rounded-md border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ok focus:outline-none focus:ring-1 focus:ring-ok/20 transition-colors"
+              className="w-full rounded-lg border border-line-soft px-3 py-2.5 text-sm placeholder:text-ink-soft/60 focus:border-ink transition-colors"
             />
             {domainSuggestions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -867,14 +872,14 @@ export default function AutoSetupStep({
 
       {/* ── MikHmon : décision automatique, avertissements ciblés ────── */}
       {containerBlockedReason === "architecture" && (
-        <p className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-warn">
+        <p className="mt-4 rounded-lg bg-clay px-3 py-2 text-sm text-warn">
           Container indisponible sur cet appareil (architecture non compatible) — MikHmon sera
           ignoré, seul le hotspot sera configuré.
         </p>
       )}
 
       {archSupportsContainers && containerBlockedReason === "device-mode" && !skipMikhmon && (
-        <div className="mt-5 rounded-md border border-warn/30 bg-clay p-4 sm:p-5">
+        <div className="mt-5 rounded-lg border border-warn/30 bg-clay p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-sm font-medium text-warn">
               Container verrouillé par le mode RouterOS sur cet appareil.
@@ -883,7 +888,7 @@ export default function AutoSetupStep({
               type="button"
               onClick={revalidateDetection}
               disabled={revalidating}
-              className="shrink-0 rounded-md border border-warn px-3 py-1.5 text-sm font-medium text-warn hover:bg-clay disabled:opacity-50 transition-colors"
+              className="shrink-0 rounded-lg border border-warn px-3 py-1.5 text-sm font-medium text-warn hover:bg-clay disabled:opacity-50 transition-colors"
             >
               {revalidating ? "Vérification…" : "Relancer la vérification"}
             </button>
@@ -900,7 +905,7 @@ export default function AutoSetupStep({
 
       {archSupportsContainers && (
         <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="flex items-center gap-2 rounded-md border border-line-soft px-3 py-2 text-sm text-ink">
+          <label className="flex items-center gap-2 rounded-lg border border-line-soft px-3 py-2 text-sm text-ink">
             <input
               type="checkbox"
               checked={skipMikhmon}
@@ -910,7 +915,7 @@ export default function AutoSetupStep({
             Ignorer MikHmon pour cette installation
           </label>
           {!skipMikhmon && (
-            <label className="flex items-center gap-2 rounded-md border border-line-soft px-3 py-2 text-sm text-ink">
+            <label className="flex items-center gap-2 rounded-lg border border-line-soft px-3 py-2 text-sm text-ink">
               <input
                 type="checkbox"
                 checked={hasUsbStorage}
@@ -922,7 +927,7 @@ export default function AutoSetupStep({
               />
               Le routeur a une clé USB branchée
               {detected?.hasUsbStorage && !usbTouched && (
-                <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-ok">
+                <span className="rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-ok">
                   détectée
                 </span>
               )}
@@ -932,14 +937,14 @@ export default function AutoSetupStep({
       )}
 
       {mikhmonIncluded && requiresUsbForContainer && !hasUsbStorage && (
-        <p className="mt-2 rounded-md bg-clay px-3 py-2 text-xs text-warn">
+        <p className="mt-2 rounded-lg bg-clay px-3 py-2 text-xs text-warn">
           Ce modèle a besoin d&apos;une clé USB pour MikHmon (flash interne insuffisante) —
           branchez-en une et cochez la case, ou cochez « Ignorer MikHmon ».
         </p>
       )}
 
       {/* ── Profils voucher (pré-remplis depuis les Forfaits) ─────────── */}
-      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+      <div className="mt-5 rounded-lg border border-line-soft bg-paper p-4 sm:p-5">
         <p className="text-sm font-semibold text-ink">Profils voucher</p>
         <p className="mt-1 text-sm leading-relaxed text-ink-soft">
           Pré-remplis depuis vos forfaits actifs — chaque profil est créé sur le routeur avec
@@ -954,7 +959,7 @@ export default function AutoSetupStep({
           {customProfiles.map((profile) => (
             <span
               key={profile.name}
-              className="flex items-center gap-1.5 rounded-md border border-ok bg-clay px-3 py-1.5 text-sm font-medium text-ok"
+              className="flex items-center gap-1.5 rounded-lg border border-ok bg-clay px-3 py-1.5 text-sm font-medium text-ok"
             >
               {profile.label}
               <button
@@ -979,13 +984,13 @@ export default function AutoSetupStep({
                 value={customAmount}
                 onChange={(e) => setCustomAmount(e.target.value)}
                 aria-label="Durée du profil"
-                className="w-20 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
+                className="w-20 rounded-lg border border-line-soft px-2 py-1.5 text-sm focus:border-ink"
               />
               <select
                 value={customUnit}
                 onChange={(e) => setCustomUnit(e.target.value as DurationUnit)}
                 aria-label="Unité de durée"
-                className="rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
+                className="rounded-lg border border-line-soft px-2 py-1.5 text-sm focus:border-ink"
               >
                 {DURATION_UNIT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -1003,7 +1008,7 @@ export default function AutoSetupStep({
               value={customVariant}
               onChange={(e) => setCustomVariant(e.target.value)}
               placeholder="TV-PC"
-              className="w-28 rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft/60 focus:border-ok focus:outline-none"
+              className="w-28 rounded-lg border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft/60 focus:border-ink"
             />
           </div>
           <div>
@@ -1014,7 +1019,7 @@ export default function AutoSetupStep({
               value={customPrice}
               onChange={(e) => setCustomPrice(e.target.value)}
               placeholder="0"
-              className="w-24 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
+              className="w-24 rounded-lg border border-line-soft px-2 py-1.5 text-sm focus:border-ink"
             />
           </div>
           <div>
@@ -1029,7 +1034,7 @@ export default function AutoSetupStep({
                 onChange={(e) => setCustomUpload(e.target.value)}
                 placeholder="↑"
                 aria-label="Débit montant (Mbps)"
-                className="w-16 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
+                className="w-16 rounded-lg border border-line-soft px-2 py-1.5 text-sm focus:border-ink"
               />
               <span className="text-ink-soft">/</span>
               <input
@@ -1039,14 +1044,14 @@ export default function AutoSetupStep({
                 onChange={(e) => setCustomDownload(e.target.value)}
                 placeholder="↓"
                 aria-label="Débit descendant (Mbps)"
-                className="w-16 rounded-md border border-line-soft px-2 py-1.5 text-sm focus:border-ok focus:outline-none"
+                className="w-16 rounded-lg border border-line-soft px-2 py-1.5 text-sm focus:border-ink"
               />
             </div>
           </div>
           <button
             type="button"
             onClick={addCustomProfile}
-            className="flex items-center gap-1 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay transition-colors"
+            className="btn btn-sm btn-outline flex items-center gap-1"
           >
             <Plus className="h-3.5 w-3.5" />
             Ajouter
@@ -1069,7 +1074,7 @@ export default function AutoSetupStep({
       </div>
 
       {/* ── Portail captif ────────────────────────────────────────────── */}
-      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+      <div className="mt-5 rounded-lg border border-line-soft bg-paper p-4 sm:p-5">
         <label className="flex items-start gap-3 text-sm text-ink cursor-pointer">
           <input
             type="checkbox"
@@ -1099,7 +1104,7 @@ export default function AutoSetupStep({
             </p>
             <div className="space-y-2">
               {packageTemplates.map((tpl) => (
-                <label key={tpl.id} className="flex items-center gap-2.5 rounded-md border border-line-soft px-3 py-2.5 text-sm text-ink hover:bg-clay cursor-pointer transition-colors">
+                <label key={tpl.id} className="flex items-center gap-2.5 rounded-lg border border-line-soft px-3 py-2.5 text-sm text-ink hover:bg-clay cursor-pointer transition-colors">
                   <input
                     type="radio"
                     name="captive-template"
@@ -1109,7 +1114,7 @@ export default function AutoSetupStep({
                   />
                   <span className="font-medium">{tpl.name}</span>
                   {tpl.isDefault && (
-                    <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-warn">
+                    <span className="rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-warn">
                       Par défaut
                     </span>
                   )}
@@ -1134,13 +1139,13 @@ export default function AutoSetupStep({
                   value={portalSupportWhatsapp}
                   onChange={(e) => setPortalSupportWhatsapp(e.target.value)}
                   placeholder="WhatsApp — +225 00 00 00 00 00"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
                 />
                 <input
                   value={portalSupportPhone}
                   onChange={(e) => setPortalSupportPhone(e.target.value)}
                   placeholder="Téléphone — +225 00 00 00 00 00"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
                 />
               </div>
             </div>
@@ -1154,7 +1159,7 @@ export default function AutoSetupStep({
                   onClick={() =>
                     setPortalVendors((prev) => [...prev, { name: "", location: "", phone: "" }])
                   }
-                  className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+                  className="flex items-center gap-1 rounded-lg border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Ajouter
@@ -1167,7 +1172,7 @@ export default function AutoSetupStep({
               ) : (
                 <div className="mt-2 space-y-3">
                   {portalVendors.map((v, i) => (
-                    <div key={i} className="flex items-start gap-2 rounded-md border border-line-soft p-3">
+                    <div key={i} className="flex items-start gap-2 rounded-lg border border-line-soft p-3">
                       <div className="flex-1 space-y-2">
                         <input
                           value={v.name}
@@ -1177,7 +1182,7 @@ export default function AutoSetupStep({
                             )
                           }
                           placeholder="Nom du vendeur"
-                          className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                          className="w-full rounded-lg border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ink"
                         />
                         <input
                           value={v.location}
@@ -1187,7 +1192,7 @@ export default function AutoSetupStep({
                             )
                           }
                           placeholder="Quartier / ville"
-                          className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                          className="w-full rounded-lg border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ink"
                         />
                         <input
                           value={v.phone}
@@ -1197,14 +1202,14 @@ export default function AutoSetupStep({
                             )
                           }
                           placeholder="+225 07 00 00 00 00"
-                          className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ok focus:outline-none"
+                          className="w-full rounded-lg border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ink"
                         />
                       </div>
                       <button
                         type="button"
                         onClick={() => setPortalVendors((prev) => prev.filter((_, idx) => idx !== i))}
                         aria-label="Retirer ce vendeur"
-                        className="rounded-md border border-err p-1.5 text-err hover:bg-err-soft"
+                        className="rounded-lg border border-err p-1.5 text-err hover:bg-err-soft"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -1218,7 +1223,7 @@ export default function AutoSetupStep({
       </div>
 
       {/* ── Liaison internet ─────────────────────────────────────────── */}
-      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+      <div className="mt-5 rounded-lg border border-line-soft bg-paper p-4 sm:p-5">
         <h3 className="text-sm font-semibold text-ink">Liaison internet</h3>
         <p className="mt-0.5 text-sm leading-relaxed text-ink-soft">
           Deux antennes Starlink peuvent être réparties par PCC, avec bascule automatique si
@@ -1239,7 +1244,7 @@ export default function AutoSetupStep({
           ).map(([value, titre, aide]) => (
             <label
               key={value}
-              className="flex items-start gap-2.5 rounded-md border border-line-soft px-3 py-2.5 text-sm text-ink hover:bg-clay cursor-pointer transition-colors"
+              className="flex items-start gap-2.5 rounded-lg border border-line-soft px-3 py-2.5 text-sm text-ink hover:bg-clay cursor-pointer transition-colors"
             >
               <input
                 type="radio"
@@ -1261,7 +1266,7 @@ export default function AutoSetupStep({
           <p className="mt-2 text-xs text-ink-soft">Vérification du moteur de configuration…</p>
         )}
         {moteur && !moteur.ready && (
-          <p className="mt-2 rounded-md bg-clay px-3 py-2 text-sm leading-relaxed text-warn">
+          <p className="mt-2 rounded-lg bg-clay px-3 py-2 text-sm leading-relaxed text-warn">
             Le dual WAN est indisponible pour le moment : {moteur.reason}. L&apos;option n&apos;est
             donc pas facturée — l&apos;installation continue avec une seule antenne, et la
             répartition pourra être posée plus tard depuis la fiche routeur.
@@ -1277,7 +1282,7 @@ export default function AutoSetupStep({
             {STARLINK_PAIRS.map((p) => (
               <label
                 key={p.cas}
-                className="flex items-start gap-2.5 rounded-md border border-line-soft px-3 py-2.5 text-sm text-ink hover:bg-clay cursor-pointer transition-colors"
+                className="flex items-start gap-2.5 rounded-lg border border-line-soft px-3 py-2.5 text-sm text-ink hover:bg-clay cursor-pointer transition-colors"
               >
                 <input
                   type="radio"
@@ -1324,7 +1329,7 @@ export default function AutoSetupStep({
       )}
 
       {/* ── Récapitulatif ─────────────────────────────────────────────── */}
-      <div className="mt-5 rounded-md border border-line-soft bg-clay p-4 sm:p-5">
+      <div className="mt-5 rounded-lg border border-line-soft bg-clay p-4 sm:p-5">
         <p className="text-sm font-semibold text-ink mb-3">Récapitulatif avant lancement</p>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3 text-sm">
           <div>
@@ -1366,7 +1371,7 @@ export default function AutoSetupStep({
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-line-soft px-4 py-3 sm:py-2.5 text-sm font-medium text-ink-soft hover:bg-clay transition-colors"
+          className="btn btn-md btn-outline flex items-center justify-center sm:justify-start gap-1.5"
         >
           <ArrowLeft className="h-4 w-4" />
           Précédent
@@ -1375,7 +1380,7 @@ export default function AutoSetupStep({
           type="button"
           disabled={launchBlocked}
           onClick={launch}
-          className="flex items-center justify-center sm:justify-start gap-2 rounded-md bg-ink px-5 py-3 sm:py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+          className="btn btn-md btn-primary flex items-center justify-center gap-2"
         >
           Lancer l&apos;auto-setup complet
         </button>

@@ -106,7 +106,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
               onChange={choisirFichier}
               className="hidden"
             />
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep transition hover:bg-ink hover:text-paper">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-brand px-4 py-2 text-sm font-semibold text-slate-deep transition hover:bg-brand/80">
               <FileUp className="h-4 w-4" />
               Choisir un fichier .rsc
             </span>
@@ -126,7 +126,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
                 setPlan(null);
                 setBilan(null);
               }}
-              className="w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink"
+              className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink"
             >
               <option value="">Choisir…</option>
               {enLigne.map((r) => (
@@ -140,7 +140,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
             type="button"
             onClick={apercu}
             disabled={!rsc || !cibleId || occupe}
-            className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-bold text-ink transition hover:bg-clay disabled:cursor-not-allowed disabled:opacity-45"
+            className="btn btn-md btn-outline inline-flex items-center gap-2"
           >
             {occupe && <Loader2 className="h-4 w-4 animate-spin" />}
             Voir ce qui sera transféré
@@ -154,7 +154,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
         )}
 
         {erreur && (
-          <p className="flex items-start gap-2 rounded-md border border-err/30 bg-err/10 px-3 py-2 text-sm leading-6 text-err">
+          <p className="flex items-start gap-2 rounded-lg border border-err/30 bg-err/10 px-3 py-2 text-sm leading-6 text-err">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             {erreur}
           </p>
@@ -184,7 +184,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
               <summary className="cursor-pointer text-xs font-semibold text-ink-soft">
                 {plan.ecartees.length} sections écartées — tunnel, bridges, pare-feu…
               </summary>
-              <p className="mt-2 font-mono text-[11px] leading-5 text-ink-soft">
+              <p className="mt-2 font-mono text-xs leading-5 text-ink-soft">
                 {plan.ecartees.join(" · ")}
               </p>
             </details>
@@ -193,7 +193,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
               type="button"
               onClick={appliquer}
               disabled={occupe}
-              className="mt-4 inline-flex items-center gap-2 rounded-full border border-ink bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition hover:brightness-95 disabled:opacity-45"
+              className="btn btn-md btn-primary mt-4 inline-flex items-center gap-2"
             >
               {occupe ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
               Transférer sur ce routeur
@@ -214,7 +214,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
                 <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-warn">
                   {bilan.echecs.length} refusés par RouterOS
                 </p>
-                <ul className="mt-1 space-y-1 font-mono text-[11px] leading-5 text-ink-soft">
+                <ul className="mt-1 space-y-1 font-mono text-xs leading-5 text-ink-soft">
                   {bilan.echecs.slice(0, 8).map((e, i) => (
                     <li key={i}>
                       {e.commande} — {e.raison}

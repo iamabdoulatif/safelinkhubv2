@@ -34,7 +34,7 @@ export default async function RouterTransfersPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
+      <h1 className="flex items-center gap-2 text-ink text-2xl font-semibold tracking-tight">
         <ArrowRightLeft className="h-5 w-5" />
         Transfert de routeur
       </h1>

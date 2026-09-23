@@ -69,7 +69,7 @@ export function ClientPortfolioGrid({ clients, t }: ClientPortfolioGridProps) {
         return (
           <article
             key={client.id}
-            className="flex h-full flex-col gap-4 border border-line-soft bg-paper p-5 shadow-sm rounded-2xl"
+            className="flex h-full flex-col gap-4 border border-line-soft bg-paper p-5 shadow-sm rounded-xl"
             aria-labelledby={organizationTitleId}
           >
             {/* Identité */}
@@ -78,7 +78,7 @@ export function ClientPortfolioGrid({ clients, t }: ClientPortfolioGridProps) {
                 <Router className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">{t.organization}</p>
+                <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">{t.organization}</p>
                 <h2 id={organizationTitleId} className="mt-1 break-words text-lg font-bold leading-tight text-ink">
                   {client.name}
                 </h2>
@@ -128,7 +128,7 @@ export function ClientPortfolioGrid({ clients, t }: ClientPortfolioGridProps) {
               <Link
                 href={`/admin/router?scope=clients&org=${client.id}`}
                 aria-label={t.viewRoutersFor.replace("{name}", client.name)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-brand px-3.5 py-2 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                className="btn btn-md btn-primary inline-flex items-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
               >
                 {t.viewRouters}
                 <ArrowUpRight className="h-4 w-4" aria-hidden="true" />

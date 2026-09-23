@@ -51,12 +51,12 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
         <input
           disabled
           placeholder={data.voucherFieldLabel || "Code d'accès"}
-          className="w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink-soft placeholder:text-ink-soft"
+          className="field w-full text-ink-soft placeholder:text-ink-soft"
         />
         <button
           type="button"
           disabled
-          className="w-full rounded-md px-3 py-2 text-sm font-medium text-white"
+          className="w-full rounded-lg px-3 py-2 text-sm font-medium text-white"
           style={{ backgroundColor: data.primaryColor || "#0f172a" }}
         >
           {data.buttonLabel || "Se connecter"}
@@ -65,7 +65,7 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
 
       {data.mobileMoneyEnabled && (
         <div className="w-full max-w-xs">
-          <div className="flex items-center gap-2 text-[11px] text-ink-soft">
+          <div className="flex items-center gap-2 text-xs text-ink-soft">
             <span className="h-px flex-1 bg-clay" />
             ou payer maintenant
             <span className="h-px flex-1 bg-clay" />
@@ -76,7 +76,7 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
                 key={p.id}
                 type="button"
                 onClick={() => setActiveProvider(p.id)}
-                className={`rounded-md px-2 py-2 text-[11px] font-medium text-white ${p.className}`}
+                className={`rounded-lg px-2 py-2 text-xs font-medium text-white ${p.className}`}
               >
                 {p.label}
               </button>
@@ -86,10 +86,10 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
       )}
 
       {data.termsText && (
-        <p className="max-w-xs text-[11px] text-ink-soft">{data.termsText}</p>
+        <p className="max-w-xs text-xs text-ink-soft">{data.termsText}</p>
       )}
       {data.footerText && (
-        <p className="text-[11px] text-ink-soft">{data.footerText}</p>
+        <p className="text-xs text-ink-soft">{data.footerText}</p>
       )}
 
       {activeProvider && (
