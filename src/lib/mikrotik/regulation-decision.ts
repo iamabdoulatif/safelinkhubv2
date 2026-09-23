@@ -94,8 +94,12 @@ export function decideRegulation(input: RegulationDecisionInput): RegulationDeci
   const dayKey = now.toISOString().slice(0, 10);
 
   const prev = input.state;
+  // `released` marque un routeur nettoyé APRÈS désactivation : s'il est
+  // régulé de nouveau, la marque tombe — sinon une nouvelle coupure ne le
+  // nettoierait plus.
   const s: RegulationState = prev
-    ? { ...prev }
+    ? // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      (({ released: _released, ...rest }) => rest)(prev)
     : {
         decision: "ok",
         previous: "ok",

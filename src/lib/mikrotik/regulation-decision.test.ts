@@ -212,3 +212,22 @@ describe("régulation — rythme du quota", () => {
     assert.equal(out.limit, "0/0");
   });
 });
+
+describe("réactivation après une coupure", () => {
+  it("un routeur régulé de nouveau perd la marque de nettoyage", () => {
+    /* Sinon, le couper une seconde fois ne retirerait plus ses bridages : le
+       passage de libération ignore les routeurs déjà marqués. */
+    const avant = decide({}).state;
+    const out = decideRegulation({
+      policy: POLICY,
+      billingCycleDay: 1,
+      state: { ...avant, released: "2026-09-23T12:00:00.000Z" },
+      watch: {},
+      counters: 0,
+      wanInterface: "E1-WAN-FAI",
+      active: [],
+      at: new Date(T0),
+    });
+    assert.equal(out.state.released, undefined);
+  });
+});

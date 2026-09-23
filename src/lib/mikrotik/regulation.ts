@@ -345,3 +345,54 @@ async function throttleAbusers(
   }
   return posees;
 }
+
+
+/**
+ * Retire du routeur TOUT ce que la régulation y a posé : file partagée et
+ * rattachement des profils, rate-limit d'origine des profils, files
+ * individuelles des contrevenants, adresses bloquées (temporaires et
+ * définitives) et les deux règles de blocage.
+ *
+ * Pourquoi : le passage régulier ne traite que les routeurs `enabled`. Couper
+ * la régulation sans ce nettoyage laissait les clients bridés ou bloqués pour
+ * toujours — une file simple n'expire pas, une adresse « définitive » non plus.
+ *
+ * Les codes suspendus (ticket désactivé) ne sont PAS réactivés ici : c'est une
+ * décision commerciale, laissée à l'exploitant.
+ */
+export async function releaseRegulation(
+  client: RouterOSClient,
+  profileLimits: Record<string, string>,
+  timeoutMs = 15000,
+): Promise<{ unblocked: number; rules: number }> {
+  await applyRegulation(
+    client,
+    { limit: "0/0", blocks: [], throttles: [], suspensions: [], profileThrottlePct: 0, profileLimits },
+    timeoutMs,
+  );
+
+  let unblocked = 0;
+  for (const list of [ABUSE_LIST, ABUSE_PERMANENT_LIST]) {
+    const rows = await client
+      .talk(["/ip/firewall/address-list/print", "=.proplist=.id", `?list=${list}`], timeoutMs)
+      .catch(() => [] as Record<string, string>[]);
+    for (const r of rows) {
+      if (!r[".id"]) continue;
+      await client.talk(["/ip/firewall/address-list/remove", `=numbers=${r[".id"]}`], timeoutMs).catch(() => {});
+      unblocked++;
+    }
+  }
+
+  let rules = 0;
+  for (const comment of [ABUSE_RULE_COMMENT, ABUSE_PERMANENT_RULE_COMMENT]) {
+    const rows = await client
+      .talk(["/ip/firewall/filter/print", "=.proplist=.id", `?comment=${comment}`], timeoutMs)
+      .catch(() => [] as Record<string, string>[]);
+    for (const r of rows) {
+      if (!r[".id"]) continue;
+      await client.talk(["/ip/firewall/filter/remove", `=numbers=${r[".id"]}`], timeoutMs).catch(() => {});
+      rules++;
+    }
+  }
+  return { unblocked, rules };
+}
