@@ -50,6 +50,7 @@ export const adminFr = {
       training: "Formations",
       marketing: "Marketing",
     },
+    breadcrumb: "Fil d’Ariane",
     openMenu: "Ouvrir le menu",
     closeMenu: "Fermer le menu",
     backToLanding: "SafeLinkHub — retour à la landing page",

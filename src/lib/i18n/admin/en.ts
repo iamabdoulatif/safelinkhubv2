@@ -45,6 +45,7 @@ export const adminEn: AdminDictionary = {
       training: "Training",
       marketing: "Marketing",
     },
+    breadcrumb: "Breadcrumb",
     openMenu: "Open menu",
     closeMenu: "Close menu",
     backToLanding: "SafeLinkHub — back to the landing page",
