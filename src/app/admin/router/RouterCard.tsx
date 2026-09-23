@@ -5,6 +5,7 @@ import { ArrowUpRight, MapPin } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
 import { buttonClass } from "@/components/ui/Button";
 import { LockedBadge, StatusBadge } from "./RouterBadges";
+import RouterThumb from "@/components/RouterThumb";
 import { isOfflineRouter } from "./fleet-health";
 import { timeAgo, type RouterDictionary, type RouterRow } from "./router-row";
 
@@ -49,12 +50,15 @@ export function RouterCard({
             <StatusBadge status={r.status} t={table} />
             {r.locked && <LockedBadge t={table} />}
           </div>
-          <Link
-            href={`/admin/router/${r.id}`}
-            className="mt-2 block truncate text-base font-semibold text-ink hover:text-brand-deep"
-          >
-            {r.name}
-          </Link>
+          <div className="mt-2 flex items-center gap-3">
+            <RouterThumb model={r.model} size={40} />
+            <Link
+              href={`/admin/router/${r.id}`}
+              className="block min-w-0 truncate text-base font-semibold text-ink hover:text-brand-deep"
+            >
+              {r.name}
+            </Link>
+          </div>
           <p className="truncate text-xs text-ink-soft">
             {r.model ?? "—"}
             {r.host ? <span className="font-mono"> · {r.host}:{r.apiPort ?? 8728}</span> : null}

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Save, RotateCcw, Trash2, AlertTriangle, ScanLine, Loader2, ChevronDown } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
+import RouterThumb from "@/components/RouterThumb";
 import {
   startBackupJob,
   restoreBackup,
@@ -99,7 +100,8 @@ export default function BackupsManager({
   const [purge, setPurge] = useState<Record<string, boolean>>({});
   // Panneau de restauration déplié (un seul à la fois) et filtre par routeur.
   const [openId, setOpenId] = useState<string | null>(null);
-  const [routerFilter, setRouterFilter] = useState("");
+  // Sauvegarde choisie dans le menu déroulant de chaque routeur.
+  const [choix, setChoix] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [reports, setReports] = useState<{
     backupId: string;
@@ -408,8 +410,19 @@ export default function BackupsManager({
     openId === id || live?.backupId === id || activeJob?.backupId === id || reports?.backupId === id;
   // Une sauvegarde de routeur supprimé n'a plus d'identifiant : clé à part.
   const cleRouteur = (b: { routerId: string | null }) => b.routerId ?? "__supprime";
-  const routeursSauvegardes = Array.from(new Map(backups.map((b) => [cleRouteur(b), b.routerName])));
-  const visibles = routerFilter ? backups.filter((b) => cleRouteur(b) === routerFilter) : backups;
+  // UNE LIGNE PAR ROUTEUR : ses sauvegardes (jusqu'à 7) se choisissent dans un
+  // menu déroulant, la plus récente d'abord. Lister chaque copie empilait sept
+  // fois le même routeur, sans rien dire de plus.
+  const groupes = Array.from(
+    backups.reduce((m, b) => {
+      const k = cleRouteur(b);
+      m.set(k, [...(m.get(k) ?? []), b]);
+      return m;
+    }, new Map<string, typeof backups>()),
+  ).map(([key, items]) => ({
+    key,
+    items: [...items].sort((x, y) => y.createdAt.localeCompare(x.createdAt)),
+  }));
   const fmtDate = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" });
 
   return (
@@ -466,29 +479,10 @@ export default function BackupsManager({
           <div>
             <h2 className="text-base font-semibold text-ink">Sauvegardes disponibles</h2>
             <p className="text-[13px] text-ink-soft">
-              {backups.length} sauvegarde{backups.length > 1 ? "s" : ""} · les plus récentes en premier
+              {groupes.length} routeur{groupes.length > 1 ? "s" : ""} · {backups.length} sauvegarde
+              {backups.length > 1 ? "s" : ""} · choisissez la date dans le menu de chaque routeur
             </p>
           </div>
-          {routeursSauvegardes.length > 1 && (
-            <div>
-              <label htmlFor="backup-filter" className="sr-only">
-                Filtrer par routeur
-              </label>
-              <select
-                id="backup-filter"
-                value={routerFilter}
-                onChange={(e) => setRouterFilter(e.target.value)}
-                className="field h-9 w-auto min-w-48 text-[13px] sm:h-9"
-              >
-                <option value="">Tous les routeurs</option>
-                {routeursSauvegardes.map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
         {backups.length === 0 ? (
@@ -498,7 +492,12 @@ export default function BackupsManager({
           </p>
         ) : (
           <ul role="list" className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line bg-paper">
-            {visibles.map((b) => {
+            {groupes.map((g) => {
+              // Une restauration en cours (ou son rapport) épingle SA sauvegarde.
+              const epingle = g.items.find(
+                (x) => x.id === live?.backupId || x.id === activeJob?.backupId || x.id === reports?.backupId,
+              );
+              const b = epingle ?? g.items.find((x) => x.id === choix[g.key]) ?? g.items[0];
               const contenu =
                 Object.entries(SECTION_LABELS)
                   .filter(([k]) => (b.counts[k] ?? 0) > 0)
@@ -506,12 +505,17 @@ export default function BackupsManager({
                   .join(" · ") || "aucune donnée restaurable";
               const estOuvert = ouvert(b.id);
               return (
-                <li key={b.id} className={estOuvert ? "bg-clay/40" : undefined}>
-                  <div className="grid gap-2 px-4 py-3.5 sm:px-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_auto] md:items-center md:gap-5">
-                    <div className="min-w-0">
+                <li key={g.key} className={estOuvert ? "bg-clay/40" : undefined}>
+                  <div className="grid gap-2 px-4 py-3.5 sm:px-5 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)_auto] md:items-center md:gap-5">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <RouterThumb model={b.model} />
+                      <div className="min-w-0">
                       <p className="truncate font-semibold text-ink">{b.routerName}</p>
                       <p className="truncate text-xs text-ink-soft">
                         {[b.model, b.rosVersion && `RouterOS ${b.rosVersion}`].filter(Boolean).join(" · ") || "—"}
+                      </p>
+                      <p className="text-xs text-ink-soft">
+                        {g.items.length} sauvegarde{g.items.length > 1 ? "s" : ""}
                       </p>
                       {b.orphan && (
                         <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-xs font-semibold text-warn">
@@ -519,20 +523,33 @@ export default function BackupsManager({
                           routeur supprimé — sauvegarde conservée
                         </span>
                       )}
+                      </div>
                     </div>
-                    <div className="min-w-0 text-[13px]">
-                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink">
-                        <span className="tabular-nums">{fmtDate.format(new Date(b.createdAt))}</span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            b.trigger === "auto" ? "bg-line-soft text-ink-soft" : "bg-info-soft text-info"
-                          }`}
-                        >
-                          {b.trigger === "auto" ? "Auto" : "Manuelle"}
-                        </span>
-                        <span className="text-xs text-ink-soft">{formatSize(b.sizeBytes)}</span>
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-ink-soft" title={contenu}>
+                    <div className="min-w-0">
+                      <label htmlFor={`bk-${g.key}`} className="sr-only">
+                        Sauvegarde de {b.routerName} à utiliser
+                      </label>
+                      <select
+                        id={`bk-${g.key}`}
+                        value={b.id}
+                        disabled={Boolean(epingle)}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          setChoix((c) => ({ ...c, [g.key]: id }));
+                          // Panneau ouvert sur l'ancienne date : il suit la nouvelle.
+                          if (openId && g.items.some((x) => x.id === openId)) setOpenId(id);
+                        }}
+                        className="field h-9 text-[13px] tabular-nums sm:h-9"
+                      >
+                        {g.items.map((x, i) => (
+                          <option key={x.id} value={x.id}>
+                            {fmtDate.format(new Date(x.createdAt))} · {x.trigger === "auto" ? "Auto" : "Manuelle"} ·{" "}
+                            {formatSize(x.sizeBytes)}
+                            {i === 0 ? " · la plus récente" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 truncate text-xs text-ink-soft" title={contenu}>
                         {contenu}
                       </p>
                     </div>
