@@ -50,27 +50,29 @@ export default function DateRangePicker({
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-2 ${pending ? "opacity-60" : ""}`}
+      className={`flex flex-wrap items-center gap-x-3 gap-y-2 transition-opacity ${pending ? "opacity-60" : ""}`}
       role="group"
       aria-label="Période du tableau de bord"
     >
-      {PRESETS.map((p) => (
-        <button
-          key={p.key}
-          type="button"
-          aria-pressed={activePreset === p.key}
-          onClick={() => applyPreset(p.key)}
-          className={`border border-line px-3 py-1.5 text-xs font-bold transition-colors duration-150 ${
-            activePreset === p.key
-              ? "bg-brand text-slate-deep"
-              : "bg-paper text-ink-soft hover:bg-clay hover:text-ink"
-          }`}
-        >
-          {p.label}
-        </button>
-      ))}
-      <span className="mx-1 hidden h-5 w-px bg-line-soft sm:block" aria-hidden="true" />
-      <label className="flex items-center gap-1.5 text-xs font-medium text-ink-soft">
+      {/* Même contrôle segmenté que les filtres du parc de routeurs. */}
+      <div className="inline-flex gap-1 rounded-full bg-line-soft p-1">
+        {PRESETS.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            aria-pressed={activePreset === p.key}
+            onClick={() => applyPreset(p.key)}
+            className={`flex h-9 items-center whitespace-nowrap rounded-full border px-3 text-[13px] transition-colors duration-150 ${
+              activePreset === p.key
+                ? "border-line bg-paper font-semibold text-ink"
+                : "border-transparent font-medium text-ink-soft hover:text-ink"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <label className="flex items-center gap-2 text-[13px] font-medium text-ink-soft">
         Du
         <input
           type="date"
@@ -78,10 +80,10 @@ export default function DateRangePicker({
           value={from}
           max={to}
           onChange={(e) => apply(e.target.value, to)}
-          className="border border-line bg-paper px-2 py-1 font-mono text-xs text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
+          className="field h-9 w-auto px-2.5 text-[13px] tabular-nums sm:h-9"
         />
       </label>
-      <label className="flex items-center gap-1.5 text-xs font-medium text-ink-soft">
+      <label className="flex items-center gap-2 text-[13px] font-medium text-ink-soft">
         au
         <input
           type="date"
@@ -89,7 +91,7 @@ export default function DateRangePicker({
           value={to}
           min={from}
           onChange={(e) => apply(from, e.target.value)}
-          className="border border-line bg-paper px-2 py-1 font-mono text-xs text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
+          className="field h-9 w-auto px-2.5 text-[13px] tabular-nums sm:h-9"
         />
       </label>
     </div>

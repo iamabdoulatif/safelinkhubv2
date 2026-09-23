@@ -5,7 +5,10 @@ import assert from "node:assert/strict";
 const read = (p) => readFile(new URL(`../${p}`, import.meta.url), "utf8");
 const vue = () => read("src/app/admin/DashboardView.tsx");
 
-const grille = (src) => src.slice(src.indexOf("t.tiles.title"), src.indexOf("t.charts.title"));
+// La grille va du titre des compteurs au marqueur de fin : les histogrammes
+// mensuels sont descendus en bas de l'écran (rubrique « détail »).
+const grille = (src) =>
+  src.slice(src.indexOf("t.tiles.title"), src.indexOf("fin de la grille des compteurs"));
 
 test("chaque tuile de compteur mène à son écran", async () => {
   /* Une tuile qui affiche un chiffre sans donner accès à son détail oblige à
