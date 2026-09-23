@@ -1,15 +1,16 @@
 import { NextRequest } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   routerRegulation,
   routerRegulationEvents,
   routers,
   vouchers,
+  type RegulationState,
   type RegulationWatchEntry,
 } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
-import { applyRegulation, readRegulationInputs } from "@/lib/mikrotik/regulation";
+import { applyRegulation, readRegulationInputs, releaseRegulation } from "@/lib/mikrotik/regulation";
 import { decideRegulation } from "@/lib/mikrotik/regulation-decision";
 import { notifierClients } from "@/lib/mikrotik/regulation-notify";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
@@ -96,7 +97,55 @@ export async function GET(request: NextRequest) {
   );
   bilan.restants = Math.max(0, file.length - curseur);
 
-  return Response.json({ ok: true, ...bilan });
+  // ── Routeurs dont la régulation a été COUPÉE : on retire ce qu'elle y a posé.
+  // Sans ce passage, désactiver laissait files de bridage, adresses bloquées et
+  // profils réduits en place à vie. Un routeur injoignable est repris au
+  // passage suivant, jusqu'à ce qu'il soit nettoyé (state.released).
+  const aLiberer = await db
+    .select({ router: routers, regulation: routerRegulation })
+    .from(routerRegulation)
+    .innerJoin(routers, eq(routers.id, routerRegulation.routerId))
+    .where(
+      and(
+        eq(routerRegulation.enabled, false),
+        sql`coalesce(${routerRegulation.state}->>'released', '') = ''`,
+      ),
+    );
+  const liberation = { liberes: [] as string[], injoignables: [] as string[], debloques: 0 };
+  let curseurLib = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCE, aLiberer.length) }, async () => {
+      while (curseurLib < aLiberer.length) {
+        if (Date.now() > echeance) break;
+        const { router, regulation } = aLiberer[curseurLib++];
+        let client: RouterOSClient;
+        try {
+          client = await connectToRouter(router, 12000);
+        } catch {
+          liberation.injoignables.push(router.name);
+          continue;
+        }
+        try {
+          const res = await releaseRegulation(client, regulation.state?.profileLimits ?? {}, 12000);
+          liberation.debloques += res.unblocked;
+          await db
+            .update(routerRegulation)
+            .set({
+              state: { ...(regulation.state ?? ({} as RegulationState)), limit: "0/0", released: new Date().toISOString() },
+              updatedAt: new Date(),
+            })
+            .where(eq(routerRegulation.routerId, router.id));
+          liberation.liberes.push(router.name);
+        } catch {
+          liberation.injoignables.push(router.name);
+        } finally {
+          client.close();
+        }
+      }
+    }),
+  );
+
+  return Response.json({ ok: true, ...bilan, liberation: { ...liberation, restants: aLiberer.length - liberation.liberes.length } });
 
   async function traiter(ligne: (typeof file)[number]) {
     const { router, regulation } = ligne;

@@ -1691,6 +1691,9 @@ export type RegulationState = {
   stats?: Record<string, number | string>;
   /** rate-limit d'origine de chaque profil hotspot bridé (nom → « up/down »), pour le rétablir. */
   profileLimits?: Record<string, string>;
+  /** Régulation désactivée ET routeur nettoyé (files, profils, blocages) —
+   *  posé par /api/cron/regulation. Une réactivation réécrit l'état entier. */
+  released?: string;
 };
 
 export type RegulationWatchEntry = {
