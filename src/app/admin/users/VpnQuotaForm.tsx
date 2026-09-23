@@ -30,7 +30,7 @@ export default function VpnQuotaForm({
         <select
             name="grant"
             disabled={pending}
-            className="h-9 w-full rounded-lg border border-line bg-paper px-2 text-xs text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-60"
+            className="field w-full text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
             aria-label={`Quota VPN pour ${userEmail}`}
           >
             <optgroup label="Promo · parrainage · récompense">

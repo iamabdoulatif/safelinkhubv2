@@ -203,7 +203,7 @@ export default function UsagePanel({ routerId }: { routerId: string }) {
           type="button"
           disabled={isSaving}
           onClick={saveLink}
-          className="mt-4 inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep hover:bg-brand/80 disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-primary mt-4 inline-flex items-center gap-2"
         >
           {isSaving ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Save aria-hidden="true" className="h-4 w-4" />}
           Enregistrer le lien
@@ -318,7 +318,7 @@ function ZoneCard({
           type="button"
           disabled={isSaving}
           onClick={save}
-          className="inline-flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-semibold text-slate-deep hover:bg-brand/80 disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-primary inline-flex items-center gap-2"
         >
           {isSaving ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Gauge aria-hidden="true" className="h-4 w-4" />}
           Appliquer
@@ -497,7 +497,7 @@ function QuotaGuardCard({
           type="button"
           disabled={busy || !capGo}
           onClick={apply}
-          className="inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep hover:bg-brand/80 disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-primary inline-flex items-center gap-2"
         >
           {busy ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <ShieldCheck aria-hidden="true" className="h-4 w-4" />}
           {installed ? "Re-appliquer le garde-fou" : "Activer le garde-fou"}
@@ -516,7 +516,7 @@ function QuotaGuardCard({
           type="button"
           disabled={busy || !capGo}
           onClick={showScript}
-          className="inline-flex items-center gap-2 border border-line bg-paper px-5 py-2.5 text-sm font-bold text-ink hover:bg-clay disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-outline inline-flex items-center gap-2"
         >
           Script à coller
         </button>

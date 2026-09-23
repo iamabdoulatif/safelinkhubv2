@@ -35,7 +35,7 @@ export default function DangerZone({ slug }: { slug: string }) {
             name="confirmSlug"
             required
             placeholder={slug}
-            className="w-full rounded-lg border border-err px-3 py-2 text-sm focus:border-err"
+            className="field w-full border-err"
           />
           <div className="flex gap-2">
             <button
@@ -48,7 +48,7 @@ export default function DangerZone({ slug }: { slug: string }) {
             <button
               type="submit"
               disabled={pending}
-              className="rounded-lg bg-err px-4 py-2 text-sm font-medium text-white hover:bg-ink disabled:opacity-60"
+              className="btn btn-md btn-destructive"
             >
               {pending ? "Suppression..." : "Supprimer définitivement"}
             </button>

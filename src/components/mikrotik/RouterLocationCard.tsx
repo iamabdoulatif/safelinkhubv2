@@ -99,7 +99,7 @@ export default function RouterLocationCard({
             <button
               type="submit"
               disabled={pending}
-              className="mt-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+              className="btn btn-md btn-secondary mt-2"
             >
               {pending ? "Enregistrement…" : "Enregistrer la localisation"}
             </button>

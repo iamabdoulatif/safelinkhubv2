@@ -261,7 +261,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
               disparaître avec lui. */}
           <Link
             href="/admin/vouchers"
-            className="inline-flex items-center gap-2 rounded-full border border-line bg-brand px-4 py-2 text-sm font-semibold text-slate-deep hover:bg-brand/80"
+            className="btn btn-md btn-primary inline-flex items-center gap-2"
           >
             <Ticket aria-hidden="true" className="h-4 w-4" />
             {t.cashed.generateVouchers}
@@ -304,7 +304,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
           </div>
           <Link
             href="/admin/billing?pack=revendeur"
-            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep hover:bg-brand/80"
+            className="btn btn-md btn-primary inline-flex shrink-0 items-center gap-2"
           >
             {t.reseller.pendingCta}
           </Link>

@@ -68,7 +68,7 @@ export default function AddExpenseModal({ t }: { t: ExpenseCopy["modal"] & Pick<
                 <select
                   name="category"
                   required
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 >
                   {CATEGORIES.map((c) => (
                     <option key={c.key} value={c.value}>
@@ -88,7 +88,7 @@ export default function AddExpenseModal({ t }: { t: ExpenseCopy["modal"] & Pick<
                   min={1}
                   required
                   placeholder="10000"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
               </div>
 
@@ -100,7 +100,7 @@ export default function AddExpenseModal({ t }: { t: ExpenseCopy["modal"] & Pick<
                   name="expenseDate"
                   type="date"
                   defaultValue={new Date().toISOString().slice(0, 10)}
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
               </div>
 
@@ -111,7 +111,7 @@ export default function AddExpenseModal({ t }: { t: ExpenseCopy["modal"] & Pick<
                 <input
                   name="note"
                   placeholder={t.notePlaceholder}
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
               </div>
             </div>
@@ -127,7 +127,7 @@ export default function AddExpenseModal({ t }: { t: ExpenseCopy["modal"] & Pick<
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? t.pending : t.submit}
               </button>

@@ -32,7 +32,7 @@ export default async function AdminBlogPage() {
         </div>
         <Link
           href="/admin/blog/new"
-          className="flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-semibold text-slate-deep hover:bg-brand/80 rounded-full"
+          className="btn btn-md btn-primary flex items-center gap-2"
         >
           <Plus className="h-4 w-4" />
           Nouvel article

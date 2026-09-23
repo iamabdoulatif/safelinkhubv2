@@ -234,7 +234,7 @@ export default function ImportTicketsModal({
                     <input
                       name="note"
                       placeholder="ex : import MikHmon juillet"
-                      className="w-full border border-line-soft bg-paper px-3 py-2 text-sm outline-none focus:border-ink rounded-lg"
+                      className="field w-full"
                     />
                   </div>
                 </div>
@@ -252,7 +252,7 @@ export default function ImportTicketsModal({
                         name="routerId"
                         required
                         defaultValue=""
-                        className="w-full border border-line-soft bg-paper px-3 py-2 text-sm outline-none focus:border-ink rounded-lg"
+                        className="field w-full"
                       >
                         <option value="" disabled>Choisir le routeur</option>
                         {routers.map((router) => (
@@ -320,7 +320,7 @@ export default function ImportTicketsModal({
                 <button
                   type="submit"
                   disabled={pending || routers.length === 0 || (mode === "csv" && Boolean(csvPreview && "error" in csvPreview))}
-                  className="inline-flex items-center gap-2 bg-ink px-4 py-2 text-sm font-semibold text-paper hover:bg-brand hover:text-ink disabled:opacity-50"
+                  className="btn btn-md btn-secondary inline-flex items-center gap-2"
                 >
                   {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                   {pending ? "Import en cours..." : "Importer les tickets"}

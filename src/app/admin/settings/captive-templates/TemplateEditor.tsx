@@ -237,14 +237,14 @@ export default function TemplateEditor({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Enregistrement..." : "Enregistrer"}
               </button>

@@ -723,7 +723,7 @@ export default function AutoSetupStep({
           <button
             type="button"
             onClick={onBack}
-            className="shrink-0 rounded-lg border border-line-soft px-3 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-clay"
+            className="btn btn-sm btn-outline shrink-0"
           >
             Modifier à l&apos;Étape 2
           </button>
@@ -1051,7 +1051,7 @@ export default function AutoSetupStep({
           <button
             type="button"
             onClick={addCustomProfile}
-            className="flex items-center gap-1 rounded-lg border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay transition-colors"
+            className="btn btn-sm btn-outline flex items-center gap-1"
           >
             <Plus className="h-3.5 w-3.5" />
             Ajouter
@@ -1371,7 +1371,7 @@ export default function AutoSetupStep({
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-line-soft px-4 py-3 sm:py-2.5 text-sm font-medium text-ink-soft hover:bg-clay transition-colors"
+          className="btn btn-md btn-outline flex items-center justify-center sm:justify-start gap-1.5"
         >
           <ArrowLeft className="h-4 w-4" />
           Précédent
@@ -1380,7 +1380,7 @@ export default function AutoSetupStep({
           type="button"
           disabled={launchBlocked}
           onClick={launch}
-          className="flex items-center justify-center sm:justify-start gap-2 rounded-lg bg-ink px-5 py-3 sm:py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+          className="btn btn-md btn-primary flex items-center justify-center gap-2"
         >
           Lancer l&apos;auto-setup complet
         </button>

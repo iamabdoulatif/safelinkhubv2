@@ -156,13 +156,13 @@ export default function GenerateOpenvpnScriptForm() {
             name="name"
             required
             placeholder="hAP ac lite"
-            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
+            className="field w-full placeholder:text-ink-soft"
           />
         </div>
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+          className="btn btn-md btn-secondary"
         >
           {pending ? "Génération..." : "Générer le script d'installation"}
         </button>

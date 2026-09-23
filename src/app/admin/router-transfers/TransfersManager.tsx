@@ -80,7 +80,7 @@ export default function TransfersManager({
                 <select
                   name="routerId"
                   required
-                  className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+                  className="field mt-1 w-full"
                 >
                   {routeurs.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -100,7 +100,7 @@ export default function TransfersManager({
                   autoComplete="off"
                   spellCheck={false}
                   placeholder="Sous le boîtier"
-                  className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 font-mono text-sm uppercase text-ink outline-none focus:border-brand"
+                  className="field mt-1 w-full font-mono uppercase"
                 />
                 {/* Relever le numéro SUR L'APPAREIL prouve qu'on l'a sous les
                     yeux. Le SaaS le connaît déjà — il sert donc à vérifier,
@@ -118,7 +118,7 @@ export default function TransfersManager({
                   type="email"
                   required
                   placeholder="proprietaire@exemple.com"
-                  className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+                  className="field mt-1 w-full"
                 />
               </label>
             </div>
@@ -129,12 +129,12 @@ export default function TransfersManager({
               <textarea
                 name="reason"
                 rows={2}
-                className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+                className="field mt-1 w-full"
               />
             </label>
             <button
               disabled={pending}
-              className="inline-flex items-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep hover:bg-brand/80 disabled:opacity-60"
+              className="btn btn-md btn-primary inline-flex items-center gap-2"
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Demander le transfert
@@ -239,7 +239,7 @@ export default function TransfersManager({
                         className="mt-3"
                       >
                         <input type="hidden" name="id" value={d.id} />
-                        <button className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink-soft hover:bg-clay">
+                        <button className="btn btn-sm btn-outline inline-flex items-center gap-2">
                           <KeyRound aria-hidden="true" className="h-3.5 w-3.5" />
                           Renouveler le mot de passe API
                         </button>
@@ -266,13 +266,13 @@ export default function TransfersManager({
                           </span>
                           <input
                             name="adminNote"
-                            className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+                            className="field mt-1 w-full"
                           />
                         </label>
                         <button
                           name="decision"
                           value="approved"
-                          className="rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line"
+                          className="btn btn-md btn-secondary"
                         >
                           Transférer
                         </button>

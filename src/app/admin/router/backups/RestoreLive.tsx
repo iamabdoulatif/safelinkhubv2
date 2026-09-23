@@ -317,7 +317,7 @@ export default function RestoreLive({
             type="button"
             onClick={onCancel}
             disabled={cancelling}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-err hover:border-err disabled:opacity-60"
+            className="btn btn-sm btn-outline inline-flex items-center gap-1.5"
           >
             <Ban className="h-3.5 w-3.5" />
             {cancelling ? "Arrêt en cours…" : "Annuler la restauration"}

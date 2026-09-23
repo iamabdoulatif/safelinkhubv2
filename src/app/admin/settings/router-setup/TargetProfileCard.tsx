@@ -39,7 +39,7 @@ export default function TargetProfileCard() {
         <button
           type="button"
           onClick={copyChecklist}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line-soft px-3 py-2 text-sm font-medium text-ink hover:bg-clay"
+          className="btn btn-md btn-outline inline-flex items-center justify-center gap-2"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           {copied ? "Copié" : "Copier la checklist"}

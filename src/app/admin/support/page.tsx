@@ -59,7 +59,7 @@ export default async function SupportPage() {
                 href={url as string}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
+                className="btn btn-sm btn-outline inline-flex items-center gap-1.5"
               >
                 <Icon className="h-4 w-4" />
                 {label}

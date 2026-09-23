@@ -63,7 +63,7 @@ export function ClientPortfolioList({
                   </Link>
                   <Link
                     href={`/admin/router?scope=clients&org=${c.id}`}
-                    className="inline-flex items-center gap-1 border border-line bg-brand px-2.5 py-1.5 text-xs font-semibold text-slate-deep hover:bg-brand/80 rounded-full"
+                    className="btn btn-sm btn-primary inline-flex items-center gap-1"
                   >
                     {t.viewRouters}
                     <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />

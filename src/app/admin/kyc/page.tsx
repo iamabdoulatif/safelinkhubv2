@@ -79,9 +79,9 @@ export default async function KycAdminPage({
           type="search"
           defaultValue={recherche}
           placeholder="Organisation ou nom déclaré…"
-          className="min-w-0 flex-1 rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+          className="field min-w-0 flex-1"
         />
-        <button className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-clay">
+        <button className="btn btn-md btn-outline inline-flex items-center gap-2">
           <Search className="h-4 w-4" />
           Chercher
         </button>

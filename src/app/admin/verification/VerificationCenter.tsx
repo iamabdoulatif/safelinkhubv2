@@ -171,14 +171,14 @@ export default function VerificationCenter({
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-semibold text-ink hover:bg-clay"
+                className="btn btn-md btn-outline inline-flex w-full items-center justify-center gap-2"
               >
                 <MessageCircle className="h-4 w-4" />
                 Envoyer mes pièces
               </a>
               <button
                 type="submit"
-                className="w-full rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line"
+                className="btn btn-md btn-secondary w-full"
               >
                 {atteinte > 0 ? "Mettre à jour" : "J'ai envoyé mes pièces"}
               </button>
@@ -238,7 +238,7 @@ export default function VerificationCenter({
               <button
                 type="submit"
                 disabled={pending || atteinte < 1 || restantes === 0}
-                className="w-full rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
+                className="btn btn-md btn-secondary w-full"
               >
                 {pending ? "Envoi…" : "Soumettre le dossier"}
               </button>

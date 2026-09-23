@@ -607,7 +607,7 @@ function TopologyCanvas({
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-brand"
+                  className="btn btn-md btn-secondary"
                 >
                   Enregistrer les modifications
                 </button>
@@ -913,7 +913,7 @@ export default function TopologyBuilder({
                     name="name"
                     defaultValue="SAFELINKHUB-BRIDGE"
                     disabled
-                    className="w-full rounded-lg border border-line-soft bg-clay px-4 py-2.5 text-base text-ink-soft disabled:cursor-not-allowed"
+                    className="field w-full bg-clay text-ink-soft"
                   />
                   <p className="mt-1.5 text-sm text-ink-soft">
                     Le bridge principal ne peut pas être renommé.
@@ -1056,7 +1056,7 @@ export default function TopologyBuilder({
               <button
                 type="submit"
                 disabled={pending || draftPorts.length === 0}
-                className="rounded-lg bg-ink px-5 py-2.5 text-base font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Enregistrement..." : "Enregistrer les modifications"}
               </button>

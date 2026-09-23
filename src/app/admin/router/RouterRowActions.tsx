@@ -179,7 +179,7 @@ export default function RouterRowActions({
                 <button
                   type="submit"
                   disabled={renamePending || draft.trim().length < 2}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-brand px-2.5 py-1 text-xs font-semibold text-slate-deep hover:bg-brand/80 disabled:opacity-60"
+                  className="btn btn-sm btn-primary inline-flex items-center gap-1.5"
                 >
                   {renamePending ? (
                     <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />

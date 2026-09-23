@@ -37,7 +37,7 @@ export default async function AdminCoursesPage() {
         </h1>
         <Link
           href="/admin/formations/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line"
+          className="btn btn-md btn-secondary inline-flex items-center gap-2"
         >
           <Plus className="h-4 w-4" />
           Nouvelle formation

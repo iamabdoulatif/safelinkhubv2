@@ -114,7 +114,7 @@ export default function CourseForm({ course }: { course: Course }) {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+        className="btn btn-md btn-secondary"
       >
         {pending ? "Enregistrement…" : course ? "Enregistrer" : "Créer la formation"}
       </button>

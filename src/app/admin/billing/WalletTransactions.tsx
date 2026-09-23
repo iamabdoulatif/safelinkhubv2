@@ -96,7 +96,7 @@ export default function WalletTransactions({ transactions }: { transactions: Wal
             type="button"
             onClick={doCleanup}
             disabled={pending}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-paper px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-clay disabled:opacity-60"
+            className="btn btn-sm btn-outline inline-flex items-center gap-1.5"
           >
             {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
             Nettoyer les échouées / en attente ({cleanableCount})
@@ -242,7 +242,7 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
               step={1}
               required
               defaultValue={tx.amountCents}
-              className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink"
+              className="field w-full"
             />
           </div>
 
@@ -251,7 +251,7 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
             <select
               name="status"
               defaultValue={tx.status}
-              className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink"
+              className="field w-full"
             >
               {Object.entries(STATUS_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -267,7 +267,7 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
               name="note"
               defaultValue={tx.note ?? ""}
               placeholder="Ex : reçu Wave du 22/07"
-              className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink"
+              className="field w-full"
             />
           </div>
 
@@ -281,14 +281,14 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
               type="button"
               onClick={onClose}
               disabled={pending}
-              className="flex-1 rounded-lg border border-line-soft bg-paper px-4 py-2.5 text-sm font-semibold text-ink hover:bg-clay disabled:opacity-60"
+              className="btn btn-md btn-outline flex-1"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={pending}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60"
+              className="btn btn-md btn-secondary inline-flex flex-1 items-center justify-center gap-2"
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Enregistrer

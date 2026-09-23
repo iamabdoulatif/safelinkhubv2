@@ -66,7 +66,7 @@ export default function MockPaymentModal({
             </div>
             <button
               type="submit"
-              className="w-full rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
+              className="btn btn-md btn-secondary w-full"
             >
               {isCard ? "Continuer vers le paiement" : "Envoyer la demande de paiement"}
             </button>
@@ -100,7 +100,7 @@ export default function MockPaymentModal({
             <button
               type="button"
               onClick={onClose}
-              className="mt-2 rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+              className="btn btn-md btn-outline mt-2"
             >
               Fermer
             </button>

@@ -19,7 +19,7 @@ export default function ProfileNameForm({ currentName }: { currentName: string }
           defaultValue={currentName}
           required
           autoComplete="name"
-          className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+          className="field w-full"
         />
       </div>
 
@@ -27,7 +27,7 @@ export default function ProfileNameForm({ currentName }: { currentName: string }
         <button
           type="submit"
           disabled={pending}
-          className="flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn btn-md btn-secondary flex items-center gap-1.5"
         >
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {pending ? "Enregistrement..." : "Enregistrer"}

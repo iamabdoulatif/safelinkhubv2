@@ -94,7 +94,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
           type="button"
           onClick={analyser}
           disabled={pending}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-ok disabled:opacity-60"
+          className="btn btn-sm btn-outline inline-flex items-center gap-1.5"
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
           Analyser
@@ -183,7 +183,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
           type="button"
           onClick={poser}
           disabled={pending || !lecture}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+          className="btn btn-md btn-secondary inline-flex items-center justify-center gap-2"
         >
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
           Masquer

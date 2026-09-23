@@ -198,7 +198,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
           type="button"
           disabled={isAnalyzing}
           onClick={analyze}
-          className="mt-5 inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-primary mt-5 inline-flex items-center gap-2"
         >
           {isAnalyzing ? (
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />

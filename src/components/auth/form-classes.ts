@@ -6,10 +6,11 @@
 // fois — et rien n'empêchait d'en oublier une. Un seul endroit désormais.
 //
 // Peau Slate (voir .theme-slate dans globals.css) : traits de 1 px, coins
-// arrondis, anneau de focus lime, bouton pilule.
+// arrondis, bouton pilule. Champs et bouton = composants partagés (.field, .btn).
 
-export const fieldBase =
-  "w-full rounded-lg border border-line bg-paper py-3 text-sm text-ink placeholder:text-ink-soft/60 focus:border-slate-deep focus:outline-none focus:ring-2 focus:ring-brand";
+// Style commun des champs : classe .field (globals.css). Les pages d'auth
+// gardent un champ un peu plus haut (48 px) : c'est la seule action de l'écran.
+export const fieldBase = "field h-12 sm:h-12";
 
 /** Champ avec icône à gauche (Mail, Lock…) — d'où le padding gauche. */
 export const fieldClass = `${fieldBase} pl-10 pr-3`;
@@ -19,8 +20,7 @@ export const fieldClassWithToggle = `${fieldBase} pl-10 pr-10`;
 
 export const labelClass = "mb-1.5 block text-sm font-semibold text-ink";
 
-export const buttonClass =
-  "inline-flex w-full items-center justify-center gap-2 slate-btn slate-btn-primary px-5 py-3 text-sm transition disabled:cursor-not-allowed disabled:opacity-60";
+export const buttonClass = "btn btn-lg btn-primary w-full";
 
 /** Encart d'information discret (fond crème, trait fin). */
 export const noticeClass =

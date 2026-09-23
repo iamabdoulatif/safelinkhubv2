@@ -356,7 +356,7 @@ function CarteConteneur({ router }: { router: MikhmonRouter }) {
             type="button"
             onClick={chercher}
             disabled={pending || router.status !== "online"}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-clay disabled:opacity-50"
+            className="btn btn-sm btn-outline inline-flex items-center gap-1.5"
           >
             {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {pending ? "Recherche…" : "Vérifier l’accès"}

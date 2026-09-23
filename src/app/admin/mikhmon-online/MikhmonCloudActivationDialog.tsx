@@ -306,7 +306,7 @@ export default function MikhmonCloudActivationDialog({
                       type="button"
                       onClick={startActivation}
                       disabled={!tunnel.ready || pending || !verdictSlug.ok}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#12301D] bg-brand px-5 py-2.5 text-sm font-semibold text-[#12301D] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="btn btn-md btn-primary inline-flex items-center gap-2"
                     >
                       {pending && <Loader2 className="h-4 w-4 animate-spin" />}
                       {superadmin ? "Activer le domaine" : "Continuer vers la facturation"}

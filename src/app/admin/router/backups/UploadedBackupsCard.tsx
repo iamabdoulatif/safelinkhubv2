@@ -348,7 +348,7 @@ function UploadedRow({
               type="button"
               onClick={doRestore}
               disabled={busy || !sameDeviceConfirmed}
-              className="flex items-center gap-1.5 border border-line bg-brand px-3 py-1.5 text-sm font-semibold text-slate-deep transition hover:bg-brand/80 disabled:opacity-50 rounded-full"
+              className="btn btn-sm btn-primary flex items-center gap-1.5"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               Oui, restaurer

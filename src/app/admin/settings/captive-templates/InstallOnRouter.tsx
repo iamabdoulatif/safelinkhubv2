@@ -117,7 +117,7 @@ export default function InstallOnRouter({
               type="button"
               onClick={install}
               disabled={pending || !routerId || !templateId}
-              className="flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+              className="btn btn-md btn-secondary flex items-center justify-center gap-2"
             >
               <UploadCloud className="h-4 w-4" />
               {pending ? "Installation…" : "Installer le portail"}

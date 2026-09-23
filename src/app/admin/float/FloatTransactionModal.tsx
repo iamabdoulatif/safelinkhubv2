@@ -72,7 +72,7 @@ export default function FloatTransactionModal({
                   min={1}
                   required
                   placeholder="10000"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
               </div>
               <div>
@@ -82,7 +82,7 @@ export default function FloatTransactionModal({
                 <input
                   name="note"
                   placeholder="Ex: dépôt mobile money"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
               </div>
             </div>
@@ -98,7 +98,7 @@ export default function FloatTransactionModal({
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Enregistrement..." : "Confirmer"}
               </button>

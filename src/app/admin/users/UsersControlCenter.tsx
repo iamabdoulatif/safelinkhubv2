@@ -125,7 +125,7 @@ export default function UsersControlCenter({
               type="button"
               onClick={exportCsv}
               disabled={filteredRows.length === 0}
-              className="inline-flex items-center gap-2 border border-line bg-brand px-3.5 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brand/80 disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-md btn-primary inline-flex items-center gap-2"
             >
               <Download className="h-4 w-4" aria-hidden="true" /> Exporter la liste
             </button>
@@ -153,7 +153,7 @@ export default function UsersControlCenter({
           <Search className="mx-auto h-8 w-8 text-ink-soft" aria-hidden="true" />
           <p className="mt-3 font-semibold text-ink">Aucun utilisateur trouvé</p>
           <p className="mt-1 text-sm text-ink-soft">Modifiez la recherche ou réinitialisez les filtres.</p>
-          <button type="button" onClick={resetFilters} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-sm font-medium text-ink hover:bg-clay">
+          <button type="button" onClick={resetFilters} className="btn btn-md btn-outline mt-4 inline-flex items-center gap-2">
             <RotateCcw className="h-4 w-4" aria-hidden="true" /> Effacer les filtres
           </button>
         </div>

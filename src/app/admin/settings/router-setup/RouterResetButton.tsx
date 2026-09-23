@@ -42,7 +42,7 @@ export default function RouterResetButton({
           type="button"
           onClick={handleConfirm}
           disabled={pending}
-          className="rounded-lg bg-err px-3 py-1.5 text-sm font-medium text-white hover:bg-ink disabled:opacity-60"
+          className="btn btn-sm btn-destructive"
         >
           {pending ? <ButtonLoader size="sm" color="white" /> : "Oui, supprimer"}
         </button>

@@ -84,7 +84,7 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
           type="button"
           onClick={handleEnable}
           disabled={pending || router.status !== "online"}
-          className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
+          className="btn btn-sm btn-secondary flex items-center gap-1.5"
         >
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {pending ? "Activation..." : "Activer Back To Home"}

@@ -61,7 +61,7 @@ export default function DataCapEditor({
         placeholder="Mo — vide = illimité"
         aria-label="Plafond de données en mégaoctets"
         autoFocus
-        className="w-40 rounded-lg border border-line-soft px-2 py-1 text-sm focus:border-ink"
+        className="field w-40"
       />
       <button
         disabled={pending}

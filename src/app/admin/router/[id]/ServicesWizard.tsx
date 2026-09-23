@@ -362,7 +362,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
             href="/admin/settings/router-setup"
-            className="flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 rounded-full"
+            className="btn btn-md btn-primary flex items-center gap-2"
           >
             Lancer l&apos;auto-setup complet
             <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -711,7 +711,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
               type="button"
               disabled={isApplying}
               onClick={apply}
-              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:cursor-not-allowed disabled:opacity-60 rounded-full"
+              className="btn btn-md btn-primary flex items-center gap-2"
             >
               {isApplying ? (
                 <>

@@ -105,7 +105,7 @@ export default function CreatePackageModal({
                   name="name"
                   required
                   placeholder="test123"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
               </div>
 
@@ -116,7 +116,7 @@ export default function CreatePackageModal({
                 <select
                   name="routerId"
                   defaultValue=""
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 >
                   <option value="">Tous les routeurs (global)</option>
                   {routers.map((r) => (
@@ -143,11 +143,11 @@ export default function CreatePackageModal({
                     min={1}
                     required
                     defaultValue={5}
-                    className="w-20 rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                    className="field w-20"
                   />
                   <select
                     name="durationUnit"
-                    className="flex-1 rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                    className="field flex-1"
                   >
                     <option value="Minutes">Minutes</option>
                     <option value="Hours">Heures</option>
@@ -170,7 +170,7 @@ export default function CreatePackageModal({
                       type="number"
                       min={1}
                       defaultValue={4}
-                      className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                      className="field w-full"
                     />
                   </div>
                   <div>
@@ -182,7 +182,7 @@ export default function CreatePackageModal({
                       type="number"
                       min={1}
                       defaultValue={4}
-                      className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                      className="field w-full"
                     />
                   </div>
                 </div>
@@ -201,7 +201,7 @@ export default function CreatePackageModal({
                   type="number"
                   min={0}
                   placeholder="Vide = illimité — ex. 3072 pour 3 Go"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
                 <p className="mt-1 text-xs text-ink-soft">
                   Le débit ci-dessus borne la vitesse ; ceci borne le volume total
@@ -220,7 +220,7 @@ export default function CreatePackageModal({
                   min={500}
                   required
                   placeholder="Min 500"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
+                  className="field w-full placeholder:text-ink-soft"
                 />
                 <p className="mt-1 text-xs text-ink-soft">
                   Prix minimum : FCFA 500
@@ -233,7 +233,7 @@ export default function CreatePackageModal({
                 </label>
                 <select
                   name="billingStartsOn"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 >
                   <option value="Upon First Use">À la première utilisation</option>
                   <option value="Upon Purchase">À l&apos;achat</option>
@@ -252,7 +252,7 @@ export default function CreatePackageModal({
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Création..." : "Créer le forfait"}
               </button>

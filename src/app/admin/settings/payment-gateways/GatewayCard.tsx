@@ -157,7 +157,7 @@ export default function GatewayCard({
             defaultValue={merchantId ?? ""}
             placeholder={fields.idPlaceholder}
             autoComplete="off"
-            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+            className="field w-full"
           />
           {fields.idHint && (
             <p className="mt-1 text-xs text-ink-soft">{fields.idHint}</p>
@@ -172,7 +172,7 @@ export default function GatewayCard({
             type="password"
             placeholder={hasApiKey ? "••••••••••••" : fields.keyPlaceholder}
             autoComplete="off"
-            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+            className="field w-full"
           />
           <p className="mt-1 text-xs text-ink-soft">{fields.keyHint}</p>
         </div>
@@ -181,7 +181,7 @@ export default function GatewayCard({
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 w-full rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-deep-line disabled:opacity-60"
+        className="btn btn-md btn-secondary mt-4 w-full"
       >
         {pending ? "Enregistrement..." : "Enregistrer"}
       </button>

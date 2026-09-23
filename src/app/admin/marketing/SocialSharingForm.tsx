@@ -139,7 +139,7 @@ export default function SocialSharingForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-6 inline-flex items-center justify-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep hover:bg-brand/80 disabled:opacity-60"
+        className="btn btn-md btn-primary mt-6 inline-flex items-center justify-center gap-2"
       >
         {pending ? "Enregistrement…" : "Enregistrer la diffusion"}
       </button>

@@ -57,7 +57,7 @@ export default function PriceEditor({
         defaultValue={priceCents}
         inputMode="numeric"
         autoFocus
-        className="w-24 rounded-lg border border-line-soft px-2 py-1 text-sm focus:border-ink"
+        className="field w-24"
       />
       <button
         disabled={pending}

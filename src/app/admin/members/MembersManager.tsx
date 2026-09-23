@@ -55,7 +55,7 @@ export default function MembersManager({
               type="email"
               required
               placeholder="collegue@exemple.com"
-              className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+              className="field mt-1 w-full"
             />
           </label>
           <label className="sm:w-56">
@@ -65,7 +65,7 @@ export default function MembersManager({
             <select
               name="role"
               defaultValue="editor"
-              className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+              className="field mt-1 w-full"
             >
               {ROLES.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -76,7 +76,7 @@ export default function MembersManager({
           </label>
           <button
             disabled={invitePending}
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep hover:bg-brand/80 disabled:opacity-60"
+            className="btn btn-md btn-primary inline-flex items-center justify-center gap-2"
           >
             {invitePending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
             Envoyer

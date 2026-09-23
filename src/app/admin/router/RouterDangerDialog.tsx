@@ -166,7 +166,7 @@ export default function RouterDangerDialog({
             type="button"
             onClick={onConfirm}
             disabled={pending || bloque}
-            className="inline-flex items-center gap-2 rounded-full bg-err px-4 py-2 text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45"
+            className="btn btn-md btn-destructive inline-flex items-center gap-2"
           >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
             {c.bouton}

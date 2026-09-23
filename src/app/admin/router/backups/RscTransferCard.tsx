@@ -140,7 +140,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
             type="button"
             onClick={apercu}
             disabled={!rsc || !cibleId || occupe}
-            className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-bold text-ink transition hover:bg-clay disabled:cursor-not-allowed disabled:opacity-45"
+            className="btn btn-md btn-outline inline-flex items-center gap-2"
           >
             {occupe && <Loader2 className="h-4 w-4 animate-spin" />}
             Voir ce qui sera transféré
@@ -193,7 +193,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
               type="button"
               onClick={appliquer}
               disabled={occupe}
-              className="mt-4 inline-flex items-center gap-2 rounded-full border border-ink bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep transition hover:brightness-95 disabled:opacity-45"
+              className="btn btn-md btn-primary mt-4 inline-flex items-center gap-2"
             >
               {occupe ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
               Transférer sur ce routeur

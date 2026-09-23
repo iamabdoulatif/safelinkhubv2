@@ -113,14 +113,14 @@ export default async function KycDetailPage({
               <textarea
                 name="adminNote"
                 rows={2}
-                className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+                className="field mt-1 w-full"
               />
             </label>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
               <button
                 name="decision"
                 value="approved"
-                className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line"
+                className="btn btn-md btn-secondary"
               >
                 Valider
               </button>

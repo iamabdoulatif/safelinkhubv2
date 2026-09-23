@@ -72,7 +72,7 @@ export default function MndpRelaySection() {
         type="button"
         onClick={handleActivate}
         disabled={pending}
-        className="mt-4 flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+        className="btn btn-md btn-secondary mt-4 flex items-center gap-2"
       >
         {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         {pending ? "Activation..." : "Activer / Actualiser la découverte"}

@@ -88,7 +88,7 @@ export default function SmsGatewayCard({
             placeholder="SafeLinkHub"
             maxLength={11}
             autoComplete="off"
-            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+            className="field w-full"
           />
         </div>
         <div>
@@ -100,7 +100,7 @@ export default function SmsGatewayCard({
             type="password"
             placeholder={hasApiKey ? "••••••••••••" : "Clé API"}
             autoComplete="off"
-            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+            className="field w-full"
           />
           <p className="mt-1 text-xs text-ink-soft">
             Laissez vide pour conserver la clé actuelle.
@@ -111,7 +111,7 @@ export default function SmsGatewayCard({
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 w-full rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+        className="btn btn-md btn-secondary mt-4 w-full"
       >
         {pending ? "Enregistrement..." : "Enregistrer"}
       </button>
@@ -128,12 +128,12 @@ export default function SmsGatewayCard({
               type="tel"
               placeholder="2250700000000"
               autoComplete="off"
-              className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+              className="field w-full"
             />
             <button
               type="submit"
               disabled={testPending}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
+              className="btn btn-md btn-outline flex shrink-0 items-center gap-1.5"
             >
               <Send className="h-3.5 w-3.5" />
               {testPending ? "Envoi..." : "Tester"}

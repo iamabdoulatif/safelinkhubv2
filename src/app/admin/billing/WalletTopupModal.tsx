@@ -140,7 +140,7 @@ export default function WalletTopupModal({
                 ) : (
                   <div>
                     <label className="mb-1 block text-sm font-medium text-ink">Montant à ajouter (FCFA)</label>
-                    <input name="amount" type="number" min={200} max={5000000} step={100} required placeholder="15000" className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink" />
+                    <input name="amount" type="number" min={200} max={5000000} step={100} required placeholder="15000" className="field w-full" />
                     <p className="mt-1 text-xs text-ink-soft">Minimum 200 FCFA · maximum 5 000 000 FCFA</p>
                   </div>
                 )}
@@ -186,7 +186,7 @@ export default function WalletTopupModal({
                     inputMode="tel"
                     required={needsPhone}
                     placeholder="07 00 00 00 00"
-                    className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink"
+                    className="field w-full"
                   />
                   <p className="mt-1 text-xs text-ink-soft">
                     Requis pour Orange Money et MTN MoMo. L’indicatif du pays sélectionné est ajouté
@@ -199,7 +199,7 @@ export default function WalletTopupModal({
                   <p className="mt-1 text-xs leading-5 text-ink-soft">Le checkout sécurisé affichera le rail choisi et confirme le dépôt uniquement après notification de paiement.</p>
                 </div>
 
-                <button type="submit" disabled={onlinePending} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60">
+                <button type="submit" disabled={onlinePending} className="btn btn-md btn-secondary inline-flex w-full items-center justify-center gap-2">
                   {onlinePending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="h-4 w-4" aria-hidden="true" />}
                   {onlinePending ? "Ouverture du paiement…" : "Continuer vers Genius Pay"}
                 </button>
@@ -212,13 +212,13 @@ export default function WalletTopupModal({
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-ink">Montant confirmé (FCFA)</label>
-                  <input name="amount" type="number" min={1} required placeholder="5000" className="w-full rounded-lg border border-line-soft px-3 py-2.5 text-sm focus:border-ink" />
+                  <input name="amount" type="number" min={1} required placeholder="5000" className="field w-full" />
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-ink">Référence ou note</label>
-                  <input name="note" placeholder="Ex : reçu Wave du 22/07" className="w-full rounded-lg border border-line-soft px-3 py-2.5 text-sm focus:border-ink" />
+                  <input name="note" placeholder="Ex : reçu Wave du 22/07" className="field w-full" />
                 </div>
-                <button type="submit" disabled={manualPending} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60">
+                <button type="submit" disabled={manualPending} className="btn btn-md btn-secondary inline-flex w-full items-center justify-center gap-2">
                   {manualPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                   {manualPending ? "Enregistrement…" : "Enregistrer le dépôt confirmé"}
                 </button>

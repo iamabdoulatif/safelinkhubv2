@@ -421,7 +421,7 @@ export default function BackupsManager({
             type="button"
             onClick={runBackup}
             disabled={busy || !sourceRouter}
-            className="flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+            className="btn btn-md btn-secondary flex items-center justify-center gap-2"
           >
             <Save className="h-4 w-4" />
             {pending ? "En cours…" : "Sauvegarder maintenant"}
@@ -540,7 +540,7 @@ export default function BackupsManager({
                     type="button"
                     onClick={cancelActive}
                     disabled={pending}
-                    className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-err hover:border-err disabled:opacity-60"
+                    className="btn btn-md btn-outline"
                   >
                     Annuler
                   </button>

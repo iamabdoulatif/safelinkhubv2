@@ -137,7 +137,7 @@ export default function BootstrapModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand"
+                className="btn btn-md btn-secondary"
               >
                 Continuer
               </button>
@@ -169,7 +169,7 @@ export default function BootstrapModal({
             <button
               type="button"
               onClick={copyCommand}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink hover:bg-clay"
+              className="btn btn-md btn-outline mt-3 flex w-full items-center justify-center gap-2"
             >
               {copied ? (
                 <>
@@ -203,7 +203,7 @@ export default function BootstrapModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Fermer
               </button>
@@ -211,7 +211,7 @@ export default function BootstrapModal({
                 type="button"
                 onClick={handleRanIt}
                 disabled={checking}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {checking ? "Vérification..." : "J'ai exécuté la commande"}
               </button>

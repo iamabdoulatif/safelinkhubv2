@@ -90,7 +90,7 @@ export default function SerialUnlockRequestModal({
             <div className="mt-4 flex justify-end">
               <button
                 onClick={onClose}
-                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Fermer
               </button>
@@ -140,7 +140,7 @@ export default function SerialUnlockRequestModal({
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={onClose}
-                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Annuler
               </button>

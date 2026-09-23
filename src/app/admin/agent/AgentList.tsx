@@ -162,7 +162,7 @@ function SellPackageModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+            className="btn btn-md btn-outline"
           >
             Fermer
           </button>
@@ -170,7 +170,7 @@ function SellPackageModal({
             <button
               type="submit"
               disabled={pending}
-              className="flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+              className="btn btn-md btn-secondary flex items-center gap-1.5"
             >
               <Banknote className="h-4 w-4" />
               {pending ? "Enregistrement..." : "Encaisser & générer le voucher"}

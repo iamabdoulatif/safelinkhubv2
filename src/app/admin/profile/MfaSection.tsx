@@ -108,7 +108,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"
-            className="w-40 rounded-lg border border-line-soft px-3 py-2 text-center tracking-widest focus:border-ink"
+            className="field w-40 text-center tracking-widest"
           />
         </div>
         {confirmState && !confirmState.success && (
@@ -120,7 +120,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
           <button
             type="submit"
             disabled={confirmPending}
-            className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+            className="btn btn-md btn-secondary"
           >
             {confirmPending ? "Vérification..." : "Activer"}
           </button>
@@ -160,7 +160,7 @@ function DisableMfaFlow({ onDone }: { onDone: () => void }) {
         required
         autoComplete="current-password"
         placeholder="Mot de passe actuel"
-        className="w-full max-w-xs rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-err focus:ring-err"
+        className="field w-full max-w-xs"
       />
       {state && !state.success && (
         <p className="text-xs text-err">{state.error}</p>
@@ -169,7 +169,7 @@ function DisableMfaFlow({ onDone }: { onDone: () => void }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-err px-4 py-2 text-sm font-medium text-white hover:bg-ink disabled:opacity-60"
+          className="btn btn-md btn-destructive"
         >
           {pending ? "Désactivation..." : "Désactiver la double authentification"}
         </button>

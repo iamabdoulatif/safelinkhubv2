@@ -112,7 +112,7 @@ export default function GenerateVouchersModal({
                   ref={firstSelectRef}
                   name="packageId"
                   required
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 >
                   {packages.length === 0 && <option value="">Aucun forfait</option>}
                   {packages.map((p) => (
@@ -131,7 +131,7 @@ export default function GenerateVouchersModal({
                   name="prefix"
                   maxLength={10}
                   placeholder="ex : fatou"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
+                  className="field w-full placeholder:text-ink-soft"
                 />
                 <p className="mt-1 text-xs text-ink-soft">
                   Ajouté devant chaque code (minuscules/chiffres). Ex : <span className="font-mono">fatou3k9x1</span>.
@@ -184,7 +184,7 @@ export default function GenerateVouchersModal({
                   max={200}
                   defaultValue={10}
                   required
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
               </div>
 
@@ -195,7 +195,7 @@ export default function GenerateVouchersModal({
                 <input
                   name="note"
                   placeholder="lot-test"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
+                  className="field w-full placeholder:text-ink-soft"
                 />
               </div>
             </div>
@@ -211,7 +211,7 @@ export default function GenerateVouchersModal({
               <button
                 type="submit"
                 disabled={pending || packages.length === 0 || routers.length === 0}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Génération..." : "Générer"}
               </button>

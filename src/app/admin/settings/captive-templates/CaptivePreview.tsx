@@ -51,7 +51,7 @@ export default function CaptivePreview({ data }: { data: CaptivePreviewData }) {
         <input
           disabled
           placeholder={data.voucherFieldLabel || "Code d'accès"}
-          className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink-soft placeholder:text-ink-soft"
+          className="field w-full text-ink-soft placeholder:text-ink-soft"
         />
         <button
           type="button"

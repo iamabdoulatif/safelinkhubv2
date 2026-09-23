@@ -27,12 +27,12 @@ export default function RenameOrgForm({ currentName }: { currentName: string }) 
           name="name"
           required
           defaultValue={currentName}
-          className="flex-1 rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+          className="field flex-1"
         />
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+          className="btn btn-md btn-secondary"
         >
           {pending ? "Enregistrement..." : "Enregistrer"}
         </button>

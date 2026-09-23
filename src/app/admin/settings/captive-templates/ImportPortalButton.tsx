@@ -230,7 +230,7 @@ export default function ImportPortalButton() {
                 type="button"
                 onClick={runImport}
                 disabled={pending || !draft.name.trim()}
-                className="flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="btn btn-md btn-secondary flex items-center gap-1.5"
               >
                 {pending && <ButtonLoader size="sm" color="white" />}
                 {pending ? "Import en cours…" : "Importer"}

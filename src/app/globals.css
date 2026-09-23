@@ -1303,3 +1303,113 @@ html {
 .theme-slate :is(input, select, textarea):focus-visible {
   outline-offset: 1px;
 }
+
+/* ════════════════════════════════════════════════════════════
+   COMPOSANTS — Button, Field (src/components/ui)
+   Une seule définition pour ~280 boutons et champs qui recopiaient chacun
+   leurs classes (bg-ink ou bg-brand, rounded-md/lg/full, py-1.5/2/2.5…).
+
+   Dans @layer components : les utilitaires Tailwind (hidden, w-full, mt-*,
+   flex) restent PLUS FORTS que ces classes. C'est le piège des .slate-*
+   (règles hors couche qui battaient `hidden`) qu'on n'importe pas ici.
+   ════════════════════════════════════════════════════════════ */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 9999px;
+    font-weight: 600;
+    line-height: 1.25;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 150ms, border-color 150ms, color 150ms;
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+  /* Cible tactile de 44 px sous 640 px, 40 px au-delà. */
+  .btn-sm { height: 2rem; padding: 0 0.75rem; font-size: 13px; }
+  .btn-md { height: 2.75rem; padding: 0 1.25rem; font-size: 0.875rem; }
+  .btn-lg { height: 3rem; padding: 0 1.5rem; font-size: 15px; }
+  @media (min-width: 640px) {
+    .btn-md { height: 2.5rem; padding: 0 1rem; }
+  }
+
+  /* Primary : UNE action principale par zone. Texte encre sur lime — jamais
+     blanc (1,25:1). */
+  .btn-primary {
+    background: var(--brand);
+    color: #10160f;
+    border-color: color-mix(in srgb, var(--brand-deep) 22%, transparent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--brand) 88%, var(--brand-deep));
+  }
+  .btn-secondary {
+    background: var(--slate-deep);
+    color: #fff;
+    border-color: var(--slate-deep);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--slate-deep) 78%, #000);
+  }
+  .btn-outline {
+    background: var(--paper);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn-outline:hover:not(:disabled) {
+    background: var(--clay);
+    border-color: color-mix(in srgb, var(--line-strong) 45%, var(--line));
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink);
+  }
+  .btn-ghost:hover:not(:disabled) { background: var(--clay); }
+  .btn-destructive {
+    background: var(--err);
+    color: #fff;
+    border-color: var(--err);
+  }
+  .btn-destructive:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--err) 82%, #000);
+  }
+
+  /* Champ de saisie : bordure --line-strong (3:1, WCAG 1.4.11). Le focus
+     est l'anneau global ; ici la bordure passe à l'encre. 16 px sous 640 px :
+     iOS zoome sur tout champ plus petit. */
+  .field {
+    display: block;
+    width: 100%;
+    height: 2.75rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 0.5rem;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 16px;
+    transition: border-color 150ms;
+  }
+  @media (min-width: 640px) {
+    .field { height: 2.5rem; font-size: 0.875rem; }
+  }
+  .field::placeholder { color: color-mix(in srgb, var(--ink-soft) 75%, transparent); }
+  .field:hover:not(:disabled) { border-color: var(--ink-soft); }
+  .field:focus { border-color: var(--ink); outline: none; }
+  .field:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .field[aria-invalid="true"] { border-color: var(--err); }
+  .field:disabled {
+    cursor: not-allowed;
+    border-color: var(--line);
+    background: var(--clay);
+    color: var(--ink-soft);
+  }
+  textarea.field { height: auto; min-height: 5rem; padding-block: 0.5rem; line-height: 1.5; }
+  select.field { padding-right: 2rem; }
+}

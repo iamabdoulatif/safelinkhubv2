@@ -83,7 +83,7 @@ export default async function RouterBackupsPage() {
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <Link
         href="/admin/router"
-        className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-clay px-3 py-1.5 text-sm font-medium text-ink hover:border-ok"
+        className="btn btn-sm btn-outline mb-4 inline-flex items-center gap-1.5"
       >
         <ArrowLeft className="h-4 w-4" />
         Revenir aux routeurs

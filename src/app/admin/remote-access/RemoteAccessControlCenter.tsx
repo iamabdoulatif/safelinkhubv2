@@ -229,7 +229,7 @@ function RouterDetail({
 
       <Link
         href={`/admin/remote-access/${router.id}`}
-        className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 bg-ink px-4 py-2.5 text-sm font-bold text-white hover:bg-ink/90"
+        className="btn btn-md btn-secondary mt-5 inline-flex w-full items-center justify-center gap-2"
       >
         Ouvrir l’espace routeur <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </Link>

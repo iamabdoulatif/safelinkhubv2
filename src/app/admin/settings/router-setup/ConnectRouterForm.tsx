@@ -107,7 +107,7 @@ export default function ConnectRouterForm() {
             name="host"
             required
             placeholder="192.168.88.1"
-            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
+            className="field w-full placeholder:text-ink-soft"
           />
         </div>
 
@@ -119,7 +119,7 @@ export default function ConnectRouterForm() {
             name="apiPort"
             type="number"
             defaultValue={8728}
-            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+            className="field w-full"
           />
         </div>
 
@@ -168,7 +168,7 @@ export default function ConnectRouterForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+        className="btn btn-md btn-secondary"
       >
         {pending ? "Connexion..." : "Connecter le routeur"}
       </button>

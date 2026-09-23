@@ -137,7 +137,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
       </fieldset>
 
       <div className="mt-4 flex items-center gap-3">
-        <button type="button" onClick={save} disabled={pending} className="flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60">
+        <button type="button" onClick={save} disabled={pending} className="btn btn-md btn-secondary flex items-center gap-2">
           {pending && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />}
           Enregistrer les seuils
         </button>

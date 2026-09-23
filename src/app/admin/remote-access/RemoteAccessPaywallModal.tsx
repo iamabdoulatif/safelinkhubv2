@@ -197,7 +197,7 @@ export default function RemoteAccessPaywallModal({
             <div className="mt-4 flex justify-end">
               <button
                 onClick={onClose}
-                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Fermer
               </button>
@@ -293,7 +293,7 @@ export default function RemoteAccessPaywallModal({
                   type="button"
                   onClick={payWithBalance}
                   disabled={pending || !canPayFromBalance}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-brand-deep bg-brand/10 px-4 py-2.5 text-sm font-semibold text-brand-deep hover:bg-brand/20 disabled:opacity-50"
+                  className="btn btn-md btn-outline inline-flex w-full items-center justify-center gap-2 text-brand-deep"
                 >
                   {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
                   Payer avec mon solde {formatFcfa(price)}
@@ -378,7 +378,7 @@ export default function RemoteAccessPaywallModal({
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={onClose}
-                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="btn btn-md btn-outline"
               >
                 Annuler
               </button>

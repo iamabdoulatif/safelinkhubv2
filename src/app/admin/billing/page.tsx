@@ -183,7 +183,7 @@ export default async function BillingPage({
             <p className="mt-1 text-sm leading-6 text-ink">{avisKyc.message}</p>
             <Link
               href="/admin/verification"
-              className="mt-3 inline-block rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
+              className="btn btn-md btn-secondary mt-3 inline-block"
             >
               Ouvrir la vérification
             </Link>

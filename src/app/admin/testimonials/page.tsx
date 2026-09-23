@@ -92,7 +92,7 @@ export default async function AdminTestimonialsPage() {
                       <input type="hidden" name="status" value="approved" />
                       <button
                         type="submit"
-                        className="border border-line bg-brand px-3 py-1.5 text-xs font-semibold text-slate-deep hover:bg-brand/80 rounded-full"
+                        className="btn btn-sm btn-primary"
                       >
                         Publier
                       </button>

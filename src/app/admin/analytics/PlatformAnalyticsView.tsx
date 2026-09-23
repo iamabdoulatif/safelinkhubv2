@@ -275,13 +275,13 @@ export default function PlatformAnalyticsView({
             type="button"
             onClick={exportCsv}
             disabled={rows.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-ink px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-slate-deep-line disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn btn-md btn-secondary inline-flex items-center gap-2"
           >
             <Download className="h-4 w-4" aria-hidden="true" /> Exporter le rapport
           </button>
           <Link
             href="/admin/authorizations"
-            className="inline-flex items-center gap-2 rounded-lg border border-line bg-paper px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-clay"
+            className="btn btn-md btn-outline inline-flex items-center gap-2"
           >
             <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Autorisations
           </Link>

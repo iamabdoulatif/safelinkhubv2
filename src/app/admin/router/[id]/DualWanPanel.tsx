@@ -258,7 +258,7 @@ export default function DualWanPanel({ routerId }: { routerId: string }) {
           type="button"
           onClick={removeConfig}
           disabled={pending || running}
-          className="mt-3 inline-flex items-center gap-2 border border-line bg-paper px-3 py-1.5 text-sm font-bold text-err rounded-lg hover:bg-clay disabled:opacity-60"
+          className="btn btn-sm btn-outline mt-3 inline-flex items-center gap-2"
         >
           {form.dryRun ? "Simuler le retrait" : "Retirer la configuration"}
         </button>

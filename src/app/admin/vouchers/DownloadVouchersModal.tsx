@@ -146,7 +146,7 @@ export default function DownloadVouchersModal({
               <button
                 onClick={handleDownload}
                 disabled={busy}
-                className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="btn btn-md btn-secondary inline-flex items-center gap-2"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                 {busy ? "Préparation…" : "Télécharger"}

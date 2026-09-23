@@ -379,7 +379,7 @@ export default function AutoSetupInstallStep({
     <button
       type="button"
       onClick={onBack}
-      className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-line bg-paper px-4 text-sm font-semibold text-ink transition-colors hover:bg-clay"
+      className="btn btn-md btn-outline"
     >
       <ArrowLeft aria-hidden="true" className="h-4 w-4" />
       Retour à la configuration
@@ -546,7 +546,7 @@ export default function AutoSetupInstallStep({
                           }));
                           setUnlockModal({ serial, latestStatus: status.latestStatus });
                         }}
-                        className="mt-3 inline-flex h-8 items-center rounded-full bg-slate-deep px-3 text-xs font-semibold text-white hover:bg-slate-deep-line"
+                        className="btn btn-sm btn-secondary mt-3"
                       >
                         Demander le déblocage
                       </button>
@@ -680,14 +680,14 @@ export default function AutoSetupInstallStep({
                 <h3 className="mb-1 text-sm font-semibold text-ink">Et maintenant</h3>
                 <Link
                   href={`/admin/router/${routerId}`}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-brand-deep/20 bg-brand px-4 text-sm font-semibold text-ink hover:bg-brand/80"
+                  className="btn btn-md btn-primary"
                 >
                   Ouvrir la fiche du routeur
                   <ArrowRight aria-hidden="true" className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/admin/vouchers"
-                  className="inline-flex h-10 items-center justify-center rounded-full border border-line bg-paper px-4 text-sm font-semibold text-ink hover:bg-clay"
+                  className="btn btn-md btn-outline"
                 >
                   Générer des tickets
                 </Link>

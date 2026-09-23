@@ -22,7 +22,7 @@ export default function DeleteCourseButton({ id }: { id: string }) {
     <form action={deleteCourse} className="flex gap-1.5">
       <input type="hidden" name="id" value={id} />
       {/* Les leçons partent avec elle : la clé étrangère est en cascade. */}
-      <button className="rounded-lg bg-err px-2.5 py-1.5 text-xs font-bold text-white">
+      <button className="btn btn-sm btn-destructive">
         Confirmer
       </button>
       <button

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Table, Td, Th, Tr } from "@/components/ui/Table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, Link2, Lock, MapPin, Router as RouterIcon, Search } from "lucide-react";
 import RouterRowActions from "./RouterRowActions";
@@ -301,29 +302,25 @@ export default function RoutersTable({
 
           {/* Desktop / tablette : table — on y compare des lignes entre elles,
               ce que des cartes côte à côte font moins bien. */}
-          <div className="slate-card hidden overflow-x-auto bg-paper md:block">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-line bg-clay">
-                <tr className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
-                  <th scope="col" className="px-4 py-3">{table.router}</th>
-                  <th scope="col" className="px-4 py-3">{table.identity}</th>
-                  <th scope="col" className="px-4 py-3">{table.status}</th>
-                  <th scope="col" className="px-4 py-3">{table.cpu}</th>
-                  <th scope="col" className="px-4 py-3">{table.ram}</th>
-                  <th scope="col" className="px-4 py-3">{table.users}</th>
-                  <th scope="col" className="px-4 py-3">{table.lastSync}</th>
-                  <th scope="col" className="px-4 py-3">
+          <Table className="hidden md:block" caption={t.page.title}>
+              <thead>
+                <tr>
+                  <Th>{table.router}</Th>
+                  <Th>{table.identity}</Th>
+                  <Th>{table.status}</Th>
+                  <Th>{table.cpu}</Th>
+                  <Th>{table.ram}</Th>
+                  <Th numeric>{table.users}</Th>
+                  <Th>{table.lastSync}</Th>
+                  <Th>
                     <span className="sr-only">{table.actions}</span>
-                  </th>
+                  </Th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="border-b border-line-soft transition-colors duration-150 last:border-0 hover:bg-clay"
-                  >
-                    <td className="px-4 py-3">
+                  <Tr key={r.id}>
+                    <Td>
                       <Link href={`/admin/router/${r.id}`} className="group block max-w-[18rem]">
                         <span className="block truncate font-semibold text-ink group-hover:text-brand-deep">
                           {r.name}
@@ -338,25 +335,25 @@ export default function RoutersTable({
                           </span>
                         )}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-ink">{r.model ?? "—"}</td>
-                    <td className="px-4 py-3">
+                    </Td>
+                    <Td className="font-mono text-xs text-ink">{r.model ?? "—"}</Td>
+                    <Td>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusBadge status={r.status} t={table} />
                         {r.locked && <LockedBadge t={table} />}
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
+                    </Td>
+                    <Td>
                       <MeterCell percent={r.cpuLoad ?? 0} />
-                    </td>
-                    <td className="px-4 py-3">
+                    </Td>
+                    <Td>
                       <MeterCell percent={Math.round(Number(r.memoryUsage ?? 0))} />
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-ink">{r.activeUsers ?? 0}</td>
-                    <td suppressHydrationWarning className="px-4 py-3 text-ink-soft">
+                    </Td>
+                    <Td numeric className="text-ink">{r.activeUsers ?? 0}</Td>
+                    <Td suppressHydrationWarning className="text-ink-soft">
                       {timeAgo(r.lastSyncAtMs, table)}
-                    </td>
-                    <td className="px-4 py-3">
+                    </Td>
+                    <Td>
                       <div className="flex items-center justify-end gap-1">
                         <Link
                           href={
@@ -364,7 +361,7 @@ export default function RoutersTable({
                               ? `/admin/router/${r.id}?tab=diagnostic`
                               : `/admin/router/${r.id}`
                           }
-                          className="flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-clay"
+                          className="btn btn-sm btn-outline flex items-center gap-1"
                         >
                           {isOfflineRouter(r.status) ? fleet.diagnose : table.details}
                           <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
@@ -377,12 +374,11 @@ export default function RoutersTable({
                           locked={Boolean(r.locked)}
                         />
                       </div>
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+          </Table>
 
           <p className="text-xs text-ink-soft">
             {table.displayed

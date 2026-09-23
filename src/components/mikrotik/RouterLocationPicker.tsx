@@ -226,7 +226,7 @@ export default function RouterLocationPicker({ initial }: { initial?: LocationIn
           disabled={occupe !== ""}
           /* Pleine largeur sous sm : sur la même ligne que la recherche, le
              champ de saisie tombait à 30 px de large sur un téléphone. */
-          className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60 sm:w-auto sm:justify-start"
+          className="btn btn-sm btn-secondary inline-flex w-full items-center justify-center gap-1.5 sm:w-auto sm:justify-start"
         >
           {occupe === "position" ? (
             <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />

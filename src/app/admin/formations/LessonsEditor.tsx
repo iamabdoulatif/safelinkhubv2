@@ -83,7 +83,7 @@ export default function LessonsEditor({
               {confirme === l.id ? (
                 <form action={deleteLesson} className="flex gap-1.5">
                   <input type="hidden" name="id" value={l.id} />
-                  <button className="rounded-lg bg-err px-2.5 py-1.5 text-xs font-bold text-white">
+                  <button className="btn btn-sm btn-destructive">
                     Retirer
                   </button>
                   <button
@@ -124,7 +124,7 @@ export default function LessonsEditor({
             name="postId"
             required
             defaultValue=""
-            className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+            className="field mt-1 w-full"
           >
             <option value="" disabled>
               {disponibles.length ? "Choisir…" : "Tous vos articles sont déjà dans ce parcours"}
@@ -140,7 +140,7 @@ export default function LessonsEditor({
         <button
           type="submit"
           disabled={pending || disponibles.length === 0}
-          className="rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+          className="btn btn-md btn-secondary"
         >
           {pending ? "Ajout…" : "Rattacher"}
         </button>

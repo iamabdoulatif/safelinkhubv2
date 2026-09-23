@@ -97,7 +97,7 @@ export default async function CaptiveTemplatesPage({
       {retour && (
         <Link
           href={`/admin/settings/router-setup?router=${encodeURIComponent(retour)}`}
-          className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-clay px-3 py-1.5 text-sm font-medium text-ink hover:border-ok"
+          className="btn btn-sm btn-outline mb-4 inline-flex items-center gap-1.5"
         >
           <ArrowLeft className="h-4 w-4" />
           Revenir à la configuration du routeur

@@ -72,14 +72,14 @@ export default function AdminError({
           <button
             type="button"
             onClick={reset}
-            className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-slate-deep-line"
+            className="btn btn-md btn-secondary flex items-center gap-2"
           >
             <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
             Réessayer
           </button>
           <Link
             href="/admin"
-            className="rounded-full border border-line-soft px-4 py-2 text-sm font-semibold text-ink hover:bg-clay"
+            className="btn btn-md btn-outline"
           >
             Tableau de bord
           </Link>

@@ -401,7 +401,7 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
           type="button"
           disabled={busy || categories.length === 0}
           onClick={apply}
-          className="inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:opacity-60 rounded-full"
+          className="btn btn-md btn-primary inline-flex items-center gap-2"
         >
           {isWriting ? (
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />

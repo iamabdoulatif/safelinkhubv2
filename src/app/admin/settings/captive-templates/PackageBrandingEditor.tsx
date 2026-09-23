@@ -155,7 +155,7 @@ export default function PackageBrandingEditor({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-line-soft px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-clay"
+            className="btn btn-sm btn-outline"
           >
             Annuler
           </button>
@@ -163,7 +163,7 @@ export default function PackageBrandingEditor({
             type="button"
             disabled={pending}
             onClick={save}
-            className="rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
+            className="btn btn-sm btn-secondary"
           >
             {pending ? "Enregistrement..." : "Enregistrer"}
           </button>

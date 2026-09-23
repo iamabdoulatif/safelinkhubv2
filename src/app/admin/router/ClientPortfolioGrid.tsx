@@ -128,7 +128,7 @@ export function ClientPortfolioGrid({ clients, t }: ClientPortfolioGridProps) {
               <Link
                 href={`/admin/router?scope=clients&org=${client.id}`}
                 aria-label={t.viewRoutersFor.replace("{name}", client.name)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-brand px-3.5 py-2 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                className="btn btn-md btn-primary inline-flex items-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
               >
                 {t.viewRouters}
                 <ArrowUpRight className="h-4 w-4" aria-hidden="true" />

@@ -103,7 +103,7 @@ export default function AddAgentModal() {
                   name="name"
                   required
                   placeholder="Aïcha Koné"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
               </div>
               <div>
@@ -113,7 +113,7 @@ export default function AddAgentModal() {
                   type="email"
                   required
                   placeholder="aicha@example.com"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
               </div>
               <div>
@@ -126,7 +126,7 @@ export default function AddAgentModal() {
                   required
                   minLength={8}
                   placeholder="Au moins 8 caractères"
-                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
+                  className="field w-full"
                 />
                 <p className="mt-1 text-xs text-ink-soft">
                   L&apos;agent pourra s&apos;en servir pour se connecter plus tard si vous lui
@@ -146,7 +146,7 @@ export default function AddAgentModal() {
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="btn btn-md btn-secondary"
               >
                 {pending ? "Ajout..." : "Ajouter l'agent"}
               </button>
