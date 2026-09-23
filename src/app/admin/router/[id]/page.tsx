@@ -39,7 +39,7 @@ function isStale(date: Date | null) {
 function Badge({ tone, children }: { tone: "ok" | "brand" | "muted"; children: React.ReactNode }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 border border-line px-2.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wide ${
+      className={`inline-flex items-center gap-1.5 border border-line px-2.5 py-0.5 font-mono text-xs font-bold uppercase tracking-wide ${
         tone === "brand" ? "bg-brand text-slate-deep" : "bg-paper text-ink"
       }`}
     >
@@ -205,7 +205,7 @@ export default async function RouterDetailPage({
                     {b.gatewayIp}/{b.subnetBits}
                   </span>
                   <span
-                    className={`px-2 py-0.5 font-mono text-[11px] font-bold uppercase ${
+                    className={`px-2 py-0.5 font-mono text-xs font-bold uppercase ${
                       b.hotspotEnabled ? "bg-brand text-slate-deep" : "bg-clay text-ink-soft"
                     }`}
                   >
@@ -232,7 +232,7 @@ export default async function RouterDetailPage({
             <RouterIcon className="h-6 w-6 text-slate-deep" />
           </span>
           <div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink sm:text-3xl">
+            <h1 className="text-ink text-2xl font-semibold tracking-tight">
               {router.name}
             </h1>
             <p className="mt-0.5 font-mono text-sm text-ink-soft">
@@ -263,7 +263,7 @@ export default async function RouterDetailPage({
             className={`border bg-paper p-4 hover-lift rounded-xl ${staleSync ? "border-warn/50" : "border-line"}`}
           >
             <div className="flex items-center justify-between gap-2">
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
+              <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
                 {label}
               </p>
               <Icon aria-hidden="true" className="h-4 w-4 text-ink-soft" />

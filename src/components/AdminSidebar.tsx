@@ -186,7 +186,7 @@ function PageLink({
       {badge && badge > 0 ? (
         <span
           title={badgeTitle}
-          className="ml-auto rounded-full bg-warn px-1.5 py-0.5 text-[10px] font-bold text-white"
+          className="ml-auto rounded-full bg-warn px-1.5 py-0.5 text-xs font-bold text-white"
         >
           {badge}
           <span className="sr-only"> — {badgeTitle}</span>
@@ -366,7 +366,7 @@ export default function AdminSidebar({
             title={orgName}
             className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-sm font-semibold text-ink hover:bg-clay"
           >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-ink font-display text-[10px] font-bold text-paper">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-ink font-display text-xs font-bold text-paper">
               {orgName.slice(0, 2).toUpperCase()}
             </span>
             <span className="min-w-0 truncate">{orgName}</span>
@@ -418,7 +418,7 @@ export default function AdminSidebar({
                   {!open && pending > 0 && (
                     <span
                       title={pendingLabel}
-                      className="rounded-full bg-warn px-1.5 py-0.5 text-[10px] font-bold text-white"
+                      className="rounded-full bg-warn px-1.5 py-0.5 text-xs font-bold text-white"
                     >
                       {pending}
                       <span className="sr-only"> — {pendingLabel}</span>
@@ -456,7 +456,7 @@ export default function AdminSidebar({
                                 <Link
                                   href={`/admin/kyc?statut=${t.key}`}
                                   onClick={closeMobile}
-                                  className="block rounded-md px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-clay hover:text-ink"
+                                  className="block rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:bg-clay hover:text-ink"
                                 >
                                   {t.label}
                                 </Link>

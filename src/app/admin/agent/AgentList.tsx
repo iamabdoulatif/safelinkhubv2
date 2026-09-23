@@ -44,14 +44,14 @@ function DeleteAgentButton({ agentId }: { agentId: string }) {
               else router.refresh();
             })
           }
-          className="rounded-md bg-err px-2.5 py-1 text-xs font-medium text-white hover:bg-ink disabled:opacity-60"
+          className="rounded-lg bg-err px-2.5 py-1 text-xs font-medium text-white hover:bg-ink disabled:opacity-60"
         >
           Confirmer
         </button>
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="rounded-md border border-line-soft px-2.5 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+          className="rounded-lg border border-line-soft px-2.5 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
         >
           Annuler
         </button>
@@ -65,7 +65,7 @@ function DeleteAgentButton({ agentId }: { agentId: string }) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="flex items-center gap-1.5 rounded-md border border-err px-2.5 py-1 text-xs font-medium text-err hover:bg-err-soft"
+        className="flex items-center gap-1.5 rounded-lg border border-err px-2.5 py-1 text-xs font-medium text-err hover:bg-err-soft"
       >
         <Trash2 className="h-3.5 w-3.5" />
         Retirer
@@ -111,11 +111,11 @@ function SellPackageModal({
         </p>
 
         {state?.error && (
-          <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
+          <p className="mt-4 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
         )}
 
         {state?.success && (
-          <div className="mt-4 rounded-md bg-clay px-3 py-2.5 text-sm text-ok">
+          <div className="mt-4 rounded-lg bg-clay px-3 py-2.5 text-sm text-ok">
             <p className="font-medium">Vente enregistrée — {state.packageName}</p>
             <p className="mt-1">
               Voucher :{" "}
@@ -128,7 +128,7 @@ function SellPackageModal({
         )}
 
         {activePackages.length === 0 ? (
-          <p className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-warn">
+          <p className="mt-4 rounded-lg bg-clay px-3 py-2 text-sm text-warn">
             Aucun forfait actif — créez-en un depuis la page Forfaits avant de vendre.
           </p>
         ) : (
@@ -136,7 +136,7 @@ function SellPackageModal({
             {activePackages.map((pkg) => (
               <label
                 key={pkg.id}
-                className="flex cursor-pointer items-center justify-between rounded-md border border-line-soft px-3 py-2.5 text-sm hover:bg-clay"
+                className="flex cursor-pointer items-center justify-between rounded-lg border border-line-soft px-3 py-2.5 text-sm hover:bg-clay"
               >
                 <span className="flex items-center gap-2">
                   <input
@@ -162,7 +162,7 @@ function SellPackageModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+            className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
           >
             Fermer
           </button>
@@ -170,7 +170,7 @@ function SellPackageModal({
             <button
               type="submit"
               disabled={pending}
-              className="flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
             >
               <Banknote className="h-4 w-4" />
               {pending ? "Enregistrement..." : "Encaisser & générer le voucher"}
@@ -240,7 +240,7 @@ export default function AgentList({
                 <button
                   type="button"
                   onClick={() => setSellingFor(agent)}
-                  className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white hover:bg-slate-deep-line"
+                  className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-ink px-3 text-sm font-medium text-white hover:bg-slate-deep-line"
                 >
                   <Banknote className="h-4 w-4" />
                   Vendre
@@ -284,7 +284,7 @@ export default function AgentList({
                     <button
                       type="button"
                       onClick={() => setSellingFor(agent)}
-                      className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line"
+                      className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line"
                     >
                       <Banknote className="h-3.5 w-3.5" />
                       Vendre

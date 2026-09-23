@@ -103,7 +103,7 @@ export default function UsersControlCenter({
             <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-ok">
               <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Station de contrôle
             </div>
-            <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink md:text-4xl">
+            <h1 className="text-ink text-2xl font-semibold tracking-tight">
               {organizationFocus ? `Utilisateurs de ${organizationFocus.name}` : "Utilisateurs"}
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-6 text-ink-soft">
@@ -125,7 +125,7 @@ export default function UsersControlCenter({
               type="button"
               onClick={exportCsv}
               disabled={filteredRows.length === 0}
-              className="inline-flex items-center gap-2 border border-line bg-brand px-3.5 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 border border-line bg-brand px-3.5 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brand/80 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Download className="h-4 w-4" aria-hidden="true" /> Exporter la liste
             </button>
@@ -203,7 +203,7 @@ export default function UsersControlCenter({
                     />
                     <span
                       aria-hidden="true"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-clay text-[11px] font-bold text-ink-soft"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-clay text-xs font-bold text-ink-soft"
                     >
                       {userMonogram(row.name)}
                     </span>
@@ -214,7 +214,7 @@ export default function UsersControlCenter({
                         {/* Le rôle n'apparaît que s'il sort de l'ordinaire :
                             « Admin » était vrai 38 fois sur 40. */}
                         {rang && (
-                          <span className="shrink-0 rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-paper">
+                          <span className="shrink-0 rounded-full bg-ink px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-paper">
                             {rang}
                           </span>
                         )}
@@ -284,7 +284,7 @@ export default function UsersControlCenter({
                 <Gift className="h-4 w-4" aria-hidden="true" />
               </span>
               <span className="min-w-0">
-                <span className="block text-[11px] font-bold uppercase tracking-[0.16em] text-brand-deep">Superadmin · gratuit</span>
+                <span className="block text-xs font-bold uppercase tracking-[0.16em] text-brand-deep">Superadmin · gratuit</span>
                 <span className="mt-1 block truncate font-semibold text-ink">Passes d’accès temporaire</span>
                 <span className="mt-0.5 block truncate text-xs text-ink-soft">Promo, parrainage, récompense ou intervention MikroTik</span>
               </span>

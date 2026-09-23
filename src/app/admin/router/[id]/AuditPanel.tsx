@@ -189,7 +189,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                 analyze();
               })
             }
-            className="mx-auto mt-3 block border border-ink bg-brand px-4 py-2 text-sm font-bold text-ink disabled:opacity-50"
+            className="mx-auto mt-3 block border border-ink bg-brand px-4 py-2 text-sm font-semibold text-ink disabled:opacity-50"
           >
             Corriger le port API ({portFix.configured} → {portFix.found})
           </button>
@@ -198,7 +198,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
           type="button"
           disabled={isAnalyzing}
           onClick={analyze}
-          className="mt-5 inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+          className="mt-5 inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:opacity-60 rounded-full"
         >
           {isAnalyzing ? (
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -223,14 +223,14 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-center">
             <span className={`font-display text-4xl font-extrabold tabular-nums ${tone.text}`}>{audit.score}</span>
-            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-soft">/ 100</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">/ 100</span>
           </div>
           <div>
             <p className={`font-display text-lg font-bold ${tone.text}`}>{tone.label}</p>
             <p className="text-sm text-ink-soft">
               {audit.board} · RouterOS {audit.version} · uptime {audit.uptime}
             </p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] font-mono font-semibold uppercase">
+            <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs font-mono font-semibold uppercase">
               <span className="border border-err px-1.5 py-0.5 text-err">{audit.counts.error} critique(s)</span>
               <span className="border border-warn px-1.5 py-0.5 text-warn">{audit.counts.warn} à corriger</span>
               <span className="border border-ok px-1.5 py-0.5 text-ok">{audit.counts.ok} OK</span>
@@ -273,10 +273,10 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                     <Icon aria-hidden="true" className={`mt-0.5 h-5 w-5 shrink-0 ${s.text}`} />
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-[11px] font-mono font-semibold uppercase tracking-wide ${s.text}`}>
+                        <span className={`text-xs font-mono font-semibold uppercase tracking-wide ${s.text}`}>
                           {s.label}
                         </span>
-                        <span className="border border-line-soft bg-clay px-1.5 py-0.5 text-[11px] font-medium text-ink-soft rounded-xl">
+                        <span className="border border-line-soft bg-clay px-1.5 py-0.5 text-xs font-medium text-ink-soft rounded-xl">
                           {f.area}
                         </span>
                       </div>
@@ -289,7 +289,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                       type="button"
                       disabled={isFixing}
                       onClick={() => applyFix(f)}
-                      className="flex shrink-0 items-center gap-1.5 self-start border border-line bg-brand px-3 py-1.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+                      className="flex shrink-0 items-center gap-1.5 self-start border border-line bg-brand px-3 py-1.5 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:opacity-60 rounded-full"
                     >
                       {busy ? (
                         <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -317,7 +317,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                     }}
                     className="flex flex-wrap items-end gap-2 border-t border-line bg-clay px-4 py-3"
                   >
-                    <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">
                       Compte administrateur du routeur
                       <input
                         value={adminUser}
@@ -326,7 +326,7 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                         className="h-10 w-40 rounded-lg border border-line bg-paper px-2 text-sm font-normal normal-case tracking-normal text-ink"
                       />
                     </label>
-                    <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">
                       Mot de passe
                       <input
                         type="password"
@@ -339,18 +339,18 @@ export default function AuditPanel({ routerId }: { routerId: string }) {
                     <button
                       type="submit"
                       disabled={isFixing || !adminUser.trim()}
-                      className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-brand px-4 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60"
+                      className="flex h-10 items-center gap-1.5 rounded-full border border-line bg-brand px-4 text-sm font-semibold text-slate-deep hover:bg-brand/80 disabled:opacity-60"
                     >
                       {busy ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
                       Appliquer avec ce compte
                     </button>
-                    <p className="w-full text-[11px] text-ink-soft">
+                    <p className="w-full text-xs text-ink-soft">
                       Utilisé pour cette seule commande, puis oublié — il n&apos;est pas enregistré.
                     </p>
                   </form>
                 )}
                 {!f.fix && (
-                  <p className="border-t border-line-soft bg-clay px-4 py-1.5 text-[12px] text-ink-soft">
+                  <p className="border-t border-line-soft bg-clay px-4 py-1.5 text-xs text-ink-soft">
                     À traiter manuellement (souvent physique : câble, appareil, ou relance de l&apos;auto-setup).
                   </p>
                 )}

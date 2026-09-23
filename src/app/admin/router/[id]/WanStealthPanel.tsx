@@ -94,7 +94,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
           type="button"
           onClick={analyser}
           disabled={pending}
-          className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-ok disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-ok disabled:opacity-60"
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
           Analyser
@@ -113,7 +113,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
         client n&apos;y change quoi que ce soit.
       </p>
 
-      {erreur && <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{erreur}</p>}
+      {erreur && <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{erreur}</p>}
 
       {lecture && (
         <>
@@ -172,7 +172,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
             placeholder="E1-WAN-FAI"
             className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink rounded-lg"
           />
-          <span className="mt-0.5 block text-[11px] text-ink-soft">
+          <span className="mt-0.5 block text-xs text-ink-soft">
             Laissé vide, chaque lien annonce son propre nom d&apos;interface
             {lecture?.links.length ? ` (${lecture.links.map((l) => l.name).join(", ")})` : ""}.
             Lettres, chiffres et tirets. Remplace l&apos;identité système dans l&apos;option DHCP 12
@@ -183,7 +183,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
           type="button"
           onClick={poser}
           disabled={pending || !lecture}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
         >
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
           Masquer
@@ -199,7 +199,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
         />
         <span>
           Remplacer aussi la MAC d&apos;usine par une adresse locale (sans vendeur).
-          <span className="block text-[11px]">
+          <span className="block text-xs">
             C&apos;est le seul réglage qui change le nom affiché par l&apos;application du
             fournisseur — mais il renégocie le bail DHCP : coupure de quelques secondes, réversible
             à tout moment.
@@ -216,7 +216,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
         />
         <span>
           Couper l&apos;accès des clients à l&apos;équipement du fournisseur.
-          <span className="block text-[11px]">
+          <span className="block text-xs">
             Sans cela, n&apos;importe quel client du hotspot ouvre le tableau de bord de
             l&apos;antenne et y lit le numéro de série
             {lecture?.upstreamTargets?.length
@@ -228,7 +228,7 @@ export default function WanStealthPanel({ routerId }: { routerId: string }) {
       </label>
 
       {aCorriger.length > 0 && !pending && (
-        <p className="mt-2 text-[11px] text-ink-soft">
+        <p className="mt-2 text-xs text-ink-soft">
           {aCorriger.length} réglage(s) seront posés.
         </p>
       )}

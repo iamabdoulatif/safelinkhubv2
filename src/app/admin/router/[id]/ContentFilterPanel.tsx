@@ -101,7 +101,7 @@ function CategoryActions({
   if (confirming) {
     return (
       <div className="flex flex-wrap items-center gap-2 border-t border-line-soft px-3 py-2">
-        <span className="text-[11px] font-medium text-ink">
+        <span className="text-xs font-medium text-ink">
           Voulez-vous vraiment autoriser « {label} » sur ce routeur ? Les autres catégories
           resteront bloquées.
         </span>
@@ -112,7 +112,7 @@ function CategoryActions({
             setConfirming(false);
             onSet(false);
           }}
-          className="inline-flex items-center gap-1.5 border border-err bg-err px-2.5 py-1 text-[11px] font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-err disabled:opacity-60 rounded-lg"
+          className="inline-flex items-center gap-1.5 border border-err bg-err px-2.5 py-1 text-xs font-bold text-white transition-colors duration-150 hover:bg-paper hover:text-err disabled:opacity-60 rounded-lg"
         >
           Confirmer le retrait
         </button>
@@ -120,7 +120,7 @@ function CategoryActions({
           type="button"
           disabled={busy}
           onClick={() => setConfirming(false)}
-          className="border border-line bg-paper px-2.5 py-1 text-[11px] font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-lg"
+          className="border border-line bg-paper px-2.5 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-lg"
         >
           Annuler
         </button>
@@ -131,7 +131,7 @@ function CategoryActions({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft px-3 py-2">
       <span
-        className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${
+        className={`inline-flex items-center gap-1.5 text-xs font-bold ${
           blocked ? "text-ok" : "text-ink-soft"
         }`}
       >
@@ -155,8 +155,8 @@ function CategoryActions({
         }
         className={
           blocked
-            ? "inline-flex items-center gap-1.5 border border-err px-2.5 py-1 text-[11px] font-bold text-err transition-colors duration-150 hover:bg-err/10 disabled:opacity-60 rounded-lg"
-            : "inline-flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1 text-[11px] font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-lg"
+            ? "inline-flex items-center gap-1.5 border border-err px-2.5 py-1 text-xs font-bold text-err transition-colors duration-150 hover:bg-err/10 disabled:opacity-60 rounded-lg"
+            : "inline-flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:opacity-60 rounded-lg"
         }
       >
         {pending ? (
@@ -401,7 +401,7 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
           type="button"
           disabled={busy || categories.length === 0}
           onClick={apply}
-          className="inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:opacity-60 rounded-full"
+          className="inline-flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:opacity-60 rounded-full"
         >
           {isWriting ? (
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -457,7 +457,7 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
                 <AlertTriangle aria-hidden="true" className="mr-1 inline h-3.5 w-3.5" />
                 {msg.failed.length} commande(s) refusée(s) par le routeur
               </summary>
-              <ul className="mt-1.5 space-y-1 font-mono text-[11px] text-ink-soft">
+              <ul className="mt-1.5 space-y-1 font-mono text-xs text-ink-soft">
                 {msg.failed.map((f) => (
                   <li key={f.step}>
                     {f.step} → {f.error}
@@ -500,14 +500,14 @@ export default function ContentFilterPanel({ routerId }: { routerId: string }) {
                 onClick={() => {
                   navigator.clipboard.writeText(script.text).then(() => setCopied(true));
                 }}
-                className="inline-flex items-center gap-1.5 border border-line bg-brand px-2.5 py-1 text-xs font-bold text-slate-deep hover:bg-ink hover:text-paper rounded-lg"
+                className="inline-flex items-center gap-1.5 border border-line bg-brand px-2.5 py-1 text-xs font-semibold text-slate-deep hover:bg-brand/80 rounded-lg"
               >
                 {copied ? <Check aria-hidden="true" className="h-3.5 w-3.5" /> : <Copy aria-hidden="true" className="h-3.5 w-3.5" />}
                 {copied ? "Copié" : "Copier"}
               </button>
             </div>
           </div>
-          <pre className="mt-3 max-h-80 overflow-auto border border-line-soft bg-clay p-3 font-mono text-[11px] leading-relaxed text-ink">
+          <pre className="mt-3 max-h-80 overflow-auto border border-line-soft bg-clay p-3 font-mono text-xs leading-relaxed text-ink">
             {script.text}
           </pre>
         </div>

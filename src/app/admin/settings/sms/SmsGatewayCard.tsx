@@ -69,12 +69,12 @@ export default function SmsGatewayCard({
       </div>
 
       {state?.success && (
-        <p className="mt-3 flex items-center gap-1.5 rounded-md bg-clay px-3 py-2 text-xs text-ok">
+        <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-clay px-3 py-2 text-xs text-ok">
           <Check className="h-3.5 w-3.5" /> Enregistré
         </p>
       )}
       {state?.error && (
-        <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-xs text-err">{state.error}</p>
+        <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-xs text-err">{state.error}</p>
       )}
 
       <div className="mt-4 space-y-3">
@@ -88,7 +88,7 @@ export default function SmsGatewayCard({
             placeholder="SafeLinkHub"
             maxLength={11}
             autoComplete="off"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
+            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
           />
         </div>
         <div>
@@ -100,9 +100,9 @@ export default function SmsGatewayCard({
             type="password"
             placeholder={hasApiKey ? "••••••••••••" : "Clé API"}
             autoComplete="off"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
+            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
           />
-          <p className="mt-1 text-[11px] text-ink-soft">
+          <p className="mt-1 text-xs text-ink-soft">
             Laissez vide pour conserver la clé actuelle.
           </p>
         </div>
@@ -111,7 +111,7 @@ export default function SmsGatewayCard({
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 w-full rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+        className="mt-4 w-full rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
       >
         {pending ? "Enregistrement..." : "Enregistrer"}
       </button>
@@ -128,28 +128,28 @@ export default function SmsGatewayCard({
               type="tel"
               placeholder="2250700000000"
               autoComplete="off"
-              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
+              className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
             />
             <button
               type="submit"
               disabled={testPending}
-              className="flex shrink-0 items-center gap-1.5 rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
             >
               <Send className="h-3.5 w-3.5" />
               {testPending ? "Envoi..." : "Tester"}
             </button>
           </div>
-          <p className="mt-1 text-[11px] text-ink-soft">
+          <p className="mt-1 text-xs text-ink-soft">
             Numéro au format international, sans le +.
           </p>
           {testState?.success && (
-            <p className="mt-2 flex items-center gap-1.5 rounded-md bg-clay px-3 py-2 text-xs text-ok">
+            <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-clay px-3 py-2 text-xs text-ok">
               <Check className="h-3.5 w-3.5" /> SMS envoyé
               {testState.messageId ? ` (${testState.messageId})` : ""}
             </p>
           )}
           {testState?.error && (
-            <p className="mt-2 rounded-md bg-err-soft px-3 py-2 text-xs text-err">
+            <p className="mt-2 rounded-lg bg-err-soft px-3 py-2 text-xs text-err">
               {testState.error}
             </p>
           )}

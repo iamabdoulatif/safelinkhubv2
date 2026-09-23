@@ -146,18 +146,18 @@ export default function ImportPortalButton() {
         type="button"
         disabled={reading || pending}
         onClick={() => inputRef.current?.click()}
-        className="flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
+        className="flex items-center gap-1.5 rounded-lg border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
       >
         {reading || pending ? <ButtonLoader size="sm" color="currentColor" /> : <FolderUp className="h-4 w-4" />}
         Importer un portail personnalisé
       </button>
 
       {error && (
-        <p className="w-full rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
+        <p className="w-full rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
       )}
 
       {result && (
-        <div className="w-full rounded-md bg-clay px-3 py-2 text-sm text-ok">
+        <div className="w-full rounded-lg bg-clay px-3 py-2 text-sm text-ok">
           <p className="font-medium">Portail importé — il est maintenant disponible dans l&apos;auto-setup.</p>
           {result.substitutions && result.substitutions.length > 0 && (
             <ul className="mt-1 list-inside list-disc text-xs text-ink-soft">
@@ -180,7 +180,7 @@ export default function ImportPortalButton() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="import-portal-title"
-            className="max-h-[90dvh] overflow-y-auto w-full max-w-lg rounded-2xl bg-paper p-6"
+            className="max-h-[90dvh] overflow-y-auto w-full max-w-lg rounded-xl bg-paper p-6"
           >
             <div className="flex items-start justify-between">
               <h2 id="import-portal-title" className="text-lg font-semibold text-ink">
@@ -191,7 +191,7 @@ export default function ImportPortalButton() {
                 onClick={() => setDraft(null)}
                 disabled={pending}
                 aria-label="Fermer"
-                className="rounded-md p-1 hover:bg-clay"
+                className="rounded-lg p-1 hover:bg-clay"
               >
                 <X className="h-5 w-5 text-ink-soft" />
               </button>
@@ -204,14 +204,14 @@ export default function ImportPortalButton() {
               id="portal-name"
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              className="mt-1 w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+              className="mt-1 w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
             />
 
             <p className="mt-3 text-sm text-ink-soft">
               {draft.files.length} fichiers seront importés
               {draft.skipped.length > 0 ? ` (${draft.skipped.length} ignorés : fichiers cachés ou non supportés)` : ""}.
             </p>
-            <p className="mt-2 rounded-md bg-clay px-3 py-2 text-xs text-ink-soft">
+            <p className="mt-2 rounded-lg bg-clay px-3 py-2 text-xs text-ink-soft">
               À l&apos;import, le portail est automatiquement paramétré : nom du Wi-Fi (SSID),
               forfaits et prix synchronisés avec la page Forfaits, numéro de support — puis
               proposé comme choix de portail captif dans l&apos;auto-setup.
@@ -222,7 +222,7 @@ export default function ImportPortalButton() {
                 type="button"
                 onClick={() => setDraft(null)}
                 disabled={pending}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
               >
                 Annuler
               </button>
@@ -230,7 +230,7 @@ export default function ImportPortalButton() {
                 type="button"
                 onClick={runImport}
                 disabled={pending || !draft.name.trim()}
-                className="flex items-center gap-1.5 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
               >
                 {pending && <ButtonLoader size="sm" color="white" />}
                 {pending ? "Import en cours…" : "Importer"}

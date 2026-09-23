@@ -70,7 +70,7 @@ export default function RouterDangerDialog({
         if (e.target === e.currentTarget && !pending) onClose();
       }}
     >
-      <div className="mx-auto my-6 w-full max-w-lg overflow-hidden rounded-2xl border border-line bg-paper shadow-2xl">
+      <div className="mx-auto my-6 w-full max-w-lg overflow-hidden rounded-xl border border-line bg-paper shadow-modal">
         <header className="flex items-start gap-3 border-b border-line-soft px-5 py-4 sm:px-6">
           <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-err-soft text-err">
             <AlertTriangle className="h-5 w-5" />
@@ -94,7 +94,7 @@ export default function RouterDangerDialog({
         </header>
 
         <div className="px-5 py-4 sm:px-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-err">
+          <p className="text-xs font-bold uppercase tracking-[0.13em] text-err">
             Ce qui est détruit
           </p>
           <ul className="mt-2 space-y-1.5" role="list">
@@ -106,7 +106,7 @@ export default function RouterDangerDialog({
             ))}
           </ul>
 
-          <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.13em] text-ink-soft">
+          <p className="mt-5 text-xs font-bold uppercase tracking-[0.13em] text-ink-soft">
             Ce qui est conservé
           </p>
           <ul className="mt-2 space-y-1.5" role="list">
@@ -138,7 +138,7 @@ export default function RouterDangerDialog({
                 disabled={pending}
                 autoComplete="off"
                 spellCheck={false}
-                className="mt-2 w-full rounded-md border border-line-soft px-3 py-2 font-mono text-sm text-ink outline-none focus:border-err"
+                className="mt-2 w-full rounded-lg border border-line-soft px-3 py-2 font-mono text-sm text-ink outline-none focus:border-err"
               />
             </div>
           )}
@@ -146,7 +146,7 @@ export default function RouterDangerDialog({
           {error && (
             <p
               role="alert"
-              className="mt-4 rounded-md border border-err/30 bg-err/10 px-3 py-2 text-sm leading-6 text-err"
+              className="mt-4 rounded-lg border border-err/30 bg-err/10 px-3 py-2 text-sm leading-6 text-err"
             >
               {error}
             </p>

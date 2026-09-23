@@ -42,7 +42,7 @@ function StatusBadge({ status, t }: { status: string; t: RouterDictionary["table
 /** Chip « Verrouillé » : routeur paralysé par le kill-switch (ports coupés sauf ether1). */
 function LockedBadge({ t }: { t: RouterDictionary["table"] }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-err px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+    <span className="inline-flex items-center gap-1 rounded-full bg-err px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
       <Lock aria-hidden="true" className="h-3 w-3" />
       {t.locked}
     </span>
@@ -214,7 +214,7 @@ export default function RoutersTable({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={table.search}
             aria-label={table.search}
-            className="h-11 w-full rounded-full border border-line bg-paper pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            className="h-11 w-full rounded-full border border-line bg-paper pl-10 pr-3 text-sm text-ink placeholder:text-ink-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           />
         </div>
 
@@ -304,7 +304,7 @@ export default function RoutersTable({
           <div className="slate-card hidden overflow-x-auto bg-paper md:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line bg-clay">
-                <tr className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+                <tr className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
                   <th scope="col" className="px-4 py-3">{table.router}</th>
                   <th scope="col" className="px-4 py-3">{table.identity}</th>
                   <th scope="col" className="px-4 py-3">{table.status}</th>

@@ -134,7 +134,7 @@ export default function SupportChatPanel({
           role="dialog"
           aria-modal="false"
           aria-label={t.title}
-          className="fixed inset-x-0 bottom-0 z-50 flex h-[85vh] flex-col overflow-hidden rounded-t-2xl border border-line bg-paper shadow-[0_-8px_40px_-16px_rgba(16,22,15,0.35)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:h-[32rem] sm:w-[23rem] sm:rounded-2xl"
+          className="fixed inset-x-0 bottom-0 z-50 flex h-[85vh] flex-col overflow-hidden rounded-t-2xl border border-line bg-paper shadow-[0_-8px_40px_-16px_rgba(16,22,15,0.35)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:h-[32rem] sm:w-[23rem] sm:rounded-xl"
         >
           <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
             <div className="min-w-0">
@@ -177,7 +177,7 @@ export default function SupportChatPanel({
             {messages.map((m, i) => (
               <div
                 key={i}
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-6 ${
+                className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3.5 py-2.5 text-sm leading-6 ${
                   m.role === "user"
                     ? "ml-auto bg-ink text-paper"
                     : "border border-line bg-clay text-ink"
@@ -229,7 +229,7 @@ export default function SupportChatPanel({
                 maxLength={1200}
                 placeholder={t.placeholder}
                 aria-label={t.placeholder}
-                className="h-11 min-w-0 flex-1 rounded-full border border-line bg-paper px-4 text-sm text-ink placeholder:text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                className="h-11 min-w-0 flex-1 rounded-full border border-line bg-paper px-4 text-sm text-ink placeholder:text-ink-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
               />
               <button
                 type="submit"
@@ -240,7 +240,7 @@ export default function SupportChatPanel({
                 <Send aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-2 text-[11px] leading-4 text-ink-soft">
+            <p className="mt-2 text-xs leading-4 text-ink-soft">
               {t.disclaimer}{" "}
               <Link
                 href={locale === "en" ? "/en/contact" : "/contact"}

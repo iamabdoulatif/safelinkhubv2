@@ -64,7 +64,7 @@ export default function PackageBrandingEditor({
         </div>
 
         {error && (
-          <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
+          <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
         )}
 
         <div className="mt-4 space-y-3">
@@ -76,7 +76,7 @@ export default function PackageBrandingEditor({
               value={supportWhatsapp}
               onChange={(e) => setSupportWhatsapp(e.target.value)}
               placeholder="+225 00 00 00 00 00"
-              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
+              className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
             />
           </div>
           <div>
@@ -87,7 +87,7 @@ export default function PackageBrandingEditor({
               value={supportPhone}
               onChange={(e) => setSupportPhone(e.target.value)}
               placeholder="+225 00 00 00 00 00"
-              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
+              className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
             />
           </div>
           <p className="text-xs text-ink-soft">
@@ -101,7 +101,7 @@ export default function PackageBrandingEditor({
             <button
               type="button"
               onClick={() => setVendors((prev) => [...prev, { name: "", location: "", phone: "" }])}
-              className="flex items-center gap-1 rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
+              className="flex items-center gap-1 rounded-lg border border-line-soft px-2 py-1 text-xs font-medium text-ink-soft hover:bg-clay"
             >
               <Plus className="h-3.5 w-3.5" />
               Ajouter
@@ -115,32 +115,32 @@ export default function PackageBrandingEditor({
           ) : (
             <div className="mt-2 space-y-3">
               {vendors.map((v, i) => (
-                <div key={i} className="rounded-md border border-line-soft p-3">
+                <div key={i} className="rounded-lg border border-line-soft p-3">
                   <div className="flex items-start gap-2">
                     <div className="flex-1 space-y-2">
                       <input
                         value={v.name}
                         onChange={(e) => updateVendor(i, { name: e.target.value })}
                         placeholder="Nom du vendeur"
-                        className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
+                        className="w-full rounded-lg border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ink"
                       />
                       <input
                         value={v.location}
                         onChange={(e) => updateVendor(i, { location: e.target.value })}
                         placeholder="Quartier / ville"
-                        className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
+                        className="w-full rounded-lg border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ink"
                       />
                       <input
                         value={v.phone}
                         onChange={(e) => updateVendor(i, { phone: e.target.value })}
                         placeholder="+225 07 00 00 00 00"
-                        className="w-full rounded-md border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
+                        className="w-full rounded-lg border border-line-soft px-2 py-1.5 text-sm placeholder:text-ink-soft focus:border-ink"
                       />
                     </div>
                     <button
                       type="button"
                       onClick={() => setVendors((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="rounded-md border border-err p-1.5 text-err hover:bg-err-soft"
+                      className="rounded-lg border border-err p-1.5 text-err hover:bg-err-soft"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -155,7 +155,7 @@ export default function PackageBrandingEditor({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-clay"
+            className="rounded-lg border border-line-soft px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-clay"
           >
             Annuler
           </button>
@@ -163,7 +163,7 @@ export default function PackageBrandingEditor({
             type="button"
             disabled={pending}
             onClick={save}
-            className="rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
+            className="rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-50"
           >
             {pending ? "Enregistrement..." : "Enregistrer"}
           </button>

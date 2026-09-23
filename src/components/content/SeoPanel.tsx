@@ -50,7 +50,7 @@ export default function SeoPanel({
           value={keyword}
           onChange={(e) => onKeywordChange(e.target.value)}
           placeholder="ex. gestion de projet"
-          className="mt-1 w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
         />
         <span className="mt-1 block text-xs text-ink-soft">
           L&apos;expression que vos lecteurs taperont dans Google.
@@ -71,7 +71,7 @@ export default function SeoPanel({
           />
         </div>
         {/* Ce que le score EST, pour qu'il ne se lise pas comme une promesse. */}
-        <p className="mt-1.5 text-[11px] leading-4 text-ink-soft">
+        <p className="mt-1.5 text-xs leading-4 text-ink-soft">
           Part des contrôles réussis ci-dessous. C&apos;est une relecture de forme,
           pas une prévision de classement.
         </p>
@@ -90,7 +90,7 @@ export default function SeoPanel({
             <span className="min-w-0">
               <span className="block text-xs font-medium text-ink">{c.label}</span>
               {c.state !== "ok" && (
-                <span className="block text-[11px] leading-4 text-ink-soft">{c.hint}</span>
+                <span className="block text-xs leading-4 text-ink-soft">{c.hint}</span>
               )}
             </span>
           </li>

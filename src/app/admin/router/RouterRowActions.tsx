@@ -128,7 +128,7 @@ export default function RouterRowActions({
           bonne fois, et la position est mesurée sur le bouton. */}
       {open && ancre && createPortal(
         <div
-          className="fixed z-50 w-64 overflow-hidden rounded-xl border border-line bg-paper py-1 shadow-xl"
+          className="fixed z-50 w-64 overflow-hidden rounded-xl border border-line bg-paper py-1 shadow-menu"
           style={{ top: ancre.top, right: ancre.right }}
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -140,7 +140,7 @@ export default function RouterRowActions({
                 void submitRename();
               }}
             >
-              <label className="block text-[11px] font-semibold uppercase tracking-wide text-ink-soft">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-ink-soft">
                 {t.rename}
               </label>
               <input
@@ -157,9 +157,9 @@ export default function RouterRowActions({
                 disabled={renamePending}
                 className="mt-1.5 w-full rounded-lg border border-line bg-paper px-2.5 py-1.5 text-sm text-ink outline-none focus:border-ink disabled:opacity-60"
               />
-              <p className="mt-1.5 text-[11px] leading-4 text-ink-soft">{t.renameHint}</p>
+              <p className="mt-1.5 text-xs leading-4 text-ink-soft">{t.renameHint}</p>
               {renameError && (
-                <p role="alert" className="mt-1.5 text-[11px] font-medium text-err">
+                <p role="alert" className="mt-1.5 text-xs font-medium text-err">
                   {renameError}
                 </p>
               )}
@@ -179,7 +179,7 @@ export default function RouterRowActions({
                 <button
                   type="submit"
                   disabled={renamePending || draft.trim().length < 2}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-brand px-2.5 py-1 text-xs font-bold text-slate-deep hover:bg-ink hover:text-paper disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-brand px-2.5 py-1 text-xs font-semibold text-slate-deep hover:bg-brand/80 disabled:opacity-60"
                 >
                   {renamePending ? (
                     <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />

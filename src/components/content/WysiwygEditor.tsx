@@ -171,7 +171,7 @@ export default function WysiwygEditor({
   const plan = outline(valeur);
   const mots = wordCount(valeur);
   const classeBouton = (actif: boolean) =>
-    `inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+    `inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
       actif ? "bg-brand text-slate-deep" : "text-ink-soft hover:bg-clay hover:text-ink"
     }`;
 
@@ -252,13 +252,13 @@ export default function WysiwygEditor({
 
       {plan.length > 0 && (
         <div className="border-t border-line-soft px-5 py-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
             Plan de l&apos;article
           </p>
           <ol className="mt-1.5 space-y-0.5 text-xs text-ink-soft" role="list">
             {plan.map((h, i) => (
               <li key={i} className={h.level === 3 ? "pl-4" : undefined}>
-                <span className="font-mono text-[10px] text-brand-deep">H{h.level}</span>{" "}
+                <span className="font-mono text-xs text-brand-deep">H{h.level}</span>{" "}
                 {h.text || <span className="italic">(vide)</span>}
               </li>
             ))}

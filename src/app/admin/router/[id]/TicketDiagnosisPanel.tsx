@@ -77,7 +77,7 @@ export default function TicketDiagnosisPanel({ routerId }: { routerId: string })
           onChange={(e) => setCode(e.target.value.trim())}
           placeholder="code du ticket (facultatif)"
           aria-label="Code du ticket à diagnostiquer"
-          className="w-56 border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
+          className="w-56 border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-xl"
         />
         <button
           type="submit"
@@ -209,7 +209,7 @@ export default function TicketDiagnosisPanel({ routerId }: { routerId: string })
           {result.recentLog.length > 0 && (
             <div>
               <p className="text-xs font-bold text-ink">Journal hotspot du routeur</p>
-              <pre className="mt-1 max-h-48 overflow-auto border border-line-soft bg-clay/40 p-2 font-mono text-[11px] leading-5 text-ink-soft rounded-xl">
+              <pre className="mt-1 max-h-48 overflow-auto border border-line-soft bg-clay/40 p-2 font-mono text-xs leading-5 text-ink-soft rounded-xl">
                 {result.recentLog.join("\n")}
               </pre>
             </div>

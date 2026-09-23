@@ -63,7 +63,7 @@ export default function AdminError({
         </p>
 
         {error.digest && (
-          <p className="mt-3 rounded-md bg-clay px-3 py-1.5 font-mono text-xs text-ink-soft">
+          <p className="mt-3 rounded-lg bg-clay px-3 py-1.5 font-mono text-xs text-ink-soft">
             {error.digest}
           </p>
         )}

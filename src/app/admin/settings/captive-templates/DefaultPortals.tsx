@@ -75,7 +75,7 @@ export default function DefaultPortals({ portals }: { portals: DefaultPortal[] }
       </p>
 
       {error && (
-        <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
+        <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
       )}
 
       <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -101,7 +101,7 @@ export default function DefaultPortals({ portals }: { portals: DefaultPortal[] }
                 type="button"
                 disabled={busy}
                 onClick={() => adopt(portal)}
-                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
               >
                 {busy ? (
                   <ButtonLoader size="sm" color="currentColor" />

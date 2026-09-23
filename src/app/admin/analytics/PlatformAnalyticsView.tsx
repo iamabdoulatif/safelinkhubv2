@@ -265,7 +265,7 @@ export default function PlatformAnalyticsView({
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-ok">
             <BarChart3 className="h-4 w-4" aria-hidden="true" /> Cockpit commercial · Superadmin
           </div>
-          <h1 className="text-2xl font-bold text-ink">Analyse des ventes</h1>
+          <h1 className="text-ink text-2xl font-semibold tracking-tight">Analyse des ventes</h1>
           <p className="mt-1 max-w-2xl text-sm text-ink-soft">
             Suivez les encaissements VPN et Auto-Setup, leur activation et les demandes à traiter.
           </p>

@@ -21,7 +21,7 @@ export default async function PaymentGatewaysPage() {
           <CreditCard className="h-5 w-5 text-slate-deep" />
         </span>
         <div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink">
+          <h1 className="text-ink text-2xl font-semibold tracking-tight">
             Paiements
           </h1>
           <p className="mt-0.5 text-sm text-ink-soft">

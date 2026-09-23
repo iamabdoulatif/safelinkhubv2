@@ -37,7 +37,7 @@ export default async function GeniusBalanceCard() {
           <div className="border border-ok bg-ok/5 p-4 rounded-xl">
             <div className="flex items-center gap-2 text-ok">
               <ArrowDownToLine aria-hidden="true" className="h-4 w-4" />
-              <p className="font-mono text-[11px] font-bold uppercase tracking-widest">Disponible au retrait</p>
+              <p className="font-mono text-xs font-bold uppercase tracking-widest">Disponible au retrait</p>
             </div>
             <p className="mt-2 font-display text-2xl font-extrabold text-ink">{fcfa(res.balance.available)}</p>
             <p className="mt-1 text-xs text-ink-soft">Retirable depuis votre compte GeniusPay.</p>
@@ -46,7 +46,7 @@ export default async function GeniusBalanceCard() {
           <div className="border border-line bg-paper p-4 rounded-xl">
             <div className="flex items-center gap-2 text-ink-soft">
               <Clock aria-hidden="true" className="h-4 w-4" />
-              <p className="font-mono text-[11px] font-bold uppercase tracking-widest">En attente</p>
+              <p className="font-mono text-xs font-bold uppercase tracking-widest">En attente</p>
             </div>
             <p className="mt-2 font-display text-2xl font-extrabold text-ink">{fcfa(res.balance.pending)}</p>
             <p className="mt-1 text-xs text-ink-soft">Transactions en cours de confirmation.</p>
@@ -55,7 +55,7 @@ export default async function GeniusBalanceCard() {
           <div className="border border-line bg-paper p-4 rounded-xl">
             <div className="flex items-center gap-2 text-ink-soft">
               <Wallet aria-hidden="true" className="h-4 w-4" />
-              <p className="font-mono text-[11px] font-bold uppercase tracking-widest">Solde total</p>
+              <p className="font-mono text-xs font-bold uppercase tracking-widest">Solde total</p>
             </div>
             <p className="mt-2 font-display text-2xl font-extrabold text-ink">{fcfa(res.balance.total)}</p>
             <p className="mt-1 text-xs text-ink-soft">Disponible + en attente.</p>

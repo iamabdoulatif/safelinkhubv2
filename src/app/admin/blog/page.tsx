@@ -24,7 +24,7 @@ export default async function AdminBlogPage() {
     <div className="animate-fade-in-up">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Blog</h1>
+          <h1 className="text-ink text-2xl font-semibold tracking-tight">Blog</h1>
           <p className="mt-1 text-sm text-ink-soft">
             Articles du blog public de la plateforme — visibles sur /blog une
             fois publiés.
@@ -32,7 +32,7 @@ export default async function AdminBlogPage() {
         </div>
         <Link
           href="/admin/blog/new"
-          className="flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep hover:bg-ink hover:text-paper rounded-full"
+          className="flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-semibold text-slate-deep hover:bg-brand/80 rounded-full"
         >
           <Plus className="h-4 w-4" />
           Nouvel article

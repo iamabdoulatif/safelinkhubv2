@@ -56,12 +56,12 @@ export default function MndpRelaySection() {
       </p>
 
       {result && "error" in result && (
-        <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+        <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
           {result.error}
         </p>
       )}
       {result && "success" in result && (
-        <p className="mt-3 flex items-center gap-1.5 rounded-md bg-clay px-3 py-2 text-sm text-ok">
+        <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-clay px-3 py-2 text-sm text-ok">
           <Check className="h-4 w-4" />
           Relais actif — {result.routerCount ?? 0} routeur(s) annoncé(s) à{" "}
           {result.peerCount ?? 0} accès VPN personnel(s).
@@ -72,13 +72,13 @@ export default function MndpRelaySection() {
         type="button"
         onClick={handleActivate}
         disabled={pending}
-        className="mt-4 flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+        className="mt-4 flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
       >
         {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         {pending ? "Activation..." : "Activer / Actualiser la découverte"}
       </button>
 
-      <p className="mt-3 text-[11px] text-ink-soft">
+      <p className="mt-3 text-xs text-ink-soft">
         Connectez-vous d&apos;abord à un accès VPN personnel (ci-dessus), puis ouvrez WinBox
         et rafraîchissez Neighbors — les routeurs en ligne devraient apparaître avec leur
         identité, version et IP tunnel.

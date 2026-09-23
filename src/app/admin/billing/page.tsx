@@ -160,7 +160,7 @@ export default async function BillingPage({
   return (
     <div className="mx-auto max-w-4xl animate-fade-in-up space-y-6">
       <header>
-        <h1 className="font-display text-2xl font-bold text-ink">Facturation</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">Facturation</h1>
         <p className="mt-1 text-sm text-ink-soft">
           Ce que vous pouvez dépenser, ce que ça coûte, et ce qui a déjà été débité.
         </p>
@@ -183,7 +183,7 @@ export default async function BillingPage({
             <p className="mt-1 text-sm leading-6 text-ink">{avisKyc.message}</p>
             <Link
               href="/admin/verification"
-              className="mt-3 inline-block rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
+              className="mt-3 inline-block rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
             >
               Ouvrir la vérification
             </Link>

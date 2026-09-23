@@ -87,13 +87,13 @@ export default function ConfigAuditBanner({
     // common right after the auto-setup's own reboot, while the router is
     // still coming back up and briefly unreachable.
     return state.error ? (
-      <div className="mb-4 flex items-center justify-between gap-2 rounded-md bg-clay px-3 py-2 text-xs text-warn">
+      <div className="mb-4 flex items-center justify-between gap-2 rounded-lg bg-clay px-3 py-2 text-xs text-warn">
         <span>{state.error}</span>
         <button
           type="button"
           onClick={refresh}
           disabled={refreshing}
-          className="flex shrink-0 items-center gap-1 rounded-md border border-warn bg-paper px-2 py-1 font-medium hover:bg-clay disabled:opacity-50"
+          className="flex shrink-0 items-center gap-1 rounded-lg border border-warn bg-paper px-2 py-1 font-medium hover:bg-clay disabled:opacity-50"
         >
           <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
           Réessayer
@@ -105,7 +105,7 @@ export default function ConfigAuditBanner({
   const issues = state.items.filter((i) => i.status !== "ok");
 
   return (
-    <div className="animate-fade-slide-up mb-4 rounded-md border border-line-soft bg-clay px-3 py-2.5">
+    <div className="animate-fade-slide-up mb-4 rounded-lg border border-line-soft bg-clay px-3 py-2.5">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-ink-soft">
           Configuration détectée sur le routeur
@@ -118,7 +118,7 @@ export default function ConfigAuditBanner({
           onClick={refresh}
           disabled={refreshing}
           title="Revérifier"
-          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-ink-soft hover:bg-clay hover:text-ink-soft disabled:opacity-50"
+          className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs text-ink-soft hover:bg-clay hover:text-ink-soft disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
         </button>
@@ -131,7 +131,7 @@ export default function ConfigAuditBanner({
             <span
               key={item.key}
               title={item.detail}
-              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${pill}`}
+              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${pill}`}
             >
               <Icon className="h-3 w-3" />
               {item.label}
@@ -159,7 +159,7 @@ export default function ConfigAuditBanner({
                 type="button"
                 onClick={repair}
                 disabled={repairing}
-                className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
               >
                 {repairing ? (
                   <ButtonLoader size="xs" color="white" />
@@ -168,13 +168,13 @@ export default function ConfigAuditBanner({
                 )}
                 {repairing ? "Réparation en cours..." : "Continuer l'auto-setup"}
               </button>
-              <p className="mt-1.5 text-[11px] text-ink-soft">
+              <p className="mt-1.5 text-xs text-ink-soft">
                 Rejoue la même configuration que le dernier auto-setup — ne touche que ce qui
                 est manquant ci-dessus, le reste est laissé tel quel.
               </p>
             </>
           ) : (
-            <p className="text-[11px] text-ink-soft">
+            <p className="text-xs text-ink-soft">
               Lancez d&apos;abord l&apos;assistant complet (Configuration routeur) une fois pour
               pouvoir réparer une étape manquante depuis ici.
             </p>
@@ -182,7 +182,7 @@ export default function ConfigAuditBanner({
 
           {repairResult && (
             <div
-              className={`mt-2 rounded-md px-2.5 py-2 text-xs ${
+              className={`mt-2 rounded-lg px-2.5 py-2 text-xs ${
                 repairResult.success
                   ? "bg-clay text-ok"
                   : repairResult.firmwareUpdating
@@ -198,7 +198,7 @@ export default function ConfigAuditBanner({
                 <p>{repairResult.error ?? "Échec de la réparation."}</p>
               )}
               {repairResult.log && repairResult.log.length > 0 && (
-                <ul className="mt-1 space-y-0.5 text-[11px] text-ink-soft">
+                <ul className="mt-1 space-y-0.5 text-xs text-ink-soft">
                   {repairResult.log
                     .filter((line) => line.startsWith("SKIP"))
                     .map((line, i) => (

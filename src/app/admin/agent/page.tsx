@@ -32,7 +32,7 @@ export default async function AgentPage() {
         <div>
           <div className="flex items-center gap-2">
             <UserCog className="h-5 w-5 text-ink" />
-            <h1 className="text-2xl font-bold text-ink">Agent</h1>
+            <h1 className="text-ink text-2xl font-semibold tracking-tight">Agent</h1>
           </div>
           <p className="mt-1 text-sm text-ink-soft">
             Vendez des forfaits internet en espèces via votre équipe — chaque vente

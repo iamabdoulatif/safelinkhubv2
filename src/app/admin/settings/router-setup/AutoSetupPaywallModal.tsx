@@ -196,7 +196,7 @@ export default function AutoSetupPaywallModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-paper p-6 shadow-xl"
+        className="w-full max-w-md rounded-xl bg-paper p-6 shadow-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">
@@ -208,7 +208,7 @@ export default function AutoSetupPaywallModal({
             type="button"
             onClick={onClose}
             aria-label="Fermer"
-            className="ml-auto -mr-1 rounded-md p-1 text-ink-soft hover:bg-clay"
+            className="ml-auto -mr-1 rounded-lg p-1 text-ink-soft hover:bg-clay"
           >
             <X className="h-4.5 w-4.5" />
           </button>
@@ -229,7 +229,7 @@ export default function AutoSetupPaywallModal({
                   href={done.whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-brand-deep px-3 py-1.5 text-xs font-medium text-white"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand-deep px-3 py-1.5 text-xs font-medium text-white"
                 >
                   Ouvrir WhatsApp <ExternalLink className="h-3.5 w-3.5" />
                 </a>
@@ -238,7 +238,7 @@ export default function AutoSetupPaywallModal({
             <div className="mt-4 flex justify-end">
               <button
                 onClick={onClose}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
               >
                 Fermer
               </button>
@@ -260,7 +260,7 @@ export default function AutoSetupPaywallModal({
             <div className="mt-4 flex justify-end">
               <button
                 onClick={onClose}
-                className="rounded-md bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                className="rounded-lg bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:opacity-90"
               >
                 Fermer
               </button>
@@ -269,12 +269,12 @@ export default function AutoSetupPaywallModal({
         ) : (
           <>
             {latestStatus === "pending" && (
-              <p className="mt-4 rounded-md bg-warn-soft px-3 py-2 text-sm text-warn">
+              <p className="mt-4 rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">
                 Une demande est déjà <strong>en attente de validation</strong> pour ce routeur.
               </p>
             )}
             {latestStatus === "rejected" && (
-              <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+              <p className="mt-4 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
                 Votre dernière demande a été <strong>refusée</strong>. Vérifiez le paiement puis
                 réessayez.
               </p>
@@ -291,7 +291,7 @@ export default function AutoSetupPaywallModal({
               {priceLabel ? (
                 <p className="mt-1 text-3xl font-bold tracking-tight text-ink">{priceLabel}</p>
               ) : (
-                <div className="mx-auto mt-2 h-8 w-32 animate-pulse rounded-md bg-clay" aria-hidden="true" />
+                <div className="mx-auto mt-2 h-8 w-32 animate-pulse rounded-lg bg-clay" aria-hidden="true" />
               )}
             </div>
 
@@ -313,11 +313,11 @@ export default function AutoSetupPaywallModal({
                 </button>
 
                 <div className="mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
-                  <span className="text-[11px] text-ink-soft">via GeniusPay ·</span>
+                  <span className="text-xs text-ink-soft">via GeniusPay ·</span>
                   {PAYMENT_METHODS.map((m) => (
                     <span
                       key={m.id}
-                      className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-ink"
+                      className="rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-ink"
                     >
                       {m.label}
                     </span>
@@ -348,7 +348,7 @@ export default function AutoSetupPaywallModal({
                   )}
                   Payer avec mon solde {priceLabel ?? ""}
                 </button>
-                <p className="mt-1.5 text-[11px] text-ink-soft">
+                <p className="mt-1.5 text-xs text-ink-soft">
                   Portefeuille : {formatFcfa(balances.walletFcfa)} · Safecoins : ≈{" "}
                   {formatFcfa(balances.safecoinFcfa)}.{" "}
                   {canPayFromBalance
@@ -393,7 +393,7 @@ export default function AutoSetupPaywallModal({
                     <select
                       value={method}
                       onChange={(e) => setMethod(e.target.value as PaymentMethodId)}
-                      className="mt-1 w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-line-soft px-3 py-2 text-sm"
                     >
                       {PAYMENT_METHODS.map((m) => (
                         <option key={m.id} value={m.id}>
@@ -409,7 +409,7 @@ export default function AutoSetupPaywallModal({
                       min={1}
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:outline-none"
+                      className="mt-1 w-full rounded-lg border border-line-soft px-3 py-2 text-sm"
                     />
                   </label>
                   <label className="block">
@@ -420,13 +420,13 @@ export default function AutoSetupPaywallModal({
                       type="file"
                       accept="image/*"
                       onChange={(e) => setProof(e.target.files?.[0] ?? null)}
-                      className="mt-1 w-full text-sm text-ink-soft file:mr-3 file:rounded-md file:border-0 file:bg-clay file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink"
+                      className="mt-1 w-full text-sm text-ink-soft file:mr-3 file:rounded-lg file:border-0 file:bg-clay file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink"
                     />
                   </label>
                   <button
                     onClick={submit}
                     disabled={pending || !config}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-line-soft bg-paper px-4 py-2 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-line-soft bg-paper px-4 py-2 text-sm font-medium text-ink hover:bg-clay disabled:opacity-60"
                   >
                     {pending && <Loader2 className="h-4 w-4 animate-spin" />}
                     J&apos;ai payé — envoyer la demande
@@ -436,7 +436,7 @@ export default function AutoSetupPaywallModal({
             </div>
 
             {error && (
-              <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
+              <p className="mt-4 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
             )}
           </>
         )}

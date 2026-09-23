@@ -407,7 +407,7 @@ export default function BackupsManager({
             <select
               value={sourceRouter}
               onChange={(e) => setSourceRouter(e.target.value)}
-              className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none"
+              className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
             >
               {routers.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -421,7 +421,7 @@ export default function BackupsManager({
             type="button"
             onClick={runBackup}
             disabled={busy || !sourceRouter}
-            className="flex items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+            className="flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
           >
             <Save className="h-4 w-4" />
             {pending ? "En cours…" : "Sauvegarder maintenant"}
@@ -430,7 +430,7 @@ export default function BackupsManager({
 
         {feedback && (
           <p
-            className={`mt-3 rounded-md px-3 py-2 text-sm ${
+            className={`mt-3 rounded-lg px-3 py-2 text-sm ${
               feedback.kind === "ok" ? "bg-clay text-ok" : "bg-err-soft text-err"
             }`}
           >
@@ -440,7 +440,7 @@ export default function BackupsManager({
       </div>
 
       {backups.length === 0 ? (
-        <p className="mt-6 rounded-md border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
+        <p className="mt-6 rounded-lg border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
           Aucune sauvegarde pour l&apos;instant — lancez-en une, ou attendez la capture automatique
           de cette nuit.
         </p>
@@ -486,7 +486,7 @@ export default function BackupsManager({
                 <select
                   value={target[b.id] ?? ""}
                   onChange={(e) => setTarget((t) => ({ ...t, [b.id]: e.target.value }))}
-                  className="flex-1 rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none"
+                  className="flex-1 rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
                 >
                   <option value="">Restaurer vers…</option>
                   {routers.map((r) => (
@@ -502,7 +502,7 @@ export default function BackupsManager({
                   onClick={() => runScan(b)}
                   disabled={busy || !target[b.id]}
                   title="Lit le matériel du rechange (interfaces, WiFi, stockage) sans rien écrire"
-                  className="flex items-center justify-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
+                  className="flex items-center justify-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
                 >
                   <ScanLine className="h-4 w-4" />
                   Scanner
@@ -511,7 +511,7 @@ export default function BackupsManager({
                   type="button"
                   onClick={() => runRestore(b, true)}
                   disabled={busy || !target[b.id]}
-                  className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
+                  className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:border-ok disabled:opacity-60"
                 >
                   Simuler
                 </button>
@@ -519,7 +519,7 @@ export default function BackupsManager({
                   type="button"
                   onClick={() => runRestore(b, false)}
                   disabled={busy || !target[b.id]}
-                  className="flex items-center justify-center gap-2 rounded-md bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                  className="flex items-center justify-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
                 >
                   {activeJob?.backupId === b.id ? (
                     <>
@@ -540,7 +540,7 @@ export default function BackupsManager({
                     type="button"
                     onClick={cancelActive}
                     disabled={pending}
-                    className="rounded-md border border-line px-3 py-2 text-sm font-medium text-err hover:border-err disabled:opacity-60"
+                    className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-err hover:border-err disabled:opacity-60"
                   >
                     Annuler
                   </button>
@@ -550,7 +550,7 @@ export default function BackupsManager({
                   onClick={() => remove(b.id)}
                   disabled={busy}
                   aria-label="Supprimer la sauvegarde"
-                  className="rounded-md border border-line px-3 py-2 text-ink-soft hover:border-err hover:text-err disabled:opacity-60"
+                  className="rounded-lg border border-line px-3 py-2 text-ink-soft hover:border-err hover:text-err disabled:opacity-60"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -597,7 +597,7 @@ export default function BackupsManager({
               )}
 
               {reports?.backupId === b.id && (
-                <div className="mt-3 rounded-md border border-line-soft bg-clay p-3">
+                <div className="mt-3 rounded-lg border border-line-soft bg-clay p-3">
                   <p className="text-xs font-medium text-ink">
                     {reports.dryRun
                       ? "Simulation — aucune écriture"

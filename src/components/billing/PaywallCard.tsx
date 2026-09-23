@@ -68,7 +68,7 @@ export default function PaywallCard({
             Recharger mon portefeuille
             <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
           </Link>
-          <p className="mt-2 text-center text-[11px] text-ink-soft">
+          <p className="mt-2 text-center text-xs text-ink-soft">
             Mobile money / carte (Genius Pay) — bientôt disponible directement ici.
           </p>
         </>

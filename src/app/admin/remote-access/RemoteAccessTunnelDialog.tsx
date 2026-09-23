@@ -42,7 +42,7 @@ export default function RemoteAccessTunnelDialog() {
           aria-modal="true"
           aria-labelledby="tunnel-dialog-title"
         >
-          <section className="h-full w-full max-w-3xl overflow-y-auto bg-paper p-5 shadow-[-8px_0_0_var(--color-brand)] sm:p-7">
+          <section className="h-full w-full max-w-3xl overflow-y-auto bg-paper p-5 shadow-modal sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.15em] text-brand-deep">

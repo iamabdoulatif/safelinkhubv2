@@ -113,7 +113,7 @@ export default async function UsageAnalyticsPage() {
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <BarChart2 className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">Supervision</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">Supervision</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
         Activité réseau en direct et tendance d&apos;activation des tickets.

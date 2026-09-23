@@ -34,7 +34,7 @@ export default async function KycAdminPage({
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
+      <h1 className="flex items-center gap-2 text-ink text-2xl font-semibold tracking-tight">
         <ShieldCheck className="h-5 w-5" />
         Vérifications d&apos;identité
       </h1>
@@ -60,7 +60,7 @@ export default async function KycAdminPage({
               }`}
             >
               {t.label}
-              <span className="ml-1.5 rounded-full bg-clay px-1.5 py-0.5 text-[11px] tabular-nums text-ink-soft">
+              <span className="ml-1.5 rounded-full bg-clay px-1.5 py-0.5 text-xs tabular-nums text-ink-soft">
                 {n}
               </span>
             </Link>
@@ -79,9 +79,9 @@ export default async function KycAdminPage({
           type="search"
           defaultValue={recherche}
           placeholder="Organisation ou nom déclaré…"
-          className="min-w-0 flex-1 rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="min-w-0 flex-1 rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
         />
-        <button className="inline-flex items-center gap-2 rounded-md border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-clay">
+        <button className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-clay">
           <Search className="h-4 w-4" />
           Chercher
         </button>

@@ -40,7 +40,7 @@ export default async function SupportPage() {
     <div className="mx-auto max-w-3xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <LifeBuoy className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">Support</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">Support</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
         Envoyez une demande à l&apos;équipe SafeLinkHub et suivez son statut.
@@ -59,7 +59,7 @@ export default async function SupportPage() {
                 href={url as string}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
               >
                 <Icon className="h-4 w-4" />
                 {label}

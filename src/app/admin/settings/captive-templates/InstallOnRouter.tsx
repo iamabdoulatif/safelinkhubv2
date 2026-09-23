@@ -77,7 +77,7 @@ export default function InstallOnRouter({
       </p>
 
       {routers.length === 0 ? (
-        <p className="mt-3 rounded-md border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
+        <p className="mt-3 rounded-lg border border-line-soft bg-clay px-3 py-2 text-sm text-ink-soft">
           Aucun routeur dans votre organisation — ajoutez-en un d&apos;abord.
         </p>
       ) : (
@@ -88,7 +88,7 @@ export default function InstallOnRouter({
               <select
                 value={routerId}
                 onChange={(e) => setRouterId(e.target.value)}
-                className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none"
+                className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
               >
                 {routers.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -103,7 +103,7 @@ export default function InstallOnRouter({
               <select
                 value={templateId}
                 onChange={(e) => setTemplateId(e.target.value)}
-                className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:outline-none"
+                className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
               >
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -117,7 +117,7 @@ export default function InstallOnRouter({
               type="button"
               onClick={install}
               disabled={pending || !routerId || !templateId}
-              className="flex items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+              className="flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
             >
               <UploadCloud className="h-4 w-4" />
               {pending ? "Installation…" : "Installer le portail"}
@@ -126,7 +126,7 @@ export default function InstallOnRouter({
 
           {feedback && (
             <p
-              className={`mt-3 rounded-md px-3 py-2 text-sm ${
+              className={`mt-3 rounded-lg px-3 py-2 text-sm ${
                 feedback.kind === "ok" ? "bg-clay text-ok" : "bg-err-soft text-err"
               }`}
             >

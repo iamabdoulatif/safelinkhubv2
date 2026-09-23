@@ -32,8 +32,8 @@ export default function FloatTransactionModal({
         onClick={() => setOpen(true)}
         className={
           isDeposit
-            ? "rounded-md bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep"
-            : "rounded-md border border-line-soft bg-paper px-4 py-2 text-sm font-medium text-ink hover:bg-clay"
+            ? "rounded-lg bg-brand-deep px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep"
+            : "rounded-lg border border-line-soft bg-paper px-4 py-2 text-sm font-medium text-ink hover:bg-clay"
         }
       >
         {isDeposit ? "+ Dépôt" : "- Retrait"}
@@ -56,7 +56,7 @@ export default function FloatTransactionModal({
             </div>
 
             {state?.error && (
-              <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+              <p className="mt-4 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
                 {state.error}
               </p>
             )}
@@ -72,7 +72,7 @@ export default function FloatTransactionModal({
                   min={1}
                   required
                   placeholder="10000"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
                 />
               </div>
               <div>
@@ -82,7 +82,7 @@ export default function FloatTransactionModal({
                 <input
                   name="note"
                   placeholder="Ex: dépôt mobile money"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-line-soft focus:outline-none"
+                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
                 />
               </div>
             </div>
@@ -91,14 +91,14 @@ export default function FloatTransactionModal({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
               >
                 {pending ? "Enregistrement..." : "Confirmer"}
               </button>

@@ -56,7 +56,7 @@ function RouterPageHeader({ t }: { t: RouterDictionary["page"] }) {
        l'exploitant n'est pas « où suis-je », c'est « est-ce que mon parc va
        bien ». Le titre se range, l'état du parc prend la place. */
     <header>
-      <h1 className="font-display text-lg font-semibold tracking-tight text-ink sm:text-xl">
+      <h1 className="text-ink text-2xl font-semibold tracking-tight">
         {t.title}
       </h1>
       <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-soft">{t.description}</p>

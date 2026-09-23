@@ -9,7 +9,7 @@ import type { GeoPlace } from "@/lib/geo/geocode";
    `ssr: false` parce que Leaflet touche `window` dès son import. */
 const LocationMap = dynamic(() => import("./LocationMap"), {
   ssr: false,
-  loading: () => <div className="h-64 w-full animate-pulse rounded-md bg-clay" />,
+  loading: () => <div className="h-64 w-full animate-pulse rounded-lg bg-clay" />,
 });
 
 /**
@@ -39,7 +39,7 @@ const LocationMap = dynamic(() => import("./LocationMap"), {
  */
 
 const inputClass =
-  "w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none";
+  "w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink";
 const labelClass = "mb-1 block text-xs font-medium text-ink-soft";
 
 type Adresse = {
@@ -207,7 +207,7 @@ export default function RouterLocationPicker({ initial }: { initial?: LocationIn
   );
 
   return (
-    <div className="rounded-md border border-line-soft bg-clay/30 p-3">
+    <div className="rounded-lg border border-line-soft bg-clay/30 p-3">
       <div className="flex items-start gap-2">
         <MapPin aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand-deep" />
         <div className="min-w-0">
@@ -226,7 +226,7 @@ export default function RouterLocationPicker({ initial }: { initial?: LocationIn
           disabled={occupe !== ""}
           /* Pleine largeur sous sm : sur la même ligne que la recherche, le
              champ de saisie tombait à 30 px de large sur un téléphone. */
-          className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md bg-ink px-3 py-2 text-xs font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60 sm:w-auto sm:justify-start"
+          className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60 sm:w-auto sm:justify-start"
         >
           {occupe === "position" ? (
             <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
@@ -254,7 +254,7 @@ export default function RouterLocationPicker({ initial }: { initial?: LocationIn
             type="button"
             onClick={() => void chercher()}
             disabled={occupe !== "" || recherche.trim().length < 3}
-            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-line-soft bg-paper px-3 py-2 text-xs font-semibold text-ink hover:bg-clay disabled:opacity-60"
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line-soft bg-paper px-3 py-2 text-xs font-semibold text-ink hover:bg-clay disabled:opacity-60"
           >
             {occupe === "recherche" ? (
               <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
@@ -267,7 +267,7 @@ export default function RouterLocationPicker({ initial }: { initial?: LocationIn
       </div>
 
       {resultats.length > 0 && (
-        <ul role="list" className="mt-2 divide-y divide-line-soft rounded-md border border-line-soft bg-paper">
+        <ul role="list" className="mt-2 divide-y divide-line-soft rounded-lg border border-line-soft bg-paper">
           {resultats.map((place) => (
             <li key={`${place.latitude},${place.longitude}`}>
               <button
@@ -333,7 +333,7 @@ export default function RouterLocationPicker({ initial }: { initial?: LocationIn
           <button
             type="button"
             onClick={() => setCarteOuverte(true)}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-line-soft bg-paper px-3 py-2 text-xs font-semibold text-ink hover:bg-clay"
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line-soft bg-paper px-3 py-2 text-xs font-semibold text-ink hover:bg-clay"
           >
             <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
             {situe ? "Vérifier sur la carte" : "Placer sur la carte"}

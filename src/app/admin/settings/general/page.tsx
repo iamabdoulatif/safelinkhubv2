@@ -61,7 +61,7 @@ export default async function GeneralSettingsPage() {
     <div className="mx-auto max-w-3xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <SettingsIcon className="h-5 w-5 text-ink" />
-        <h1 className="text-2xl font-bold text-ink">Général</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">Général</h1>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
         Vue d&apos;ensemble de votre organisation et accès rapide aux autres paramètres.

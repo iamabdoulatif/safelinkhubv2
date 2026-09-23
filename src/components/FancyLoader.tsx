@@ -30,14 +30,14 @@ const SIZE_MAP = {
 
 const COLOR_MAP = {
   ink: "border-ink",
-  brand: "border-brand",
+  brand: "border-brand-deep",
   white: "border-white",
   ok: "border-ok",
 };
 
 const BG_COLOR_MAP = {
   ink: "bg-ink",
-  brand: "bg-brand",
+  brand: "bg-brand-deep",
   white: "bg-white",
   ok: "bg-ok",
 };

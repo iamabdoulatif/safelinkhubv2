@@ -30,7 +30,7 @@ export default function VpnQuotaForm({
         <select
             name="grant"
             disabled={pending}
-            className="h-9 w-full rounded-md border border-line bg-paper px-2 text-xs text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-60"
+            className="h-9 w-full rounded-lg border border-line bg-paper px-2 text-xs text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-60"
             aria-label={`Quota VPN pour ${userEmail}`}
           >
             <optgroup label="Promo · parrainage · récompense">
@@ -65,7 +65,7 @@ export default function VpnQuotaForm({
               value={routerId}
               onChange={(event) => setRouterId(event.target.value)}
               disabled={pending}
-              className="h-9 min-w-0 flex-1 rounded-md border border-line bg-paper px-2 text-xs text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-60"
+              className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-paper px-2 text-xs text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-60"
               aria-label={`Portée du quota VPN pour ${userEmail}`}
             >
               <option value="">Toute l&apos;organisation ({routers.length} routeurs)</option>
@@ -79,7 +79,7 @@ export default function VpnQuotaForm({
           <button
             type="submit"
             disabled={pending}
-            className="flex h-9 items-center gap-1.5 rounded-md bg-ink px-3 text-xs font-semibold text-white hover:bg-slate-deep-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-ink px-3 text-xs font-semibold text-white hover:bg-slate-deep-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending && <Loader2 className="h-3 w-3 animate-spin" />}
             {pending ? "Application..." : "Appliquer"}
@@ -89,12 +89,12 @@ export default function VpnQuotaForm({
 
       {/* Dire à QUI l'on donne, et ce que cette cible a déjà : appliquer un
           quota sans voir la portée choisie est la façon d'offrir tout un parc. */}
-      <p className="text-[11px] text-ink-soft">
+      <p className="text-xs text-ink-soft">
         {cible
           ? `Routeur « ${cible.name} » — actuellement : ${cible.quotaLabel}.`
           : "S'applique à tous les routeurs du compte."}
       </p>
-      <p className="text-[11px] text-ink-soft">
+      <p className="text-xs text-ink-soft">
         Les passes promotionnels sont gratuits et ne débitent jamais Safecoin.
       </p>
 

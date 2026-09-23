@@ -71,7 +71,7 @@ export default function MethodTabs() {
             routeur se connecte vers SafeLinkHub via un tunnel WireGuard.
           </p>
 
-          <details className="mt-4 rounded-md border border-line-soft px-4 py-3 text-sm text-ink-soft">
+          <details className="mt-4 rounded-lg border border-line-soft px-4 py-3 text-sm text-ink-soft">
             <summary className="cursor-pointer font-medium text-ink">
               Préparation initiale (optionnel)
             </summary>
@@ -86,7 +86,7 @@ export default function MethodTabs() {
             <GenerateScriptForm />
           </div>
 
-          <div className="mt-4 rounded-md bg-clay px-3 py-2.5 text-xs text-warn">
+          <div className="mt-4 rounded-lg bg-clay px-3 py-2.5 text-xs text-warn">
             <p className="font-medium">
               Note : Si vous obtenez une erreur &quot;not allowed by device mode&quot;, exécutez
               cette commande sur le routeur, puis confirmez physiquement dans les 10 minutes
@@ -96,7 +96,7 @@ export default function MethodTabs() {
               {DEVICE_MODE_UNLOCK_SCRIPT}
             </pre>
 
-            <details className="mt-3 rounded-md border border-line-soft bg-paper px-3 py-2.5 text-xs text-ink-soft">
+            <details className="mt-3 rounded-lg border border-line-soft bg-paper px-3 py-2.5 text-xs text-ink-soft">
               <summary className="cursor-pointer font-semibold text-ink">
                 MikroTik neuf / scellé (jamais configuré) — préparation complète
               </summary>
@@ -158,7 +158,7 @@ export default function MethodTabs() {
               <pre className="mt-2 code-block p-4">
                 {ENABLE_API_SCRIPT}
               </pre>
-              <p className="mt-2 rounded-md bg-clay px-3 py-2 text-xs text-warn">
+              <p className="mt-2 rounded-lg bg-clay px-3 py-2 text-xs text-warn">
                 Note : N&apos;exposez jamais l&apos;API RouterOS directement sur
                 internet sans restrictions de pare-feu.
               </p>

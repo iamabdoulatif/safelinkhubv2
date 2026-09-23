@@ -65,7 +65,7 @@ export default function RouterLockButton({
           {isBusy ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : <LockOpen aria-hidden="true" className="h-3.5 w-3.5" />}
           Déverrouiller
         </button>
-        {error && <span role="alert" className="text-[11px] font-medium text-err">{error}</span>}
+        {error && <span role="alert" className="text-xs font-medium text-err">{error}</span>}
       </span>
     );
   }
@@ -73,7 +73,7 @@ export default function RouterLockButton({
   if (confirming) {
     return (
       <span className={`flex flex-wrap items-center gap-1.5 ${menu ? "px-3 py-2" : "justify-end"}`}>
-        <span className="text-[11px] font-medium text-ink">Couper tous les ports sauf le WAN ?</span>
+        <span className="text-xs font-medium text-ink">Couper tous les ports sauf le WAN ?</span>
         <button
           type="button"
           disabled={isBusy}
@@ -91,7 +91,7 @@ export default function RouterLockButton({
         >
           Annuler
         </button>
-        {error && <span role="alert" className="w-full text-right text-[11px] font-medium text-err">{error}</span>}
+        {error && <span role="alert" className="w-full text-right text-xs font-medium text-err">{error}</span>}
       </span>
     );
   }
@@ -112,7 +112,7 @@ export default function RouterLockButton({
         <Lock aria-hidden="true" className="h-3.5 w-3.5" />
         Verrouiller
       </button>
-      {error && <span role="alert" className="text-[11px] font-medium text-err">{error}</span>}
+      {error && <span role="alert" className="text-xs font-medium text-err">{error}</span>}
     </span>
   );
 }

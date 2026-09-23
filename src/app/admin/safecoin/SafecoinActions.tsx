@@ -20,7 +20,7 @@ export default function SafecoinActions({
     <div className="border border-line bg-paper p-5 sm:p-6 rounded-xl">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-deep">Paramètres de contrôle</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-deep">Paramètres de contrôle</p>
           <h2 className="mt-1 text-lg font-semibold text-ink">Taux et frais</h2>
           <p className="mt-1 max-w-2xl text-sm text-ink-soft">Les changements s&apos;appliquent uniquement aux nouvelles opérations. Les écritures existantes conservent leur taux et leur version.</p>
         </div>

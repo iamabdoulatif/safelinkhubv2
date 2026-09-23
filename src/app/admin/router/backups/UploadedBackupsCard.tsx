@@ -112,7 +112,7 @@ export default function UploadedBackupsCard({
             disabled={uploading}
             className="hidden"
           />
-          <span className="inline-flex items-center gap-2 border border-line bg-brand px-4 py-2 text-slate-deep transition hover:bg-ink hover:text-paper rounded-full">
+          <span className="inline-flex items-center gap-2 border border-line bg-brand px-4 py-2 text-slate-deep transition hover:bg-brand/80 rounded-full">
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
             {uploading ? "Upload en cours…" : "Choisir un fichier .backup"}
           </span>
@@ -127,7 +127,7 @@ export default function UploadedBackupsCard({
       {/* Liste */}
       <div className="mt-4 space-y-3">
         {items.length === 0 ? (
-          <p className="rounded-md bg-clay px-3 py-2.5 text-sm text-ink-soft">
+          <p className="rounded-lg bg-clay px-3 py-2.5 text-sm text-ink-soft">
             Aucun fichier uploadé pour le moment.
           </p>
         ) : (
@@ -211,7 +211,7 @@ function UploadedRow({
           <p className="font-bold text-ink">
             {backup.fileName}
             {backup.encrypted && (
-              <span className="ml-2 border border-warn px-1.5 py-0.5 text-[11px] font-semibold text-warn">
+              <span className="ml-2 border border-warn px-1.5 py-0.5 text-xs font-semibold text-warn">
                 chiffré
               </span>
             )}
@@ -278,7 +278,7 @@ function UploadedRow({
             setConfirming(true);
           }}
           disabled={busy || !targetId}
-          className="flex items-center justify-center gap-1.5 border border-line bg-brand px-3 py-2 text-sm font-bold text-slate-deep transition hover:bg-ink hover:text-paper disabled:opacity-50 rounded-full"
+          className="flex items-center justify-center gap-1.5 border border-line bg-brand px-3 py-2 text-sm font-semibold text-slate-deep transition hover:bg-brand/80 disabled:opacity-50 rounded-full"
         >
           <RotateCcw className="h-4 w-4" />
           Restaurer (cloner)
@@ -348,7 +348,7 @@ function UploadedRow({
               type="button"
               onClick={doRestore}
               disabled={busy || !sameDeviceConfirmed}
-              className="flex items-center gap-1.5 border border-line bg-brand px-3 py-1.5 text-sm font-bold text-slate-deep transition hover:bg-ink hover:text-paper disabled:opacity-50 rounded-full"
+              className="flex items-center gap-1.5 border border-line bg-brand px-3 py-1.5 text-sm font-semibold text-slate-deep transition hover:bg-brand/80 disabled:opacity-50 rounded-full"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               Oui, restaurer

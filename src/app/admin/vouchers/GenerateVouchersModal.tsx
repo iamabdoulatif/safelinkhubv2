@@ -52,7 +52,7 @@ export default function GenerateVouchersModal({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-md border border-line-soft bg-paper px-4 py-2 text-sm font-medium text-ink hover:bg-clay"
+        className="rounded-lg border border-line-soft bg-paper px-4 py-2 text-sm font-medium text-ink hover:bg-clay"
       >
         Générer des vouchers
       </button>
@@ -86,7 +86,7 @@ export default function GenerateVouchersModal({
 
             <div className="mt-4" aria-live="polite">
               {state?.error && (
-                <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">
+                <p className="rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
                   <span className="flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {state.error}
@@ -94,7 +94,7 @@ export default function GenerateVouchersModal({
                 </p>
               )}
               {state?.success && (
-                <p className="rounded-md bg-clay px-3 py-2 text-sm text-ok">
+                <p className="rounded-lg bg-clay px-3 py-2 text-sm text-ok">
                   <span className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     Vouchers générés avec succès.
@@ -112,7 +112,7 @@ export default function GenerateVouchersModal({
                   ref={firstSelectRef}
                   name="packageId"
                   required
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
                 >
                   {packages.length === 0 && <option value="">Aucun forfait</option>}
                   {packages.map((p) => (
@@ -131,7 +131,7 @@ export default function GenerateVouchersModal({
                   name="prefix"
                   maxLength={10}
                   placeholder="ex : fatou"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
                 />
                 <p className="mt-1 text-xs text-ink-soft">
                   Ajouté devant chaque code (minuscules/chiffres). Ex : <span className="font-mono">fatou3k9x1</span>.
@@ -143,11 +143,11 @@ export default function GenerateVouchersModal({
                   Zones WiFi (routeurs)
                 </label>
                 {routers.length === 0 ? (
-                  <p className="rounded-md border border-line-soft px-3 py-2 text-sm text-ink-soft">
+                  <p className="rounded-lg border border-line-soft px-3 py-2 text-sm text-ink-soft">
                     Aucun routeur.
                   </p>
                 ) : (
-                  <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-line-soft p-2">
+                  <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-line-soft p-2">
                     {routers.map((r, i) => (
                       <label
                         key={r.id}
@@ -184,7 +184,7 @@ export default function GenerateVouchersModal({
                   max={200}
                   defaultValue={10}
                   required
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-ink"
                 />
               </div>
 
@@ -195,7 +195,7 @@ export default function GenerateVouchersModal({
                 <input
                   name="note"
                   placeholder="lot-test"
-                  className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ok focus:ring-2 focus:ring-ink/20 focus:outline-none"
+                  className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
                 />
               </div>
             </div>
@@ -204,14 +204,14 @@ export default function GenerateVouchersModal({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
+                className="rounded-lg border border-line-soft px-4 py-2 text-sm font-medium text-ink-soft hover:bg-clay"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={pending || packages.length === 0 || routers.length === 0}
-                className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
+                className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-brand disabled:opacity-60"
               >
                 {pending ? "Génération..." : "Générer"}
               </button>

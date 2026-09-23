@@ -62,8 +62,8 @@ export default function PackagePreview({ files }: { files: unknown }) {
         </span>
         <div className="h-2.5 w-3/4 rounded-full" style={{ backgroundColor: textPrimary, opacity: 0.85 }} />
         <div className="h-2 w-1/2 rounded-full" style={{ backgroundColor: textSecondary, opacity: 0.5 }} />
-        <div className="h-7 w-full rounded-md" style={{ backgroundColor: bgBody }} />
-        <div className="h-7 w-full rounded-md" style={{ backgroundColor: primary }} />
+        <div className="h-7 w-full rounded-lg" style={{ backgroundColor: bgBody }} />
+        <div className="h-7 w-full rounded-lg" style={{ backgroundColor: primary }} />
       </div>
     </div>
   );

@@ -39,7 +39,7 @@ export default function TargetProfileCard() {
         <button
           type="button"
           onClick={copyChecklist}
-          className="inline-flex items-center justify-center gap-2 rounded-md border border-line-soft px-3 py-2 text-sm font-medium text-ink hover:bg-clay"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-line-soft px-3 py-2 text-sm font-medium text-ink hover:bg-clay"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           {copied ? "Copié" : "Copier la checklist"}
@@ -79,7 +79,7 @@ export default function TargetProfileCard() {
         />
       </div>
 
-      <div className="mt-4 rounded-md bg-clay px-3 py-2.5">
+      <div className="mt-4 rounded-lg bg-clay px-3 py-2.5">
         <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
           Préflight avant auto-setup
         </p>

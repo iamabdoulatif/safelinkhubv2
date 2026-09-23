@@ -64,7 +64,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
             onDone();
             router.refresh();
           }}
-          className="mt-4 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
+          className="mt-4 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line"
         >
           J&apos;ai sauvegardé mes codes
         </button>
@@ -85,7 +85,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
             alt="QR code de configuration MFA"
             width={160}
             height={160}
-            className="rounded-md border border-line-soft"
+            className="rounded-lg border border-line-soft"
           />
         )}
         <div className="text-xs text-ink-soft">
@@ -108,7 +108,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"
-            className="w-40 rounded-lg border border-line-soft px-3 py-2 text-center tracking-widest focus:border-ok focus:outline-none focus:ring-1 focus:ring-ink"
+            className="w-40 rounded-lg border border-line-soft px-3 py-2 text-center tracking-widest focus:border-ink"
           />
         </div>
         {confirmState && !confirmState.success && (
@@ -120,7 +120,7 @@ function EnrollmentFlow({ onDone }: { onDone: () => void }) {
           <button
             type="submit"
             disabled={confirmPending}
-            className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+            className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
           >
             {confirmPending ? "Vérification..." : "Activer"}
           </button>
@@ -160,7 +160,7 @@ function DisableMfaFlow({ onDone }: { onDone: () => void }) {
         required
         autoComplete="current-password"
         placeholder="Mot de passe actuel"
-        className="w-full max-w-xs rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-err focus:outline-none focus:ring-1 focus:ring-err"
+        className="w-full max-w-xs rounded-lg border border-line-soft px-3 py-2 text-sm focus:border-err focus:ring-err"
       />
       {state && !state.success && (
         <p className="text-xs text-err">{state.error}</p>
@@ -169,7 +169,7 @@ function DisableMfaFlow({ onDone }: { onDone: () => void }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-err px-4 py-2 text-sm font-medium text-white hover:bg-ink disabled:opacity-60"
+          className="rounded-lg bg-err px-4 py-2 text-sm font-medium text-white hover:bg-ink disabled:opacity-60"
         >
           {pending ? "Désactivation..." : "Désactiver la double authentification"}
         </button>
@@ -206,7 +206,7 @@ export default function MfaSection({ mfaEnabled }: { mfaEnabled: boolean }) {
         <button
           type="button"
           onClick={() => setMode("disabling")}
-          className="rounded-md border border-line-soft px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-clay"
+          className="rounded-lg border border-line-soft px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-clay"
         >
           Désactiver
         </button>
@@ -214,7 +214,7 @@ export default function MfaSection({ mfaEnabled }: { mfaEnabled: boolean }) {
         <button
           type="button"
           onClick={() => setMode("enrolling")}
-          className="flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line"
+          className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-deep-line"
         >
           <Check className="h-3.5 w-3.5" />
           Activer la double authentification

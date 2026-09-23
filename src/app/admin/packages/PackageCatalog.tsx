@@ -80,7 +80,7 @@ export default function PackageCatalog({ zones }: { zones: ZoneCatalogue[] }) {
                 onChange={(e) => setRecherche(e.target.value)}
                 placeholder="Chercher une zone"
                 aria-label="Chercher une zone"
-                className="w-full rounded-lg border border-line bg-paper py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-soft focus:border-ink focus:outline-none"
+                className="w-full rounded-lg border border-line bg-paper py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-soft focus:border-ink"
               />
             </label>
           )}

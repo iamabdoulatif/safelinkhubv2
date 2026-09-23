@@ -7,7 +7,7 @@ import type { MarketingSettings } from "@/lib/marketing/queries";
 import { updateMarketingSettings } from "@/lib/marketing/actions";
 
 const INPUT_CLS =
-  "w-full border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ok focus:outline-none";
+  "w-full border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink";
 
 export default function MarketingForm({ settings }: { settings: MarketingSettings }) {
   const router = useRouter();

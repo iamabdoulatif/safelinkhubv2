@@ -71,7 +71,7 @@ export default function GenerateScriptForm() {
 
   if (connection === "connected") {
     return (
-      <div className="rounded-md bg-clay px-4 py-3 text-sm text-ok">
+      <div className="rounded-lg bg-clay px-4 py-3 text-sm text-ok">
         Routeur connecté avec succès via le tunnel VPN. Consultez les
         statistiques en direct sur le{" "}
         <Link href="/admin/router" className="font-semibold underline">
@@ -98,7 +98,7 @@ export default function GenerateScriptForm() {
           </pre>
           <button
             onClick={copyCommand}
-            className="absolute right-2 top-2 rounded-md bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
+            className="absolute right-2 top-2 rounded-lg bg-slate-deep-line p-1.5 text-white hover:bg-slate-deep-line"
             title="Copier la commande"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -128,7 +128,7 @@ export default function GenerateScriptForm() {
     <>
       <form action={formAction} className="space-y-4">
         {locked ? (
-          <div className="flex items-start gap-2 rounded-md bg-warn-soft px-3 py-2.5 text-sm text-warn">
+          <div className="flex items-start gap-2 rounded-lg bg-warn-soft px-3 py-2.5 text-sm text-warn">
             <Lock className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <p className="font-medium">Fonctionnalité verrouillée</p>
@@ -147,7 +147,7 @@ export default function GenerateScriptForm() {
           </div>
         ) : (
           state?.error && (
-            <p className="rounded-md bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
+            <p className="rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{state.error}</p>
           )
         )}
         <div>
@@ -158,14 +158,14 @@ export default function GenerateScriptForm() {
             name="name"
             required
             placeholder="hAP ac lite"
-            className="w-full rounded-md border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-line-soft focus:outline-none"
+            className="w-full rounded-lg border border-line-soft px-3 py-2 text-sm placeholder:text-ink-soft focus:border-ink"
           />
         </div>
         <RouterLocationPicker />
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
+          className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-60"
         >
           {pending ? "Génération..." : "Générer le script d'installation"}
         </button>

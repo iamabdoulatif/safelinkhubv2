@@ -132,7 +132,7 @@ function InterfaceCard({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-mono text-sm font-bold text-ink">{port.name}</span>
-        <span className="block font-mono text-[11px] text-ink-soft">{port.type}</span>
+        <span className="block font-mono text-xs text-ink-soft">{port.type}</span>
       </span>
       <StatusDot port={port} />
     </label>
@@ -334,7 +334,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
         {applied.bootstrapCommand && (
           <div className="mt-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-ink-soft">
+              <p className="font-mono text-xs font-semibold uppercase tracking-widest text-ink-soft">
                 Commande de bootstrap (terminal MikroTik)
               </p>
               <button
@@ -345,7 +345,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     setTimeout(() => setCopied(false), 1800);
                   });
                 }}
-                className="flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1 text-xs font-bold text-ink transition-colors duration-150 hover:bg-brand rounded-xl"
+                className="flex items-center gap-1.5 border border-line bg-paper px-2.5 py-1 text-xs font-semibold text-ink transition-colors duration-150 hover:bg-brand rounded-xl"
               >
                 {copied ? (
                   <Check aria-hidden="true" className="h-3.5 w-3.5" />
@@ -362,7 +362,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
             href="/admin/settings/router-setup"
-            className="flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper rounded-full"
+            className="flex items-center gap-2 border border-line bg-brand px-4 py-2 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 rounded-full"
           >
             Lancer l&apos;auto-setup complet
             <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -489,7 +489,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                   ? undefined
                   : "Choisissez une interface WAN, activez au moins un service et assignez-lui des interfaces"
               }
-              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50 rounded-full"
+              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:cursor-not-allowed disabled:opacity-50 rounded-full"
             >
               Suivant : configurer les services
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -515,7 +515,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     id="sw-bridge-name"
                     value={bridgeName}
                     onChange={(e) => setBridgeName(e.target.value)}
-                    className="mt-1.5 w-full border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
+                    className="mt-1.5 w-full border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
                   />
                 </div>
                 <div>
@@ -527,7 +527,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     value={gatewayIp}
                     onChange={(e) => setGatewayIp(e.target.value)}
                     aria-invalid={!gatewayValid}
-                    className={`mt-1.5 w-full border bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
+                    className={`mt-1.5 w-full border bg-paper px-3 py-2 font-mono text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink ${
                       gatewayValid ? "border-line" : "border-err"
                     }`}
                   />
@@ -542,7 +542,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     onChange={(e) => {
                       if (e.target.value) setGatewayIp(e.target.value);
                     }}
-                    className="mt-2 w-full border border-line-soft bg-paper px-3 py-1.5 font-mono text-xs text-ink-soft focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
+                    className="mt-2 w-full border border-line-soft bg-paper px-3 py-1.5 font-mono text-xs text-ink-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
                   >
                     <option value="">Passerelles courantes…</option>
                     {GATEWAY_IP_PRESET_GROUPS.map((group) => (
@@ -564,7 +564,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                     id="sw-subnet"
                     value={subnetBits}
                     onChange={(e) => setSubnetBits(Number(e.target.value))}
-                    className="mt-1.5 w-full border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
+                    className="mt-1.5 w-full border border-line bg-paper px-3 py-2 font-mono text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg"
                   >
                     {/* Liste PARTAGÉE (lib/net/subnet), pas une copie locale :
                         celle-ci s'arrêtait à /19 alors que le helper couvre /8
@@ -630,7 +630,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
               type="button"
               disabled={hotspotEnabled && !gatewayValid}
               onClick={() => setStep(3)}
-              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50 rounded-full"
+              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:cursor-not-allowed disabled:opacity-50 rounded-full"
             >
               Suivant : révision
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -656,7 +656,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
                   {hotspotEnabled ? (
                     <>
                       <span className="font-mono">{hotspotPorts.join(", ")}</span>
-                      <span className="ml-2 bg-brand px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-deep rounded-full">
+                      <span className="ml-2 bg-brand px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-deep rounded-full">
                         {gatewayIp}/{subnetBits}
                       </span>
                     </>
@@ -711,7 +711,7 @@ export default function ServicesWizard({ routerId }: { routerId: string }) {
               type="button"
               disabled={isApplying}
               onClick={apply}
-              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-bold text-slate-deep transition-colors duration-150 hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60 rounded-full"
+              className="flex items-center gap-2 border border-line bg-brand px-5 py-2.5 text-sm font-semibold text-slate-deep transition-colors duration-150 hover:bg-brand/80 disabled:cursor-not-allowed disabled:opacity-60 rounded-full"
             >
               {isApplying ? (
                 <>

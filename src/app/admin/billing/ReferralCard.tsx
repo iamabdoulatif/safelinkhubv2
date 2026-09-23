@@ -89,12 +89,12 @@ export default function ReferralCard({
           readOnly
           value={shareUrl}
           onFocus={(e) => e.currentTarget.select()}
-          className="w-full border border-line bg-paper px-3 py-2.5 font-mono text-xs text-ink focus:outline-none focus:ring-4 focus:ring-brand/35 rounded-lg"
+          className="w-full border border-line bg-paper px-3 py-2.5 font-mono text-xs text-ink rounded-lg"
         />
         <button
           type="button"
           onClick={copy}
-          className="inline-flex shrink-0 items-center gap-1.5 border border-line bg-brand px-3 py-2.5 text-sm font-bold text-slate-deep hover:opacity-90 rounded-full"
+          className="inline-flex shrink-0 items-center gap-1.5 border border-line bg-brand px-3 py-2.5 text-sm font-semibold text-slate-deep hover:opacity-90 rounded-full"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           {copied ? "Copié" : "Copier"}

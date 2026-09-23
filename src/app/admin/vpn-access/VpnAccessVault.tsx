@@ -147,7 +147,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-ok">
             <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Centre de contrôle
           </div>
-          <h1 className="text-2xl font-bold text-ink">Accès VPN clients</h1>
+          <h1 className="text-ink text-2xl font-semibold tracking-tight">Accès VPN clients</h1>
           <p className="mt-1 max-w-2xl text-sm text-ink-soft">
             Retrouvez les accès achetés, leurs URL opérationnelles et les identifiants à révéler au besoin, sans exposer les secrets dans la liste.
           </p>
@@ -210,8 +210,8 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-ink">{row.routerName}</span>
-                      <span className="rounded-full bg-clay px-2 py-0.5 text-[11px] font-medium text-ink-soft">{row.orgName}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${row.routerStatus === "online" ? "bg-ok-soft text-ok" : "bg-clay text-ink-soft"}`}>
+                      <span className="rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-ink-soft">{row.orgName}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${row.routerStatus === "online" ? "bg-ok-soft text-ok" : "bg-clay text-ink-soft"}`}>
                         {statusLabel(row.routerStatus)}
                       </span>
                     </span>
@@ -232,8 +232,8 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
                               </span>
                             </div>
                             <p className="mt-1 text-xs text-ink-soft">{PERIOD_LABELS[service.billingPeriod] ?? service.billingPeriod} · expire le {dateLabel(service.expiresAt)}</p>
-                            <div className="mt-3 rounded-md bg-clay/60 px-2.5 py-2">
-                              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Lien opérationnel</p>
+                            <div className="mt-3 rounded-lg bg-clay/60 px-2.5 py-2">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-ink-soft">Lien opérationnel</p>
                               {service.accessUrl ? (
                                 <div className="mt-1 flex items-center gap-2">
                                   <a
@@ -252,7 +252,7 @@ export default function VpnAccessVault({ inventory }: { inventory: VpnAccessInve
                               ) : (
                                 <p className="mt-1 text-xs text-ink-soft">Hôte public non configuré</p>
                               )}
-                              {service.publicAddress && <p className="mt-1 font-mono text-[11px] text-ink-soft">Adresse : {service.publicAddress}</p>}
+                              {service.publicAddress && <p className="mt-1 font-mono text-xs text-ink-soft">Adresse : {service.publicAddress}</p>}
                             </div>
                             {(service.payerName || service.payerEmail) && <p className="mt-2 truncate text-xs text-ink-soft">Payé par {service.payerName || service.payerEmail}</p>}
                           </div>

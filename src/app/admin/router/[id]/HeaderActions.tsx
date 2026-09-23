@@ -229,7 +229,7 @@ export default function HeaderActions({
           id="router-maintenance-menu"
           role="menu"
           aria-label="Actions de maintenance"
-          className="fixed z-50 w-72 overflow-hidden rounded-xl border border-line bg-paper py-1 shadow-xl"
+          className="fixed z-50 w-72 overflow-hidden rounded-xl border border-line bg-paper py-1 shadow-menu"
           style={{ top: anchor.top, right: anchor.right }}
         >
           <MenuItem
@@ -318,7 +318,7 @@ function MenuItem({
       <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
       <span className="min-w-0">
         <span className="block text-sm font-semibold leading-5">{label}</span>
-        <span className={`block text-[11px] leading-4 ${danger ? "text-err/80" : "text-ink-soft"}`}>{hint}</span>
+        <span className={`block text-xs leading-4 ${danger ? "text-err/80" : "text-ink-soft"}`}>{hint}</span>
       </span>
     </button>
   );

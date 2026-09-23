@@ -87,7 +87,7 @@ export default async function KycDetailPage({
       {/* En-tête : qui, comment le joindre, où en est le dossier, et la
           décision — tout ce dont l'examinateur a besoin avant de fouiller. */}
       <header className="mt-4 border border-line bg-paper p-6 text-center">
-        <h1 className="flex items-center justify-center gap-2 font-display text-2xl font-bold text-ink">
+        <h1 className="flex items-center justify-center gap-2 text-ink text-2xl font-semibold tracking-tight">
           <Building2 className="h-5 w-5" />
           {d.orgName}
         </h1>
@@ -113,21 +113,21 @@ export default async function KycDetailPage({
               <textarea
                 name="adminNote"
                 rows={2}
-                className="mt-1 w-full rounded-md border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                className="mt-1 w-full rounded-lg border border-line-soft bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-brand"
               />
             </label>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
               <button
                 name="decision"
                 value="approved"
-                className="rounded-md bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line"
+                className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line"
               >
                 Valider
               </button>
               <button
                 name="decision"
                 value="rejected"
-                className="rounded-md border border-err px-5 py-2.5 text-sm font-semibold text-err hover:bg-err-soft"
+                className="rounded-lg border border-err px-5 py-2.5 text-sm font-semibold text-err hover:bg-err-soft"
               >
                 Refuser
               </button>

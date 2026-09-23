@@ -96,7 +96,7 @@ export default function WalletTransactions({ transactions }: { transactions: Wal
             type="button"
             onClick={doCleanup}
             disabled={pending}
-            className="inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-paper px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-clay disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-paper px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-clay disabled:opacity-60"
           >
             {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
             Nettoyer les échouées / en attente ({cleanableCount})
@@ -175,7 +175,7 @@ export default function WalletTransactions({ transactions }: { transactions: Wal
                       onClick={() => setEditing(t)}
                       title="Modifier"
                       aria-label="Modifier"
-                      className="rounded-md p-1.5 text-ink-soft hover:bg-clay hover:text-ink"
+                      className="rounded-lg p-1.5 text-ink-soft hover:bg-clay hover:text-ink"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
@@ -186,7 +186,7 @@ export default function WalletTransactions({ transactions }: { transactions: Wal
                         disabled={pending}
                         title="Supprimer"
                         aria-label="Supprimer"
-                        className="rounded-md p-1.5 text-err hover:bg-err-soft disabled:opacity-60"
+                        className="rounded-lg p-1.5 text-err hover:bg-err-soft disabled:opacity-60"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -215,10 +215,10 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-paper p-5 shadow-xl sm:p-6">
+      <div className="w-full max-w-md rounded-xl bg-paper p-5 shadow-modal sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">
               Transaction
             </p>
             <h2 className="mt-1 text-lg font-semibold text-ink">Modifier la transaction</h2>
@@ -228,7 +228,7 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
           </button>
         </div>
 
-        {error && <p className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">{error}</p>}
+        {error && <p className="mt-4 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{error}</p>}
 
         <form action={action} className="mt-4 space-y-4">
           <input type="hidden" name="id" value={tx.id} />
@@ -242,7 +242,7 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
               step={1}
               required
               defaultValue={tx.amountCents}
-              className="w-full rounded-md border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+              className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink"
             />
           </div>
 
@@ -251,7 +251,7 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
             <select
               name="status"
               defaultValue={tx.status}
-              className="w-full rounded-md border border-line-soft bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+              className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink"
             >
               {Object.entries(STATUS_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -267,11 +267,11 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
               name="note"
               defaultValue={tx.note ?? ""}
               placeholder="Ex : reçu Wave du 22/07"
-              className="w-full rounded-md border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+              className="w-full rounded-lg border border-line-soft bg-paper px-3 py-2.5 text-sm focus:border-ink"
             />
           </div>
 
-          <p className="rounded-md border border-line-soft bg-clay px-3 py-2 text-xs leading-5 text-ink-soft">
+          <p className="rounded-lg border border-line-soft bg-clay px-3 py-2 text-xs leading-5 text-ink-soft">
             Le solde est la somme des transactions <b>confirmées</b>. Changer le montant ou passer une
             transaction en « Confirmé » modifie donc le solde.
           </p>
@@ -281,14 +281,14 @@ function EditModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
               type="button"
               onClick={onClose}
               disabled={pending}
-              className="flex-1 rounded-md border border-line-soft bg-paper px-4 py-2.5 text-sm font-semibold text-ink hover:bg-clay disabled:opacity-60"
+              className="flex-1 rounded-lg border border-line-soft bg-paper px-4 py-2.5 text-sm font-semibold text-ink hover:bg-clay disabled:opacity-60"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={pending}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-deep-line disabled:opacity-60"
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Enregistrer

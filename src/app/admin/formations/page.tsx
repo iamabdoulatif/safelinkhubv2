@@ -31,13 +31,13 @@ export default async function AdminCoursesPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
+        <h1 className="flex items-center gap-2 text-ink text-2xl font-semibold tracking-tight">
           <GraduationCap className="h-5 w-5" />
           Formations
         </h1>
         <Link
           href="/admin/formations/new"
-          className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line"
+          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line"
         >
           <Plus className="h-4 w-4" />
           Nouvelle formation

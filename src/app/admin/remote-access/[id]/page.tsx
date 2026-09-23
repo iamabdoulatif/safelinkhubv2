@@ -62,7 +62,7 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
         <p className="text-xs font-semibold uppercase tracking-[0.15em] text-brand-deep">
           Espace routeur
         </p>
-        <h1 className="mt-1 text-2xl font-bold text-ink">{router.name}</h1>
+        <h1 className="mt-1 text-ink text-2xl font-semibold tracking-tight">{router.name}</h1>
         <p className="mt-1 text-sm text-ink-soft">
           Actions techniques et accès distants de ce MikroTik.
         </p>

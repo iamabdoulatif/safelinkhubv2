@@ -36,7 +36,7 @@ export default async function AdminContactPage() {
 
   return (
     <div className="animate-fade-in-up">
-      <h1 className="text-2xl font-bold text-ink">Messages de contact</h1>
+      <h1 className="text-ink text-2xl font-semibold tracking-tight">Messages de contact</h1>
       <p className="mt-1 text-sm text-ink-soft">
         Messages envoyés depuis le formulaire public /contact
         {newCount > 0 && ` — ${newCount} nouveau${newCount > 1 ? "x" : ""}`}.

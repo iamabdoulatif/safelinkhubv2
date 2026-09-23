@@ -52,11 +52,11 @@ function Node({
         aria-hidden="true"
         className={`mx-auto h-5 w-5 ${hub ? "text-brand-deep" : "text-ink-soft"}`}
       />
-      <p className="mt-0.5 text-[10px] font-mono font-semibold uppercase tracking-wide text-ink-soft">
+      <p className="mt-0.5 text-xs font-mono font-semibold uppercase tracking-wide text-ink-soft">
         {role}
       </p>
       <p className="font-display text-sm font-bold text-ink">{name}</p>
-      <p className="text-[11px] text-ink-soft">{sub}</p>
+      <p className="text-xs text-ink-soft">{sub}</p>
     </div>
   );
 }
@@ -66,7 +66,7 @@ function Wire({ label }: { label?: string }) {
     <div className="flex flex-col items-center py-1">
       <ArrowDown aria-hidden="true" className="h-4 w-4 text-brand-deep" />
       {label && (
-        <span className="my-0.5 border border-line-soft bg-clay px-2 py-0.5 text-[10px] font-mono font-medium text-ink-soft rounded-xl">
+        <span className="my-0.5 border border-line-soft bg-clay px-2 py-0.5 text-xs font-mono font-medium text-ink-soft rounded-xl">
           {label}
         </span>
       )}
@@ -82,10 +82,10 @@ export default function NetworkGuide() {
           <Network aria-hidden="true" className="h-4 w-4 text-brand-deep" />
           Guide de raccordement — débit optimal
         </span>
-        <span className="text-[11px] font-mono font-medium text-ink-soft group-open:hidden">
+        <span className="text-xs font-mono font-medium text-ink-soft group-open:hidden">
           Afficher ▾
         </span>
-        <span className="hidden text-[11px] font-mono font-medium text-ink-soft group-open:inline">
+        <span className="hidden text-xs font-mono font-medium text-ink-soft group-open:inline">
           Masquer ▴
         </span>
       </summary>
@@ -117,7 +117,7 @@ export default function NetworkGuide() {
               ].map((c) => (
                 <div key={c.label} className="border border-line bg-paper px-2 py-2 text-center rounded-xl">
                   <c.icon aria-hidden="true" className="mx-auto h-4 w-4 text-ink-soft" />
-                  <p className="mt-0.5 text-[11px] font-medium text-ink">{c.label}</p>
+                  <p className="mt-0.5 text-xs font-medium text-ink">{c.label}</p>
                 </div>
               ))}
             </div>
@@ -126,7 +126,7 @@ export default function NetworkGuide() {
           {/* ── Règle d'or ── */}
           <div className="mt-3 border border-dashed border-brand bg-brand/10 px-3 py-2.5">
             <p className="text-[13px] text-ink">
-              <span className="font-mono text-[11px] font-bold uppercase tracking-wide text-brand-deep">
+              <span className="font-mono text-xs font-bold uppercase tracking-wide text-brand-deep">
                 Règle d&apos;or ·{" "}
               </span>
               Le switch se place <b>APRÈS</b> le MikroTik (côté LAN), jamais entre la Box et le
@@ -148,11 +148,11 @@ export default function NetworkGuide() {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-ink-soft">
+                  <span className="font-mono text-xs uppercase tracking-wide text-ink-soft">
                     {s.brand}
                   </span>
                   <span
-                    className={`px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wide ${
+                    className={`px-1.5 py-0.5 text-xs font-mono font-bold uppercase tracking-wide ${
                       s.recommended ? "bg-brand text-slate-deep" : "border border-line-soft text-ink-soft"
                     }`}
                   >
@@ -171,7 +171,7 @@ export default function NetworkGuide() {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-3 border-t border-line-soft pt-2.5 text-[12px] text-ink-soft">
+                <p className="mt-3 border-t border-line-soft pt-2.5 text-xs text-ink-soft">
                   {s.verdict}
                 </p>
               </div>
@@ -185,9 +185,9 @@ export default function NetworkGuide() {
           <div className="divide-y divide-line-soft border border-line bg-paper">
             {CRITICAL_LINKS.map((l) => (
               <div key={l.link} className="px-3 py-2.5">
-                <p className="font-mono text-[12px] font-bold text-brand-deep">{l.link}</p>
+                <p className="font-mono text-xs font-bold text-brand-deep">{l.link}</p>
                 <p className="mt-0.5 text-[13px] text-ink">{l.need}</p>
-                <p className="mt-0.5 text-[12px] text-ink-soft">
+                <p className="mt-0.5 text-xs text-ink-soft">
                   <span className="font-medium text-warn">Piège · </span>
                   {l.trap}
                 </p>
