@@ -6,6 +6,7 @@ const STEP_LABELS: Record<number, string> = {
   1: "Connexion",
   2: "Topologie",
   3: "Auto-config",
+  4: "Installation",
 };
 
 export default function StepIndicator({

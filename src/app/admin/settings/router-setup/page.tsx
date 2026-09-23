@@ -66,15 +66,15 @@ export default async function RouterSetupPage({
           Configuration automatique du routeur
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-ink-soft">
-          Configurez votre appareil MikroTik RouterOS avec SafeLinkHub en trois
-          étapes : connexion de l&apos;appareil, topologie réseau, puis
-          configuration automatique complète.
+          Configurez votre appareil MikroTik RouterOS avec SafeLinkHub en quatre
+          étapes : connexion de l&apos;appareil, topologie réseau, configuration
+          automatique, puis installation — cette dernière démarre toute seule.
         </p>
       </div>
 
       {!isOnline ? (
         <>
-          <StepIndicator steps={[1, 2, 3]} currentStep={1} />
+          <StepIndicator steps={[1, 2, 3, 4]} currentStep={1} />
 
           {forceNew && onlineRouter && (
             <div className="mt-4 rounded-md border border-line-soft bg-clay px-4 py-2.5 text-sm text-ink-soft">
@@ -132,7 +132,7 @@ export default async function RouterSetupPage({
             savedHotspotNames={{
               serverName: router!.hotspotServerName,
             }}
-            initialStep={params.etape === "3" ? 3 : 2}
+            initialStep={params.etape === "4" ? 4 : params.etape === "3" ? 3 : 2}
           />
         </>
       )}

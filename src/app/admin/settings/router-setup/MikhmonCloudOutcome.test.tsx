@@ -9,10 +9,12 @@ describe("aboutissement MikHmon des cartes sans conteneur", () => {
     /* Le proposer sur un hAP ax³ n'aurait aucun sens : son MikHmon tourne sur
        le routeur. Le proposer avant la réussite non plus : le tunnel dont
        dépend l'instance n'est pas encore monté. */
-    const step = await lire("src/app/admin/settings/router-setup/AutoSetupStep.tsx");
+    // Le lancement vit à l'étape 4 (Installation) depuis la séparation du
+    // formulaire et de l'installation — c'est elle qui porte l'aboutissement.
+    const step = await lire("src/app/admin/settings/router-setup/AutoSetupInstallStep.tsx");
     assert.match(
       step,
-      /\{result\?\.success && !archSupportsContainers && \(\s*<MikhmonCloudOutcome routerId=\{routerId\} \/>/,
+      /phase === "done" && result\?\.success && !archSupportsContainers && \(\s*<MikhmonCloudOutcome routerId=\{routerId\} \/>/,
     );
   });
 

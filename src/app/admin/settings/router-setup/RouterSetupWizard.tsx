@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import FancyLoader from "@/components/FancyLoader";
 import TopologyBuilder from "./TopologyBuilder";
 import AutoSetupStep from "./AutoSetupStep";
+import AutoSetupInstallStep from "./AutoSetupInstallStep";
 import RouterResetButton from "./RouterResetButton";
 import StepIndicator from "./StepIndicator";
 
@@ -17,8 +18,9 @@ type SavedBridge = {
 };
 
 // 1 = connexion (gérée par la page quand le routeur est hors ligne),
-// 2 = topologie, 3 = configuration automatique complète.
-type Step = 2 | 3;
+// 2 = topologie, 3 = configuration automatique, 4 = installation (lancement
+// automatique — c'est là que le retour de paiement GeniusPay atterrit).
+type Step = 2 | 3 | 4;
 
 // Durée du loader intermédiaire affiché entre deux étapes — juste assez
 // long pour lire le libellé et laisser l'animation d'entrée respirer.
@@ -37,11 +39,12 @@ export default function RouterSetupWizard({
   savedHotspotNames: { serverName: string | null };
   // "?etape=3" : revenir directement sur la configuration automatique —
   // utilisé par le retour d'import de portail captif pour reprendre
-  // l'auto-setup là où l'admin s'était arrêté.
+  // l'auto-setup là où l'admin s'était arrêté. "?etape=4" : retour de
+  // paiement GeniusPay — l'installation démarre sans nouveau clic.
   initialStep?: Step;
 }) {
   const [step, setStep] = useState<Step>(
-    initialStep === 3 && initialBridges.length > 0 ? 3 : 2,
+    initialBridges.length > 0 && (initialStep === 3 || initialStep === 4) ? initialStep : 2,
   );
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [transitioning, setTransitioning] = useState(false);
@@ -72,12 +75,13 @@ export default function RouterSetupWizard({
   return (
     <div>
       <StepIndicator
-        steps={[1, 2, 3]}
+        steps={[1, 2, 3, 4]}
         currentStep={step}
         // Navigation libre entre les étapes 2 (topologie) et 3 (auto-config) —
         // les données de chaque étape survivent (bridges en DB, champs de
-        // l'étape 3 en sessionStorage). L'étape 1 (connexion) reste passée.
-        // L'étape 3 n'est atteignable que si au moins un bridge existe.
+        // l'étape 3 en sessionStorage). L'étape 1 (connexion) reste passée et
+        // l'étape 4 (installation) ne se visite qu'en lançant — jamais à la
+        // main, pour ne pas réinstaller par accident.
         onStepClick={(s) => {
           if (s === 2 || s === 3) goToStep(s);
         }}
@@ -92,9 +96,13 @@ export default function RouterSetupWizard({
             color="brand"
           />
           <p className="text-sm font-medium text-ink animate-pulse text-center px-4">
-            {direction === "forward"
-              ? "Préparation de la configuration automatique…"
-              : "Retour à la topologie réseau…"}
+            {direction === "back"
+              ? step === 4
+                ? "Retour à la configuration…"
+                : "Retour à la topologie réseau…"
+              : step === 3
+                ? "Lancement de l'installation…"
+                : "Préparation de la configuration automatique…"}
           </p>
         </div>
       ) : step === 2 ? (
@@ -139,10 +147,19 @@ export default function RouterSetupWizard({
             </button>
           </div>
         </div>
-      ) : (
+      ) : step === 3 ? (
         <div key="step-3" className="animate-slide-in-right">
           <AutoSetupStep
             onBack={() => goToStep(2)}
+            onLaunch={() => goToStep(4)}
+            routerId={routerId}
+            hotspotBridge={hotspotBridge}
+          />
+        </div>
+      ) : (
+        <div key="step-4" className="animate-slide-in-right">
+          <AutoSetupInstallStep
+            onBack={() => goToStep(3)}
             routerId={routerId}
             hotspotBridge={hotspotBridge}
             savedHotspotNames={savedHotspotNames}

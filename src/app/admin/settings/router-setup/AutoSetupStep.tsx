@@ -10,22 +10,22 @@
  *   pré-détectée, avertissements uniquement quand ils s'appliquent ;
  * - profils voucher pré-remplis depuis les forfaits actifs de la page
  *   Forfaits (les nouveaux créés ici y sont synchronisés en retour) ;
- * - portail captif installé par défaut avec le modèle par défaut ;
- * - la vérification post-setup (ConfigAuditBanner) s'affiche dans le même
- *   écran après le lancement — plus d'étapes de test séparées.
+ * - portail captif installé par défaut avec le modèle par défaut.
+ *
+ * Cet écran ne LANCE plus rien : « Lancer » passe à l'étape 4 (Installation),
+ * qui exécute provisionHotspotStack et porte tout le retour (journal, erreurs,
+ * déblocage de série, audit post-setup). Le paiement revient directement sur
+ * cette étape 4 — plus de second clic après le checkout.
  */
 
-import { useEffect, useRef, useState, useTransition, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft, Box, Check, Copy, Plus, Trash2 } from "lucide-react";
-import { provisionHotspotStack, getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
+import { getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
 import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
 import { listCaptiveTemplates, getRouterPortalBranding } from "@/lib/captive-templates/actions";
 import { listActivePackages } from "@/lib/packages/actions";
 import AutoSetupPaywallModal from "./AutoSetupPaywallModal";
-import SerialUnlockRequestModal from "@/components/mikrotik/SerialUnlockRequestModal";
-import { getSerialUnlockStatus } from "@/lib/mikrotik/serial-unlock-actions";
-import FancyLoader from "@/components/FancyLoader";
 import { checkDomainTaken } from "@/lib/net/domain-availability";
 import { portalDomainSuggestions, ssidFromHotspotName } from "@/lib/net/portal-domain";
 import {
@@ -47,10 +47,8 @@ import {
 } from "@/lib/mikrotik/voucher-profiles";
 import { detectRouterModel, type DetectedRouter } from "@/lib/mikrotik/device-detect";
 import DetectedModelBadge from "./DetectedModelBadge";
-import ConfigAuditBanner from "./ConfigAuditBanner";
 import TrialBadge from "@/components/billing/TrialBadge";
 import PaywallCard from "@/components/billing/PaywallCard";
-import MikhmonCloudOutcome from "./MikhmonCloudOutcome";
 
 const UNLOCK_COMMAND =
   "/system/device-mode/update mode=advanced container=yes hotspot=yes scheduler=yes fetch=yes activation-timeout=10m";
@@ -114,14 +112,17 @@ function UnlockCommandBlock() {
 
 export default function AutoSetupStep({
   onBack,
+  onLaunch,
   routerId,
   hotspotBridge,
-  savedHotspotNames,
 }: {
   onBack: () => void;
+  // Passe à l'étape 4 (Installation) : c'est elle qui exécute
+  // provisionHotspotStack — cette étape ne fait que valider, ouvrir le
+  // paywall si besoin, puis y envoyer.
+  onLaunch: () => void;
   routerId: string;
   hotspotBridge: { gatewayIp: string; subnetBits: number } | null;
-  savedHotspotNames: { serverName: string | null };
 }) {
   const [detected, setDetected] = useState<DetectedRouter | null>(null);
 
@@ -230,6 +231,10 @@ export default function AutoSetupStep({
   const [hasUsbStorage, setHasUsbStorage] = useState(false);
   const [usbTouched, setUsbTouched] = useState(false);
   const [skipMikhmon, setSkipMikhmon] = useState(false);
+  // Liaison(s) internet : « uni » (une seule) ou « dual » (deux liens —
+  // ex. Starlink + FAI — répartis en PCC + failover). Choisi ici, appliqué
+  // automatiquement à l'étape 4 juste après le hotspot, sans attendre.
+  const [wanMode, setWanMode] = useState<"uni" | "dual">("uni");
   const [installCaptivePortal, setInstallCaptivePortal] = useState(true);
   // Compte hotspot facultatif créé pour l'admin (accès internet via le portail
   // sans acheter de forfait). Vide = aucun compte créé.
@@ -301,6 +306,7 @@ export default function AutoSetupStep({
         if (typeof s.hasUsbStorage === "boolean") setHasUsbStorage(s.hasUsbStorage);
         if (typeof s.usbTouched === "boolean") setUsbTouched(s.usbTouched);
         if (typeof s.skipMikhmon === "boolean") setSkipMikhmon(s.skipMikhmon);
+        if (s.wanMode === "uni" || s.wanMode === "dual") setWanMode(s.wanMode);
         if (typeof s.installCaptivePortal === "boolean")
           setInstallCaptivePortal(s.installCaptivePortal);
         if (typeof s.adminPortalUser === "string") setAdminPortalUser(s.adminPortalUser);
@@ -346,6 +352,7 @@ export default function AutoSetupStep({
           hasUsbStorage,
           usbTouched,
           skipMikhmon,
+          wanMode,
           installCaptivePortal,
           adminPortalUser,
           adminPortalPassword,
@@ -379,6 +386,7 @@ export default function AutoSetupStep({
     hasUsbStorage,
     usbTouched,
     skipMikhmon,
+    wanMode,
     installCaptivePortal,
     adminPortalUser,
     adminPortalPassword,
@@ -454,36 +462,6 @@ export default function AutoSetupStep({
       setPortalVendors(b.vendors);
     });
   }, [routerId]);
-
-  const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<{
-    success?: boolean;
-    error?: string;
-    log?: string[];
-    firmwareUpdating?: boolean;
-    message?: string;
-    containerPending?: boolean;
-    serialLocked?: boolean;
-    serial?: string | null;
-  } | null>(null);
-
-  // Déblocage (support) d'un MikroTik rattaché à un autre compte (verrou de
-  // série). Ouvert depuis le message d'erreur quand result.serialLocked.
-  const [unlockModal, setUnlockModal] = useState<{ serial: string; latestStatus: string | null } | null>(
-    null,
-  );
-
-  // Auto-setup réussi : l'instantané n'a plus lieu d'être → on l'efface pour ne
-  // pas re-restaurer une config périmée au prochain passage dans l'étape 3.
-  useEffect(() => {
-    if (result?.success) {
-      try {
-        sessionStorage.removeItem(persistKey);
-      } catch {
-        /* best-effort */
-      }
-    }
-  }, [result?.success, persistKey]);
 
   // La détection USB arrive après le montage — on l'adopte tant que
   // l'admin n'a pas touché la case lui-même.
@@ -603,70 +581,21 @@ export default function AutoSetupStep({
 
   const mikhmonIncluded = archSupportsContainers && !skipMikhmon;
 
-  function run() {
+  function launch() {
     // Porte de monétisation : si non autorisé (et pas superadmin), on ouvre
-    // le modal de paiement au lieu de lancer. Le serveur revérifie de toute
-    // façon (needsAuthorization) — l'UI n'est qu'un raccourci.
+    // le modal de paiement au lieu de lancer. L'étape 4 (Installation) et le
+    // serveur revérifient de toute façon — l'UI n'est qu'un raccourci.
     if (gate && !gate.superadmin && !gate.authorized) {
       setPaywallOpen(true);
       return;
     }
-    setResult(null);
-    startTransition(async () => {
-      const res = await provisionHotspotStack(routerId, {
-        hotspotAddress,
-        hotspotPrefixBits,
-        hotspotName,
-        dnsName,
-        // Jamais de SSID vers un modèle sans Wi-Fi — même si le champ a été
-        // auto-rempli avant que la détection ne réponde.
-        ssid: hasWifi ? ssid.trim() || undefined : undefined,
-        // Compte admin optionnel (accès internet via le portail sans forfait).
-        defaultHotspotUsers: adminPortalUser.trim()
-          ? [{ name: adminPortalUser.trim(), password: adminPortalPassword.trim() || undefined }]
-          : [],
-        hasUsbStorage,
-        hasLargeOnboardStorage: detected?.hasLargeOnboardStorage ?? false,
-        hasEmmcStorage: detected?.hasEmmcStorage ?? false,
-        // La capacité physique est mémorisée indépendamment du choix « Ignorer
-        // MikHmon », afin que seuls les modèles réellement incompatibles
-        // puissent recevoir l'instance cloud à l'avenir.
-        routerSupportsContainers: detected?.supportsContainers,
-        supportsContainers: mikhmonIncluded,
-        reboot: true,
-        voucherProfiles: customProfiles,
-        packagesToSync: customProfileMeta,
-        // Branding portail scopé à ce routeur (contact support/paiement +
-        // espaces vendeurs) — persisté sur le routeur et rendu en priorité.
-        // Envoyé seulement une fois l'existant chargé (sinon undefined = ne pas
-        // toucher), pour ne jamais effacer le branding par un lancement hâtif.
-        ...(brandingLoadedRef.current
-          ? {
-              portalSupportWhatsapp: portalSupportWhatsapp.trim(),
-              portalSupportPhone: portalSupportPhone.trim(),
-              portalVendors,
-            }
-          : {}),
-        installCaptivePortal,
-        captiveTemplateId: installCaptivePortal ? (selectedTemplateId ?? undefined) : undefined,
-        serverName: savedHotspotNames.serverName ?? undefined,
-      });
-      // Verrou serveur : si l'autorisation a expiré/été consommée entre-temps,
-      // on rouvre le paywall plutôt que d'afficher une erreur brute.
-      if (res && "needsAuthorization" in res && res.needsAuthorization) {
-        setPaywallOpen(true);
-        refreshGate();
-        return;
-      }
-      setResult(res);
-    });
+    onLaunch();
   }
 
   // Non superadmin → soumis à la porte de monétisation manuelle.
   const underManualGate = gate ? !gate.superadmin : false;
 
   const launchBlocked =
-    pending ||
     !hotspotBridge ||
     !subnet ||
     !hotspotName.trim() ||
@@ -1245,6 +1174,44 @@ export default function AutoSetupStep({
         )}
       </div>
 
+      {/* ── Liaison internet ─────────────────────────────────────────── */}
+      <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
+        <h3 className="text-sm font-semibold text-ink">Liaison internet</h3>
+        <p className="mt-0.5 text-sm leading-relaxed text-ink-soft">
+          Deux liens (Starlink + FAI, par exemple) sont répartis en PCC avec bascule
+          automatique. La configuration part juste après le hotspot, à l&apos;étape suivante.
+        </p>
+        <div className="mt-3 space-y-2">
+          {(
+            [
+              ["uni", "Un seul lien", "Le WAN détecté par l'étape 2 — cas courant."],
+              [
+                "dual",
+                "Deux liens (dual-WAN)",
+                "Les deux WAN sont branchés maintenant ; sinon choisissez « un seul lien » et ajoutez le second plus tard depuis la fiche routeur.",
+              ],
+            ] as const
+          ).map(([value, titre, aide]) => (
+            <label
+              key={value}
+              className="flex items-start gap-2.5 rounded-md border border-line-soft px-3 py-2.5 text-sm text-ink hover:bg-clay cursor-pointer transition-colors"
+            >
+              <input
+                type="radio"
+                name="wan-mode"
+                checked={wanMode === value}
+                onChange={() => setWanMode(value)}
+                className="mt-0.5 h-4 w-4 border-line-soft accent-brand"
+              />
+              <span>
+                <span className="block font-medium">{titre}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-ink-soft">{aide}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
       {/* Ancien paywall wallet — masqué sous la porte manuelle (le paiement
           passe désormais par la demande d'autorisation superadmin). */}
       {!underManualGate && billing && !billing.isFree && !billing.alreadyBilled && (
@@ -1302,92 +1269,6 @@ export default function AutoSetupStep({
         </dl>
       </div>
 
-      {pending && (
-        <div className="mt-6 flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-md border border-line bg-paper p-8">
-          <FancyLoader variant="router-orbit" size="lg" color="brand" />
-          <p className="text-center text-sm font-medium text-ink animate-pulse">
-            Configuration en cours sur le routeur…
-          </p>
-          <p className="text-center text-xs text-ink-soft">
-            Hotspot, portail captif, profils voucher et règles NAT sont en cours de déploiement.
-            Ne fermez pas cette page.
-          </p>
-        </div>
-      )}
-
-      {result?.error && (
-        <div className="mt-4 rounded-md bg-err-soft px-3 py-2 text-sm text-err">
-          <p>{result.error}</p>
-          {result.serialLocked && result.serial && (
-            <button
-              type="button"
-              onClick={async () => {
-                const serial = result.serial!;
-                const status = await getSerialUnlockStatus(serial).catch(() => ({
-                  latestStatus: null,
-                }));
-                setUnlockModal({ serial, latestStatus: status.latestStatus });
-              }}
-              className="mt-2 inline-flex items-center rounded-md bg-brand-deep px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
-            >
-              Demander le déblocage
-            </button>
-          )}
-          {result.log && (
-            <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-err/80">
-              {result.log.map((line, i) => (
-                <li key={i}>{line}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {unlockModal && (
-        <SerialUnlockRequestModal
-          open
-          serial={unlockModal.serial}
-          routerId={routerId}
-          latestStatus={unlockModal.latestStatus}
-          onClose={() => setUnlockModal(null)}
-        />
-      )}
-      {result?.firmwareUpdating && (
-        <p className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-warn">{result.message}</p>
-      )}
-      {result?.success && (
-        <div className="mt-4 rounded-md bg-clay px-3 py-2 text-sm text-ok">
-          <p className="font-medium">
-            {result.containerPending
-              ? "Configuration appliquée. MikHmon continue de se télécharger sur le routeur ; vérifiez son état dans une minute."
-              : "Configuration appliquée. Le routeur redémarre — patientez ~1 minute avant de joindre le portail."}
-          </p>
-          {result.log && (
-            <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-ok/80">
-              {result.log.map((line, i) => (
-                <li key={i}>{line}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* Sur une carte sans conteneur, le parcours ne se termine pas à
-          l'auto-setup : son MikHmon reste à créer, sur le relais. */}
-      {result?.success && !archSupportsContainers && (
-        <MikhmonCloudOutcome routerId={routerId} />
-      )}
-
-      {result?.success && (
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-medium text-ink-soft">
-            Vérification en direct sur le routeur (relisez l&apos;état réel une fois qu&apos;il
-            a redémarré, avec le bouton « Réessayer » si besoin) :
-          </p>
-          <ConfigAuditBanner routerId={routerId} />
-        </div>
-      )}
-
       <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:justify-between">
         <button
           type="button"
@@ -1400,11 +1281,10 @@ export default function AutoSetupStep({
         <button
           type="button"
           disabled={launchBlocked}
-          onClick={run}
+          onClick={launch}
           className="flex items-center justify-center sm:justify-start gap-2 rounded-md bg-ink px-5 py-3 sm:py-2.5 text-sm font-medium text-white hover:bg-slate-deep-line disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
         >
-          {pending && <FancyLoader variant="spinner-slice" size="sm" color="white" className="inline-flex" />}
-          {pending ? "Configuration en cours…" : "Lancer l'auto-setup complet"}
+          Lancer l&apos;auto-setup complet
         </button>
       </div>
 
