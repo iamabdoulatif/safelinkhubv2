@@ -110,3 +110,19 @@ test("le kill-switch ne s'affiche plus en clair dans la liste", () => {
   // L'ÉTAT verrouillé, lui, reste visible : c'est une information, pas une action.
   assert.match(markup, /Verrouillé/);
 });
+
+test("un routeur muet n'affiche pas de fausse mesure dans le tableau", () => {
+  /* Un routeur hors ligne ne publie ni CPU ni RAM ni sessions : « 0 % » et
+     « 0 » faisaient passer une absence de mesure pour un routeur au repos. */
+  const markup = rendu([zone({ id: "mute", status: "offline", cpuLoad: 0, memoryUsage: "0", activeUsers: 0 })]);
+  const tableau = markup.slice(markup.indexOf("<table"));
+  assert.doesNotMatch(tableau, />0 %</);
+  assert.match(tableau, />—</);
+});
+
+test("une charge élevée passe la jauge à l'orange, une charge normale non", () => {
+  const charge = rendu([zone({ id: "chaud", cpuLoad: 91 })]);
+  assert.match(charge, /text-warn[^"]*">91 %/);
+  const calme = rendu([zone({ id: "calme", cpuLoad: 23 })]);
+  assert.doesNotMatch(calme.slice(calme.indexOf("<table")), /text-warn/);
+});

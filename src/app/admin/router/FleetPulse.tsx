@@ -33,11 +33,14 @@ export function FleetPulse({
   return (
     <section
       aria-label={t.monitored}
-      className="slate-card slate-card-raised overflow-hidden bg-paper"
+      className="overflow-hidden rounded-xl border border-line bg-paper"
     >
-      <dl className={`grid divide-y divide-line sm:divide-x sm:divide-y-0 ${cells.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
+      {/* Filets par interstice de 1 px sur fond --line : propres quelle que
+          soit la grille (2×2 sur téléphone, 1×4 au-delà), là où divide-x/y
+          laissait un trait orphelin sous une seule cellule. */}
+      <dl className={`grid gap-px bg-line ${cells.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
         {cells.map((cell) => (
-          <div key={cell.key} className="px-3 py-3 sm:px-5 sm:py-4">
+          <div key={cell.key} className="bg-paper px-3 py-3 sm:px-5 sm:py-4">
             <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-soft">
               {cell.dot && <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${cell.dot}`} />}
               <span className="truncate">{cell.label}</span>
