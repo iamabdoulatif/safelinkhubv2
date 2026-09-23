@@ -1,6 +1,7 @@
 "use server";
 
 import { and, asc, eq, isNull, notInArray, or } from "drizzle-orm";
+import type { AutoSetupHooks, AutoSetupStep } from "./autosetup-steps";
 import { getDb } from "@/lib/db";
 import { routers, organizations, captiveTemplates, walletTransactions, packages, bridges } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
@@ -1057,7 +1058,20 @@ export async function getAutoSetupBillingStatus(routerId: string, supportsContai
 export async function provisionHotspotStack(
   routerId: string,
   opts: HotspotStackOptions,
+  // Suivi d'avancement, fourni par le job asynchrone (autosetup-job-actions).
+  // Paramètre séparé d'`opts` : `opts` est persisté tel quel dans
+  // lastAutoSetupConfig, et une fonction n'a rien à y faire.
+  hooks: AutoSetupHooks = {},
 ) {
+  // Un rappel qui échoue (base indisponible…) ne doit JAMAIS interrompre une
+  // configuration à moitié posée sur le routeur.
+  const step = async (s: AutoSetupStep) => {
+    try {
+      await hooks.onStep?.(s);
+    } catch {
+      /* best-effort */
+    }
+  };
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
@@ -1183,6 +1197,7 @@ export async function provisionHotspotStack(
     }
   }
 
+  await step("connect");
   let client: RouterOSClient;
   try {
     client = await connectClient(router);
@@ -1302,6 +1317,7 @@ export async function provisionHotspotStack(
       }
     }
 
+    await step("wifi");
     // WiFi SSID on every radio the board actually has (hAP ax² has two —
     // 2.4GHz and 5GHz — single-band boards or CCRs with none just see no
     // matching rows and skip silently). Setting the same SSID twice is a
@@ -1391,6 +1407,7 @@ export async function provisionHotspotStack(
     // logic below couldn't reliably recover it (re-running the wizard a
     // second time left ether2/ether3 stuck on "unknown" while freshly
     // attached ports were fine). Only create it the first time.
+    await step("network");
     const existingHotspotBridge = await client
       .talk(["/interface/bridge/print", `?name=${bridgeName}`])
       .catch(() => []);
@@ -1642,6 +1659,7 @@ export async function provisionHotspotStack(
     // profile either since that still-alive old server was still
     // referencing it — net effect, two profiles and a disabled server
     // stuck under its previous name.
+    await step("hotspot");
     const htmlDirectory = opts.htmlDirectory?.trim() || "hotspot";
     const existingHotspotServers = await client.talk(["/ip/hotspot/print"]).catch(() => []);
     const matchingServer =
@@ -1775,6 +1793,7 @@ export async function provisionHotspotStack(
     // "package" template if one was already created (so customized support
     // contacts/vendors — see PackageBrandingEditor — survive a re-run);
     // creates the bundled default only if none exists yet.
+    await step("portal");
     if (opts.installCaptivePortal === false) {
       log.push("SKIP (captive portal): désactivé pour cette exécution — page de connexion par défaut RouterOS conservée.");
     } else {
@@ -1916,6 +1935,7 @@ export async function provisionHotspotStack(
 
     // ddns-enabled gives the router a reachable hostname even behind CGNAT;
     // dns-name on the hotspot profile is the captive-portal domain.
+    await step("firewall");
     await run(["/ip/cloud/set", "=ddns-enabled=yes"], "IP cloud DDNS");
     // Factory-default RouterOS config commonly already runs a DHCP client
     // on the WAN port for plug-and-play internet — RouterOS only allows one
@@ -2070,6 +2090,7 @@ export async function provisionHotspotStack(
       );
     }
 
+    await step("mikhmon");
     const containerSetup = await provisionDockerStack(client, log, run, {
       supportsContainers: opts.supportsContainers,
       hasUsbStorage: opts.hasUsbStorage,
@@ -2217,6 +2238,7 @@ export async function provisionHotspotStack(
     // from "explicitly an empty list" (the wizard's voucher step, where an
     // admin who created zero custom profiles really does mean zero, not
     // "give me the presets I just removed from the UI").
+    await step("packages");
     const wantedProfiles =
       opts.voucherProfiles !== undefined ? opts.voucherProfiles : VOUCHER_PROFILES;
     const existingVoucherProfiles = await client
@@ -2439,6 +2461,7 @@ export async function provisionHotspotStack(
       "export-all backup script",
     );
 
+    await step("reboot");
     if (opts.reboot) {
       log.push("Rebooting router to finalize setup...");
       // RouterOS drops the API connection on reboot before it can reply, so
@@ -2661,32 +2684,6 @@ export async function reinstallMikhmonContainer(routerId: string) {
   } finally {
     client.close();
   }
-}
-
-export async function repairRouterConfig(routerId: string) {
-  const session = await getSession();
-  if (!session) return { error: "Not authenticated." };
-
-  const db = getDb();
-  const [router] = await db
-    .select()
-    .from(routers)
-    .where(eq(routers.id, routerId))
-    .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
-    return { error: "Router not found." };
-  }
-  if (!router.lastAutoSetupConfig) {
-    return {
-      error:
-        "Aucune configuration d'auto-setup enregistrée pour ce routeur — lancez d'abord l'assistant complet (Configuration routeur) une fois avant de pouvoir réparer une étape manquante.",
-    };
-  }
-
-  return provisionHotspotStack(routerId, {
-    ...(router.lastAutoSetupConfig as HotspotStackOptions),
-    reboot: false,
-  });
 }
 
 // The standalone createDockerContainer entry point (DOCKERS bridge + MikHmon

@@ -1303,19 +1303,3 @@ html {
 .theme-slate :is(input, select, textarea):focus-visible {
   outline-offset: 1px;
 }
-
-/* ── Barre de progression indéterminée (auto-setup) ──────────────────────
-   Le serveur ne rend compte qu'à la fin : une barre qui se REMPLIT mentirait
-   sur l'avancement. Celle-ci circule, elle dit « ça travaille », pas « 60 % ». */
-@keyframes progress-indeterminate {
-  from { transform: translateX(-100%); }
-  to   { transform: translateX(250%); }
-}
-.progress-indeterminate {
-  width: 40%;
-  animation: progress-indeterminate 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  /* Immobile mais présente : une barre pleine atténuée, sans va-et-vient. */
-  .progress-indeterminate { width: 100%; animation: none; opacity: 0.35; }
-}

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, RefreshCw, Wrench, XCircle } from "lucide-react";
 import { ButtonLoader } from "@/components/FancyLoader";
 import { auditRouterConfig, type ConfigAuditItem } from "@/lib/mikrotik/config-audit";
-import { repairRouterConfig } from "@/lib/mikrotik/container-setup";
+import { startRepairJob } from "@/lib/mikrotik/autosetup-job-actions";
+import { followAutoSetupJob, JOB_LOST_MESSAGE, JOB_STALE_MESSAGE } from "./follow-job";
 
 const STATUS_STYLES: Record<ConfigAuditItem["status"], { icon: typeof CheckCircle2; pill: string; text: string }> = {
   ok: { icon: CheckCircle2, pill: "bg-clay text-ok", text: "text-ok" },
@@ -18,6 +19,14 @@ const STATUS_STYLES: Record<ConfigAuditItem["status"], { icon: typeof CheckCircl
  * manually, or from an interrupted previous auto-setup run — gets called
  * out by name instead of silently looking fine.
  */
+type RepairResult = {
+  success?: boolean;
+  error?: string;
+  log?: string[];
+  firmwareUpdating?: boolean;
+  message?: string;
+};
+
 export default function ConfigAuditBanner({
   routerId,
   onItemsChange,
@@ -34,13 +43,7 @@ export default function ConfigAuditBanner({
   >({ loading: true });
   const [refreshing, setRefreshing] = useState(false);
   const [repairing, setRepairing] = useState(false);
-  const [repairResult, setRepairResult] = useState<{
-    success?: boolean;
-    error?: string;
-    log?: string[];
-    firmwareUpdating?: boolean;
-    message?: string;
-  } | null>(null);
+  const [repairResult, setRepairResult] = useState<RepairResult | null>(null);
 
   function runAudit(onComplete?: () => void) {
     auditRouterConfig(routerId).then((res) => {
@@ -63,14 +66,25 @@ export default function ConfigAuditBanner({
     runAudit(() => setRefreshing(false));
   }
 
-  function repair() {
+  // Réparation en tâche de fond : rejouer l'auto-setup dépasse souvent les
+  // ~100 s que Cloudflare laisse à une réponse.
+  async function repair() {
     setRepairing(true);
     setRepairResult(null);
-    repairRouterConfig(routerId).then((res) => {
-      setRepairResult(res);
+    const started = await startRepairJob(routerId);
+    if (!("jobId" in started) || !started.jobId) {
+      setRepairResult({ error: "error" in started ? started.error : "Lancement impossible." });
       setRepairing(false);
-      if (res && "success" in res && res.success) runAudit();
-    });
+      return;
+    }
+    const out = await followAutoSetupJob<RepairResult>(started.jobId);
+    const res: RepairResult =
+      out.kind === "done"
+        ? (out.result ?? { error: out.error ?? "Cause inconnue." })
+        : { error: out.kind === "stale" ? JOB_STALE_MESSAGE : JOB_LOST_MESSAGE };
+    setRepairResult(res);
+    setRepairing(false);
+    if (res.success) runAudit();
   }
 
   if (state.loading) {

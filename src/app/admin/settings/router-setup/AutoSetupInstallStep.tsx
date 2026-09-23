@@ -6,7 +6,8 @@
  * vers ?etape=4) n'ait plus rien à re-saisir ni à re-cliquer : au montage,
  * l'écran restaure l'instantané sessionStorage écrit par l'étape 3, vérifie
  * que la porte de monétisation est passée (paiement confirmé, superadmin ou
- * solde), puis appelle provisionHotspotStack TOUT SEUL.
+ * solde), puis lance TOUT SEUL le job d'auto-setup (startAutoSetupJob), dont
+ * il suit l'avancement réel étape par étape.
  *
  * Trois garde-fous plutôt qu'un lancement à l'aveugle :
  * - pas d'instantané (retour dans un autre onglet/navigateur) → message clair
@@ -34,16 +35,20 @@ import {
   Check,
   Clock,
   Network,
+  Plug,
   Power,
   Router as RouterIcon,
   Server,
+  ShieldCheck,
   Split,
   Ticket,
   Wifi,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { provisionHotspotStack } from "@/lib/mikrotik/container-setup";
+import { startAutoSetupJob } from "@/lib/mikrotik/autosetup-job-actions";
+import { followAutoSetupJob, JOB_LOST_MESSAGE, JOB_STALE_MESSAGE } from "./follow-job";
+import { stepIndex, stepStatus, type AutoSetupStep } from "@/lib/mikrotik/autosetup-steps";
 import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
 import { detectRouterModel, type DetectedRouter } from "@/lib/mikrotik/device-detect";
 import { startDualWanAfterAutoSetup } from "@/lib/mikrotik/dualwan-actions";
@@ -125,6 +130,8 @@ export default function AutoSetupInstallStep({
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [finishedAt, setFinishedAt] = useState<number | null>(null);
+  // Étape que le serveur est en train d'appliquer (null avant le premier sondage).
+  const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [detected, setDetected] = useState<DetectedRouter | null>(null);
   const [result, setResult] = useState<RunResult | null>(null);
   const [dualStatus, setDualStatus] = useState<
@@ -187,7 +194,7 @@ export default function AutoSetupInstallStep({
       const mikhmonIncluded = archSupportsContainers && !snapshot.skipMikhmon;
       const installCaptivePortal = snapshot.installCaptivePortal !== false;
 
-      const res = await provisionHotspotStack(routerId, {
+      const res = await startAutoSetupJob(routerId, {
         hotspotAddress,
         hotspotPrefixBits,
         hotspotName: snapshot.hotspotName ?? "",
@@ -222,10 +229,35 @@ export default function AutoSetupInstallStep({
 
       // Verrou serveur : autorisation expirée/consommée entre-temps → on
       // repasse en attente de paiement plutôt qu'en erreur brute.
-      if (res && "needsAuthorization" in res && res.needsAuthorization) {
+      if ("needsAuthorization" in res && res.needsAuthorization) {
         waitForAuthorization(snapshot, device);
         return;
       }
+      if (!("jobId" in res) || !res.jobId) {
+        finish(snapshot, { error: "error" in res ? res.error : "Lancement impossible." });
+        return;
+      }
+      setCurrentStep("connect");
+      void pollJob(res.jobId, snapshot, device);
+    }
+
+    // L'installation tourne sur le serveur (job asynchrone) : on relit son
+    // avancement toutes les 2 s. Recharger la page ne l'interrompt pas — au
+    // retour, startAutoSetupJob renvoie le même job et le suivi reprend.
+    async function pollJob(jobId: string, snapshot: Snapshot, device: DetectedRouter | null) {
+      const out = await followAutoSetupJob<RunResult & { needsAuthorization?: boolean }>(jobId, {
+        onStep: setCurrentStep,
+        isCancelled: () => cancelled,
+      });
+      if (out.kind === "cancelled") return;
+      if (out.kind === "lost") return finish(snapshot, { error: JOB_LOST_MESSAGE });
+      if (out.kind === "stale") return finish(snapshot, { error: JOB_STALE_MESSAGE });
+      if (out.result?.needsAuthorization) return waitForAuthorization(snapshot, device);
+      return finish(snapshot, out.result ?? { error: out.error ?? "Cause inconnue." });
+    }
+
+    async function finish(snapshot: Snapshot, res: RunResult) {
+      if (cancelled) return;
 
       setResult(res);
       setFinishedAt(Date.now());
@@ -318,15 +350,6 @@ export default function AutoSetupInstallStep({
   const elapsed =
     startedAt === null ? null : formatElapsed(((finishedAt ?? now) - startedAt) / 1000);
 
-  // Fermer l'onglet pendant l'envoi coupe la réponse du serveur : l'opérateur
-  // ne saurait plus si le routeur a été configuré. Le navigateur demande donc
-  // confirmation, uniquement pendant l'installation.
-  useEffect(() => {
-    if (phase !== "running") return;
-    const retenir = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", retenir);
-    return () => window.removeEventListener("beforeunload", retenir);
-  }, [phase]);
 
   const plan = snap
     ? buildPlan(snap, {
@@ -336,7 +359,19 @@ export default function AutoSetupInstallStep({
         installCaptivePortal,
       })
     : [];
-  const stepState: StepState = succeeded ? "ok" : "pending";
+  // État de chaque étape : réel pendant l'installation (étape relue sur le
+  // serveur), tout vert après un succès, la dernière étape atteinte en rouge
+  // après un échec.
+  const stateOf = (key: string): StepState => {
+    if (succeeded) return "ok";
+    if (!isEngineStep(key)) return "pending";
+    const s = stepStatus(key, currentStep);
+    if (failed) return s === "done" ? "ok" : s === "active" ? "fail" : "pending";
+    if (phase !== "running") return "pending";
+    return s === "done" ? "ok" : s === "active" ? "busy" : "pending";
+  };
+  const activeIndex = plan.findIndex((p) => stateOf(p.key) === "busy");
+  const doneCount = plan.filter((p) => stateOf(p.key) === "ok").length;
   const routerLabel = detected?.boardName ?? "Routeur";
   const dualPair = snap?.wanMode === "dual" ? starlinkPair(snap.starlinkCas ?? "cas1") : null;
 
@@ -426,16 +461,42 @@ export default function AutoSetupInstallStep({
                 <>
                   <div
                     role="progressbar"
-                    aria-label="Installation en cours"
-                    aria-valuetext="En cours"
-                    className="h-1.5 overflow-hidden rounded-full bg-line-soft"
+                    aria-label="Avancement de l'installation"
+                    aria-valuemin={0}
+                    aria-valuemax={plan.length}
+                    aria-valuenow={doneCount}
+                    aria-valuetext={
+                      activeIndex >= 0
+                        ? `Étape ${activeIndex + 1} sur ${plan.length} : ${plan[activeIndex].title}`
+                        : "Démarrage"
+                    }
+                    className="flex gap-1"
                   >
-                    <div className="progress-indeterminate h-full rounded-full bg-slate-deep" />
+                    {plan.map((p) => {
+                      const st = stateOf(p.key);
+                      return (
+                        <span
+                          key={p.key}
+                          className={`h-1.5 flex-1 rounded-full ${
+                            st === "ok"
+                              ? "bg-slate-deep"
+                              : st === "busy"
+                                ? "animate-pulse bg-slate-deep/40 motion-reduce:animate-none"
+                                : "bg-line-soft"
+                          }`}
+                        />
+                      );
+                    })}
                   </div>
-                  <p className="flex items-start gap-2 text-xs text-ink-soft">
-                    <AlertTriangle aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
-                    Gardez cette page ouverte. Le routeur confirme toutes les étapes en une fois, à
-                    la fin, puis redémarre.
+                  <p className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs text-ink-soft">
+                    <span className="font-semibold text-ink" aria-live="polite">
+                      {activeIndex >= 0
+                        ? `Étape ${activeIndex + 1} sur ${plan.length} · ${plan[activeIndex].title}`
+                        : "Démarrage…"}
+                    </span>
+                    <span>
+                      Vous pouvez recharger la page : l&apos;installation continue sur le serveur.
+                    </span>
                   </p>
                 </>
               )}
@@ -532,7 +593,7 @@ export default function AutoSetupInstallStep({
                         />
                       )}
                       <span className="relative mt-0.5">
-                        <StepIcon state={stepState} />
+                        <StepIcon state={stateOf(step.key)} />
                       </span>
                       <div className="flex min-w-0 flex-1 flex-col gap-2">
                         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
@@ -717,7 +778,9 @@ export default function AutoSetupInstallStep({
 
 /* ── Plan d'installation ─────────────────────────────────────────────────── */
 
-type StepState = "ok" | "pending" | "busy";
+type StepState = "ok" | "pending" | "busy" | "fail";
+
+const isEngineStep = (key: string): key is AutoSetupStep => stepIndex(key) >= 0;
 
 type PlanStep = {
   key: string;
@@ -746,20 +809,14 @@ function buildPlan(
   const vendors = snap.portalVendors?.filter((v) => v.name.trim()).length ?? 0;
   const ssid = snap.ssid?.trim();
 
+  // Même ordre que le moteur (AUTOSETUP_STEPS) : la barre avance de gauche à droite.
   const steps: (PlanStep | false)[] = [
     {
-      key: "network",
-      icon: Network,
-      title: "Réseau du hotspot",
-      hint: "Bridge · DHCP · NAT",
-      facts: [...fact("Nom", snap.hotspotName), ...fact("Passerelle", o.gateway, true)],
-    },
-    {
-      key: "hotspot",
-      icon: Server,
-      title: "Serveur hotspot",
-      hint: "Profil · walled-garden",
-      facts: [...fact("DNS", snap.dnsName, true), ...fact("Admin portail", snap.adminPortalUser, true)],
+      key: "connect",
+      icon: Plug,
+      title: "Connexion et vérifications",
+      hint: "Firmware · port WAN",
+      facts: [],
     },
     o.hasWifi &&
       Boolean(ssid) && {
@@ -769,13 +826,19 @@ function buildPlan(
         hint: "Réseau diffusé",
         facts: fact("SSID", ssid, true),
       },
-    packages.length > 0 && {
-      key: "packages",
-      icon: Ticket,
-      title: packages.length === 1 ? "1 forfait" : `${packages.length} forfaits`,
-      hint: "Profils voucher et prix",
-      facts: [],
-      packages,
+    {
+      key: "network",
+      icon: Network,
+      title: "Réseau du hotspot",
+      hint: "Bridge · adresses · DHCP",
+      facts: [...fact("Nom", snap.hotspotName), ...fact("Passerelle", o.gateway, true)],
+    },
+    {
+      key: "hotspot",
+      icon: Server,
+      title: "Serveur hotspot",
+      hint: "Profil · walled-garden",
+      facts: [...fact("DNS", snap.dnsName, true), ...fact("Admin portail", snap.adminPortalUser, true)],
     },
     {
       key: "portal",
@@ -790,12 +853,27 @@ function buildPlan(
           ]
         : [],
     },
+    {
+      key: "firewall",
+      icon: ShieldCheck,
+      title: "NAT et pare-feu",
+      hint: "Accès Internet · protections WAN",
+      facts: [],
+    },
     o.mikhmonIncluded && {
       key: "mikhmon",
       icon: Box,
       title: "MikHmon",
       hint: "Conteneur",
       facts: [{ label: "Stockage", value: snap.hasUsbStorage ? "Clé USB" : "Mémoire interne" }],
+    },
+    packages.length > 0 && {
+      key: "packages",
+      icon: Ticket,
+      title: packages.length === 1 ? "1 forfait" : `${packages.length} forfaits`,
+      hint: "Profils voucher et prix",
+      facts: [],
+      packages,
     },
     {
       key: "reboot",
@@ -814,6 +892,14 @@ function StepIcon({ state }: { state: StepState }) {
       <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-ok">
         <Check aria-hidden="true" className="h-3 w-3 text-white" strokeWidth={3} />
         <span className="sr-only">Appliqué</span>
+      </span>
+    );
+  }
+  if (state === "fail") {
+    return (
+      <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-err">
+        <X aria-hidden="true" className="h-3 w-3 text-white" strokeWidth={3} />
+        <span className="sr-only">Échec à cette étape</span>
       </span>
     );
   }
