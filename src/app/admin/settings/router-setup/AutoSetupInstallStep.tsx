@@ -30,8 +30,8 @@ import { ArrowLeft, Rocket, Split } from "lucide-react";
 import { provisionHotspotStack } from "@/lib/mikrotik/container-setup";
 import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
 import { detectRouterModel, type DetectedRouter } from "@/lib/mikrotik/device-detect";
-import { startDualWan } from "@/lib/mikrotik/dualwan-actions";
-import { DUALWAN_DEFAULTS } from "@/lib/mikrotik/dualwan-defaults";
+import { startDualWanAfterAutoSetup } from "@/lib/mikrotik/dualwan-actions";
+import { STARLINK_PAIRS, starlinkPair, type DualWanForm } from "@/lib/mikrotik/dualwan-defaults";
 import { getSerialUnlockStatus } from "@/lib/mikrotik/serial-unlock-actions";
 import SerialUnlockRequestModal from "@/components/mikrotik/SerialUnlockRequestModal";
 import FancyLoader from "@/components/FancyLoader";
@@ -70,6 +70,7 @@ type Snapshot = {
   portalSupportPhone?: string;
   portalVendors?: { name: string; location: string; phone: string }[];
   wanMode?: "uni" | "dual";
+  starlinkCas?: DualWanForm["cas"];
 };
 
 type Phase = "checking" | "no-snapshot" | "denied" | "running" | "done";
@@ -105,7 +106,10 @@ export default function AutoSetupInstallStep({
   const [detected, setDetected] = useState<DetectedRouter | null>(null);
   const [result, setResult] = useState<RunResult | null>(null);
   const [dualStatus, setDualStatus] = useState<
-    { phase: "running" } | { phase: "started" } | { phase: "error"; message: string } | null
+    | { phase: "running"; cas: DualWanForm["cas"] }
+    | { phase: "started"; cas: DualWanForm["cas"] }
+    | { phase: "error"; message: string; cas: DualWanForm["cas"] }
+    | null
   >(null);
   const [unlockModal, setUnlockModal] = useState<{
     serial: string;
@@ -205,16 +209,19 @@ export default function AutoSetupInstallStep({
 
       clearSnapshot();
 
-      // Choix « Dual-WAN » de l'étape 3 : on enchaîne sans attendre — la
-      // config part vers n8n dès que le hotspot est posé.
+      // Choix « dual WAN » de l'étape 3 : on enchaîne sans attendre — la
+      // répartition PCC part vers n8n dès que le hotspot est posé. L'option
+      // étant payante, le serveur revérifie qu'elle figure bien dans le
+      // montant réglé (le superadmin en est exempté).
       if (snapshot.wanMode === "dual") {
-        setDualStatus({ phase: "running" });
-        const dw = await startDualWan(routerId, { ...DUALWAN_DEFAULTS, dryRun: false });
+        const cas = STARLINK_PAIRS.find((p) => p.cas === snapshot.starlinkCas)?.cas ?? "cas1";
+        setDualStatus({ phase: "running", cas });
+        const dw = await startDualWanAfterAutoSetup(routerId, cas);
         if (cancelled) return;
         setDualStatus(
           "error" in dw
-            ? { phase: "error", message: dw.error ?? "cause inconnue." }
-            : { phase: "started" },
+            ? { phase: "error", message: dw.error ?? "cause inconnue.", cas }
+            : { phase: "started", cas },
         );
       }
     }
@@ -398,17 +405,18 @@ export default function AutoSetupInstallStep({
         <div className="mt-4 rounded-md border border-line-soft bg-paper p-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-ink">
             <Split className="h-4 w-4 shrink-0" />
-            Dual-WAN (PCC + failover)
+            Dual WAN — {starlinkPair(dualStatus.cas)?.label ?? "PCC"} (
+            {starlinkPair(dualStatus.cas)?.ratio ?? "PCC"})
           </p>
           {dualStatus.phase === "running" && (
             <p className="mt-1.5 flex items-center gap-2 text-sm text-ink-soft">
               <FancyLoader variant="spinner-slice" size="sm" color="brand" className="inline-flex" />
-              Envoi de la configuration dual-WAN au routeur…
+              Envoi de la répartition PCC au routeur…
             </p>
           )}
           {dualStatus.phase === "started" && (
             <p className="mt-1.5 text-sm text-ok">
-              Configuration dual-WAN lancée — suivez son application dans la fiche routeur, onglet{" "}
+              Répartition PCC lancée — suivez son application dans la fiche routeur, onglet{" "}
               <Link href={`/admin/router/${routerId}?tab=services`} className="font-medium underline">
                 Configurer les services
               </Link>
@@ -417,7 +425,7 @@ export default function AutoSetupInstallStep({
           )}
           {dualStatus.phase === "error" && (
             <p className="mt-1.5 text-sm text-warn">
-              Le dual-WAN n&apos;a pas pu démarrer automatiquement : {dualStatus.message} Vous
+              Le dual WAN n&apos;a pas pu démarrer automatiquement : {dualStatus.message} Vous
               pourrez le lancer depuis la fiche routeur, onglet{" "}
               <Link href={`/admin/router/${routerId}?tab=services`} className="font-medium underline">
                 Configurer les services

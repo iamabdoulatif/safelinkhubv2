@@ -45,7 +45,7 @@ Réponse immédiate (le résultat arrive par le callback).
 | `router_user` / `router_pass` | oui | | compte RouterOS (`safelinkhub-api` du parc, policy ssh+read+write+ftp) |
 | `site_name` | non | `""` | informatif |
 | `mode` | oui | | `complet` (neuf/reset) ou `complement` (uniwan en place) |
-| `cas` | oui | | `cas1` Standard+Mini 3:1 · `cas2` Standard×2 1:1 · `cas3` Mini×2 1:1 |
+| `cas` | oui | | `cas1` Standard V3+Mini 3:1 · `cas2` Standard V3×2 1:1 · `cas3` Mini×2 1:1 · `cas4` Mini+Standard V3 1:3 |
 | `lan_interface` | complement | | ex. `bridge-LAN`, `HOTSPOT` → `in-interface=` des règles PCC (sinon `in-interface-list=LAN`) |
 | `wan1_interface` / `wan2_interface` | non | `E1-WAN-FAI` / `E2-WAN-FAI` | noms cibles (complet) ou existants (complement) |
 | `wan1_mbps` / `wan2_mbps` | non | selon le cas (400 / 150) | débits réels → ratio recalculé |

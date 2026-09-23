@@ -22,7 +22,12 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft, Box, Check, Copy, Plus, Trash2 } from "lucide-react";
 import { getAutoSetupBillingStatus } from "@/lib/mikrotik/container-setup";
-import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
+import {
+  getAutoSetupGateConfigPublic,
+  getAutoSetupGateStatus,
+} from "@/lib/billing/auto-setup-authorization-actions";
+import { formatFcfa } from "@/lib/billing/auto-setup-gate-config";
+import { STARLINK_PAIRS, type DualWanForm } from "@/lib/mikrotik/dualwan-defaults";
 import { listCaptiveTemplates, getRouterPortalBranding } from "@/lib/captive-templates/actions";
 import { listActivePackages } from "@/lib/packages/actions";
 import AutoSetupPaywallModal from "./AutoSetupPaywallModal";
@@ -235,6 +240,8 @@ export default function AutoSetupStep({
   // ex. Starlink + FAI — répartis en PCC + failover). Choisi ici, appliqué
   // automatiquement à l'étape 4 juste après le hotspot, sans attendre.
   const [wanMode, setWanMode] = useState<"uni" | "dual">("uni");
+  // Quel couple d'antennes est branché : il fixe le ratio des seaux PCC.
+  const [starlinkCas, setStarlinkCas] = useState<DualWanForm["cas"]>("cas1");
   const [installCaptivePortal, setInstallCaptivePortal] = useState(true);
   // Compte hotspot facultatif créé pour l'admin (accès internet via le portail
   // sans acheter de forfait). Vide = aucun compte créé.
@@ -307,6 +314,8 @@ export default function AutoSetupStep({
         if (typeof s.usbTouched === "boolean") setUsbTouched(s.usbTouched);
         if (typeof s.skipMikhmon === "boolean") setSkipMikhmon(s.skipMikhmon);
         if (s.wanMode === "uni" || s.wanMode === "dual") setWanMode(s.wanMode);
+        const paire = STARLINK_PAIRS.find((p) => p.cas === s.starlinkCas);
+        if (paire) setStarlinkCas(paire.cas);
         if (typeof s.installCaptivePortal === "boolean")
           setInstallCaptivePortal(s.installCaptivePortal);
         if (typeof s.adminPortalUser === "string") setAdminPortalUser(s.adminPortalUser);
@@ -353,6 +362,7 @@ export default function AutoSetupStep({
           usbTouched,
           skipMikhmon,
           wanMode,
+          starlinkCas,
           installCaptivePortal,
           adminPortalUser,
           adminPortalPassword,
@@ -387,6 +397,7 @@ export default function AutoSetupStep({
     usbTouched,
     skipMikhmon,
     wanMode,
+    starlinkCas,
     installCaptivePortal,
     adminPortalUser,
     adminPortalPassword,
@@ -501,6 +512,16 @@ export default function AutoSetupStep({
     latestStatus: string | null;
   } | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [dualWanFcfa, setDualWanFcfa] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getAutoSetupGateConfigPublic().then((c) => {
+      if (!cancelled) setDualWanFcfa(c.dualWanOptionFcfa);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refreshGate = () => {
     getAutoSetupGateStatus(routerId).then(setGate);
@@ -1178,17 +1199,19 @@ export default function AutoSetupStep({
       <div className="mt-5 rounded-md border border-line-soft bg-paper p-4 sm:p-5">
         <h3 className="text-sm font-semibold text-ink">Liaison internet</h3>
         <p className="mt-0.5 text-sm leading-relaxed text-ink-soft">
-          Deux liens (Starlink + FAI, par exemple) sont répartis en PCC avec bascule
-          automatique. La configuration part juste après le hotspot, à l&apos;étape suivante.
+          Deux antennes Starlink peuvent être réparties par PCC, avec bascule automatique si
+          l&apos;une tombe. La configuration part juste après le hotspot, à l&apos;étape suivante.
         </p>
         <div className="mt-3 space-y-2">
           {(
             [
-              ["uni", "Un seul lien", "Le WAN détecté par l'étape 2 — cas courant."],
+              ["uni", "Une seule antenne", "Le lien détecté à l'étape 2 — cas courant."],
               [
                 "dual",
-                "Deux liens (dual-WAN)",
-                "Les deux WAN sont branchés maintenant ; sinon choisissez « un seul lien » et ajoutez le second plus tard depuis la fiche routeur.",
+                dualWanFcfa !== null
+                  ? `Deux antennes (dual WAN) — ${formatFcfa(dualWanFcfa)}`
+                  : "Deux antennes (dual WAN) — option payante",
+                "Les deux antennes sont branchées maintenant (la seconde sur le port 2) ; sinon gardez une seule antenne, le dual WAN reste possible plus tard depuis la fiche routeur.",
               ],
             ] as const
           ).map(([value, titre, aide]) => (
@@ -1210,6 +1233,42 @@ export default function AutoSetupStep({
             </label>
           ))}
         </div>
+
+        {wanMode === "dual" && (
+          <div className="mt-4 space-y-2 border-t border-line-soft pt-4">
+            <p className="text-sm text-ink-soft">
+              Quel couple est branché ? La première antenne est celle du port 1 (le lien déjà en
+              service) — c&apos;est elle qui fixe la répartition.
+            </p>
+            {STARLINK_PAIRS.map((p) => (
+              <label
+                key={p.cas}
+                className="flex items-start gap-2.5 rounded-md border border-line-soft px-3 py-2.5 text-sm text-ink hover:bg-clay cursor-pointer transition-colors"
+              >
+                <input
+                  type="radio"
+                  name="starlink-pair"
+                  checked={starlinkCas === p.cas}
+                  onChange={() => setStarlinkCas(p.cas)}
+                  className="mt-0.5 h-4 w-4 border-line-soft accent-brand"
+                />
+                <span>
+                  <span className="block font-medium">
+                    {p.label}{" "}
+                    <span className="font-mono text-xs text-ink-soft">({p.ratio})</span>
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-ink-soft">{p.aide}</span>
+                </span>
+              </label>
+            ))}
+            {!gate?.superadmin && (
+              <p className="text-xs leading-relaxed text-ink-soft">
+                Le supplément est ajouté au tarif de l&apos;auto-setup : un seul paiement pour
+                toute l&apos;installation.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Ancien paywall wallet — masqué sous la porte manuelle (le paiement
@@ -1294,6 +1353,7 @@ export default function AutoSetupStep({
         onClose={() => setPaywallOpen(false)}
         routerId={routerId}
         supportsContainers={mikhmonIncluded}
+        dualWan={wanMode === "dual"}
         latestStatus={gate?.latestStatus ?? null}
         onSubmitted={refreshGate}
       />

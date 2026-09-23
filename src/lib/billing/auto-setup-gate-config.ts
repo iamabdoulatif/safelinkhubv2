@@ -24,6 +24,9 @@ export function isPaymentMethod(value: string): value is PaymentMethodId {
 const DEFAULTS = {
   priceWithContainerFcfa: 15000,
   priceWithoutContainerFcfa: 10000,
+  // Option dual WAN (répartition PCC de deux liens Starlink + bascule
+  // automatique) : un supplément au tarif de base, jamais un second paiement.
+  dualWanOptionFcfa: 25000,
   // Numéro WhatsApp de l'admin, format international sans "+" ni espaces
   // (attendu par l'API wa.me). +225 07 09 10 05 52 → 2250709100552.
   whatsappNumber: "2250709100552",
@@ -32,6 +35,7 @@ const DEFAULTS = {
 export type AutoSetupGateConfig = {
   priceWithContainerFcfa: number;
   priceWithoutContainerFcfa: number;
+  dualWanOptionFcfa: number;
   whatsappNumber: string;
   /** Destinataire de l'email d'autorisation (serveur uniquement). */
   adminEmail: string | null;
@@ -53,18 +57,50 @@ export function getAutoSetupGateConfig(): AutoSetupGateConfig {
       process.env.AUTO_SETUP_PRICE_WITHOUT_CONTAINER,
       DEFAULTS.priceWithoutContainerFcfa,
     ),
+    dualWanOptionFcfa: parsePositiveInt(
+      process.env.AUTO_SETUP_PRICE_DUAL_WAN,
+      DEFAULTS.dualWanOptionFcfa,
+    ),
     whatsappNumber:
       (process.env.AUTO_SETUP_WHATSAPP_NUMBER || DEFAULTS.whatsappNumber).replace(/[^0-9]/g, ""),
     adminEmail: process.env.AUTO_SETUP_ADMIN_EMAIL || null,
   };
 }
 
-/** Tarif applicable en FCFA selon la capacité container du routeur. */
+export type AutoSetupPrices = Pick<
+  AutoSetupGateConfig,
+  "priceWithContainerFcfa" | "priceWithoutContainerFcfa" | "dualWanOptionFcfa"
+>;
+
+/**
+ * Tarif applicable en FCFA : la capacité container donne le socle, l'option
+ * dual WAN s'y ajoute. UN SEUL montant, donc un seul paiement pour toute
+ * l'installation — et c'est ce montant, enregistré sur l'autorisation, qui
+ * prouve ensuite que l'option a bien été payée (voir dualWanPaidFor).
+ */
 export function autoSetupPriceFcfa(
-  config: Pick<AutoSetupGateConfig, "priceWithContainerFcfa" | "priceWithoutContainerFcfa">,
+  config: AutoSetupPrices,
   supportsContainers: boolean,
+  dualWan = false,
 ): number {
-  return supportsContainers ? config.priceWithContainerFcfa : config.priceWithoutContainerFcfa;
+  const base = supportsContainers ? config.priceWithContainerFcfa : config.priceWithoutContainerFcfa;
+  return dualWan ? base + config.dualWanOptionFcfa : base;
+}
+
+/**
+ * Une autorisation payée couvre-t-elle l'option dual WAN ? On compare le
+ * montant enregistré au socle de SON type de routeur : rien de nouveau à
+ * stocker, et un client qui paie le tarif simple puis coche « deux liens » sur
+ * l'écran ne passe pas.
+ */
+export function dualWanPaidFor(
+  config: AutoSetupPrices,
+  authorization: { amountFcfa: number; supportsContainers: boolean },
+): boolean {
+  return (
+    authorization.amountFcfa >=
+    autoSetupPriceFcfa(config, authorization.supportsContainers, true)
+  );
 }
 
 export function formatFcfa(amount: number): string {

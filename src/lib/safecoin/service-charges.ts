@@ -93,11 +93,13 @@ export async function setupFeeFcfaFor(opts: {
 export async function autoSetupChargeScCents(opts: {
   supportsContainers: boolean;
   orgId?: string;
+  /** Options FCFA payées avec l'installation (dual WAN) — hors tarif revendeur. */
+  optionFcfa?: number;
 }) {
   const settings = await currentSettings();
   const baseFcfa = await setupFeeFcfaFor(opts);
   return (
-    fcfaToScCents(baseFcfa, settings.rateFcfaPerSc) +
+    fcfaToScCents(baseFcfa + (opts.optionFcfa ?? 0), settings.rateFcfaPerSc) +
     settings.autoSetupFeeScCents +
     (await feeFor("auto_setup"))
   );
@@ -131,22 +133,27 @@ export async function chargeAutoSetup(opts: {
   userId: string;
   routerId: string;
   supportsContainers: boolean;
+  /** Supplément dual WAN, payé avec l'installation. */
+  optionFcfa?: number;
 }) {
   const baseFcfa = await setupFeeFcfaFor({
     supportsContainers: opts.supportsContainers,
     orgId: opts.orgId,
   });
+  // Le tarif revendeur porte sur l'INSTALLATION ; une option ne le fait pas
+  // sauter, et ne consomme pas non plus une pose du quota.
   const usedResellerRate = baseFcfa === RESELLER_SETUP_FEE_CENTS;
   const amountScCents = await autoSetupChargeScCents({
     supportsContainers: opts.supportsContainers,
     orgId: opts.orgId,
+    optionFcfa: opts.optionFcfa,
   });
   const result = await appendSafecoinDebit({
     orgId: opts.orgId,
     userId: opts.userId,
     entryType: "auto_setup_charge",
     amountScCents,
-    referenceFcfaCents: baseFcfa,
+    referenceFcfaCents: baseFcfa + (opts.optionFcfa ?? 0),
     idempotencyKey: `auto-setup:${opts.routerId}`,
     referenceType: "router",
     referenceId: opts.routerId,

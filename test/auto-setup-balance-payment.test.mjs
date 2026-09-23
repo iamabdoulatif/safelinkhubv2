@@ -28,9 +28,13 @@ test("l'auto-setup se paie depuis le solde, comme l'accès distant", async () =>
   // Pas de second débit du portefeuille si c'est déjà payé (le débit Safecoin,
   // lui, est protégé par sa clé d'idempotence).
   assert.match(source, /findUsableAuthorization/);
-  // Tarif imposé côté serveur : le client n'envoie que le routeur et sa
-  // capacité container, jamais un montant.
-  assert.match(source, /autoSetupPriceFcfa\(getAutoSetupGateConfig\(\), supportsContainers\)/);
+  // Tarif imposé côté serveur : le client n'envoie que le routeur, sa capacité
+  // container et l'option dual WAN — jamais un montant.
+  assert.match(source, /autoSetupPriceFcfa\(config, supportsContainers, dualWan\)/);
+  assert.match(source, /const dualWan = String\(formData\.get\("dualWan"\) \?\? ""\) === "1"/);
+  // L'option se paie au même moment que l'installation, en Safecoins comme en
+  // FCFA : sinon elle serait offerte à qui paie avec son solde Safecoin.
+  assert.match(source, /optionFcfa/);
 });
 
 test("le paywall auto-setup propose les trois moyens de paiement", async () => {

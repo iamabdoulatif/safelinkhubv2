@@ -9,9 +9,10 @@ type Jobs = NonNullable<Awaited<ReturnType<typeof readDualWanJobs>>["jobs"]>;
 type Job = Jobs[number];
 
 const CAS_LABEL: Record<DualWanForm["cas"], string> = {
-  cas1: "Standard + Mini (3:1)",
-  cas2: "Standard × 2 (1:1)",
+  cas1: "Standard V3 + Mini (3:1)",
+  cas2: "Standard V3 × 2 (1:1)",
   cas3: "Mini × 2 (1:1)",
+  cas4: "Mini + Standard V3 (1:3)",
 };
 
 const STATUS_LABEL: Record<Job["status"], string> = {

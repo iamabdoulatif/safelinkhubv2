@@ -24,7 +24,7 @@ function runBilan(g, stdout) {
 // Sortie « print terse » d'un hAP ax2 (forme relevée sur HSPT-LEGRAND, RouterOS 7.21).
 const sec = (parts) => Object.entries(parts).map(([k, v]) => `##${k}\n${v}`).join("\n") + "\n##END";
 const IF_FRESH = `0 R name=ether1 default-name=ether1 type=ether mtu=1500\n1 R name=ether2 default-name=ether2 type=ether mtu=1500\n2 R name=bridge type=bridge`;
-const IF_UNIWAN = `0 R comment=Starlink Standard V4 name=E1-WAN-FAI default-name=ether1 type=ether\n1 R comment=Starlink Mini name=E2-WAN-FAI default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
+const IF_UNIWAN = `0 R comment=Starlink Standard V3 name=E1-WAN-FAI default-name=ether1 type=ether\n1 R comment=Starlink Mini name=E2-WAN-FAI default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
 const base = { VERSION: "version: 7.21.1 (stable)\nboard-name: hAP ax^2", BRIDGEPORT: "", LISTM: "", DHCP: "", NAT: "", MANGLE: "", ROUTE: "", RTABLE: "", FILTER: "", ALIST: "", DNS: "servers=8.8.8.8\nallow-remote-requests=false" };
 const fresh = sec({ ...base, IFACE: IF_FRESH });
 
@@ -47,7 +47,7 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
     assert.match(pcc[2], /both-addresses-and-ports:4\/2 action=mark-connection new-connection-mark=WAN1 .*comment="PCC 3\/4 -> WAN1"/);
     assert.match(pcc[3], /both-addresses-and-ports:4\/3 action=mark-connection new-connection-mark=WAN2 .*comment="PCC 4\/4 -> WAN2"/);
     assert.ok(pcc.every((l) => l.includes("dst-address-list=!slh-pcc-exclude in-interface-list=LAN")));
-    assert.ok(g.applied.includes('/interface ethernet set [find default-name=ether1] name=E1-WAN-FAI comment="Starlink Standard V4"'));
+    assert.ok(g.applied.includes('/interface ethernet set [find default-name=ether1] name=E1-WAN-FAI comment="Starlink Standard V3"'));
     assert.ok(g.applied.includes('/ip dhcp-client add interface=E2-WAN-FAI disabled=no use-peer-dns=no add-default-route=yes default-route-distance=12 script=":if (\\$bound=1) do={ /ip route set [find comment=\\"Sonde WAN2\\"] gateway=\\$\\"gateway-address\\" }" comment="WAN2 Mini 150M"'));
     assert.ok(g.applied.includes('/interface list member add list=WAN interface=E2-WAN-FAI'));
     assert.ok(g.applied.includes('/routing table add name=to-WAN1 fib'));
@@ -68,6 +68,12 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
     assert.ok(g2.applied.some((l) => l.includes('per-connection-classifier=both-addresses-and-ports:2/1 action=mark-connection new-connection-mark=WAN2 passthrough=yes comment="PCC 2/2 -> WAN2"')));
     assert.ok(g2.applied.some((l) => l.includes('comment="WAN1 Standard #1"')));
     assert.ok(runGenerate(req({ cas: "cas3" }), fresh).applied.some((l) => l.includes('comment="Starlink Mini #2"')));
+    // cas4 = le Mini en WAN1 : le Standard, plus rapide, prend 3 seaux sur 4.
+    const g4 = runGenerate(req({ cas: "cas4" }), fresh);
+    assert.equal(g4.plan.ratio, "1:3");
+    assert.deepEqual(g4.plan.assign, ["WAN1", "WAN2", "WAN2", "WAN2"]);
+    assert.ok(g4.applied.some((l) => l.includes('comment="Starlink Mini"')));
+    assert.ok(g4.applied.some((l) => l.includes('comment="WAN2 Standard 400M"')));
     const inv = runGenerate(req({ cas: "cas1", wan1_mbps: 150, wan2_mbps: 400 }), fresh);
     assert.deepEqual(inv.plan.assign, ["WAN1", "WAN2", "WAN2", "WAN2"]);
     assert.equal(runGenerate(req({ wan1_mbps: 4000, wan2_mbps: 100 }), fresh).plan.buckets, 8); // plafond
@@ -104,13 +110,13 @@ describe("nœud n8n Générer la config (dual WAN Starlink)", () => {
     const IF_NOCOMMENT = `0 R name=E1-WAN-FAI default-name=ether1 type=ether\n1 R comment=Starlink Mini name=E2-WAN-FAI default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
     for (const mode of ["complement", "complet"]) {
       const g = runGenerate(req({ mode, lan_interface: "HOTSPOT" }), sec({ ...base, IFACE: IF_NOCOMMENT }));
-      assert.ok(g.applied.includes('/interface ethernet set [find default-name=ether1] comment="Starlink Standard V4"'), mode);
+      assert.ok(g.applied.includes('/interface ethernet set [find default-name=ether1] comment="Starlink Standard V3"'), mode);
       assert.ok(!g.applied.some((l) => /default-name=ether1\] name=/.test(l) || /default-name=ether2\] comment=/.test(l)), mode);
     }
   });
 
   it("complement + detach : ether2 encore d'usine dans le bridge → sorti, renommé, puis WAN2 seulement", () => {
-    const IF_HOTSPOT = `0 R comment=Starlink Standard V4 name=E1-WAN-FAI default-name=ether1 type=ether\n1 R name=ether2 default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
+    const IF_HOTSPOT = `0 R comment=Starlink Standard V3 name=E1-WAN-FAI default-name=ether1 type=ether\n1 R name=ether2 default-name=ether2 type=ether\n2 R name=HOTSPOT type=bridge`;
     const hotspot = sec({ ...base, IFACE: IF_HOTSPOT, BRIDGEPORT: "0 I interface=ether2 bridge=HOTSPOT" });
     assert.throws(() => runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT" }), hotspot), /E2-WAN-FAI » absente.*detach_wan2_from_bridge=true/);
     const g = runGenerate(req({ mode: "complement", lan_interface: "HOTSPOT", detach_wan2_from_bridge: true }), hotspot);

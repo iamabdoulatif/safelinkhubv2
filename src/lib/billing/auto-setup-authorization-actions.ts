@@ -54,6 +54,7 @@ export async function submitAutoSetupAuthorizationRequest(formData: FormData): P
 
   const routerId = String(formData.get("routerId") ?? "");
   const supportsContainers = String(formData.get("supportsContainers") ?? "") === "1";
+  const dualWan = String(formData.get("dualWan") ?? "") === "1";
   const amountFcfa = Number(formData.get("amountFcfa"));
   const paymentMethod = String(formData.get("paymentMethod") ?? "");
   const proof = formData.get("proof");
@@ -111,12 +112,13 @@ export async function submitAutoSetupAuthorizationRequest(formData: FormData): P
   });
 
   const methodLabel = PAYMENT_METHODS.find((m) => m.id === paymentMethod)?.label ?? paymentMethod;
-  const expected = autoSetupPriceFcfa(config, supportsContainers);
+  const expected = autoSetupPriceFcfa(config, supportsContainers, dualWan);
   const lines = [
     "*Demande d'autorisation Auto-Setup — SafeLinkHub*",
     `Utilisateur : ${session.name} (${session.email})`,
     `Routeur : ${router.name}`,
     `Type MikroTik : ${mikrotikKindLabel(supportsContainers)}`,
+    `Dual WAN : ${dualWan ? `oui (+${formatFcfa(config.dualWanOptionFcfa)})` : "non"}`,
     `Tarif attendu : ${formatFcfa(expected)}`,
     `Montant payé : ${formatFcfa(amountFcfa)}`,
     `Moyen : ${methodLabel}`,
@@ -173,6 +175,7 @@ export async function decideAutoSetupAuthorization(
 export async function getAutoSetupGateConfigPublic(): Promise<{
   priceWithContainerFcfa: number;
   priceWithoutContainerFcfa: number;
+  dualWanOptionFcfa: number;
   whatsappNumber: string;
   geniusPayEnabled: boolean;
 }> {
@@ -180,6 +183,7 @@ export async function getAutoSetupGateConfigPublic(): Promise<{
   return {
     priceWithContainerFcfa: c.priceWithContainerFcfa,
     priceWithoutContainerFcfa: c.priceWithoutContainerFcfa,
+    dualWanOptionFcfa: c.dualWanOptionFcfa,
     whatsappNumber: c.whatsappNumber,
     geniusPayEnabled: isGeniusPayCheckoutEnabled(),
   };
@@ -199,6 +203,7 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
 
   const routerId = String(formData.get("routerId") ?? "");
   const supportsContainers = String(formData.get("supportsContainers") ?? "") === "1";
+  const dualWan = String(formData.get("dualWan") ?? "") === "1";
   if (!routerId) return { error: "Routeur manquant." };
   if (!isGeniusPayCheckoutEnabled()) {
     return { error: "Le paiement en ligne n'est pas encore disponible. Utilisez le paiement manuel." };
@@ -212,7 +217,7 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 
-  const amountFcfa = autoSetupPriceFcfa(getAutoSetupGateConfig(), supportsContainers);
+  const amountFcfa = autoSetupPriceFcfa(getAutoSetupGateConfig(), supportsContainers, dualWan);
 
   const row = await createPendingAutoSetupPayment({
     orgId: session.orgId,
@@ -240,7 +245,7 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
 
   const payment = await createGeniusPayment({
     amountFcfa,
-    description: `Auto-Setup ${mikrotikKindLabel(supportsContainers)} — ${router.name ?? "routeur"}`,
+    description: `Auto-Setup ${mikrotikKindLabel(supportsContainers)}${dualWan ? " + dual WAN" : ""} — ${router.name ?? "routeur"}`,
     customer: { name: session.name, email: session.email },
     metadata: {
       kind: "auto_setup",
@@ -308,6 +313,7 @@ export async function payAutoSetupFromBalance(formData: FormData): Promise<
 
   const routerId = String(formData.get("routerId") ?? "");
   const supportsContainers = String(formData.get("supportsContainers") ?? "") === "1";
+  const dualWan = String(formData.get("dualWan") ?? "") === "1";
   if (!routerId) return { error: "Routeur manquant." };
 
   const db = getDb();
@@ -326,8 +332,10 @@ export async function payAutoSetupFromBalance(formData: FormData): Promise<
     return { error: "Cette configuration est déjà payée — relancez simplement l'auto-setup." };
   }
 
-  const amountFcfa = autoSetupPriceFcfa(getAutoSetupGateConfig(), supportsContainers);
-  const scCost = await autoSetupChargeScCents({ supportsContainers });
+  const config = getAutoSetupGateConfig();
+  const amountFcfa = autoSetupPriceFcfa(config, supportsContainers, dualWan);
+  const optionFcfa = dualWan ? config.dualWanOptionFcfa : 0;
+  const scCost = await autoSetupChargeScCents({ supportsContainers, optionFcfa });
   const [walletBal, scBal] = await Promise.all([
     getWalletBalanceCents(session.orgId),
     getSafecoinBalance(session.orgId),
@@ -362,7 +370,7 @@ export async function payAutoSetupFromBalance(formData: FormData): Promise<
       type: "charge",
       amountCents: amountFcfa,
       status: "completed",
-      note: `Configuration automatique — ${router.name ?? "routeur"} (${mikrotikKindLabel(supportsContainers)})`,
+      note: `Configuration automatique — ${router.name ?? "routeur"} (${mikrotikKindLabel(supportsContainers)}${dualWan ? ", dual WAN" : ""})`,
       createdBy: session.userId,
     });
   } else {
@@ -371,6 +379,7 @@ export async function payAutoSetupFromBalance(formData: FormData): Promise<
       userId: session.userId,
       routerId: router.id,
       supportsContainers,
+      optionFcfa,
     });
     if ("error" in debit) {
       await markAutoSetupAuthorizationRejected(

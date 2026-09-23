@@ -50,7 +50,7 @@ export async function findUsableAuthorization(
 }
 
 /** Paid/approved entitlement kept for retrying and repairing the same router. */
-async function findPaidAuthorization(
+export async function findPaidAuthorization(
   routerId: string,
   userId: string,
 ): Promise<AutoSetupAuthorizationRow | null> {

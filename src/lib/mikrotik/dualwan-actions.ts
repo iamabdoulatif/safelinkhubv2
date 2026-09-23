@@ -2,14 +2,16 @@
 
 import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routerDualwanJobs, routerPortForwards, routers } from "@/lib/db/schema";
+import { bridges, routerDualwanJobs, routerPortForwards, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { decryptSecret } from "./crypto";
 import { getRelayPublicHost } from "./relay";
 import { connectToRouter } from "./router-sync";
 import { removeDualWanConfig } from "./dualwan-remove";
-import type { DualWanForm } from "./dualwan-defaults";
+import { DUALWAN_DEFAULTS, starlinkPair, type DualWanForm } from "./dualwan-defaults";
+import { dualWanPaidFor, getAutoSetupGateConfig } from "@/lib/billing/auto-setup-gate-config";
+import { findPaidAuthorization } from "@/lib/billing/auto-setup-authorization-service";
 
 /**
  * PROVISIONNEMENT DUAL WAN STARLINK — délégué à n8n (docs/n8n/dualwan.md).
@@ -66,7 +68,7 @@ export async function startDualWan(routerId: string, f: DualWanForm) {
   const router = await autorise(routerId);
   if (!router) return { error: "Routeur introuvable." };
   if (!process.env.N8N_INTERNAL_TOKEN) return { error: "N8N_INTERNAL_TOKEN n'est pas configuré sur la plateforme." };
-  if (!["complet", "complement"].includes(f.mode) || !["cas1", "cas2", "cas3"].includes(f.cas)) {
+  if (!["complet", "complement"].includes(f.mode) || !["cas1", "cas2", "cas3", "cas4"].includes(f.cas)) {
     return { error: "Mode ou cas invalide." };
   }
   if (f.mode === "complement" && !f.lanInterface.trim()) {
@@ -137,6 +139,50 @@ export async function startDualWan(routerId: string, f: DualWanForm) {
     return { error: message };
   }
   return { ok: true as const, jobId: job.id };
+}
+
+/**
+ * DUAL WAN DEPUIS L'AUTO-SETUP — l'admin a choisi son appairage Starlink à
+ * l'étape 3, l'étape 4 enchaîne ici dès que le hotspot est posé.
+ *
+ * Option PAYANTE : le supplément dual WAN doit figurer dans le montant de
+ * l'autorisation d'auto-setup (un seul paiement pour toute l'installation).
+ * Le superadmin en est exempté, comme pour le reste de l'auto-setup.
+ *
+ * Le hotspot vient d'être installé, donc le routeur est en uniwan avec tous
+ * ses ports dans le bridge : mode « complement », LAN = ce bridge, et le port
+ * du second Starlink est sorti du bridge par le workflow.
+ */
+export async function startDualWanAfterAutoSetup(routerId: string, cas: DualWanForm["cas"]) {
+  const session = await getSession();
+  const router = await autorise(routerId);
+  if (!router) return { error: "Routeur introuvable." };
+  if (!starlinkPair(cas)) return { error: "Appairage Starlink inconnu." };
+
+  if (!isSuperAdmin(session?.role)) {
+    const auth = session ? await findPaidAuthorization(routerId, session.userId) : null;
+    if (!auth || !dualWanPaidFor(getAutoSetupGateConfig(), auth)) {
+      return {
+        error:
+          "L'option dual WAN n'est pas payée pour ce routeur : reprenez l'étape 3 et réglez le tarif avec l'option.",
+      };
+    }
+  }
+
+  const [bridge] = await getDb()
+    .select({ name: bridges.name })
+    .from(bridges)
+    .where(and(eq(bridges.routerId, routerId), eq(bridges.hotspotEnabled, true)))
+    .limit(1);
+
+  return startDualWan(routerId, {
+    ...DUALWAN_DEFAULTS,
+    cas,
+    mode: bridge ? "complement" : "complet",
+    lanInterface: bridge?.name ?? "",
+    detachWan2FromBridge: true,
+    dryRun: false,
+  });
 }
 
 /** Retire une ligne d'historique (jamais un job en cours : son callback arriverait dans le vide). */

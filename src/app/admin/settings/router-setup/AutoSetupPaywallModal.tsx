@@ -37,6 +37,7 @@ import {
 type PublicConfig = {
   priceWithContainerFcfa: number;
   priceWithoutContainerFcfa: number;
+  dualWanOptionFcfa: number;
   whatsappNumber: string;
   geniusPayEnabled: boolean;
 };
@@ -46,6 +47,7 @@ export default function AutoSetupPaywallModal({
   onClose,
   routerId,
   supportsContainers,
+  dualWan = false,
   latestStatus,
   onSubmitted,
 }: {
@@ -53,6 +55,8 @@ export default function AutoSetupPaywallModal({
   onClose: () => void;
   routerId: string;
   supportsContainers: boolean;
+  /** Option dual WAN choisie à l'étape 3 : elle majore le tarif imposé côté serveur. */
+  dualWan?: boolean;
   /** Statut de la dernière demande pour ce routeur (pending/rejected/…). */
   latestStatus: string | null;
   onSubmitted: () => void;
@@ -73,9 +77,9 @@ export default function AutoSetupPaywallModal({
     if (!open) return;
     getAutoSetupGateConfigPublic().then((c) => {
       setConfig(c);
-      setAmount(String(autoSetupPriceFcfa(c, supportsContainers)));
+      setAmount(String(autoSetupPriceFcfa(c, supportsContainers, dualWan)));
     });
-  }, [open, supportsContainers]);
+  }, [open, supportsContainers, dualWan]);
 
   useEffect(() => {
     if (!open) return;
@@ -100,7 +104,7 @@ export default function AutoSetupPaywallModal({
 
   if (!open) return null;
 
-  const applicable = config ? autoSetupPriceFcfa(config, supportsContainers) : null;
+  const applicable = config ? autoSetupPriceFcfa(config, supportsContainers, dualWan) : null;
   const priceLabel = applicable !== null ? formatFcfa(applicable) : null;
   const geniusOn = !!config?.geniusPayEnabled;
   // Sans GeniusPay, le paiement manuel EST le parcours principal : toujours ouvert.
@@ -123,6 +127,7 @@ export default function AutoSetupPaywallModal({
     const fd = new FormData();
     fd.set("routerId", routerId);
     fd.set("supportsContainers", supportsContainers ? "1" : "0");
+    fd.set("dualWan", dualWan ? "1" : "0");
     fd.set("amountFcfa", String(amountFcfa));
     fd.set("paymentMethod", method);
     if (proof) fd.set("proof", proof);
@@ -147,6 +152,7 @@ export default function AutoSetupPaywallModal({
     const fd = new FormData();
     fd.set("routerId", routerId);
     fd.set("supportsContainers", supportsContainers ? "1" : "0");
+    fd.set("dualWan", dualWan ? "1" : "0");
     startTransition(async () => {
       const res = await startAutoSetupPayment(fd);
       if ("error" in res) {
@@ -165,6 +171,7 @@ export default function AutoSetupPaywallModal({
     const fd = new FormData();
     fd.set("routerId", routerId);
     fd.set("supportsContainers", supportsContainers ? "1" : "0");
+    fd.set("dualWan", dualWan ? "1" : "0");
     startTransition(async () => {
       const res = await payAutoSetupFromBalance(fd);
       if ("error" in res) {
@@ -277,6 +284,9 @@ export default function AutoSetupPaywallModal({
             <div className="mt-5 text-center">
               <p className="text-xs text-ink-soft">
                 Routeur détecté {mikrotikKindLabel(supportsContainers).toLowerCase()} · paiement unique
+                {dualWan && config
+                  ? ` · dual WAN +${formatFcfa(config.dualWanOptionFcfa)}`
+                  : ""}
               </p>
               {priceLabel ? (
                 <p className="mt-1 text-3xl font-bold tracking-tight text-ink">{priceLabel}</p>
