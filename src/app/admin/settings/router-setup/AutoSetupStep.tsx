@@ -28,6 +28,7 @@ import {
 } from "@/lib/billing/auto-setup-authorization-actions";
 import { formatFcfa } from "@/lib/billing/auto-setup-gate-config";
 import { STARLINK_PAIRS, type DualWanForm } from "@/lib/mikrotik/dualwan-defaults";
+import { dualWanEngineReady } from "@/lib/mikrotik/dualwan-actions";
 import { listCaptiveTemplates, getRouterPortalBranding } from "@/lib/captive-templates/actions";
 import { listActivePackages } from "@/lib/packages/actions";
 import AutoSetupPaywallModal from "./AutoSetupPaywallModal";
@@ -242,6 +243,27 @@ export default function AutoSetupStep({
   const [wanMode, setWanMode] = useState<"uni" | "dual">("uni");
   // Quel couple d'antennes est branché : il fixe le ratio des seaux PCC.
   const [starlinkCas, setStarlinkCas] = useState<DualWanForm["cas"]>("cas1");
+  // L'option n'est proposée que si le moteur qui la pose tourne — on ne
+  // facture pas une configuration qui ne peut pas partir.
+  const [moteur, setMoteur] = useState<{ ready: boolean; reason?: string } | null>(null);
+  const [moteurEnCours, setMoteurEnCours] = useState(false);
+
+  function choisirLiaison(mode: "uni" | "dual") {
+    if (mode === "uni") {
+      setWanMode("uni");
+      return;
+    }
+    if (moteur?.ready) {
+      setWanMode("dual");
+      return;
+    }
+    setMoteurEnCours(true);
+    dualWanEngineReady().then((r) => {
+      setMoteurEnCours(false);
+      setMoteur(r);
+      setWanMode(r.ready ? "dual" : "uni");
+    });
+  }
   const [installCaptivePortal, setInstallCaptivePortal] = useState(true);
   // Compte hotspot facultatif créé pour l'admin (accès internet via le portail
   // sans acheter de forfait). Vide = aucun compte créé.
@@ -1223,7 +1245,8 @@ export default function AutoSetupStep({
                 type="radio"
                 name="wan-mode"
                 checked={wanMode === value}
-                onChange={() => setWanMode(value)}
+                disabled={value === "dual" && moteurEnCours}
+                onChange={() => choisirLiaison(value)}
                 className="mt-0.5 h-4 w-4 border-line-soft accent-brand"
               />
               <span>
@@ -1233,6 +1256,17 @@ export default function AutoSetupStep({
             </label>
           ))}
         </div>
+
+        {moteurEnCours && (
+          <p className="mt-2 text-xs text-ink-soft">Vérification du moteur de configuration…</p>
+        )}
+        {moteur && !moteur.ready && (
+          <p className="mt-2 rounded-md bg-clay px-3 py-2 text-sm leading-relaxed text-warn">
+            Le dual WAN est indisponible pour le moment : {moteur.reason}. L&apos;option n&apos;est
+            donc pas facturée — l&apos;installation continue avec une seule antenne, et la
+            répartition pourra être posée plus tard depuis la fiche routeur.
+          </p>
+        )}
 
         {wanMode === "dual" && (
           <div className="mt-4 space-y-2 border-t border-line-soft pt-4">

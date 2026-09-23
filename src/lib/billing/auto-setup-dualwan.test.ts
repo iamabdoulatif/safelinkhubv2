@@ -51,3 +51,17 @@ describe("appairages Starlink", () => {
     assert.equal(STARLINK_PAIRS.find((p) => p.cas === "cas1")?.ratio, "3:1");
   });
 });
+
+describe("garde du moteur n8n", () => {
+  it("la sonde juge sur la réponse HTTP, et ne touche jamais un routeur", () => {
+    const src = readFileSync(new URL("../mikrotik/dualwan-actions.ts", import.meta.url), "utf8");
+    // Demande volontairement incomplète : elle est rejetée par la validation
+    // n8n avant le moindre SSH. Si elle portait un routeur réel, une sonde
+    // pourrait reconfigurer une installation.
+    assert.match(src, /router_id: "slh-preflight"/);
+    assert.ok(!/router_pass/.test(src.slice(src.indexOf("dualWanEngineReady"), src.indexOf("export async function startDualWan"))));
+    // 2xx = le moteur a pris la demande. Un 500 (quota épuisé) doit fermer
+    // l'option, pas la laisser payer dans le vide.
+    assert.match(src, /sonde = \{ at: Date\.now\(\), ready: res\.ok/);
+  });
+});

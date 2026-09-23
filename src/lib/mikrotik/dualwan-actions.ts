@@ -64,6 +64,57 @@ export async function readDualWanJobs(routerId: string) {
   };
 }
 
+/**
+ * LE MOTEUR ACCEPTE-T-IL DE TRAVAILLER ?
+ *
+ * n8n cloud peut recevoir, router et authentifier une demande tout en
+ * REFUSANT de lancer l'exécution (quota de l'abonnement épuisé) : le webhook
+ * répond alors 500 « There was a problem executing the workflow » et aucune
+ * exécution n'est enregistrée. Vu en production le 22/09/2026, seize heures
+ * durant, sans la moindre alerte.
+ *
+ * L'option dual WAN étant PAYANTE, on ne la propose pas quand la pose ne peut
+ * pas partir — sinon le client règle 25 000 FCFA pour une configuration qui
+ * n'arrivera jamais sur son routeur.
+ *
+ * La sonde envoie une demande volontairement INCOMPLÈTE : le nœud « Valider la
+ * demande » la rejette avant le moindre accès au routeur. Seule compte la
+ * réponse HTTP du webhook — 2xx : le moteur a pris la demande ; le reste : il
+ * ne tourne pas. Résultat gardé une minute, et la sonde n'est tirée que si
+ * l'admin s'intéresse vraiment à l'option.
+ */
+const SONDE_TTL_MS = 60_000;
+let sonde: { at: number; ready: boolean; reason?: string } | null = null;
+
+export async function dualWanEngineReady(): Promise<{ ready: boolean; reason?: string }> {
+  // Action appelée depuis l'écran d'auto-setup : réservée aux comptes
+  // connectés, sinon n'importe qui ferait tirer des requêtes vers n8n.
+  if (!(await getSession())) return { ready: false, reason: "session expirée" };
+  if (!process.env.N8N_INTERNAL_TOKEN) {
+    return { ready: false, reason: "le jeton n8n n'est pas configuré sur la plateforme" };
+  }
+  if (sonde && Date.now() - sonde.at < SONDE_TTL_MS) {
+    return { ready: sonde.ready, reason: sonde.reason };
+  }
+  const res = await fetch(WEBHOOK_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${process.env.N8N_INTERNAL_TOKEN}`,
+    },
+    body: JSON.stringify({ router_id: "slh-preflight", dry_run: true }),
+    signal: AbortSignal.timeout(10_000),
+  }).catch((e: Error) => ({ ok: false, status: 0, statusText: e.message }));
+
+  const reason = res.ok
+    ? undefined
+    : res.status === 0
+      ? `le moteur n8n est injoignable (${res.statusText})`
+      : `le moteur n8n n'exécute plus rien (HTTP ${res.status}) — quota de l'abonnement ?`;
+  sonde = { at: Date.now(), ready: res.ok, reason };
+  return { ready: res.ok, reason };
+}
+
 export async function startDualWan(routerId: string, f: DualWanForm) {
   const router = await autorise(routerId);
   if (!router) return { error: "Routeur introuvable." };
