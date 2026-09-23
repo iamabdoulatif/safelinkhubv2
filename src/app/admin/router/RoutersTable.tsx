@@ -336,7 +336,7 @@ export default function RoutersTable({
                         )}
                       </Link>
                     </Td>
-                    <Td className="font-mono text-xs text-ink">{r.model ?? "—"}</Td>
+                    <Td className="whitespace-nowrap font-mono text-xs text-ink">{r.model ?? "—"}</Td>
                     <Td>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusBadge status={r.status} t={table} />
