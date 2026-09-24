@@ -71,6 +71,14 @@ export const en: Dictionary = {
       trialSub: "remote access, no card required",
       mobileMoney: "Mobile money",
     },
+    console: {
+      title: "Router fleet",
+      action: "Add a router",
+      online: "Online",
+      setup: "Setting up",
+      nav: ["Dashboard", "Routers", "Plans", "Sales", "Captive portal"],
+      caption: "Interface preview — zone names are fictional.",
+    },
     compatible: "Works with",
   },
   trust: {

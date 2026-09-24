@@ -37,7 +37,7 @@ export default function SectionIntro({
         {marker ? (
           <>
             {parts[0]}
-            <span className="marker">{marker}</span>
+            <span className={dark ? "text-brand" : "text-brand-deep"}>{marker}</span>
             {parts[1]}
           </>
         ) : (

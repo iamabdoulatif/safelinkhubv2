@@ -951,183 +951,15 @@ html {
 }
 @keyframes hero-float-in { from { opacity: 0; transform: translateY(18px) scale(0.97); } to { opacity: 1; transform: none; } }
 
-/* ── Scène MikroTik du hero ───────────────────────────────────
-   La photo fournie garde son aspect réel : la profondeur vient de l'orbite
-   circulaire des faits produit. Aucun fond ne s'ajoute derrière le routeur. */
-/* MOBILE ET TABLETTE (sous 1024 px) : pas d'orbite, une composition posée —
-   le routeur, puis les quatre faits en deux colonnes SOUS lui.
-   `min-height` fixe réservait 31 rem quoi qu'il arrive : sur un téléphone, la
-   scène ouvrait un vide avant même la photo. C'est le contenu qui commande. */
-.hero-orbit-scene {
-  position: relative;
-  isolation: isolate;
-  width: min(100%, 34rem);
-  margin: 1.5rem auto 0;
-  padding: 0;
-  background: transparent;
-}
-.hero-orbit-three-canvas {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-.hero-orbit-scene--webgl-ready .hero-orbit-router {
-  opacity: 0;
-  pointer-events: none;
-}
-.hero-orbit-scene--webgl-ready .hero-orbit-track { opacity: 0; }
-.hero-orbit-track {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: none;
-  width: min(75%, 23rem);
-  aspect-ratio: 1;
-  z-index: -2;
-  border: 1px dashed rgba(18, 48, 29, 0.26);
-  border-radius: 50%;
-  background: transparent;
-  opacity: 0.82;
-  transform: translate(-50%, -50%);
-}
-.hero-orbit-router {
-  position: relative;
-  z-index: 1;
-  /* 76 % et non 84 % : la photo est le décor, pas le message — elle occupait
-     un écran entier de téléphone à elle seule. */
-  width: min(76%, 24rem);
-  margin: 0 auto;
-  transform-style: preserve-3d;
-}
-.hero-orbit-router-shadow {
-  position: absolute;
-  right: 13%;
-  bottom: 11%;
-  left: 13%;
-  height: 9%;
-  border-radius: 50%;
-  background: rgba(18, 48, 29, 0.16);
-  filter: blur(14px);
-  transform: translateZ(-1px);
-}
-.hero-orbit-image {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: auto;
-  mix-blend-mode: normal;
-  filter: drop-shadow(18px 24px 22px rgba(18, 48, 29, 0.17));
-  transform: perspective(900px) rotateX(3deg) rotateY(-6deg);
-}
-.hero-orbit-metrics {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
-  width: 100%;
-  /* -4,5 rem faisait remonter les quatre cartes SUR le routeur : leurs textes
-     se lisaient par-dessus la photo (antennes, logo, grille du boîtier).
-     Aucun chevauchement ici : la photo est carrée et le boîtier en occupe le
-     bas — même 20 px de recouvrement lui coupaient les pieds. */
-  margin: 0.75rem auto 0;
-}
-.hero-orbit-orbiter { display: flex; min-width: 0; }
-.hero-orbit-metric {
-  /* Les quatre cartes n'ont pas le même nombre de lignes (« ROUTEURS
-     SUPERVISÉS » passe à deux, la liste mobile money à trois) : sans cette
-     hauteur pleine, la grille sortait en marches d'escalier. */
-  flex: 1;
-  min-height: 6.25rem;
-  padding: 0.85rem 0.9rem;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  /* OPAQUE. À 0,76 d'alpha, la photo du routeur traversait la carte et le
-     chiffre se lisait sur un fond chargé — c'est ce que montrait la capture. */
-  background: var(--paper);
-  box-shadow: 0 12px 24px -20px rgba(18, 48, 29, 0.5);
-  transition: background-color 180ms ease, border-color 180ms ease;
-}
-@media (hover: hover) and (pointer: fine) {
-  .hero-orbit-metric:hover {
-    border-color: rgba(18, 48, 29, 0.42);
-  }
-}
-
-@keyframes hero-orbit-router-drift {
-  0%, 100% { transform: translate(-50%, -50%) rotateY(-3deg); }
-  50% { transform: translate(-50%, calc(-50% - 8px)) rotateY(3deg); }
-}
-@keyframes hero-orbit-turn {
-  0% { transform: rotate(0deg) translateX(var(--hero-orbit-radius)); z-index: 0; }
-  25%, 74% { z-index: 3; }
-  75%, 100% { z-index: 0; }
-  100% { transform: rotate(360deg) translateX(var(--hero-orbit-radius)); }
-}
-@keyframes hero-orbit-counterturn {
-  0%, 100% { transform: translate(-50%, -50%) rotate(0deg) scale(0.78); opacity: 0.58; }
-  25% { transform: translate(-50%, -50%) rotate(-90deg) scale(0.9); opacity: 0.78; }
-  50% { transform: translate(-50%, -50%) rotate(-180deg) scale(1); opacity: 1; }
-  75% { transform: translate(-50%, -50%) rotate(-270deg) scale(0.9); opacity: 0.78; }
-  100% { transform: translate(-50%, -50%) rotate(-360deg) scale(0.78); opacity: 0.58; }
-}
-@media (min-width: 1024px) {
-  .hero-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: center;
-    gap: clamp(1.5rem, 4vw, 4rem);
-  }
-  .hero-layout > .hero-seq { order: 2; }
-  .hero-layout > .hero-orbit-scene { order: 1; }
-  .hero-orbit-scene {
-    --hero-orbit-radius: clamp(8rem, 13vw, 11.5rem);
-    width: min(100%, 36rem);
-    min-height: clamp(27rem, 41vw, 35rem);
-    margin: 0;
-    padding: 0;
-  }
-  .hero-orbit-track { display: block; }
-  .hero-orbit-router {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: min(76%, 26rem);
-    margin: 0;
-    animation: hero-orbit-router-drift 26s ease-in-out infinite;
-  }
-  .hero-orbit-metrics { position: absolute; inset: 0; z-index: auto; display: block; width: auto; margin: 0; }
-  .hero-orbit-orbiter {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    display: block;
-    width: 0;
-    height: 0;
-    animation: hero-orbit-turn 38s linear infinite;
-    animation-delay: var(--hero-orbit-delay);
-  }
-  .hero-orbit-metric {
-    position: absolute;
-    /* Plancher relevé de 8,7 à 9,75 rem : entre 1024 et 1280 px, 13vw ramenait
-       la carte à 139 px et la liste des opérateurs mobile money y tombait sur
-       quatre lignes, au-dessus du routeur. */
-    width: clamp(9.75rem, 13vw, 11.5rem);
-    min-height: 0;
-    pointer-events: auto;
-    animation: hero-orbit-counterturn 38s linear infinite;
-    animation-delay: var(--hero-orbit-delay);
-  }
-  .hero-orbit-metric-routers { --hero-orbit-delay: 0s; }
-  .hero-orbit-metric-sessions { --hero-orbit-delay: -9.5s; }
-  .hero-orbit-metric-trial { --hero-orbit-delay: -19s; }
-  .hero-orbit-metric-money { --hero-orbit-delay: -28.5s; }
-  .hero-orbit-orbiter:hover,
-  .hero-orbit-orbiter:hover .hero-orbit-metric { animation-play-state: paused; }
+/* ── Trame du hero ─────────────────────────────────────────────
+   Quadrillage fin qui s'efface vers le bas (masque, pas de dégradé de
+   couleur) : donne de la profondeur au titre sans concurrencer la console. */
+.hero-grid {
+  background-image:
+    linear-gradient(to right, var(--line-soft) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line-soft) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 75%);
 }
 
 /* Le surligneur se remplit de gauche à droite, une seule fois, après le titre.
@@ -1155,12 +987,11 @@ html {
    Le bloc générique plus haut ramène les durées à 0,01 ms, mais .reveal
    resterait à opacity 0 si son observateur ne se déclenchait jamais. */
 @media (prefers-reduced-motion: reduce) {
-  .reveal, .hero-seq > *, .hero-float, .hero-orbit-router, .hero-orbit-metric, .hero-orbit-orbiter {
+  .reveal, .hero-seq > *, .hero-float {
     opacity: 1 !important;
     transform: none !important;
     animation: none !important;
   }
-  .hero-orbit-router { transform: none !important; }
   .marker-sweep { background-size: 100% 100% !important; animation: none !important; }
 }
 

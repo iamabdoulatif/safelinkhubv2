@@ -31,7 +31,7 @@ export function FeatureProvisioning({ dict, locale }: { dict: Dictionary; locale
         <div className="reveal reveal-left lg:col-span-6">
           <span className="slate-eyebrow">{dict.provisioning.eyebrow}</span>
           <h2 className="mt-5 font-display text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
-            <span className="marker">{dict.provisioning.titleMark}</span>
+            <span className="text-brand-deep">{dict.provisioning.titleMark}</span>
             {dict.provisioning.titleRest}
           </h2>
           <p className="mt-4 text-base leading-7 text-ink-soft">
@@ -164,7 +164,7 @@ export function FeatureMobileMoney({ dict }: { dict: Dictionary }) {
           <span className="slate-eyebrow">{dict.payments.eyebrow}</span>
           <h2 className="mt-5 font-display text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl">
             {dict.payments.titleA}
-            <span className="marker">{dict.payments.titleMark}</span>.
+            <span className="text-brand-deep">{dict.payments.titleMark}</span>.
           </h2>
           <p className="mt-4 text-base leading-7 text-ink-soft">
             {dict.payments.lead}

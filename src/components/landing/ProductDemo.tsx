@@ -48,7 +48,7 @@ export default function ProductDemo({ dict, locale }: { dict: Dictionary; locale
           <span className="slate-eyebrow">{dict.demo.eyebrow}</span>
           <h2 className="mt-5 font-display text-3xl font-bold leading-tight tracking-tight text-ink sm:text-4xl md:text-[2.75rem]">
             {dict.demo.titleA}
-            <span className="marker">{dict.demo.titleMark}</span>.
+            <span className="text-brand-deep">{dict.demo.titleMark}</span>.
           </h2>
           <p className="mt-4 text-base leading-7 text-ink-soft">
             {dict.demo.lead}
