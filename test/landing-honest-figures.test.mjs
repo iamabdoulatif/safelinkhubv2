@@ -65,3 +65,8 @@ test("la section revendeur importe ses prix, ne les recopie pas", async () => {
   assert.doesNotMatch(sec, /\b10[  ]?000\b/, "le tarif public doit venir de AUTO_SETUP_FEE_CENTS");
   assert.doesNotMatch(sec, /\b800\b/, "le tarif revendeur doit venir de RESELLER_SETUP_FEE_CENTS");
 });
+
+test("l'aperçu mobile money n'affiche aucune recette", async () => {
+  const sec = await shipped("src/components/landing/FeatureSplits.tsx");
+  assert.doesNotMatch(sec, /FCFA/);
+});

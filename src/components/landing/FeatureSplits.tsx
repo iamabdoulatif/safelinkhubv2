@@ -116,11 +116,10 @@ export function FeatureMobileMoney({ dict }: { dict: Dictionary }) {
             />
           </div>
           <div className="slate-card slate-card-raised relative mx-4 -mt-10 overflow-hidden bg-paper">
-            {/* APERÇU D'INTERFACE, pas un chiffre de plateforme. La distinction
-                compte : les mêmes montants affichés en cartes flottantes dans le
-                hero laissaient croire à des recettes réelles — ils ont été
-                retirés. Ici ils illustrent une console, et l'étiquette le dit
-                pour qu'aucun visiteur n'ait à le deviner. */}
+            {/* APERÇU D'INTERFACE, SANS AUCUN MONTANT. Des recettes de
+                maquette (en cartes du hero, puis ici) laissaient croire à des
+                chiffres réels : l'aperçu montre le flux — opérateur, client,
+                ticket délivré — pas un chiffre d'affaires. */}
             <div className="flex items-center justify-between gap-3 border-b border-line bg-clay px-5 py-2.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
                 {dict.payments.preview}
@@ -129,27 +128,21 @@ export function FeatureMobileMoney({ dict }: { dict: Dictionary }) {
                 {dict.payments.example}
               </span>
             </div>
-            <div className="flex items-baseline justify-between border-b border-line px-5 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
-                {dict.payments.collectedToday}
-              </p>
-              <p className="font-mono text-xl font-bold tabular-nums text-ink">486 500 FCFA</p>
-            </div>
             <ul role="list" className="divide-y divide-line">
               {[
-                ["Orange Money", "+225 07 48 22 91", "2 500"],
-                ["Wave", "+225 01 03 77 40", "700"],
-                ["MTN MoMo", "+225 05 91 66 18", "5 000"],
-                ["Moov Money", "+225 01 55 09 73", "200"],
-              ].map(([op, phone, amount]) => (
+                ["Orange Money", "+225 07 •• •• 91"],
+                ["Wave", "+225 01 •• •• 40"],
+                ["MTN MoMo", "+225 05 •• •• 18"],
+                ["Moov Money", "+225 01 •• •• 73"],
+              ].map(([op, phone]) => (
                 <li key={phone} className="flex items-center gap-3 px-5 py-3.5">
                   <span className="flex-1">
                     <span className="block text-sm font-semibold text-ink">{op}</span>
                     <span className="block font-mono text-xs text-ink-soft">{phone}</span>
                   </span>
-                  <span className="font-mono text-sm font-bold tabular-nums text-ink">
-                    {amount}
-                    <span className="ml-1 text-[11px] font-medium text-ink-soft">FCFA</span>
+                  <span className="inline-flex h-6 items-center gap-1 rounded-full bg-ok-soft px-2.5 text-xs font-semibold text-ok">
+                    <Check aria-hidden="true" className="h-3 w-3" strokeWidth={3} />
+                    {dict.payments.delivered}
                   </span>
                 </li>
               ))}

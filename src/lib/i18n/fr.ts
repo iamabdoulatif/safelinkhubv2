@@ -120,7 +120,7 @@ export const fr = {
     lead: "Vos clients paient avec ce qu'ils ont déjà dans la poche. Vous ne gérez qu'un seul journal de recettes.",
     preview: "Aperçu de la console",
     example: "Exemple",
-    collectedToday: "Encaissé aujourd'hui",
+    delivered: "Ticket délivré",
     reconciled:
       "Réconciliation automatique : chaque paiement est rattaché au forfait qu'il ouvre.",
     operators: [

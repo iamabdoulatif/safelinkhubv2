@@ -120,7 +120,7 @@ export const en: Dictionary = {
     lead: "Your customers pay with what they already have in their pocket. You keep a single revenue ledger.",
     preview: "Console preview",
     example: "Example",
-    collectedToday: "Collected today",
+    delivered: "Voucher sent",
     reconciled:
       "Automatic reconciliation: every payment is tied to the plan it unlocks.",
     operators: [
