@@ -71,6 +71,14 @@ export const fr = {
       trialSub: "accès distant, sans carte bancaire",
       mobileMoney: "Mobile money",
     },
+    console: {
+      title: "Parc de routeurs",
+      action: "Ajouter un routeur",
+      online: "En ligne",
+      setup: "Configuration",
+      nav: ["Tableau de bord", "Routeurs", "Forfaits", "Ventes", "Portail captif"],
+      caption: "Aperçu de l'interface — noms de zones fictifs.",
+    },
     compatible: "Compatible avec",
   },
   trust: {
@@ -112,7 +120,7 @@ export const fr = {
     lead: "Vos clients paient avec ce qu'ils ont déjà dans la poche. Vous ne gérez qu'un seul journal de recettes.",
     preview: "Aperçu de la console",
     example: "Exemple",
-    collectedToday: "Encaissé aujourd'hui",
+    delivered: "Ticket délivré",
     reconciled:
       "Réconciliation automatique : chaque paiement est rattaché au forfait qu'il ouvre.",
     operators: [

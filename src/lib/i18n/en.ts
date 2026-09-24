@@ -71,6 +71,14 @@ export const en: Dictionary = {
       trialSub: "remote access, no card required",
       mobileMoney: "Mobile money",
     },
+    console: {
+      title: "Router fleet",
+      action: "Add a router",
+      online: "Online",
+      setup: "Setting up",
+      nav: ["Dashboard", "Routers", "Plans", "Sales", "Captive portal"],
+      caption: "Interface preview — zone names are fictional.",
+    },
     compatible: "Works with",
   },
   trust: {
@@ -112,7 +120,7 @@ export const en: Dictionary = {
     lead: "Your customers pay with what they already have in their pocket. You keep a single revenue ledger.",
     preview: "Console preview",
     example: "Example",
-    collectedToday: "Collected today",
+    delivered: "Voucher sent",
     reconciled:
       "Automatic reconciliation: every payment is tied to the plan it unlocks.",
     operators: [

@@ -28,7 +28,7 @@ export default function HardwareSection({ dict }: { dict: Dictionary }) {
             <div className="lg:col-span-5">
               <h2 className="font-display text-2xl font-bold leading-tight tracking-tight text-ink sm:text-3xl">
                 {dict.hardware.titleA}
-                <span className="marker">{dict.hardware.titleMark}</span>
+                <span className="text-brand-deep">{dict.hardware.titleMark}</span>
                 {dict.hardware.titleB}
               </h2>
               <p className="mt-3 text-sm leading-6 text-ink-soft">

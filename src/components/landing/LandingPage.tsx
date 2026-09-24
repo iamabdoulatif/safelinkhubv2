@@ -4,7 +4,6 @@ import AnnounceBar from "./AnnounceBar";
 import LandingNav from "./LandingNav";
 import Hero from "./Hero";
 import TrustStrip from "./TrustStrip";
-import IntroSplit from "./IntroSplit";
 import { FeatureProvisioning, FeatureMobileMoney } from "./FeatureSplits";
 import ProcessSteps from "./ProcessSteps";
 import ProductDemo from "./ProductDemo";
@@ -49,7 +48,6 @@ export default function LandingPage({
       <main>
         <Hero dict={dict} locale={locale} stats={stats} />
         <TrustStrip dict={dict} />
-        <IntroSplit dict={dict} />
         <FeatureProvisioning dict={dict} locale={locale} />
         <FeatureMobileMoney dict={dict} />
         <ProcessSteps dict={dict} />
