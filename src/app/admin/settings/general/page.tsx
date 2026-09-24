@@ -5,7 +5,7 @@ import { getCurrentOrganization } from "@/lib/organizations/actions";
 import { getSession } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { captiveTemplates, paymentGateways, routers, smsGateways } from "@/lib/db/schema";
-import { SETTINGS_SECTIONS } from "../SettingsTabs";
+import { SETTINGS_SECTIONS } from "../sections";
 import CopyValue from "./CopyValue";
 
 function formatDate(date: Date) {
