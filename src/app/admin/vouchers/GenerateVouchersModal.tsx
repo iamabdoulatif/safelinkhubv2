@@ -42,6 +42,12 @@ function duration(value: number, unit: string) {
 }
 const money = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
 
+/** Les deux actions renvoient des formes différentes : on teste la présence
+ *  du champ avant de le lire (sinon le typage strict refuse la lecture). */
+function succeeded(state: unknown): boolean {
+  return typeof state === "object" && state !== null && "success" in state && Boolean(state.success);
+}
+
 /**
  * Génération de tickets en deux modes.
  *
@@ -95,7 +101,7 @@ export default function GenerateVouchersModal({
   const [seen, setSeen] = useState({ zoneState, roamState });
   if (seen.zoneState !== zoneState || seen.roamState !== roamState) {
     setSeen({ zoneState, roamState });
-    if (zoneState?.success || roamState?.success) setOpen(false);
+    if (succeeded(zoneState) || succeeded(roamState)) setOpen(false);
   }
 
   useEffect(() => {
@@ -112,6 +118,7 @@ export default function GenerateVouchersModal({
   }
 
   const state = mode === "zone" ? zoneState : roamState;
+  const stateError = state && "error" in state ? state.error : null;
   const pending = zonePending || roamPending;
   const canSubmit =
     mode === "zone" ? zones.length > 0 && chosenPackage !== null : group !== null && chosenOffer !== null;
@@ -214,12 +221,12 @@ export default function GenerateVouchersModal({
               </div>
 
               <div className="mt-4" aria-live="polite">
-                {state?.error && (
+                {stateError && (
                   <p className="flex items-center gap-2 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
-                    <AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0" /> {state.error}
+                    <AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0" /> {stateError}
                   </p>
                 )}
-                {state?.success && (
+                {succeeded(state) && (
                   <p className="flex items-center gap-2 rounded-lg bg-ok-soft px-3 py-2 text-sm text-ok">
                     <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" /> Tickets générés.
                   </p>
