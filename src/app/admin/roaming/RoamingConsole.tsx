@@ -114,7 +114,7 @@ function StatusDot({ status }: { status: string }) {
   const online = status === "online";
   return (
     <span className="inline-flex items-center gap-1.5">
-      <i className={`h-2 w-2 rounded-full ${online ? "bg-ok" : "bg-warn"}`} />
+      <i className={`h-2 w-2 rounded-full ${online ? "bg-ok live-dot" : "bg-warn"}`} />
       <span>{online ? "En ligne" : "À vérifier"}</span>
     </span>
   );

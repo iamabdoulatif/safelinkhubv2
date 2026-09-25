@@ -16,7 +16,9 @@ export function StatusBadge({ status, t }: { status: string; t: RouterDictionary
     : config
       ? "bg-warn-soft text-warn"
       : "bg-err-soft text-err";
-  const dot = online ? "bg-ok" : config ? "bg-warn" : "bg-err";
+  // Vert et rouge « scintillent » (globals.css .live-dot) ; l'orange d'une
+  // configuration en cours reste fixe : ce n'est ni un état sain ni une panne.
+  const dot = online ? "bg-ok live-dot" : config ? "bg-warn" : "bg-err live-dot live-dot-alert";
   return (
     <span
       className={`inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-xs font-semibold ${tone}`}

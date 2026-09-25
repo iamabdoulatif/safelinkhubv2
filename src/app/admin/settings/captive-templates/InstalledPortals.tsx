@@ -116,7 +116,7 @@ export default function InstalledPortals({
                 >
                   <span
                     aria-hidden="true"
-                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${online ? "bg-ok" : "bg-err"}`}
+                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${online ? "bg-ok live-dot" : "bg-err live-dot live-dot-alert"}`}
                   />
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-sm text-ink ${active ? "font-semibold" : ""}`}>
