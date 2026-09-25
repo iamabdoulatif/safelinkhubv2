@@ -65,21 +65,8 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
   }, [result]);
 
   return (
-    <div className="rounded-lg border border-line-soft p-3">
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          disabled={!result}
-          className="flex items-center gap-2 text-left disabled:cursor-default"
-        >
-          {result && (
-            <ChevronDown
-              className={`h-3.5 w-3.5 shrink-0 text-ink-soft transition-transform ${open ? "rotate-180" : ""}`}
-            />
-          )}
-          <span className="text-sm font-medium text-ink">{router.name}</span>
-        </button>
+    <div>
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={handleEnable}
@@ -89,10 +76,21 @@ function RouterBackToHome({ router }: { router: RouterRow }) {
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {pending ? "Activation..." : "Activer Back To Home"}
         </button>
+        {result && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="inline-flex items-center gap-1 text-xs font-medium text-ink-soft hover:text-ink"
+          >
+            {open ? "Masquer le résultat" : "Voir le résultat"}
+            <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+        )}
       </div>
 
       {router.status !== "online" && (
-        <p className="mt-1 text-xs text-ink-soft">
+        <p className="mt-2 text-xs text-ink-soft">
           Le routeur doit être en ligne pour activer cette fonctionnalité.
         </p>
       )}
@@ -151,33 +149,38 @@ export default function BackToHomeSection({ routers }: { routers: RouterRow[] })
   if (routers.length === 0) return null;
 
   return (
-    <div className="mt-10 border border-line bg-paper p-6 rounded-xl">
-      <div className="flex items-center gap-2">
-        <Smartphone className="h-5 w-5 text-ink" />
-        <h2 className="font-semibold text-ink">MikroTik Back To Home</h2>
+    <section
+      aria-labelledby="back-to-home"
+      className="flex flex-col rounded-2xl border border-line bg-paper p-5 sm:p-6"
+    >
+      <div className="flex items-start gap-3.5">
+        <span
+          aria-hidden="true"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-clay text-ink"
+        >
+          <Smartphone className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <h3 id="back-to-home" className="font-semibold text-ink">
+            Back To Home
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-ink-soft">
+            L&apos;app officielle MikroTik (Android, iPhone) rejoint le routeur par le relais cloud
+            de MikroTik, indépendamment de SafeLinkHub. On active le réglage côté routeur ; la
+            première liaison se fait une fois, connecté à son Wi-Fi.
+          </p>
+          <p className="mt-2 text-xs text-ink-soft">
+            Processeur ARM, ARM64 ou TILE · RouterOS 7.12 ou plus · la configuration WireGuard
+            produite marche aussi avec l&apos;app WireGuard.
+          </p>
+        </div>
       </div>
-      <p className="mt-1 text-sm text-ink-soft">
-        Fonctionnalité officielle MikroTik : l&apos;app gratuite &quot;Back To
-        Home&quot; (Android/iPhone) utilise le relais cloud de MikroTik,
-        indépendamment du VPN SafeLinkHub. On active automatiquement le
-        réglage côté routeur ; la toute première liaison de l&apos;app doit
-        ensuite se faire une fois, en étant connecté au Wi-Fi du routeur, en
-        saisissant son IP locale, l&apos;identifiant et le mot de passe dans
-        l&apos;app.
-      </p>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-5 space-y-4 border-t border-line-soft pt-4">
         {routers.map((r) => (
           <RouterBackToHome key={r.id} router={r} />
         ))}
       </div>
-
-      <p className="mt-4 rounded-lg bg-clay px-3 py-2 text-xs text-ink">
-        Nécessite un routeur à processeur ARM/ARM64/TILE avec RouterOS 7.12
-        ou plus récent. La configuration WireGuard générée fonctionne aussi
-        directement avec l&apos;app WireGuard classique, sans passer par
-        l&apos;app Back To Home.
-      </p>
-    </div>
+    </section>
   );
 }

@@ -2,7 +2,20 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Copy, CreditCard, ExternalLink, Globe2, Loader2, ShieldOff } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  CreditCard,
+  ExternalLink,
+  Globe2,
+  Loader2,
+  Monitor,
+  ShieldAlert,
+  SquareTerminal,
+  Ticket,
+  type LucideIcon,
+} from "lucide-react";
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
 import { PERIOD_PRICE_CENTS, type BillingPeriod } from "@/lib/mikrotik/billing-plans";
 import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
@@ -48,6 +61,14 @@ const SERVICE_LABELS: Record<string, string> = {
   mikhmon: "MikHmon (vouchers)",
 };
 
+/** Ce que l'on fait avec chaque accès — lu d'un coup d'œil, avant le nom technique. */
+const SERVICE_META: Record<string, { icon: LucideIcon; hint: string }> = {
+  winbox: { icon: Monitor, hint: "Application WinBox" },
+  webfig: { icon: Globe2, hint: "Dans le navigateur" },
+  ssh: { icon: SquareTerminal, hint: "Terminal ou FileZilla (SFTP)" },
+  mikhmon: { icon: Ticket, hint: "Gestion des vouchers" },
+};
+
 const BILLING_PERIOD_LABELS: Record<BillingPeriod, string> = {
   monthly: "1 mois",
   quarterly: "3 mois",
@@ -74,12 +95,16 @@ function CopyableAddress({ value }: { value: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="flex items-center gap-1.5 rounded bg-clay px-2 py-1 text-xs font-medium text-ink hover:bg-clay"
-      title="Copier"
+      className="inline-flex h-8 min-w-0 max-w-full items-center gap-2 rounded-lg border border-line bg-clay/60 px-2.5 font-mono text-xs text-ink hover:border-line-strong"
+      aria-label={`Copier ${value}`}
     >
-      {value}
-      <Copy className="h-3 w-3 text-ink-soft" />
-      {copied && <span className="text-ok">Copié</span>}
+      <span className="truncate">{value}</span>
+      {copied ? (
+        <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-ok" />
+      ) : (
+        <Copy aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-ink-soft" />
+      )}
+      <span className="sr-only" aria-live="polite">{copied ? "Copié" : ""}</span>
     </button>
   );
 }
@@ -141,17 +166,18 @@ function SshFileZillaTutorial({
   }, []);
 
   return (
-    <div className="mt-2 rounded-lg border border-line-soft bg-paper">
+    <div className="mt-2">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-2.5 py-2 text-left text-xs font-medium text-ink-soft"
+        aria-expanded={open}
+        className="inline-flex items-center gap-1 text-xs font-medium text-brand-deep hover:underline"
       >
-        Configurer FileZilla (SFTP)
-        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        Configurer FileZilla
+        <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="border-t border-line-soft px-2.5 py-2 text-xs text-ink-soft">
+        <div className="mt-2 rounded-lg border border-line-soft bg-clay/40 px-3 py-2.5 text-xs text-ink-soft">
           <p className="font-medium text-ink">
             Étape 1 (une seule fois par ordinateur) — faire de FileZilla le gestionnaire par
             défaut du lien <code className="rounded bg-clay px-1">sftp://</code>
@@ -242,6 +268,7 @@ function RouterDirectAccess({
   relayBaseDomain,
   unlimited,
   quotaExpiresAt,
+  showName,
 }: {
   router: RouterRow;
   forwards: ForwardRow[];
@@ -249,6 +276,8 @@ function RouterDirectAccess({
   relayBaseDomain: string | null;
   unlimited: boolean;
   quotaExpiresAt: Date | null;
+  /** Nom du routeur au-dessus de la liste — seulement s'il y en a plusieurs. */
+  showName: boolean;
 }) {
   const navRouter = useRouter();
   const [pendingService, setPendingService] = useState<string | null>(null);
@@ -259,8 +288,6 @@ function RouterDirectAccess({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [resources, setResources] = useState<RouterResources | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
-  const [cardOpen, setCardOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<AccessConfirmation>(null);
   const confirmationTriggerRef = useRef<HTMLElement | null>(null);
   const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -353,7 +380,6 @@ function RouterDirectAccess({
 
   function runEnableAll() {
     setError(null);
-    setCardOpen(true);
     const inactive = ALL_SERVICES.filter((s) => !activeServices.has(s));
     if (inactive.length === 0) return;
     startTransition(async () => {
@@ -405,41 +431,35 @@ function RouterDirectAccess({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [confirmation]);
 
+  const details = [
+    ["IP WAN", summary?.wanIpAddress || "—"],
+    ["MAC WAN", summary?.wanMacAddress || "—"],
+    ["IP tunnel", summary?.tunnelIp || router.tunnelIp || "—"],
+    ["Identity", summary?.identity ?? resources?.identity ?? router.name],
+    ["RouterOS", resources?.version ?? "—"],
+    ["Carte", resources?.boardName ?? "—"],
+    ["Uptime", resources?.uptime ?? "—"],
+  ] as const;
+
   return (
-    <div className="rounded-lg border border-line-soft p-3">
-      <div className="flex w-full items-center justify-between gap-2 text-left">
-        <button
-          type="button"
-          onClick={() => setCardOpen((v) => !v)}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          aria-expanded={cardOpen}
-        >
-        <span className="flex items-center gap-2">
-          <ChevronDown
-            className={`h-3.5 w-3.5 shrink-0 text-ink-soft transition-transform ${cardOpen ? "rotate-180" : ""}`}
-          />
-          <span className="text-sm font-medium text-ink">{router.name}</span>
-          {hasActiveAccess && (
-            <span className="rounded-full bg-clay px-2 py-0.5 text-xs font-medium text-ok">
-              {activeServices.size} actif{activeServices.size > 1 ? "s" : ""}
+    <div>
+      <div className="mb-3 flex min-h-8 flex-wrap items-center justify-between gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 text-sm text-ink-soft">
+            {showName && <span className="font-semibold text-ink">{router.name}</span>}
+            <span>
+              <span className="font-semibold tabular-nums text-ink">{activeServices.size}</span> sur{" "}
+              {ALL_SERVICES.length} services ouverts
             </span>
-          )}
-        </span>
-        </button>
-        <span className="flex items-center gap-2">
-          {router.status !== "online" && (
-            <span className="text-xs text-ink-soft">Routeur hors ligne</span>
-          )}
+            {router.status !== "online" && <span>· routeur hors ligne, activation impossible</span>}
+          </span>
           {unlimited && activeServices.size < 4 && (
             <button
               type="button"
               disabled={pending}
               onClick={(event) => requestEnableAll(event.currentTarget)}
-              className="flex items-center gap-1.5 rounded-full bg-brand px-2.5 py-0.5 text-xs font-semibold text-slate-deep hover:bg-brand-deep disabled:opacity-60"
+              className="btn btn-sm btn-outline inline-flex items-center gap-1.5"
             >
-              {pending && pendingService && (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              )}
+              {pending && pendingService && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />}
               {pending
                 ? pendingService
                   ? `${SERVICE_LABELS[pendingService] ?? pendingService}…`
@@ -447,15 +467,19 @@ function RouterDirectAccess({
                 : `Tout activer (${4 - activeServices.size})`}
             </button>
           )}
-        </span>
-      </div>
+        </div>
 
-      {cardOpen && (
-        <>
-          {error && <p className="mt-2 text-xs text-err">{error}</p>}
+      {error && (
+        <p role="alert" className="mb-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">
+          {error}
+        </p>
+      )}
 
-      <div className="mt-2 space-y-2">
-        {(["winbox", "webfig", "ssh", "mikhmon"] as const).map((service) => {
+      {/* Une ligne par service : ce qu'il sert à faire, son adresse quand il
+          est ouvert, et l'interrupteur. L'ancienne grille qui répétait les
+          mêmes adresses sous la liste a disparu. */}
+      <ul role="list" className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line">
+        {ALL_SERVICES.map((service) => {
           const forward = forwards.find((f) => f.service === service);
           const isPublic = Boolean(forward);
           const busy = pending && pendingService === service;
@@ -465,195 +489,140 @@ function RouterDirectAccess({
               ? `Gratuit jusqu'au ${formatExpiry(forward.expiresAt) ?? "quota"}`
               : BILLING_PERIOD_LABELS[(forward.billingPeriod as BillingPeriod) ?? "monthly"]
             : null;
+          const { icon: Icon, hint } = SERVICE_META[service];
+          // Services web servis en HTTPS par le nginx du relais (certificat
+          // joker) ; WinBox/SSH gardent leur hôte:port brut.
+          const address = forward ? forwardAddress(forward, relayHost, relayBaseDomain) : null;
+          const direct =
+            forward && ((service === "mikhmon" && Boolean(forward.cloudDomain)) ||
+              (Boolean(relayBaseDomain) && isWebAccessService(service)));
+          const url = forward && address ? (direct ? address : serviceUrl(service, address, router.username)) : null;
+          const openable = service === "webfig" || service === "mikhmon" || service === "ssh";
           return (
-            <div key={service} className="rounded-lg px-0 py-1">
-              <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-ink-soft">{SERVICE_LABELS[service]}</span>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {forward && (
-                    <CopyableAddress
-                      value={forwardAddress(forward, relayHost, relayBaseDomain)}
-                    />
-                  )}
-                  {!isPublic && (
-                    <select
-                      value={defaultPlan(service)}
-                      onChange={(e) =>
-                        setSelectedPlans((prev) => ({
-                          ...prev,
-                          [service]: e.target.value as AccessPlan,
-                        }))
-                      }
-                      disabled={busy}
-                      title="Plan de facturation (paiement non encore activé)"
-                      className="rounded-lg border border-line bg-paper px-1.5 py-1 text-xs text-ink-soft focus:border-ink disabled:opacity-50"
-                    >
-                      {quotaExpiresAt ? (
-                        <option value="__quota__">Accès gratuit jusqu&apos;au {formatExpiry(quotaExpiresAt)}</option>
-                      ) : (
-                        <>
-                          <option value="monthly">1 mois — {formatFcfa(PERIOD_PRICE_CENTS.monthly)}</option>
-                          <option value="quarterly">3 mois — {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}</option>
-                          <option value="semiannual">6 mois — {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}</option>
-                          <option value="yearly">12 mois — {formatFcfa(PERIOD_PRICE_CENTS.yearly)}</option>
-                        </>
-                      )}
-                      {unlimited && (
-                        <option value="__unlimited__">Forfait illimité</option>
-                      )}
-                    </select>
-                  )}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={isPublic}
-                    disabled={busy || (!isPublic && router.status !== "online" && !unlimited)}
-                    onClick={(event) =>
-                      isPublic
-                        ? requestDisable(forward!.id, service, event.currentTarget)
-                        : requestEnable(service, event.currentTarget)
-                    }
-                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-                      isPublic ? "bg-err" : "bg-line-soft"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4.5 w-4.5 transform rounded-full bg-paper shadow transition-transform ${
-                        isPublic ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                  <span
-                    className={`flex w-14 items-center gap-1 text-xs font-medium ${
-                      isPublic ? "text-err" : "text-ink-soft"
-                    }`}
-                  >
-                    {pendingService === service ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : isPublic ? (
-                      <Globe2 className="h-3 w-3" />
-                    ) : (
-                      <ShieldOff className="h-3 w-3 rotate-180" />
+            <li key={service} className={`flex gap-3.5 px-4 py-4 sm:px-5 ${isPublic ? "bg-paper" : "bg-clay/30"}`}>
+              <span
+                aria-hidden="true"
+                className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                  isPublic ? "bg-slate-deep text-brand" : "border border-line bg-paper text-ink-soft"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">{SERVICE_LABELS[service].split(" (")[0]}</p>
+                    <p className="text-xs text-ink-soft">{hint}</p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {!isPublic && (
+                      <select
+                        value={defaultPlan(service)}
+                        onChange={(e) =>
+                          setSelectedPlans((prev) => ({
+                            ...prev,
+                            [service]: e.target.value as AccessPlan,
+                          }))
+                        }
+                        disabled={busy}
+                        aria-label={`Durée de l'accès ${SERVICE_LABELS[service]}`}
+                        className="field h-8 w-auto py-0 text-xs"
+                      >
+                        {quotaExpiresAt ? (
+                          <option value="__quota__">Gratuit jusqu&apos;au {formatExpiry(quotaExpiresAt)}</option>
+                        ) : (
+                          <>
+                            <option value="monthly">1 mois — {formatFcfa(PERIOD_PRICE_CENTS.monthly)}</option>
+                            <option value="quarterly">3 mois — {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}</option>
+                            <option value="semiannual">6 mois — {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}</option>
+                            <option value="yearly">12 mois — {formatFcfa(PERIOD_PRICE_CENTS.yearly)}</option>
+                          </>
+                        )}
+                        {unlimited && <option value="__unlimited__">Forfait illimité</option>}
+                      </select>
                     )}
-                    {isPublic ? "Public" : "Privé"}
-                  </span>
+                    <span className="flex items-center gap-2">
+                      <span className={`w-12 text-right text-xs font-medium ${isPublic ? "text-ink" : "text-ink-soft"}`}>
+                        {busy ? <Loader2 aria-hidden="true" className="ml-auto h-3.5 w-3.5 animate-spin" /> : isPublic ? "Public" : "Privé"}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isPublic}
+                        aria-label={`Accès public ${SERVICE_LABELS[service]}`}
+                        disabled={busy || (!isPublic && router.status !== "online" && !unlimited)}
+                        onClick={(event) =>
+                          isPublic
+                            ? requestDisable(forward!.id, service, event.currentTarget)
+                            : requestEnable(service, event.currentTarget)
+                        }
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                          isPublic ? "bg-slate-deep" : "bg-line-strong/60"
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`inline-block h-4.5 w-4.5 transform rounded-full bg-paper shadow transition-transform ${
+                            isPublic ? "translate-x-5.5" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </span>
+                  </div>
                 </div>
+
+                {forward && address && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <CopyableAddress value={address} />
+                    {openable && url && (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink hover:bg-clay"
+                      >
+                        <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+                        {service === "ssh" ? "Ouvrir dans FileZilla" : "Ouvrir"}
+                      </a>
+                    )}
+                    {!unlimited && planLabel && (
+                      <span className="text-xs text-ink-soft">
+                        Plan {planLabel}
+                        {expiry && <> · renouvellement le {expiry}</>}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {service === "ssh" && forward && address && (
+                  <SshFileZillaTutorial address={address} username={router.username} />
+                )}
               </div>
-              {isPublic && (
-                <p className="mt-0.5 flex items-center justify-end gap-1 text-xs text-ink-soft">
-                  <CreditCard className="h-3 w-3" />
-                  {unlimited ? (
-                    "Forfait illimité"
-                  ) : (
-                    <>
-                      Plan {planLabel}
-                      {expiry && <> · renouvellement le {expiry}</>}
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
+            </li>
           );
         })}
-      </div>
-      <p className="mt-2 text-xs text-ink-soft">
-        {hasActiveAccess
-          ? "Connectez-vous directement avec ces adresses, sans VPN ni app à installer."
-          : "Aucun accès direct actif."}
-      </p>
+      </ul>
 
+      {/* Fiche du routeur : visible d'emblée dès qu'un accès est ouvert —
+          c'est ce qu'on vérifie avant de s'y connecter. */}
       {hasActiveAccess && (
-        <div className="mt-3 rounded-lg border border-line-soft bg-clay/60 p-3">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {forwards.map((forward) => {
-              // Browser services are served over HTTPS on their public port by
-              // the relay's nginx (wildcard *.<base> cert) so they work under
-              // browsers' HTTPS-First mode; WinBox/SSH keep their raw host:port.
-              const isCloudMikhmon = forward.service === "mikhmon" && Boolean(forward.cloudDomain);
-              const isWebHttps = Boolean(relayBaseDomain) && isWebAccessService(forward.service);
-              const address = forwardAddress(forward, relayHost, relayBaseDomain);
-              const url = isCloudMikhmon || isWebHttps
-                ? address
-                : serviceUrl(forward.service, address, router.username);
-              return (
-                <div key={forward.id} className="min-w-0">
-                  <div className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-paper px-2.5 py-2 text-xs">
-                    <div className="min-w-0">
-                      <p className="font-medium text-ink">
-                        {SERVICE_LABELS[forward.service] ?? forward.service}
-                      </p>
-                      <p className="truncate text-ink-soft">{address}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <CopyableAddress value={address} />
-                      {(forward.service === "webfig" ||
-                        forward.service === "mikhmon" ||
-                        forward.service === "ssh") && (
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded bg-clay p-1.5 text-ink-soft hover:bg-clay"
-                          title={forward.service === "ssh" ? "Ouvrir dans FileZilla" : "Ouvrir"}
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                  {forward.service === "ssh" && (
-                    <SshFileZillaTutorial address={address} username={router.username} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 rounded-lg border border-line-soft bg-paper">
-            <button
-              type="button"
-              onClick={() => setShowDetails((v) => !v)}
-              className="flex w-full items-center justify-between px-2.5 py-2 text-left text-xs font-medium text-ink-soft"
-            >
-              {showDetails ? "Masquer les détails du routeur" : "Afficher les détails du routeur"}
-              <ChevronDown
-                className={`h-3.5 w-3.5 text-ink-soft transition-transform ${showDetails ? "rotate-180" : ""}`}
-              />
-            </button>
-            {showDetails && (
-              <div className="grid grid-cols-1 gap-x-4 gap-y-2 border-t border-line-soft p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
-                {(
-                  [
-                    [
-                      "MAC WAN",
-                      resourcesLoading && !resources ? (
-                        <span key="loading" className="flex items-center gap-1 text-ink-soft">
-                          <Loader2 className="h-3 w-3 animate-spin" /> ...
-                        </span>
-                      ) : (
-                        summary?.wanMacAddress || "—"
-                      ),
-                    ],
-                    ["IP WAN", summary?.wanIpAddress || "—"],
-                    ["Adresse publique", relayHost || "—"],
-                    ["IP tunnel", summary?.tunnelIp || router.tunnelIp || "—"],
-                    ["Identity", summary?.identity ?? resources?.identity ?? router.name],
-                    ["Version", resources?.version ?? "—"],
-                    ["Board", resources?.boardName ?? "—"],
-                    ["Uptime", resources?.uptime ?? "—"],
-                  ] as const
-                ).map(([label, value]) => (
-                  <div key={label} className="min-w-0">
-                    <p className="text-ink-soft">{label}</p>
-                    <p className="truncate font-medium text-ink">{value}</p>
-                  </div>
-                ))}
+        <div className="mt-5">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-soft">
+            Fiche du routeur
+            {resourcesLoading && <Loader2 aria-label="Chargement" className="h-3 w-3 animate-spin" />}
+          </p>
+          <dl className="mt-2 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line-soft sm:grid-cols-4 lg:grid-cols-7">
+            {details.map(([label, value]) => (
+              <div key={label} className="min-w-0 bg-paper px-3 py-2.5">
+                <dt className="text-[11px] text-ink-soft">{label}</dt>
+                <dd className="mt-0.5 truncate font-mono text-xs text-ink" title={String(value)}>
+                  {value}
+                </dd>
               </div>
-            )}
-          </div>
+            ))}
+          </dl>
         </div>
-      )}
-        </>
       )}
 
       {/* Porte de monétisation manuelle des accès distants (temporaire). */}
@@ -749,14 +718,18 @@ export default function DirectAccessSection({
   const eligible = routers.filter((r) => r.connectionMethod !== "direct" && r.tunnelIp);
   if (eligible.length === 0) return null;
 
+  const unlimited = Boolean(vpnTrial?.unlimited);
   return (
-    <div className="mt-10 border border-line bg-paper p-4 sm:p-6 rounded-xl">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Globe2 className="h-5 w-5 text-ink" />
-          <h2 className="font-semibold text-ink">
-            Accès direct sans VPN (WinBox / WebFig)
+    <section aria-labelledby="acces-directs" className="rounded-2xl border border-line bg-paper p-4 sm:p-7">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
+          <h2 id="acces-directs" className="text-lg font-semibold text-ink">
+            Accès directs
           </h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            Une adresse publique par service, qui mène droit au routeur — sans VPN ni application à
+            installer sur l&apos;appareil qui se connecte.
+          </p>
         </div>
         {vpnTrial?.unlimited ? (
           <TrialBadge
@@ -779,33 +752,16 @@ export default function DirectAccessSection({
           )
         )}
       </div>
-      <p className="mt-1 text-sm text-ink-soft">
-        Ouvre une adresse publique (relais:port) qui redirige directement
-        vers le routeur — aucun client VPN, aucune app à installer sur
-        l&apos;appareil qui se connecte. Fonctionne depuis n&apos;importe
-        quel PC, téléphone, ou WinBox.
+
+      {/* La mise en garde est AVANT les interrupteurs, pas en bas de page où
+          on la lisait après avoir ouvert le port. */}
+      <p className="mt-4 flex items-start gap-2 rounded-lg bg-warn-soft px-3 py-2.5 text-xs leading-5 text-warn">
+        <ShieldAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+        Un accès public est joignable par quiconque connaît l&apos;adresse : seul le mot de passe du
+        routeur le protège. Vérifiez qu&apos;il est fort avant d&apos;ouvrir un service.
       </p>
 
-      <p className="mt-3 flex items-start gap-1.5 rounded-lg bg-clay px-3 py-2 text-xs text-ink">
-        <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        {vpnTrial?.quotaMode === "free_until" && vpnTrial.endsAt
-          ? `Ce quota gratuit borne chaque accès jusqu'au ${formatExpiry(vpnTrial.endsAt)}.`
-          : "Chaque accès est activable pour 1, 3, 6 ou 12 mois — choisissez la durée avant d'activer un service."}{" "}
-        {vpnTrial?.paidOverride
-          ? "Le superadmin a rendu le VPN payant pour cette organisation : les activations débitent le portefeuille."
-          : vpnTrial?.unlimited
-            ? vpnTrial.quotaMode === "unlimited"
-              ? "Quota superadmin : VPN gratuit sans limite de durée pour cette organisation."
-              : "Compte superadmin : aucun débit, sans limite de routeurs ni de durée."
-          : vpnTrial?.active
-            ? vpnTrial.quotaMode === "free_until"
-              ? "Quota superadmin actif : aucun débit pendant cette période."
-              : `${vpnTrial.totalDays ?? VPN_TRIAL_DAYS} premiers jours offerts dès l'inscription (essai en cours) : aucun débit pendant cette période.`
-            : `Le débit du portefeuille est actif (essai de ${vpnTrial?.totalDays ?? VPN_TRIAL_DAYS} jours écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant.`}{" "}
-        La date de renouvellement est affichée à titre indicatif.
-      </p>
-
-      <div className="mt-4 space-y-3">
+      <div className="mt-5 space-y-6">
         {eligible.map((r) => (
           <RouterDirectAccess
             key={r.id}
@@ -813,18 +769,32 @@ export default function DirectAccessSection({
             forwards={forwardsByRouter[r.id] ?? []}
             relayHost={r.relayHost ?? relayHost}
             relayBaseDomain={relayBaseDomain}
-            unlimited={Boolean(vpnTrial?.unlimited)}
+            unlimited={unlimited}
             quotaExpiresAt={vpnTrial?.quotaMode === "free_until" ? vpnTrial.endsAt ?? null : null}
+            showName={eligible.length > 1}
           />
         ))}
       </div>
 
-      <p className="mt-4 rounded-lg bg-err-soft px-3 py-2 text-xs text-err">
-        Attention : ce port devient joignable par quiconque connaît
-        l&apos;adresse — seule l&apos;authentification du routeur protège
-        l&apos;accès. Utilisez un mot de passe fort sur le routeur avant
-        d&apos;activer ceci.
+      <p className="mt-4 flex items-start gap-1.5 text-xs leading-5 text-ink-soft">
+        <CreditCard aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          {vpnTrial?.quotaMode === "free_until" && vpnTrial.endsAt
+            ? `Ce quota gratuit borne chaque accès jusqu'au ${formatExpiry(vpnTrial.endsAt)}.`
+            : "Chaque accès s'active pour 1, 3, 6 ou 12 mois."}{" "}
+          {vpnTrial?.paidOverride
+            ? "Le superadmin a rendu le VPN payant pour cette organisation : les activations débitent le portefeuille."
+            : vpnTrial?.unlimited
+              ? vpnTrial.quotaMode === "unlimited"
+                ? "Quota superadmin : VPN gratuit sans limite de durée pour cette organisation."
+                : "Compte superadmin : aucun débit, sans limite de routeurs ni de durée."
+              : vpnTrial?.active
+                ? vpnTrial.quotaMode === "free_until"
+                  ? "Quota superadmin actif : aucun débit pendant cette période."
+                  : `${vpnTrial.totalDays ?? VPN_TRIAL_DAYS} premiers jours offerts dès l'inscription (essai en cours) : aucun débit pendant cette période.`
+                : `Le débit du portefeuille est actif (essai de ${vpnTrial?.totalDays ?? VPN_TRIAL_DAYS} jours écoulé), sans blocage de l'accès en cas de solde insuffisant pour l'instant.`}
+        </span>
       </p>
-    </div>
+    </section>
   );
 }

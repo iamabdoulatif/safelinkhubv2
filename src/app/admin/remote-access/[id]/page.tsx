@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import RouterThumb from "@/components/RouterThumb";
 import { and, eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { after } from "next/server";
@@ -49,23 +51,56 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
     (router.connectionMethod === "vpn" || router.connectionMethod === "openvpn") &&
     Boolean(router.tunnelIp);
 
+  const online = router.status === "online";
+  const methodLabel =
+    router.connectionMethod === "openvpn" ? "OpenVPN" : router.connectionMethod === "vpn" ? "WireGuard" : "Direct";
+
   return (
     <div className="animate-fade-in-up space-y-8">
       <Link
         href="/admin/remote-access"
-        className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-ink-soft hover:text-ink"
+        className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-ink"
       >
-        ← Retour au centre de contrôle
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+        Centre de contrôle
       </Link>
 
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-brand-deep">
-          Espace routeur
-        </p>
-        <h1 className="mt-1 text-ink text-2xl font-semibold tracking-tight">{router.name}</h1>
-        <p className="mt-1 text-sm text-ink-soft">
-          Actions techniques et accès distants de ce MikroTik.
-        </p>
+      {/* En-tête : QUEL routeur, dans QUEL état, joignable par OÙ. Le nom
+          n'est écrit qu'ici — les sections dessous parlent de « ce routeur ». */}
+      <header className="flex items-center gap-4 sm:gap-5">
+        <RouterThumb model={router.model} size={60} className="rounded-2xl" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="truncate text-2xl font-semibold tracking-tight text-ink">{router.name}</h1>
+            <span
+              className={`inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ${
+                online ? "bg-ok-soft text-ok" : "bg-err-soft text-err"
+              }`}
+            >
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${online ? "bg-ok" : "bg-err"}`} />
+              {online ? "En ligne" : "Hors ligne"}
+            </span>
+          </div>
+          <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-soft">
+            {router.model && (
+              <div>
+                <dt className="sr-only">Modèle</dt>
+                <dd>{router.model}</dd>
+              </div>
+            )}
+            <div className="flex gap-1.5">
+              <dt>Tunnel</dt>
+              <dd className="font-mono text-ink">
+                {methodLabel}
+                {router.tunnelIp ? ` · ${router.tunnelIp}` : ""}
+              </dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt>Relais</dt>
+              <dd className="font-mono text-ink">{relayHost}</dd>
+            </div>
+          </dl>
+        </div>
       </header>
 
       <DirectAccessSection
@@ -91,29 +126,35 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
         vpnTrial={vpnTrial}
       />
 
-      <BackToHomeSection routers={[{ id: router.id, name: router.name, status: router.status }]} />
-
-
-      {canReplace && (
-        <RouterReplacementSection
-          rows={[
-            {
-              router: {
-                id: router.id,
-                name: router.name,
-                status: router.status,
-                connectionMethod: router.connectionMethod,
-                tunnelIp: router.tunnelIp,
-              },
-              services: forwards.map((forward) => ({
-                service: forward.service,
-                publicPort: forward.publicPort,
-              })),
-              replacement,
-            },
-          ]}
-        />
-      )}
+      {/* Outils ponctuels : côte à côte, ils ne concurrencent plus les accès. */}
+      <section aria-labelledby="outils-routeur" className="space-y-3">
+        <h2 id="outils-routeur" className="text-sm font-semibold text-ink">
+          Autres outils
+        </h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <BackToHomeSection routers={[{ id: router.id, name: router.name, status: router.status }]} />
+          {canReplace && (
+            <RouterReplacementSection
+              rows={[
+                {
+                  router: {
+                    id: router.id,
+                    name: router.name,
+                    status: router.status,
+                    connectionMethod: router.connectionMethod,
+                    tunnelIp: router.tunnelIp,
+                  },
+                  services: forwards.map((forward) => ({
+                    service: forward.service,
+                    publicPort: forward.publicPort,
+                  })),
+                  replacement,
+                },
+              ]}
+            />
+          )}
+        </div>
+      </section>
     </div>
   );
 }
