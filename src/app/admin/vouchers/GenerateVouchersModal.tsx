@@ -52,9 +52,10 @@ export default function GenerateVouchersModal({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-lg border border-line-soft bg-paper px-4 py-2 text-sm font-medium text-ink hover:bg-clay"
+        type="button"
+        className="btn btn-md btn-primary"
       >
-        Générer des vouchers
+        Générer des tickets
       </button>
 
       {open && (

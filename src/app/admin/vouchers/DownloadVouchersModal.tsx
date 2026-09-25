@@ -76,7 +76,8 @@ export default function DownloadVouchersModal({
       <button
         onClick={() => setOpen(true)}
         disabled={count === 0}
-        className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-deep-line disabled:opacity-40"
+        type="button"
+        className="btn btn-md btn-outline"
       >
         Télécharger la sélection
       </button>

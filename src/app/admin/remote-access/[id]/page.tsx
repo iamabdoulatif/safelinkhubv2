@@ -77,7 +77,7 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
                 online ? "bg-ok-soft text-ok" : "bg-err-soft text-err"
               }`}
             >
-              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${online ? "bg-ok" : "bg-err"}`} />
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${online ? "bg-ok live-dot" : "bg-err live-dot live-dot-alert"}`} />
               {online ? "En ligne" : "Hors ligne"}
             </span>
           </div>

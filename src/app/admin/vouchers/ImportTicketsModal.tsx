@@ -119,7 +119,7 @@ export default function ImportTicketsModal({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-sm bg-brand px-4 py-2 text-sm font-semibold text-ink hover:bg-paper"
+        className="btn btn-md btn-outline inline-flex items-center gap-2"
       >
         <Upload className="h-4 w-4" />
         Importer
