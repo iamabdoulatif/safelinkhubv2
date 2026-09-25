@@ -16,15 +16,24 @@ type TemplateOption = { id: string; name: string; isDefault: boolean };
 export default function InstallOnRouter({
   routers,
   templates,
+  fixedRouterId,
+  currentTemplateId,
 }: {
   routers: RouterOption[];
   templates: TemplateOption[];
+  /** Mode « panneau d'un routeur » : pas de choix de routeur, pas d'en-tête. */
+  fixedRouterId?: string;
+  /** Portail déjà en place, présélectionné. */
+  currentTemplateId?: string | null;
 }) {
   const navRouter = useRouter();
   const [pending, startTransition] = useTransition();
-  const [routerId, setRouterId] = useState(routers[0]?.id ?? "");
+  const [routerId, setRouterId] = useState(fixedRouterId ?? routers[0]?.id ?? "");
   const [templateId, setTemplateId] = useState(
-    templates.find((t) => t.isDefault)?.id ?? templates[0]?.id ?? "",
+    (currentTemplateId && templates.some((t) => t.id === currentTemplateId) ? currentTemplateId : null) ??
+      templates.find((t) => t.isDefault)?.id ??
+      templates[0]?.id ??
+      "",
   );
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
@@ -66,6 +75,52 @@ export default function InstallOnRouter({
   }
 
   if (templates.length === 0) return null;
+
+  if (fixedRouterId) {
+    return (
+      <div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <label htmlFor={`portail-${fixedRouterId}`} className="mb-1 block text-xs font-medium text-ink-soft">
+              Portail à installer
+            </label>
+            <select
+              id={`portail-${fixedRouterId}`}
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="field"
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.id === currentTemplateId ? " (en place)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={install}
+            disabled={pending || !templateId}
+            className="btn btn-md btn-secondary inline-flex items-center justify-center gap-2"
+          >
+            <UploadCloud aria-hidden="true" className="h-4 w-4" />
+            {pending ? "Installation…" : templateId === currentTemplateId ? "Réinstaller" : "Installer"}
+          </button>
+        </div>
+        {feedback && (
+          <p
+            role="status"
+            className={`mt-2 rounded-lg px-3 py-2 text-sm ${
+              feedback.kind === "ok" ? "bg-ok-soft text-ok" : "bg-err-soft text-err"
+            }`}
+          >
+            {feedback.text}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="mt-8">

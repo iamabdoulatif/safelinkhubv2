@@ -18,7 +18,7 @@ import DefaultPortals, { type DefaultPortal } from "./DefaultPortals";
 import BridgeAssignments from "./BridgeAssignments";
 import InstallOnRouter from "./InstallOnRouter";
 import ThemeGallery from "./ThemeGallery";
-import InstalledPortals, { type InstalledPortal } from "./InstalledPortals";
+import InstalledPortals, { type RouterPortal } from "./InstalledPortals";
 import { signPreviewToken } from "@/lib/captive-templates/preview-token";
 
 // PackagePreview ne lit que le schéma de couleurs des CSS — on n'envoie donc que
@@ -113,9 +113,7 @@ export default async function CaptiveTemplatesPage({
   // sinon (routeurs configurés avant ce suivi) un bridge suivi, puis le modèle
   // que l'auto-setup a nommé d'après le SSID — marqué « présumé ».
   const packages = templates.filter((t) => t.templateType === "package");
-  const installed: InstalledPortal[] = [];
-  const withoutPortal: { id: string; name: string }[] = [];
-  for (const r of orgRouters) {
+  const items: RouterPortal[] = orgRouters.map((r) => {
     const ssid = ((r.config ?? {}) as { ssid?: string }).ssid?.trim();
     const direct = packages.find((t) => t.id === r.captiveTemplateId);
     const viaBridge = packages.find((t) =>
@@ -125,24 +123,25 @@ export default async function CaptiveTemplatesPage({
     const t = direct ?? viaBridge ?? viaSsid;
     const files = (t?.packageFiles as { path: string }[] | null) ?? [];
     const entry = files.find((f) => f.path === "login.html")?.path ?? files.find((f) => f.path.endsWith(".html"))?.path;
-    if (t && entry) {
-      installed.push({
-        routerId: r.id,
-        routerName: r.name,
-        status: r.status,
-        templateId: t.id,
-        templateName: t.name,
-        entry,
-        token: signPreviewToken({ templateId: t.id, routerId: r.id, orgId: session!.orgId }),
-        inferred: !direct,
-      });
-    } else {
-      withoutPortal.push({ id: r.id, name: r.name });
-    }
-  }
+    return {
+      routerId: r.id,
+      routerName: r.name,
+      status: r.status,
+      portal:
+        t && entry
+          ? {
+              templateId: t.id,
+              templateName: t.name,
+              entry,
+              token: signPreviewToken({ templateId: t.id, routerId: r.id, orgId: session!.orgId }),
+              inferred: !direct,
+            }
+          : null,
+    };
+  });
 
   const compte: Record<string, number> = {
-    routeurs: installed.length,
+    routeurs: items.filter((i) => i.portal).length,
     modeles: templates.length,
   };
   const hrefVue = (id: string) => {
@@ -200,7 +199,12 @@ export default async function CaptiveTemplatesPage({
         </ul>
       </nav>
 
-      {vue === "routeurs" && <InstalledPortals portals={installed} withoutPortal={withoutPortal} />}
+      {vue === "routeurs" && (
+        <InstalledPortals
+          items={items}
+          templates={packages.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
+        />
+      )}
 
       {vue === "modeles" && <TemplatesManager templates={templates} />}
 
