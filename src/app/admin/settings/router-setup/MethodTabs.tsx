@@ -6,10 +6,18 @@ import GenerateScriptForm from "./GenerateScriptForm";
 import ConnectRouterForm from "./ConnectRouterForm";
 import TargetProfileCard from "./TargetProfileCard";
 
-const ENABLE_API_SCRIPT = `/ip service enable api
-/ip service set api port=8728
-/ip firewall filter add chain=input protocol=tcp dst-port=8728 src-address=<your-safelinkhub-server-ip> action=accept place-before=0
-/ip firewall filter add chain=input protocol=tcp dst-port=8728 action=drop`;
+/**
+ * Active l'API et la réserve au serveur SafeLinkHub, en une ligne.
+ *
+ * `address=` sur le SERVICE plutôt que deux règles de pare-feu : l'ancien
+ * script laissait `<your-safelinkhub-server-ip>` à remplacer à la main, et son
+ * `place-before=0` échoue sur un routeur dont la liste de filtres est vide.
+ * La syntaxe à espaces passe en RouterOS 6 comme en 7 (la 7.24 affiche un
+ * simple avertissement de dépréciation de `address`).
+ */
+export function enableApiScript(serverIp: string | null) {
+  return `/ip service set api port=8728 address=${serverIp ?? "<ip-du-serveur-safelinkhub>"}/32 disabled=no`;
+}
 
 const DEVICE_MODE_UNLOCK_SCRIPT = `/system/device-mode/update mode=advanced container=yes hotspot=yes scheduler=yes fetch=yes activation-timeout=10m
 # Confirmez ensuite physiquement dans les 10 minutes : bouton reset/mode ou coupure d'alimentation froide.
@@ -27,7 +35,8 @@ const DEVICE_MODE_SEALED_STEPS = `# a. Mise à niveau du routerboard
 # d. Vérifier les fonctionnalités activées
 /system/device-mode/print`;
 
-export default function MethodTabs() {
+export default function MethodTabs({ serverIp = null }: { serverIp?: string | null }) {
+  const apiScript = enableApiScript(serverIp);
   const [method, setMethod] = useState<"vpn" | "direct">("vpn");
 
   return (
@@ -163,20 +172,22 @@ export default function MethodTabs() {
               </h2>
             </div>
             <p className="mt-1 text-sm text-ink-soft">
-              Exécutez ceci dans le terminal MikroTik pour activer le service
-              API et le restreindre à l&apos;IP du serveur SafeLinkHub.
+              Exécutez ceci dans le terminal MikroTik : l&apos;API est activée et n&apos;accepte que
+              le serveur SafeLinkHub{serverIp ? ` (${serverIp})` : ""}. Compatible RouterOS 6 et 7.
             </p>
 
             <div className="mt-4">
               <h3 className="text-sm font-medium text-ink">
                 Script d&apos;activation de l&apos;API
               </h3>
-              <pre className="mt-2 code-block p-4">
-                {ENABLE_API_SCRIPT}
-              </pre>
+              <span className="relative mt-2 block">
+                <pre className="code-block whitespace-pre-wrap rounded-lg p-4 pr-28">{apiScript}</pre>
+                <CopyButton text={apiScript} className="absolute right-2 top-2" />
+              </span>
               <p className="mt-2 rounded-lg bg-clay px-3 py-2 text-xs text-warn">
-                Note : N&apos;exposez jamais l&apos;API RouterOS directement sur
-                internet sans restrictions de pare-feu.
+                Ne fonctionne que si le routeur a une IP publique joignable depuis internet (pas
+                derrière une box ou un opérateur 4G qui partage l&apos;adresse). L&apos;API 8728
+                n&apos;est pas chiffrée : sans IP publique, ou pour chiffrer, préférez le tunnel VPN.
               </p>
             </div>
           </div>
