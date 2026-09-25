@@ -21,6 +21,15 @@ describe("MikHmon cloud activation tunnel", () => {
     });
   });
 
+  it("identifies an existing L2TP tunnel without changing the router protocol", () => {
+    assert.deepEqual(resolveMikhmonCloudTunnel("l2tp"), {
+      id: "l2tp",
+      label: "L2TP",
+      routerOsRange: "RouterOS 6.x ou 7.x",
+      ready: true,
+    });
+  });
+
   it("does not offer a cloud activation without a managed tunnel", () => {
     assert.deepEqual(resolveMikhmonCloudTunnel("direct"), {
       id: null,

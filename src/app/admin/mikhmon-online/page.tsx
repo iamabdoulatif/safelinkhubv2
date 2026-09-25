@@ -15,18 +15,9 @@ import MikhmonOnlineConsole, { type MikhmonRouter } from "./MikhmonOnlineList";
  * derrière un bouton que ce qui coûte vraiment : la sonde qui ouvre une
  * connexion vers le routeur pour lire son DDNS.
  *
- * Le parc se sépare en trois, parce que MikHmon n'y vit pas au même endroit :
- *
- *   sans conteneur  → instance MikHmon hébergée sur le relais, joignable sur
- *                     son propre sous-domaine HTTPS ; le routeur ne reçoit ni
- *                     conteneur ni NAT ;
- *   avec conteneur  → MikHmon tourne sur le routeur lui-même, joint par DDNS,
- *                     tunnel ou réseau local ;
- *   capacité inconnue → `supports_containers` vaut NULL. Ce n'est pas un cas
- *                     théorique : la colonne n'est écrite qu'à un auto-setup
- *                     réussi, donc tout routeur lié avant elle y reste tant
- *                     qu'on ne relance pas sa configuration. On le dit, plutôt
- *                     que de le ranger d'office dans l'une des deux familles.
+ * MikHmon Online est hébergé sur le relais, peu importe la capacité Container
+ * du routeur. Une éventuelle installation locale reste simplement un accès
+ * secondaire ; elle ne change ni l'éligibilité ni la destination cloud.
  */
 export default async function MikhmonOnlinePage() {
   const session = await getSession();
@@ -54,10 +45,15 @@ export default async function MikhmonOnlinePage() {
         domain: routerMikhmonCloudInstances.domain,
         status: routerMikhmonCloudInstances.status,
         edition: routerMikhmonCloudInstances.edition,
+        localPort: routerMikhmonCloudInstances.localPort,
       })
       .from(routerMikhmonCloudInstances),
     db
-      .select({ routerId: routerPortForwards.routerId, publicPort: routerPortForwards.publicPort })
+      .select({
+        routerId: routerPortForwards.routerId,
+        publicPort: routerPortForwards.publicPort,
+        targetPort: routerPortForwards.targetPort,
+      })
       .from(routerPortForwards)
       .where(
         and(eq(routerPortForwards.service, "mikhmon"), eq(routerPortForwards.status, "active")),
@@ -65,11 +61,16 @@ export default async function MikhmonOnlinePage() {
   ]);
 
   const instanceParRouteur = new Map(instances.map((i) => [i.routerId, i]));
-  const forwardParRouteur = new Map(forwards.map((f) => [f.routerId, f.publicPort]));
+  const forwardsParRouteur = new Map<string, (typeof forwards)[number][]>();
+  for (const forward of forwards) {
+    forwardsParRouteur.set(forward.routerId, [...(forwardsParRouteur.get(forward.routerId) ?? []), forward]);
+  }
 
   const zones: MikhmonRouter[] = parc.map((r) => {
     const instance = instanceParRouteur.get(r.id) ?? null;
-    const port = forwardParRouteur.get(r.id) ?? null;
+    const localForward = (forwardsParRouteur.get(r.id) ?? []).find(
+      (forward) => forward.targetPort !== instance?.localPort,
+    );
     return {
       id: r.id,
       name: r.name,
@@ -89,7 +90,7 @@ export default async function MikhmonOnlinePage() {
       cloudEdition: instance?.edition ?? null,
       // Le lien tunnel se calcule sans joindre le routeur : le shard et le
       // port suffisent. Aucune raison de le cacher derrière un clic.
-      tunnelLink: port ? relayWebUrl(r.relayShard, port) : null,
+      tunnelLink: localForward ? relayWebUrl(r.relayShard, localForward.publicPort) : null,
     };
   });
 

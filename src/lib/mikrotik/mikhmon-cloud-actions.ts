@@ -123,6 +123,16 @@ export async function renommerMikhmonCloud(routerId: string, slugBrut: string) {
     /* Le port est libéré avec la ligne : la nouvelle provision en réattribuera
        un, éventuellement le même. Rien à conserver à la main. */
     const recree = await ensureCloudMikhmonInstance(router, edition, verdict.slug);
+    await db
+      .update(routerPortForwards)
+      .set({ targetPort: recree.localPort, publicPort: recree.localPort })
+      .where(
+        and(
+          eq(routerPortForwards.routerId, routerId),
+          eq(routerPortForwards.service, "mikhmon"),
+          eq(routerPortForwards.targetPort, instance.localPort),
+        ),
+      );
     rafraichir();
     return { success: true as const, domain: recree.domain };
   } catch (err) {
@@ -148,6 +158,8 @@ export async function supprimerMikhmonCloud(routerId: string) {
   const acces = await routeurAutorise(routerId);
   if ("erreur" in acces) return { error: acces.erreur };
   const db = getDb();
+  const instance = await instanceDe(routerId);
+  if (!instance) return { error: "Aucune instance à supprimer." };
   try {
     await removeCloudMikhmonInstance(routerId);
     /* UNIQUEMENT la redirection MikHmon. Le routeur peut en porter d'autres —
@@ -156,7 +168,11 @@ export async function supprimerMikhmonCloud(routerId: string) {
     await db
       .delete(routerPortForwards)
       .where(
-        and(eq(routerPortForwards.routerId, routerId), eq(routerPortForwards.service, "mikhmon")),
+        and(
+          eq(routerPortForwards.routerId, routerId),
+          eq(routerPortForwards.service, "mikhmon"),
+          eq(routerPortForwards.targetPort, instance.localPort),
+        ),
       );
     rafraichir();
     return { success: true as const };
