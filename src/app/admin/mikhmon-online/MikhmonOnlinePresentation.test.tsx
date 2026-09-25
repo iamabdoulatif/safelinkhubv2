@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import MikhmonOnlineConsole, { type MikhmonRouter } from "./MikhmonOnlineList";
+import MikhmonOnlineConsole, { ChoixRouteur, type MikhmonRouter } from "./MikhmonOnlineList";
 
 const parc: MikhmonRouter[] = [
   {
@@ -97,6 +97,25 @@ describe("station MikHmon Online", () => {
     assert.match(arrete, /shia-hspt\.mikhmon\.safelinkhub\.io/);
     assert.match(arrete, /Gérer le domaine/);
     assert.doesNotMatch(arrete, /Créer un domaine SafeLinkHub/);
+  });
+
+  it("le choix du routeur tient dans l'écran et défile, même avec tout le parc", () => {
+    /* La fenêtre était centrée sans hauteur maximale : avec 13 routeurs, le
+       haut et le bas sortaient de l'écran et rien ne défilait. */
+    const flotte = Array.from({ length: 13 }, (_, i) => ({
+      ...parc[2],
+      id: `r-${i}`,
+      name: `HSPT-${i}`,
+      status: i % 4 ? "online" : "offline",
+    }));
+    const html = renderToStaticMarkup(
+      <ChoixRouteur routers={flotte} dejaEquipes={[parc[0]]} onChoose={() => {}} onClose={() => {}} />,
+    );
+    assert.match(html, /max-h-\[88dvh\]/, "hauteur bornée");
+    assert.match(html, /overflow-y-auto/, "la liste défile");
+    assert.match(html, /Chercher parmi 13 routeurs/);
+    assert.match(html, /Hors ligne/);
+    assert.match(html, /HSPT-ABDOULATIF a déjà son domaine/);
   });
 
   it("compte chaque famille séparément", () => {
