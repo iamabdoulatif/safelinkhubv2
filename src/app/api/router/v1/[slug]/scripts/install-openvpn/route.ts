@@ -5,7 +5,7 @@ import { routers, organizations, routerReplacements } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/mikrotik/crypto";
 import { allocateOpenvpnPeer } from "@/lib/mikrotik/relay";
 import { hashToken } from "@/lib/mikrotik/install-token";
-import { buildOpenvpnInstallScript } from "@/lib/mikrotik/openvpn-install-script";
+import { buildOpenvpnInstallScript, relayConnectTo } from "@/lib/mikrotik/openvpn-install-script";
 
 export async function GET(
   request: NextRequest,
@@ -69,7 +69,10 @@ export async function GET(
   }
 
   const apiPassword = decryptSecret(router.passwordEncrypted);
-  const [connectTo, port] = peer.endpoint.split(":");
+  const [relayHost, port] = peer.endpoint.split(":");
+  // RouterOS 6 ne sait pas joindre un NOM dans connect-to (point 4 de
+  // openvpn-install-script.ts) : on lui donne l'IP du relais.
+  const connectTo = await relayConnectTo(relayHost);
 
   await db
     .update(routers)

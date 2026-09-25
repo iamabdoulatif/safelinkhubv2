@@ -23,7 +23,35 @@
  * Ces trois points se tiennent : changer l'un sans les deux autres donne un
  * script qui s'importe puis ne se connecte jamais, ce qui est plus long à
  * diagnostiquer qu'une erreur franche à l'import.
+ *
+ *   4. UNE ADRESSE IP DANS `connect-to`, JAMAIS UN NOM. La 6.49 accepte
+ *      `connect-to=relay.safelinkhub.io` à l'import, puis son client boucle
+ *      sur « connecting... terminating... - could not connect » dans la même
+ *      seconde, toutes les 10 s — sans qu'un seul SYN n'atteigne le port 1194
+ *      du relais (vérifié au tcpdump sur MALO-HOTSPOT). Le nom est donc résolu
+ *      côté serveur, au moment de générer le script : voir relayConnectTo.
  */
+
+import { isIP } from "node:net";
+import { lookup } from "node:dns/promises";
+
+/**
+ * L'adresse IPv4 à écrire dans `connect-to`. Une IP passe telle quelle ; un
+ * nom est résolu ici. Si la résolution échoue, on garde le nom : RouterOS 7
+ * sait s'en servir, et un script qui dit où il voulait aller reste plus
+ * lisible qu'une erreur 500.
+ */
+export async function relayConnectTo(
+  host: string,
+  resolve: (h: string) => Promise<string> = async (h) => (await lookup(h, { family: 4 })).address,
+): Promise<string> {
+  if (isIP(host)) return host;
+  try {
+    return await resolve(host);
+  } catch {
+    return host;
+  }
+}
 
 /** Échappe une valeur destinée à une chaîne entre guillemets de RouterOS. */
 export function escapeRosString(value: string) {
