@@ -3,9 +3,7 @@ import Reveal from "@/components/motion/Reveal";
 import AnnounceBar from "./AnnounceBar";
 import LandingNav from "./LandingNav";
 import Hero from "./Hero";
-import TrustStrip from "./TrustStrip";
-import { FeatureProvisioning, FeatureMobileMoney } from "./FeatureSplits";
-import ProcessSteps from "./ProcessSteps";
+import { AutopilotSection, CockpitSection, SitesSection } from "./ControlRoomSections";
 import ProductDemo from "./ProductDemo";
 import ResellerSection from "./ResellerSection";
 import SafecoinSection from "./SafecoinSection";
@@ -47,10 +45,9 @@ export default function LandingPage({
       <LandingNav nav={dict.nav} locale={locale} />
       <main>
         <Hero dict={dict} locale={locale} stats={stats} />
-        <TrustStrip dict={dict} />
-        <FeatureProvisioning dict={dict} locale={locale} />
-        <FeatureMobileMoney dict={dict} />
-        <ProcessSteps dict={dict} />
+        <CockpitSection dict={dict} />
+        <AutopilotSection dict={dict} />
+        <SitesSection dict={dict} />
         <ProductDemo dict={dict} locale={locale} />
         <ResellerSection dict={dict} locale={locale} />
         <SafecoinSection dict={dict} locale={locale} />

@@ -66,7 +66,9 @@ test("la section revendeur importe ses prix, ne les recopie pas", async () => {
   assert.doesNotMatch(sec, /\b800\b/, "le tarif revendeur doit venir de RESELLER_SETUP_FEE_CENTS");
 });
 
-test("l'aperçu mobile money n'affiche aucune recette", async () => {
-  const sec = await shipped("src/components/landing/FeatureSplits.tsx");
-  assert.doesNotMatch(sec, /FCFA/);
+test("les sections Control Room n'affichent aucune recette", async () => {
+  // Le mobile money y est décrit, jamais chiffré : un montant de maquette
+  // passerait pour une recette réelle.
+  const sec = await shipped("src/components/landing/ControlRoomSections.tsx");
+  assert.doesNotMatch(sec, /FCFA|\bF CFA\b/);
 });
