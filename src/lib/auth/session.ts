@@ -1,12 +1,14 @@
 import { SignJWT, jwtVerify } from "jose";
 import { can, type Capability } from "./roles";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 const COOKIE_NAME = "safelinkhub_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7;
 
 const MFA_PENDING_COOKIE_NAME = "safelinkhub_mfa_pending";
 const MFA_PENDING_DURATION_SECONDS = 5 * 60;
+/** Audience des jetons « mot de passe OK, second facteur attendu ». */
+export const MFA_AUDIENCE = "mfa";
 
 function getSecretKey() {
   const secret = process.env.AUTH_SECRET;
@@ -53,12 +55,38 @@ export async function createSession(payload: SessionPayload) {
 
 export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
+  // Navigateur : cookie. Application mobile : même jeton, en en-tête
+  // « Authorization: Bearer » (voir app/api/mobile/v1). Un seul contrôle, donc
+  // les mêmes droits partout.
+  const token = cookieStore.get(COOKIE_NAME)?.value ?? (await bearerToken());
   if (!token) return null;
+  return verifySessionToken(token);
+}
 
+async function bearerToken(): Promise<string | null> {
+  const auth = (await headers()).get("authorization");
+  const match = auth?.match(/^Bearer\s+(\S+)$/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Vérifie un jeton de SESSION. Refuse le jeton « MFA en attente » : signé avec
+ * la même clé et porteur des mêmes champs, il valait jusqu'ici une session
+ * complète si on le recopiait dans le cookie — le second facteur était alors
+ * contournable. Il porte désormais `aud: "mfa"` (et `callback` pour ceux déjà
+ * émis), et ne passe plus ici.
+ */
+export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecretKey());
-    return payload as unknown as SessionPayload;
+    if (payload.aud === MFA_AUDIENCE || "callback" in payload) return null;
+    return {
+      userId: String(payload.userId),
+      orgId: String(payload.orgId),
+      email: String(payload.email),
+      name: String(payload.name),
+      role: String(payload.role),
+    };
   } catch {
     return null;
   }
@@ -109,12 +137,27 @@ export type MfaPendingPayload = SessionPayload & { callback: string };
  * own cookie so it can never be mistaken for (or silently upgraded into) a
  * real session.
  */
-export async function createMfaPendingToken(payload: MfaPendingPayload) {
-  const token = await new SignJWT(payload)
+export async function signMfaPendingToken(payload: MfaPendingPayload): Promise<string> {
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
+    .setAudience(MFA_AUDIENCE)
     .setIssuedAt()
     .setExpirationTime(`${MFA_PENDING_DURATION_SECONDS}s`)
     .sign(getSecretKey());
+}
+
+/** Lit un jeton « MFA en attente » (cookie web ou corps de requête mobile). */
+export async function verifyMfaPendingToken(token: string): Promise<MfaPendingPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, getSecretKey(), { audience: MFA_AUDIENCE });
+    return payload as unknown as MfaPendingPayload;
+  } catch {
+    return null;
+  }
+}
+
+export async function createMfaPendingToken(payload: MfaPendingPayload) {
+  const token = await signMfaPendingToken(payload);
 
   const cookieStore = await cookies();
   cookieStore.set(MFA_PENDING_COOKIE_NAME, token, {
@@ -129,14 +172,7 @@ export async function createMfaPendingToken(payload: MfaPendingPayload) {
 export async function getMfaPendingToken(): Promise<MfaPendingPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(MFA_PENDING_COOKIE_NAME)?.value;
-  if (!token) return null;
-
-  try {
-    const { payload } = await jwtVerify(token, getSecretKey());
-    return payload as unknown as MfaPendingPayload;
-  } catch {
-    return null;
-  }
+  return token ? verifyMfaPendingToken(token) : null;
 }
 
 export async function clearMfaPendingToken() {

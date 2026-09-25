@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
+import { verifyCredentials, verifySecondFactor } from "./password-login";
 import { and, eq, gt } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, users } from "@/lib/db/schema";
@@ -29,9 +30,7 @@ import {
   getSession,
 } from "./session";
 import { getClientIp } from "./client-ip";
-import { checkLoginRateLimit, recordLoginAttempt } from "./rate-limit";
 import {
-  consumeBackupCode,
   encryptMfaSecret,
   generateBackupCodes,
   generateMfaSecret,
@@ -112,65 +111,25 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
   }
 
   const ip = await getClientIp();
-  const rateLimit = await checkLoginRateLimit(email, ip);
-  if (!rateLimit.allowed) {
-    const minutes = Math.ceil(rateLimit.retryAfterSeconds / 60);
-    return { error: authError(locale, "attempts", minutes) };
+  const result = await verifyCredentials(email, password, ip);
+  if (result.kind === "rate-limited") {
+    return { error: authError(locale, "attempts", Math.ceil(result.retryAfterSeconds / 60)) };
+  }
+  if (result.kind === "missing") return { error: authError(locale, "loginRequired") };
+  if (result.kind === "invalid") return { error: authError(locale, "invalidCredentials") };
+  // Mot de passe juste mais compte non activé : on oriente vers le renvoi
+  // du lien d'activation plutôt que vers le tableau de bord.
+  if (result.kind === "inactive") {
+    return { error: authError(locale, "inactive"), needsVerification: true };
   }
 
-  const db = getDb();
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1);
-
-  if (!user) {
-    await recordLoginAttempt(email, ip, false);
-    return { error: authError(locale, "invalidCredentials") };
-  }
-
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
-    await recordLoginAttempt(email, ip, false);
-    return { error: authError(locale, "invalidCredentials") };
-  }
-
-  // Password is correct — but an unverified account can't get a session yet.
-  // Record the attempt as a success (the credentials were right) and steer
-  // the user to the activation-resend flow rather than the dashboard.
-  if (!user.emailVerified) {
-    await recordLoginAttempt(email, ip, true);
-    return {
-      error: authError(locale, "inactive"),
-      needsVerification: true,
-    };
-  }
-
-  if (user.mfaEnabled) {
-    // Password is correct but access isn't granted yet — don't record a
-    // success (or failure) until the second factor is checked too, so the
-    // same rate-limit window covers both steps.
-    await createMfaPendingToken({
-      userId: user.id,
-      orgId: user.orgId,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      callback: safeCallbackPath(callback),
-    });
+  if (result.kind === "mfa") {
+    await createMfaPendingToken({ ...result.user, callback: safeCallbackPath(callback) });
     return { mfaRequired: true };
   }
 
-  await recordLoginAttempt(email, ip, true);
   await persistLocale(locale);
-  await createSession({
-    userId: user.id,
-    orgId: user.orgId,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-  });
+  await createSession(result.user);
 
   redirect(safeCallbackPath(callback));
 }
@@ -191,41 +150,14 @@ export async function verifyMfaLogin(
   if (!code) return { error: authError(locale, "codeRequired") };
 
   const ip = await getClientIp();
-  const rateLimit = await checkLoginRateLimit(pending.email, ip);
-  if (!rateLimit.allowed) {
-    const minutes = Math.ceil(rateLimit.retryAfterSeconds / 60);
-    return { error: authError(locale, "attempts", minutes) };
-  }
-
-  const db = getDb();
-  const [user] = await db
-    .select({
-      mfaSecretEncrypted: users.mfaSecretEncrypted,
-      mfaBackupCodesHash: users.mfaBackupCodesHash,
-    })
-    .from(users)
-    .where(eq(users.id, pending.userId))
-    .limit(1);
-
-  if (!user?.mfaSecretEncrypted) {
-    return { error: authError(locale, "mfaConfig") };
-  }
-
-  const totpValid = verifyTotpCode(user.mfaSecretEncrypted, code);
-
-  if (!totpValid) {
-    const backupResult = await consumeBackupCode(user.mfaBackupCodesHash, code);
-    if (!backupResult) {
-      await recordLoginAttempt(pending.email, ip, false);
-      return { error: authError(locale, "invalidCode") };
+  const check = await verifySecondFactor(pending, code, ip);
+  if (!check.ok) {
+    if (check.reason === "rate-limited") {
+      return { error: authError(locale, "attempts", Math.ceil(check.retryAfterSeconds / 60)) };
     }
-    await db
-      .update(users)
-      .set({ mfaBackupCodesHash: backupResult.remaining })
-      .where(eq(users.id, pending.userId));
+    return { error: authError(locale, check.reason === "config" ? "mfaConfig" : "invalidCode") };
   }
 
-  await recordLoginAttempt(pending.email, ip, true);
   await clearMfaPendingToken();
   await persistLocale(locale);
   await createSession({
