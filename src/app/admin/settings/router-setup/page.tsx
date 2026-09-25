@@ -2,7 +2,10 @@ import { eq, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, bridges } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { isIP } from "node:net";
 import MethodTabs from "./MethodTabs";
+import { getRelayPublicHost } from "@/lib/mikrotik/relay";
+import { relayConnectTo } from "@/lib/mikrotik/openvpn-install-script";
 import StepIndicator from "./StepIndicator";
 import RouterSetupWizard from "./RouterSetupWizard";
 import RouterResetButton from "./RouterResetButton";
@@ -106,7 +109,7 @@ export default async function RouterSetupPage({
               />
             </div>
           )}
-          <MethodTabs />
+          <MethodTabs serverIp={await safelinkhubEgressIp()} />
         </>
       ) : (
         <>
@@ -138,4 +141,16 @@ export default async function RouterSetupPage({
       )}
     </div>
   );
+}
+
+/**
+ * L'IP par laquelle SafeLinkHub joint un routeur en connexion directe — celle
+ * que le routeur doit autoriser sur son API.
+ * ponytail: l'app et le relais partagent le VPS (sortie mesurée le 25/09/2026 =
+ * relay.safelinkhub.io = 31.97.153.83) ; SAFELINKHUB_EGRESS_IP prend le relais
+ * le jour où on les sépare.
+ */
+async function safelinkhubEgressIp(): Promise<string | null> {
+  const ip = process.env.SAFELINKHUB_EGRESS_IP || (await relayConnectTo(getRelayPublicHost()));
+  return isIP(ip) ? ip : null;
 }
