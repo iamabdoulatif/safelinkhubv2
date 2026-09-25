@@ -1,8 +1,8 @@
 // TEMPORAIRE — config de la porte de monétisation manuelle des accès distants
 // (WinBox/WebFig/SSH/MikHmon). Module "plain" (pas de "use server") :
-// importable côté client (modal) pour l'affichage. Les prix réutilisent la
-// grille existante (billing-plans.ts) : 1 mois 500, 3 mois 1300, 6 mois 2700,
-// 12 mois 5800 FCFA — identique pour les quatre services.
+// importable côté client (modal) pour l'affichage. MikHmon Online suit son
+// propre barème lisible (500 / 1 500 / 3 000 / 6 000 FCFA) ; les accès directs
+// historiques conservent la grille de billing-plans.ts.
 // TODO: Remplacer par système de paiement intégré.
 
 import {
@@ -31,13 +31,32 @@ export const BILLING_PERIODS: { id: BillingPeriod; label: string }[] = [
   { id: "yearly", label: "12 mois" },
 ];
 
+/**
+ * MikHmon Online is billed independently from the legacy direct-access grid.
+ * The operator requested a linear 500 FCFA/month price, while WinBox, WebFig
+ * and SSH keep their existing discounted durations below.
+ */
+export const MIKHMON_ONLINE_PRICE_FCFA: Record<BillingPeriod, number> = {
+  monthly: 500,
+  quarterly: 1500,
+  semiannual: 3000,
+  yearly: 6000,
+};
+
 export function isBillingPeriod(value: string): value is BillingPeriod {
   return BILLING_PERIODS.some((p) => p.id === value);
 }
 
-/** Tarif en FCFA pour une période (identique pour tous les services). */
-export function remoteAccessPriceFcfa(period: BillingPeriod): number {
-  return PERIOD_PRICE_CENTS[period];
+/**
+ * Tarif FCFA appliqué par service. The one-argument form is retained for
+ * public generic pricing surfaces that intentionally describe the old grid.
+ */
+export function remoteAccessPriceFcfa(period: BillingPeriod): number;
+export function remoteAccessPriceFcfa(service: string, period: BillingPeriod): number;
+export function remoteAccessPriceFcfa(serviceOrPeriod: string, period?: BillingPeriod): number {
+  const service = period ? serviceOrPeriod : null;
+  const selectedPeriod = period ?? (serviceOrPeriod as BillingPeriod);
+  return service === "mikhmon" ? MIKHMON_ONLINE_PRICE_FCFA[selectedPeriod] : PERIOD_PRICE_CENTS[selectedPeriod];
 }
 
 export function serviceLabel(service: string): string {

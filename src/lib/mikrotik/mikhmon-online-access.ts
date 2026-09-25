@@ -3,12 +3,12 @@ export type MikhmonAccess = {
   url: string;
 };
 
-/** The cloud domain is reserved for boards which cannot run RouterOS Container. */
+/** Cloud access is available on every eligible router, with or without Container support. */
 export function resolveMikhmonAccess(input: {
   supportsContainers: boolean | null;
   cloudDomain: string | null;
 }): MikhmonAccess | null {
-  if (input.supportsContainers !== false || !input.cloudDomain) return null;
+  if (!input.cloudDomain) return null;
   return { kind: "cloud", url: `https://${input.cloudDomain}` };
 }
 

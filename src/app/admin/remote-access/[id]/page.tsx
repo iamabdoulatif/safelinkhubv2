@@ -38,7 +38,7 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
       .from(routerPortForwards)
       .where(and(eq(routerPortForwards.routerId, router.id), eq(routerPortForwards.status, "active"))),
     db
-      .select({ domain: routerMikhmonCloudInstances.domain })
+      .select({ domain: routerMikhmonCloudInstances.domain, localPort: routerMikhmonCloudInstances.localPort })
       .from(routerMikhmonCloudInstances)
       .where(and(eq(routerMikhmonCloudInstances.routerId, router.id), eq(routerMikhmonCloudInstances.status, "active")))
       .limit(1)
@@ -118,7 +118,10 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
         forwardsByRouter={{
           [router.id]: forwards.map((forward) => ({
             ...forward,
-            cloudDomain: forward.service === "mikhmon" ? cloudInstance?.domain ?? null : null,
+            cloudDomain:
+              forward.service === "mikhmon" && forward.targetPort === cloudInstance?.localPort
+                ? cloudInstance.domain
+                : null,
           })),
         }}
         relayHost={relayHost}

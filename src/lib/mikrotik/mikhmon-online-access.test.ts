@@ -16,15 +16,22 @@ describe("MikHmon Online access", () => {
     );
   });
 
-  it("ne construit aucun domaine cloud pour un routeur local ou sans instance", () => {
-    assert.equal(
+  it("retourne le domaine HTTPS pour un routeur avec conteneur aussi", () => {
+    assert.deepEqual(
       resolveMikhmonAccess({
         supportsContainers: true,
-        cloudDomain: "rb951-korhogo-14174000.mikhmon.safelinkhub.io",
+        cloudDomain: "hap-ax3-abidjan-14174000.mikhmon.safelinkhub.io",
       }),
-      null,
+      {
+        kind: "cloud",
+        url: "https://hap-ax3-abidjan-14174000.mikhmon.safelinkhub.io",
+      },
     );
+  });
+
+  it("ne construit aucun domaine cloud sans instance", () => {
     assert.equal(resolveMikhmonAccess({ supportsContainers: false, cloudDomain: null }), null);
+    assert.equal(resolveMikhmonAccess({ supportsContainers: true, cloudDomain: null }), null);
   });
 
   it("n'applique jamais une réparation de conteneur à une instance cloud", () => {

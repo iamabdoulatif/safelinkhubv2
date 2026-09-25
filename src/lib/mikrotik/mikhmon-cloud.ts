@@ -290,7 +290,7 @@ function cloudSessionFromRouter(router: CloudRouterRecord): CloudRouter {
   };
 }
 
-/** Starts or resumes the one cloud instance owned by a legacy router. */
+/** Starts or resumes the one cloud instance owned by an eligible router. */
 export async function ensureCloudMikhmonInstance(
   router: CloudRouterRecord,
   edition: MikhmonEditionId = "v7",

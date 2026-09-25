@@ -21,6 +21,7 @@ export type RemoteAccessAuthorizationRow = typeof remoteAccessAuthorizations.$in
 export async function findUsableRemoteAccessAuthorization(
   routerId: string,
   service: string,
+  billingPeriod?: BillingPeriod,
 ): Promise<RemoteAccessAuthorizationRow | null> {
   const db = getDb();
   const [row] = await db
@@ -32,6 +33,7 @@ export async function findUsableRemoteAccessAuthorization(
         eq(remoteAccessAuthorizations.service, service),
         eq(remoteAccessAuthorizations.status, "approved"),
         isNull(remoteAccessAuthorizations.consumedAt),
+        ...(billingPeriod ? [eq(remoteAccessAuthorizations.billingPeriod, billingPeriod)] : []),
       ),
     )
     .orderBy(desc(remoteAccessAuthorizations.decidedAt))
@@ -50,6 +52,7 @@ export async function evaluateRemoteAccessGate(
   session: SessionPayload | null,
   routerId: string,
   service: string,
+  billingPeriod?: BillingPeriod,
 ): Promise<RemoteAccessGateDecision> {
   if (isSuperAdmin(session?.role)) return { ok: true, reason: "superadmin" };
   if (!session) return { ok: false, reason: "not_authorized" };
@@ -59,7 +62,7 @@ export async function evaluateRemoteAccessGate(
   // plusieurs zones peut n'en avoir qu'une offerte.
   const quota = getVpnQuotaStatus(await getRouterVpnQuotaFields(routerId, session.orgId));
   if (quota.free) return { ok: true, reason: "quota", expiresAt: quota.expiresAt };
-  const auth = await findUsableRemoteAccessAuthorization(routerId, service);
+  const auth = await findUsableRemoteAccessAuthorization(routerId, service, billingPeriod);
   if (auth) return { ok: true, reason: "authorized", authorizationId: auth.id };
   return { ok: false, reason: "not_authorized" };
 }

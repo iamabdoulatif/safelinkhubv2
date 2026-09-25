@@ -29,6 +29,7 @@ export type MikhmonRouter = {
   name: string;
   status: string;
   model: string | null;
+  supportsContainers?: boolean | null;
   connectionMethod?: string;
   tunnelIp?: string | null;
   /** Où vit MikHmon pour ce routeur — voir le commentaire de page.tsx. */
@@ -340,9 +341,10 @@ function LigneCloud({
 }
 
 /** Routeur compatible conteneur : MikHmon tourne sur l'équipement lui-même. */
-function LigneConteneur({ router }: { router: MikhmonRouter }) {
+function LigneConteneur({ router, superadmin, baseDomain }: { router: MikhmonRouter; superadmin: boolean; baseDomain?: string }) {
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<LinkResult>(null);
+  const [activationOpen, setActivationOpen] = useState(false);
   const online = router.status === "online";
 
   async function tester() {
@@ -352,22 +354,37 @@ function LigneConteneur({ router }: { router: MikhmonRouter }) {
   }
 
   return (
-    <Ligne
+    <>
+      <Ligne
       router={router}
       acces={
-        /* Le lien tunnel vient de la base : il s'affiche sans rien demander. */
-        router.tunnelLink ? (
-          <Adresse href={router.tunnelLink} label="Via le tunnel VPN — fonctionne même derrière un CGNAT" />
-        ) : (
-          <span className="text-[13px] text-ink-soft">
-            Pas encore de lien par tunnel.{" "}
-            {online ? "Testez l’accès direct." : "Le routeur doit être en ligne pour sonder son accès direct."}
-          </span>
-        )
+        <div className="space-y-2">
+          {router.cloudDomain && router.cloudStatus === "active" && (
+            <Adresse href={`https://${router.cloudDomain}`} label="Domaine cloud SafeLinkHub" />
+          )}
+          {router.tunnelLink ? (
+            <Adresse href={router.tunnelLink} label="Accès local via le tunnel VPN" />
+          ) : (
+            <span className="text-[13px] text-ink-soft">
+              Pas encore de lien par tunnel.{" "}
+              {online ? "Testez l’accès direct." : "Le routeur doit être en ligne pour sonder son accès direct."}
+            </span>
+          )}
+        </div>
       }
-      action={
+        action={
         <>
+          {router.cloudDomain && router.cloudStatus === "active" && <Ouvrir href={`https://${router.cloudDomain}`} />}
           {router.tunnelLink && <Ouvrir href={router.tunnelLink} />}
+          {!router.cloudDomain && (
+            <button
+              type="button"
+              onClick={() => setActivationOpen(true)}
+              className={buttonClass({ variant: "secondary", size: "sm", className: "min-h-10 sm:min-h-8" })}
+            >
+              Créer un domaine SafeLinkHub
+            </button>
+          )}
           <button
             type="button"
             onClick={tester}
@@ -379,8 +396,8 @@ function LigneConteneur({ router }: { router: MikhmonRouter }) {
             {pending ? "Test en cours…" : "Tester l’accès direct"}
           </button>
         </>
-      }
-    >
+        }
+      >
       {result && "error" in result && <p className="mt-3 text-xs text-err">{result.error}</p>}
       {result && "success" in result && (
         <div className="mt-3 grid gap-3 rounded-xl border border-line bg-clay/50 p-4 md:grid-cols-2">
@@ -394,7 +411,15 @@ function LigneConteneur({ router }: { router: MikhmonRouter }) {
           )}
         </div>
       )}
-    </Ligne>
+      </Ligne>
+      <MikhmonCloudActivationDialog
+        open={activationOpen}
+        onClose={() => setActivationOpen(false)}
+        router={router}
+        superadmin={superadmin}
+        baseDomain={baseDomain}
+      />
+    </>
   );
 }
 
@@ -480,6 +505,8 @@ export default function MikhmonOnlineConsole({
 }) {
   const [query, setQuery] = useState("");
   const [famille, setFamille] = useState<Famille>("all");
+  const [activationRouter, setActivationRouter] = useState<MikhmonRouter | null>(null);
+  const [chooseRouterOpen, setChooseRouterOpen] = useState(false);
 
   if (routers.length === 0) {
     return (
@@ -502,7 +529,14 @@ export default function MikhmonOnlineConsole({
   const cloud = routers.filter((r) => r.kind === "cloud");
   const conteneur = routers.filter((r) => r.kind === "container");
   const inconnus = routers.filter((r) => r.kind === "unknown");
-  const cloudActifs = cloud.filter((r) => r.cloudStatus === "active").length;
+  const cloudActifs = routers.filter((r) => r.cloudStatus === "active").length;
+  const eligibleForCloud = routers.filter(
+    (r) => r.kind !== "unknown" && Boolean(r.tunnelIp?.trim()) && r.connectionMethod !== "direct",
+  );
+  const openGenerator = () => {
+    if (eligibleForCloud.length === 1) setActivationRouter(eligibleForCloud[0]);
+    else if (eligibleForCloud.length > 1) setChooseRouterOpen(true);
+  };
   const montre = (f: Exclude<Famille, "all">) => famille === "all" || famille === f;
 
   const conteneurVus = conteneur.filter(visible);
@@ -522,12 +556,31 @@ export default function MikhmonOnlineConsole({
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">MikHmon Online</h1>
-        <p className="mt-1 max-w-3xl text-sm text-ink-soft">
-          Ouvrez le tableau MikHmon de chaque routeur. Selon le matériel, il tourne sur le routeur
-          lui-même ou sur un domaine dédié hébergé par SafeLinkHub.
-        </p>
+      <div className="rounded-2xl bg-slate-deep px-5 py-6 text-paper sm:px-7 sm:py-7">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand">Centre de contrôle</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">MikHmon Online</h1>
+            <p className="mt-2 text-sm leading-6 text-white/75">
+              Un accès propre pour chaque hotspot : sur le routeur quand Container est disponible,
+              ou dans le cloud SafeLinkHub quand vous préférez une adresse dédiée.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openGenerator}
+            disabled={eligibleForCloud.length === 0}
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-brand px-5 text-sm font-semibold text-slate-deep transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Générer MikHmon Online
+          </button>
+        </div>
+        <div className="mt-6 flex flex-wrap gap-2 text-xs text-white/70">
+          <span className="rounded-full border border-white/20 px-3 py-1.5">WireGuard</span>
+          <span className="rounded-full border border-white/20 px-3 py-1.5">OpenVPN</span>
+          <span className="rounded-full border border-white/20 px-3 py-1.5">L2TP</span>
+          <span className="rounded-full border border-brand/60 px-3 py-1.5 text-brand">À partir de 500 F CFA / mois</span>
+        </div>
       </div>
 
       <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
@@ -601,13 +654,13 @@ export default function MikhmonOnlineConsole({
       {montre("container") && conteneurVus.length > 0 && (
         <Famille
           icon={Box}
-          titre="MikHmon v7 — sur le routeur"
-          resume="Cartes compatibles Container : MikHmon tourne sur le routeur, ouvert par le tunnel VPN."
-          detail={`${MIKHMON_EDITIONS.v7.routerOs} — ${MIKHMON_EDITIONS.v7.audience} ${MIKHMON_EDITIONS.v7.origine} Le lien par tunnel s’affiche dès qu’il est actif ; l’accès direct exige de joindre le routeur pour lire son DDNS et sonder le port, d’où le bouton « Tester l’accès direct ».`}
+          titre="MikHmon déjà présent sur le routeur"
+          resume="Cartes compatibles Container : l’accès local reste disponible, et vous pouvez aussi créer un domaine cloud SafeLinkHub."
+          detail={`${MIKHMON_EDITIONS.v7.routerOs} — ${MIKHMON_EDITIONS.v7.audience} ${MIKHMON_EDITIONS.v7.origine} Le lien par tunnel s’affiche dès qu’il est actif ; le domaine cloud est une seconde porte d’accès, facturée séparément.`}
           compte={conteneur.length}
         >
           {conteneurVus.map((r) => (
-            <LigneConteneur key={r.id} router={r} />
+            <LigneConteneur key={r.id} router={r} superadmin={superadmin} baseDomain={baseDomain} />
           ))}
         </Famille>
       )}
@@ -639,7 +692,58 @@ export default function MikhmonOnlineConsole({
           ))}
         </Famille>
       )}
+
+      {chooseRouterOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-deep/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mikhmon-router-choice-title"
+          onMouseDown={(event) => event.target === event.currentTarget && setChooseRouterOpen(false)}
+        >
+          <div className="w-full max-w-lg rounded-2xl border border-line bg-paper p-5 shadow-modal sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand-deep">Nouvelle instance</p>
+                <h2 id="mikhmon-router-choice-title" className="mt-1 text-xl font-semibold text-ink">Choisir un routeur</h2>
+                <p className="mt-1 text-sm text-ink-soft">Le tunnel existant sera utilisé, sans modifier le routeur.</p>
+              </div>
+              <button type="button" className="text-2xl leading-none text-ink-soft" aria-label="Fermer" onClick={() => setChooseRouterOpen(false)}>×</button>
+            </div>
+            <ul className="mt-5 space-y-2" role="list">
+              {eligibleForCloud.map((router) => (
+                <li key={router.id}>
+                  <button
+                    type="button"
+                    className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-line px-4 text-left transition hover:border-brand-deep hover:bg-clay"
+                    onClick={() => {
+                      setChooseRouterOpen(false);
+                      setActivationRouter(router);
+                    }}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-ink">{router.name}</span>
+                      <span className="mt-0.5 block truncate font-mono text-xs text-ink-soft">{router.model ?? "Modèle à confirmer"}</span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-brand/25 px-2.5 py-1 text-xs font-semibold text-brand-deep">Configurer →</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {activationRouter && (
+        <MikhmonCloudActivationDialog
+          key={activationRouter.id}
+          open
+          onClose={() => setActivationRouter(null)}
+          router={activationRouter}
+          superadmin={superadmin}
+          baseDomain={baseDomain}
+        />
+      )}
     </div>
   );
 }
-

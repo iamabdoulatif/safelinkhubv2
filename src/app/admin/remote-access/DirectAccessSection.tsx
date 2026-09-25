@@ -17,7 +17,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { disablePortForward, enablePortForward } from "@/lib/mikrotik/port-forward";
-import { PERIOD_PRICE_CENTS, type BillingPeriod } from "@/lib/mikrotik/billing-plans";
+import { type BillingPeriod } from "@/lib/mikrotik/billing-plans";
+import { remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
 import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 import { getRouterResources, type RouterResources } from "@/lib/mikrotik/router-resources";
 import { isWebAccessService } from "@/lib/mikrotik/remote-access-host";
@@ -534,10 +535,10 @@ function RouterDirectAccess({
                           <option value="__quota__">Gratuit jusqu&apos;au {formatExpiry(quotaExpiresAt)}</option>
                         ) : (
                           <>
-                            <option value="monthly">1 mois — {formatFcfa(PERIOD_PRICE_CENTS.monthly)}</option>
-                            <option value="quarterly">3 mois — {formatFcfa(PERIOD_PRICE_CENTS.quarterly)}</option>
-                            <option value="semiannual">6 mois — {formatFcfa(PERIOD_PRICE_CENTS.semiannual)}</option>
-                            <option value="yearly">12 mois — {formatFcfa(PERIOD_PRICE_CENTS.yearly)}</option>
+                            <option value="monthly">1 mois — {formatFcfa(remoteAccessPriceFcfa(service, "monthly"))}</option>
+                            <option value="quarterly">3 mois — {formatFcfa(remoteAccessPriceFcfa(service, "quarterly"))}</option>
+                            <option value="semiannual">6 mois — {formatFcfa(remoteAccessPriceFcfa(service, "semiannual"))}</option>
+                            <option value="yearly">12 mois — {formatFcfa(remoteAccessPriceFcfa(service, "yearly"))}</option>
                           </>
                         )}
                         {unlimited && <option value="__unlimited__">Forfait illimité</option>}

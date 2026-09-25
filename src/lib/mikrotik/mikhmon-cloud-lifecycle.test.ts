@@ -78,6 +78,17 @@ describe("ce que la suppression touche, et ce qu'elle laisse", () => {
     assert.match(bloc, /removeCloudMikhmonInstance\(routerId\)/, "le conteneur n'est pas retiré");
     assert.match(bloc, /delete\(routerPortForwards\)/, "la redirection n'est pas retirée");
   });
+
+  it("laisse l'accès local MikHmon intact lorsqu'une instance cloud existe aussi", async () => {
+    /* Un routeur avec Container peut garder son accès local (port 8089) tout
+       en ayant une instance hébergée. Leur seule frontière fiable est le
+       port local attribué à l'instance cloud. */
+    const { readFile } = await import("node:fs/promises");
+    const src = await readFile(new URL("./mikhmon-cloud-actions.ts", import.meta.url), "utf8");
+    const bloc = src.slice(src.indexOf("export async function supprimerMikhmonCloud"));
+    assert.match(bloc, /const instance = await instanceDe\(routerId\)/);
+    assert.match(bloc, /eq\(routerPortForwards\.targetPort, instance\.localPort\)/);
+  });
 });
 
 describe("un conteneur orphelin ne bloque plus la recréation", () => {

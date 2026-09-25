@@ -26,13 +26,14 @@ import type { RouterOSClient } from "./client";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { getPortForwardTargetPort } from "./port-forward-rules";
-import { PERIOD_PRICE_CENTS, BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
+import { BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
+import { remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { messageSoldeInsuffisant, verdictDebitWallet } from "./activation-billing";
 import { ensureCloudMikhmonInstance, removeCloudMikhmonInstance } from "./mikhmon-cloud";
 import { parseEdition } from "./mikhmon-editions";
 import { normalizeCustomSlug } from "./mikhmon-cloud-domain";
-import { supportsContainersFor } from "./device-catalog";
+import { resolveMikhmonCloudTunnel } from "./mikhmon-cloud-activation";
 
 export type { BillingPeriod } from "./billing-plans";
 
@@ -101,45 +102,26 @@ async function enablePortForwardForRouter(
   if (!router) {
     return { error: "Router not found." };
   }
-  if (!router.tunnelIp || router.connectionMethod === "direct") {
+  const tunnelIp = router.tunnelIp;
+  const cloudTunnel =
+    service === "mikhmon"
+      ? resolveMikhmonCloudTunnel(router.connectionMethod, tunnelIp)
+      : null;
+  if (service === "mikhmon" && !cloudTunnel?.ready) {
+    return {
+      error: "Le routeur doit avoir un tunnel WireGuard, OpenVPN ou L2TP actif pour activer MikHmon Online.",
+    };
+  }
+  if (!tunnelIp || (service !== "mikhmon" && router.connectionMethod === "direct")) {
     return {
       error: "Le routeur doit être connecté via WireGuard ou OpenVPN pour activer l'accès direct.",
     };
   }
-  /* Même déduction que l'écran MikHmon : sans elle, la page classait un
-     RB951 « sans conteneur » d'après son modèle pendant que cette voie, qui
-     ne lisait que la colonne, refusait de lui créer son instance. */
-  const isCloudMikhmon =
-    service === "mikhmon" &&
-    supportsContainersFor(router.supportsContainers, router.model) === false;
 
-  const existing = await db
-    .select()
-    .from(routerPortForwards)
-    .where(
-      and(
-        eq(routerPortForwards.routerId, routerId),
-        eq(routerPortForwards.service, service),
-        eq(routerPortForwards.status, "active"),
-      ),
-    )
-    .limit(1);
-  if (existing.length > 0) {
-    const [cloud] = isCloudMikhmon
-      ? await db
-          .select({ domain: routerMikhmonCloudInstances.domain })
-          .from(routerMikhmonCloudInstances)
-          .where(eq(routerMikhmonCloudInstances.routerId, routerId))
-          .limit(1)
-      : [undefined];
-    return {
-      success: true,
-      publicPort: existing[0].publicPort,
-      relayHost: getRelayPublicHost(router.relayShard),
-      cloudDomain: cloud?.domain ?? null,
-      created: false as const,
-    };
-  }
+  /* MikHmon Online est toujours hébergé sur le relais. Cette voie ne crée
+     aucun Container, VETH ni règle NAT sur le routeur, qu'il supporte les
+     conteneurs ou non. */
+  const isCloudMikhmon = service === "mikhmon";
 
   if (isCloudMikhmon) {
     let cloud;
@@ -154,6 +136,32 @@ async function enablePortForwardForRouter(
       };
     }
 
+    /* Un accès local MikHmon (8089) peut déjà exister sur un routeur avec
+       Container. Seul le port réservé par l'instance cloud identifie son
+       enregistrement comptable : ne jamais court-circuiter sur le service
+       seul, sinon ce lien local empêcherait le déploiement hébergé. */
+    const [existingCloudForward] = await db
+      .select()
+      .from(routerPortForwards)
+      .where(
+        and(
+          eq(routerPortForwards.routerId, routerId),
+          eq(routerPortForwards.service, service),
+          eq(routerPortForwards.targetPort, cloud.localPort),
+          eq(routerPortForwards.status, "active"),
+        ),
+      )
+      .limit(1);
+    if (existingCloudForward) {
+      return {
+        success: true,
+        publicPort: existingCloudForward.publicPort,
+        relayHost: getRelayPublicHost(router.relayShard),
+        cloudDomain: cloud.domain,
+        created: false as const,
+      };
+    }
+
     const [forward] = await db
       .insert(routerPortForwards)
       .values({
@@ -164,7 +172,7 @@ async function enablePortForwardForRouter(
         // public relay DNAT allocator.
         targetPort: cloud.localPort,
         publicPort: cloud.localPort,
-        tunnelIp: router.tunnelIp,
+        tunnelIp,
         status: "active",
         billingPeriod: billingPeriodLabel ?? billingPeriod,
         expiresAt: expiresAtOverride ?? expiresAtFor(billingPeriod),
@@ -178,6 +186,26 @@ async function enablePortForwardForRouter(
       cloudDomain: cloud.domain,
       created: true as const,
       forwardId: forward.id,
+    };
+  }
+
+  const existing = await db
+    .select()
+    .from(routerPortForwards)
+    .where(
+      and(
+        eq(routerPortForwards.routerId, routerId),
+        eq(routerPortForwards.service, service),
+        eq(routerPortForwards.status, "active"),
+      ),
+    )
+    .limit(1);
+  if (existing.length > 0) {
+    return {
+      success: true,
+      publicPort: existing[0].publicPort,
+      relayHost: getRelayPublicHost(router.relayShard),
+      created: false as const,
     };
   }
 
@@ -200,7 +228,7 @@ async function enablePortForwardForRouter(
   let publicPort: number;
   try {
     const result = await allocatePortForward(
-      router.tunnelIp,
+      tunnelIp,
       targetPort,
       router.relayShard,
       isWebAccessService(service),
@@ -230,7 +258,7 @@ async function enablePortForwardForRouter(
       service,
       targetPort,
       publicPort,
-      tunnelIp: router.tunnelIp,
+      tunnelIp,
       status: "active",
       billingPeriod: billingPeriodLabel ?? billingPeriod,
       expiresAt: isUnlimited ? null : expiresAtOverride ?? expiresAtFor(billingPeriod),
@@ -258,12 +286,13 @@ async function chargeWalletForActivation(opts: {
   service: string;
   billingPeriod: BillingPeriod;
   routerName: string;
+  priceFcfa: number;
 }) {
   const db = getDb();
   await db.insert(walletTransactions).values({
     orgId: opts.orgId,
     type: "charge",
-    amountCents: PERIOD_PRICE_CENTS[opts.billingPeriod],
+    amountCents: opts.priceFcfa,
     note: `${opts.service} — ${opts.routerName}`,
     relatedForwardId: opts.forwardId,
     createdBy: opts.userId,
@@ -318,7 +347,7 @@ export async function enablePortForward(
   // (routeur, service). C'est le verrou serveur, indépendant de l'UI. Ne
   // s'applique à toute activation exposant un port public. TODO: Remplacer
   // par système de paiement intégré.
-  const gate = await evaluateRemoteAccessGate(session, routerId, service);
+  const gate = await evaluateRemoteAccessGate(session, routerId, service, billingPeriod);
   if (!gate.ok) {
     return {
       error:
@@ -358,6 +387,8 @@ export async function enablePortForward(
     slugValide,
   );
 
+  const priceFcfa = remoteAccessPriceFcfa(service, billingPeriod);
+
   // Activation réussie via une autorisation manuelle : on la consomme (une par
   // paiement) et on NE débite PAS le wallet (paiement déjà fait hors-app).
   if (result.success && gate.reason === "authorized" && gate.authorizationId) {
@@ -394,6 +425,7 @@ export async function enablePortForward(
           service,
           billingPeriod,
           routerName: router.name,
+          baseFcfa: priceFcfa,
         });
         if (!charge.created) {
           // Ne pas laisser un accès public actif sans paiement confirmé.
@@ -412,7 +444,7 @@ export async function enablePortForward(
            Deux comportements opposés pour un même geste, selon l'ancienneté de
            l'organisation. */
         const solde = await getWalletBalanceCents(session.orgId);
-        const verdict = verdictDebitWallet(solde, PERIOD_PRICE_CENTS[billingPeriod]);
+        const verdict = verdictDebitWallet(solde, priceFcfa);
         if (!verdict.ok) {
           // Même règle que Safecoin : pas d'accès ouvert sans paiement.
           await disablePortForward(result.forwardId);
@@ -425,6 +457,7 @@ export async function enablePortForward(
           service,
           billingPeriod,
           routerName: router.name,
+          priceFcfa,
         });
       }
     }
@@ -461,13 +494,13 @@ export async function disablePortForward(forwardId: string) {
   const [cloud] =
     forward.service === "mikhmon"
       ? await db
-          .select({ id: routerMikhmonCloudInstances.id })
+          .select({ id: routerMikhmonCloudInstances.id, localPort: routerMikhmonCloudInstances.localPort })
           .from(routerMikhmonCloudInstances)
           .where(eq(routerMikhmonCloudInstances.routerId, forward.routerId))
           .limit(1)
       : [undefined];
   try {
-    if (cloud) {
+    if (cloud && forward.targetPort === cloud.localPort) {
       await removeCloudMikhmonInstance(forward.routerId);
     } else {
       await revokePortForward(

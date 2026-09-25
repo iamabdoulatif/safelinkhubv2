@@ -49,9 +49,11 @@ async function feeFor(service: string) {
 
 export async function vpnActivationChargeScCents(opts: {
   billingPeriod: BillingPeriod;
+  /** Service-specific FCFA price, when the generic VPN grid does not apply. */
+  baseFcfa?: number;
 }) {
   const settings = await currentSettings();
-  const baseFcfa = PERIOD_PRICE_CENTS[opts.billingPeriod];
+  const baseFcfa = opts.baseFcfa ?? PERIOD_PRICE_CENTS[opts.billingPeriod];
   return (
     fcfaToScCents(baseFcfa, settings.rateFcfaPerSc) +
     settings.vpnFeeScCents +
@@ -112,9 +114,11 @@ export async function chargeVpnActivation(opts: {
   service: string;
   billingPeriod: BillingPeriod;
   routerName: string;
+  /** Preserve service-specific prices in both the Safecoin debit and ledger. */
+  baseFcfa?: number;
 }) {
-  const baseFcfa = PERIOD_PRICE_CENTS[opts.billingPeriod];
-  const amountScCents = await vpnActivationChargeScCents({ billingPeriod: opts.billingPeriod });
+  const baseFcfa = opts.baseFcfa ?? PERIOD_PRICE_CENTS[opts.billingPeriod];
+  const amountScCents = await vpnActivationChargeScCents({ billingPeriod: opts.billingPeriod, baseFcfa });
   return appendSafecoinDebit({
     orgId: opts.orgId,
     userId: opts.userId,

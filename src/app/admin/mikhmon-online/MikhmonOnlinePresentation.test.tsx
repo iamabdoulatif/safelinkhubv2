@@ -28,7 +28,7 @@ const parc: MikhmonRouter[] = [
     status: "online",
     model: "hAP ax²",
     kind: "container",
-    cloudDomain: null, cloudStatus: null, cloudEdition: null,
+    cloudDomain: "shia-hspt.mikhmon.safelinkhub.io", cloudStatus: "active", cloudEdition: "v7",
     tunnelLink: "http://s2.safelinkhub.io:31234",
   },
   {
@@ -46,15 +46,20 @@ const rendu = (routers: MikhmonRouter[]) =>
   renderToStaticMarkup(<MikhmonOnlineConsole routers={routers} />);
 
 describe("station MikHmon Online", () => {
-  it("sépare le parc selon l'endroit où MikHmon tourne réellement", () => {
+  it("présente un plan unique pour le parc, sans perdre la lecture des capacités", () => {
     const html = rendu(parc);
     /* Les deux éditions portent désormais le surnom que l'exploitant emploie :
        « v6 » pour les cartes restées en RouterOS 6, « v7 » pour celles qui
        savent héberger un conteneur. Le surnom parle du ROUTEUR, pas du numéro
        de version de MikHmon — voir mikhmon-editions.ts. */
+    assert.match(html, /MikHmon déjà présent sur le routeur/);
     assert.match(html, /MikHmon v6 — sans conteneur, domaine dédié/);
-    assert.match(html, /MikHmon v7 — sur le routeur/);
     assert.match(html, /Capacité pas encore déterminée/);
+    assert.match(html, /Générer MikHmon Online/);
+    assert.match(html, /500 F CFA \/ mois/);
+    assert.match(html, /WireGuard/);
+    assert.match(html, /OpenVPN/);
+    assert.match(html, /L2TP/);
   });
 
   it("montre le domaine dédié SANS attendre un clic", () => {
@@ -82,7 +87,7 @@ describe("station MikHmon Online", () => {
     const html = rendu(parc);
     for (const [libelle, valeur] of [
       ["Parc lié", 4],
-      ["Domaines dédiés", 1], // seul celui dont l'instance est active
+      ["Domaines dédiés", 2], // les instances cloud actives, y compris une carte Container
       ["Sur le routeur", 1],
       ["Capacité inconnue", 1],
     ] as const) {
