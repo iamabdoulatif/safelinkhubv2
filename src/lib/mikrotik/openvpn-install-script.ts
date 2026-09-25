@@ -10,9 +10,12 @@
  *      écriture RouterOS 7. La 6.x veut des espaces et répond sinon
  *      « expected command name » en s'arrêtant à cette ligne — l'import
  *      abandonne, et le routeur reste sans tunnel.
- *   2. TCP UNIQUEMENT. Le client OVPN de RouterOS 6 ne sait pas faire d'UDP ;
- *      c'est RouterOS 7 qui l'a apporté. Le serveur du relais écoute donc en
- *      TCP sur 1194.
+ *   2. TCP UNIQUEMENT, ET SANS LE DIRE. Le client OVPN de RouterOS 6 ne sait
+ *      pas faire d'UDP : il est TOUJOURS en TCP et n'a donc pas de paramètre
+ *      `protocol` — c'est RouterOS 7 qui l'a apporté avec l'UDP. L'écrire
+ *      fait répondre « expected end of command (line 6 column 92) » à la
+ *      6.49 (la colonne 92 est le `=` de `protocol=`). Le serveur du relais
+ *      écoute en TCP sur 1194, et RouterOS 7 est lui aussi en TCP par défaut.
  *   3. CBC UNIQUEMENT. Pas d'AEAD avant RouterOS 7 : `aes256-gcm` n'existe pas
  *      en 6.x, et son `aes256` désigne l'AES-256-CBC. Le serveur annonce
  *      AES-256-CBC en plus de GCM pour que la négociation aboutisse.
@@ -45,7 +48,7 @@ export function buildOpenvpnInstallScript(opts: OpenvpnScriptOptions): string {
 # transport TCP, chiffrement CBC. Ne pas introduire de syntaxe RouterOS 7.
 /system identity set name="${escapeRosString(opts.identityName)}"
 /interface ovpn-client remove [find name=safelinkhub-ovpn]
-/interface ovpn-client add name=safelinkhub-ovpn connect-to=${opts.connectTo} port=${opts.port} protocol=tcp cipher=aes256 auth=sha1 user="${opts.username}" password="${opts.password}" mode=ip add-default-route=no disabled=no
+/interface ovpn-client add name=safelinkhub-ovpn connect-to=${opts.connectTo} port=${opts.port} cipher=aes256 auth=sha1 user="${opts.username}" password="${opts.password}" mode=ip add-default-route=no disabled=no
 
 /user remove [find name=safelinkhub-api]
 /user group remove [find name=safelinkhub-group]

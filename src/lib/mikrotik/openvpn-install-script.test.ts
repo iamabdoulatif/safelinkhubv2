@@ -26,9 +26,20 @@ describe("compatibilité RouterOS 6 du script OpenVPN", () => {
     assert.deepEqual(fautives, [], `syntaxe RouterOS 7 : ${fautives.join(" | ")}`);
   });
 
-  it("le tunnel est en TCP — la 6.x ne sait pas faire d'OVPN en UDP", () => {
-    assert.match(script, /\/interface ovpn-client add .*protocol=tcp/);
-    assert.ok(!/protocol=udp/.test(script), "UDP demandé à un client qui n'en fait pas");
+  it("la ligne ovpn-client n'emploie que des paramètres connus de RouterOS 6", () => {
+    /* Deuxième panne observée, sur MALO-HOTSPOT (6.49) : « expected end of
+       command (line 6 column 92) ». La colonne 92 est le `=` de `protocol=tcp`
+       — paramètre apparu en RouterOS 7 avec l'UDP. En 6.x le client est
+       toujours en TCP et ne connaît pas ce mot. */
+    const ligne = script.split("\n").find((l) => l.startsWith("/interface ovpn-client add "))!;
+    const v6 = new Set([
+      "name", "connect-to", "port", "mode", "user", "password", "profile", "certificate",
+      "cipher", "auth", "add-default-route", "mac-address", "max-mtu", "disabled",
+      "verify-server-certificate", "comment",
+    ]);
+    const cles = [...ligne.matchAll(/ ([a-z-]+)=/g)].map((m) => m[1]);
+    assert.deepEqual(cles.filter((k) => !v6.has(k)), [], `paramètres inconnus de RouterOS 6 : ${ligne}`);
+    assert.ok(!/protocol=/.test(script), "le client OVPN de la 6.x est toujours en TCP, sans paramètre");
   });
 
   it("le chiffrement est en CBC — pas d'AEAD avant RouterOS 7", () => {
