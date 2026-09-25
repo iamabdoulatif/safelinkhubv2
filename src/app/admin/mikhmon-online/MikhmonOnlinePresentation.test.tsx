@@ -111,7 +111,9 @@ describe("station MikHmon Online", () => {
     const html = renderToStaticMarkup(
       <ChoixRouteur routers={flotte} dejaEquipes={[parc[0]]} onChoose={() => {}} onClose={() => {}} />,
     );
-    assert.match(html, /max-h-\[88dvh\]/, "hauteur bornée");
+    // Hauteur bornée ET marge visible en haut comme en bas, sur tout écran.
+    assert.match(html, /max-h-\[calc\(100dvh-2rem\)\]/, "hauteur bornée avec marge");
+    assert.match(html, /items-center justify-center bg-slate-deep\/60 p-4/, "espace autour de la fenêtre");
     assert.match(html, /overflow-y-auto/, "la liste défile");
     assert.match(html, /Chercher parmi 13 routeurs/);
     assert.match(html, /Hors ligne/);

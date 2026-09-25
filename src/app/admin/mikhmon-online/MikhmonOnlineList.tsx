@@ -561,7 +561,7 @@ export function ChoixRouteur({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-slate-deep/60 sm:items-center sm:p-4"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-slate-deep/60 p-4 sm:p-8"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -569,7 +569,7 @@ export function ChoixRouteur({
         role="dialog"
         aria-modal="true"
         aria-labelledby="mikhmon-router-choice-title"
-        className="flex max-h-[88dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-paper shadow-modal sm:max-h-[min(44rem,calc(100dvh-2rem))] sm:rounded-2xl"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-paper shadow-modal sm:max-h-[min(44rem,calc(100dvh-4rem))]"
       >
         <div className="shrink-0 border-b border-line-soft px-5 pb-4 pt-5 sm:px-6">
           <div className="flex items-start justify-between gap-4">
@@ -606,7 +606,7 @@ export function ChoixRouteur({
           )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-5 pt-3 sm:px-4">
           {groupes.length === 0 && (
             <p className="px-3 py-10 text-center text-sm text-ink-soft">Aucun routeur ne s’appelle ainsi.</p>
           )}
