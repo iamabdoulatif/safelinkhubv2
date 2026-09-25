@@ -8,5 +8,8 @@ Dockerfile
 deploy
 .github
 .vercel
+.worktrees
+artifacts
+docs/audit-refs
 *.md
 .claude
