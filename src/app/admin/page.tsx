@@ -1,6 +1,7 @@
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 import { getDashboardData } from "@/lib/dashboard/queries";
+import { resolveRange } from "@/lib/dashboard/range";
 import { getMonthlySeries } from "@/lib/dashboard/monthly";
 import { getSafecoinReport } from "@/lib/safecoin/queries";
 import { getAccountsByCountry } from "@/lib/dashboard/geography";
@@ -17,19 +18,6 @@ import { HTML_LANG } from "@/lib/i18n/config";
  * Tout le rendu vit dans DashboardView, qui ne connaît ni base ni session —
  * c'est ce qui permet de l'inspecter visuellement sans se connecter à /admin. */
 
-function toParam(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}`;
-}
-
-function parseDay(value: string | undefined): Date | null {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const [y, m, d] = value.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -39,29 +27,10 @@ export default async function DashboardPage({
   const params = await searchParams;
 
   const now = new Date();
-  const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1);
-  let from = parseDay(params.from) ?? defaultFrom;
-  let to = parseDay(params.to) ?? now;
-  if (from > to) [from, to] = [to, from];
-  const toEnd = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999);
-
-  const fromParam = toParam(from);
-  const toParamStr = toParam(to);
-  const daysAgo = (n: number) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - n);
-    return toParam(d);
-  };
-  const activePreset =
-    toParamStr !== toParam(now)
-      ? null
-      : fromParam === toParam(defaultFrom)
-        ? "month"
-        : fromParam === daysAgo(6)
-          ? "7d"
-          : fromParam === daysAgo(29)
-            ? "30d"
-            : null;
+  const range = resolveRange(params, now);
+  const { from, to: toEnd, activePreset } = range;
+  const fromParam = range.fromParam;
+  const toParamStr = range.toParam;
 
   /* Les deux lectures sont indépendantes : la première suit la période du
      sélecteur, la seconde regarde toujours les six derniers mois. */
@@ -125,7 +94,7 @@ export default async function DashboardPage({
       }
       countries={countries}
       reseller={orgRow ? resellerState(orgRow) : null}
-      rangeLabel={`${fmt.format(from)} – ${fmt.format(to)}`}
+      rangeLabel={`${fmt.format(from)} – ${fmt.format(toEnd)}`}
       picker={{ from: fromParam, to: toParamStr, activePreset }}
       quickActions={quickActions}
       t={adminDict.dashboard}
