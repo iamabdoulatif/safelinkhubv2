@@ -203,8 +203,8 @@ export const fr = {
     autoSetupSub: "selon le matériel",
     trial: "Essai offert",
     trialSub: "accès distant gratuit dès la création du compte",
-    vendorsSupported: (n: number) => `${n} constructeurs pris en charge`,
-    radius: "Noyau RADIUS cloud inclus",
+    nativeRouter: "Pilotage natif MikroTik RouterOS",
+    included: "Portail captif et mobile money inclus",
     videoTitle: "SafeLinkHub × MikroTik en 60 secondes",
     openYoutube: "Ouvrir sur YouTube",
     playLabel: (title: string) => `Lire la vidéo : ${title}`,
@@ -222,14 +222,14 @@ export const fr = {
     eyebrow: "La plateforme",
     title: "Une plateforme complète pour un contrôle total.",
     mark: "contrôle total",
-    lead: "Facturation, RADIUS, agents, analytique : les briques d'un FAI, sans en assembler aucune.",
+    lead: "Facturation, portail captif, agents, analytique : les briques d'un FAI, sans en assembler aucune.",
   },
   hardware: {
     aria: "Compatibilité matérielle",
-    titleA: "Une seule plateforme. ",
-    titleMark: "Tout",
-    titleB: " votre matériel.",
-    lead: "SafeLinkHub est indépendant du constructeur : le noyau RADIUS cloud parle à ce que vous avez déjà en rack.",
+    titleA: "Pilotage natif MikroTik. ",
+    titleMark: "Le reste",
+    titleB: " de votre réseau suit.",
+    lead: "SafeLinkHub pilote directement vos routeurs MikroTik. Vos points d'accès et switches d'autres marques restent en place derrière eux : leurs clients passent par le hotspot du MikroTik, donc par le même portail, les mêmes forfaits et la même supervision.",
     native: "Intégration native",
   },
   reseller: {
@@ -387,8 +387,8 @@ export const fr = {
         description: "Gérez facilement les utilisateurs PPPoE avec des quotas de données, des limites de débit et des profils personnalisés.",
       },
       {
-        title: "Noyau RADIUS puissant",
-        description: "Notre puissant serveur RADIUS cloud s'intègre au matériel que vous possédez déjà, indépendant du constructeur.",
+        title: "Supervision du parc en temps réel",
+        description: "Disponibilité, charge et clients connectés de chaque routeur, avec une alerte dès qu'un site tombe.",
       },
       {
         title: "Système Agent et Point de Vente",
@@ -410,15 +410,15 @@ export const fr = {
       },
       {
         name: "Ruijie Reyee",
-        description: "Points d'accès et switches Reyee gérés depuis le cloud, facturés et surveillés depuis SafeLinkHub.",
+        description: "Vos bornes Reyee branchées derrière un MikroTik : leurs clients se connectent par le portail captif et paient les mêmes forfaits. Les bornes elles-mêmes ne sont pas pilotées par SafeLinkHub.",
       },
       {
         name: "TP-Link",
-        description: "Gérez votre matériel TP-Link Omada au même endroit que le reste de votre réseau.",
+        description: "Vos points d'accès Omada derrière un MikroTik servent leurs clients par le même portail et les mêmes forfaits. Leur configuration reste dans Omada.",
       },
       {
         name: "Ubiquiti UniFi",
-        description: "Intégrez les clients et sites de votre contrôleur UniFi à la facturation et l'analytique SafeLinkHub.",
+        description: "Vos points d'accès UniFi derrière un MikroTik : clients servis par le portail, forfaits et sessions suivis dans SafeLinkHub. Le contrôleur UniFi garde leur configuration.",
       },
     ],
     faqs: [
@@ -432,7 +432,7 @@ export const fr = {
       },
       {
         q: "Puis-je intégrer SafeLinkHub à mon réseau existant ?",
-        a: "Oui. SafeLinkHub est indépendant du matériel et prend en charge MikroTik, Ruijie, TP-Link, Ubiquiti UniFi, Cambium, Cisco, D-Link et Huawei.",
+        a: "Oui, dès que votre réseau passe par un routeur MikroTik : SafeLinkHub le pilote directement (hotspot, PPPoE, tickets, accès distant). Vos points d'accès et switches d'autres marques (Ruijie, TP-Link, Ubiquiti, Cambium…) restent en place derrière lui et profitent du même portail, des mêmes forfaits et de la même supervision. Le pilotage direct des routeurs d'autres marques n'est pas encore disponible.",
       },
       {
         q: "Qu'est-ce qui est inclus dans le plan gratuit ?",

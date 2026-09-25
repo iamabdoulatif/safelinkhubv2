@@ -136,9 +136,9 @@ export const platformFeatures: {
     icon: "wifi",
   },
   {
-    title: "Noyau RADIUS puissant",
+    title: "Supervision du parc en temps réel",
     description:
-      "Notre puissant serveur RADIUS cloud s'intègre au matériel que vous possédez déjà, indépendant du constructeur.",
+      "Disponibilité, charge et clients connectés de chaque routeur, avec une alerte dès qu'un site tombe.",
     icon: "radius",
   },
   {
@@ -175,19 +175,19 @@ export const hardware: {
   {
     name: "Ruijie Reyee",
     description:
-      "Points d'accès et switches Reyee gérés depuis le cloud, facturés et surveillés depuis SafeLinkHub.",
+      "Vos bornes Reyee branchées derrière un MikroTik : leurs clients se connectent par le portail captif et paient les mêmes forfaits. Les bornes elles-mêmes ne sont pas pilotées par SafeLinkHub.",
     icon: "wifi",
   },
   {
     name: "TP-Link",
     description:
-      "Gérez votre matériel TP-Link Omada au même endroit que le reste de votre réseau.",
+      "Vos points d'accès Omada derrière un MikroTik servent leurs clients par le même portail et les mêmes forfaits. Leur configuration reste dans Omada.",
     icon: "monitor",
   },
   {
     name: "Ubiquiti UniFi",
     description:
-      "Intégrez les clients et sites de votre contrôleur UniFi à la facturation et l'analytique SafeLinkHub.",
+      "Vos points d'accès UniFi derrière un MikroTik : clients servis par le portail, forfaits et sessions suivis dans SafeLinkHub. Le contrôleur UniFi garde leur configuration.",
     icon: "globe",
   },
 ];
@@ -207,7 +207,7 @@ export const faqs = [
   },
   {
     q: "Puis-je intégrer SafeLinkHub à mon réseau existant ?",
-    a: "Oui. SafeLinkHub est indépendant du matériel et prend en charge MikroTik, Ruijie, TP-Link, Ubiquiti UniFi, Cambium, Cisco, D-Link et Huawei.",
+    a: "Oui, dès que votre réseau passe par un routeur MikroTik : SafeLinkHub le pilote directement (hotspot, PPPoE, tickets, accès distant). Vos points d'accès et switches d'autres marques (Ruijie, TP-Link, Ubiquiti, Cambium…) restent en place derrière lui et profitent du même portail, des mêmes forfaits et de la même supervision. Le pilotage direct des routeurs d'autres marques n'est pas encore disponible.",
   },
   {
     q: "Qu'est-ce qui est inclus dans le plan gratuit ?",
