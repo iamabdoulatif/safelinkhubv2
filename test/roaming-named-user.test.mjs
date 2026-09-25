@@ -425,7 +425,7 @@ test("la vue exploitation montre la couverture et les zones à vérifier", async
   assert.match(console_, /Zones en ligne/);
   assert.match(console_, /À vérifier/);
   assert.match(console_, /group\.routers\.filter\(\(router\) => router\.status === "online"\)/);
-  assert.match(console_, /zones non joignables/);
+  assert.match(console_, /non joignable/);
 });
 
 test("la vue catalogue conserve les profils et offres administrables", async () => {
