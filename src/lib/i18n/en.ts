@@ -50,17 +50,23 @@ export const en: Dictionary = {
     socials: "Social networks",
   },
   hero: {
-    eyebrow: "Hotspot billing · ISP automation",
-    titleA: "Your network. Your revenue. ",
-    titleMark: "Automated.",
-    lead: "The most advanced Hotspot and ISP automation platform: mobile money billing, MikroTik provisioning and real-time monitoring, from a single dashboard.",
+    eyebrow: "SafeLinkHub / Control layer",
+    titleA: "Your network. ",
+    titleMark: "Under control.",
+    lead: "Monitor your equipment, automate access and collect payments for your plans from a single cockpit.",
     emailLabel: "Work email address",
     emailPlaceholder: "you@your-network.ci",
-    submit: "Start for free",
+    submit: "See your network",
     microcopy: (days: number) =>
       `Free plan · ${days} days of remote access included · no card required`,
     watch: "See the dashboard in 60 seconds",
-    routerAlt: "MikroTik Chateau Pro router managed in SafeLinkHub",
+    routerAlt: "MikroTik hAP ax³ router monitored by SafeLinkHub",
+    film: [
+      { title: "Every port. Every customer.", text: "Your routers' activity, read live." },
+      { title: "Every site. One network.", text: "Hotspots, zones and access points in the same control layer." },
+      { title: "Under control.", text: "Uptime, access and payments: nothing slips through." },
+    ],
+    scroll: "Scroll",
     cards: {
       routers: "Routers monitored",
       routersSub: "total fleet on the platform",
@@ -76,10 +82,40 @@ export const en: Dictionary = {
       action: "Add a router",
       online: "Online",
       setup: "Setting up",
-      nav: ["Dashboard", "Routers", "Plans", "Sales", "Captive portal"],
       caption: "Interface preview — zone names are fictional.",
     },
     compatible: "Works with",
+  },
+  controlRoom: {
+    cockpit: {
+      aria: "One network, one cockpit",
+      eyebrow: "One network, one cockpit",
+      title: "All your hardware behind a single control layer.",
+      lead: "The MikroTik runs the network; SafeLinkHub drives it. Access points plugged in behind it go through the same portal, the same plans, the same monitoring.",
+      vendors: [
+        { name: "MikroTik RouterOS", role: "The heart of the network", points: ["Automatic provisioning", "Hotspot, PPPoE and vouchers", "Secure remote access"] },
+        { name: "Ruijie Reyee", role: "Access points and switches", points: ["Clients served by the portal", "Same plans, same payments", "Sessions tracked from the cockpit"] },
+        { name: "TP-Link Omada", role: "Access points and switches", points: ["Clients served by the portal", "Same plans, same payments", "Sessions tracked from the cockpit"] },
+      ],
+    },
+    autopilot: {
+      aria: "Operations that run themselves",
+      eyebrow: "Operations that run themselves",
+      title: "What you used to do by hand now runs on its own.",
+      items: [
+        { title: "Provisioning", text: "Hotspot, PPPoE, plan profiles and captive portal set up in one pass, without writing a line of RouterOS." },
+        { title: "Wi-Fi vouchers", text: "Batches of codes generated, printed and pushed to every zone, or sold straight from the portal." },
+        { title: "Mobile money", text: "Wave, Orange Money, MTN MoMo and Moov: the customer pays, the code arrives, the sale is recorded." },
+        { title: "Automatic expiry", text: "Every voucher cuts off on time. No accounts to close, no access left lingering." },
+      ],
+    },
+    sites: {
+      aria: "Every site answers",
+      eyebrow: "Every site answers",
+      title: "Every router, every zone, at a glance.",
+      lead: "Uptime, load, connected clients: your fleet reads at a glance, and a site going down shows up before your customers call.",
+      metrics: ["Uptime", "CPU", "Memory", "Active users", "Secure remote access"],
+    },
   },
   trust: {
     heading: "What SafeLinkHub takes off your hands",
@@ -238,9 +274,9 @@ export const en: Dictionary = {
   },
   finalCta: {
     aria: "Create an account",
-    title: "Ready to automate your network?",
+    title: "Turn your network into a business you control.",
     lead: "Start for free. No card required, no commitment.",
-    primary: "Create a free account",
+    primary: "Create my SafeLinkHub space",
     secondary: "Request a demo",
   },
   footer: {

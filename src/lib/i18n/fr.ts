@@ -50,17 +50,24 @@ export const fr = {
     socials: "Réseaux sociaux",
   },
   hero: {
-    eyebrow: "Facturation hotspot · Automatisation FAI",
-    titleA: "Votre réseau. Vos revenus. ",
-    titleMark: "Automatisés.",
-    lead: "La plateforme d'automatisation Hotspot et FAI la plus avancée : facturation mobile money, provisionnement MikroTik et surveillance temps réel, depuis un seul tableau de bord.",
+    eyebrow: "SafeLinkHub / Control layer",
+    titleA: "Votre réseau. ",
+    titleMark: "Sous contrôle.",
+    lead: "Supervisez vos équipements, automatisez vos accès et encaissez vos forfaits depuis un seul cockpit.",
     emailLabel: "Adresse e-mail professionnelle",
     emailPlaceholder: "vous@votre-reseau.ci",
-    submit: "Démarrer gratuitement",
+    submit: "Voir votre réseau",
     microcopy: (days: number) =>
       `Plan gratuit · ${days} jours d'accès distant offerts · sans carte bancaire`,
     watch: "Voir le tableau de bord en 60 secondes",
-    routerAlt: "Routeur MikroTik Chateau Pro géré dans SafeLinkHub",
+    routerAlt: "Routeur MikroTik hAP ax³ supervisé par SafeLinkHub",
+    // Phrases qui défilent sur le film du hero, au rythme du scroll.
+    film: [
+      { title: "Chaque port. Chaque client.", text: "L'activité de vos routeurs, lue en direct." },
+      { title: "Tous vos sites. Un seul réseau.", text: "Hotspots, zones et points d'accès réunis dans la même couche de contrôle." },
+      { title: "Sous contrôle.", text: "Disponibilité, accès et encaissements : rien ne vous échappe." },
+    ],
+    scroll: "Faites défiler",
     cards: {
       routers: "Routeurs supervisés",
       routersSub: "parc total sur la plateforme",
@@ -76,10 +83,40 @@ export const fr = {
       action: "Ajouter un routeur",
       online: "En ligne",
       setup: "Configuration",
-      nav: ["Tableau de bord", "Routeurs", "Forfaits", "Ventes", "Portail captif"],
       caption: "Aperçu de l'interface — noms de zones fictifs.",
     },
     compatible: "Compatible avec",
+  },
+  controlRoom: {
+    cockpit: {
+      aria: "Un réseau, un cockpit",
+      eyebrow: "Un réseau, un cockpit",
+      title: "Tout votre matériel derrière une seule couche de contrôle.",
+      lead: "Le MikroTik tient le réseau ; SafeLinkHub le pilote. Les points d'accès branchés derrière lui passent par le même portail, les mêmes forfaits, la même supervision.",
+      vendors: [
+        { name: "MikroTik RouterOS", role: "Le cœur du réseau", points: ["Provisionnement automatique", "Hotspot, PPPoE et tickets", "Accès distant sécurisé"] },
+        { name: "Ruijie Reyee", role: "Points d'accès et switches", points: ["Clients servis par le portail", "Mêmes forfaits, même encaissement", "Sessions suivies depuis le cockpit"] },
+        { name: "TP-Link Omada", role: "Points d'accès et switches", points: ["Clients servis par le portail", "Mêmes forfaits, même encaissement", "Sessions suivies depuis le cockpit"] },
+      ],
+    },
+    autopilot: {
+      aria: "Les opérations qui avancent seules",
+      eyebrow: "Les opérations qui avancent seules",
+      title: "Ce que vous faisiez à la main tourne tout seul.",
+      items: [
+        { title: "Provisionnement", text: "Hotspot, PPPoE, profils de forfaits et portail captif posés en une passe, sans écrire une ligne de RouterOS." },
+        { title: "Tickets Wi-Fi", text: "Des lots de codes générés, imprimés et posés sur chaque zone, ou vendus directement depuis le portail." },
+        { title: "Mobile money", text: "Wave, Orange Money, MTN MoMo et Moov : le client paie, son code arrive, la vente est enregistrée." },
+        { title: "Expiration automatique", text: "Chaque ticket se coupe à l'heure prévue. Plus de compte à fermer, plus d'accès qui traîne." },
+      ],
+    },
+    sites: {
+      aria: "Chaque site vous répond",
+      eyebrow: "Chaque site vous répond",
+      title: "Chaque routeur, chaque zone, en un coup d'œil.",
+      lead: "Disponibilité, charge, clients connectés : le parc se lit d'un regard, et un site en panne se voit avant que vos clients ne vous appellent.",
+      metrics: ["Disponibilité", "Processeur", "Mémoire", "Utilisateurs actifs", "Accès distant sécurisé"],
+    },
   },
   trust: {
     heading: "Ce que SafeLinkHub supprime",
@@ -238,9 +275,9 @@ export const fr = {
   },
   finalCta: {
     aria: "Créer un compte",
-    title: "Prêt à automatiser votre réseau ?",
+    title: "Transformez votre réseau en activité maîtrisée.",
     lead: "Commencez gratuitement. Aucune carte bancaire requise, aucun engagement.",
-    primary: "Créer un compte gratuit",
+    primary: "Créer mon espace SafeLinkHub",
     secondary: "Demander une démo",
   },
   footer: {

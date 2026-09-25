@@ -1,28 +1,31 @@
-import { access, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 import assert from "node:assert/strict";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-/* Le hero montre le produit : une console du parc avec les vraies photos de
- * modèles MikroTik, puis une bande de chiffres réels. La scène Three.js en
- * orbite a été retirée (poids du bundle, lisibilité mobile). */
+/* Hero « Control Room » : film du hAP ax³ piloté au scroll (séquence d'images
+ * sur desktop), vidéo maître sur mobile, affiche seule en mouvement réduit. */
 
-test("la console du hero emploie des photos réelles et se déclare illustrative", async () => {
+test("chaque fichier du film annoncé par le hero existe", async () => {
   const hero = await read("src/components/landing/Hero.tsx");
-  for (const img of [...hero.matchAll(/img: "(\/mikrotik\/[^"]+)"/g)].map((m) => m[1])) {
-    await access(new URL(`../public${img}`, import.meta.url));
+  const count = Number(hero.match(/frameCount:\s*(\d+)/)?.[1]);
+  const frames = await readdir(new URL("../public/landing/control-room/frames/", import.meta.url));
+  assert.equal(frames.filter((f) => f.endsWith(".webp")).length, count, "nombre d'images ≠ frameCount");
+  for (const f of ["poster.jpg", "film.mp4", "film.webm", "network.webp", "ports.webp"]) {
+    await access(new URL(`../public/landing/control-room/${f}`, import.meta.url));
   }
-  assert.match(hero, /<figcaption[^>]*>\{t\.console\.caption\}/);
-  assert.match(hero, /aria-hidden="true"\s+className="overflow-hidden rounded-2xl/);
-  assert.doesNotMatch(hero, /MikrotikOrbitScene|from "three"/);
+});
 
-  const [{ fr }, { en }] = await Promise.all([
-    import("../src/lib/i18n/fr.ts"),
-    import("../src/lib/i18n/en.ts"),
-  ]);
-  assert.notEqual(fr.hero.console.caption, en.hero.console.caption, "légende non traduite");
-  assert.equal(fr.hero.console.nav.length, en.hero.console.nav.length);
+test("le film respecte le mouvement réduit et ne capte pas les lecteurs d'écran", async () => {
+  const film = await read("src/components/landing/ScrollFilm.tsx");
+  assert.match(film, /"use client"/);
+  assert.match(film, /prefers-reduced-motion: reduce/);
+  // Mouvement réduit : l'affiche, ni scrub ni vidéo.
+  assert.match(film, /setMode\(reduced \? "poster"/);
+  assert.match(film, /<canvas ref=\{canvasRef\} aria-hidden="true"/);
+  // Le texte vit dans le HTML, jamais dans les images générées.
+  assert.doesNotMatch(film, /fillText/);
 });
 
 test("le hero garde ses chiffres réels, sa capture e-mail et les constructeurs", async () => {
@@ -34,4 +37,11 @@ test("le hero garde ses chiffres réels, sa capture e-mail et les constructeurs"
   assert.match(hero, /\.filter\(\(c\) => c\.value !== undefined\)/);
   assert.match(hero, /action=\{localeHref\("\/auth\/register", locale\)\}/);
   assert.match(hero, /<VendorMarquee dict=\{dict\} \/>/);
+});
+
+test("les phrases du film sont traduites", async () => {
+  const [{ fr }, { en }] = await Promise.all([import("../src/lib/i18n/fr.ts"), import("../src/lib/i18n/en.ts")]);
+  assert.equal(fr.hero.film.length, en.hero.film.length);
+  assert.notEqual(fr.hero.film[0].title, en.hero.film[0].title);
+  assert.equal(fr.controlRoom.cockpit.vendors.length, en.controlRoom.cockpit.vendors.length);
 });
