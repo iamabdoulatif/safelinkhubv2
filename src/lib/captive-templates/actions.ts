@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import { ensureDefaultPortals } from "./default-portals";
 import { bridges, captiveTemplates, routers, organizations } from "@/lib/db/schema";
 import { portailAReposer } from "./portail-a-reposer";
-import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getSession, isSuperAdmin, requireCapability } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
@@ -346,6 +346,69 @@ export async function updatePackageTemplateBranding(
   return { success: true };
 }
 
+/**
+ * Contacts affichés par le portail d'UN routeur (WhatsApp, téléphone,
+ * vendeurs), puis ré-envoi immédiat du portail : les numéros sont écrits dans
+ * les fichiers au moment de l'installation, les changer en base ne suffit pas.
+ *
+ * Jusqu'ici ils ne se modifiaient que dans l'assistant d'auto-setup ; ceux du
+ * MODÈLE (onglet « Mes modèles ») sont ignorés dès qu'un routeur a les siens.
+ */
+export async function updateRouterPortalContacts(
+  _prev: unknown,
+  formData: FormData,
+): Promise<{ error: string } | { success: true; summary: string }> {
+  const session = await requireCapability("settings");
+  if (!session) return { error: "Votre rôle ne permet pas de modifier le portail." };
+
+  const routerId = String(formData.get("routerId") ?? "");
+  const clean = (v: FormDataEntryValue | null) => String(v ?? "").trim().slice(0, 40);
+  const supportWhatsapp = clean(formData.get("supportWhatsapp"));
+  const supportPhone = clean(formData.get("supportPhone"));
+  const names = formData.getAll("vendorName").map(clean);
+  const places = formData.getAll("vendorLocation").map(clean);
+  const phones = formData.getAll("vendorPhone").map(clean);
+  const vendors: PackageVendor[] = names
+    .map((name, i) => ({ name, location: places[i] ?? "", phone: phones[i] ?? "" }))
+    .filter((v) => v.name && v.phone)
+    .slice(0, 20);
+  const bad = [supportWhatsapp, supportPhone, ...vendors.map((v) => v.phone)].find(
+    (p) => p && !/^\+?[\d\s().-]{6,}$/.test(p),
+  );
+  if (bad) return { error: `Numéro invalide : « ${bad} ». Chiffres, espaces et + uniquement.` };
+
+  const db = getDb();
+  const [router] = await db
+    .select({ id: routers.id, orgId: routers.orgId, name: routers.name })
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || router.orgId !== session.orgId) return { error: "Routeur introuvable." };
+
+  await db
+    .update(routers)
+    .set({ portalSupportWhatsapp: supportWhatsapp || null, portalSupportPhone: supportPhone || null, portalVendors: vendors })
+    .where(eq(routers.id, router.id));
+  revalidatePath("/admin/settings/captive-templates");
+
+  const { resolveRouterPortal } = await import("./router-portal");
+  const portal = await resolveRouterPortal(session.orgId, router.id);
+  if (!portal) {
+    return {
+      success: true,
+      summary: "Contacts enregistrés. Aucun portail SafeLinkHub connu sur ce routeur : installez-en un pour les afficher.",
+    };
+  }
+  const res = await installTemplateOnRouter(router.id, portal.template.id);
+  if ("error" in res) {
+    return {
+      success: true,
+      summary: `Contacts enregistrés, mais le portail n'a pas pu être mis à jour sur ${router.name} (${res.error}). Réessayez quand il sera en ligne.`,
+    };
+  }
+  return { success: true, summary: `Contacts enregistrés et portail mis à jour sur ${router.name}.` };
+}
+
 /** Branding portail scopé au routeur (contact support/paiement + vendeurs),
  * pour préremplir l'auto-setup. Renvoie des valeurs vides si non défini. */
 export async function getRouterPortalBranding(routerId: string): Promise<{
@@ -488,6 +551,15 @@ export async function deleteCaptiveTemplate(templateId: string) {
   return { success: true };
 }
 
+/** Fichiers courants d'un portail fourni par SafeLinkHub, null sinon. */
+async function currentBundledFiles(name: string): Promise<PackageFile[] | null> {
+  const bundles = await import("./package-files");
+  if (name === "hotspot-sfh1") return bundles.loadSafelinkhubDefaultPackage();
+  if (name === "hotspot-sfh2") return bundles.loadYahyaWifiPackage();
+  if (name === "SafeLink Baraka" || name.startsWith("SafeLink Baraka — ")) return bundles.loadSafelinkBarakaPackage();
+  return null;
+}
+
 /**
  * Installe un modèle « package » sur N'IMPORTE QUEL routeur de l'org,
  * indépendamment de l'auto-setup et SANS facturation : contrairement à
@@ -525,7 +597,23 @@ export async function installTemplateOnRouter(
   if (template.templateType !== "package") {
     return { error: "Ce modèle n'est pas un portail multi-fichiers (package)." };
   }
-  const files = (template.packageFiles as PackageFile[] | null) ?? [];
+  // Portails fournis par SafeLinkHub : leurs fichiers sont COPIÉS en base à la
+  // création, donc figés. On repart de la version courante à chaque
+  // installation — sans quoi un correctif (numéros en dur, bloc contacts)
+  // n'atteindrait jamais les routeurs déjà équipés. Le branding vit dans des
+  // colonnes, pas dans ces fichiers : rien de propre au client n'est perdu.
+  let files = (template.packageFiles as PackageFile[] | null) ?? [];
+  const bundled = await currentBundledFiles(template.name);
+  if (bundled) {
+    files = bundled;
+    await db
+      .update(captiveTemplates)
+      .set({ packageFiles: bundled, updatedAt: new Date() })
+      .where(eq(captiveTemplates.id, template.id))
+      .catch(() => {
+        /* l'installation se fait quand même avec les fichiers à jour */
+      });
+  }
   if (files.length === 0) return { error: "Ce modèle ne contient aucun fichier." };
 
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);

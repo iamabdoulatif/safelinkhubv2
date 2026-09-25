@@ -421,3 +421,20 @@ iframe {
   color: #8a8a8a !important;
   cursor: not-allowed;
 }
+
+/* ── Contacts et vendeurs (générés par SafeLinkHub) ── */
+.slh-contacts { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.slh-contacts:empty { display: none; }
+.support-link { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 12px;
+  border-radius: 10px; background: #1b1b1b; color: #FFC93C; font-weight: 700; font-size: 13px; text-decoration: none; }
+.support-link svg { width: 16px; height: 16px; flex-shrink: 0; }
+.vendor-card { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px;
+  background: rgba(255, 255, 255, .55); text-align: left; }
+.vendor-icon svg { width: 22px; height: 22px; }
+.vendor-info { flex: 1; min-width: 0; }
+.vendor-name { font-weight: 700; font-size: 13px; }
+.vendor-location, .vendor-phone { font-size: 11.5px; color: #3a3a3a; }
+.vendor-location svg { width: 11px; height: 11px; vertical-align: -1px; margin-right: 3px; }
+.vendor-action { display: inline-flex; align-items: center; gap: 4px; padding: 6px 9px; border-radius: 8px;
+  background: #25D366; color: #fff; font-size: 11.5px; font-weight: 700; text-decoration: none; }
+.vendor-action svg { width: 13px; height: 13px; }

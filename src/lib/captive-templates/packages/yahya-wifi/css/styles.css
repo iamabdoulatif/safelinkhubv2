@@ -1024,3 +1024,7 @@ body {
     background: #1a1c22;
     color: #fff;
 }
+
+/* Vendeur sans photo (généré par SafeLinkHub) : icône centrée dans l'avatar. */
+.store-avatar { display: flex; align-items: center; justify-content: center; }
+.store-avatar > i { font-size: 22px; color: #1a73e8; position: relative; z-index: 2; }

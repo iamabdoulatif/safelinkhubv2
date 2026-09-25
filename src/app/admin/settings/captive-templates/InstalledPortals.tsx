@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ExternalLink, Monitor, Search, Smartphone } from "lucide-react";
 import InstallOnRouter from "./InstallOnRouter";
+import RouterPortalSettings, { type PortalContacts, type PortalPlan } from "./RouterPortalSettings";
 
 export type RouterPortal = {
   routerId: string;
@@ -18,6 +19,8 @@ export type RouterPortal = {
     /** Déduit (pas enregistré à l'installation) — routeurs configurés avant le suivi. */
     inferred: boolean;
   } | null;
+  contacts: PortalContacts;
+  plans: PortalPlan[];
 };
 
 type TemplateOption = { id: string; name: string; isDefault: boolean };
@@ -208,7 +211,8 @@ export default function InstalledPortals({
                 style={{ width: d.w * d.scale + pad, height: d.h * d.scale + pad }}
               >
                 <iframe
-                  key={`${selected.routerId}-${device}`}
+                  // Recharge l'aperçu quand un prix ou un contact change.
+                  key={`${selected.routerId}-${device}-${JSON.stringify([selected.contacts, selected.plans.map((p) => p.priceCents)])}`}
                   src={previewUrl(selected.portal.token, selected.portal.entry)}
                   title={`Portail captif de ${selected.routerName}`}
                   sandbox="allow-scripts allow-forms"
@@ -222,6 +226,16 @@ export default function InstalledPortals({
                 suivi). Installez-en un ci-dessous pour le voir ici.
               </p>
             )}
+          </div>
+
+          <div className="mt-5">
+            <RouterPortalSettings
+              key={selected.routerId}
+              routerId={selected.routerId}
+              contacts={selected.contacts}
+              plans={selected.plans}
+              hasPortal={selected.portal !== null}
+            />
           </div>
 
           {templates.length > 0 && (

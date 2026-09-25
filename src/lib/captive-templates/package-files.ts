@@ -83,6 +83,35 @@ function renderVendorsHtml(vendors: PackageVendor[] | null | undefined): string 
     .join("\n");
 }
 
+/**
+ * Section « Points de vente » du portail Yahya, à son style (store-card) :
+ * elle portait un vendeur fictif en dur (« Hassatou », 07 XXXXXXXXXX) que rien
+ * ne permettait de changer. Vide = section absente.
+ */
+function renderStoresSectionHtml(vendors: PackageVendor[] | null | undefined): string {
+  if (!vendors || vendors.length === 0) return "";
+  const cards = vendors
+    .map((v, i) => {
+      const digits = v.phone.replace(/[^0-9]/g, "");
+      return `    <div class="store-card">
+      <div class="store-avatar"><i class="fas fa-store"></i></div>
+      <div class="store-info">
+        <h4><i class="fas fa-user"></i> Point de vente ${i + 1} &mdash; ${escapeHtml(v.name)}</h4>
+        ${v.location ? `<p><i class="fas fa-map-pin"></i>${escapeHtml(v.location)}</p>` : ""}
+        <a href="tel:+${digits}" class="store-phone"><i class="fas fa-phone"></i>${escapeHtml(v.phone)}</a>
+      </div>
+    </div>`;
+    })
+    .join("\n");
+  return `<div class="stores-section">
+    <div class="section-label">
+      <span class="icon-box icon-box--stores"><i class="fas fa-location-dot"></i></span>
+      Points de Vente
+    </div>
+${cards}
+  </div>`;
+}
+
 function renderSupportLinksHtml(supportWhatsapp?: string | null, supportPhone?: string | null): string {
   const links: string[] = [];
   if (supportWhatsapp) {
@@ -1019,6 +1048,7 @@ export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars):
   const rendered = file.content
     .replaceAll("{{SSID}}", vars.ssid)
     .replaceAll("{{VENDORS_HTML}}", renderVendorsHtml(vars.vendors))
+    .replaceAll("{{STORES_SECTION_HTML}}", renderStoresSectionHtml(vars.vendors))
     .replaceAll("{{SUPPORT_LINKS_HTML}}", renderSupportLinksHtml(vars.supportWhatsapp, vars.supportPhone))
     .replaceAll("{{PLANS_HTML}}", renderPlansHtml(vars.plans))
     .replaceAll("{{PRICE_CARDS_HTML}}", renderPriceCardsHtml(vars.plans))

@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { after } from "next/server";
 import { ArrowLeft } from "lucide-react";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { MonitorSmartphone, Layers, Plus, Send } from "lucide-react";
 import { getDb } from "@/lib/db";
-import { bridges, routers } from "@/lib/db/schema";
+import { bridges, packages, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
@@ -12,6 +12,7 @@ import {
   loadSafelinkhubDefaultPackage,
   loadYahyaWifiPackage,
   type PackageFile,
+  type PackageVendor,
 } from "@/lib/captive-templates/package-files";
 import TemplatesManager from "./TemplatesManager";
 import DefaultPortals, { type DefaultPortal } from "./DefaultPortals";
@@ -20,6 +21,8 @@ import InstallOnRouter from "./InstallOnRouter";
 import ThemeGallery from "./ThemeGallery";
 import InstalledPortals, { type RouterPortal } from "./InstalledPortals";
 import { signPreviewToken } from "@/lib/captive-templates/preview-token";
+import { pickRouterPortal, routerSsid } from "@/lib/captive-templates/router-portal";
+import { formatDurationHuman } from "@/lib/vouchers/expiry";
 
 // PackagePreview ne lit que le schéma de couleurs des CSS — on n'envoie donc que
 // les .css au client pour l'aperçu, pas les images base64 du package entier.
@@ -86,6 +89,7 @@ export default async function CaptiveTemplatesPage({
           name: bridges.name,
           hotspotEnabled: bridges.hotspotEnabled,
           captiveTemplateId: bridges.captiveTemplateId,
+          routerId: bridges.routerId,
           routerName: routers.name,
         })
         .from(bridges)
@@ -103,6 +107,9 @@ export default async function CaptiveTemplatesPage({
           status: routers.status,
           captiveTemplateId: routers.captiveTemplateId,
           config: routers.lastAutoSetupConfig,
+          supportWhatsapp: routers.portalSupportWhatsapp,
+          supportPhone: routers.portalSupportPhone,
+          vendors: routers.portalVendors,
         })
         .from(routers)
         .where(eq(routers.orgId, session.orgId))
@@ -112,15 +119,30 @@ export default async function CaptiveTemplatesPage({
   // Portail de chaque routeur : la colonne posée à l'installation d'abord ;
   // sinon (routeurs configurés avant ce suivi) un bridge suivi, puis le modèle
   // que l'auto-setup a nommé d'après le SSID — marqué « présumé ».
-  const packages = templates.filter((t) => t.templateType === "package");
+  const packageTemplates = templates.filter((t) => t.templateType === "package");
+  // Forfaits actifs, pour la section « Forfaits affichés » de chaque routeur.
+  const orgPackages = session
+    ? await db
+        .select({
+          id: packages.id,
+          name: packages.name,
+          priceCents: packages.priceCents,
+          durationValue: packages.durationValue,
+          durationUnit: packages.durationUnit,
+          routerId: packages.routerId,
+        })
+        .from(packages)
+        .where(and(eq(packages.orgId, session.orgId), eq(packages.active, true)))
+        .orderBy(asc(packages.priceCents))
+    : [];
+
   const items: RouterPortal[] = orgRouters.map((r) => {
-    const ssid = ((r.config ?? {}) as { ssid?: string }).ssid?.trim();
-    const direct = packages.find((t) => t.id === r.captiveTemplateId);
-    const viaBridge = packages.find((t) =>
-      orgBridges.some((b) => b.routerName === r.name && b.captiveTemplateId === t.id),
+    const picked = pickRouterPortal(
+      { id: r.id, captiveTemplateId: r.captiveTemplateId, ssid: routerSsid(r.config) },
+      packageTemplates,
+      orgBridges,
     );
-    const viaSsid = ssid ? packages.find((t) => t.name === `SafeLink Baraka — ${ssid}`) : undefined;
-    const t = direct ?? viaBridge ?? viaSsid;
+    const t = picked?.template;
     const files = (t?.packageFiles as { path: string }[] | null) ?? [];
     const entry = files.find((f) => f.path === "login.html")?.path ?? files.find((f) => f.path.endsWith(".html"))?.path;
     return {
@@ -134,9 +156,23 @@ export default async function CaptiveTemplatesPage({
               templateName: t.name,
               entry,
               token: signPreviewToken({ templateId: t.id, routerId: r.id, orgId: session!.orgId }),
-              inferred: !direct,
+              inferred: picked.inferred,
             }
           : null,
+      contacts: {
+        supportWhatsapp: r.supportWhatsapp ?? "",
+        supportPhone: r.supportPhone ?? "",
+        vendors: Array.isArray(r.vendors) ? (r.vendors as PackageVendor[]) : [],
+      },
+      plans: orgPackages
+        .filter((p) => p.routerId === r.id || p.routerId === null)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          priceCents: p.priceCents,
+          validity: formatDurationHuman({ durationValue: p.durationValue, durationUnit: p.durationUnit, billingStartsOn: "Upon First Use" }),
+          shared: p.routerId === null,
+        })),
     };
   });
 
@@ -202,7 +238,7 @@ export default async function CaptiveTemplatesPage({
       {vue === "routeurs" && (
         <InstalledPortals
           items={items}
-          templates={packages.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
+          templates={packageTemplates.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
         />
       )}
 
@@ -219,7 +255,7 @@ export default async function CaptiveTemplatesPage({
         <div id="deployer">
           <InstallOnRouter
             routers={orgRouters.map(({ id, name, status }) => ({ id, name, status }))}
-            templates={packages.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
+            templates={packageTemplates.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
           />
           <BridgeAssignments
             bridges={orgBridges.filter((b) => b.hotspotEnabled)}
