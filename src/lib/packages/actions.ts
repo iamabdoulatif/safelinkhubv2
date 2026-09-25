@@ -174,6 +174,7 @@ export async function updatePackagePrice(_prevState: unknown, formData: FormData
   await db.update(packages).set({ priceCents }).where(eq(packages.id, packageId));
   revalidatePath("/admin/packages");
   revalidatePath("/admin/settings/router-setup");
+  revalidatePath("/admin/settings/captive-templates");
 
   // Resynchronisation du routeur : best-effort et NOMMÉE. Un routeur
   // injoignable ne doit pas annuler le changement de tarif — mais l'opérateur
@@ -220,13 +221,18 @@ export async function updatePackagePrice(_prevState: unknown, formData: FormData
       // de HSPT-NAMOIN voyait : 2 000 F sur son téléphone, 2 500 F dans le
       // SaaS. On la ré-envoie, elle repartira avec le script qui lit les prix
       // en direct.
-      const portalPart = router.captiveTemplateId
+      // Même règle que la page Portail captif (router-portal.ts) : avant, seul
+      // `captiveTemplateId` comptait, absent sur la plupart des routeurs
+      // configurés avant son suivi — et leur portail gardait l'ancien tarif.
+      const { resolveRouterPortal } = await import("@/lib/captive-templates/router-portal");
+      const portal = await resolveRouterPortal(session.orgId, router.id);
+      const portalPart = portal
         ? await (async () => {
             const { installTemplateOnRouter } = await import("@/lib/captive-templates/actions");
-            const res = await installTemplateOnRouter(router.id, router.captiveTemplateId!);
-            return "error" in res ? `portail NON réinstallé (${res.error})` : "portail réinstallé";
+            const res = await installTemplateOnRouter(router.id, portal.template.id);
+            return "error" in res ? `portail NON mis à jour (${res.error})` : "portail mis à jour sur le routeur";
           })()
-        : "aucun portail rattaché à ce routeur";
+        : "aucun portail SafeLinkHub connu sur ce routeur";
 
       return {
         success: true,

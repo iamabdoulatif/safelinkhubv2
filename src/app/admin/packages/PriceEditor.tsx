@@ -23,6 +23,12 @@ export default function PriceEditor({
 }) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(updatePackagePrice, undefined);
+  // Refermer après un enregistrement réussi (le résumé s'affiche à côté du prix).
+  const [seen, setSeen] = useState(state);
+  if (seen !== state) {
+    setSeen(state);
+    if (state && !("error" in state)) setOpen(false);
+  }
 
   if (!open) {
     return (
