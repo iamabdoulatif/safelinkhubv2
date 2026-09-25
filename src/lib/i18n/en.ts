@@ -202,8 +202,8 @@ export const en: Dictionary = {
     autoSetupSub: "depending on hardware",
     trial: "Free trial",
     trialSub: "remote access free from the moment you sign up",
-    vendorsSupported: (n: number) => `${n} vendors supported`,
-    radius: "Cloud RADIUS core included",
+    nativeRouter: "Native MikroTik RouterOS control",
+    included: "Captive portal and mobile money included",
     videoTitle: "SafeLinkHub × MikroTik in 60 seconds",
     openYoutube: "Open on YouTube",
     playLabel: (title: string) => `Play video: ${title}`,
@@ -221,14 +221,14 @@ export const en: Dictionary = {
     eyebrow: "The platform",
     title: "A complete platform for total control.",
     mark: "total control",
-    lead: "Billing, RADIUS, agents, analytics: the building blocks of an ISP, with none to assemble.",
+    lead: "Billing, captive portal, agents, analytics: the building blocks of an ISP, with none to assemble.",
   },
   hardware: {
     aria: "Hardware compatibility",
-    titleA: "One platform. ",
-    titleMark: "All",
-    titleB: " your hardware.",
-    lead: "SafeLinkHub is vendor-independent: the cloud RADIUS core speaks to what you already have in the rack.",
+    titleA: "Native MikroTik control. ",
+    titleMark: "The rest",
+    titleB: " of your network follows.",
+    lead: "SafeLinkHub drives your MikroTik routers directly. Access points and switches from other brands stay in place behind them: their clients go through the MikroTik hotspot, so through the same portal, the same plans and the same monitoring.",
     native: "Native integration",
   },
   reseller: {
@@ -394,9 +394,9 @@ export const en: Dictionary = {
           "Manage PPPoE users easily with data quotas, rate limits and custom profiles.",
       },
       {
-        title: "Powerful RADIUS core",
+        title: "Real-time fleet monitoring",
         description:
-          "Our powerful cloud RADIUS server works with the hardware you already own, whatever the vendor.",
+          "Uptime, load and connected clients for every router, with an alert as soon as a site goes down.",
       },
       {
         title: "Agent and Point of Sale system",
@@ -422,17 +422,17 @@ export const en: Dictionary = {
       {
         name: "Ruijie Reyee",
         description:
-          "Reyee access points and switches, cloud-managed, billed and monitored from SafeLinkHub.",
+          "Your Reyee access points behind a MikroTik: their clients sign in through the captive portal and pay the same plans. The access points themselves are not driven by SafeLinkHub.",
       },
       {
         name: "TP-Link",
         description:
-          "Manage your TP-Link Omada hardware in the same place as the rest of your network.",
+          "Your Omada access points behind a MikroTik serve their clients through the same portal and plans. Their configuration stays in Omada.",
       },
       {
         name: "Ubiquiti UniFi",
         description:
-          "Bring your UniFi controller's clients and sites into SafeLinkHub billing and analytics.",
+          "Your UniFi access points behind a MikroTik: clients served by the portal, plans and sessions tracked in SafeLinkHub. The UniFi controller keeps their configuration.",
       },
     ],
     faqs: [
@@ -446,7 +446,7 @@ export const en: Dictionary = {
       },
       {
         q: "Can I integrate SafeLinkHub with my existing network?",
-        a: "Yes. SafeLinkHub is hardware-independent and supports MikroTik, Ruijie, TP-Link, Ubiquiti UniFi, Cambium, Cisco, D-Link and Huawei.",
+        a: "Yes, as soon as your network runs through a MikroTik router: SafeLinkHub drives it directly (hotspot, PPPoE, vouchers, remote access). Access points and switches from other brands (Ruijie, TP-Link, Ubiquiti, Cambium…) stay in place behind it and get the same portal, plans and monitoring. Direct control of other brands' routers is not available yet.",
       },
       {
         q: "What is included in the free plan?",

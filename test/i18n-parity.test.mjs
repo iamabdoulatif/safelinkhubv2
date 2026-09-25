@@ -101,7 +101,9 @@ test("les noms de marque ne sont pas traduits", async () => {
   // donc sans rien garantir sur les chaînes réellement affichées.
   const brut = await readFile(new URL("../src/lib/i18n/en.ts", import.meta.url), "utf8");
   const texte = brut.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  for (const marque of ["MikroTik", "Safecoin", "SafeLinkHub", "Orange Money", "MTN MoMo", "Wave", "Moov Money", "RADIUS", "PPPoE", "WinBox", "WebFig", "MikHmon"]) {
+  // « RADIUS » n'y figure plus : la plateforme n'en embarque pas, et la
+  // landing a cessé de l'annoncer (voir landing-hardware-claims.test.mjs).
+  for (const marque of ["MikroTik", "Safecoin", "SafeLinkHub", "Orange Money", "MTN MoMo", "Wave", "Moov Money", "PPPoE", "WinBox", "WebFig", "MikHmon"]) {
     assert.ok(texte.includes(marque), `« ${marque} » doit rester tel quel en anglais`);
   }
   // Et les montants restent en FCFA dans les deux langues.

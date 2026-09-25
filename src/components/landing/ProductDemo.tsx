@@ -1,7 +1,6 @@
 import YouTubeEmbed from "./YouTubeEmbed";
 import type { Dictionary } from "@/lib/i18n/fr";
 import { type Locale, HTML_LANG } from "@/lib/i18n/config";
-import { vendors } from "./content";
 import { remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
 import { AUTO_SETUP_FEE_CENTS, VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 import { DEFAULT_SC_RATE_FCFA } from "@/lib/safecoin/constants";
@@ -90,9 +89,9 @@ export default function ProductDemo({ dict, locale }: { dict: Dictionary; locale
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-line bg-clay px-4 py-3">
               <span className="flex items-center gap-2 text-xs font-medium text-ink-soft">
                 <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-brand-deep" />
-                {dict.demo.vendorsSupported(vendors.length)}
+                {dict.demo.nativeRouter}
               </span>
-              <span className="text-xs font-medium text-ink-soft">{dict.demo.radius}</span>
+              <span className="text-xs font-medium text-ink-soft">{dict.demo.included}</span>
             </div>
           </div>
 
