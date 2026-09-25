@@ -3,6 +3,8 @@ import { getDb } from "@/lib/db";
 import {
   vouchers,
   packages,
+  roamingGroupOffers,
+  roamingGroupRouters,
   roamingGroups,
   roamingProfiles,
   routers,
@@ -22,6 +24,7 @@ import ImportTicketsModal from "./ImportTicketsModal";
 import ArchiveImportedButton from "./ArchiveImportedButton";
 import VoucherTable, { type VoucherRow } from "./VoucherTable";
 import { isImportedVoucherUseCase } from "@/lib/vouchers/source";
+import { effectiveRoamingPrice } from "@/lib/roaming/pricing";
 
 function formatDate(date: Date | null) {
   if (!date) return "—";
@@ -54,6 +57,8 @@ export default async function VouchersPage() {
           durationValue: packages.durationValue,
           durationUnit: packages.durationUnit,
           billingStartsOn: packages.billingStartsOn,
+          routerId: packages.routerId,
+          active: packages.active,
         })
         .from(packages)
         .where(eq(packages.orgId, session.orgId))
@@ -93,11 +98,59 @@ export default async function VouchersPage() {
           .from(roamingProfiles)
           .where(eq(roamingProfiles.orgId, session.orgId)),
         db
-          .select({ id: roamingGroups.id, name: roamingGroups.name })
+          .select({ id: roamingGroups.id, name: roamingGroups.name, active: roamingGroups.active })
           .from(roamingGroups)
           .where(eq(roamingGroups.orgId, session.orgId)),
       ])
     : [[], [], [], []];
+
+  // Roaming pour le modal de génération : groupes actifs, leurs zones, et les
+  // offres (profil + prix) qui s'y émettent.
+  const [roamingOfferRows, roamingZoneRows] = session
+    ? await Promise.all([
+        db
+          .select({
+            id: roamingGroupOffers.id,
+            groupId: roamingGroupOffers.groupId,
+            profileName: roamingProfiles.name,
+            durationValue: roamingProfiles.durationValue,
+            durationUnit: roamingProfiles.durationUnit,
+            uploadMbps: roamingProfiles.uploadMbps,
+            downloadMbps: roamingProfiles.downloadMbps,
+            defaultPriceCents: roamingProfiles.defaultPriceCents,
+            priceOverrideCents: roamingGroupOffers.priceOverrideCents,
+            active: roamingGroupOffers.active,
+            profileActive: roamingProfiles.active,
+          })
+          .from(roamingGroupOffers)
+          .innerJoin(roamingProfiles, eq(roamingGroupOffers.profileId, roamingProfiles.id))
+          .where(eq(roamingGroupOffers.orgId, session.orgId)),
+        db
+          .select({ groupId: roamingGroupRouters.groupId, status: routers.status })
+          .from(roamingGroupRouters)
+          .innerJoin(routers, eq(roamingGroupRouters.routerId, routers.id))
+          .where(eq(roamingGroupRouters.orgId, session.orgId)),
+      ])
+    : [[], []];
+  const roamingForModal = orgRoamingGroups
+    .filter((g) => g.active)
+    .map((g) => ({
+      id: g.id,
+      name: g.name,
+      zones: roamingZoneRows.filter((z) => z.groupId === g.id).length,
+      zonesOnline: roamingZoneRows.filter((z) => z.groupId === g.id && z.status === "online").length,
+      offers: roamingOfferRows
+        .filter((o) => o.groupId === g.id && o.active && o.profileActive)
+        .map((o) => ({
+          id: o.id,
+          profileName: o.profileName,
+          durationValue: o.durationValue,
+          durationUnit: o.durationUnit,
+          uploadMbps: o.uploadMbps,
+          downloadMbps: o.downloadMbps,
+          priceCents: effectiveRoamingPrice(o.defaultPriceCents, o.priceOverrideCents),
+        })),
+    }));
 
   const roamingProfileById = new Map(orgRoamingProfiles.map((profile) => [profile.id, profile]));
   const roamingGroupById = new Map(orgRoamingGroups.map((group) => [group.id, group]));
@@ -211,7 +264,7 @@ export default async function VouchersPage() {
       headerExtra={
         <div className="flex flex-wrap items-center gap-2">
           <ImportTicketsModal routers={orgRouters} packages={orgPackages} />
-          <GenerateVouchersModal packages={orgPackages} routers={orgRouters} />
+          <GenerateVouchersModal packages={orgPackages} routers={orgRouters} roaming={roamingForModal} />
           <ArchiveImportedButton count={stats.imported} />
         </div>
       }
