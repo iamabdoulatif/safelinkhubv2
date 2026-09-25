@@ -83,6 +83,22 @@ describe("station MikHmon Online", () => {
     assert.match(html, /http:\/\/s2\.safelinkhub\.io:31234/);
   });
 
+  it("un domaine cloud sur une carte Container se gère aussi (désactiver, supprimer)", () => {
+    /* La gestion n'était branchée que sur la famille « sans conteneur » : sur
+       le parc réel (tout en Container), un domaine créé ne pouvait être ni
+       désactivé ni supprimé — et, une fois arrêté, il disparaissait de l'écran. */
+    const conteneur = parc.find((r) => r.id === "r-conteneur")!;
+    const actif = rendu([conteneur]);
+    assert.match(actif, /Gérer le domaine/);
+    assert.equal(actif.match(/Ouvrir MikHmon/g)?.length, 1, "un seul bouton Ouvrir, pas un doublon");
+
+    const arrete = rendu([{ ...conteneur, cloudStatus: "stopped" }]);
+    assert.match(arrete, /désactivé/);
+    assert.match(arrete, /shia-hspt\.mikhmon\.safelinkhub\.io/);
+    assert.match(arrete, /Gérer le domaine/);
+    assert.doesNotMatch(arrete, /Créer un domaine SafeLinkHub/);
+  });
+
   it("compte chaque famille séparément", () => {
     const html = rendu(parc);
     for (const [libelle, valeur] of [
