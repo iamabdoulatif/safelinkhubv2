@@ -1,8 +1,8 @@
 // TEMPORAIRE — config de la porte de monétisation manuelle des accès distants
 // (WinBox/WebFig/SSH/MikHmon). Module "plain" (pas de "use server") :
-// importable côté client (modal) pour l'affichage. Les prix réutilisent la
-// grille existante (billing-plans.ts) : 1 mois 500, 3 mois 1300, 6 mois 2700,
-// 12 mois 5800 FCFA — identique pour les quatre services.
+// importable côté client (modal) pour l'affichage. MikHmon Online suit son
+// propre barème lisible (500 / 1 500 / 3 000 / 6 000 FCFA) ; les accès directs
+// historiques conservent la grille de billing-plans.ts.
 // TODO: Remplacer par système de paiement intégré.
 
 import {

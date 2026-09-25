@@ -106,7 +106,7 @@ describe("le sous-domaine choisi traverse bien jusqu'à la provision", () => {
     );
     const action = await readFile(new URL("./port-forward.ts", import.meta.url), "utf8");
     // Le slug est le 5e argument : sans lui, l'écran offrirait un champ décoratif.
-    assert.match(dialogue, /enablePortForward\(\s*router\.id,\s*"mikhmon",\s*"monthly",\s*edition,\s*slug\s*\)/);
+    assert.match(dialogue, /enablePortForward\(\s*router\.id,\s*"mikhmon",\s*period,\s*edition,\s*slug\s*\)/);
     // Et le refus arrive AVANT la moindre écriture.
     assert.match(action, /normalizeCustomSlug\(slugRaw\)/);
     assert.match(action, /if \(!verdict\.ok\) return \{ error: verdict\.erreur \}/);

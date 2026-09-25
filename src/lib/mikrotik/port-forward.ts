@@ -347,7 +347,7 @@ export async function enablePortForward(
   // (routeur, service). C'est le verrou serveur, indépendant de l'UI. Ne
   // s'applique à toute activation exposant un port public. TODO: Remplacer
   // par système de paiement intégré.
-  const gate = await evaluateRemoteAccessGate(session, routerId, service);
+  const gate = await evaluateRemoteAccessGate(session, routerId, service, billingPeriod);
   if (!gate.ok) {
     return {
       error:

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Check, Cloud, Loader2, Router as RouterIcon, ShieldCheck, X } from "lucide-react";
 import Logo from "@/components/landing/Logo";
 import { enablePortForward } from "@/lib/mikrotik/port-forward";
 import { resolveMikhmonCloudTunnel } from "@/lib/mikrotik/mikhmon-cloud-activation";
-import { MIKHMON_EDITIONS, type MikhmonEditionId } from "@/lib/mikrotik/mikhmon-editions";
+import { editionForRouter, MIKHMON_EDITIONS, type MikhmonEditionId } from "@/lib/mikrotik/mikhmon-editions";
+import type { BillingPeriod } from "@/lib/mikrotik/billing-plans";
+import { BILLING_PERIODS, remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
 import { normalizeCustomSlug, routerCloudSlug } from "@/lib/mikrotik/mikhmon-cloud-domain";
 import RemoteAccessPaywallModal from "../remote-access/RemoteAccessPaywallModal";
 
@@ -13,6 +15,7 @@ type CloudRouter = {
   id: string;
   name: string;
   model: string | null;
+  supportsContainers?: boolean | null;
   connectionMethod?: string;
   tunnelIp?: string | null;
 };
@@ -38,16 +41,27 @@ export default function MikhmonCloudActivationDialog({
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [activated, setActivated] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /* v6 par défaut ici : ce dialogue ne s'ouvre QUE pour les cartes sans
-     conteneur, et l'édition v7 réclame une API que ces routeurs n'ont pas.
-     Le choix reste offert — un RB4011 rétrogradé en 6.x existe. */
-  const [edition, setEdition] = useState<MikhmonEditionId>("v6");
+  /* L’édition suit la capacité détectée, tout en laissant le choix à
+     l’opérateur pour les routeurs rétrogradés ou les migrations. */
+  const [edition, setEdition] = useState<MikhmonEditionId>(() => editionForRouter(router.supportsContainers)?.id ?? "v6");
+  const [period, setPeriod] = useState<BillingPeriod>("monthly");
+  const closeRef = useRef<HTMLButtonElement>(null);
   /* Pré-rempli avec le nom dérivé — celui qui serait attribué sans rien faire.
      L'exploitant part donc d'une adresse valide et la raccourcit, au lieu de
      découvrir un identifiant illisible APRÈS l'activation. */
   const [slug, setSlug] = useState(() => routerCloudSlug(router.name, router.id));
   const verdictSlug = normalizeCustomSlug(slug);
   const tunnel = resolveMikhmonCloudTunnel(router.connectionMethod, router.tunnelIp);
+
+  useEffect(() => {
+    if (!open) return;
+    closeRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !pending) onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose, pending]);
 
   if (!open) return null;
 
@@ -56,7 +70,7 @@ export default function MikhmonCloudActivationDialog({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await enablePortForward(router.id, "mikhmon", "monthly", edition, slug);
+        const result = await enablePortForward(router.id, "mikhmon", period, edition, slug);
         if ("needsAuthorization" in result && result.needsAuthorization) {
           setPaywall(true);
           return;
@@ -97,6 +111,7 @@ export default function MikhmonCloudActivationDialog({
               }}
               disabled={pending}
               aria-label="Fermer"
+              ref={closeRef}
               className="rounded-full border border-line-soft p-2 text-ink-soft transition hover:border-line hover:bg-clay disabled:opacity-50"
             >
               <X className="h-4 w-4" />
@@ -207,6 +222,11 @@ export default function MikhmonCloudActivationDialog({
                         detail="RouterOS 6.x — le tunnel OpenVPN existant est utilisé."
                         selected={tunnel.id === "openvpn"}
                       />
+                      <ProtocolRow
+                        title="L2TP"
+                        detail="RouterOS 6.x ou 7.x — le tunnel L2TP existant est utilisé."
+                        selected={tunnel.id === "l2tp"}
+                      />
                     </div>
                   </div>
 
@@ -225,6 +245,8 @@ export default function MikhmonCloudActivationDialog({
                         onChange={(e) => setSlug(e.target.value)}
                         spellCheck={false}
                         autoCapitalize="none"
+                        autoComplete="off"
+                        name="mikhmon-domain"
                         aria-invalid={!verdictSlug.ok}
                         className={`min-w-[10rem] flex-1 border-b-2 bg-transparent px-1 py-1 font-mono text-ink outline-none ${
                           verdictSlug.ok ? "border-brand" : "border-err"
@@ -237,6 +259,35 @@ export default function MikhmonCloudActivationDialog({
                         ? "Modifiable seulement maintenant : l’adresse est figée dès l’activation."
                         : verdictSlug.erreur}
                     </p>
+                  </div>
+
+                  <div className="mt-7">
+                    <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.13em] text-ink-soft">
+                      Durée de l’accès <i className="h-px flex-1 bg-line-soft" />
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {BILLING_PERIODS.map((option) => {
+                        const selected = period === option.id;
+                        const price = remoteAccessPriceFcfa("mikhmon", option.id);
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => setPeriod(option.id)}
+                            className={`min-h-16 rounded-xl border px-3 py-2 text-left transition ${
+                              selected ? "border-slate-deep bg-slate-deep text-white" : "border-line bg-paper text-ink hover:border-brand-deep"
+                            }`}
+                          >
+                            <span className="block text-xs font-semibold">{option.label}</span>
+                            <span className={`mt-1 block text-sm font-bold ${selected ? "text-brand" : "text-brand-deep"}`}>
+                              {price.toLocaleString("fr-FR")} F CFA
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 text-xs text-ink-soft">Le tarif est appliqué au moment du paiement et conservé pour toute la durée choisie.</p>
                   </div>
 
                   <div className="mt-7">
@@ -364,9 +415,10 @@ export default function MikhmonCloudActivationDialog({
           onClose={() => setPaywall(false)}
           routerId={router.id}
           service="mikhmon"
-          initialPeriod="monthly"
           latestStatus={null}
-          onSubmitted={() => {
+          initialPeriod={period}
+          onSubmitted={(selectedPeriod) => {
+            if (selectedPeriod) setPeriod(selectedPeriod);
             setPaywall(false);
             setRequestSubmitted(true);
           }}

@@ -30,8 +30,8 @@ export default async function MikhmonOnlinePage() {
         id: routers.id,
         name: routers.name,
         status: routers.status,
-        model: routers.model,
-        supportsContainers: routers.supportsContainers,
+      model: routers.model,
+      supportsContainers: routers.supportsContainers,
         connectionMethod: routers.connectionMethod,
         tunnelIp: routers.tunnelIp,
         relayShard: routers.relayShard,
@@ -68,6 +68,7 @@ export default async function MikhmonOnlinePage() {
 
   const zones: MikhmonRouter[] = parc.map((r) => {
     const instance = instanceParRouteur.get(r.id) ?? null;
+    const containerCapability = supportsContainersFor(r.supportsContainers, r.model);
     const localForward = (forwardsParRouteur.get(r.id) ?? []).find(
       (forward) => forward.targetPort !== instance?.localPort,
     );
@@ -76,11 +77,11 @@ export default async function MikhmonOnlinePage() {
       name: r.name,
       status: r.status,
       model: r.model,
+      supportsContainers: containerCapability,
       connectionMethod: r.connectionMethod,
       tunnelIp: r.tunnelIp,
       kind: (() => {
-        const capable = supportsContainersFor(r.supportsContainers, r.model);
-        return capable === false ? "cloud" : capable === true ? "container" : "unknown";
+        return containerCapability === false ? "cloud" : containerCapability === true ? "container" : "unknown";
       })(),
       /* L'adresse est remontée QUEL QUE SOIT l'état, avec l'état à côté.
          Ne montrer que les instances actives faisait disparaître de l'écran

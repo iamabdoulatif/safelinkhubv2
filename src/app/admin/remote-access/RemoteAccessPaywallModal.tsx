@@ -42,7 +42,7 @@ export default function RemoteAccessPaywallModal({
   service: string;
   initialPeriod: BillingPeriod;
   latestStatus: string | null;
-  onSubmitted: () => void;
+  onSubmitted: (period?: BillingPeriod) => void;
 }) {
   // Le modal est monté à neuf à chaque ouverture ({paywall && …}), donc
   // initialiser l'état depuis les props suffit — pas d'effet de reset (qui
@@ -112,7 +112,7 @@ export default function RemoteAccessPaywallModal({
       }
       setDone({ whatsappUrl: res.whatsappUrl, emailSent: res.emailSent });
       window.open(res.whatsappUrl, "_blank", "noopener,noreferrer");
-      onSubmitted();
+      onSubmitted(period);
     });
   }
 
@@ -151,15 +151,16 @@ export default function RemoteAccessPaywallModal({
         return;
       }
       setBalanceDone(res.source);
-      onSubmitted();
+      onSubmitted(period);
     });
   }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="remote-access-paywall-title"
+      className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain bg-black/40 p-4"
       onClick={onClose}
     >
       <div
@@ -167,8 +168,8 @@ export default function RemoteAccessPaywallModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">
-          <Lock className="h-5 w-5 text-brand-deep" />
-          <h2 className="text-lg font-bold text-ink">
+          <Lock aria-hidden="true" className="h-5 w-5 text-brand-deep" />
+          <h2 id="remote-access-paywall-title" className="text-lg font-bold text-ink">
             Accès distant payant — {serviceLabel(service)}
           </h2>
         </div>
@@ -176,7 +177,7 @@ export default function RemoteAccessPaywallModal({
         {done ? (
           <div className="mt-4">
             <div className="flex items-start gap-2 rounded-lg bg-ok-soft p-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ok" />
+              <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-ok" />
               <div className="text-sm text-ok">
                 <p className="font-medium">Demande envoyée !</p>
                 <p className="mt-1">
@@ -206,7 +207,7 @@ export default function RemoteAccessPaywallModal({
         ) : balanceDone ? (
           <div className="mt-4">
             <div className="flex items-start gap-2 rounded-lg bg-ok-soft p-3">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ok" />
+              <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-ok" />
               <div className="text-sm text-ok">
                 <p className="font-medium">Accès autorisé !</p>
                 <p className="mt-1">
@@ -372,7 +373,7 @@ export default function RemoteAccessPaywallModal({
             </div>
 
             {error && (
-              <p className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
+              <p role="alert" className="mt-3 rounded-lg bg-err-soft px-3 py-2 text-sm text-err">{error}</p>
             )}
 
             <div className="mt-5 flex justify-end gap-2">

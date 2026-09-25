@@ -66,6 +66,10 @@ export async function submitRemoteAccessAuthorizationRequest(formData: FormData)
   if (!isBillingPeriod(billingPeriod)) return { error: "Durée invalide." };
   if (!isPaymentMethod(paymentMethod)) return { error: "Moyen de paiement invalide." };
   if (!Number.isInteger(amountFcfa) || amountFcfa <= 0) return { error: "Montant invalide." };
+  const expectedAmountFcfa = remoteAccessPriceFcfa(service, billingPeriod);
+  if (amountFcfa !== expectedAmountFcfa) {
+    return { error: `Le montant attendu pour ${periodLabel(billingPeriod)} est ${formatFcfa(expectedAmountFcfa)}.` };
+  }
 
   const db = getDb();
   const [router] = await db
@@ -94,7 +98,7 @@ export async function submitRemoteAccessAuthorizationRequest(formData: FormData)
 
   const contact = getManualPaymentContact();
   const methodLabel = PAYMENT_METHODS.find((m) => m.id === paymentMethod)?.label ?? paymentMethod;
-  const expected = remoteAccessPriceFcfa(service, billingPeriod);
+  const expected = expectedAmountFcfa;
   const lines = [
     "*Demande d'accès distant (VPN) — SafeLinkHub*",
     `Utilisateur : ${session.name} (${session.email})`,
