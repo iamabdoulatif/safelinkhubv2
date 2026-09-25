@@ -101,6 +101,28 @@ function Ouvrir({ href }: { href: string }) {
   );
 }
 
+/** Domaine cloud en place : lien s'il tourne, adresse barrée s'il est désactivé. */
+function DomaineCloud({ router, label }: { router: MikhmonRouter & { cloudDomain: string }; label: string }) {
+  if (router.cloudStatus === "active") return <Adresse href={`https://${router.cloudDomain}`} label={label} />;
+  /* Instance arrêtée : l'adresse SANS lien — un lien vers une 404 ferait
+     croire à une panne alors que c'est un choix. */
+  return (
+    <span className="block">
+      <span className="block text-xs text-ink-soft">{label} — désactivé</span>
+      <span className="block break-all font-mono text-[13px] text-ink-soft line-through">{router.cloudDomain}</span>
+    </span>
+  );
+}
+
+function BoutonGerer({ ouvert, onClick }: { ouvert: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-expanded={ouvert} className={buttonClass({ variant: "ghost", size: "sm" })}>
+      <Settings2 aria-hidden="true" className="h-3.5 w-3.5" />
+      Gérer le domaine
+    </button>
+  );
+}
+
 /** Une ligne : routeur et état | accès | action ; le détail se déplie dessous. */
 function Ligne({
   router,
@@ -177,7 +199,7 @@ function GestionInstance({ router, baseDomain }: { router: MikhmonRouter; baseDo
             id={`slug-${router.id}`}
             value={nouveauSlug}
             onChange={(e) => setNouveauSlug(e.target.value)}
-            className="field h-9 w-48 font-mono text-[13px] sm:h-9"
+            className="field h-9 w-56 font-mono text-[13px] sm:h-9"
           />
           <span className="font-mono text-xs text-ink-soft">.{baseDomain ?? "…"}</span>
           <button
@@ -196,7 +218,13 @@ function GestionInstance({ router, baseDomain }: { router: MikhmonRouter; baseDo
             nouvelle en une minute environ.
           </p>
         )}
-        <div className="mt-3">
+        <p className="mt-4 text-[13px] font-medium text-ink">{actif ? "Désactiver le tableau" : "Tableau désactivé"}</p>
+        <p className="mt-1 text-xs text-ink-soft">
+          {actif
+            ? "Arrête le tableau sans rien détruire : l’adresse est conservée et se réactive en un clic."
+            : "L’adresse est conservée. Réactivez-le pour qu’il réponde de nouveau."}
+        </p>
+        <div className="mt-2">
           {actif ? (
             <button
               type="button"
@@ -223,15 +251,16 @@ function GestionInstance({ router, baseDomain }: { router: MikhmonRouter; baseDo
         <p className="text-[13px] font-medium text-ink">Supprimer le tableau</p>
         <p className="mt-1 text-xs text-ink-soft">
           Détruit le tableau et libère l&apos;adresse. Vos tickets ne sont pas touchés : ils vivent
-          sur le routeur. Tapez <span className="font-mono font-semibold text-ink">{slugActuel}</span>{" "}
-          pour confirmer.
+          sur le routeur.
+          {router.kind === "container" && " Le MikHmon installé sur le routeur reste accessible par le tunnel."} Tapez{" "}
+          <span className="font-mono font-semibold text-ink">{slugActuel}</span> pour confirmer.
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <input
             value={confirmation}
             onChange={(e) => setConfirmation(e.target.value)}
             aria-label="Confirmation de suppression"
-            className="field h-9 w-48 font-mono text-[13px] sm:h-9"
+            className="field h-9 w-56 font-mono text-[13px] sm:h-9"
           />
           <button
             type="button"
@@ -275,18 +304,7 @@ function LigneCloud({
         router={router}
         acces={
           router.cloudDomain ? (
-            actif ? (
-              <Adresse href={`https://${router.cloudDomain}`} label="Domaine dédié (HTTPS, sans port)" />
-            ) : (
-              /* Instance arrêtée : l'adresse SANS lien — un lien vers une 404
-                 ferait croire à une panne alors que c'est un choix. */
-              <span className="block">
-                <span className="block text-xs text-ink-soft">Domaine dédié (désactivé)</span>
-                <span className="block break-all font-mono text-[13px] text-ink-soft line-through">
-                  {router.cloudDomain}
-                </span>
-              </span>
-            )
+            <DomaineCloud router={{ ...router, cloudDomain: router.cloudDomain }} label="Domaine dédié (HTTPS, sans port)" />
           ) : (
             <span className="text-[13px] text-ink-soft">
               Aucune instance dédiée pour l’instant : MikHmon sera hébergé sur le relais, avec son
@@ -298,15 +316,7 @@ function LigneCloud({
           router.cloudDomain ? (
             <>
               {actif && <Ouvrir href={`https://${router.cloudDomain}`} />}
-              <button
-                type="button"
-                onClick={() => setGestion((v) => !v)}
-                aria-expanded={gestion}
-                className={buttonClass({ variant: "ghost", size: "sm" })}
-              >
-                <Settings2 aria-hidden="true" className="h-3.5 w-3.5" />
-                Gérer
-              </button>
+              <BoutonGerer ouvert={gestion} onClick={() => setGestion((v) => !v)} />
             </>
           ) : (
             <button
@@ -345,7 +355,12 @@ function LigneConteneur({ router, superadmin, baseDomain }: { router: MikhmonRou
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<LinkResult>(null);
   const [activationOpen, setActivationOpen] = useState(false);
+  const [gestion, setGestion] = useState(false);
   const online = router.status === "online";
+  // Un seul bouton « Ouvrir » : le domaine cloud s'il tourne, sinon le tunnel.
+  // L'autre adresse reste cliquable dans la colonne d'accès.
+  const ouvrir =
+    router.cloudDomain && router.cloudStatus === "active" ? `https://${router.cloudDomain}` : router.tunnelLink;
 
   async function tester() {
     setPending(true);
@@ -359,8 +374,8 @@ function LigneConteneur({ router, superadmin, baseDomain }: { router: MikhmonRou
       router={router}
       acces={
         <div className="space-y-2">
-          {router.cloudDomain && router.cloudStatus === "active" && (
-            <Adresse href={`https://${router.cloudDomain}`} label="Domaine cloud SafeLinkHub" />
+          {router.cloudDomain && (
+            <DomaineCloud router={{ ...router, cloudDomain: router.cloudDomain }} label="Domaine cloud SafeLinkHub" />
           )}
           {router.tunnelLink ? (
             <Adresse href={router.tunnelLink} label="Accès local via le tunnel VPN" />
@@ -374,9 +389,10 @@ function LigneConteneur({ router, superadmin, baseDomain }: { router: MikhmonRou
       }
         action={
         <>
-          {router.cloudDomain && router.cloudStatus === "active" && <Ouvrir href={`https://${router.cloudDomain}`} />}
-          {router.tunnelLink && <Ouvrir href={router.tunnelLink} />}
-          {!router.cloudDomain && (
+          {ouvrir && <Ouvrir href={ouvrir} />}
+          {router.cloudDomain ? (
+            <BoutonGerer ouvert={gestion} onClick={() => setGestion((v) => !v)} />
+          ) : (
             <button
               type="button"
               onClick={() => setActivationOpen(true)}
@@ -398,6 +414,7 @@ function LigneConteneur({ router, superadmin, baseDomain }: { router: MikhmonRou
         </>
         }
       >
+      {gestion && router.cloudDomain && <GestionInstance router={router} baseDomain={baseDomain} />}
       {result && "error" in result && <p className="mt-3 text-xs text-err">{result.error}</p>}
       {result && "success" in result && (
         <div className="mt-3 grid gap-3 rounded-xl border border-line bg-clay/50 p-4 md:grid-cols-2">
