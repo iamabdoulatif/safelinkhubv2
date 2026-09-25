@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildOpenvpnInstallScript, escapeRosString } from "./openvpn-install-script";
+import { buildOpenvpnInstallScript, escapeRosString, relayConnectTo } from "./openvpn-install-script";
 
 const script = buildOpenvpnInstallScript({
   connectTo: "31.97.153.83",
@@ -72,5 +72,17 @@ describe("compatibilité RouterOS 6 du script OpenVPN", () => {
     });
     assert.ok(!/name="HS"; /.test(piege), "guillemet non échappé dans l'identité");
     assert.equal(escapeRosString('a"b\\c'), 'a\\"b\\\\c');
+  });
+
+  it("connect-to reçoit l'IP du relais, pas son nom", async () => {
+    /* Troisième panne, MALO-HOTSPOT (6.49) : avec connect-to=relay.safelinkhub.io
+       le client boucle sur « could not connect » sans jamais émettre de SYN. */
+    assert.equal(await relayConnectTo("31.97.153.83", async () => "0.0.0.0"), "31.97.153.83");
+    assert.equal(await relayConnectTo("relay.safelinkhub.io", async () => "31.97.153.83"), "31.97.153.83");
+    // Résolution impossible : on garde le nom plutôt que de casser le script.
+    const echec = async (): Promise<string> => {
+      throw new Error("ENOTFOUND");
+    };
+    assert.equal(await relayConnectTo("relay.safelinkhub.io", echec), "relay.safelinkhub.io");
   });
 });
