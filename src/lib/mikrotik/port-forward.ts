@@ -27,6 +27,7 @@ import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { getPortForwardTargetPort } from "./port-forward-rules";
 import { PERIOD_PRICE_CENTS, BILLING_PERIOD_MONTHS, type BillingPeriod } from "./billing-plans";
+import { remoteAccessPriceFcfa } from "@/lib/billing/remote-access-gate-config";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { messageSoldeInsuffisant, verdictDebitWallet } from "./activation-billing";
 import { ensureCloudMikhmonInstance, removeCloudMikhmonInstance } from "./mikhmon-cloud";
@@ -258,12 +259,13 @@ async function chargeWalletForActivation(opts: {
   service: string;
   billingPeriod: BillingPeriod;
   routerName: string;
+  priceFcfa: number;
 }) {
   const db = getDb();
   await db.insert(walletTransactions).values({
     orgId: opts.orgId,
     type: "charge",
-    amountCents: PERIOD_PRICE_CENTS[opts.billingPeriod],
+    amountCents: opts.priceFcfa,
     note: `${opts.service} — ${opts.routerName}`,
     relatedForwardId: opts.forwardId,
     createdBy: opts.userId,
@@ -358,6 +360,8 @@ export async function enablePortForward(
     slugValide,
   );
 
+  const priceFcfa = remoteAccessPriceFcfa(service, billingPeriod);
+
   // Activation réussie via une autorisation manuelle : on la consomme (une par
   // paiement) et on NE débite PAS le wallet (paiement déjà fait hors-app).
   if (result.success && gate.reason === "authorized" && gate.authorizationId) {
@@ -394,6 +398,7 @@ export async function enablePortForward(
           service,
           billingPeriod,
           routerName: router.name,
+          baseFcfa: priceFcfa,
         });
         if (!charge.created) {
           // Ne pas laisser un accès public actif sans paiement confirmé.
@@ -412,7 +417,7 @@ export async function enablePortForward(
            Deux comportements opposés pour un même geste, selon l'ancienneté de
            l'organisation. */
         const solde = await getWalletBalanceCents(session.orgId);
-        const verdict = verdictDebitWallet(solde, PERIOD_PRICE_CENTS[billingPeriod]);
+        const verdict = verdictDebitWallet(solde, priceFcfa);
         if (!verdict.ok) {
           // Même règle que Safecoin : pas d'accès ouvert sans paiement.
           await disablePortForward(result.forwardId);
@@ -425,6 +430,7 @@ export async function enablePortForward(
           service,
           billingPeriod,
           routerName: router.name,
+          priceFcfa,
         });
       }
     }

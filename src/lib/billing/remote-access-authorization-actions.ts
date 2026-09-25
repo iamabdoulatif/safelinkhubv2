@@ -94,7 +94,7 @@ export async function submitRemoteAccessAuthorizationRequest(formData: FormData)
 
   const contact = getManualPaymentContact();
   const methodLabel = PAYMENT_METHODS.find((m) => m.id === paymentMethod)?.label ?? paymentMethod;
-  const expected = remoteAccessPriceFcfa(billingPeriod);
+  const expected = remoteAccessPriceFcfa(service, billingPeriod);
   const lines = [
     "*Demande d'accès distant (VPN) — SafeLinkHub*",
     `Utilisateur : ${session.name} (${session.email})`,
@@ -203,7 +203,7 @@ export async function startRemoteAccessPayment(formData: FormData): Promise<
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 
-  const amountFcfa = remoteAccessPriceFcfa(billingPeriod);
+  const amountFcfa = remoteAccessPriceFcfa(service, billingPeriod);
 
   const row = await createPendingRemoteAccessPayment({
     orgId: session.orgId,
@@ -300,8 +300,8 @@ export async function payRemoteAccessFromBalance(formData: FormData): Promise<
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 
-  const amountFcfa = remoteAccessPriceFcfa(billingPeriod);
-  const scCost = await vpnActivationChargeScCents({ billingPeriod });
+  const amountFcfa = remoteAccessPriceFcfa(service, billingPeriod);
+  const scCost = await vpnActivationChargeScCents({ billingPeriod, baseFcfa: amountFcfa });
   const [walletBal, scBal] = await Promise.all([
     getWalletBalanceCents(session.orgId),
     getSafecoinBalance(session.orgId),

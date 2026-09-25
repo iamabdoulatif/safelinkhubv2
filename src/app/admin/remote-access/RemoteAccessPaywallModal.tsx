@@ -49,7 +49,7 @@ export default function RemoteAccessPaywallModal({
   // déclencherait des rendus en cascade, cf. règle react-hooks).
   const [period, setPeriod] = useState<BillingPeriod>(initialPeriod);
   const [method, setMethod] = useState<PaymentMethodId>("wave");
-  const [amount, setAmount] = useState<string>(() => String(remoteAccessPriceFcfa(initialPeriod)));
+  const [amount, setAmount] = useState<string>(() => String(remoteAccessPriceFcfa(service, initialPeriod)));
   const [proof, setProof] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ whatsappUrl: string; emailSent: boolean } | null>(null);
@@ -81,12 +81,12 @@ export default function RemoteAccessPaywallModal({
 
   if (!open) return null;
 
-  const price = remoteAccessPriceFcfa(period);
+  const price = remoteAccessPriceFcfa(service, period);
 
   // Change la durée et aligne le montant proposé sur son tarif.
   function selectPeriod(p: BillingPeriod) {
     setPeriod(p);
-    setAmount(String(remoteAccessPriceFcfa(p)));
+    setAmount(String(remoteAccessPriceFcfa(service, p)));
   }
 
   function submit() {
@@ -258,7 +258,7 @@ export default function RemoteAccessPaywallModal({
                   >
                     <p className="text-xs text-ink-soft">{p.label}</p>
                     <p className="mt-0.5 text-sm font-bold text-ink">
-                      {formatFcfa(remoteAccessPriceFcfa(p.id))}
+                      {formatFcfa(remoteAccessPriceFcfa(service, p.id))}
                     </p>
                   </button>
                 );
