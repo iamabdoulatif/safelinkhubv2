@@ -2,6 +2,7 @@ import Link from "next/link";
 import { after } from "next/server";
 import { ArrowLeft } from "lucide-react";
 import { asc, eq } from "drizzle-orm";
+import { MonitorSmartphone, Layers, Plus, Send } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
@@ -17,16 +18,25 @@ import DefaultPortals, { type DefaultPortal } from "./DefaultPortals";
 import BridgeAssignments from "./BridgeAssignments";
 import InstallOnRouter from "./InstallOnRouter";
 import ThemeGallery from "./ThemeGallery";
+import InstalledPortals, { type InstalledPortal } from "./InstalledPortals";
+import { signPreviewToken } from "@/lib/captive-templates/preview-token";
 
 // PackagePreview ne lit que le schéma de couleurs des CSS — on n'envoie donc que
 // les .css au client pour l'aperçu, pas les images base64 du package entier.
 const cssOnly = (files: PackageFile[]) =>
   files.filter((f) => f.path.endsWith(".css") && f.encoding === "utf8");
 
+const VUES = [
+  { id: "routeurs", label: "Sur vos routeurs", icon: MonitorSmartphone },
+  { id: "modeles", label: "Mes modèles", icon: Layers },
+  { id: "ajouter", label: "Ajouter", icon: Plus },
+  { id: "deployer", label: "Déployer", icon: Send },
+] as const;
+
 export default async function CaptiveTemplatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ retour?: string }>;
+  searchParams: Promise<{ retour?: string; vue?: string }>;
 }) {
   const session = await getSession();
   const db = getDb();
@@ -34,7 +44,8 @@ export default async function CaptiveTemplatesPage({
   // captif » du wizard de configuration routeur — offre le chemin inverse
   // vers ce même wizard, sinon il n'a aucun lien pour y retourner après
   // avoir importé/choisi son portail.
-  const { retour } = await searchParams;
+  const { retour, vue: vueParam } = await searchParams;
+  const vue = VUES.some((v) => v.id === vueParam) ? vueParam! : "routeurs";
 
   // Le sélecteur « Installer sur un routeur » affiche le statut brut de la base,
   // que seules /admin/router et /admin/remote-access rafraîchissaient : un
@@ -86,11 +97,61 @@ export default async function CaptiveTemplatesPage({
   // (indépendante de l'auto-setup et des bridges suivis).
   const orgRouters = session
     ? await db
-        .select({ id: routers.id, name: routers.name, status: routers.status })
+        .select({
+          id: routers.id,
+          name: routers.name,
+          status: routers.status,
+          captiveTemplateId: routers.captiveTemplateId,
+          config: routers.lastAutoSetupConfig,
+        })
         .from(routers)
         .where(eq(routers.orgId, session.orgId))
         .orderBy(asc(routers.name))
     : [];
+
+  // Portail de chaque routeur : la colonne posée à l'installation d'abord ;
+  // sinon (routeurs configurés avant ce suivi) un bridge suivi, puis le modèle
+  // que l'auto-setup a nommé d'après le SSID — marqué « présumé ».
+  const packages = templates.filter((t) => t.templateType === "package");
+  const installed: InstalledPortal[] = [];
+  const withoutPortal: { id: string; name: string }[] = [];
+  for (const r of orgRouters) {
+    const ssid = ((r.config ?? {}) as { ssid?: string }).ssid?.trim();
+    const direct = packages.find((t) => t.id === r.captiveTemplateId);
+    const viaBridge = packages.find((t) =>
+      orgBridges.some((b) => b.routerName === r.name && b.captiveTemplateId === t.id),
+    );
+    const viaSsid = ssid ? packages.find((t) => t.name === `SafeLink Baraka — ${ssid}`) : undefined;
+    const t = direct ?? viaBridge ?? viaSsid;
+    const files = (t?.packageFiles as { path: string }[] | null) ?? [];
+    const entry = files.find((f) => f.path === "login.html")?.path ?? files.find((f) => f.path.endsWith(".html"))?.path;
+    if (t && entry) {
+      installed.push({
+        routerId: r.id,
+        routerName: r.name,
+        status: r.status,
+        templateId: t.id,
+        templateName: t.name,
+        entry,
+        token: signPreviewToken({ templateId: t.id, routerId: r.id, orgId: session!.orgId }),
+        inferred: !direct,
+      });
+    } else {
+      withoutPortal.push({ id: r.id, name: r.name });
+    }
+  }
+
+  const compte: Record<string, number> = {
+    routeurs: installed.length,
+    modeles: templates.length,
+  };
+  const hrefVue = (id: string) => {
+    const p = new URLSearchParams();
+    if (id !== "routeurs") p.set("vue", id);
+    if (retour) p.set("retour", retour);
+    const q = p.toString();
+    return q ? `?${q}` : "?";
+  };
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
@@ -103,32 +164,65 @@ export default async function CaptiveTemplatesPage({
           Revenir à la configuration du routeur
         </Link>
       )}
-      <h1 className="text-ink text-2xl font-semibold tracking-tight">
-        Portail captif
-      </h1>
-      <p className="mt-1 text-sm text-ink-soft">
-        Personnalisez l&apos;apparence de la page que vos clients voient en se
-        connectant au Wi-Fi (logo, couleurs, textes), puis assignez un modèle
-        à chaque bridge hotspot.
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">Portail captif</h1>
+      <p className="mt-1 max-w-2xl text-sm text-ink-soft">
+        La page que vos clients voient en se connectant au Wi-Fi : ce qui tourne sur chaque
+        routeur, vos modèles, et leur installation.
       </p>
 
-      <DefaultPortals portals={defaultPortals} />
+      {/* Quatre vues au lieu d'une page à rallonge : on vient ici pour UNE
+          chose à la fois — vérifier, modifier, ajouter ou installer. */}
+      <nav aria-label="Vues du portail captif" className="mt-6 overflow-x-auto">
+        <ul className="inline-flex min-w-max gap-1 rounded-xl border border-line bg-clay/60 p-1">
+          {VUES.map(({ id, label, icon: Icon }) => {
+            const active = vue === id;
+            return (
+              <li key={id}>
+                <Link
+                  href={hrefVue(id)}
+                  scroll={false}
+                  aria-current={active ? "page" : undefined}
+                  className={`inline-flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm ${
+                    active ? "bg-paper font-semibold text-ink shadow-menu" : "text-ink-soft hover:text-ink"
+                  }`}
+                >
+                  <Icon aria-hidden="true" className="h-4 w-4" />
+                  {label}
+                  {compte[id] !== undefined && (
+                    <span className="rounded-full bg-clay px-1.5 text-xs tabular-nums text-ink-soft">
+                      {compte[id]}
+                    </span>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
 
-      <ThemeGallery existingNames={templates.map((t) => t.name)} />
+      {vue === "routeurs" && <InstalledPortals portals={installed} withoutPortal={withoutPortal} />}
 
-      <TemplatesManager templates={templates} />
+      {vue === "modeles" && <TemplatesManager templates={templates} />}
 
-      <BridgeAssignments
-        bridges={orgBridges.filter((b) => b.hotspotEnabled)}
-        templates={templates.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
-      />
+      {vue === "ajouter" && (
+        <>
+          <DefaultPortals portals={defaultPortals} />
+          <ThemeGallery existingNames={templates.map((t) => t.name)} />
+        </>
+      )}
 
-      <InstallOnRouter
-        routers={orgRouters}
-        templates={templates
-          .filter((t) => t.templateType === "package")
-          .map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
-      />
+      {vue === "deployer" && (
+        <div id="deployer">
+          <InstallOnRouter
+            routers={orgRouters.map(({ id, name, status }) => ({ id, name, status }))}
+            templates={packages.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
+          />
+          <BridgeAssignments
+            bridges={orgBridges.filter((b) => b.hotspotEnabled)}
+            templates={templates.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault }))}
+          />
+        </div>
+      )}
     </div>
   );
 }

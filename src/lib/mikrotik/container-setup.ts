@@ -1905,6 +1905,16 @@ export async function provisionHotspotStack(
             );
           } else {
             log.push(`OK: portail captif SafeLinkHub installé (${uploadResult.uploaded.length} fichiers)`);
+            // Mémorise le portail posé, comme installTemplateOnRouter : sans
+            // cela, les routeurs configurés par l'auto-setup n'avaient AUCUN
+            // portail connu (aperçus, reprise sur rechange).
+            await db
+              .update(routers)
+              .set({ captiveTemplateId: packageTemplate.id })
+              .where(eq(routers.id, router.id))
+              .catch(() => {
+                /* best-effort : le portail est déjà sur le routeur */
+              });
           }
         }
       } catch (err) {
