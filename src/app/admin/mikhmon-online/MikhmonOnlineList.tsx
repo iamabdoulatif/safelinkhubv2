@@ -1,16 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   AlertTriangle,
   Box,
+  ChevronRight,
   CloudCog,
   ExternalLink,
   HelpCircle,
   Loader2,
   Search,
   Settings2,
+  X,
 } from "lucide-react";
+import { resolveMikhmonCloudTunnel } from "@/lib/mikrotik/mikhmon-cloud-activation";
 import Link from "next/link";
 import { getMikhmonLink } from "@/lib/mikrotik/mikhmon-online";
 import MikhmonCloudActivationDialog from "./MikhmonCloudActivationDialog";
@@ -509,6 +512,161 @@ function Famille({
   );
 }
 
+/* ── Choix du routeur ───────────────────────────────────────────────────── */
+
+/**
+ * « Pour quel hotspot ? » — première étape de « Générer MikHmon Online ».
+ *
+ * La fenêtre a une HAUTEUR BORNÉE et seule la liste défile : la version
+ * précédente, centrée sans limite, sortait de l'écran par le haut ET par le
+ * bas dès une dizaine de routeurs, sans aucun moyen d'atteindre les autres.
+ */
+export function ChoixRouteur({
+  routers,
+  dejaEquipes,
+  onChoose,
+  onClose,
+}: {
+  routers: MikhmonRouter[];
+  dejaEquipes: MikhmonRouter[];
+  onChoose: (router: MikhmonRouter) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // La page derrière ne défile plus tant que la fenêtre est ouverte.
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panelRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+    const onKeyDown = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  const q = query.trim().toLowerCase();
+  const trouves = routers.filter((r) => !q || `${r.name} ${r.model ?? ""}`.toLowerCase().includes(q));
+  const groupes = [
+    { titre: "En ligne", items: trouves.filter((r) => r.status === "online") },
+    {
+      titre: "Hors ligne",
+      note: "Le domaine sera créé, mais les tickets n’apparaîtront qu’au retour du routeur.",
+      items: trouves.filter((r) => r.status !== "online"),
+    },
+  ].filter((g) => g.items.length > 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-slate-deep/60 p-4 sm:p-8"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mikhmon-router-choice-title"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-paper shadow-modal sm:max-h-[min(44rem,calc(100dvh-4rem))]"
+      >
+        <div className="shrink-0 border-b border-line-soft px-5 pb-4 pt-5 sm:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 id="mikhmon-router-choice-title" className="text-xl font-semibold tracking-tight text-ink">
+                Pour quel hotspot&nbsp;?
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-ink-soft">
+                Choisissez le routeur dont vous voulez gérer les tickets depuis une adresse web. On
+                passe par son tunnel actuel : rien ne change sur le routeur.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fermer"
+              className="-mr-1 shrink-0 rounded-full p-2 text-ink-soft transition hover:bg-clay hover:text-ink"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </div>
+          {routers.length > 6 && (
+            <div className="relative mt-4">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Chercher parmi ${routers.length} routeurs…`}
+                aria-label="Chercher un routeur"
+                className="field pl-9"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-5 pt-3 sm:px-4">
+          {groupes.length === 0 && (
+            <p className="px-3 py-10 text-center text-sm text-ink-soft">Aucun routeur ne s’appelle ainsi.</p>
+          )}
+          {groupes.map((g) => (
+            <section key={g.titre} className="mb-3 last:mb-0">
+              <h3 className="px-3 pb-1.5 pt-1 text-xs font-semibold text-ink-soft">
+                {g.titre} <span className="tabular-nums font-normal">· {g.items.length}</span>
+              </h3>
+              {g.note && <p className="px-3 pb-2 text-xs text-ink-soft">{g.note}</p>}
+              <ul role="list" className="space-y-1">
+                {g.items.map((router) => {
+                  const online = router.status === "online";
+                  return (
+                    <li key={router.id}>
+                      <button
+                        type="button"
+                        onClick={() => onChoose(router)}
+                        className="group flex min-h-14 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-clay focus-visible:bg-clay"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`h-2 w-2 shrink-0 rounded-full ${online ? "bg-ok live-dot" : "bg-err live-dot live-dot-alert"}`}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-semibold text-ink">{router.name}</span>
+                          <span className="mt-0.5 block truncate text-xs text-ink-soft">
+                            <span className="font-mono">{router.model ?? "Modèle inconnu"}</span>
+                            {" · "}
+                            {resolveMikhmonCloudTunnel(router.connectionMethod, router.tunnelIp).label}
+                          </span>
+                        </span>
+                        <ChevronRight
+                          aria-hidden="true"
+                          className="h-4 w-4 shrink-0 text-ink-soft transition-transform group-hover:translate-x-0.5 group-hover:text-ink"
+                        />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
+
+        <div className="shrink-0 border-t border-line-soft bg-clay/50 px-5 py-3 text-xs leading-5 text-ink-soft sm:px-6">
+          {dejaEquipes.length > 0 && (
+            <p>
+              {dejaEquipes.map((r) => r.name).join(", ")}{" "}
+              {dejaEquipes.length > 1
+                ? "ont déjà leur domaine : gérez-les depuis leur ligne."
+                : "a déjà son domaine : gérez-le depuis sa ligne."}
+            </p>
+          )}
+          <p>À partir de 500 F CFA / mois. Vous choisissez la durée à l’étape suivante.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Écran ──────────────────────────────────────────────────────────────── */
 
 export default function MikhmonOnlineConsole({
@@ -524,6 +682,7 @@ export default function MikhmonOnlineConsole({
   const [famille, setFamille] = useState<Famille>("all");
   const [activationRouter, setActivationRouter] = useState<MikhmonRouter | null>(null);
   const [chooseRouterOpen, setChooseRouterOpen] = useState(false);
+  const closeChooser = useCallback(() => setChooseRouterOpen(false), []);
 
   if (routers.length === 0) {
     return (
@@ -547,9 +706,13 @@ export default function MikhmonOnlineConsole({
   const conteneur = routers.filter((r) => r.kind === "container");
   const inconnus = routers.filter((r) => r.kind === "unknown");
   const cloudActifs = routers.filter((r) => r.cloudStatus === "active").length;
-  const eligibleForCloud = routers.filter(
+  const avecTunnel = routers.filter(
     (r) => r.kind !== "unknown" && Boolean(r.tunnelIp?.trim()) && r.connectionMethod !== "direct",
   );
+  // Un routeur qui a déjà son domaine (actif ou désactivé) se gère depuis sa
+  // ligne : lui en proposer un second n'aurait aucun sens.
+  const eligibleForCloud = avecTunnel.filter((r) => !r.cloudDomain);
+  const dejaEquipes = avecTunnel.filter((r) => r.cloudDomain);
   const openGenerator = () => {
     if (eligibleForCloud.length === 1) setActivationRouter(eligibleForCloud[0]);
     else if (eligibleForCloud.length > 1) setChooseRouterOpen(true);
@@ -711,44 +874,15 @@ export default function MikhmonOnlineConsole({
       )}
 
       {chooseRouterOpen && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-deep/60 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="mikhmon-router-choice-title"
-          onMouseDown={(event) => event.target === event.currentTarget && setChooseRouterOpen(false)}
-        >
-          <div className="w-full max-w-lg rounded-2xl border border-line bg-paper p-5 shadow-modal sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand-deep">Nouvelle instance</p>
-                <h2 id="mikhmon-router-choice-title" className="mt-1 text-xl font-semibold text-ink">Choisir un routeur</h2>
-                <p className="mt-1 text-sm text-ink-soft">Le tunnel existant sera utilisé, sans modifier le routeur.</p>
-              </div>
-              <button type="button" className="text-2xl leading-none text-ink-soft" aria-label="Fermer" onClick={() => setChooseRouterOpen(false)}>×</button>
-            </div>
-            <ul className="mt-5 space-y-2" role="list">
-              {eligibleForCloud.map((router) => (
-                <li key={router.id}>
-                  <button
-                    type="button"
-                    className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-line px-4 text-left transition hover:border-brand-deep hover:bg-clay"
-                    onClick={() => {
-                      setChooseRouterOpen(false);
-                      setActivationRouter(router);
-                    }}
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold text-ink">{router.name}</span>
-                      <span className="mt-0.5 block truncate font-mono text-xs text-ink-soft">{router.model ?? "Modèle à confirmer"}</span>
-                    </span>
-                    <span className="shrink-0 rounded-full bg-brand/25 px-2.5 py-1 text-xs font-semibold text-brand-deep">Configurer →</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <ChoixRouteur
+          routers={eligibleForCloud}
+          dejaEquipes={dejaEquipes}
+          onClose={closeChooser}
+          onChoose={(router) => {
+            setChooseRouterOpen(false);
+            setActivationRouter(router);
+          }}
+        />
       )}
 
       {activationRouter && (
