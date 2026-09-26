@@ -9,6 +9,7 @@ import HeaderActions from "./HeaderActions";
 import { linkTypeLabel } from "@/lib/mikrotik/link-usage";
 import RouterDetailTabs from "./RouterDetailTabs";
 import RouterLocationCard from "@/components/mikrotik/RouterLocationCard";
+import { isTunnelMethod, tunnelLabel } from "@/lib/mikrotik/tunnel-methods";
 
 function formatUptime(seconds: number) {
   if (seconds <= 0) return "0m";
@@ -154,7 +155,7 @@ export default async function RouterDetailPage({
           <div className="flex items-center justify-between gap-3 py-2">
             <dt className="text-ink-soft">Méthode</dt>
             <dd className="font-semibold text-ink">
-              {router.connectionMethod === "vpn" ? "Tunnel WireGuard" : "Directe (API)"}
+              {isTunnelMethod(router.connectionMethod) ? `Tunnel ${tunnelLabel(router.connectionMethod)}` : "Directe (API)"}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-3 py-2">

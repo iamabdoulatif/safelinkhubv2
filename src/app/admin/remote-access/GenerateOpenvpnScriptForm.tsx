@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Copy, Loader2, Lock } from "lucide-react";
-import { generateOpenvpnInstallScript, checkRouterConnection } from "@/lib/mikrotik/actions";
+import { generateOpenvpnInstallScript, generateSstpInstallScript, checkRouterConnection } from "@/lib/mikrotik/actions";
 import FeatureAccessRequestModal from "@/components/billing/FeatureAccessRequestModal";
 import type { FeatureAccessId } from "@/lib/billing/feature-access-config";
 
@@ -19,8 +19,14 @@ type GenState =
     }
   | undefined;
 
-export default function GenerateOpenvpnScriptForm() {
-  const [state0, formAction, pending] = useActionState(generateOpenvpnInstallScript, undefined);
+/** Formulaire des tunnels à identifiant/mot de passe : OpenVPN (TCP 1194) et
+ *  SSTP (TCP 443). Le parcours est le même, seuls l'action et le port changent. */
+export default function GenerateOpenvpnScriptForm({ tunnel = "openvpn" }: { tunnel?: "openvpn" | "sstp" }) {
+  const label = tunnel === "sstp" ? "SSTP" : "OpenVPN";
+  const [state0, formAction, pending] = useActionState(
+    tunnel === "sstp" ? generateSstpInstallScript : generateOpenvpnInstallScript,
+    undefined,
+  );
   const state = state0 as GenState;
   const [copied, setCopied] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>("idle");
@@ -70,7 +76,7 @@ export default function GenerateOpenvpnScriptForm() {
   if (connection === "connected") {
     return (
       <div className="rounded-lg bg-clay px-4 py-3 text-sm text-ok">
-        Routeur connecté avec succès via le tunnel OpenVPN. Consultez les
+        Routeur connecté avec succès via le tunnel {label}. Consultez les
         statistiques en direct sur le{" "}
         <Link href="/admin/router" className="font-semibold underline">
           tableau de bord du routeur
@@ -84,7 +90,7 @@ export default function GenerateOpenvpnScriptForm() {
     return (
       <div>
         <h3 className="text-sm font-medium text-ink">
-          Script d&apos;installation OpenVPN
+          Script d&apos;installation {label}
         </h3>
         <p className="text-sm text-ink-soft">
           Copiez cette commande et collez-la dans le terminal MikroTik
@@ -113,8 +119,10 @@ export default function GenerateOpenvpnScriptForm() {
           {connection === "timeout" && (
             <span className="text-warn">
               Toujours en attente après 5 minutes. Vérifiez que la commande
-              s&apos;est exécutée sans erreur sur le routeur, et que le port
-              UDP 1194 est bien ouvert vers le relais.
+              s&apos;est exécutée sans erreur sur le routeur.{" "}
+              {tunnel === "sstp"
+                ? "SSTP passe par le port TCP 443 : s'il échoue aussi, le réseau bloque même le web chiffré."
+                : "Si le réseau du routeur bloque le port TCP 1194, créez-le plutôt en SSTP (port 443)."}
             </span>
           )}
         </div>

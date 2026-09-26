@@ -319,7 +319,7 @@ export default function RemoteAccessControlCenter({
             Surveillez les tunnels et les accès sécurisés de votre parc MikroTik sans perdre le contexte d’un routeur.
           </p>
         </div>
-        <RemoteAccessTunnelDialog />
+        <RemoteAccessTunnelDialog openFromUrl />
       </header>
 
       <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicateurs du parc">
@@ -350,7 +350,7 @@ export default function RemoteAccessControlCenter({
         <div className="mt-4 grid gap-3 border border-line bg-paper p-3 lg:grid-cols-[minmax(0,1fr)_160px_160px_auto_auto] rounded-xl">
           <label className="relative block"><span className="sr-only">Rechercher un routeur, un accès ou un endpoint</span><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Rechercher un routeur, un accès ou un endpoint" className="min-h-11 w-full border border-line bg-paper py-2 pl-10 pr-3 text-sm text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink rounded-lg" /></label>
           <label><span className="sr-only">Filtrer par état</span><select value={status} onChange={(event) => setStatus(event.target.value as ControlCenterFilters["status"])} className="min-h-11 w-full border border-line bg-paper px-3 text-sm text-ink rounded-lg"><option value="all">Tous les états</option><option value="online">En ligne</option><option value="attention">À vérifier</option></select></label>
-          <label><span className="sr-only">Filtrer par tunnel</span><select value={method} onChange={(event) => setMethod(event.target.value as ControlCenterFilters["method"])} className="min-h-11 w-full border border-line bg-paper px-3 text-sm text-ink rounded-lg"><option value="all">Tous les tunnels</option><option value="wireguard">WireGuard</option><option value="openvpn">OpenVPN</option><option value="direct">Sans tunnel</option></select></label>
+          <label><span className="sr-only">Filtrer par tunnel</span><select value={method} onChange={(event) => setMethod(event.target.value as ControlCenterFilters["method"])} className="min-h-11 w-full border border-line bg-paper px-3 text-sm text-ink rounded-lg"><option value="all">Tous les tunnels</option><option value="wireguard">WireGuard</option><option value="openvpn">OpenVPN</option><option value="sstp">SSTP</option><option value="direct">Sans tunnel</option></select></label>
           <button type="button" aria-pressed={incidentOnly} onClick={() => setIncidentOnly((value) => !value)} className={`inline-flex min-h-11 items-center justify-center gap-2 border px-3 text-sm font-bold ${incidentOnly ? "border-ink bg-ink text-paper" : "border-line bg-paper text-ink hover:bg-clay"}`}><Filter className="h-4 w-4" aria-hidden="true" /> Incidents</button>
           {hasFilters && <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center justify-center gap-2 border border-line bg-paper px-3 text-sm font-bold text-ink hover:bg-clay rounded-xl"><SlidersHorizontal className="h-4 w-4" aria-hidden="true" /> Effacer</button>}
         </div>
