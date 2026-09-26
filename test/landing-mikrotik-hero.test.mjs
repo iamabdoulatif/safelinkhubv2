@@ -12,7 +12,7 @@ test("chaque fichier du film annoncé par le hero existe", async () => {
   const count = Number(hero.match(/frameCount:\s*(\d+)/)?.[1]);
   const frames = await readdir(new URL("../public/landing/control-room/frames/", import.meta.url));
   assert.equal(frames.filter((f) => f.endsWith(".webp")).length, count, "nombre d'images ≠ frameCount");
-  for (const f of ["poster.jpg", "film.mp4", "film.webm", "network.webp", "ports.webp"]) {
+  for (const f of ["poster.jpg", "film.mp4", "film.webm", "film-720.mp4", "film-720.webm", "network.webp", "ports.webp"]) {
     await access(new URL(`../public/landing/control-room/${f}`, import.meta.url));
   }
 });
@@ -26,6 +26,10 @@ test("le film respecte le mouvement réduit et ne capte pas les lecteurs d'écra
   assert.match(film, /<canvas ref=\{canvasRef\} aria-hidden="true"/);
   // Le texte vit dans le HTML, jamais dans les images générées.
   assert.doesNotMatch(film, /fillText/);
+  // Scrub réservé à la souris sur écran paysage : au doigt il saccade, et en
+  // portrait le film est empilé sous le texte (un 16:9 en fond y était rogné).
+  assert.match(film, /\(orientation: landscape\) and \(pointer: fine\)/);
+  assert.match(film, /lg:landscape:absolute/);
 });
 
 test("le hero garde ses chiffres réels, sa capture e-mail et les constructeurs", async () => {

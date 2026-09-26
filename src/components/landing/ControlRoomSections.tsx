@@ -42,7 +42,7 @@ export function CockpitSection({ dict }: { dict: Dictionary }) {
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-[#A5F32E]">{t.eyebrow}</p>
         <h2 className="mt-4 max-w-3xl text-balance text-3xl font-semibold tracking-tight sm:text-5xl">{t.title}</h2>
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/65">{t.lead}</p>
-        <ul role="list" className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 md:grid-cols-3">
+        <ul role="list" className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 lg:grid-cols-3">
           {t.vendors.map((v, i) => {
             const Icon = VENDOR_ICONS[i] ?? Activity;
             return (

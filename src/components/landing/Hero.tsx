@@ -16,6 +16,8 @@ const FILM = {
   poster: "/landing/control-room/poster.jpg",
   videoMp4: "/landing/control-room/film.mp4",
   videoWebm: "/landing/control-room/film.webm",
+  videoMp4Small: "/landing/control-room/film-720.mp4",
+  videoWebmSmall: "/landing/control-room/film-720.webm",
 };
 
 /* Hero « Control Room » : un MikroTik hAP ax³ filmé, qui s'allume, montre ses
@@ -109,7 +111,7 @@ export default function Hero({
             <div key={c.label} className="min-w-0 flex-1 basis-[11rem] bg-[#080A0E] px-6 py-6">
               <dt className="text-xs text-white/50">{c.label}</dt>
               <dd className="mt-1 text-2xl font-semibold tabular-nums text-white sm:text-3xl">{c.value}</dd>
-              <dd className="mt-1 truncate text-xs text-white/40">{c.sub}</dd>
+              <dd className="mt-1 line-clamp-2 text-xs text-white/40 sm:truncate">{c.sub}</dd>
             </div>
           ))}
         </dl>
