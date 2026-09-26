@@ -1,6 +1,6 @@
 export type MikhmonCloudTunnel = {
-  id: "wireguard" | "openvpn" | "l2tp" | null;
-  label: "WireGuard" | "OpenVPN" | "L2TP" | "Tunnel SafeLinkHub requis";
+  id: "wireguard" | "openvpn" | "sstp" | "l2tp" | null;
+  label: "WireGuard" | "OpenVPN" | "SSTP" | "L2TP" | "Tunnel SafeLinkHub requis";
   routerOsRange: "RouterOS 7.0 à 7.24.1" | "RouterOS 6.x" | "RouterOS 6.x ou 7.x" | null;
   ready: boolean;
 };
@@ -39,6 +39,15 @@ export function resolveMikhmonCloudTunnel(
       id: "openvpn",
       label: "OpenVPN",
       routerOsRange: "RouterOS 6.x",
+      ready: true,
+    };
+  }
+
+  if (connectionMethod === "sstp") {
+    return {
+      id: "sstp",
+      label: "SSTP",
+      routerOsRange: "RouterOS 6.x ou 7.x",
       ready: true,
     };
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Check, ChevronDown, Copy, Plug, ShieldCheck } from "lucide-react";
 import GenerateScriptForm from "./GenerateScriptForm";
 import ConnectRouterForm from "./ConnectRouterForm";
@@ -143,6 +144,19 @@ export default function MethodTabs({ serverIp = null }: { serverIp?: string | nu
               Installez le tunnel de gestion SafeLinkHub sur votre routeur. Aucune IP publique ni
               redirection de port requise &mdash; le routeur se connecte vers SafeLinkHub via un
               tunnel WireGuard.
+            </p>
+
+            <p className="mt-2 rounded-lg bg-clay px-3 py-2 text-[13px] text-ink-soft">
+              <strong className="font-semibold text-ink">Routeur en RouterOS 6 (jusqu&apos;à 6.49) ?</strong>{" "}
+              WireGuard n&apos;existe qu&apos;à partir de RouterOS 7. Reliez-le en{" "}
+              <Link href="/admin/remote-access?tunnel=openvpn" className="font-semibold text-brand-deep underline">
+                OpenVPN
+              </Link>
+              , ou en{" "}
+              <Link href="/admin/remote-access?tunnel=sstp" className="font-semibold text-brand-deep underline">
+                SSTP
+              </Link>{" "}
+              si son réseau ne laisse passer que le web (port 443).
             </p>
 
             <div className="mt-4">

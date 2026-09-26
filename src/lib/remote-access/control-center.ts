@@ -27,7 +27,7 @@ export type RemoteAccessControlRouter = {
 export type ControlCenterFilters = {
   query: string;
   status: "all" | "online" | "attention";
-  method: "all" | "wireguard" | "openvpn" | "direct";
+  method: "all" | "wireguard" | "openvpn" | "sstp" | "direct";
   incidentOnly: boolean;
 };
 
@@ -109,6 +109,7 @@ export function buildControlCenterRouters({
 export function connectionMethodLabel(method: string) {
   if (method === "vpn") return "WireGuard";
   if (method === "openvpn") return "OpenVPN";
+  if (method === "sstp") return "SSTP";
   return "Sans tunnel";
 }
 
@@ -182,6 +183,7 @@ export function filterControlCenterRouters(
     }
     if (filters.method === "wireguard" && router.connectionMethod !== "vpn") return false;
     if (filters.method === "openvpn" && router.connectionMethod !== "openvpn") return false;
+    if (filters.method === "sstp" && router.connectionMethod !== "sstp") return false;
     if (filters.method === "direct" && router.connectionMethod !== "direct") return false;
     if (filters.incidentOnly && !requiresAction(router) && !requiresVerification(router)) {
       return false;

@@ -14,6 +14,7 @@ import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import BackToHomeSection from "../BackToHomeSection";
 import DirectAccessSection from "../DirectAccessSection";
 import RouterReplacementSection from "../RouterReplacementSection";
+import { tunnelLabel } from "@/lib/mikrotik/tunnel-methods";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -52,8 +53,7 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
     Boolean(router.tunnelIp);
 
   const online = router.status === "online";
-  const methodLabel =
-    router.connectionMethod === "openvpn" ? "OpenVPN" : router.connectionMethod === "vpn" ? "WireGuard" : "Direct";
+  const methodLabel = tunnelLabel(router.connectionMethod);
 
   return (
     <div className="animate-fade-in-up space-y-8">

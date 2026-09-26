@@ -2,12 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import RemoteAccessTabs from "./RemoteAccessTabs";
+import RemoteAccessTabs, { type Method } from "./RemoteAccessTabs";
 
-export default function RemoteAccessTunnelDialog() {
+/** `openFromUrl` : s'ouvre seul quand l'adresse porte ?tunnel=… (renvoi depuis
+ *  la configuration routeur). Une seule instance de la page doit l'avoir. */
+export default function RemoteAccessTunnelDialog({ openFromUrl = false }: { openFromUrl?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [initialMethod, setInitialMethod] = useState<Method>("wireguard");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!openFromUrl) return;
+    const asked = new URLSearchParams(window.location.search).get("tunnel");
+    if (asked === null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- l'adresse n'est connue qu'au navigateur
+    setInitialMethod(asked === "openvpn" || asked === "sstp" ? asked : "wireguard");
+    setOpen(true);
+  }, [openFromUrl]);
 
   useEffect(() => {
     if (!open) return;
@@ -62,7 +74,7 @@ export default function RemoteAccessTunnelDialog() {
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
-            <RemoteAccessTabs />
+            <RemoteAccessTabs initialMethod={initialMethod} />
           </section>
         </div>
       )}
