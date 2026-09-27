@@ -131,10 +131,13 @@ export default function LineChart({
           fill={`url(#${gradientId})`}
         />
 
-        {series.map((s) => (
+        {series.map((s, seriesIndex) => (
           <polyline
             key={s.key}
             points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")}
+            pathLength={1}
+            className="chart-line-draw"
+            style={{ animationDelay: `${seriesIndex * 120}ms` }}
             fill="none"
             stroke={s.color}
             strokeWidth="2"

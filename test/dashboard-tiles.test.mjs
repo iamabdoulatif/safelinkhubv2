@@ -140,6 +140,23 @@ test("les courbes de l'administration suivent la peau Slate", async () => {
   assert.doesNotMatch(slate, /--chart-1: #C8F24E/i);
 });
 
+test("les histogrammes se révèlent progressivement au chargement", async () => {
+  const chart = await read("src/components/charts/BarChart.tsx");
+  const css = await read("src/app/globals.css");
+  assert.match(chart, /chart-bar-rise/);
+  assert.match(chart, /animationDelay:\s*`\$\{i \* 55\}ms`/);
+  assert.match(css, /@keyframes chart-bar-rise/);
+});
+
+test("les courbes se dessinent progressivement par série", async () => {
+  const chart = await read("src/components/charts/LineChart.tsx");
+  const css = await read("src/app/globals.css");
+  assert.match(chart, /pathLength=\{1\}/);
+  assert.match(chart, /chart-line-draw/);
+  assert.match(chart, /animationDelay:\s*`\$\{seriesIndex \* 120\}ms`/);
+  assert.match(css, /@keyframes chart-line-draw/);
+});
+
 /* Parcours des sources en JS pur : un `grep -P` dépendait du grep de la
    machine (BSD sur macOS n'a pas -P) et le test devenait vert par accident. */
 async function sourcesDuSaas() {

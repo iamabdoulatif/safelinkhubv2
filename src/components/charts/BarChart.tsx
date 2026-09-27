@@ -126,10 +126,11 @@ export default function BarChart({
                     Couleur posée en style et non en classe : ces jetons ne sont
                     pas exposés à Tailwind (voir @theme inline). */}
                 <span
-                  className="w-full max-w-10 rounded-t-sm transition-colors"
+                  className="chart-bar-rise w-full max-w-10 rounded-t-sm transition-colors"
                   style={{
                     height: `${Math.max((value / max) * 100, value > 0 ? 2 : 0)}%`,
                     background: hover === i ? "var(--brand-deep)" : "var(--brand)",
+                    animationDelay: `${i * 55}ms`,
                   }}
                 />
                 {hover === i && (
