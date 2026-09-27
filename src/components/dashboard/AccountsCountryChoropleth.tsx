@@ -113,7 +113,7 @@ export default function AccountsCountryChoropleth({ countries, labels }: Props) 
         {state === "loading" && <p className="px-4 py-2 text-center text-xs text-paper/80">{labels.loading}</p>}
         {state === "error" && <p role="alert" className="border-t border-err bg-err-soft px-4 py-2 text-xs text-err">{labels.error}</p>}
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-ink-soft" aria-label="Légende">
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-ink-soft" aria-label={labels.legend}>
         <span className="font-semibold text-ink">{labels.legend}</span>
         {COLORS.map((color, index) => <span key={color} className="inline-flex items-center gap-1"><i aria-hidden="true" className="h-3 w-3 border border-line-soft" style={{ backgroundColor: color }} />{[labels.none, labels.low, labels.medium, labels.high, labels.veryHigh][index]}</span>)}
       </div>
