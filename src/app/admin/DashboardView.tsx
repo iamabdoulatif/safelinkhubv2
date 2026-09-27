@@ -486,7 +486,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
 
       {superRail && countries.length > 0 && (
         <div className="lg:col-span-3">
-          <AccountsCountryChoropleth countries={countries} />
+          <AccountsCountryChoropleth countries={countries} labels={t.countries} />
         </div>
       )}
 
