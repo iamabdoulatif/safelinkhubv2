@@ -145,7 +145,7 @@ export const adminEn: AdminDictionary = {
     },
     countries: {
       title: "Accounts by country",
-      totalSuffix: "in total",
+      total: "{n} in total",
       subtitle: "Worldwide distribution of platform accounts",
       mapLabel: "World map of accounts by country",
       loading: "Loading map…",
@@ -157,7 +157,7 @@ export const adminEn: AdminDictionary = {
       high: "High",
       veryHigh: "Very high",
       noAccounts: "No accounts",
-      selectedTemplate: "{label} · {accounts} accounts · {share}%",
+      selected: "{label} · {accounts} accounts · {share}%",
       summary: "Summary of accounts by country",
       unknown: "Not provided",
     },

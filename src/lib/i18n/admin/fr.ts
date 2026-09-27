@@ -154,7 +154,7 @@ export const adminFr = {
     },
     countries: {
       title: "Comptes par pays",
-      totalSuffix: "au total",
+      total: "{n} au total",
       subtitle: "Répartition mondiale des comptes de la plateforme",
       mapLabel: "Carte mondiale des comptes par pays",
       loading: "Chargement de la carte…",
@@ -166,7 +166,7 @@ export const adminFr = {
       high: "Élevé",
       veryHigh: "Très élevé",
       noAccounts: "Aucun compte",
-      selectedTemplate: "{label} · {accounts} comptes · {share} %",
+      selected: "{label} · {accounts} comptes · {share} %",
       summary: "Résumé des comptes par pays",
       unknown: "Non renseigné",
     },

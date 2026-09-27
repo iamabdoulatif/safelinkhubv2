@@ -9,7 +9,7 @@ import { colorBucket, countryMetrics, totalAccounts } from "@/lib/dashboard/chor
 
 type Labels = {
   title: string;
-  totalSuffix: string;
+  total: string;
   subtitle: string;
   mapLabel: string;
   loading: string;
@@ -21,7 +21,7 @@ type Labels = {
   high: string;
   veryHigh: string;
   noAccounts: string;
-  selectedTemplate: string;
+  selected: string;
   summary: string;
   unknown: string;
 };
@@ -41,11 +41,8 @@ function escapeHtml(value: string) {
   })[character] ?? character);
 }
 
-function selectedText(template: string, label: string, accounts: number, share: number) {
-  return template
-    .replaceAll("{label}", label)
-    .replaceAll("{accounts}", String(accounts))
-    .replaceAll("{share}", String(share));
+function interpolate(template: string, values: Record<string, string | number>) {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
 }
 
 export default function AccountsCountryChoropleth({ countries, labels }: Props) {
@@ -82,7 +79,7 @@ export default function AccountsCountryChoropleth({ countries, labels }: Props) 
             const iso2 = feature.properties?.ISO_A2 ?? "";
             const metric = countryMetrics(countries, iso2);
             const label = metric?.label ?? feature.properties?.name ?? "Pays";
-            countryLayer.bindTooltip(`<strong>${escapeHtml(label)}</strong><br>${metric ? escapeHtml(selectedText(labels.selectedTemplate, label, metric.accounts, Math.round(metric.share * 100))) : escapeHtml(labels.noAccounts)}`, { sticky: true, className: "sfl-map-tooltip" });
+            countryLayer.bindTooltip(`<strong>${escapeHtml(label)}</strong><br>${metric ? escapeHtml(interpolate(labels.selected, { label, accounts: metric.accounts, share: Math.round(metric.share * 100) })) : escapeHtml(labels.noAccounts)}`, { sticky: true, className: "sfl-map-tooltip" });
             countryLayer.on({
               mouseover: (event) => event.target.setStyle({ color: "#1C1917", weight: 1.4 }),
               mouseout: (event) => layer.resetStyle(event.target),
@@ -113,7 +110,7 @@ export default function AccountsCountryChoropleth({ countries, labels }: Props) 
           <h2 id="accounts-map-title" className="text-base font-semibold text-ink">{labels.title}</h2>
           <p className="mt-1 text-xs text-ink-soft">{labels.subtitle}</p>
         </div>
-        <span className="text-xs text-ink-soft">{total} {labels.totalSuffix}</span>
+        <span className="text-xs text-ink-soft">{interpolate(labels.total, { n: total })}</span>
       </div>
       <div className="mt-4 overflow-hidden rounded-lg border border-line bg-slate-deep">
         <div ref={mapNode} className={`sfl-account-map ${state === "loading" ? "sfl-account-map-loading" : ""}`} aria-label={labels.mapLabel} />
@@ -124,7 +121,7 @@ export default function AccountsCountryChoropleth({ countries, labels }: Props) 
         <span className="font-semibold text-ink">{labels.legend}</span>
         {COLORS.map((color, index) => <span key={color} className="inline-flex items-center gap-1"><i aria-hidden="true" className="h-3 w-3 border border-line-soft" style={{ backgroundColor: color }} />{[labels.none, labels.low, labels.medium, labels.high, labels.veryHigh][index]}</span>)}
       </div>
-      {selected && <p className="mt-3 border-l-2 border-brand bg-clay px-3 py-2 text-sm text-ink">{selectedText(labels.selectedTemplate, selected.label, selected.accounts, Math.round(selected.share * 100))}</p>}
+      {selected && <p className="mt-3 border-l-2 border-brand bg-clay px-3 py-2 text-sm text-ink">{interpolate(labels.selected, { label: selected.label, accounts: selected.accounts, share: Math.round(selected.share * 100) })}</p>}
       <ul className="mt-4 grid gap-x-6 gap-y-1 border-t border-line-soft pt-3 text-xs text-ink-soft sm:grid-cols-2" aria-label={labels.summary}>
         {summary.map((country) => <li key={country.iso2} className="flex justify-between gap-3"><span>{country.flag} {country.label}</span><span className="font-semibold tabular-nums text-ink">{country.accounts} · {percent(country.share)}</span></li>)}
         {countries.filter((country) => !country.iso2).map((country) => <li key="unknown" className="flex justify-between gap-3 italic"><span>— {country.label || labels.unknown}</span><span className="font-semibold tabular-nums not-italic text-ink">{country.accounts} · {percent(country.share)}</span></li>)}
