@@ -582,18 +582,18 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
         <section>
           <h2 className="text-base font-semibold text-ink">{t.charts.title}</h2>
           <p className="mt-1 text-[13px] text-ink-soft">{t.charts.subtitle}</p>
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {(
               [
-                [t.charts.payments, monthly.payments, "count"],
-                [t.charts.gross, monthly.gross, "fcfa"],
-                [t.charts.commissions, monthly.commissions, "fcfa"],
-                [t.charts.expenses, monthly.expenses, "fcfa"],
-                [t.charts.topups, monthly.topups, "fcfa"],
-                [t.charts.routers, monthly.routers, "count"],
+                [t.charts.payments, monthly.payments, "count", "xl:col-span-2"],
+                [t.charts.gross, monthly.gross, "fcfa", "xl:col-span-2"],
+                [t.charts.commissions, monthly.commissions, "fcfa", ""],
+                [t.charts.expenses, monthly.expenses, "fcfa", ""],
+                [t.charts.topups, monthly.topups, "fcfa", ""],
+                [t.charts.routers, monthly.routers, "count", ""],
               ] as const
-            ).map(([titre, points, unit]) => (
-              <Card key={titre} className="p-4">
+            ).map(([titre, points, unit, width]) => (
+              <Card key={titre} className={`h-full p-4 ${width}`}>
                 <h3 className="text-sm font-semibold text-ink">{titre}</h3>
                 <BarChart
                   labels={points.map((p) => formatMonth(p.month))}

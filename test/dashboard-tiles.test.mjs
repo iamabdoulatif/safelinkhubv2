@@ -122,6 +122,13 @@ test("les histogrammes portent UNE seule couleur, celle de la marque", async () 
   assert.deepEqual([...new Set(teintes)].sort(), ["brand", "brand-deep"]);
 });
 
+test("les graphiques mensuels donnent plus d'espace aux deux indicateurs principaux", async () => {
+  const src = await vue();
+  assert.match(src, /grid-cols-1[\s\S]*md:grid-cols-2[\s\S]*xl:grid-cols-4/);
+  assert.match(src, /\[t\.charts\.payments, monthly\.payments, "count", "xl:col-span-2"\]/);
+  assert.match(src, /\[t\.charts\.gross, monthly\.gross, "fcfa", "xl:col-span-2"\]/);
+});
+
 test("les courbes de l'administration suivent la peau Slate", async () => {
   /* `--chart-1` n'était défini que dans :root, en ocre. L'administration
      tourne sous .theme-slate : la courbe « Aperçu » du tableau de bord et
