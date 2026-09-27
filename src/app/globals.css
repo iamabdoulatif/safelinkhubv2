@@ -131,6 +131,37 @@ body {
   font-family: var(--font-instrument-sans), Helvetica, Arial, sans-serif;
 }
 
+/* Carte choroplèthe du dashboard : aplats Bitume, sans tuiles réseau externes. */
+.sfl-account-map {
+  height: 19rem;
+  width: 100%;
+  background: var(--slate-deep);
+}
+.sfl-account-map .leaflet-control-zoom a {
+  border: 1px solid var(--line) !important;
+  background: var(--paper);
+  color: var(--ink);
+}
+.sfl-account-map .leaflet-control-zoom a:hover {
+  background: var(--brand);
+  color: var(--ink);
+}
+.sfl-map-tooltip {
+  border: 2px solid var(--line) !important;
+  border-radius: 0.25rem !important;
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+  font-family: var(--font-instrument-sans), sans-serif;
+}
+.sfl-map-tooltip::before { display: none; }
+@media (max-width: 639px) {
+  .sfl-account-map { height: 14rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sfl-account-map * { transition: none !important; animation: none !important; }
+}
+
 /* ── Motifs signature Bitume ─────────────────────────────────── */
 
 /* Surlignage marqueur : mot-clé sur fond moutarde plein */

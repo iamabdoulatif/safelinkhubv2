@@ -28,6 +28,7 @@ import { formatSc } from "@/lib/safecoin/pricing";
 import DateRangePicker from "./DateRangePicker";
 import LineChart from "@/components/charts/LineChart";
 import BarChart from "@/components/charts/BarChart";
+import AccountsCountryChoropleth from "@/components/dashboard/AccountsCountryChoropleth";
 import { buttonClass } from "@/components/ui/Button";
 import { Table, Td, Th, Tr } from "@/components/ui/Table";
 import type { AdminDictionary } from "@/lib/i18n/admin/fr";
@@ -535,41 +536,7 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
         {superRail && (
           <div className="space-y-4">
             {countries.length > 0 && (
-              <Card className="p-5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="text-base font-semibold text-ink">{t.countries.title}</h2>
-                  <span className="text-xs text-ink-soft">
-                    {t.countries.total(countries.reduce((n, c) => n + c.accounts, 0))}
-                  </span>
-                </div>
-                <ul className="mt-3 space-y-2.5" role="list">
-                  {countries.map((c) => (
-                    <li key={c.iso2 ?? "inconnu"}>
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="flex min-w-0 items-baseline gap-2">
-                          <span aria-hidden="true">{c.flag}</span>
-                          <span className={`truncate text-sm ${c.iso2 ? "text-ink" : "italic text-ink-soft"}`}>
-                            {c.label}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
-                          {c.accounts}
-                          <span className="ml-1.5 text-xs font-normal text-ink-soft">
-                            {Math.round(c.share * 100)}&nbsp;%
-                          </span>
-                        </span>
-                      </div>
-                      {/* Même information que le pourcentage : aria-hidden. */}
-                      <div aria-hidden="true" className="mt-1 h-1.5 rounded-full bg-line-soft">
-                        <div
-                          className={`h-full rounded-full ${c.iso2 ? "bg-brand-deep" : "bg-line-strong"}`}
-                          style={{ width: `${Math.max(c.share * 100, 2)}%` }}
-                        />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
+              <AccountsCountryChoropleth countries={countries} />
             )}
 
             {/* Safecoin : information de superadmin, dans le rail, jamais au
