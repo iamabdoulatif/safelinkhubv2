@@ -17,6 +17,12 @@ function percent(share: number) {
   return `${Math.round(share * 100)} %`;
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
+  })[character] ?? character);
+}
+
 export default function AccountsCountryChoropleth({ countries }: Props) {
   const mapNode = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -51,7 +57,7 @@ export default function AccountsCountryChoropleth({ countries }: Props) {
             const iso2 = feature.properties?.ISO_A2 ?? "";
             const metric = countryMetrics(countries, iso2);
             const label = metric?.label ?? feature.properties?.name ?? "Pays";
-            countryLayer.bindTooltip(`<strong>${label}</strong><br>${metric ? `${metric.accounts} comptes · ${percent(metric.share)}` : "Aucun compte"}`, { sticky: true, className: "sfl-map-tooltip" });
+            countryLayer.bindTooltip(`<strong>${escapeHtml(label)}</strong><br>${metric ? `${metric.accounts} comptes · ${percent(metric.share)}` : "Aucun compte"}`, { sticky: true, className: "sfl-map-tooltip" });
             countryLayer.on({
               mouseover: (event) => event.target.setStyle({ color: "#1C1917", weight: 1.4 }),
               mouseout: (event) => layer.resetStyle(event.target),

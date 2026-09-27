@@ -484,7 +484,13 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
         )}
       </div>
 
-      {/* 4. Activité récente + détail superadmin (pays, Safecoin) en rail. */}
+      {superRail && countries.length > 0 && (
+        <div className="lg:col-span-3">
+          <AccountsCountryChoropleth countries={countries} />
+        </div>
+      )}
+
+      {/* 4. Activité récente + détail superadmin (Safecoin) en rail. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <section className={superRail ? "lg:col-span-2" : "lg:col-span-3"}>
           <div className="mb-3 flex items-baseline justify-between gap-2">
@@ -535,10 +541,6 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
 
         {superRail && (
           <div className="space-y-4">
-            {countries.length > 0 && (
-              <AccountsCountryChoropleth countries={countries} />
-            )}
-
             {/* Safecoin : information de superadmin, dans le rail, jamais au
                 -dessus des revenus. */}
             {safecoin && (
