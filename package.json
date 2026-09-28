@@ -8,7 +8,11 @@
     "test": "tsx --test \"test/*.test.mjs\" \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
     "typecheck": "tsc --noEmit",
     "start": "next start",
-    "lint": "eslint src test"
+    "lint": "eslint src test",
+    "agent": "tsx agent/src/main.ts",
+    "agent:dry-run": "tsx agent/src/main.ts --dry-run",
+    "agent:test": "tsx --test agent/test/*.test.ts",
+    "agent:typecheck": "tsc -p agent/tsconfig.json"
   },
   "dependencies": {
     "@aws-sdk/client-textract": "^3.1101.0",

@@ -4,31 +4,35 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { refreshAllRouters } from "@/lib/mikrotik/actions";
-import type { RouterDictionary } from "./RoutersTable";
+import type { RouterDictionary } from "./router-row";
+import { FleetActionRow, type ActionMessage } from "./FleetActionRow";
 
 export default function SyncAllButton({ t }: { t: RouterDictionary["actions"] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<ActionMessage | null>(null);
 
   return (
-    <div className="flex flex-col items-start gap-1.5">
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() =>
-          startTransition(async () => {
-            const result = await refreshAllRouters();
-            setError(result?.error ?? null);
-            router.refresh();
-          })
-        }
-        className="flex items-center gap-2 border border-line bg-paper px-4 py-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60 rounded-xl"
-      >
-        <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
-        {isPending ? t.syncing : t.sync}
-      </button>
-      {error && <span className="text-xs text-err">{error}</span>}
-    </div>
+    <FleetActionRow
+      icon={RefreshCw}
+      title={t.sync}
+      summary={t.syncSummary}
+      runLabel={t.runAction}
+      busyLabel={t.syncing}
+      pending={isPending}
+      message={message}
+      onRun={() =>
+        startTransition(async () => {
+          setMessage(null);
+          const result = await refreshAllRouters();
+          setMessage(
+            result && "error" in result && result.error
+              ? { kind: "err", text: result.error }
+              : { kind: "ok", text: t.syncDone },
+          );
+          router.refresh();
+        })
+      }
+    />
   );
 }

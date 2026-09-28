@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Save, Wrench } from "lucide-react";
 import SyncAllButton from "./SyncAllButton";
@@ -9,42 +10,27 @@ import WanStealthFleetButton from "./WanStealthFleetButton";
 import type { RouterDictionary } from "./router-row";
 
 /**
- * Les outils de parc, repliés.
+ * Les outils de parc, repliés derrière « Plus d'actions ».
  *
- * Quatre commandes tenaient la barre au même poids que « Lier un MikroTik » —
- * or trois d'entre elles sont des RÉPARATIONS qu'on lance quelques fois par
- * an (délier les tickets MAC, réécrire les dates d'expiration, sauvegardes).
- * Elles restent à un geste, sans occuper l'écran en permanence.
+ * <details> natif : clavier et lecteur d'écran gérés par le navigateur, et
+ * surtout les boutons restent MONTÉS quand on replie — leur compte rendu
+ * (« 12 tickets déliés sur KALAM… ») survit à la fermeture.
  *
- * <details> natif plutôt qu'un menu flottant, pour DEUX raisons : le clavier
- * et le lecteur d'écran sont gérés par le navigateur, et surtout les boutons
- * restent MONTÉS quand on replie — leur compte rendu (« 12 tickets déliés
- * sur KALAM… ») survit donc à la fermeture, ce qu'un menu qui démonte son
- * contenu perdrait à chaque fois.
+ * ─── Organisation du menu ──────────────────────────────────────────────────
  *
- * ─── Ce que la mise en page corrige ────────────────────────────────────────
+ * 1. TROIS GROUPES, trois natures : « Au quotidien » (synchroniser),
+ *    « Réparations » (lancées quelques fois par an), « Réseau » (masquage).
+ *    Un intitulé discret suffit à dire ce qu'on s'apprête à toucher.
  *
- * 1. LA PASTILLE NE GRANDIT PLUS. Le <summary> est un bloc : il épousait la
- *    largeur du panneau ouvert, si bien que le bouton doublait de taille et
- *    que son libellé glissait au moment même du clic. `sm:w-fit` le fige à sa
- *    largeur de repos, dans les deux états.
+ * 2. UN SEUL GABARIT DE RANGÉE (FleetActionRow) : icône, titre, UNE phrase de
+ *    résumé, bouton « Lancer ». Le mode d'emploi détaillé est replié derrière
+ *    « En savoir plus » au lieu de former un mur de texte.
  *
- * 2. QUATRE PILULES DANS UNE CARTE DANS UNE PASTILLE : trois traits et trois
- *    rayons imbriqués pour quatre commandes. Une LISTE de rangées séparées
- *    d'un filet remplace la grille de pilules — un seul contour, celui de la
- *    carte.
+ * 3. LE PANNEAU EST BORNÉ en hauteur : la liste défile, le lien
+ *    « Sauvegardes » reste visible en pied (il fait quitter la page : chevron).
  *
- * 3. TROIS NATURES, UN SEUL POIDS. « Synchroniser » est le geste du quotidien,
- *    les deux réparations se lancent une fois l'an, « Sauvegardes » n'est même
- *    pas une action mais un LIEN vers une autre page. Le lien descend en pied
- *    de carte, derrière un filet plein et avec un chevron : on voit qu'il fait
- *    quitter l'écran avant de le suivre.
- *
- * 4. LES DEUX RÉPARATIONS S'EXPLIQUENT. Leur mode d'emploi n'existait que dans
- *    un `title=` — invisible au doigt, muet au clavier, et deux secondes
- *    d'attente à la souris. Ce sont pourtant les deux seules commandes dont
- *    personne ne devine l'effet. Le texte est désormais lu à l'écran, sous le
- *    bouton qu'il décrit.
+ * 4. IL SE FERME comme un menu : clic à l'extérieur ou Échap (le focus revient
+ *    alors sur le bouton déclencheur).
  */
 export function FleetActions({
   t,
@@ -55,8 +41,35 @@ export function FleetActions({
   actions: RouterDictionary["actions"];
   table: RouterDictionary["table"];
 }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const el = ref.current;
+    const onPointer = (e: PointerEvent) => {
+      if (el && !el.contains(e.target as Node)) el.open = false;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && el) {
+        el.open = false;
+        el.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <details className="group relative w-full sm:w-auto">
+    <details
+      ref={ref}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+      className="group relative w-full sm:w-auto"
+    >
       <summary className="btn btn-md btn-outline w-full list-none marker:hidden sm:w-auto [&::-webkit-details-marker]:hidden">
         <Wrench aria-hidden="true" className="h-4 w-4" />
         {t.moreActions}
@@ -66,28 +79,23 @@ export function FleetActions({
         />
       </summary>
 
-      <div className="mt-2 w-full overflow-hidden rounded-xl border border-line bg-paper sm:absolute sm:right-0 sm:z-30 sm:w-[32rem] sm:shadow-menu">
-        <ul className="divide-y divide-line-soft" role="list">
-          <li className="p-3">
+      <div className="mt-2 flex w-full flex-col overflow-hidden rounded-xl border border-line bg-paper sm:absolute sm:right-0 sm:z-30 sm:max-h-[min(75vh,42rem)] sm:w-[30rem] sm:shadow-menu">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <MenuGroup label={t.groupDaily}>
             <SyncAllButton t={actions} />
-          </li>
-          <li className="p-3">
+          </MenuGroup>
+          <MenuGroup label={t.groupRepair}>
             <UnbindMacTicketsButton t={actions} />
-            <p className="mt-2 text-xs leading-5 text-ink-soft">{actions.unbindHelp}</p>
-          </li>
-          <li className="p-3">
             <TicketExpiryFleetButton t={actions} />
-            <p className="mt-2 text-xs leading-5 text-ink-soft">{actions.ticketExpiryHelp}</p>
-          </li>
-          <li className="p-3">
+          </MenuGroup>
+          <MenuGroup label={t.groupNetwork}>
             <WanStealthFleetButton t={actions} />
-            <p className="mt-2 text-xs leading-5 text-ink-soft">{actions.stealthHelp}</p>
-          </li>
-        </ul>
+          </MenuGroup>
+        </div>
 
         <Link
           href="/admin/router/backups"
-          className="flex min-h-11 items-center gap-2 border-t border-line bg-clay px-4 py-3 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-line-soft"
+          className="flex min-h-11 shrink-0 items-center gap-2 border-t border-line bg-clay px-4 py-3 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-line-soft"
         >
           <Save aria-hidden="true" className="h-4 w-4" />
           {table.backups}
@@ -95,5 +103,16 @@ export function FleetActions({
         </Link>
       </div>
     </details>
+  );
+}
+
+function MenuGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="border-b border-line-soft last:border-b-0" aria-label={label}>
+      <p className="px-4 pt-3 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+        {label}
+      </p>
+      <div className="divide-y divide-line-soft">{children}</div>
+    </section>
   );
 }
