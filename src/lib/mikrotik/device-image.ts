@@ -21,6 +21,8 @@ export function deviceImage(model: string | null | undefined): string | null {
   if (/c52|ax\^?2\b/.test(m)) return "/mikrotik/hap-ax2.webp";
   if (/c53|ax\^?3\b/.test(m)) return "/mikrotik/hap-ax3.webp";
   if (m.includes("chateau") || m.includes("chato")) return "/mikrotik/chato.webp";
+  // RB951Ui-2HnD précisément — pas RB951Ui-2nD/RB951G-2HnD, des boîtiers différents.
+  if (m.includes("951ui-2hnd")) return "/mikrotik/rb951.webp";
   return null;
 }
 
