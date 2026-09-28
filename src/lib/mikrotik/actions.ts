@@ -12,7 +12,8 @@ import { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
 import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
 import { syncRouterStats, connectToRouter, refreshStaleRouters } from "./router-sync";
-import { revokeVpnPeer, revokeOpenvpnPeer } from "./relay";
+import { revokeVpnPeer, revokeOpenvpnPeer, revokeSstpPeer } from "./relay";
+import { isTunnelMethod } from "./tunnel-methods";
 import { shardForIndex } from "./shards";
 import { optimizeWifiThroughput, fixWifiDfs } from "./wifi-compat";
 import { lockRouterInterfaces, unlockRouterInterfaces } from "./router-lock";
@@ -1461,7 +1462,7 @@ export async function reconfigureMikhmonSession(routerId: string) {
  * donc le résultat ne prouverait rien.
  */
 async function probeRouterApiPort(router: typeof routers.$inferSelect) {
-  if (router.connectionMethod !== "vpn" && router.connectionMethod !== "openvpn") return null;
+  if (!isTunnelMethod(router.connectionMethod)) return null;
   if (!router.host) return null;
   return probeApiPortWith(router.host, router.apiPort, (ip, port, timeout) =>
     openRouterTunnel(ip, port, timeout),
@@ -1847,14 +1848,15 @@ export async function deleteRouter(routerId: string) {
   try {
     if (router.connectionMethod === "vpn" && router.wgPeerPublicKey) {
       await revokeVpnPeer(router.wgPeerPublicKey);
-    } else if (router.connectionMethod === "openvpn" && router.tunnelIp) {
+    } else if ((router.connectionMethod === "openvpn" || router.connectionMethod === "sstp") && router.tunnelIp) {
       const [org] = await db
         .select({ slug: organizations.slug })
         .from(organizations)
         .where(eq(organizations.id, router.orgId))
         .limit(1);
       if (org) {
-        await revokeOpenvpnPeer(`${org.slug}-${router.name}`);
+        const peer = `${org.slug}-${router.name}`;
+        await (router.connectionMethod === "sstp" ? revokeSstpPeer(peer) : revokeOpenvpnPeer(peer));
       }
     }
   } catch {
@@ -1956,14 +1958,15 @@ export async function resetRouterDevice(routerId: string) {
   try {
     if (router.connectionMethod === "vpn" && router.wgPeerPublicKey) {
       await revokeVpnPeer(router.wgPeerPublicKey);
-    } else if (router.connectionMethod === "openvpn" && router.tunnelIp) {
+    } else if ((router.connectionMethod === "openvpn" || router.connectionMethod === "sstp") && router.tunnelIp) {
       const [org] = await db
         .select({ slug: organizations.slug })
         .from(organizations)
         .where(eq(organizations.id, router.orgId))
         .limit(1);
       if (org) {
-        await revokeOpenvpnPeer(`${org.slug}-${router.name}`);
+        const peer = `${org.slug}-${router.name}`;
+        await (router.connectionMethod === "sstp" ? revokeSstpPeer(peer) : revokeOpenvpnPeer(peer));
       }
     }
   } catch {
@@ -1989,6 +1992,22 @@ export async function generateOpenvpnInstallScript(
   _prevState: unknown,
   formData: FormData,
 ) {
+  return createTunnelInstallCommand(formData, "openvpn");
+}
+
+/**
+ * SSTP : même parcours qu'OpenVPN, mais sur le port 443 — pour les routeurs
+ * (RouterOS 6 surtout) dont le réseau ne laisse sortir que le web.
+ */
+export async function generateSstpInstallScript(
+  _prevState: unknown,
+  formData: FormData,
+) {
+  return createTunnelInstallCommand(formData, "sstp");
+}
+
+/** Commande d'installation d'un tunnel OpenVPN ou SSTP (le script vit côté route). */
+async function createTunnelInstallCommand(formData: FormData, method: "openvpn" | "sstp") {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
 
@@ -2006,9 +2025,9 @@ export async function generateOpenvpnInstallScript(
     .limit(1);
   if (!org) return { error: "Organization not found." };
 
-  // The OpenVPN credentials themselves are allocated lazily when the router
-  // actually fetches the script (see the install-openvpn route handler) so
-  // that they never need to be persisted server-side.
+  // The tunnel credentials themselves are allocated lazily when the router
+  // actually fetches the script (see the install-openvpn / install-sstp route
+  // handlers) so that they never need to be persisted server-side.
   const apiPassword = randomBytes(18).toString("base64url");
   const installToken = randomUUID();
 
@@ -2021,7 +2040,7 @@ export async function generateOpenvpnInstallScript(
       username: API_USERNAME,
       passwordEncrypted: encryptSecret(apiPassword),
       status: "pending",
-      connectionMethod: "openvpn",
+      connectionMethod: method,
       installTokenHash: hashToken(installToken),
       installTokenExpiresAt: new Date(Date.now() + INSTALL_TOKEN_TTL_MS),
       relayShard: await nextRelayShard(db),
@@ -2030,9 +2049,10 @@ export async function generateOpenvpnInstallScript(
 
   const appUrl = getAppUrl();
 
-  const scriptUrl = `${appUrl}/api/router/v1/${org.slug}/scripts/install-openvpn`;
+  const scriptUrl = `${appUrl}/api/router/v1/${org.slug}/scripts/install-${method}`;
   const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";
-  const command = `/tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="ovpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="ovpn.rsc"; :delay 1s; /file remove "ovpn.rsc"`;
+  const file = method === "sstp" ? "sstp.rsc" : "ovpn.rsc";
+  const command = `/tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="${file}" mode=${fetchMode}; :delay 2s; /import file-name="${file}"; :delay 1s; /file remove "${file}"`;
 
   revalidatePath("/admin/settings/router-setup");
   revalidatePath("/admin/remote-access");

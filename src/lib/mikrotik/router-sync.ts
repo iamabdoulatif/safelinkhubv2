@@ -22,6 +22,7 @@ import { repairBrokenMikhmonContainer } from "./mikhmon-flash";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { isWebAccessService } from "./remote-access-host";
 import { shouldRepairRouterMikhmon } from "./mikhmon-online-access";
+import { isTunnelMethod } from "./tunnel-methods";
 
 type RouterRow = typeof routers.$inferSelect;
 
@@ -56,7 +57,7 @@ export async function connectToRouter(
   const password = decryptSecret(router.passwordEncrypted);
   const client = new RouterOSClient();
 
-  if (router.connectionMethod === "vpn" || router.connectionMethod === "openvpn") {
+  if (isTunnelMethod(router.connectionMethod)) {
     const tunnel = await openRouterTunnelWithRetry(
       router.host,
       router.apiPort ?? 8728,

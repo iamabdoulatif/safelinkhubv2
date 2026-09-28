@@ -46,6 +46,7 @@ import {
   getMissingInterfaceListMembers,
   getMissingInterfaceListNames,
 } from "./interface-list-reconciliation";
+import { isTunnelMethod, TUNNEL_SUBNETS } from "./tunnel-methods";
 
 async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20000) {
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -53,7 +54,7 @@ async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20
   }
   const password = decryptSecret(router.passwordEncrypted);
   const client = new RouterOSClient();
-  if (router.connectionMethod === "vpn" || router.connectionMethod === "openvpn") {
+  if (isTunnelMethod(router.connectionMethod)) {
     const tunnel = await openRouterTunnelWithRetry(router.host, router.apiPort ?? 8728, timeoutMs);
     await client.connectViaStream(tunnel.stream, router.username, password, timeoutMs);
   } else {
@@ -2207,11 +2208,20 @@ export async function provisionHotspotStack(
         ["/ip/service/set", "=numbers=ssh", "=disabled=no", "=address=10.67.0.0/24"],
         "scope SSH/SFTP (FileZilla) to OpenVPN tunnel subnet",
       );
+    } else if (router.connectionMethod === "sstp") {
+      await run(
+        ["/ip/service/set", "=numbers=api", `=address=${TUNNEL_SUBNETS.sstp},${DOCKER_NETWORK}`],
+        "scope API to SSTP tunnel subnet + Docker (MikHmon)",
+      );
+      await run(
+        ["/ip/service/set", "=numbers=ssh", "=disabled=no", `=address=${TUNNEL_SUBNETS.sstp}`],
+        "scope SSH/SFTP (FileZilla) to SSTP tunnel subnet",
+      );
     } else {
       log.push("OK: API service left open on its current address (direct LAN connection) — Winbox/WebFig/API all unaffected");
       await run(["/ip/service/set", "=numbers=ssh", "=disabled=yes"], "disable ssh (direct LAN connection, no VPN tunnel to scope it to)");
     }
-    if (router.connectionMethod === "vpn" || router.connectionMethod === "openvpn") {
+    if (isTunnelMethod(router.connectionMethod)) {
       await ensureSshTunnelAccess(client, log, router.username ?? undefined);
     }
 

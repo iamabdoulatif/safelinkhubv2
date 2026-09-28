@@ -302,6 +302,80 @@ SCRIPT`);
   };
 }
 
+export type SstpPeer = { username: string; password: string; clientIp: string; endpoint: string };
+
+/**
+ * Compte SSTP d'un routeur dans accel-ppp (même VPS que le relais).
+ *
+ * SSTP voyage en TLS sur le port 443 : Traefik y renvoie vers accel-ppp
+ * (31.97.153.83:8443) les connexions SANS SNI — celles du client SSTP de
+ * RouterOS 6, qui n'en envoie pas (voir /docker/traefik/dynamic/
+ * sstp-routeros6.yml). accel-ppp relit chap-secrets à CHAQUE authentification :
+ * ajouter un compte ne demande aucun redémarrage et ne coupe personne.
+ *
+ * IP FIXE, HORS du pool dynamique 192.168.200.10-200 : .201 à .254. Le même
+ * nom remplace son ancienne ligne (réinstallation), jamais de doublon.
+ */
+export async function allocateSstpPeer(name: string): Promise<SstpPeer> {
+  const safeName = name.replace(/[^a-zA-Z0-9@._-]/g, "-").slice(0, 64) || "router";
+  const output = await runOnRelay(`sudo bash -s -- ${shellArg(safeName)} <<'SCRIPT'
+set -euo pipefail
+NAME="$1"
+FILE=/etc/accel-ppp/chap-secrets
+touch "$FILE"
+TMP=$(mktemp)
+awk -v n="$NAME" '$1 != n' "$FILE" > "$TMP"
+CLIENT_IP=""
+for octet in $(seq 201 254); do
+  if ! awk '{print $4}' "$TMP" | grep -qx "192.168.200.\${octet}"; then
+    CLIENT_IP="192.168.200.\${octet}"
+    break
+  fi
+done
+if [[ -z "$CLIENT_IP" ]]; then
+  rm -f "$TMP"
+  echo "No available SSTP client address" >&2
+  exit 1
+fi
+PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | cut -c1-20)
+printf '%s * %s %s\n' "$NAME" "$PASSWORD" "$CLIENT_IP" >> "$TMP"
+chmod 600 "$TMP"
+mv "$TMP" "$FILE"
+echo "Username = \${NAME}"
+echo "Password = \${PASSWORD}"
+echo "ClientIp = \${CLIENT_IP}"
+SCRIPT`);
+
+  const get = (key: string) => {
+    const match = output.match(new RegExp(`^${key}\\s*=\\s*(.+)$`, "m"));
+    if (!match) throw new Error(`Relay output missing ${key}`);
+    return match[1].trim();
+  };
+
+  return {
+    username: get("Username"),
+    password: get("Password"),
+    clientIp: get("ClientIp"),
+    // Le 443 PUBLIC du relais (Traefik), pas le 8443 d'accel-ppp : c'est
+    // justement le seul port que les réseaux filtrés laissent sortir.
+    endpoint: `${getRelayPublicHost()}:443`,
+  };
+}
+
+export async function revokeSstpPeer(username: string): Promise<void> {
+  const safeName = username.replace(/[^a-zA-Z0-9@._-]/g, "-").slice(0, 64);
+  if (!safeName) return;
+  await runOnRelay(`sudo bash -s -- ${shellArg(safeName)} <<'SCRIPT'
+set -euo pipefail
+FILE=/etc/accel-ppp/chap-secrets
+[ -f "$FILE" ] || exit 0
+TMP=$(mktemp)
+awk -v n="$1" '$1 != n' "$FILE" > "$TMP"
+chmod 600 "$TMP"
+mv "$TMP" "$FILE"
+SCRIPT`);
+}
+
 export async function revokeOpenvpnPeer(username: string): Promise<void> {
   const safeName = username.replace(/[^a-zA-Z0-9@._-]/g, "-").slice(0, 64);
   if (!safeName) return;

@@ -104,6 +104,18 @@ export async function auditRouterConfig(routerId: string) {
               detail: "Aucun client OpenVPN configuré sur le routeur.",
             },
       );
+    } else if (router.connectionMethod === "sstp") {
+      const sstp = await client.talk(["/interface/sstp-client/print"]).catch(() => []);
+      items.push(
+        sstp.length > 0
+          ? { key: "vpn", label: "Client SSTP", status: "ok" }
+          : {
+              key: "vpn",
+              label: "Client SSTP",
+              status: "missing",
+              detail: "Aucun client SSTP configuré sur le routeur.",
+            },
+      );
     }
 
     const bridge = await client

@@ -13,6 +13,7 @@ import {
   type Architecture,
   type MikrotikModel,
 } from "./device-catalog";
+import { isTunnelMethod } from "./tunnel-methods";
 
 const KNOWN_ARCHITECTURES: readonly Architecture[] = [
   "arm",
@@ -47,7 +48,7 @@ async function connectClient(router: typeof routers.$inferSelect, timeoutMs = 20
   }
   const password = decryptSecret(router.passwordEncrypted);
   const client = new RouterOSClient();
-  if (router.connectionMethod === "vpn" || router.connectionMethod === "openvpn") {
+  if (isTunnelMethod(router.connectionMethod)) {
     const tunnel = await openRouterTunnelWithRetry(router.host, router.apiPort ?? 8728, timeoutMs);
     await client.connectViaStream(tunnel.stream, router.username, password, timeoutMs);
   } else {

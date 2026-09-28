@@ -16,6 +16,7 @@ import { getDb } from "@/lib/db";
 import { organizations, personalVpnAccess, routers } from "@/lib/db/schema";
 import { connectToRouter } from "./router-sync";
 import { runOnRelay } from "./relay";
+import { TUNNEL_METHODS } from "./tunnel-methods";
 
 export const MNDP_CONFIG_DIR = "/etc/safelinkhub";
 export const MNDP_TARGETS_FILE = `${MNDP_CONFIG_DIR}/mndp-targets.json`;
@@ -43,7 +44,7 @@ export async function syncMndpAnnouncementsForOrg(orgId: string): Promise<MndpSy
       and(
         eq(routers.orgId, orgId),
         eq(routers.status, "online"),
-        inArray(routers.connectionMethod, ["vpn", "openvpn"]),
+        inArray(routers.connectionMethod, [...TUNNEL_METHODS]),
       ),
     );
 
