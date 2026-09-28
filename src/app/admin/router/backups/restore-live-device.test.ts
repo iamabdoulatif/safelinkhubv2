@@ -4,7 +4,8 @@ import { deviceImage } from "./RestoreLive";
 
 it("associe chaque board-name RouterOS à sa photo, sans confondre les hAP ax", () => {
   assert.equal(deviceImage("L009UiGS-2HaxD"), "/mikrotik/l009.webp");
-  assert.equal(deviceImage("RB4011iGS+5HacQ2HnD"), "/mikrotik/rb4011.webp");
+  assert.equal(deviceImage("RB4011iGS+5HacQ2HnD"), "/mikrotik/rb4011-wifi.webp");
+  assert.equal(deviceImage("RB4011iGS+RM"), "/mikrotik/rb4011.webp");
   assert.equal(deviceImage("RB5009UG+S+IN"), "/mikrotik/rb5009.webp");
   assert.equal(deviceImage("RB260GS"), "/mikrotik/rb260gs.webp");
   assert.equal(deviceImage("hAP ax lite"), "/mikrotik/hap-ax-lite.webp");

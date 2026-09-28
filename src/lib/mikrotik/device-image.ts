@@ -10,7 +10,9 @@ export function deviceImage(model: string | null | undefined): string | null {
   // « hAP ax^3 » (C53UiG…). L'ordre compte : LTE6 avant ax lite, ax lite avant ax².
   const m = (model ?? "").toLowerCase();
   if (m.includes("l009")) return "/mikrotik/l009.webp";
-  if (m.includes("4011")) return "/mikrotik/rb4011.webp";
+  // RB4011iGS+5HacQ2HnD (WiFi, 4 antennes externes) a sa propre photo — le
+  // modèle filaire RB4011iGS+RM garde l'image existante sans antennes.
+  if (m.includes("4011")) return /5hac|hacq2hnd/.test(m) ? "/mikrotik/rb4011-wifi.webp" : "/mikrotik/rb4011.webp";
   if (m.includes("5009")) return "/mikrotik/rb5009.webp";
   if (/rb260|css106/.test(m)) return "/mikrotik/rb260gs.webp";
   if (/l41g|ax[ -]?lite/.test(m)) return /lte6|fg621/.test(m) ? "/mikrotik/hap-ax-lite-lte6.webp" : "/mikrotik/hap-ax-lite.webp";
