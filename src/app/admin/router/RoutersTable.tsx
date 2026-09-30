@@ -80,7 +80,11 @@ export default function RoutersTable({
 
   const [filter, setFilter] = useState<StatusFilter>(initialFilter);
   const [query, setQuery] = useState(initialQuery);
-  const [page, setPage] = useState(0);
+  // La page est liée au couple filtre/recherche : en changer repart de la page 1, sans effet.
+  const pageKey = `${filter}|${query}`;
+  const [pageState, setPageState] = useState({ key: pageKey, page: 0 });
+  const page = pageState.key === pageKey ? pageState.page : 0;
+  const setPage = (next: number) => setPageState({ key: pageKey, page: next });
   const Heading = headingLevel;
   const table = t.table;
   const actions = t.actions;
@@ -130,8 +134,6 @@ export default function RoutersTable({
     return true;
   });
 
-  // Un filtre ou une recherche change la liste : on repart de la page 1.
-  useEffect(() => setPage(0), [filter, query]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pageCount - 1);
   const paged = filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
