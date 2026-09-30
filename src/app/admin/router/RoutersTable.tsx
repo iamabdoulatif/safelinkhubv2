@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Table, Td, Th, Tr } from "@/components/ui/Table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Link2, MapPin, Router as RouterIcon, Search } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ChevronLeft, ChevronRight, Link2, MapPin, Router as RouterIcon, Search } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
 import { LockedBadge, MeterCell, StatusBadge } from "./RouterBadges";
 import RouterThumb from "@/components/RouterThumb";
@@ -24,6 +24,8 @@ export { timeAgo };
 export type { RouterDictionary, RouterRow };
 
 type StatusFilter = RouterTableStatusFilter;
+
+const PAGE_SIZE = 10;
 
 function isStatusFilter(value: string | null): value is StatusFilter {
   return value === "all" || value === "online" || value === "offline" || value === "config";
@@ -78,6 +80,7 @@ export default function RoutersTable({
 
   const [filter, setFilter] = useState<StatusFilter>(initialFilter);
   const [query, setQuery] = useState(initialQuery);
+  const [page, setPage] = useState(0);
   const Heading = headingLevel;
   const table = t.table;
   const actions = t.actions;
@@ -126,6 +129,12 @@ export default function RoutersTable({
     }
     return true;
   });
+
+  // Un filtre ou une recherche change la liste : on repart de la page 1.
+  useEffect(() => setPage(0), [filter, query]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
 
   const displayed = table.displayed
     .replace("{count}", String(filtered.length))
@@ -266,7 +275,7 @@ export default function RoutersTable({
         <>
           {/* Mobile : cartes empilées */}
           <ul role="list" className="space-y-3 md:hidden">
-            {filtered.map((r) => (
+            {paged.map((r) => (
               <RouterCard key={r.id} r={r} t={t} canLock={canLock} />
             ))}
           </ul>
@@ -289,7 +298,7 @@ export default function RoutersTable({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => {
+              {paged.map((r) => {
                 const offline = isOfflineRouter(r.status);
                 return (
                   <Tr key={r.id}>
@@ -367,7 +376,34 @@ export default function RoutersTable({
             </tbody>
           </Table>
 
-          <p className="text-xs text-ink-soft">{displayed}</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-ink-soft">{displayed}</p>
+            {pageCount > 1 && (
+              <nav aria-label="Pagination" className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={current === 0}
+                  onClick={() => setPage(current - 1)}
+                  className={buttonClass({ variant: "outline", size: "sm" })}
+                >
+                  <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+                  {table.previousPage}
+                </button>
+                <span className="text-xs tabular-nums text-ink-soft">
+                  {table.pageOf.replace("{page}", String(current + 1)).replace("{pages}", String(pageCount))}
+                </span>
+                <button
+                  type="button"
+                  disabled={current >= pageCount - 1}
+                  onClick={() => setPage(current + 1)}
+                  className={buttonClass({ variant: "outline", size: "sm" })}
+                >
+                  {table.nextPage}
+                  <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                </button>
+              </nav>
+            )}
+          </div>
         </>
       )}
     </div>
