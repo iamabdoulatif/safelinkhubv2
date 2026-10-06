@@ -23,6 +23,7 @@ import {
   refreshRouterStats,
   optimizeRouterThroughput,
   speedTestRouter,
+  reconfigureMikhmonSession,
 } from "@/lib/mikrotik/actions";
 import { reinstallMikhmonContainer } from "@/lib/mikrotik/container-setup";
 import { reposerPortailRouteur } from "@/lib/captive-templates/actions";
@@ -259,6 +260,18 @@ export default function HeaderActions({
             label="Optimiser le débit"
             hint="Fasttrack sur les connexions établies, sans casser le filtrage."
             onClick={() => run("tune", () => optimizeRouterThroughput(routerId), "Débit optimisé.")}
+          />
+          <MenuItem
+            icon={RefreshCw}
+            label="Restaurer la session MikHmon"
+            hint="Régénère la configuration MikHmon (suppression accidentelle)."
+            onClick={() =>
+              run(
+                "mikhmon",
+                () => reconfigureMikhmonSession(routerId),
+                "Session MikHmon restaurée.",
+              )
+            }
           />
           <div role="separator" className="my-1 border-t border-line-soft" />
           <MenuItem
