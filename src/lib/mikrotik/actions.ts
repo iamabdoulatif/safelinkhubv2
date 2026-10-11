@@ -208,6 +208,15 @@ export async function refreshRouterStats(routerId: string) {
   return { success: true };
 }
 
+/** Rafraîchit les routeurs visibles dont la dernière synchro a plus de 25 s. */
+export async function refreshFleetStats() {
+  const session = await getSession();
+  if (!session) return { error: "Not authenticated." };
+  // ponytail: une passe par écran ouvert ; le seuil de 25 s dédoublonne les onglets.
+  await refreshStaleRouters(isSuperAdmin(session.role) ? null : session.orgId, 25_000);
+  return { success: true };
+}
+
 /**
  * OPTIMISE LE DÉBIT WiFi d'un routeur (bouton « Optimiser le WiFi » de la fiche
  * routeur) — le correctif « faible connexion » en un clic : unifie le SSID sur

@@ -4,6 +4,7 @@ import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { organizations, routers, users } from "@/lib/db/schema";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
+import LiveSync from "./LiveSync";
 import { ClientPortfolioBrowser } from "./ClientPortfolioBrowser";
 import { RouterPortfolioTabs } from "./RouterPortfolioTabs";
 import RoutersTable, { type RouterRow } from "./RoutersTable";
@@ -96,6 +97,7 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
     return (
       <div className="animate-fade-in-up">
         <RouterPageHeader t={t.page} />
+        <LiveSync />
         <div className="mt-5">
           <RoutersTable
             routers={toRouterRows(ownRouterRows)}
@@ -152,6 +154,7 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
   return (
     <div className="animate-fade-in-up">
       <RouterPageHeader t={t.page} />
+        <LiveSync />
       <div className="mt-4">
         <RouterPortfolioTabs activeScope={scope} t={t.tabs} />
       </div>

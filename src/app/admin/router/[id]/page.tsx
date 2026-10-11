@@ -6,6 +6,7 @@ import { bridges, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import SerialLockPanel from "./SerialLockPanel";
 import HeaderActions from "./HeaderActions";
+import LiveSync from "../LiveSync";
 import { linkTypeLabel } from "@/lib/mikrotik/link-usage";
 import RouterDetailTabs from "./RouterDetailTabs";
 import RouterLocationCard from "@/components/mikrotik/RouterLocationCard";
@@ -245,6 +246,7 @@ export default async function RouterDetailPage({
             </div>
           </div>
         </div>
+        <LiveSync routerId={router.id} />
         <HeaderActions
           routerId={router.id}
           routerName={router.name}
