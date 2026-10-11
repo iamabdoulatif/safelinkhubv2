@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { asc, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
@@ -15,12 +15,34 @@ export const maxDuration = 300;
  * makes sure that check actually runs periodically instead of only when an
  * admin happens to load /admin/router.
  */
+/* Appelée toutes les 5 min par le cron du VPS. Un passage complet dépassait
+   5 min (59 routeurs, hors-ligne lents) : le client abandonnait chaque nuit
+   sur « fetch failed ». On répond donc tout de suite et on travaille en
+   arrière-plan, un seul passage à la fois, dans un budget de 4 min. */
+const BUDGET_MS = 4 * 60 * 1000;
+let running = false;
+
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new Response("Unauthorized", { status: 401 });
   }
+  // ponytail: verrou en mémoire, valable tant que l'app tourne dans un seul conteneur.
+  if (running) return Response.json({ skipped: "already running" }, { status: 202 });
+  running = true;
+  after(async () => {
+    try {
+      const summary = await runHealthCheck();
+      console.log(JSON.stringify({ msg: "router-health-check", ...summary }));
+    } finally {
+      running = false;
+    }
+  });
+  return Response.json({ started: true }, { status: 202 });
+}
 
+async function runHealthCheck() {
+  const deadline = Date.now() + BUDGET_MS;
   const db = getDb();
   // "offline" is included so a router that got marked offline by a transient
   // failure (some devices' API takes >10s under hotspot load) heals itself on
@@ -50,7 +72,9 @@ export async function GET(request: NextRequest) {
   let cursor = 0;
   await Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, async () => {
-      while (cursor < candidates.length) {
+      // Passé le budget, on ne lance plus de sonde : les hors-ligne restants,
+      // triés du sync le plus ancien, passent en tête au prochain tour.
+      while (cursor < candidates.length && Date.now() < deadline) {
         const r = candidates[cursor++];
         // MikroTik's API gets erratically slow under hotspot load (peak-hour
         // probes rotate randomly between OK and >30s), so one failed probe
@@ -74,10 +98,10 @@ export async function GET(request: NextRequest) {
     error: err instanceof Error ? err.message : "MNDP sync failed",
   }));
 
-  return Response.json({
+  return {
+    candidates: candidates.length,
     checked: results.length,
-    offline: results.filter((r) => !r.success).length,
-    results,
+    offline: results.filter((r) => !r.success).map((r) => r.name),
     mndp,
-  });
+  };
 }
