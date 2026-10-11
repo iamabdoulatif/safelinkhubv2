@@ -9,6 +9,8 @@ import { getVpnTrialStatus } from "@/lib/billing/actions";
 import { getDb } from "@/lib/db";
 import { routerMikhmonCloudInstances, routerPortForwards, routers } from "@/lib/db/schema";
 import { getRelayPublicHost } from "@/lib/mikrotik/relay";
+import { supportsContainersFor } from "@/lib/mikrotik/device-catalog";
+import { routerCloudSlug } from "@/lib/mikrotik/mikhmon-cloud-domain";
 import { getActiveRouterReplacement } from "@/lib/mikrotik/router-recovery-service";
 import { refreshStaleRouters } from "@/lib/mikrotik/router-sync";
 import BackToHomeSection from "../BackToHomeSection";
@@ -113,6 +115,10 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
             tunnelIp: router.tunnelIp,
             username: router.username,
             relayHost,
+            supportsContainers: supportsContainersFor(router.supportsContainers, router.model),
+            mikhmonCloudPreview: `${routerCloudSlug(router.name, router.id)}.${
+              process.env.MIKHMON_CLOUD_BASE_DOMAIN ?? "mikhmon.safelinkhub.io"
+            }`,
           },
         ]}
         forwardsByRouter={{

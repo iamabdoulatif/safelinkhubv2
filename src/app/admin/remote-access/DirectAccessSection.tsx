@@ -35,7 +35,13 @@ type RouterRow = {
   // Per-router relay host (shard-aware, computed server-side). Falls back to
   // the section-wide relayHost when absent (legacy / sharding disabled).
   relayHost?: string;
+  /** null = modèle inconnu : les deux adresses restent proposées. */
+  supportsContainers?: boolean | null;
+  /** Sous-domaine que recevrait l'instance MikHmon hébergée. */
+  mikhmonCloudPreview?: string;
 };
+
+type MikhmonMode = "relay" | "cloud";
 
 type AccessPlan = BillingPeriod | "__unlimited__" | "__quota__";
 
@@ -299,6 +305,10 @@ function RouterDirectAccess({
   // "__unlimited__" is a UI-only sentinel for superadmin: the server already
   // ignores billingPeriod and sets expiresAt=null for unlimited accounts.
   const [selectedPlans, setSelectedPlans] = useState<Record<string, AccessPlan>>({});
+  // Un routeur à conteneur garde son adresse historique sX.safelinkhub.io:port ;
+  // sans conteneur (RB951, pas d'USB), seul le sous-domaine hébergé fonctionne.
+  const defaultMikhmonMode: MikhmonMode = router.supportsContainers ? "relay" : "cloud";
+  const [mikhmonMode, setMikhmonMode] = useState<MikhmonMode>(defaultMikhmonMode);
 
   const defaultPlan = (service: string): AccessPlan => {
     if (quotaExpiresAt) return "__quota__";
@@ -335,6 +345,7 @@ function RouterDirectAccess({
     const raw = defaultPlan(service);
     const plan: BillingPeriod = raw === "__unlimited__" || raw === "__quota__" ? "monthly" : raw;
     confirmationTriggerRef.current = trigger;
+    if (service === "mikhmon") setMikhmonMode(defaultMikhmonMode);
     setConfirmation({ kind: "enable", service, plan });
   }
 
@@ -354,7 +365,7 @@ function RouterDirectAccess({
     setPendingService(service);
     setError(null);
     startTransition(async () => {
-      const res = await enablePortForward(router.id, service, plan);
+      const res = await enablePortForward(router.id, service, plan, undefined, undefined, mikhmonMode);
       setPendingService(null);
       // Accès distant payant : ouvrir le paywall au lieu d'afficher l'erreur.
       if (res && "needsAuthorization" in res && res.needsAuthorization) {
@@ -387,7 +398,14 @@ function RouterDirectAccess({
       let failed = false;
       for (const service of inactive) {
         setPendingService(service);
-        const res = await enablePortForward(router.id, service, quotaExpiresAt ? "monthly" : "yearly");
+        const res = await enablePortForward(
+          router.id,
+          service,
+          quotaExpiresAt ? "monthly" : "yearly",
+          undefined,
+          undefined,
+          defaultMikhmonMode,
+        );
         if (res && "needsAuthorization" in res && res.needsAuthorization) {
           // Payant : on ouvre le paywall pour ce service et on s'arrête.
           setPaywall({ service, period: "yearly" });
@@ -596,6 +614,14 @@ function RouterDirectAccess({
                     )}
                   </div>
                 )}
+                {service === "mikhmon" && forward && (
+                  <p className="mt-2 text-xs text-ink-soft">
+                    {forward.cloudDomain
+                      ? "Sous-domaine dédié, hébergé par SafeLinkHub."
+                      : "Adresse du relais, servie par le conteneur du routeur."}{" "}
+                    Pour changer de format, révoquez puis réactivez l&apos;accès.
+                  </p>
+                )}
                 {service === "ssh" && forward && address && (
                   <SshFileZillaTutorial address={address} username={router.username} />
                 )}
@@ -663,6 +689,16 @@ function RouterDirectAccess({
                   ? `${confirmation.services.length} accès de ${router.name} deviendront joignables depuis Internet.`
                   : `L’accès ${SERVICE_LABELS[confirmation.service] ?? confirmation.service} de ${router.name} deviendra joignable depuis Internet.`}
             </p>
+            {confirmation.kind === "enable" && confirmation.service === "mikhmon" && (
+              <MikhmonAddressChoice
+                routerId={router.id}
+                value={mikhmonMode}
+                onChange={setMikhmonMode}
+                relayHost={relayHost}
+                cloudPreview={router.mikhmonCloudPreview}
+                relayAvailable={router.supportsContainers !== false}
+              />
+            )}
             {confirmation.kind !== "disable" && (
               <p className="mt-2 rounded-lg bg-clay px-3 py-2 text-xs leading-5 text-ink-soft">
                 Vérifiez le mot de passe du routeur avant de continuer. Cette action peut engager la durée de l’accès sélectionnée.
@@ -691,6 +727,83 @@ function RouterDirectAccess({
         </div>
       )}
     </div>
+  );
+}
+
+function MikhmonAddressChoice({
+  routerId,
+  value,
+  onChange,
+  relayHost,
+  cloudPreview,
+  relayAvailable,
+}: {
+  routerId: string;
+  value: MikhmonMode;
+  onChange: (mode: MikhmonMode) => void;
+  relayHost: string;
+  cloudPreview?: string;
+  relayAvailable: boolean;
+}) {
+  const options: { mode: MikhmonMode; title: string; hint: string; preview: string; disabled: boolean }[] = [
+    {
+      mode: "relay",
+      title: "Adresse du relais",
+      hint: relayAvailable
+        ? "Le MikHmon installé dans le conteneur du routeur."
+        : "Indisponible : ce routeur ne fait pas tourner de conteneur.",
+      preview: `${relayHost}:port attribué`,
+      disabled: !relayAvailable,
+    },
+    {
+      mode: "cloud",
+      title: "Sous-domaine dédié",
+      hint: "Hébergé par SafeLinkHub — pour RB951 et routeurs sans clé USB.",
+      preview: `https://${cloudPreview ?? "votre-routeur.mikhmon.safelinkhub.io"}`,
+      disabled: false,
+    },
+  ];
+  return (
+    <fieldset className="mt-4">
+      <legend className="text-sm font-semibold text-ink">Format de l&apos;adresse MikHmon</legend>
+      <div className="mt-2 grid gap-2">
+        {options.map((option) => {
+          const id = `mikhmon-mode-${routerId}-${option.mode}`;
+          const checked = value === option.mode;
+          return (
+            <label
+              key={option.mode}
+              htmlFor={id}
+              className={`flex gap-3 rounded-xl border px-3.5 py-3 transition-colors ${
+                option.disabled
+                  ? "cursor-not-allowed border-line bg-clay/40 opacity-60"
+                  : checked
+                    ? "cursor-pointer border-slate-deep bg-brand/15"
+                    : "cursor-pointer border-line hover:bg-clay"
+              }`}
+            >
+              <input
+                id={id}
+                type="radio"
+                name={`mikhmon-mode-${routerId}`}
+                value={option.mode}
+                checked={checked}
+                disabled={option.disabled}
+                onChange={() => onChange(option.mode)}
+                className="mt-1 h-4 w-4 shrink-0 accent-slate-deep"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink">{option.title}</span>
+                <span className="block text-xs leading-5 text-ink-soft">{option.hint}</span>
+                <span className="mt-1 block truncate font-mono text-xs text-ink" title={option.preview}>
+                  {option.preview}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 

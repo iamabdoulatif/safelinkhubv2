@@ -34,6 +34,9 @@ import { ensureCloudMikhmonInstance, removeCloudMikhmonInstance } from "./mikhmo
 import { parseEdition } from "./mikhmon-editions";
 import { normalizeCustomSlug } from "./mikhmon-cloud-domain";
 import { resolveMikhmonCloudTunnel } from "./mikhmon-cloud-activation";
+import { supportsContainersFor } from "./device-catalog";
+
+type MikhmonAddressMode = "relay" | "cloud";
 
 export type { BillingPeriod } from "./billing-plans";
 
@@ -89,6 +92,7 @@ async function enablePortForwardForRouter(
   billingPeriodLabel: string | null = null,
   edition: "v6" | "v7" = "v7",
   slug?: string,
+  mikhmonMode: MikhmonAddressMode = "cloud",
 ) {
   const targetPort = getPortForwardTargetPort(service);
   if (!targetPort) return { error: "Unknown service." };
@@ -103,26 +107,33 @@ async function enablePortForwardForRouter(
     return { error: "Router not found." };
   }
   const tunnelIp = router.tunnelIp;
-  const cloudTunnel =
-    service === "mikhmon"
-      ? resolveMikhmonCloudTunnel(router.connectionMethod, tunnelIp)
-      : null;
-  if (service === "mikhmon" && !cloudTunnel?.ready) {
+  /* Deux adresses possibles pour MikHmon. « relay » sert le MikHmon du
+     conteneur du routeur par le relais (sX.safelinkhub.io:port), comme avant
+     MikHmon Online ; « cloud » l'héberge sur le relais sous un sous-domaine
+     dédié — seule voie pour un routeur sans conteneur (RB951, pas d'USB). */
+  const isCloudMikhmon = service === "mikhmon" && mikhmonMode === "cloud";
+  if (service === "mikhmon" && !isCloudMikhmon &&
+      supportsContainersFor(router.supportsContainers, router.model) === false) {
+    return {
+      error: "Ce routeur ne peut pas faire tourner de conteneur : choisissez le sous-domaine dédié.",
+    };
+  }
+  const cloudTunnel = isCloudMikhmon
+    ? resolveMikhmonCloudTunnel(router.connectionMethod, tunnelIp)
+    : null;
+  if (isCloudMikhmon && !cloudTunnel?.ready) {
     return {
       error: "Le routeur doit avoir un tunnel WireGuard, OpenVPN ou L2TP actif pour activer MikHmon Online.",
     };
   }
-  if (!tunnelIp || (service !== "mikhmon" && router.connectionMethod === "direct")) {
+  if (!tunnelIp || (!isCloudMikhmon && router.connectionMethod === "direct")) {
     return {
       error: "Le routeur doit être connecté via WireGuard ou OpenVPN pour activer l'accès direct.",
     };
   }
 
-  /* MikHmon Online est toujours hébergé sur le relais. Cette voie ne crée
-     aucun Container, VETH ni règle NAT sur le routeur, qu'il supporte les
-     conteneurs ou non. */
-  const isCloudMikhmon = service === "mikhmon";
-
+  /* MikHmon Online (cloud) ne crée aucun Container, VETH ni règle NAT sur le
+     routeur : l'instance vit sur le relais. */
   if (isCloudMikhmon) {
     let cloud;
     try {
@@ -196,6 +207,8 @@ async function enablePortForwardForRouter(
       and(
         eq(routerPortForwards.routerId, routerId),
         eq(routerPortForwards.service, service),
+        // Une instance MikHmon cloud partage le service, pas le port cible.
+        eq(routerPortForwards.targetPort, targetPort),
         eq(routerPortForwards.status, "active"),
       ),
     )
@@ -309,6 +322,9 @@ export async function enablePortForward(
   editionRaw?: string,
   /* Sous-domaine choisi à l'écran. Vide = celui dérivé du nom du routeur. */
   slugRaw?: string,
+  /* Adresse MikHmon : « relay » (conteneur du routeur, sX.safelinkhub.io:port)
+     ou « cloud » (sous-domaine dédié). Toute autre valeur = cloud. */
+  mikhmonModeRaw?: string,
 ) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
@@ -385,6 +401,7 @@ export async function enablePortForward(
     isFreeCapped ? freeLabel : null,
     parseEdition(editionRaw),
     slugValide,
+    mikhmonModeRaw === "relay" ? "relay" : "cloud",
   );
 
   const priceFcfa = remoteAccessPriceFcfa(service, billingPeriod);
