@@ -66,8 +66,9 @@ async function runHealthCheck() {
   // unbounded Promise.all stampedes it — 12 concurrent SSH handshakes on the
   // 1-vCPU relay starve each other into spurious "Read timed out" failures
   // that mark healthy routers offline. A small worker pool keeps the relay
-  // load flat; 4 × 30s worst-case waves stay well under maxDuration.
-  const CONCURRENCY = 4;
+  // load flat. Passé à 6 le 11/10/2026 : à 4, un passage de 4 min ne
+  // sondait que 34 des 59 routeurs.
+  const CONCURRENCY = 6;
   const results: Array<{ id: string; name: string; success: boolean; error?: string }> = [];
   let cursor = 0;
   await Promise.all(
