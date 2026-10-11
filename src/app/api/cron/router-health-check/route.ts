@@ -18,8 +18,9 @@ export const maxDuration = 300;
 /* Appelée toutes les 5 min par le cron du VPS. Un passage complet dépassait
    5 min (59 routeurs, hors-ligne lents) : le client abandonnait chaque nuit
    sur « fetch failed ». On répond donc tout de suite et on travaille en
-   arrière-plan, un seul passage à la fois, dans un budget de 4 min. */
-const BUDGET_MS = 4 * 60 * 1000;
+   arrière-plan, un seul passage à la fois, dans un budget de 3 min : avec la
+   traîne des dernières sondes, il tient dans les 5 min entre deux ticks. */
+const BUDGET_MS = 3 * 60 * 1000;
 let running = false;
 
 export async function GET(request: NextRequest) {
