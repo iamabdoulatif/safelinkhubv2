@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, Copy, Loader2, MessageSquareText, Plus, Wifi } from "lucide-react";
 import type { PortalTheme } from "@/lib/portal/theme";
+import { waveAppHref } from "@/lib/portal/browser-href";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
@@ -515,6 +516,20 @@ export default function PaidStatus({
               >
                 <p style={{ margin: "0 0 8px", fontSize: "1rem", fontWeight: 800 }}>
                   Payez dans l’app Wave
+                </p>
+                {/* Schéma d'app (wave://capture/…) : ouvre Wave d'un tap depuis
+                    Safari/Chrome. La fenêtre Wi-Fi d'iOS peut l'ignorer : les
+                    étapes ci-dessous restent le chemin sûr. */}
+                {payUrl && waveAppHref(payUrl) ? (
+                  <a
+                    href={waveAppHref(payUrl) ?? "#"}
+                    style={{ display: "block", margin: "0 0 12px", padding: "13px 16px", border: `2px solid ${INK}`, background: BRAND, color: INK, fontSize: "1rem", fontWeight: 800, textAlign: "center", textDecoration: "none" }}
+                  >
+                    Ouvrir l’app Wave
+                  </a>
+                ) : null}
+                <p style={{ margin: "0 0 6px", fontSize: ".82rem", color: INK_SOFT }}>
+                  Si rien ne s’ouvre :
                 </p>
                 <ol style={{ margin: 0, paddingLeft: 20, fontSize: ".9rem", lineHeight: 1.55 }}>
                   <li>

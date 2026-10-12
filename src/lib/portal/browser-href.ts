@@ -25,3 +25,16 @@ export function isCaptiveBrowser(userAgent: string): boolean {
   const androidCaptive = /Android/i.test(userAgent) && /;\s*wv\)/i.test(userAgent);
   return iosCaptive || androidCaptive;
 }
+
+/** Lien qui ouvre l'app Wave directement sur un checkout — ce que fait la
+ * page pay.wave.com elle-même (`location.href = 'wave://capture/<url>'`,
+ * relevé le 12/10/2026). null si ce n'est pas un checkout Wave. */
+export function waveAppHref(checkoutUrl: string): string | null {
+  try {
+    const u = new URL(checkoutUrl);
+    if (u.hostname !== "pay.wave.com") return null;
+    return `wave://capture/${checkoutUrl}`;
+  } catch {
+    return null;
+  }
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { browserHref, isCaptiveBrowser } from "./browser-href";
+import { browserHref, isCaptiveBrowser, waveAppHref } from "./browser-href";
 
 const URL_ = "https://safelinkhub.io/portal/pay?orderId=abc&slug=yahya";
 const IOS_CNA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
@@ -28,4 +28,11 @@ test("isCaptiveBrowser : CNA iOS et WebView Android oui, Safari et desktop non",
   assert.equal(isCaptiveBrowser(ANDROID_WV), true);
   assert.equal(isCaptiveBrowser(IOS_SAFARI), false);
   assert.equal(isCaptiveBrowser(DESKTOP), false);
+});
+
+test("waveAppHref : schéma wave://capture pour pay.wave.com seulement", () => {
+  const u = "https://pay.wave.com/c/cos-abc?a=1000&c=XOF";
+  assert.equal(waveAppHref(u), `wave://capture/${u}`);
+  assert.equal(waveAppHref("https://checkout.paystack.com/x"), null);
+  assert.equal(waveAppHref("pas une url"), null);
 });
