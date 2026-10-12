@@ -12,6 +12,10 @@ type PaidSearchParams = {
   accent?: string;
   surface?: string;
   text?: string;
+  /** Voie de paiement ouverte (mini-navigateur captif) : consignes en tête. */
+  lane?: string;
+  sms?: string;
+  pay?: string;
 };
 
 export default async function PortalPaidPage({
@@ -28,6 +32,9 @@ export default async function PortalPaidPage({
       orderId={params.orderId?.trim() ?? ""}
       slug={params.slug?.trim() ?? ""}
       theme={theme}
+      lane={params.lane === "1"}
+      smsSent={params.sms === "1"}
+      payUrl={/^https:\/\//i.test(params.pay ?? "") ? params.pay : undefined}
     />
   );
 }

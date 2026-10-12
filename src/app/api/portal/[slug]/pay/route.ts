@@ -9,7 +9,7 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { organizations, packages, portalOrders } from "@/lib/db/schema";
+import { organizations, packages, portalOrders, routers } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import {
   getOrgGeniusCreds,
@@ -21,6 +21,10 @@ import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
 import { prewarmPortalVoucherProfile } from "@/lib/portal/fulfill";
 import { appendPortalTheme, portalThemeFromUnknown } from "@/lib/portal/theme";
+import { connectToRouter } from "@/lib/mikrotik/router-sync";
+import { openPaymentLane } from "@/lib/mikrotik/payment-lane";
+import { normalizeMac } from "@/lib/portal/fulfill";
+import { isOrgSmsEnabled, sendOrgSms } from "@/lib/sms/send";
 
 // Routage des rails sur GeniusPay v3 (geniuspay.ci), vérifié le 2026-07-23 :
 //  • "wave"                → rail direct pay.wave.com (fiable en captif)
@@ -78,6 +82,8 @@ export async function POST(
       paymentReference: portalOrders.paymentReference,
       priceCents: portalOrders.priceCents,
       phone: portalOrders.phone,
+      mac: portalOrders.mac,
+      routerId: portalOrders.routerId,
       packageName: packages.name,
     })
     .from(portalOrders)
@@ -203,5 +209,49 @@ export async function POST(
     return corsJson({ error: "Paiement créé mais commande non mise à jour." }, { status: 500 });
   }
 
-  return corsJson({ checkoutUrl: payment.paymentUrl });
+  // VOIE DE PAIEMENT (mini-navigateur captif) : session hotspot restreinte
+  // pour que l'app Wave ait du réseau et que iOS affiche « Terminé », + lien
+  // du checkout par SMS si la passerelle de l'org est active. Best-effort :
+  // sans voie sur le routeur (profil absent), la page continue comme avant.
+  // Voir payment-lane.ts.
+  let lane = false;
+  let smsSent = false;
+  if (body.captive === true && order.mac && order.routerId) {
+    const mac = normalizeMac(order.mac);
+    const [router] = await db
+      .select()
+      .from(routers)
+      .where(and(eq(routers.id, order.routerId), eq(routers.orgId, org.id)))
+      .limit(1);
+    if (router) {
+      try {
+        const client = await connectToRouter(router);
+        try {
+          lane = await openPaymentLane(client, mac);
+        } finally {
+          client.close();
+        }
+      } catch (e) {
+        console.error(
+          JSON.stringify({
+            level: "warn",
+            msg: "payment lane open failed",
+            route: "/api/portal/[slug]/pay",
+            orderId: order.id,
+            error: e instanceof Error ? e.message : String(e),
+          }),
+        );
+      }
+    }
+    if (lane && (await isOrgSmsEnabled(org.id))) {
+      const sms = await sendOrgSms({
+        orgId: org.id,
+        to: order.phone,
+        content: `WiFi ${order.packageName ?? ""} : touchez ce lien pour payer ${payment.paymentUrl}`.replace(/\s+/g, " "),
+      });
+      smsSent = sms.ok;
+    }
+  }
+
+  return corsJson({ checkoutUrl: payment.paymentUrl, lane, smsSent });
 }

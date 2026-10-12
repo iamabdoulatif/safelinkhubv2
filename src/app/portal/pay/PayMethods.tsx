@@ -84,9 +84,14 @@ export default function PayMethods({
       const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, method, theme }),
+        body: JSON.stringify({ orderId, method, theme, captive }),
       });
-      const data = (await res.json()) as { checkoutUrl?: string; error?: string };
+      const data = (await res.json()) as {
+        checkoutUrl?: string;
+        error?: string;
+        lane?: boolean;
+        smsSent?: boolean;
+      };
       if (!res.ok || !data.checkoutUrl) {
         throw new Error(data.error || "Paiement impossible. Réessayez.");
       }
@@ -96,6 +101,17 @@ export default function PayMethods({
       paidUrl.searchParams.set("accent", theme.accent);
       paidUrl.searchParams.set("surface", theme.surface);
       paidUrl.searchParams.set("text", theme.text);
+      // Voie de paiement ouverte par le routeur : l'app Wave a du réseau et la
+      // fenêtre captive va proposer « Terminé ». On reste sur NOTRE page de
+      // suivi (consignes + sondage du statut) au lieu de charger le checkout
+      // dans un mini-navigateur qui ne sait pas lancer d'app.
+      if (data.lane) {
+        paidUrl.searchParams.set("lane", "1");
+        if (data.smsSent) paidUrl.searchParams.set("sms", "1");
+        paidUrl.searchParams.set("pay", data.checkoutUrl);
+        window.location.assign(paidUrl);
+        return;
+      }
       if (win && !win.closed) {
         win.location.href = data.checkoutUrl; // Safari (nouvel onglet) → checkout OK
         // GeniusPay v3 ne redirige PAS vers success_url après paiement (le client

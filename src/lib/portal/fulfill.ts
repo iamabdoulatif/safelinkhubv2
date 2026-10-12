@@ -16,6 +16,7 @@ import { dataCapWords } from "@/lib/mikrotik/voucher-data-cap";
 import { reconcileWalledGardenOnce } from "@/lib/mikrotik/walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "@/lib/mikrotik/walled-garden-config";
 import { ensureHotspotLoginByCode } from "@/lib/mikrotik/hotspot-login-mode";
+import { closePaymentLane } from "@/lib/mikrotik/payment-lane";
 import { persistRouterLoginHost } from "@/lib/portal/router-login-url";
 import { getAppUrl } from "@/lib/net/app-url";
 import { shouldAttemptPortalSms } from "@/lib/portal/sms-delivery";
@@ -452,6 +453,9 @@ async function activatePortalHotspotSession(
         hosts.find((h) => (h["mac-address"] ?? "").toUpperCase() === mac)?.["address"] ??
         hosts[0]?.["address"];
     }
+    // La voie de paiement (session restreinte ouverte par /pay) doit être
+    // fermée AVANT le login du vrai code, sinon elle masquerait le ticket.
+    await closePaymentLane(client, mac);
     if (ip) {
       await client.talk(
         [
