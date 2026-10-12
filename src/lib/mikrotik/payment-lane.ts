@@ -10,7 +10,7 @@
 // Wi-Fi.
 //
 // Mécanique RouterOS :
-//   • profil hotspot `slh-paiement` : session de 15 min, chaque client logué
+//   • profil hotspot `slh-paiement` : session de 10 min, chaque client logué
 //     est inscrit dans l'address-list `slh-paiement` ; PAS de mac-cookie,
 //     sinon un client qui abandonne serait re-logué dans la voie restreinte
 //     (sans portail ni internet) à chacun de ses retours ;
@@ -22,7 +22,7 @@
 //     (`/ip/hotspot/active/login`, comme l'auto-login après paiement) ;
 //   • fermeture : à l'honneur de la commande (fulfill), avant le login du
 //     vrai code — sinon la session restreinte masquerait le ticket. Le user
-//     porte limit-uptime=15m : abandonné, il ne peut plus servir.
+//     porte limit-uptime=10m : abandonné, il ne peut plus servir.
 //
 // Déploiement : `ensurePaymentLane` (API) est appelé par la réconciliation
 // automatique du walled-garden (walled-garden.ts) sur chaque routeur
@@ -36,7 +36,7 @@ export const PAYMENT_LANE_PROFILE = "slh-paiement";
 export const PAYMENT_LANE_LIST = "slh-paiement";
 export const PAYMENT_LANE_OK_LIST = "slh-paiement-ok";
 export const PAYMENT_LANE_COMMENT = "safelinkhub-paiement";
-export const PAYMENT_LANE_SESSION = "15m";
+export const PAYMENT_LANE_SESSION = "10m";
 
 // Sondes de connectivité : tant qu'elles échouent, iOS garde la fenêtre captive
 // ouverte (et Android son avis « réseau sans internet »). Autorisées SEULEMENT
@@ -100,6 +100,18 @@ async function removeByComment(client: RouterOSClient, path: string, timeoutMs: 
   }
 }
 
+/** Supprime les cookies hotspot (MAC ou HTTP) d'un user de la voie : sans
+ * cookie, un paiement abandonné ne reconnecte pas le téléphone en silence —
+ * à la fin de la session (10 min) le portail revient. */
+async function removeLaneCookies(client: RouterOSClient, user: string, timeoutMs: number) {
+  const rows = await client
+    .talk(["/ip/hotspot/cookie/print", `?user=${user}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  for (const row of rows) {
+    if (row[".id"]) await client.talk(["/ip/hotspot/cookie/remove", `=numbers=${row[".id"]}`], timeoutMs).catch(() => {});
+  }
+}
+
 /**
  * Installe/actualise la voie par l'API (idempotent : purge par commentaire puis
  * repose). Ne fait RIEN sur un routeur sans hotspot ni sur RouterOS 6 (les
@@ -122,6 +134,8 @@ export async function ensurePaymentLane(
     `=session-timeout=${PAYMENT_LANE_SESSION}`,
     "=keepalive-timeout=2m",
     "=shared-users=1",
+    // Surtout PAS de mac-cookie-timeout : RouterOS réactive add-mac-cookie
+    // dès qu'on le définit (constaté sur RUE-NICOLAS, 7.23.1).
     "=add-mac-cookie=no",
   ];
   const [profile] = await client
@@ -131,6 +145,15 @@ export async function ensurePaymentLane(
     await client.talk(["/ip/hotspot/user/profile/set", `=.id=${profile[".id"]}`, ...profileProps], timeoutMs);
   } else {
     await client.talk(["/ip/hotspot/user/profile/add", `=name=${PAYMENT_LANE_PROFILE}`, ...profileProps], timeoutMs);
+  }
+
+  // Nettoyage des voies déjà ouvertes : cookies laissés par une version
+  // antérieure (réparation du login par MAC qui forçait add-mac-cookie=yes).
+  const laneUsers = await client
+    .talk(["/ip/hotspot/user/print", `?comment=${PAYMENT_LANE_COMMENT}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  for (const u of laneUsers) {
+    if (u.name) await removeLaneCookies(client, u.name, timeoutMs);
   }
 
   await removeByComment(client, "/ip/dns/static", timeoutMs);
@@ -216,7 +239,7 @@ export async function openPaymentLane(
       `=name=${user}`,
       `=password=${user}`,
       `=profile=${PAYMENT_LANE_PROFILE}`,
-      // Crédit de 15 min au total : un user abandonné ne rouvre plus rien.
+      // Crédit de 10 min au total : un user abandonné ne rouvre plus rien.
       `=limit-uptime=${PAYMENT_LANE_SESSION}`,
       `=comment=${PAYMENT_LANE_COMMENT}`,
     ],
@@ -231,6 +254,8 @@ export async function openPaymentLane(
     ["/ip/hotspot/active/login", `=user=${user}`, `=password=${user}`, `=ip=${ip}`, `=mac-address=${mac}`],
     timeoutMs,
   );
+  // Ceinture : aucun cookie ne doit survivre à la session de paiement.
+  await removeLaneCookies(client, user, timeoutMs);
   return true;
 }
 
@@ -241,6 +266,7 @@ export async function closePaymentLane(
   timeoutMs = 4000,
 ): Promise<void> {
   const user = paymentLaneUser(mac);
+  await removeLaneCookies(client, user, timeoutMs);
   for (const path of ["/ip/hotspot/active", "/ip/hotspot/user"]) {
     const key = path.endsWith("active") ? "user" : "name";
     const rows = await client

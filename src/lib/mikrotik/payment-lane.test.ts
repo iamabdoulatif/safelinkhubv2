@@ -9,7 +9,7 @@ test("paymentLaneUser : dérivé du MAC, sans séparateurs", () => {
 test("paymentLaneScriptLines : profil, sondes en FWD, accept avant reject, en tête du forward", () => {
   const lines = paymentLaneScriptLines(["188.114.96.2"], "safelinkhub-walled-garden");
   const script = lines.join("\n");
-  assert.match(script, /user profile add name="slh-paiement" address-list="slh-paiement" session-timeout=15m/);
+  assert.match(script, /user profile add name="slh-paiement" address-list="slh-paiement" session-timeout=10m/);
   assert.match(script, /dns static add name="captive\.apple\.com" type=FWD .*address-list="slh-paiement-ok"/);
   assert.match(script, /address-list add list="slh-paiement-ok" address=188\.114\.96\.2/);
   // Ajout inversé : le reject est ajouté AVANT les accept pour finir DERRIÈRE eux.

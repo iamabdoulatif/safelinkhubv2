@@ -17,6 +17,7 @@
 // n'ajoute QUE ce qui manque. Idempotent : ne /set que si une méthode manque.
 // Best-effort par profil : ne lève pas. Module serveur uniquement.
 
+import { PAYMENT_LANE_PROFILE } from "./payment-lane";
 import type { RouterOSClient } from "./client";
 
 // Le cookie navigateur n'est qu'un confort : l'autorisation durable roaming
@@ -130,6 +131,11 @@ export async function ensureHotspotLoginByCode(
     .catch(() => [] as Record<string, string>[]);
   for (const voucherProfile of voucherProfiles) {
     const id = voucherProfile[".id"];
+    // La voie de paiement (payment-lane.ts) ne doit JAMAIS laisser de cookie :
+    // un paiement abandonné reconnecterait le téléphone 52 semaines dans une
+    // session restreinte, sans portail. Les profils de tickets, eux, gardent
+    // leur cookie long (roaming).
+    if (voucherProfile.name === PAYMENT_LANE_PROFILE) continue;
     const needsMacCookie = !isRouterOsEnabled(voucherProfile["add-mac-cookie"]);
     const needsLongMacCookie = voucherProfile["mac-cookie-timeout"] !== ROAMING_COOKIE_LIFETIME;
     if (!id || (!needsMacCookie && !needsLongMacCookie)) continue;
