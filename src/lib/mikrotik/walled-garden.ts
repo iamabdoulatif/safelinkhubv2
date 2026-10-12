@@ -9,11 +9,10 @@
 // rail nécessaire (les paiements USSD ne passent pas par le web et n'en ont pas
 // besoin).
 
-import { promises as dnsPromises } from "node:dns";
 import type { RouterOSClient } from "./client";
 import { APP_PIN_COMMENT, pinCommands, sanitizeAppAddresses } from "./app-ip-pin";
 import { ensurePaymentLane } from "./payment-lane";
-import { resolveAppAddresses } from "@/lib/net/app-addresses";
+import { resolveAppAddresses, resolveHostsIPv4 } from "@/lib/net/app-addresses";
 
 export const WALLED_GARDEN_COMMENT = "safelinkhub-walled-garden";
 
@@ -227,10 +226,7 @@ export async function resolvePinnedPaymentAddresses(disabledHosts: string[] = []
   const hosts = Object.entries(PINNED_PAYMENT_HOSTS)
     .filter(([key]) => !disabled.has(key))
     .flatMap(([, list]) => list);
-  const results = await Promise.all(
-    hosts.map((h) => dnsPromises.resolve4(h).catch(() => [] as string[])),
-  );
-  return sanitizeAppAddresses(results.flat(), 16).sort();
+  return resolveHostsIPv4(hosts);
 }
 
 /** Résolveur vers lequel le routeur transfère ces domaines (une entrée DNS

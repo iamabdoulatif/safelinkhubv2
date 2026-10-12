@@ -32,3 +32,10 @@ export async function resolveAppAddresses(host: string): Promise<string[]> {
     return cache?.host === cible ? cache.addresses : [];
   }
 }
+
+/** Adresses IPv4 de plusieurs hôtes, dédoublonnées et triées ; un hôte qui ne
+ * résout pas est ignoré (épinglage best-effort des rails de paiement). */
+export async function resolveHostsIPv4(hosts: readonly string[]): Promise<string[]> {
+  const results = await Promise.all(hosts.map((h) => dns.resolve4(h).catch(() => [] as string[])));
+  return sanitizeAppAddresses(results.flat(), 16).sort();
+}
