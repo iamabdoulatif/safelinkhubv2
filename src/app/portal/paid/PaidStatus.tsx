@@ -6,7 +6,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, Copy, Loader2, MessageSquareText, Plus, Wifi } from "lucide-react";
-import type { PortalTheme } from "@/lib/portal/theme";
+import { SLATE_PORTAL_THEME, portalCssVars, type PortalTheme } from "@/lib/portal/theme";
+import styles from "../PortalExperience.module.css";
+import { Stepper } from "../Stepper";
 import { waveAppHref } from "@/lib/portal/browser-href";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
@@ -33,14 +35,6 @@ function buildConnectUrl(loginUrl: string, code: string): string {
   return url.toString();
 }
 
-const CARD: React.CSSProperties = {
-  maxWidth: 380,
-  width: "100%",
-  textAlign: "center",
-  background: PAPER,
-  border: `2px solid ${INK}`,
-  padding: 28,
-};
 
 export default function PaidStatus({
   isError,
@@ -62,6 +56,16 @@ export default function PaidStatus({
   payUrl?: string;
 }) {
   const [linkCopied, setLinkCopied] = useState(false);
+  const waveHref = payUrl ? waveAppHref(payUrl) : null;
+  // Un tap de moins : on tente d'ouvrir Wave dès l'arrivée, comme le fait la
+  // page pay.wave.com elle-même. Le bouton reste si iOS a ignoré la tentative.
+  useEffect(() => {
+    if (!lane || !waveHref) return;
+    const t = setTimeout(() => {
+      window.location.href = waveHref;
+    }, 600);
+    return () => clearTimeout(t);
+  }, [lane, waveHref]);
   function copyPayUrl() {
     if (!payUrl) return;
     const done = () => {
@@ -274,20 +278,23 @@ export default function PaidStatus({
     return () => clearInterval(timer);
   }, [phase, code, loginUrl]);
 
+  // Le thème du point de vente est conservé dans l'URL pour les pages
+  // suivantes ; cette page-ci porte la charte SafeLinkHub (même squelette que
+  // /portal/pay).
+  void theme;
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-        fontFamily: "system-ui, sans-serif",
-        background: theme?.surface ?? PAPER,
-        color: theme?.text ?? INK,
-      }}
-    >
-      <div style={{ ...CARD, background: theme?.surface ?? PAPER, borderColor: theme?.text ?? INK }}>
+    <main className={styles.shell} style={portalCssVars(SLATE_PORTAL_THEME) as React.CSSProperties}>
+      <div className={styles.frame}>
+        <div className={styles.statusRow}>
+          <span className={styles.brand}>
+            <span aria-hidden="true" className={styles.brandMark} /> SafeLinkHub
+          </span>
+          <span className={styles.statusPill}>
+            {phase === "fulfilled" ? "Paiement reçu" : phase === "failed" ? "Paiement" : "Paiement en cours"}
+          </span>
+        </div>
+      <div className={styles.card} style={{ textAlign: "center" }}>
+        <Stepper current={phase === "fulfilled" ? 3 : 2} />
         {phase === "fulfilled" ? (
           <>
             <div style={{ marginBottom: 8 }}>
@@ -505,68 +512,55 @@ export default function PaidStatus({
         ) : (
           <>
             {lane ? (
-              <div
-                style={{
-                  textAlign: "left",
-                  margin: "0 0 18px",
-                  padding: 14,
-                  border: `2px solid ${INK}`,
-                  background: CLAY,
-                }}
-              >
-                <p style={{ margin: "0 0 8px", fontSize: "1rem", fontWeight: 800 }}>
-                  Payez dans l’app Wave
-                </p>
-                {/* Schéma d'app (wave://capture/…) : ouvre Wave d'un tap depuis
-                    Safari/Chrome. La fenêtre Wi-Fi d'iOS peut l'ignorer : les
-                    étapes ci-dessous restent le chemin sûr. */}
-                {payUrl && waveAppHref(payUrl) ? (
+              <div style={{ textAlign: "left", margin: "0 0 18px" }}>
+                {waveHref ? (
                   <a
-                    href={waveAppHref(payUrl) ?? "#"}
-                    style={{ display: "block", margin: "0 0 12px", padding: "13px 16px", border: `2px solid ${INK}`, background: BRAND, color: INK, fontSize: "1rem", fontWeight: 800, textAlign: "center", textDecoration: "none" }}
+                    href={waveHref}
+                    style={{ display: "block", padding: "15px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: BRAND, color: INK, fontSize: "1.05rem", fontWeight: 800, textAlign: "center", textDecoration: "none", boxShadow: `4px 4px 0 ${INK}` }}
                   >
                     Ouvrir l’app Wave
                   </a>
                 ) : null}
-                <p style={{ margin: "0 0 6px", fontSize: ".82rem", color: INK_SOFT }}>
-                  Si rien ne s’ouvre :
+                <p style={{ margin: "12px 0 0", fontSize: ".86rem", color: INK_SOFT, lineHeight: 1.5, textAlign: "center" }}>
+                  Validez le paiement dans Wave, puis revenez ici : votre code s’affiche tout seul.
                 </p>
-                <ol style={{ margin: 0, paddingLeft: 20, fontSize: ".9rem", lineHeight: 1.55 }}>
-                  <li>
-                    Touchez <b>Terminé</b> en haut de cette fenêtre.
-                  </li>
-                  {laneSmsSent ? (
+                <details style={{ marginTop: 10, fontSize: ".84rem" }}>
+                  <summary style={{ cursor: "pointer", color: INK_SOFT, textAlign: "center" }}>
+                    Wave ne s’ouvre pas ?
+                  </summary>
+                  <ol style={{ margin: "8px 0 0", paddingLeft: 20, lineHeight: 1.55 }}>
                     <li>
-                      Ouvrez le <b>SMS</b> reçu et touchez le lien : l’app Wave s’ouvre.
+                      Touchez <b>Terminé</b> en haut de cette fenêtre.
                     </li>
-                  ) : (
-                    <li>
-                      Copiez ce lien, ouvrez <b>Safari</b> et collez-le : l’app Wave s’ouvre.
-                      {payUrl ? (
-                        <span style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                          <input
-                            readOnly
-                            aria-label="Lien de paiement Wave"
-                            value={payUrl}
-                            onFocus={(e) => e.currentTarget.select()}
-                            style={{ flex: 1, minWidth: 0, padding: "8px 10px", border: `1px solid ${INK}`, fontSize: ".78rem", background: PAPER, color: INK }}
-                          />
-                          <button
-                            type="button"
-                            onClick={copyPayUrl}
-                            style={{ padding: "8px 12px", border: `2px solid ${INK}`, background: BRAND, color: INK, fontWeight: 800, fontSize: ".85rem", whiteSpace: "nowrap" }}
-                          >
-                            {linkCopied ? "Copié" : "Copier"}
-                          </button>
-                        </span>
-                      ) : null}
-                    </li>
-                  )}
-                  <li>Validez le paiement : votre code Wi-Fi arrive ensuite (ici et par SMS).</li>
-                </ol>
-                <p style={{ margin: "8px 0 0", fontSize: ".74rem", color: INK_SOFT }}>
-                  Ce Wi-Fi laisse passer l’app Wave pendant 15 minutes.
-                </p>
+                    {laneSmsSent ? (
+                      <li>
+                        Ouvrez le <b>SMS</b> reçu et touchez le lien.
+                      </li>
+                    ) : (
+                      <li>
+                        Copiez ce lien et collez-le dans <b>Safari</b>.
+                        {payUrl ? (
+                          <span style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                            <input
+                              readOnly
+                              aria-label="Lien de paiement Wave"
+                              value={payUrl}
+                              onFocus={(e) => e.currentTarget.select()}
+                              style={{ flex: 1, minWidth: 0, padding: "8px 10px", border: `1px solid ${INK}`, borderRadius: 8, fontSize: ".78rem", background: PAPER, color: INK }}
+                            />
+                            <button
+                              type="button"
+                              onClick={copyPayUrl}
+                              style={{ padding: "8px 12px", border: `2px solid ${INK}`, borderRadius: 8, background: BRAND, color: INK, fontWeight: 800, fontSize: ".85rem", whiteSpace: "nowrap" }}
+                            >
+                              {linkCopied ? "Copié" : "Copier"}
+                            </button>
+                          </span>
+                        ) : null}
+                      </li>
+                    )}
+                  </ol>
+                </details>
               </div>
             ) : null}
             <style>{`@keyframes slh-spin{to{transform:rotate(360deg)}}`}</style>
@@ -578,9 +572,13 @@ export default function PaidStatus({
               />
             </div>
             <h1 style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0 0 8px" }}>
-              {slowWait ? "Le paiement prend un peu plus de temps" : "Confirmation du paiement…"}
+              {slowWait
+                ? "Le paiement prend un peu plus de temps"
+                : lane
+                  ? "En attente de votre paiement Wave…"
+                  : "Confirmation du paiement…"}
             </h1>
-            <p style={{ color: INK_SOFT, fontSize: ".95rem", margin: "0 0 4px", lineHeight: 1.5 }}>
+            <p style={{ display: lane && !slowWait ? "none" : undefined, color: INK_SOFT, fontSize: ".95rem", margin: "0 0 4px", lineHeight: 1.5 }}>
               {slowWait ? (
                 <>
                   Si vous venez de payer, patientez encore un instant. Si votre code ne s’affiche
@@ -619,6 +617,7 @@ export default function PaidStatus({
             )}
           </>
         )}
+      </div>
       </div>
     </main>
   );

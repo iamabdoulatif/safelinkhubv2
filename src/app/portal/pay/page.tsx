@@ -23,6 +23,7 @@ import {
 } from "@/lib/portal/theme";
 import PayMethods from "./PayMethods";
 import styles from "../PortalExperience.module.css";
+import { Stepper } from "../Stepper";
 
 function fcfa(n: number): string {
   return `${n.toLocaleString("fr-FR")} FCFA`;
@@ -105,6 +106,7 @@ export default async function PortalPayPage({
     <Shell>
       <p className={styles.eyebrow}>Achat Wi-Fi</p>
       <h1 className={styles.title}>Payer votre forfait</h1>
+      <Stepper current={2} />
       <div className={styles.planSummary}>
         <p className={styles.planLabel}>Forfait sélectionné</p>
         <p className={styles.planName}>{order.packageName ?? "Forfait Wi-Fi"}</p>
