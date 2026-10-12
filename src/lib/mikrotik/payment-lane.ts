@@ -232,28 +232,56 @@ export async function openPaymentLane(
 ): Promise<boolean> {
   if (!(await hasPaymentLane(client, timeoutMs))) return false;
   const user = paymentLaneUser(mac);
-  await closePaymentLane(client, mac, timeoutMs);
-  await client.talk(
-    [
-      "/ip/hotspot/user/add",
-      `=name=${user}`,
-      `=password=${user}`,
-      `=profile=${PAYMENT_LANE_PROFILE}`,
-      // Crédit de 10 min au total : un user abandonné ne rouvre plus rien.
-      `=limit-uptime=${PAYMENT_LANE_SESSION}`,
-      `=comment=${PAYMENT_LANE_COMMENT}`,
-    ],
-    timeoutMs,
-  );
+  // Idempotent et sans coupure : deux ouvertures peuvent se croiser (page qui
+  // prépare Wave + tap). On ne déconnecte JAMAIS une voie déjà active — la
+  // couper pendant que Chrome charge Wave faisait échouer le paiement
+  // (« already have user… », « IP … already logged in », RUE-NICOLAS 12/10).
+  const active = await client
+    .talk(["/ip/hotspot/active/print", `?user=${user}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  if (active.length > 0) return true;
+
+  const [existing] = await client
+    .talk(["/ip/hotspot/user/print", `?name=${user}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  if (existing?.[".id"]) {
+    // Ré-ouverture : on remet le crédit de 10 min à zéro.
+    await client
+      .talk(["/ip/hotspot/user/reset-counters", `=numbers=${existing[".id"]}`], timeoutMs)
+      .catch(() => {});
+  } else {
+    await client
+      .talk(
+        [
+          "/ip/hotspot/user/add",
+          `=name=${user}`,
+          `=password=${user}`,
+          `=profile=${PAYMENT_LANE_PROFILE}`,
+          // Crédit de 10 min au total : un user abandonné ne rouvre plus rien.
+          `=limit-uptime=${PAYMENT_LANE_SESSION}`,
+          `=comment=${PAYMENT_LANE_COMMENT}`,
+        ],
+        timeoutMs,
+      )
+      .catch((err: unknown) => {
+        // Créé entre-temps par une ouverture concurrente : sans gravité.
+        if (!/already have user/i.test(err instanceof Error ? err.message : "")) throw err;
+      });
+  }
   const hosts = await client
     .talk(["/ip/hotspot/host/print", `?mac-address=${mac}`], timeoutMs)
-    .catch(() => [] as Record<string, string>[]);
+    .catch(() => [] as Row[]);
   const ip = hosts[0]?.["address"];
   if (!ip) return false;
-  await client.talk(
-    ["/ip/hotspot/active/login", `=user=${user}`, `=password=${user}`, `=ip=${ip}`, `=mac-address=${mac}`],
-    timeoutMs,
-  );
+  try {
+    await client.talk(
+      ["/ip/hotspot/active/login", `=user=${user}`, `=password=${user}`, `=ip=${ip}`, `=mac-address=${mac}`],
+      timeoutMs,
+    );
+  } catch (err) {
+    // Déjà connecté (ouverture concurrente) : la voie est ouverte.
+    if (!/already logged in/i.test(err instanceof Error ? err.message : "")) throw err;
+  }
   // Ceinture : aucun cookie ne doit survivre à la session de paiement.
   await removeLaneCookies(client, user, timeoutMs);
   return true;

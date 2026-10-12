@@ -58,6 +58,10 @@ export default function PayMethods({
   // qr.pay.wave.com — voir /api/portal/[slug]/wave-prepare.
   const [wavePrep, setWavePrep] = useState<{ orderId: string; checkoutUrl: string; lane: boolean } | null>(null);
   const [waveLaunched, setWaveLaunched] = useState(false);
+  // En fenêtre captive, la tuile Wave ATTEND la préparation (quelques
+  // secondes) plutôt que de lancer l'ancien parcours en cas de tap précoce.
+  // Elle ne repasse en bouton classique qu'en cas d'échec.
+  const [wavePreparing, setWavePreparing] = useState(false);
 
   useEffect(() => {
     // client-only : window absent au rendu serveur.
@@ -69,6 +73,7 @@ export default function PayMethods({
     setCaptive(inCaptive);
     if (!inCaptive) return;
     let alive = true;
+    setWavePreparing(true);
     fetch(`/api/portal/${encodeURIComponent(slug)}/wave-prepare`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -82,6 +87,9 @@ export default function PayMethods({
       })
       .catch(() => {
         /* repli : la tuile Wave garde le parcours classique */
+      })
+      .finally(() => {
+        if (alive) setWavePreparing(false);
       });
     return () => {
       alive = false;
@@ -240,6 +248,24 @@ export default function PayMethods({
         {METHODS.map((m) => {
           const loading = busy === m.id;
           const waveLink = m.id === "wave" && wavePrep ? waveQrHref(wavePrep.checkoutUrl) : null;
+          if (m.id === "wave" && !waveLink && wavePreparing) {
+            return (
+              <button
+                key={m.id}
+                type="button"
+                className={`${styles.railTile} ${styles.railTileFeatured}`}
+                disabled
+                aria-busy
+              >
+                <span className={styles.railBadge}>Le plus rapide</span>
+                <span className={styles.railLogo}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={m.logo} alt="" />
+                </span>
+                <span className={styles.railLabel}>Préparation…</span>
+              </button>
+            );
+          }
           if (waveLink) {
             return (
               <a

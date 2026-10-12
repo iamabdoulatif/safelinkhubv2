@@ -66,30 +66,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     })
     .returning({ id: portalOrders.id });
 
-  // Même chemin que le choix « Wave » classique (routage, pays, URLs de retour).
-  const res = await startPayment(
-    new Request(request.url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: copy.id, method: "wave", theme: body.theme }),
-    }),
-    { params: Promise.resolve({ slug }) },
-  );
+  // Même chemin que le choix « Wave » classique (routage, pays, URLs de retour),
+  // EN PARALLÈLE de l'ouverture de la voie de paiement : enchaînées, les deux
+  // prenaient 7 à 9 s et le client touchait Wave avant (21:54). La voie
+  // n'attend pas le checkout (pas de SMS ici).
+  //
+  // Voie ouverte AVANT le tap : la fenêtre Wi-Fi iOS ne confie un lien au
+  // navigateur (« Ouvrir dans Chrome ? ») que si le téléphone est déjà en
+  // ligne (✓) ; ouverte au tap, la page Wave se chargeait sur place.
+  const [res, laneRes] = await Promise.all([
+    startPayment(
+      new Request(request.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: copy.id, method: "wave", theme: body.theme }),
+      }),
+      { params: Promise.resolve({ slug }) },
+    ),
+    body.captive === true
+      ? openPaymentLaneForOrder(
+          { ...prev, id: copy.id, orgId: org.id, packageName: null, checkoutUrl: "" },
+          { sms: false },
+        )
+      : Promise.resolve({ lane: false, smsSent: false }),
+  ]);
   const data = (await res.json()) as { checkoutUrl?: string; error?: string };
   if (!res.ok || !data.checkoutUrl) {
     return corsJson({ error: data.error || "Préparation Wave impossible." }, { status: 502 });
   }
-  // Voie de paiement ouverte DÈS MAINTENANT, avant le tap : la fenêtre Wi-Fi
-  // iOS ne confie un lien au navigateur (« Ouvrir dans Chrome ? ») que si le
-  // téléphone est déjà en ligne (✓). Ouverte au moment du tap, elle arrivait
-  // trop tard : la fenêtre chargeait Wave sur place et restait bloquée sur
-  // « Ouverture de l'application Wave… » (RUE-NICOLAS, 12/10/2026 19:48).
-  const { lane } =
-    body.captive === true
-      ? await openPaymentLaneForOrder(
-          { ...prev, id: copy.id, orgId: org.id, packageName: null, checkoutUrl: data.checkoutUrl },
-          { sms: false },
-        )
-      : { lane: false };
+  const lane = laneRes.lane;
   return corsJson({ orderId: copy.id, checkoutUrl: data.checkoutUrl, lane });
 }
