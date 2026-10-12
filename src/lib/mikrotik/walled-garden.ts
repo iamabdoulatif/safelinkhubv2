@@ -9,6 +9,7 @@
 // rail nécessaire (les paiements USSD ne passent pas par le web et n'en ont pas
 // besoin).
 
+import { promises as dnsPromises } from "node:dns";
 import type { RouterOSClient } from "./client";
 import { APP_PIN_COMMENT, pinCommands, sanitizeAppAddresses } from "./app-ip-pin";
 import { ensurePaymentLane } from "./payment-lane";
@@ -201,6 +202,37 @@ function isWildcardHost(host: string): boolean {
  * des rails de paiement, acceptée par `walled-garden ip` (443). */
 export const WALLED_GARDEN_ADDRESS_LIST = "safelinkhub-walled-garden";
 
+/**
+ * Hôtes de paiement dont les adresses sont ÉPINGLÉES par SafeLinkHub dans la
+ * liste du walled-garden, en plus de l'alimentation par le DNS du routeur.
+ *
+ * Pourquoi : la liste ne se remplit que quand le routeur VOIT la question DNS.
+ * Un téléphone qui a déjà l'adresse en cache (Chrome, iOS) ne redemande rien :
+ * la connexion part vers une adresse absente de la liste → rejet. Constaté le
+ * 12/10/2026 sur RUE-NICOLAS : qr.pay.wave.com « Ce site est inaccessible »
+ * (ERR_CONNECTION_FAILED) en pleine voie de paiement, aucune trace de Wave
+ * dans le cache DNS du routeur. Wave est derrière une adresse anycast stable
+ * (34.96.118.9) : l'épingler supprime cette dépendance, comme app-ip-pin le
+ * fait pour safelinkhub.io. Clé = joker du catalogue qui les couvre (si l'org
+ * décoche ce joker, on n'épingle pas).
+ */
+const PINNED_PAYMENT_HOSTS: Record<string, string[]> = {
+  "*.wave.com": ["pay.wave.com", "qr.pay.wave.com", "api.wave.com"],
+  "wave.com": ["wave.com"],
+};
+
+/** Adresses IPv4 des hôtes épinglés non décochés (échecs de résolution ignorés). */
+export async function resolvePinnedPaymentAddresses(disabledHosts: string[] = []): Promise<string[]> {
+  const disabled = new Set(disabledHosts);
+  const hosts = Object.entries(PINNED_PAYMENT_HOSTS)
+    .filter(([key]) => !disabled.has(key))
+    .flatMap(([, list]) => list);
+  const results = await Promise.all(
+    hosts.map((h) => dnsPromises.resolve4(h).catch(() => [] as string[])),
+  );
+  return sanitizeAppAddresses(results.flat(), 16).sort();
+}
+
 /** Résolveur vers lequel le routeur transfère ces domaines (une entrée DNS
  * FWD exige un forward-to). Public et déjà remis aux téléphones par le DHCP
  * des routeurs auto-configurés. */
@@ -332,7 +364,8 @@ export async function reconcileWalledGardenOnce(
      cela, un routeur resterait sur une adresse morte jusqu'au redémarrage du
      processus. */
   const adresses = await resolveAppAddresses(appHost).catch(() => [] as string[]);
-  const key = `wg-v5|${walledGardenHosts(appHost, disabledHosts).join(",")}|${adresses.join(",")}`;
+  const pinnedPayment = await resolvePinnedPaymentAddresses(disabledHosts);
+  const key = `wg-v6|${walledGardenHosts(appHost, disabledHosts).join(",")}|${adresses.join(",")}|${pinnedPayment.join(",")}`;
   if (reconciledRouters.get(routerId) === key) return;
   await ensureWalledGarden(client, appHost, disabledHosts);
   // Voie de paiement (session restreinte pour l'app Wave depuis la fenêtre
@@ -382,6 +415,9 @@ export async function ensureWalledGarden(
     ["/ip/hotspot/walled-garden/ip", APP_PIN_COMMENT],
     ["/ip/dns/static", APP_PIN_COMMENT],
     ["/ip/dns/static", WALLED_GARDEN_COMMENT],
+    // Seules NOS entrées statiques (commentaire de gestion) ; les entrées
+    // dynamiques nourries par le DNS portent « created for … » et restent.
+    ["/ip/firewall/address-list", WALLED_GARDEN_COMMENT],
   ] as const) {
     const existing = await client
       .talk([`${path}/print`, `?comment=${comment}`], timeoutMs)
@@ -460,6 +496,24 @@ export async function ensureWalledGarden(
       .catch((err: unknown) => {
         failed.push({
           host: `*.${domain} (DNS FWD)`,
+          reason: err instanceof Error ? err.message : "refus du routeur",
+        });
+      });
+  }
+  for (const address of await resolvePinnedPaymentAddresses(disabledHosts)) {
+    await client
+      .talk(
+        [
+          "/ip/firewall/address-list/add",
+          `=list=${WALLED_GARDEN_ADDRESS_LIST}`,
+          `=address=${address}`,
+          `=comment=${WALLED_GARDEN_COMMENT}`,
+        ],
+        timeoutMs,
+      )
+      .catch((err: unknown) => {
+        failed.push({
+          host: `${address} (épinglage paiement)`,
           reason: err instanceof Error ? err.message : "refus du routeur",
         });
       });

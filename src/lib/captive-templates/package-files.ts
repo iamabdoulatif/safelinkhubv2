@@ -578,7 +578,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
   }
   function hint(msg){
     var h = document.getElementById("slh-hint");
-    if(!h){ h = document.createElement("div"); h.id = "slh-hint"; h.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483000;background:#0f172a;color:#fff;padding:10px 16px;border-radius:10px;font:600 14px system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3);max-width:90%;text-align:center;transition:opacity .3s;"; document.body.appendChild(h); }
+    if(!h){ h = document.createElement("div"); h.id = "slh-hint"; h.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483000;background:#10160F;color:#D6F344;padding:10px 16px;border-radius:10px;font:600 14px system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3);max-width:90%;text-align:center;transition:opacity .3s;"; document.body.appendChild(h); }
     h.textContent = msg; h.style.opacity = "1";
     if(h._t) clearTimeout(h._t);
     h._t = setTimeout(function(){ h.style.opacity = "0"; }, 3200);
@@ -644,7 +644,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
     var o = document.createElement("div");
     o.id = "slh-pay-modal";
     o.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px;";
-    o.innerHTML = '<div style="background:#fff;color:#0f172a;border-radius:14px;max-width:360px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-family:system-ui,sans-serif;">'
+    o.innerHTML = '<div style="background:#fff;color:#10160F;border:2px solid #10160F;border-radius:16px;max-width:360px;width:100%;padding:22px;box-shadow:8px 8px 0 #D6F344;font-family:system-ui,sans-serif;">'
       + '<h3 style="margin:0 0 4px;font-size:1.1rem;">Acheter ' + esc(sel.plan) + '</h3>'
       + '<p style="margin:0 0 16px;font-size:.9rem;color:#64748b;">' + esc(sel.price) + ' &middot; Mobile Money / Carte</p>'
       + '<div data-step="phone">'
@@ -654,12 +654,12 @@ const PORTAL_PAY_SCRIPT = `(function(){
       +     '<input id="slh-phone" type="tel" inputmode="numeric" placeholder="07 00 00 00 00" autocomplete="tel" style="flex:1;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1rem;" />'
       +   '</div>'
       +   '<p style="margin:0 0 6px;font-size:.72rem;color:#94a3b8;">' + (SMS_ON ? 'Premier achat : un code de v&eacute;rification vous sera envoy&eacute; par SMS. Ensuite, plus jamais de code &mdash; paiement direct.' : 'Votre num&eacute;ro sert au paiement Mobile Money. Le code d&#39;acc&egrave;s s&#39;affichera &agrave; l&#39;&eacute;cran juste apr&egrave;s.') + '</p>'
-      +   '<p style="margin:0 0 12px;font-size:.75rem;text-align:center;"><a href="#" id="slh-recover" style="color:#0f172a;text-decoration:underline;">D&eacute;j&agrave; pay&eacute; ? Retrouver mon code</a></p>'
+      +   '<p style="margin:0 0 12px;font-size:.75rem;text-align:center;"><a href="#" id="slh-recover" style="color:#10160F;font-weight:700;text-decoration:underline;">D&eacute;j&agrave; pay&eacute; ? Retrouver mon code</a></p>'
       + '</div>'
       + '<div data-step="otp" style="display:none;">'
       +   '<p style="margin:0 0 8px;font-size:.85rem;">Entrez le code re&ccedil;u par SMS au <b id="slh-otp-to"></b></p>'
       +   '<input id="slh-otp" type="tel" inputmode="numeric" maxlength="6" placeholder="------" autocomplete="one-time-code" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:1.3rem;letter-spacing:.4em;text-align:center;margin-bottom:8px;" />'
-      +   '<button id="slh-otp-resend" type="button" style="background:none;border:0;color:#0ea5e9;font-size:.8rem;padding:0;">Renvoyer le code</button>'
+      +   '<button id="slh-otp-resend" type="button" style="background:none;border:0;color:#3F6212;font-weight:700;font-size:.8rem;padding:0;text-decoration:underline;">Renvoyer le code</button>'
       + '</div>'
       + '<div data-step="pay" style="display:none;">'
       +   '<p id="slh-pay-note" style="margin:0 0 12px;font-size:.9rem;">Num&eacute;ro v&eacute;rifi&eacute;. Appuyez sur <b>Payer</b> pour choisir votre moyen de paiement (Wave, Orange, MTN, carte).</p>'
@@ -671,8 +671,8 @@ const PORTAL_PAY_SCRIPT = `(function(){
       + '</div>'
       + '<div id="slh-status" style="display:none;font-size:.85rem;margin:12px 0 0;"></div>'
       + '<div style="display:flex;gap:8px;margin-top:16px;">'
-      +   '<button id="slh-cancel" type="button" style="flex:1;padding:11px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;font-size:.9rem;">Fermer</button>'
-      +   '<button id="slh-primary" type="button" style="flex:2;padding:11px;border:0;background:#10b981;color:#fff;border-radius:8px;font-size:.9rem;font-weight:600;">' + (SMS_ON ? 'Recevoir le code' : 'Payer') + '</button>'
+      +   '<button id="slh-cancel" type="button" style="flex:1;padding:12px;border:1px solid #10160F;background:#fff;color:#10160F;border-radius:10px;font-size:.9rem;font-weight:600;">Fermer</button>'
+      +   '<button id="slh-primary" type="button" style="flex:2;padding:12px;border:2px solid #10160F;background:#D6F344;color:#10160F;border-radius:10px;font-size:.95rem;font-weight:800;">' + (SMS_ON ? 'Recevoir le code' : 'Payer') + '</button>'
       + '</div>'
       + '</div>';
     document.body.appendChild(o);
@@ -693,7 +693,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       codeEl.addEventListener("click", function(){
         var t = (codeEl.textContent || "").replace(/[^0-9a-zA-Z-]/g, "");
         if(!t || t === "------") return;
-        if(copyText(t)) setStatus("Code copié !", "#10b981");
+        if(copyText(t)) setStatus("Code copié !", "#3F6212");
         else setStatus("Copie impossible — notez le code.", "#b45309");
       });
     }
@@ -802,7 +802,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
           // Le portail captif iOS/Android ne peut PAS ouvrir de nouvel onglet :
           // on redirige la MÊME fenêtre vers la page de paiement hébergée
           // (safelinkhub.io, fiable) où le client choisit son moyen de paiement.
-          setStatus("Redirection vers le paiement...", "#0ea5e9");
+          setStatus("Redirection vers le paiement...", "#3F6212");
           window.location.href = res.j.payUrl || res.j.checkoutUrl;
         })
         .catch(function(err){ primary.disabled = false; primary.textContent = "Payer"; reportErr(err); });
@@ -827,7 +827,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
       show("done");
       primary.disabled = false;
       cancel.style.display = "none";
-      setStatus("Paiement confirmé !", "#10b981");
+      setStatus("Paiement confirmé !", "#3F6212");
       try { localStorage.setItem("safelinkhub_last_ticket", code); } catch(e){}
       setTimeout(function(){ connect(code); }, 1200);
     }
