@@ -22,3 +22,18 @@ export function waveAppHref(checkoutUrl: string): string | null {
     return null;
   }
 }
+
+/** Le même checkout sur qr.pay.wave.com — lien universel Wave (/c/* dans son
+ * apple-app-site-association) : touché à la main, iOS peut le confier
+ * directement à l'app, sans passer par le schéma wave: que la fenêtre Wi-Fi
+ * captive refuse. null si ce n'est pas un checkout Wave. */
+export function waveQrHref(checkoutUrl: string): string | null {
+  try {
+    const u = new URL(checkoutUrl);
+    if (u.hostname !== "pay.wave.com" && u.hostname !== "qr.pay.wave.com") return null;
+    u.hostname = "qr.pay.wave.com";
+    return u.toString();
+  } catch {
+    return null;
+  }
+}

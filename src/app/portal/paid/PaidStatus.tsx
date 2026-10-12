@@ -9,7 +9,7 @@ import { AlertTriangle, Check, CheckCircle2, Copy, Loader2, MessageSquareText, P
 import { SLATE_PORTAL_THEME, portalCssVars, type PortalTheme } from "@/lib/portal/theme";
 import styles from "../PortalExperience.module.css";
 import { Stepper } from "../Stepper";
-import { isCaptiveBrowser, waveAppHref } from "@/lib/portal/browser-href";
+import { isCaptiveBrowser, waveAppHref, waveQrHref } from "@/lib/portal/browser-href";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
@@ -57,6 +57,7 @@ export default function PaidStatus({
 }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const waveHref = payUrl ? waveAppHref(payUrl) : null;
+  const waveQr = payUrl ? waveQrHref(payUrl) : null;
   // Fenêtre « Wi-Fi captif » iOS : elle REFUSE toute adresse `wave:` (« la
   // redirection vers des adresses commençant par wave: est impossible »,
   // RUE-NICOLAS 12/10/2026) — et donc aussi qr.pay.wave.com, qui fait la même
@@ -539,6 +540,17 @@ export default function PaidStatus({
                 <p style={{ margin: "0 0 10px", fontSize: "1.05rem", fontWeight: 800, textAlign: "center" }}>
                   Finissez dans l’app Wave
                 </p>
+                {waveQr ? (
+                  <a
+                    href={waveQr}
+                    style={{ display: "block", margin: "0 0 12px", padding: "15px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: BRAND, color: INK, fontSize: "1.05rem", fontWeight: 800, textAlign: "center", textDecoration: "none", boxShadow: `4px 4px 0 ${INK}` }}
+                  >
+                    Ouvrir dans l’app Wave
+                  </a>
+                ) : null}
+                <p style={{ margin: "0 0 8px", fontSize: ".84rem", color: INK_SOFT, textAlign: "center" }}>
+                  Wave ne s’ouvre pas ? Faites ceci :
+                </p>
                 {laneSmsSent ? (
                   <ol style={{ margin: 0, paddingLeft: 22, fontSize: ".95rem", lineHeight: 1.6 }}>
                     <li>
@@ -555,7 +567,7 @@ export default function PaidStatus({
                       <button
                         type="button"
                         onClick={copyPayUrl}
-                        style={{ display: "block", width: "100%", padding: "15px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: BRAND, color: INK, fontSize: "1.05rem", fontWeight: 800, boxShadow: `4px 4px 0 ${INK}`, cursor: "pointer" }}
+                        style={{ display: "block", width: "100%", padding: "12px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: PAPER, color: INK, fontSize: ".98rem", fontWeight: 800, cursor: "pointer" }}
                       >
                         {linkCopied ? "Lien copié ✓" : "1. Copier le lien de paiement"}
                       </button>

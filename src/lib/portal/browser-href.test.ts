@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isCaptiveBrowser, waveAppHref } from "./browser-href";
+import { isCaptiveBrowser, waveAppHref, waveQrHref } from "./browser-href";
 
 const IOS_CNA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 const IOS_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
@@ -19,4 +19,12 @@ test("waveAppHref : schéma wave://capture pour pay.wave.com seulement", () => {
   assert.equal(waveAppHref(u), `wave://capture/${u}`);
   assert.equal(waveAppHref("https://checkout.paystack.com/x"), null);
   assert.equal(waveAppHref("pas une url"), null);
+});
+
+test("waveQrHref : même checkout sur qr.pay.wave.com", () => {
+  assert.equal(
+    waveQrHref("https://pay.wave.com/c/cos-abc?a=1000&c=XOF"),
+    "https://qr.pay.wave.com/c/cos-abc?a=1000&c=XOF",
+  );
+  assert.equal(waveQrHref("https://checkout.paystack.com/x"), null);
 });
