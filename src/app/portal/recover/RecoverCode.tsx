@@ -1,17 +1,17 @@
 "use client";
 
-// Saisie du numéro → récupération du code d'accès déjà payé. Thème « Bitume »
+// Saisie du numéro → récupération du code d'accès déjà payé. Charte Slate (safelinkhub.io)
 // (moutarde/anthracite, bordures 2px, aplats opaques) + icônes lucide, comme
 // /portal/paid.
 
 import { useState } from "react";
 import { Check, Copy, KeyRound, MessageSquareText, Search, Wifi } from "lucide-react";
 
-const INK = "#1C1917";
-const INK_SOFT = "#57534E";
-const PAPER = "#FBFAF8";
-const CLAY = "#F0EDE6";
-const BRAND = "#EAB308";
+const INK = "#10160F";
+const INK_SOFT = "#5A625A";
+const PAPER = "#FFFFFF";
+const CLAY = "#F3F6EF";
+const BRAND = "#D6F344";
 const OK = "#15803D";
 const ERR = "#C2410C";
 const MONO = "'SFMono-Regular', Consolas, 'Liberation Mono', monospace";

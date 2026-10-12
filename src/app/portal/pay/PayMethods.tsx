@@ -13,14 +13,15 @@
 // (Paramètres → Walled-garden) pour s'ouvrir derrière le portail.
 //
 // Le mini-navigateur des portails captifs (CNA iOS / Android) gère mal les SPA
-// lourdes (checkout Wave/GeniusPay « pompe sur le logo »). D'où le repli « ouvrir
-// dans le navigateur » : /portal/pay est sur safelinkhub.io (walled-garden) donc
-// s'ouvre AUSSI dans Chrome/Safari où le checkout marche. Après paiement, un
-// CODE WiFi s'affiche (+ SMS) : le client le saisit sur le portail pour se
-// connecter.
+// lourdes (checkout Wave/GeniusPay « pompe sur le logo ») et IGNORE window.open.
+// D'où le lien de sortie (browserHref : x-safari-https:// / intent://) qui
+// ouvre /portal/pay dans le vrai navigateur, où le checkout marche. Après
+// paiement, un CODE WiFi s'affiche (+ SMS) : le client le saisit sur le portail.
 
 import { useEffect, useState } from "react";
 import type { PortalTheme } from "@/lib/portal/theme";
+import { browserHref, isCaptiveBrowser } from "@/lib/portal/browser-href";
+import styles from "../PortalExperience.module.css";
 
 type Method = { id: string; label: string; logo: string };
 
@@ -50,24 +51,18 @@ export default function PayMethods({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [pageUrl, setPageUrl] = useState("");
+  const [exitHref, setExitHref] = useState("");
   const [copied, setCopied] = useState(false);
   const [captive, setCaptive] = useState(false);
 
   useEffect(() => {
     // client-only : window absent au rendu serveur.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPageUrl(window.location.href);
-    // Détection du mini-navigateur de portail captif (CNA). Sur iOS le CNA
-    // s'annonce « CaptiveNetworkSupport » OU se distingue de Safari par l'absence
-    // de « Safari » dans l'UA (WebView-like). Sur Android, l'appli de connexion
-    // WiFi est une WebView (« ; wv »). Dans ces contextes, les checkouts de
-    // paiement (Wave/GeniusPay/3DS) échouent souvent (« pompe sur le logo ») →
-    // on pousse d'emblée l'ouverture dans le vrai navigateur.
+    const url = window.location.href;
     const ua = navigator.userAgent || "";
-    const isIOS = /iPhone|iPad|iPod/i.test(ua);
-    const iosCaptive = isIOS && (/CaptiveNetworkSupport/i.test(ua) || !/Safari/i.test(ua));
-    const androidCaptive = /Android/i.test(ua) && /;\s*wv\)/i.test(ua);
-    setCaptive(iosCaptive || androidCaptive);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPageUrl(url);
+    setExitHref(browserHref(url, ua));
+    setCaptive(isCaptiveBrowser(ua));
   }, []);
 
   async function pay(method: string) {
@@ -116,11 +111,6 @@ export default function PayMethods({
     }
   }
 
-  function openInBrowser() {
-    const url = pageUrl || window.location.href;
-    window.open(url, "_blank");
-  }
-
   async function copyLink() {
     const url = pageUrl || window.location.href;
     try {
@@ -132,6 +122,29 @@ export default function PayMethods({
     }
   }
 
+  // Un VRAI lien : window.open est ignoré par le CNA iOS, un <a href> vers un
+  // schéma système (x-safari-https://) est transmis au système.
+  const exitLink = (label: string, className: string) => (
+    <a className={className} href={exitHref || pageUrl || "#"}>
+      {label}
+    </a>
+  );
+
+  const linkRow = (
+    <div className={styles.linkRow}>
+      <input
+        readOnly
+        aria-label="Lien de cette page"
+        className={styles.linkInput}
+        value={pageUrl}
+        onFocus={(e) => e.currentTarget.select()}
+      />
+      <button type="button" className={styles.copyButton} onClick={copyLink}>
+        {copied ? "Copié" : "Copier"}
+      </button>
+    </div>
+  );
+
   return (
     <div>
       {/* ── Portail captif détecté : pousser le vrai navigateur EN PREMIER ──
@@ -139,167 +152,57 @@ export default function PayMethods({
           des checkouts. On met donc l'ouverture navigateur en tête, bien visible,
           AVANT les moyens de paiement — c'est le chemin fiable. */}
       {captive ? (
-        <div
-          style={{
-            margin: "0 0 16px",
-            padding: "14px 14px 16px",
-            border: "2px solid #1C1917",
-            background: "#FEF3C7",
-          }}
-        >
-          <p style={{ margin: "0 0 4px", fontSize: ".95rem", fontWeight: 800, color: "#1C1917" }}>
-            Pour payer, ouvrez dans votre navigateur
+        <section className={styles.captiveBox} aria-labelledby="slh-captive-title">
+          <h2 id="slh-captive-title">Payez dans Safari ou Chrome</h2>
+          <p className={`${styles.copy} ${styles.muted}`} style={{ margin: 0, fontSize: ".88rem" }}>
+            Cette fenêtre Wi-Fi bloque le paiement. Appuyez ci-dessous : votre navigateur
+            s’ouvre sur cette page, vous payez, puis votre <b>code Wi-Fi</b> s’affiche (et
+            arrive par SMS).
           </p>
-          <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#57534E", lineHeight: 1.5 }}>
-            La fenêtre WiFi bloque souvent le paiement. Ouvrez cette page dans{" "}
-            <b>Chrome</b> ou <b>Safari</b>, payez, puis un <b>code WiFi</b> s’affiche (aussi par SMS).
+          {exitLink("Ouvrir dans mon navigateur", `${styles.primaryButton} ${styles.ctaButton}`)}
+          <p className={`${styles.muted}`} style={{ margin: 0, fontSize: ".76rem" }}>
+            Si rien ne s’ouvre : copiez le lien, choisissez « Utiliser sans Internet » puis
+            collez-le dans Chrome ou Safari.
           </p>
-          <button
-            type="button"
-            onClick={openInBrowser}
-            style={{
-              width: "100%",
-              padding: 13,
-              border: "2px solid #1C1917",
-              background: "#1C1917",
-              color: "#FBFAF8",
-              fontSize: "1rem",
-              fontWeight: 800,
-              cursor: "pointer",
-            }}
-          >
-            Ouvrir dans mon navigateur
-          </button>
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <input
-              readOnly
-              value={pageUrl}
-              onFocus={(e) => e.currentTarget.select()}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                padding: "9px 10px",
-                border: "1px solid #D8D2C6",
-                fontSize: ".78rem",
-                color: "#57534E",
-                background: "#FBFAF8",
-              }}
-            />
-            <button
-              type="button"
-              onClick={copyLink}
-              style={{
-                padding: "9px 12px",
-                border: "1px solid #D8D2C6",
-                background: "#FBFAF8",
-                color: "#1C1917",
-                fontSize: ".8rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {copied ? "Copié" : "Copier"}
-            </button>
-          </div>
-          <p style={{ margin: "10px 0 0", fontSize: ".72rem", color: "#57534E", textAlign: "center" }}>
-            Ou continuez ci-dessous (peut ne pas aboutir dans la fenêtre WiFi).
-          </p>
-        </div>
+          {linkRow}
+        </section>
       ) : null}
 
       {/* CTA principal : le checkout hébergé GeniusPay (payment_method omis)
           — la page qui liste tous les moyens ET permet d'en CHANGER en cours
-          de route (même expérience que le checkout des paiements VPN/accès
-          distant — demande opérateur). Les rails directs restent en
-          raccourcis ci-dessous : le forçage par rail fonctionne (confirmé en
-          v66), le hosted ajoute simplement la liberté de changer d'avis sur
-          la page sécurisée. */}
+          de route. Les rails directs restent en raccourcis ci-dessous. */}
       <button
         type="button"
+        className={`${styles.primaryButton} ${captive ? "" : styles.ctaButton}`}
         onClick={() => pay("hosted")}
         disabled={Boolean(busy)}
-        style={{
-          width: "100%",
-          padding: "14px 16px",
-          border: "2px solid #1C1917",
-          background: "#EAB308",
-          color: "#1C1917",
-          fontSize: "1rem",
-          fontWeight: 800,
-          cursor: busy ? "default" : "pointer",
-          opacity: busy && busy !== "hosted" ? 0.5 : 1,
-        }}
+        style={{ width: "100%" }}
       >
         {busy === "hosted" ? "Redirection…" : "Choisir mon moyen de paiement"}
       </button>
-      <p
-        style={{
-          margin: "6px 0 14px",
-          fontSize: ".72rem",
-          color: "#57534E",
-          textAlign: "center",
-        }}
-      >
+      <p className={styles.muted} style={{ margin: "8px 0 0", fontSize: ".78rem", textAlign: "center" }}>
         Wave, Orange Money, MTN MoMo, Moov Money, carte — changez de moyen à tout
         moment sur la page sécurisée.
       </p>
 
-      <p
-        style={{
-          margin: "0 0 10px",
-          fontSize: ".8rem",
-          color: "#57534E",
-          textAlign: "center",
-        }}
-      >
-        Ou commencer avec :
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <p className={styles.divider}>Ou commencer avec</p>
+      <div className={styles.methodList}>
         {METHODS.map((m) => {
           const loading = busy === m.id;
           return (
             <button
               key={m.id}
               type="button"
+              className={styles.methodButton}
               disabled={Boolean(busy)}
               onClick={() => pay(m.id)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                width: "100%",
-                padding: "11px 14px",
-                border: "1px solid #D8D2C6",
-                background: "#FBFAF8",
-                color: "#1C1917",
-                fontSize: "1rem",
-                fontWeight: 600,
-                cursor: busy ? "default" : "pointer",
-                textAlign: "left",
-                opacity: busy && !loading ? 0.5 : 1,
-              }}
             >
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 40,
-                  height: 40,
-                  background: "#F0EDE6",
-                  flexShrink: 0,
-                }}
-              >
+              <span className={styles.methodLogo}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={m.logo}
-                  alt=""
-                  style={{ maxWidth: 28, maxHeight: 28, objectFit: "contain", display: "block" }}
-                />
+                <img src={m.logo} alt="" />
               </span>
-              <span style={{ flex: 1 }}>{loading ? "Redirection…" : m.label}</span>
-              <span style={{ color: "#57534E", fontSize: "1.3rem", lineHeight: 1 }} aria-hidden="true">
+              <span>{loading ? "Redirection…" : m.label}</span>
+              <span aria-hidden="true" style={{ fontSize: "1.3rem", lineHeight: 1 }}>
                 ›
               </span>
             </button>
@@ -307,82 +210,36 @@ export default function PayMethods({
         })}
       </div>
 
-      {error ? <p style={{ margin: "12px 0 0", color: "#C2410C", fontSize: ".85rem" }}>{error}</p> : null}
-
-      {/* Repli portail captif : ouvrir la page dans le vrai navigateur */}
-      <div
-        style={{
-          margin: "18px 0 0",
-          padding: "14px 14px 16px",
-          border: "2px dashed #D8D2C6",
-          background: "#F0EDE6",
-        }}
-      >
-        <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#57534E", lineHeight: 1.5 }}>
-          La page de paiement reste bloquée sur le logo ? Ouvrez cette page dans <b>Chrome</b> ou{" "}
-          <b>Safari</b> pour payer, puis revenez saisir votre code.
+      {error ? (
+        <p className={styles.error} role="alert" style={{ marginTop: 12 }}>
+          {error}
         </p>
-        <button
-          type="button"
-          onClick={openInBrowser}
-          style={{
-            width: "100%",
-            padding: 12,
-            border: "2px solid #1C1917",
-            background: "#1C1917",
-            color: "#FBFAF8",
-            fontSize: ".92rem",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Ouvrir dans mon navigateur
-        </button>
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          <input
-            readOnly
-            value={pageUrl}
-            onFocus={(e) => e.currentTarget.select()}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: "9px 10px",
-              border: "1px solid #D8D2C6",
-              fontSize: ".78rem",
-              color: "#57534E",
-              background: "#FBFAF8",
-            }}
-          />
-          <button
-            type="button"
-            onClick={copyLink}
-            style={{
-              padding: "9px 12px",
-              border: "1px solid #D8D2C6",
-              background: "#FBFAF8",
-              color: "#1C1917",
-              fontSize: ".8rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {copied ? "Copié" : "Copier"}
-          </button>
-        </div>
-      </div>
+      ) : null}
 
-      <p style={{ margin: "16px 0 0", fontSize: ".72rem", color: "#57534E", textAlign: "center", lineHeight: 1.5 }}>
-        Paiement sécurisé via GeniusPay. Après le paiement, un <b>code WiFi</b> s’affiche :
-        saisissez-le sur le portail WiFi pour vous connecter.
+      {/* Repli (hors portail captif détecté, ou si la détection a raté) :
+          ouvrir la page dans le vrai navigateur. */}
+      {captive ? null : (
+        <div className={styles.browserFallback}>
+          <p className={`${styles.muted}`} style={{ margin: 0, fontSize: ".84rem", lineHeight: 1.5 }}>
+            La page de paiement reste bloquée sur le logo ? Ouvrez cette page dans{" "}
+            <b>Chrome</b> ou <b>Safari</b> pour payer, puis revenez saisir votre code.
+          </p>
+          {exitLink("Ouvrir dans mon navigateur", styles.secondaryButton)}
+          {linkRow}
+        </div>
+      )}
+
+      <p className={`${styles.secureNote} ${styles.muted}`}>
+        Paiement sécurisé via GeniusPay. Après le paiement, un <b>code Wi-Fi</b> s’affiche :
+        saisissez-le sur le portail Wi-Fi pour vous connecter.
       </p>
 
       {/* Repli mobile money : un client dont le paiement s'est terminé sur le
           téléphone (navigateur non revenu) retrouve son code par son numéro. */}
-      <p style={{ margin: "10px 0 0", fontSize: ".8rem", textAlign: "center" }}>
+      <p style={{ margin: "10px 0 0", fontSize: ".86rem", textAlign: "center" }}>
         <a
           href={`/portal/recover?slug=${encodeURIComponent(slug)}`}
-          style={{ color: "#1C1917", fontWeight: 700, textDecoration: "underline" }}
+          style={{ color: "inherit", fontWeight: 700 }}
         >
           Déjà payé ? Retrouver mon code
         </a>

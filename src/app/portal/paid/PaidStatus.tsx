@@ -10,13 +10,13 @@ import type { PortalTheme } from "@/lib/portal/theme";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
-// Thème « Bitume » (tokens de la landing, globals.css) : moutarde + anthracite,
+// Charte safelinkhub.io (peau « Slate », globals.css) : lime + encre, blanc,
 // bordures épaisses, aplats opaques — pas de dégradé, pas d'ombre, angles droits.
-const INK = "#1C1917";
-const INK_SOFT = "#57534E";
-const PAPER = "#FBFAF8";
-const CLAY = "#F0EDE6";
-const BRAND = "#EAB308";
+const INK = "#10160F";
+const INK_SOFT = "#5A625A";
+const PAPER = "#FFFFFF";
+const CLAY = "#F3F6EF";
+const BRAND = "#D6F344";
 const OK = "#15803D";
 const ERR = "#C2410C";
 const MONO = "'SFMono-Regular', Consolas, 'Liberation Mono', monospace";

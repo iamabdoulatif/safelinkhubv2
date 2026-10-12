@@ -4,16 +4,44 @@
 // paiement au lieu de tomber sur le checkout hébergé GeniusPay qui ne proposait
 // qu'Orange Money en USSD *144# (injouable sur iOS captif). Le client choisit un
 // moyen → POST /api/portal/[slug]/pay → redirection vers le rail (ex. Wave).
+//
+// Habillage : charte safelinkhub.io (Slate — lime / encre / blanc), même
+// squelette que /portal/purchase (PortalExperience.module.css). Le thème du
+// point de vente (accent/surface/text) continue d'être TRANSMIS aux pages
+// suivantes mais n'habille pas cette page : c'est SafeLinkHub qui encaisse.
 
+import type { CSSProperties, ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
-import { portalThemeFromParams, portalThemeSearch } from "@/lib/portal/theme";
+import {
+  SLATE_PORTAL_THEME,
+  portalCssVars,
+  portalThemeFromParams,
+  portalThemeSearch,
+} from "@/lib/portal/theme";
 import PayMethods from "./PayMethods";
+import styles from "../PortalExperience.module.css";
 
 function fcfa(n: number): string {
   return `${n.toLocaleString("fr-FR")} FCFA`;
+}
+
+function Shell({ children, error }: { children: ReactNode; error?: boolean }) {
+  return (
+    <main className={styles.shell} style={portalCssVars(SLATE_PORTAL_THEME) as CSSProperties}>
+      <div className={styles.frame}>
+        <div className={styles.statusRow}>
+          <span className={styles.brand}>
+            <span aria-hidden="true" className={styles.brandMark} /> SafeLinkHub
+          </span>
+          <span className={styles.statusPill}>Paiement sécurisé</span>
+        </div>
+        <section className={`${styles.card} ${error ? styles.errorCard : ""}`}>{children}</section>
+      </div>
+    </main>
+  );
 }
 
 export default async function PortalPayPage({
@@ -31,37 +59,14 @@ export default async function PortalPayPage({
   const { orderId, slug } = params;
   const theme = portalThemeFromParams(params);
 
-  // Thème « Bitume » (tokens de la landing) : paper/anthracite, bordure 2px,
-  // aplats opaques — pas de dégradé, pas d'ombre, angles droits.
-  const wrap = (children: React.ReactNode) => (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-        fontFamily: "system-ui, sans-serif",
-        background: theme.surface,
-        color: theme.text,
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 400,
-          width: "100%",
-          background: theme.surface,
-          border: `2px solid ${theme.text}`,
-          padding: 24,
-        }}
-      >
-        {children}
-      </div>
-    </main>
-  );
-
   if (!orderId || !slug) {
-    return wrap(<p style={{ margin: 0, color: "#57534E" }}>Lien de paiement invalide.</p>);
+    return (
+      <Shell error>
+        <p className={styles.eyebrow}>Lien indisponible</p>
+        <h1 className={styles.title}>Lien de paiement invalide</h1>
+        <p className={styles.copy}>Repassez par le portail Wi-Fi pour choisir votre forfait.</p>
+      </Shell>
+    );
   }
 
   const db = getDb();
@@ -80,7 +85,13 @@ export default async function PortalPayPage({
     .limit(1);
 
   if (!order || order.orgSlug !== slug) {
-    return wrap(<p style={{ margin: 0, color: "#57534E" }}>Commande introuvable.</p>);
+    return (
+      <Shell error>
+        <p className={styles.eyebrow}>Lien indisponible</p>
+        <h1 className={styles.title}>Commande introuvable</h1>
+        <p className={styles.copy}>Repassez par le portail Wi-Fi pour choisir votre forfait.</p>
+      </Shell>
+    );
   }
 
   // Déjà payée / en cours / honorée → on montre le suivi, pas un nouveau paiement.
@@ -90,25 +101,16 @@ export default async function PortalPayPage({
     );
   }
 
-  return wrap(
-    <>
-      <h1 style={{ fontSize: "1.15rem", fontWeight: 800, margin: "0 0 2px" }}>
-        Payer votre forfait
-      </h1>
-      <p style={{ margin: "0 0 4px", color: "#57534E", fontSize: ".9rem" }}>
-        {order.packageName ?? "Forfait WiFi"}
-      </p>
-      <p
-        style={{
-          margin: "0 0 18px",
-          fontSize: "1.6rem",
-          fontWeight: 700,
-          fontFamily: "'SFMono-Regular', Consolas, monospace",
-        }}
-      >
-        {fcfa(order.priceCents ?? 0)}
-      </p>
+  return (
+    <Shell>
+      <p className={styles.eyebrow}>Achat Wi-Fi</p>
+      <h1 className={styles.title}>Payer votre forfait</h1>
+      <div className={styles.planSummary}>
+        <p className={styles.planLabel}>Forfait sélectionné</p>
+        <p className={styles.planName}>{order.packageName ?? "Forfait Wi-Fi"}</p>
+        <p className={styles.planPrice}>{fcfa(order.priceCents ?? 0)}</p>
+      </div>
       <PayMethods slug={slug} orderId={orderId} theme={theme} />
-    </>,
+    </Shell>
   );
 }

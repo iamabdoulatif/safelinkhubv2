@@ -28,6 +28,18 @@
   width: min(100%, 30rem);
 }
 
+/* Lien stylé comme un bouton (sortie du portail captif via x-safari-https://
+   ou intent:// : ce doit être un VRAI <a>, pas un window.open). */
+a.primaryButton,
+a.secondaryButton,
+a.ctaButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
 .statusRow {
   display: flex;
   align-items: center;
@@ -212,16 +224,82 @@
 }
 
 .methodButton {
-  display: grid;
-  gap: 3px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  padding: 13px 16px;
+  padding: 11px 16px;
   text-align: left;
 }
 
-.methodButton span:last-child {
+.methodLogo {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--portal-line);
+  border-radius: 8px;
+  background: var(--portal-clay);
+}
+
+.methodLogo img {
+  display: block;
+  max-width: 28px;
+  max-height: 28px;
+  object-fit: contain;
+}
+
+.methodButton > span:nth-child(2) {
+  flex: 1;
+}
+
+/* CTA principal : aplat de marque (lime), texte encre — comme « Commencer »
+   sur safelinkhub.io. Jamais de texte blanc sur le lime. */
+.ctaButton {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
+  border-color: var(--portal-text);
+  background: var(--portal-accent);
+  box-shadow: 4px 4px 0 var(--portal-text);
+}
+
+.ctaButton:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--portal-text);
+}
+
+/* Encart « ouvrir dans le navigateur » poussé EN TÊTE sur portail captif. */
+.captiveBox {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding: 14px;
+  border: 2px solid var(--portal-text);
+  border-radius: 12px;
+  background: var(--portal-clay);
+}
+
+.captiveBox h2 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.muted {
+  color: var(--portal-muted);
+}
+
+.divider {
+  margin: 18px 0 10px;
   font-size: 0.78rem;
-  font-weight: 500;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
 }
 
 .primaryButton:hover:not(:disabled),

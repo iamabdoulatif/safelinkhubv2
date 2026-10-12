@@ -36,6 +36,29 @@ export function portalThemeFromUnknown(input: unknown): PortalTheme {
   });
 }
 
+/** Charte safelinkhub.io (peau « Slate », globals.css) : lime en aplat de
+ * marque, encre quasi noire, surfaces blanches. Les pages hébergées du tunnel
+ * de paiement (/portal/pay, /portal/paid) la portent telle quelle : c'est
+ * SafeLinkHub qui encaisse, pas le point de vente. */
+export const SLATE_PORTAL_THEME: PortalTheme = {
+  accent: "#d6f344",
+  surface: "#ffffff",
+  text: "#10160f",
+};
+
+/** Variables CSS consommées par PortalExperience.module.css. Les tons
+ * secondaires (clay/line/muted) sont ceux de la charte, fixes. */
+export function portalCssVars(theme: PortalTheme): Record<string, string> {
+  return {
+    "--portal-accent": theme.accent,
+    "--portal-surface": theme.surface,
+    "--portal-text": theme.text,
+    "--portal-clay": "#f3f6ef",
+    "--portal-line": "#e2e7dc",
+    "--portal-muted": "#5a625a",
+  };
+}
+
 export function portalThemeSearch(theme: PortalTheme) {
   return new URLSearchParams(theme).toString();
 }
