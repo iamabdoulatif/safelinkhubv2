@@ -9,7 +9,7 @@ import { AlertTriangle, Check, CheckCircle2, Copy, Loader2, MessageSquareText, P
 import { SLATE_PORTAL_THEME, portalCssVars, type PortalTheme } from "@/lib/portal/theme";
 import styles from "../PortalExperience.module.css";
 import { Stepper } from "../Stepper";
-import { waveAppHref } from "@/lib/portal/browser-href";
+import { isCaptiveBrowser, waveAppHref } from "@/lib/portal/browser-href";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
@@ -57,10 +57,18 @@ export default function PaidStatus({
 }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const waveHref = payUrl ? waveAppHref(payUrl) : null;
-  // Un tap de moins : on tente d'ouvrir Wave dès l'arrivée, comme le fait la
-  // page pay.wave.com elle-même. Le bouton reste si iOS a ignoré la tentative.
+  // Fenêtre « Wi-Fi captif » iOS : elle REFUSE toute adresse `wave:` (« la
+  // redirection vers des adresses commençant par wave: est impossible »,
+  // RUE-NICOLAS 12/10/2026) — et donc aussi qr.pay.wave.com, qui fait la même
+  // redirection. Là, on ne tente rien : on guide vers ✓ puis SMS / Safari.
+  // Hors fenêtre captive (Safari, Chrome), un tap de moins : Wave s'ouvre
+  // d'office, comme le fait pay.wave.com.
+  const [inCaptive, setInCaptive] = useState(true);
   useEffect(() => {
-    if (!lane || !waveHref) return;
+    const captive = isCaptiveBrowser(navigator.userAgent || "");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInCaptive(captive);
+    if (!lane || !waveHref || captive) return;
     const t = setTimeout(() => {
       window.location.href = waveHref;
     }, 600);
@@ -511,8 +519,8 @@ export default function PaidStatus({
           </>
         ) : (
           <>
-            {lane ? (
-              <div style={{ textAlign: "left", margin: "0 0 18px" }}>
+            {lane && !inCaptive ? (
+              <div style={{ margin: "0 0 18px" }}>
                 {waveHref ? (
                   <a
                     href={waveHref}
@@ -521,46 +529,60 @@ export default function PaidStatus({
                     Ouvrir l’app Wave
                   </a>
                 ) : null}
-                <p style={{ margin: "12px 0 0", fontSize: ".86rem", color: INK_SOFT, lineHeight: 1.5, textAlign: "center" }}>
+                <p style={{ margin: "12px 0 0", fontSize: ".86rem", color: INK_SOFT, lineHeight: 1.5 }}>
                   Validez le paiement dans Wave, puis revenez ici : votre code s’affiche tout seul.
                 </p>
-                <details style={{ marginTop: 10, fontSize: ".84rem" }}>
-                  <summary style={{ cursor: "pointer", color: INK_SOFT, textAlign: "center" }}>
-                    Wave ne s’ouvre pas ?
-                  </summary>
-                  <ol style={{ margin: "8px 0 0", paddingLeft: 20, lineHeight: 1.55 }}>
+              </div>
+            ) : null}
+            {lane && inCaptive ? (
+              <div style={{ textAlign: "left", margin: "0 0 18px" }}>
+                <p style={{ margin: "0 0 10px", fontSize: "1.05rem", fontWeight: 800, textAlign: "center" }}>
+                  Finissez dans l’app Wave
+                </p>
+                {laneSmsSent ? (
+                  <ol style={{ margin: 0, paddingLeft: 22, fontSize: ".95rem", lineHeight: 1.6 }}>
                     <li>
-                      Touchez <b>Terminé</b> en haut de cette fenêtre.
+                      Touchez <b>✓</b> en haut à droite de cette fenêtre.
                     </li>
-                    {laneSmsSent ? (
-                      <li>
-                        Ouvrez le <b>SMS</b> reçu et touchez le lien.
-                      </li>
-                    ) : (
-                      <li>
-                        Copiez ce lien et collez-le dans <b>Safari</b>.
-                        {payUrl ? (
-                          <span style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                            <input
-                              readOnly
-                              aria-label="Lien de paiement Wave"
-                              value={payUrl}
-                              onFocus={(e) => e.currentTarget.select()}
-                              style={{ flex: 1, minWidth: 0, padding: "8px 10px", border: `1px solid ${INK}`, borderRadius: 8, fontSize: ".78rem", background: PAPER, color: INK }}
-                            />
-                            <button
-                              type="button"
-                              onClick={copyPayUrl}
-                              style={{ padding: "8px 12px", border: `2px solid ${INK}`, borderRadius: 8, background: BRAND, color: INK, fontWeight: 800, fontSize: ".85rem", whiteSpace: "nowrap" }}
-                            >
-                              {linkCopied ? "Copié" : "Copier"}
-                            </button>
-                          </span>
-                        ) : null}
-                      </li>
-                    )}
+                    <li>
+                      Ouvrez le <b>SMS « payer »</b> reçu et touchez le lien : <b>Wave s’ouvre</b>.
+                    </li>
+                    <li>Validez : votre code Wi-Fi arrive par SMS.</li>
                   </ol>
-                </details>
+                ) : (
+                  <>
+                    {payUrl ? (
+                      <button
+                        type="button"
+                        onClick={copyPayUrl}
+                        style={{ display: "block", width: "100%", padding: "15px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: BRAND, color: INK, fontSize: "1.05rem", fontWeight: 800, boxShadow: `4px 4px 0 ${INK}`, cursor: "pointer" }}
+                      >
+                        {linkCopied ? "Lien copié ✓" : "1. Copier le lien de paiement"}
+                      </button>
+                    ) : null}
+                    <ol start={2} style={{ margin: "12px 0 0", paddingLeft: 22, fontSize: ".95rem", lineHeight: 1.6 }}>
+                      <li>
+                        Touchez <b>✓</b> en haut à droite de cette fenêtre.
+                      </li>
+                      <li>
+                        Ouvrez <b>Safari</b>, collez le lien, touchez <b>Autoriser</b> : Wave s’ouvre.
+                      </li>
+                      <li>Validez : votre code Wi-Fi arrive par SMS.</li>
+                    </ol>
+                    {payUrl ? (
+                      <input
+                        readOnly
+                        aria-label="Lien de paiement Wave"
+                        value={payUrl}
+                        onFocus={(e) => e.currentTarget.select()}
+                        style={{ width: "100%", boxSizing: "border-box", marginTop: 10, padding: "8px 10px", border: `1px solid ${INK}`, borderRadius: 8, fontSize: ".76rem", background: PAPER, color: INK_SOFT }}
+                      />
+                    ) : null}
+                  </>
+                )}
+                <p style={{ margin: "10px 0 0", fontSize: ".76rem", color: INK_SOFT, textAlign: "center" }}>
+                  Ce Wi-Fi laisse passer Wave pendant 15 minutes.
+                </p>
               </div>
             ) : null}
             <style>{`@keyframes slh-spin{to{transform:rotate(360deg)}}`}</style>
