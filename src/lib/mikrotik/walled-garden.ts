@@ -191,9 +191,49 @@ export function walledGardenHosts(appHost: string, disabledHosts: string[] = [])
 
 // Hôte joker (*.domaine / a?b.tld) : accepté par le walled-garden L7
 // (dst-host supporte * et ?), mais PAS résolvable en DNS → pas d'entrée
-// « walled-garden ip » possible pour lui.
+// « walled-garden ip » dst-host possible pour lui (voir wildcardDomains).
 function isWildcardHost(host: string): boolean {
   return /[*?\\]/.test(host);
+}
+
+/** Liste d'adresses alimentée par le DNS du routeur pour les sous-domaines
+ * des rails de paiement, acceptée par `walled-garden ip` (443). */
+export const WALLED_GARDEN_ADDRESS_LIST = "safelinkhub-walled-garden";
+
+/** Résolveur vers lequel le routeur transfère ces domaines (une entrée DNS
+ * FWD exige un forward-to). Public et déjà remis aux téléphones par le DHCP
+ * des routeurs auto-configurés. */
+const WILDCARD_FORWARD_TO = "1.1.1.1";
+
+/** Durée de vie ajoutée aux adresses apprises par le DNS, au-delà du TTL de
+ * la réponse : le temps d'un paiement, pas plus. */
+const ADDRESS_LIST_EXTRA_TIME = "10m";
+
+/**
+ * Domaines dont TOUS les sous-domaines doivent passer en HTTPS avant
+ * connexion : « *.wave.com » → « wave.com ». Dérivés des jokers du catalogue
+ * de paiement (jamais de l'app : elle est ancrée par adresse, app-ip-pin).
+ *
+ * Pourquoi : un joker n'est pas résolvable, donc il n'existait QUE dans le
+ * walled-garden L7 (HTTP). En HTTPS, seul `wave.com` nu passait : la page
+ * Wave (pay.wave.com) et l'API de l'app Wave (api.wave.com) étaient bloquées
+ * → le client restait devant une page blanche après avoir choisi Wave
+ * (RUE-NICOLAS, 12/10/2026). RouterOS 7 sait résoudre ce cas : une entrée DNS
+ * statique `type=FWD match-subdomain=yes address-list=…` ajoute à la liste
+ * l'adresse de CHAQUE sous-domaine qu'un téléphone résout (le hotspot
+ * redirige tout le DNS des clients vers le routeur), et `walled-garden ip`
+ * accepte cette liste. Sur RouterOS 6 ces entrées sont refusées : aucun
+ * changement par rapport à avant (HTTP seul), et le refus est rapporté.
+ */
+export function wildcardDomains(disabledHosts: string[] = []): string[] {
+  const disabled = new Set(disabledHosts);
+  return [
+    ...new Set(
+      PAYMENT_WALLED_GARDEN_HOSTS.filter((h) => h.startsWith("*.") && !disabled.has(h)).map((h) =>
+        h.slice(2),
+      ),
+    ),
+  ];
 }
 
 /**
@@ -230,11 +270,29 @@ export function walledGardenScriptLines(appHost: string, disabledHosts: string[]
       `/ip hotspot walled-garden ip add dst-host="${h}" action=accept protocol=udp dst-port=443 comment="${WALLED_GARDEN_COMMENT}"`,
     ])
     .join("\n");
+  // Jokers : DNS FWD match-subdomain → liste d'adresses → walled-garden ip.
+  // Chaque ligne est protégée : sur RouterOS 6 (paramètres inconnus) le
+  // bootstrap continue au lieu de s'arrêter là.
+  const wildcardAdds = [
+    // Marge après expiration du TTL DNS : une session TLS (checkout Wave)
+    // qui dure plus que le TTL ne doit pas être coupée au milieu.
+    `:do { /ip dns set address-list-extra-time=${ADDRESS_LIST_EXTRA_TIME} } on-error={}`,
+    ...wildcardDomains(disabledHosts).map(
+      (d) =>
+        `:do { /ip dns static add name="${d}" type=FWD forward-to=${WILDCARD_FORWARD_TO} match-subdomain=yes address-list="${WALLED_GARDEN_ADDRESS_LIST}" comment="${WALLED_GARDEN_COMMENT}" } on-error={ :log warning "SafeLinkHub walled-garden: DNS FWD ${d} refuse" }`,
+    ),
+    ...["tcp", "udp"].map(
+      (proto) =>
+        `:do { /ip hotspot walled-garden ip add dst-address-list="${WALLED_GARDEN_ADDRESS_LIST}" action=accept protocol=${proto} dst-port=443 comment="${WALLED_GARDEN_COMMENT}" } on-error={ :log warning "SafeLinkHub walled-garden: address-list ${proto} refuse" }`,
+    ),
+  ].join("\n");
   return [
     `/ip hotspot walled-garden remove [find comment="${WALLED_GARDEN_COMMENT}"]`,
     adds,
     `/ip hotspot walled-garden ip remove [find comment="${WALLED_GARDEN_COMMENT}"]`,
+    `/ip dns static remove [find comment="${WALLED_GARDEN_COMMENT}"]`,
     ipAdds,
+    wildcardAdds,
   ].join("\n");
 }
 
@@ -273,7 +331,7 @@ export async function reconcileWalledGardenOnce(
      cela, un routeur resterait sur une adresse morte jusqu'au redémarrage du
      processus. */
   const adresses = await resolveAppAddresses(appHost).catch(() => [] as string[]);
-  const key = `wg-v3|${walledGardenHosts(appHost, disabledHosts).join(",")}|${adresses.join(",")}`;
+  const key = `wg-v4|${walledGardenHosts(appHost, disabledHosts).join(",")}|${adresses.join(",")}`;
   if (reconciledRouters.get(routerId) === key) return;
   await ensureWalledGarden(client, appHost, disabledHosts);
   reconciledRouters.set(routerId, key); // marqué seulement si ensureWalledGarden n'a pas levé
@@ -306,6 +364,7 @@ export async function ensureWalledGarden(
     ["/ip/hotspot/walled-garden/ip", WALLED_GARDEN_COMMENT],
     ["/ip/hotspot/walled-garden/ip", APP_PIN_COMMENT],
     ["/ip/dns/static", APP_PIN_COMMENT],
+    ["/ip/dns/static", WALLED_GARDEN_COMMENT],
   ] as const) {
     const existing = await client
       .talk([`${path}/print`, `?comment=${comment}`], timeoutMs)
@@ -361,6 +420,52 @@ export async function ensureWalledGarden(
           });
         });
     }
+  }
+  // Jokers du catalogue (*.wave.com…) : voir wildcardDomains. Une entrée DNS
+  // FWD par domaine, puis UNE paire de règles (tcp/udp 443) sur la liste.
+  await client
+    .talk(["/ip/dns/set", `=address-list-extra-time=${ADDRESS_LIST_EXTRA_TIME}`], timeoutMs)
+    .catch(() => {});
+  for (const domain of wildcardDomains(disabledHosts)) {
+    await client
+      .talk(
+        [
+          "/ip/dns/static/add",
+          `=name=${domain}`,
+          "=type=FWD",
+          `=forward-to=${WILDCARD_FORWARD_TO}`,
+          "=match-subdomain=yes",
+          `=address-list=${WALLED_GARDEN_ADDRESS_LIST}`,
+          `=comment=${WALLED_GARDEN_COMMENT}`,
+        ],
+        timeoutMs,
+      )
+      .catch((err: unknown) => {
+        failed.push({
+          host: `*.${domain} (DNS FWD)`,
+          reason: err instanceof Error ? err.message : "refus du routeur",
+        });
+      });
+  }
+  for (const protocol of ["tcp", "udp"] as const) {
+    await client
+      .talk(
+        [
+          "/ip/hotspot/walled-garden/ip/add",
+          `=dst-address-list=${WALLED_GARDEN_ADDRESS_LIST}`,
+          "=action=accept",
+          `=protocol=${protocol}`,
+          "=dst-port=443",
+          `=comment=${WALLED_GARDEN_COMMENT}`,
+        ],
+        timeoutMs,
+      )
+      .catch((err: unknown) => {
+        failed.push({
+          host: `${WALLED_GARDEN_ADDRESS_LIST} (${protocol}/443)`,
+          reason: err instanceof Error ? err.message : "refus du routeur",
+        });
+      });
   }
   /* ANCRAGE PAR ADRESSE — voir app-ip-pin.ts. Autoriser l'application par son
      NOM suppose que le routeur sache résoudre ce nom, et que le téléphone
