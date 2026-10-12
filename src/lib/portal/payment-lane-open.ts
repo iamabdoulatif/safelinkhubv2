@@ -10,7 +10,8 @@ import { openPaymentLane } from "@/lib/mikrotik/payment-lane";
 import { normalizeMac } from "@/lib/portal/fulfill";
 import { isOrgSmsEnabled, sendOrgSms } from "@/lib/sms/send";
 
-export async function openPaymentLaneForOrder(order: {
+export async function openPaymentLaneForOrder(
+  order: {
   id: string;
   orgId: string;
   mac: string | null;
@@ -18,7 +19,11 @@ export async function openPaymentLaneForOrder(order: {
   phone: string;
   packageName: string | null;
   checkoutUrl: string;
-}): Promise<{ lane: boolean; smsSent: boolean }> {
+  },
+  // false : pas de SMS (ouverture anticipée au chargement de la page de
+  // paiement — un SMS par affichage serait du spam).
+  opts: { sms?: boolean } = {},
+): Promise<{ lane: boolean; smsSent: boolean }> {
   let lane = false;
   let smsSent = false;
   if (!order.mac || !order.routerId) return { lane, smsSent };
@@ -46,7 +51,7 @@ export async function openPaymentLaneForOrder(order: {
       );
     }
   }
-  if (lane && (await isOrgSmsEnabled(order.orgId))) {
+  if (lane && opts.sms !== false && (await isOrgSmsEnabled(order.orgId))) {
     const sms = await sendOrgSms({
       orgId: order.orgId,
       to: order.phone,

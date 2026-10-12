@@ -56,7 +56,7 @@ export default function PayMethods({
 
   // Wave préparé d'avance (fenêtre captive) : la tuile devient un VRAI lien
   // qr.pay.wave.com — voir /api/portal/[slug]/wave-prepare.
-  const [wavePrep, setWavePrep] = useState<{ orderId: string; checkoutUrl: string } | null>(null);
+  const [wavePrep, setWavePrep] = useState<{ orderId: string; checkoutUrl: string; lane: boolean } | null>(null);
   const [waveLaunched, setWaveLaunched] = useState(false);
 
   useEffect(() => {
@@ -72,12 +72,12 @@ export default function PayMethods({
     fetch(`/api/portal/${encodeURIComponent(slug)}/wave-prepare`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, theme }),
+      body: JSON.stringify({ orderId, theme, captive: true }),
     })
       .then((r) => r.json())
-      .then((d: { orderId?: string; checkoutUrl?: string }) => {
+      .then((d: { orderId?: string; checkoutUrl?: string; lane?: boolean }) => {
         if (alive && d.orderId && d.checkoutUrl && waveQrHref(d.checkoutUrl)) {
-          setWavePrep({ orderId: d.orderId, checkoutUrl: d.checkoutUrl });
+          setWavePrep({ orderId: d.orderId, checkoutUrl: d.checkoutUrl, lane: d.lane === true });
         }
       })
       .catch(() => {
@@ -119,6 +119,12 @@ export default function PayMethods({
   // paiement (réseau pour l'app Wave). sendBeacon survit au départ de la page.
   function onWaveLinkTap() {
     if (!wavePrep) return;
+    // Voie déjà ouverte au chargement : la rouvrir maintenant couperait la
+    // session au moment précis où Chrome charge Wave.
+    if (wavePrep.lane) {
+      setWaveLaunched(true);
+      return;
+    }
     const payload = JSON.stringify({ orderId: wavePrep.orderId, checkoutUrl: wavePrep.checkoutUrl });
     const url = `/api/portal/${encodeURIComponent(slug)}/lane`;
     const sent = navigator.sendBeacon?.(url, new Blob([payload], { type: "application/json" }));

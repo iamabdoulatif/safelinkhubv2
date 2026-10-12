@@ -15,6 +15,7 @@ import { getDb } from "@/lib/db";
 import { organizations, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { POST as startPayment } from "../pay/route";
+import { openPaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 
 export function OPTIONS() {
   return corsPreflight();
@@ -78,5 +79,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   if (!res.ok || !data.checkoutUrl) {
     return corsJson({ error: data.error || "Préparation Wave impossible." }, { status: 502 });
   }
-  return corsJson({ orderId: copy.id, checkoutUrl: data.checkoutUrl });
+  // Voie de paiement ouverte DÈS MAINTENANT, avant le tap : la fenêtre Wi-Fi
+  // iOS ne confie un lien au navigateur (« Ouvrir dans Chrome ? ») que si le
+  // téléphone est déjà en ligne (✓). Ouverte au moment du tap, elle arrivait
+  // trop tard : la fenêtre chargeait Wave sur place et restait bloquée sur
+  // « Ouverture de l'application Wave… » (RUE-NICOLAS, 12/10/2026 19:48).
+  const { lane } =
+    body.captive === true
+      ? await openPaymentLaneForOrder(
+          { ...prev, id: copy.id, orgId: org.id, packageName: null, checkoutUrl: data.checkoutUrl },
+          { sms: false },
+        )
+      : { lane: false };
+  return corsJson({ orderId: copy.id, checkoutUrl: data.checkoutUrl, lane });
 }
