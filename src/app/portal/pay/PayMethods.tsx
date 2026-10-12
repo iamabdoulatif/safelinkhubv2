@@ -72,7 +72,17 @@ export default function PayMethods({
     setPageUrl(url);
     setCaptive(inCaptive);
     if (!inCaptive) return;
+    // Retour du rechargement ci-dessous : paiement Wave déjà préparé et voie
+    // ouverte — la tuile est un lien tout de suite, sans nouvelle préparation.
+    const sp = new URLSearchParams(window.location.search);
+    const readyOrder = sp.get("wave");
+    const readyCheckout = sp.get("wcu");
+    if (readyOrder && readyCheckout && waveQrHref(readyCheckout)) {
+      setWavePrep({ orderId: readyOrder, checkoutUrl: readyCheckout, lane: true });
+      return;
+    }
     let alive = true;
+    let reloading = false;
     setWavePreparing(true);
     fetch(`/api/portal/${encodeURIComponent(slug)}/wave-prepare`, {
       method: "POST",
@@ -82,14 +92,30 @@ export default function PayMethods({
       .then((r) => r.json())
       .then((d: { orderId?: string; checkoutUrl?: string; lane?: boolean }) => {
         if (alive && d.orderId && d.checkoutUrl && waveQrHref(d.checkoutUrl)) {
-          setWavePrep({ orderId: d.orderId, checkoutUrl: d.checkoutUrl, lane: d.lane === true });
+          if (d.lane === true) {
+            // La fenêtre Wi-Fi iOS ne revérifie la connexion (✕ → ✓) qu'au
+            // CHARGEMENT d'une page. Tant que ✓ n'est pas affiché, un tap sur
+            // le lien Wave est chargé sur place (bloqué) au lieu de partir vers
+            // Chrome puis l'app — l'« instabilité » de la vidéo 22:13. On
+            // recharge donc la page une fois la voie ouverte : ✓ apparaît, et
+            // la tuile n'est cliquable qu'après.
+            const next = new URL(window.location.href);
+            next.searchParams.set("wave", d.orderId);
+            next.searchParams.set("wcu", d.checkoutUrl);
+            const target = next.toString();
+            reloading = true;
+            window.setTimeout(() => window.location.replace(target), 1200);
+            return;
+          }
+          setWavePrep({ orderId: d.orderId, checkoutUrl: d.checkoutUrl, lane: false });
         }
       })
       .catch(() => {
         /* repli : la tuile Wave garde le parcours classique */
       })
       .finally(() => {
-        if (alive) setWavePreparing(false);
+        // Rechargement en cours (voie ouverte) : la tuile reste « Préparation… ».
+        if (alive && !reloading) setWavePreparing(false);
       });
     return () => {
       alive = false;
