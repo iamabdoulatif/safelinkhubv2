@@ -21,11 +21,14 @@
 //   • ouverture : /pay crée un user `pay-<mac>` et le logue par l'API
 //     (`/ip/hotspot/active/login`, comme l'auto-login après paiement) ;
 //   • fermeture : à l'honneur de la commande (fulfill), avant le login du
-//     vrai code — sinon la session restreinte masquerait le ticket.
+//     vrai code — sinon la session restreinte masquerait le ticket. Le user
+//     porte limit-uptime=15m : abandonné, il ne peut plus servir.
 //
-// Rien ici n'est déployé en masse : `paymentLaneScriptLines` sert à installer
-// la voie sur un routeur ; `openPaymentLane` n'ouvre une voie QUE si le profil
-// existe sur le routeur (sinon, comportement inchangé).
+// Déploiement : `ensurePaymentLane` (API) est appelé par la réconciliation
+// automatique du walled-garden (walled-garden.ts) sur chaque routeur
+// RouterOS 7 doté d'un hotspot ; `paymentLaneScriptLines` est la même chose
+// en script CLI (installation manuelle). `openPaymentLane` n'ouvre une voie
+// QUE si le profil existe sur le routeur (sinon, comportement inchangé).
 
 import type { RouterOSClient } from "./client";
 
@@ -86,6 +89,106 @@ export function paymentLaneScriptLines(appAddresses: string[], walledGardenList:
   ];
 }
 
+type Row = Record<string, string>;
+
+async function removeByComment(client: RouterOSClient, path: string, timeoutMs: number) {
+  const rows = await client
+    .talk([`${path}/print`, `?comment=${PAYMENT_LANE_COMMENT}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  for (const row of rows) {
+    if (row[".id"]) await client.talk([`${path}/remove`, `=numbers=${row[".id"]}`], timeoutMs).catch(() => {});
+  }
+}
+
+/**
+ * Installe/actualise la voie par l'API (idempotent : purge par commentaire puis
+ * repose). Ne fait RIEN sur un routeur sans hotspot ni sur RouterOS 6 (les
+ * entrées DNS FWD qui nourrissent les listes n'y existent pas). Renvoie ce qui
+ * a été fait, pour les journaux.
+ */
+export async function ensurePaymentLane(
+  client: RouterOSClient,
+  appAddresses: readonly string[],
+  walledGardenList: string,
+  timeoutMs = 15000,
+): Promise<"installed" | "skipped-v6" | "skipped-no-hotspot"> {
+  const [resource] = await client.talk(["/system/resource/print"], timeoutMs).catch(() => [] as Row[]);
+  if (!/^7\./.test(resource?.version ?? "")) return "skipped-v6";
+  const hotspots = await client.talk(["/ip/hotspot/print"], timeoutMs).catch(() => [] as Row[]);
+  if (hotspots.length === 0) return "skipped-no-hotspot";
+
+  const profileProps = [
+    `=address-list=${PAYMENT_LANE_LIST}`,
+    `=session-timeout=${PAYMENT_LANE_SESSION}`,
+    "=keepalive-timeout=2m",
+    "=shared-users=1",
+    "=add-mac-cookie=no",
+  ];
+  const [profile] = await client
+    .talk(["/ip/hotspot/user/profile/print", `?name=${PAYMENT_LANE_PROFILE}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  if (profile?.[".id"]) {
+    await client.talk(["/ip/hotspot/user/profile/set", `=.id=${profile[".id"]}`, ...profileProps], timeoutMs);
+  } else {
+    await client.talk(["/ip/hotspot/user/profile/add", `=name=${PAYMENT_LANE_PROFILE}`, ...profileProps], timeoutMs);
+  }
+
+  await removeByComment(client, "/ip/dns/static", timeoutMs);
+  for (const host of CONNECTIVITY_PROBE_HOSTS) {
+    await client.talk(
+      [
+        "/ip/dns/static/add",
+        `=name=${host}`,
+        "=type=FWD",
+        `=forward-to=${FORWARD_TO}`,
+        `=address-list=${PAYMENT_LANE_OK_LIST}`,
+        `=comment=${PAYMENT_LANE_COMMENT}`,
+      ],
+      timeoutMs,
+    );
+  }
+
+  await removeByComment(client, "/ip/firewall/address-list", timeoutMs);
+  for (const address of appAddresses) {
+    await client.talk(
+      [
+        "/ip/firewall/address-list/add",
+        `=list=${PAYMENT_LANE_OK_LIST}`,
+        `=address=${address}`,
+        `=comment=${PAYMENT_LANE_COMMENT}`,
+      ],
+      timeoutMs,
+    );
+  }
+
+  // Pare-feu : chaque règle est posée AVANT la première règle forward
+  // statique du moment ; en ajoutant reject puis les accept, on obtient
+  // [accept walled-garden, accept sondes, reject, …règles existantes].
+  await removeByComment(client, "/ip/firewall/filter", timeoutMs);
+  const rules: string[][] = [
+    ["=action=reject", "=reject-with=icmp-network-unreachable"],
+    [`=dst-address-list=${PAYMENT_LANE_OK_LIST}`, "=action=accept"],
+    [`=dst-address-list=${walledGardenList}`, "=action=accept"],
+  ];
+  for (const rule of rules) {
+    const [first] = await client
+      .talk(["/ip/firewall/filter/print", "?chain=forward", "?dynamic=false"], timeoutMs)
+      .catch(() => [] as Row[]);
+    await client.talk(
+      [
+        "/ip/firewall/filter/add",
+        "=chain=forward",
+        `=src-address-list=${PAYMENT_LANE_LIST}`,
+        ...rule,
+        `=comment=${PAYMENT_LANE_COMMENT}`,
+        ...(first?.[".id"] ? [`=place-before=${first[".id"]}`] : []),
+      ],
+      timeoutMs,
+    );
+  }
+  return "installed";
+}
+
 /** Le routeur porte-t-il la voie (profil présent) ? */
 export async function hasPaymentLane(client: RouterOSClient, timeoutMs = 4000): Promise<boolean> {
   const rows = await client
@@ -113,6 +216,8 @@ export async function openPaymentLane(
       `=name=${user}`,
       `=password=${user}`,
       `=profile=${PAYMENT_LANE_PROFILE}`,
+      // Crédit de 15 min au total : un user abandonné ne rouvre plus rien.
+      `=limit-uptime=${PAYMENT_LANE_SESSION}`,
       `=comment=${PAYMENT_LANE_COMMENT}`,
     ],
     timeoutMs,

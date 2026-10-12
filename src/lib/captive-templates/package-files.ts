@@ -753,11 +753,9 @@ const PORTAL_PAY_SCRIPT = `(function(){
       // qu il ne sert a rien — un appel reseau de moins avant le paiement, sur
       // un WiFi ou chaque appel est une occasion d echouer. Le serveur reste
       // seul juge : /initiate accepte le numero non verifie dans ce cas precis.
-      if(!SMS_ON){
-        var note = document.getElementById("slh-pay-note");
-        if(note) note.textContent = "Payez normalement : votre code d'accès s'affichera à l'écran juste après le paiement.";
-        setStatus(""); show("pay"); return;
-      }
+      // Un tap de moins : sans verification SMS, « Payer » lance DIRECTEMENT
+      // le paiement (avant : un ecran intermediaire redemandait « Payer »).
+      if(!SMS_ON){ setStatus(""); show("pay"); startPayment(); return; }
       primary.disabled = true;
       setStatus(isResend ? "Renvoi du code..." : "Envoi du code...");
       fetch(api("/otp/send"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ phone: lp, dialCode: selDial() }) })
@@ -765,16 +763,14 @@ const PORTAL_PAY_SCRIPT = `(function(){
         .then(function(res){
           primary.disabled = false;
           if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Envoi impossible.");
-          if(res.j.status === "verified"){ setStatus(""); show("pay"); return; }
+          if(res.j.status === "verified"){ setStatus(""); show("pay"); startPayment(); return; }
           // Pas de verification par SMS possible : soit le point de vente l a
           // desactivee, soit son credit SMS est epuise. Dans les deux cas le
           // serveur autorise la vente -> on saute l etape code et le ticket s
           // affiche a l ecran apres le paiement. (Le message ne dit plus
           // "momentanement" : c est faux quand la passerelle est coupee expres.)
           if(res.j.status === "sms_unavailable"){
-            var note = document.getElementById("slh-pay-note");
-            if(note) note.textContent = "Payez normalement : votre code d'accès s'affichera à l'écran juste après le paiement.";
-            setStatus(""); show("pay"); return;
+            setStatus(""); show("pay"); startPayment(); return;
           }
           var to = document.getElementById("slh-otp-to"); if(to) to.textContent = res.j.to || "";
           setStatus(""); show("otp"); startCooldown();
@@ -792,7 +788,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
           primary.disabled = false;
           if(!res.ok || !res.j.verified) throw new Error(res.j && res.j.error ? res.j.error : "Code incorrect.");
           if(cdTimer) clearInterval(cdTimer);
-          setStatus(""); show("pay");
+          setStatus(""); show("pay"); startPayment();
         })
         .catch(function(err){ primary.disabled = false; reportErr(err); });
     }

@@ -156,7 +156,10 @@ export default function PaidStatus({
         setPhase("processing");
         // Toujours pas confirmé après ~14 sondages (~25 s) → mode « ça traîne » :
         // on propose une action au lieu du spinner infini.
-        if (tries >= 14 && active) setSlowWait(true);
+        // En voie Wave, le client est parti payer dans l'app : on lui laisse
+        // ~2 min avant de parler de retard (sinon le message tombe pendant
+        // qu'il valide encore dans Wave).
+        if (tries >= (lane ? 50 : 14) && active) setSlowWait(true);
       } catch {
         // Erreur transitoire : on continue de sonder.
       }
@@ -170,7 +173,7 @@ export default function PaidStatus({
       active = false;
       clearTimeout(timer);
     };
-  }, [canPoll, orderId, slug]);
+  }, [canPoll, orderId, slug, lane]);
 
   // « Recevoir par SMS » : réessaie l'envoi au numéro de la commande si le
   // client n'a pas reçu le message automatique.

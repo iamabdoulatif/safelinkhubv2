@@ -10,7 +10,8 @@
 // besoin).
 
 import type { RouterOSClient } from "./client";
-import { APP_PIN_COMMENT, pinCommands } from "./app-ip-pin";
+import { APP_PIN_COMMENT, pinCommands, sanitizeAppAddresses } from "./app-ip-pin";
+import { ensurePaymentLane } from "./payment-lane";
 import { resolveAppAddresses } from "@/lib/net/app-addresses";
 
 export const WALLED_GARDEN_COMMENT = "safelinkhub-walled-garden";
@@ -331,9 +332,25 @@ export async function reconcileWalledGardenOnce(
      cela, un routeur resterait sur une adresse morte jusqu'au redémarrage du
      processus. */
   const adresses = await resolveAppAddresses(appHost).catch(() => [] as string[]);
-  const key = `wg-v4|${walledGardenHosts(appHost, disabledHosts).join(",")}|${adresses.join(",")}`;
+  const key = `wg-v5|${walledGardenHosts(appHost, disabledHosts).join(",")}|${adresses.join(",")}`;
   if (reconciledRouters.get(routerId) === key) return;
   await ensureWalledGarden(client, appHost, disabledHosts);
+  // Voie de paiement (session restreinte pour l'app Wave depuis la fenêtre
+  // Wi-Fi captive) — voir payment-lane.ts. Dépend de la liste d'adresses du
+  // walled-garden posée juste au-dessus. Un échec n'empêche pas de marquer le
+  // walled-garden : la voie est un bonus, réessayé au prochain redémarrage.
+  await ensurePaymentLane(client, sanitizeAppAddresses(adresses), WALLED_GARDEN_ADDRESS_LIST).catch(
+    (err: unknown) => {
+      console.error(
+        JSON.stringify({
+          level: "warn",
+          msg: "payment lane install failed",
+          routerId,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    },
+  );
   reconciledRouters.set(routerId, key); // marqué seulement si ensureWalledGarden n'a pas levé
 }
 
