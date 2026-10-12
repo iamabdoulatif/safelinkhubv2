@@ -20,7 +20,7 @@
 
 import { useEffect, useState } from "react";
 import type { PortalTheme } from "@/lib/portal/theme";
-import { isCaptiveBrowser } from "@/lib/portal/browser-href";
+import { isCaptiveBrowser, waveQrHref } from "@/lib/portal/browser-href";
 import styles from "../PortalExperience.module.css";
 
 type Method = { id: string; label: string; logo: string };
@@ -54,14 +54,79 @@ export default function PayMethods({
   const [copied, setCopied] = useState(false);
   const [captive, setCaptive] = useState(false);
 
+  // Wave préparé d'avance (fenêtre captive) : la tuile devient un VRAI lien
+  // qr.pay.wave.com — voir /api/portal/[slug]/wave-prepare.
+  const [wavePrep, setWavePrep] = useState<{ orderId: string; checkoutUrl: string } | null>(null);
+  const [waveLaunched, setWaveLaunched] = useState(false);
+
   useEffect(() => {
     // client-only : window absent au rendu serveur.
     const url = window.location.href;
     const ua = navigator.userAgent || "";
+    const inCaptive = isCaptiveBrowser(ua);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPageUrl(url);
-    setCaptive(isCaptiveBrowser(ua));
-  }, []);
+    setCaptive(inCaptive);
+    if (!inCaptive) return;
+    let alive = true;
+    fetch(`/api/portal/${encodeURIComponent(slug)}/wave-prepare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, theme }),
+    })
+      .then((r) => r.json())
+      .then((d: { orderId?: string; checkoutUrl?: string }) => {
+        if (alive && d.orderId && d.checkoutUrl && waveQrHref(d.checkoutUrl)) {
+          setWavePrep({ orderId: d.orderId, checkoutUrl: d.checkoutUrl });
+        }
+      })
+      .catch(() => {
+        /* repli : la tuile Wave garde le parcours classique */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [slug, orderId, theme]);
+
+  function paidUrlFor(id: string): URL {
+    const u = new URL("/portal/paid", window.location.origin);
+    u.searchParams.set("orderId", id);
+    u.searchParams.set("slug", slug);
+    u.searchParams.set("accent", theme.accent);
+    u.searchParams.set("surface", theme.surface);
+    u.searchParams.set("text", theme.text);
+    return u;
+  }
+
+  // Au retour dans la fenêtre Wi-Fi (après Wave), on passe au suivi du
+  // paiement : le code s'y affiche dès la confirmation.
+  useEffect(() => {
+    if (!waveLaunched || !wavePrep) return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const u = paidUrlFor(wavePrep.orderId);
+      u.searchParams.set("lane", "1");
+      u.searchParams.set("pay", wavePrep.checkoutUrl);
+      window.location.assign(u);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waveLaunched, wavePrep]);
+
+  // Tap sur la tuile Wave préparée : le lien part vers le navigateur puis
+  // l'app Wave ; en parallèle on demande au routeur d'ouvrir la voie de
+  // paiement (réseau pour l'app Wave). sendBeacon survit au départ de la page.
+  function onWaveLinkTap() {
+    if (!wavePrep) return;
+    const payload = JSON.stringify({ orderId: wavePrep.orderId, checkoutUrl: wavePrep.checkoutUrl });
+    const url = `/api/portal/${encodeURIComponent(slug)}/lane`;
+    const sent = navigator.sendBeacon?.(url, new Blob([payload], { type: "application/json" }));
+    if (!sent) {
+      fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
+    }
+    setWaveLaunched(true);
+  }
 
   async function pay(method: string) {
     if (busy) return;
@@ -167,6 +232,25 @@ export default function PayMethods({
       <div className={styles.railGrid}>
         {METHODS.map((m) => {
           const loading = busy === m.id;
+          const waveLink = m.id === "wave" && wavePrep ? waveQrHref(wavePrep.checkoutUrl) : null;
+          if (waveLink) {
+            return (
+              <a
+                key={m.id}
+                href={waveLink}
+                className={`${styles.railTile} ${styles.railTileFeatured}`}
+                onClick={onWaveLinkTap}
+                style={{ textDecoration: "none" }}
+              >
+                <span className={styles.railBadge}>Le plus rapide</span>
+                <span className={styles.railLogo}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={m.logo} alt="" />
+                </span>
+                <span className={styles.railLabel}>{waveLaunched ? "Wave ouvert…" : m.label}</span>
+              </a>
+            );
+          }
           return (
             <button
               key={m.id}
@@ -186,6 +270,13 @@ export default function PayMethods({
           );
         })}
       </div>
+
+      {waveLaunched ? (
+        <p className={styles.hint} style={{ margin: "12px 0 0" }}>
+          Validez le paiement dans <b>Wave</b>, puis revenez ici : votre <b>code Wi-Fi</b> s’affiche
+          tout seul.
+        </p>
+      ) : null}
 
       <p className={`${styles.muted}`} style={{ margin: "12px 0 0", fontSize: ".84rem", textAlign: "center", lineHeight: 1.5 }}>
         {captive ? (
