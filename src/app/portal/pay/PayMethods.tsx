@@ -185,7 +185,8 @@ export default function PayMethods({
         return;
       }
       if (win && !win.closed) {
-        win.location.href = data.checkoutUrl; // Safari (nouvel onglet) → checkout OK
+        // Wave : le lien qr.pay.wave.com (lien universel) ouvre l'app directement.
+        win.location.href = waveQrHref(data.checkoutUrl) ?? data.checkoutUrl;
         // GeniusPay v3 ne redirige PAS vers success_url après paiement (le client
         // reste bloqué sur geniuspay.ci). On envoie donc l'onglet D'ORIGINE (sur
         // notre domaine, derrière le walled-garden) sonder le statut : c'est CE
@@ -193,7 +194,7 @@ export default function PayMethods({
         // code — indépendamment du retour de geniuspay.ci.
         window.location.assign(paidUrl);
       } else {
-        window.location.assign(data.checkoutUrl); // fenêtre bloquée → même fenêtre
+        window.location.assign(waveQrHref(data.checkoutUrl) ?? data.checkoutUrl); // fenêtre bloquée → même fenêtre
       }
     } catch (e) {
       if (win && !win.closed) win.close();
