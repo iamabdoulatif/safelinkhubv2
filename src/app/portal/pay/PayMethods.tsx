@@ -69,14 +69,17 @@ export default function PayMethods({
     if (busy) return;
     setBusy(method);
     setError("");
-    // On ouvre une fenêtre VIDE TOUT DE SUITE, dans le geste du tap : sur iPhone,
-    // le mini-navigateur du portail captif (CNA) ne sait pas gérer d'onglet, donc
-    // il DÉLÈGUE à Safari — le paiement (Paystack/3DS) s'y ouvre correctement,
-    // contrairement au CNA bridé. On la navigue vers le checkout une fois celui-ci
-    // créé. Impératif : le window.open doit précéder le fetch (async), sinon iOS
-    // le considère hors-geste et le bloque. Si l'ouverture est bloquée (null) →
-    // repli même-fenêtre : aucune régression vs l'ancien comportement.
-    const win = window.open("", "_blank");
+    // Navigateur normal : on ouvre une fenêtre VIDE TOUT DE SUITE, dans le geste
+    // du tap (sinon iOS la bloque), on la navigue vers le checkout une fois créé,
+    // et l'onglet d'origine va sonder /portal/paid.
+    //
+    // JAMAIS dans le mini-navigateur captif (CNA iOS) : là, window.open
+    // n'ouvre PAS Safari — il remplace la vue par about:blank, décharge notre
+    // page et le POST /pay n'aboutit pas (RUE-NICOLAS 12/10/2026 : page blanche,
+    // commandes restées `pending`). Même fenêtre → checkout ; le webhook
+    // GeniusPay + le rattrapage serveur honorent la commande et le code part par
+    // SMS, sans page de sondage.
+    const win = captive ? null : window.open("", "_blank");
     try {
       const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/pay`, {
         method: "POST",
