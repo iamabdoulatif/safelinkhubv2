@@ -68,8 +68,14 @@ export const WALLED_GARDEN_CATALOG: WalledGardenGroup[] = [
   {
     group: "PaiementPro",
     description:
-      "Passerelle GeniusPay pour Orange, MTN et Moov (Côte d'Ivoire) : la page de paiement est servie sur www.paiementpro.net (logos sur dashboard/event.paiementpro.net).",
-    hosts: ["paiementpro.net", "*.paiementpro.net"],
+      "Passerelle GeniusPay pour Orange, MTN et Moov (Côte d'Ivoire) : page sur www.paiementpro.net. Son formulaire MTN/Moov tourne en jQuery chargé depuis ajax.googleapis.com, cdnjs et code.jquery.com — sans eux il ne réagit pas (MTN bloqué, 13/10/2026).",
+    hosts: [
+      "paiementpro.net",
+      "*.paiementpro.net",
+      "ajax.googleapis.com",
+      "cdnjs.cloudflare.com",
+      "code.jquery.com",
+    ],
   },
   {
     group: "Wave",
