@@ -8,6 +8,7 @@ import {
   Activity,
   ChevronDown,
   Gauge,
+  KeyRound,
   LayoutTemplate,
   Loader2,
   PackageOpen,
@@ -24,6 +25,7 @@ import {
   optimizeRouterThroughput,
   speedTestRouter,
   reconfigureMikhmonSession,
+  getMikhmonAdminCredentials,
 } from "@/lib/mikrotik/actions";
 import { reinstallMikhmonContainer } from "@/lib/mikrotik/container-setup";
 import { reposerPortailRouteur } from "@/lib/captive-templates/actions";
@@ -260,6 +262,12 @@ export default function HeaderActions({
             label="Optimiser le débit"
             hint="Fasttrack sur les connexions établies, sans casser le filtrage."
             onClick={() => run("tune", () => optimizeRouterThroughput(routerId), "Débit optimisé.")}
+          />
+          <MenuItem
+            icon={KeyRound}
+            label="Identifiants MikHmon"
+            hint="Mot de passe posé par SafeLinkHub à la place du « 1234 » d'usine."
+            onClick={() => run("mikhmon-creds", () => getMikhmonAdminCredentials(routerId))}
           />
           <MenuItem
             icon={RefreshCw}

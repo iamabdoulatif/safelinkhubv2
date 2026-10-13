@@ -194,9 +194,11 @@ export async function ensurePaymentLane(
     [`=dst-address-list=${walledGardenList}`, "=action=accept"],
   ];
   for (const rule of rules) {
-    const [first] = await client
-      .talk(["/ip/firewall/filter/print", "?chain=forward", "?dynamic=false"], timeoutMs)
+    // « ?dynamic=false » ne matche rien par l'API : filtre côté serveur.
+    const rows = await client
+      .talk(["/ip/firewall/filter/print", "?chain=forward"], timeoutMs)
       .catch(() => [] as Row[]);
+    const first = rows.find((r) => r.dynamic !== "true");
     await client.talk(
       [
         "/ip/firewall/filter/add",

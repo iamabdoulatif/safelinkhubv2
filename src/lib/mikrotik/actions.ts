@@ -1395,6 +1395,35 @@ export async function repairMikhmonStorage(routerId: string) {
  * conteneur avec les valeurs dérivées du routeur (hotspot = nom du Server
  * Profile, DNS = passerelle, IP/API fixes). Utilisé par le bouton du Diagnostic.
  */
+/** Identifiants d'ouverture de MikHmon posés par SafeLinkHub (hardening.ts).
+ * Réservé au propriétaire du routeur et au superadmin. */
+export async function getMikhmonAdminCredentials(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const db = getDb();
+  const [router] = await db
+    .select({ orgId: routers.orgId, enc: routers.mikhmonAdminPasswordEncrypted })
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.enc) {
+    return {
+      summary:
+        "MikHmon : identifiant « mikhmon ». Le mot de passe n'a pas été changé par SafeLinkHub (déjà personnalisé, ou pas encore sécurisé).",
+    };
+  }
+  let password: string;
+  try {
+    password = decryptSecret(router.enc);
+  } catch {
+    return { error: "Mot de passe MikHmon illisible." };
+  }
+  return { summary: `MikHmon — identifiant : mikhmon · mot de passe : ${password}` };
+}
+
 export async function reconfigureMikhmonSession(routerId: string) {
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };

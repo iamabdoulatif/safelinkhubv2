@@ -224,6 +224,10 @@ export const routers = pgTable("routers", {
   // interne du conteneur n'étant pas énumérable via l'API RouterOS, on s'appuie
   // sur ce flag plutôt que sur une lecture peu fiable. Voir mikhmon-session.ts.
   mikhmonSessionAt: timestamp("mikhmon_session_at"),
+  // Mot de passe d'ouverture de MikHmon (compte « mikhmon ») posé par
+  // SafeLinkHub à la place du « 1234 » d'usine (hardening.ts), chiffré
+  // (encryptSecret). Consultable par le propriétaire dans l'admin du routeur.
+  mikhmonAdminPasswordEncrypted: text("mikhmon_admin_password_encrypted"),
   installTokenHash: text("install_token_hash"),
   installTokenExpiresAt: timestamp("install_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

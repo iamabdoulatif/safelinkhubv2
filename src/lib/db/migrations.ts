@@ -230,4 +230,13 @@ alter table router_regulation
   add column if not exists abuse_throttle_limit text not null default '256k/256k';
 `.trim(),
   },
+  {
+    // Mot de passe MikHmon posé à la place du « 1234 » d'usine (sécurité,
+    // lib/mikrotik/hardening.ts). Miroir : scripts/add-router-mikhmon-admin-password.sql.
+    id: "0013_router_mikhmon_admin_password",
+    sql: `
+alter table routers
+  add column if not exists mikhmon_admin_password_encrypted text;
+`.trim(),
+  },
 ];

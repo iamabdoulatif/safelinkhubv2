@@ -9,6 +9,7 @@ import {
   hasFreshWireGuardHandshake,
 } from "./relay";
 import { reconcileWalledGardenOnce } from "./walled-garden";
+import { reconcileHardeningOnce } from "./hardening-sync";
 import { updateRouterUsage } from "./link-usage-reader";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { ensureHotspotLoginByCode } from "./hotspot-login-mode";
@@ -332,6 +333,21 @@ export async function syncRouterStats(
       );
     } catch {
       // Non-fatal — réessayé au prochain sync (routeur sans hotspot, hiccup API).
+    }
+
+    // Durcissement (hardening.ts) : MikHmon et ports d'administration fermés
+    // au Wi-Fi des clients, mot de passe d'usine de MikHmon remplacé.
+    try {
+      await reconcileHardeningOnce(client, routerId);
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          level: "warn",
+          msg: "router hardening failed",
+          routerId,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
     }
 
     // Réaligne AUTOMATIQUEMENT le login-by du profil hotspot actif sur
