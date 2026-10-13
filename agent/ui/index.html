@@ -127,9 +127,37 @@
       <div id="summary" class="summary" hidden></div>
       <pre id="result" class="code" hidden></pre>
 
+      <form id="new-password" class="summary" autocomplete="off" hidden>
+        <h3>Dernière étape : nouveau mot de passe Winbox</h3>
+        <p class="hint">Remplacez le mot de passe actuel du compte <strong id="np-user">admin</strong> : c’est celui que vous taperez désormais dans Winbox. 10 caractères minimum, lettres et chiffres.</p>
+        <label for="np-1">Nouveau mot de passe</label>
+        <input id="np-1" class="field" type="password" autocomplete="new-password" minlength="10" maxlength="64" required>
+        <label for="np-2">Confirmer</label>
+        <input id="np-2" class="field" type="password" autocomplete="new-password" minlength="10" maxlength="64" required>
+        <p id="np-status" class="callout" data-tone="idle" role="status">Notez-le en lieu sûr avant de valider.</p>
+        <button type="submit" id="np-submit" class="btn btn-primary btn-block">Changer le mot de passe</button>
+      </form>
+
       <p class="note">L’ordre demandé est conservé. Le mode avancé peut annuler <code>routerboard=yes</code> : le rapport final le signalera. Cet outil n’installe pas le package container et ne met pas RouterBOOT à jour.</p>
     </section>
   </div>
+
+  <section class="card health" aria-labelledby="step3-title" aria-live="polite">
+    <div class="card-head">
+      <span class="num" aria-hidden="true">3</span>
+      <div>
+        <h2 id="step3-title">Diagnostiquer et dépanner</h2>
+        <p class="sub">Identité du routeur, tickets qui n’expirent pas, Wi-Fi invisible, configuration supprimée, ports abîmés, session MikHmon effacée. Utilise l’adresse et les identifiants saisis à l’étape 1.</p>
+      </div>
+    </div>
+    <div class="health-actions">
+      <button type="button" id="health-run" class="btn btn-primary">Lancer le diagnostic complet</button>
+      <button type="button" id="health-fix-all" class="btn btn-outline" hidden>Réparer tout ce qui est sûr</button>
+    </div>
+    <p id="health-status" class="callout" data-tone="idle">Le diagnostic est en lecture seule. Chaque réparation se lance séparément, par vous.</p>
+    <dl id="health-identity" class="summary-list" hidden></dl>
+    <ul id="health-checks" class="checks"></ul>
+  </section>
 </main>
 
 <footer class="foot">Agent local SafeLinkHub · écoute sur 127.0.0.1 uniquement · les identifiants ne sont jamais écrits sur disque.</footer>

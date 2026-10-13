@@ -202,3 +202,19 @@ textarea.field { height: auto; min-height: 96px; padding: 10px 12px; line-height
   .columns { grid-template-columns: 1fr; gap: 0; }
   .intro p { font-size: 16px; }
 }
+
+/* ── Diagnostic et dépannage ─────────────────────────────── */
+.health { margin-top: 24px; }
+.health-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 16px; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.check { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.check-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; background: var(--ink-soft); }
+.check[data-sev="error"] .check-dot { background: var(--err); }
+.check[data-sev="warn"] .check-dot { background: var(--warn); }
+.check[data-sev="ok"] .check-dot { background: var(--ok); }
+.check-title { font-weight: 700; color: var(--ink); }
+.check-area { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; }
+.check-detail { grid-column: 2 / 4; margin: 0; font-size: 13px; line-height: 1.55; color: var(--ink-soft); }
+.check .btn { white-space: nowrap; }
+@media (max-width: 640px) { .check { grid-template-columns: auto 1fr; } .check .btn { grid-column: 1 / 3; } }
+.btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }

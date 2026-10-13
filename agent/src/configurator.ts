@@ -4,6 +4,8 @@ export interface Transport {
   read(path: string): Promise<Row[]>;
   command(words: string[]): Promise<void>;
   begin(words: string[]): Promise<Pending>;
+  /** Session RouterOS complète (diagnostic/dépannage : fonctions du SaaS). */
+  withClient?<T>(fn: (client: import('../../src/lib/mikrotik/client').RouterOSClient) => Promise<T>): Promise<T>;
 }
 export type Progress = {
   state: 'checking' | 'upgrading' | 'waiting-physical' | 'verifying';

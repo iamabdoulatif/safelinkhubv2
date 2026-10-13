@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { runConfiguration, PLAN, type Progress, type Transport } from './configurator';
 import { inspectRouter } from './diagnostics';
+import { applyFix, diagnoseRouter, SAFE_FIXES, type FixId } from './health';
+import { changeAdminPassword, passwordProblem } from './password';
 import { routerTransport, type Credentials } from './routeros';
 import { discoverRouters, isLocalAddress } from './scanner';
 
@@ -62,7 +64,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       const task = tasks.get(id);
       return json(res, task ? 200 : 404, task ?? { error: 'Tâche introuvable.' });
     }
-    const match = /^\/agent\/routers\/([^/]+)\/(configure|diagnose)$/.exec(path);
+    const match = /^\/agent\/routers\/([^/]+)\/(configure|diagnose|health|fix|password)$/.exec(path);
     if (req.method === 'POST' && match) {
       if (active) return json(res, 409, { error: 'Une configuration est déjà en cours.', taskId: active });
       if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'JSON requis.' });
@@ -79,6 +81,41 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       // Recheck after reading the request: two uploads must not race the task lock.
       if (active) return json(res, 409, { error: 'Une configuration est déjà en cours.', taskId: active });
       const credentials: Credentials = { host, port: Number(body.port), username: body.username, password: body.password, tls: body.tls, ca: body.ca as string | undefined };
+      if (match[2] === 'password') {
+        const next = typeof body.newPassword === 'string' ? body.newPassword : '';
+        const problem = passwordProblem(next, credentials.password, credentials.username);
+        if (problem) { credentials.password = ''; return json(res, 400, { error: problem }); }
+        try {
+          if (options.dryRun) return json(res, 200, { message: 'Simulation : mot de passe non modifié.' });
+          const make = options.transport ?? routerTransport;
+          await changeAdminPassword(make(credentials), password => make({ ...credentials, password }), credentials.username, next);
+          options.log?.({ event: 'password-changed', host, username: credentials.username });
+          return json(res, 200, { message: `Mot de passe de « ${credentials.username} » changé et vérifié. Utilisez-le désormais dans Winbox.` });
+        } catch (error) {
+          const raw = error instanceof Error ? error.message : 'Changement impossible.';
+          const message = [credentials.password, next].filter(Boolean).reduce((m, secret) => m.split(secret).join('[secret]'), raw);
+          return json(res, 422, { error: message });
+        } finally { credentials.password = ''; }
+      }
+      if (match[2] === 'health' || match[2] === 'fix') {
+        const fix = body.fix;
+        const FIXES: readonly string[] = [...SAFE_FIXES, 'nat', 'wan-dhcp'];
+        if (match[2] === 'fix' && (typeof fix !== 'string' || !FIXES.includes(fix))) {
+          credentials.password = '';
+          return json(res, 400, { error: 'Réparation inconnue.' });
+        }
+        try {
+          if (options.dryRun) return json(res, 200, { message: 'Simulation : aucun diagnostic réseau effectué.' });
+          const transport = (options.transport ?? routerTransport)(credentials);
+          if (match[2] === 'health') return json(res, 200, await diagnoseRouter(transport));
+          const message = await applyFix(transport, fix as FixId);
+          options.log?.({ event: 'fix', fix, host });
+          return json(res, 200, { message, report: await diagnoseRouter(transport) });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Diagnostic impossible.';
+          return json(res, 422, { error: credentials.password ? message.split(credentials.password).join('[secret]') : message });
+        } finally { credentials.password = ''; }
+      }
       if (match[2] === 'diagnose') {
         try {
           if (options.dryRun) return json(res, 200, { message: 'Simulation : aucun diagnostic réseau effectué.' });

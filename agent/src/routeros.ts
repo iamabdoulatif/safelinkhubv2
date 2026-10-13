@@ -33,6 +33,11 @@ export function routerTransport(credentials: Credentials): Transport {
       try { await connection.client.talk(words, 90000); }
       finally { connection.close(); }
     },
+    async withClient(fn) {
+      const connection = await connect();
+      try { return await fn(connection.client); }
+      finally { connection.close(); }
+    },
     async begin(words) {
       const connection = await connect();
       let failure: Error | undefined;

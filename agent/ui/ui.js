@@ -95,6 +95,8 @@ function render(task) {
   const plan = task.plan ? task.plan.map(words => words.join(' ')).join('\n') : '';
   byId('result').textContent = plan;
   byId('result').hidden = !plan;
+  const ready = task.state === 'completed' || task.state === 'completed-with-warnings';
+  if (ready && byId('new-password').hidden) { byId('np-user').textContent = byId('username').value.trim(); byId('new-password').hidden = false; byId('np-1').focus(); }
   byId('fields').disabled = task.state === 'running';
   byId('discover').disabled = task.state === 'running';
 }
@@ -212,6 +214,95 @@ byId('configure').addEventListener('submit', async event => {
   }
 });
 
+/* ── Diagnostic et dépannage ──────────────────────────────── */
+const SAFE_FIXES = ['ntp', 'ticket-expiry', 'expiry-sweep', 'wifi-enable', 'wifi-unhide', 'wifi-dfs', 'dns-remote', 'dhcp-enable', 'hotspot-enable', 'mikhmon-start', 'mikhmon-session'];
+const SEV_ORDER = { error: 0, warn: 1, info: 2, ok: 3 };
+const FIX_LABEL = { nat: 'Recréer le NAT', 'wan-dhcp': 'Recréer le client DHCP WAN', 'mikhmon-session': 'Restaurer la session', ntp: 'Synchroniser l’heure' };
+
+function healthStatus(text, tone) { byId('health-status').textContent = text; setTone(byId('health-status'), tone); }
+function healthBody(extra = {}) { const b = connectionBody(); delete b.updateRouterOS; return { ...b, ...extra }; }
+function healthBusy(busy) {
+  for (const id of ['health-run', 'health-fix-all']) byId(id).disabled = busy;
+  for (const b of byId('health-checks').querySelectorAll('button')) b.disabled = busy;
+}
+
+function renderHealth(report) {
+  const id = report.identity;
+  const dl = byId('health-identity');
+  dl.replaceChildren();
+  for (const [label, value] of [['Modèle', `${id.boardName} (${id.model})`], ['Numéro de série', id.serial], ['Adresse MAC', id.mac], ['RouterOS', id.version], ['Firmware', id.firmware], ['Allumé depuis', id.uptime], ['Santé', `${report.score}/100`]]) {
+    const wrap = document.createElement('div'); wrap.className = 'summary-row';
+    const dt = document.createElement('dt'); dt.textContent = label;
+    const dd = document.createElement('dd'); dd.textContent = value;
+    wrap.append(dt, dd); dl.append(wrap);
+  }
+  dl.hidden = false;
+  const list = byId('health-checks');
+  list.replaceChildren();
+  const checks = [...report.checks].sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
+  for (const c of checks) {
+    const li = document.createElement('li'); li.className = 'check'; li.dataset.sev = c.severity;
+    const dot = document.createElement('span'); dot.className = 'check-dot'; dot.setAttribute('aria-hidden', 'true');
+    const head = document.createElement('div');
+    const area = document.createElement('div'); area.className = 'check-area'; area.textContent = c.area;
+    const title = document.createElement('div'); title.className = 'check-title'; title.textContent = c.title;
+    head.append(area, title);
+    li.append(dot, head);
+    if (c.fix) {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-outline btn-sm';
+      btn.textContent = FIX_LABEL[c.fix] || 'Réparer';
+      btn.addEventListener('click', () => runFix(c.fix, c.title));
+      li.append(btn);
+    } else li.append(document.createElement('span'));
+    const detail = document.createElement('p'); detail.className = 'check-detail'; detail.textContent = c.detail;
+    li.append(detail);
+    list.append(li);
+  }
+  const problems = report.checks.filter(c => c.severity === 'error' || c.severity === 'warn').length;
+  const safe = report.checks.filter(c => c.fix && SAFE_FIXES.includes(c.fix));
+  byId('health-fix-all').hidden = safe.length < 2;
+  healthStatus(problems ? `${problems} problème(s) détecté(s) sur ${id.boardName} (SN ${id.serial}).` : `Aucun problème détecté sur ${id.boardName} (SN ${id.serial}).`, problems ? 'warn' : 'ok');
+  return safe;
+}
+
+async function runHealth() {
+  healthBusy(true);
+  healthStatus('Diagnostic en cours (lecture seule, 10 à 30 secondes)…', 'info');
+  try {
+    renderHealth(await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/health`, { method: 'POST', body: JSON.stringify(healthBody()) }));
+  } catch (error) { healthStatus(error.message, 'err'); }
+  finally { healthBusy(false); }
+}
+
+async function runFix(fix, title) {
+  healthBusy(true);
+  healthStatus(`Réparation en cours : ${title}…`, 'info');
+  try {
+    const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/fix`, { method: 'POST', body: JSON.stringify(healthBody({ fix })) });
+    renderHealth(result.report);
+    healthStatus(result.message, 'ok');
+  } catch (error) { healthStatus(error.message, 'err'); }
+  finally { healthBusy(false); }
+}
+
+byId('health-run').addEventListener('click', runHealth);
+byId('health-fix-all').addEventListener('click', async () => {
+  healthBusy(true);
+  try {
+    let report = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/health`, { method: 'POST', body: JSON.stringify(healthBody()) });
+    const todo = [...new Set(report.checks.filter(c => c.fix && SAFE_FIXES.includes(c.fix)).map(c => c.fix))];
+    const done = [];
+    for (const fix of todo) {
+      healthStatus(`Réparation ${done.length + 1}/${todo.length}…`, 'info');
+      const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/fix`, { method: 'POST', body: JSON.stringify(healthBody({ fix })) });
+      report = result.report; done.push(result.message);
+    }
+    renderHealth(report);
+    healthStatus(done.length ? done.join(' ') : 'Rien à réparer automatiquement.', 'ok');
+  } catch (error) { healthStatus(error.message, 'err'); }
+  finally { healthBusy(false); }
+});
+
 setInterval(() => {
   if (!deadline) { byId('countdown').textContent = ''; return; }
   const left = Math.ceil((deadline - Date.now()) / 1000);
@@ -238,3 +329,22 @@ setInterval(() => {
     setTone(byId('status-box'), 'err');
   }
 })();
+
+byId('new-password').addEventListener('submit', async event => {
+  event.preventDefault();
+  const status = byId('np-status');
+  const next = byId('np-1').value;
+  if (next !== byId('np-2').value) { status.textContent = 'Les deux saisies ne correspondent pas.'; setTone(status, 'err'); return; }
+  byId('np-submit').disabled = true;
+  status.textContent = 'Changement puis vérification par reconnexion…'; setTone(status, 'info');
+  try {
+    const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/password`, { method: 'POST', body: JSON.stringify({ ...connectionBody(), newPassword: next }) });
+    // Le formulaire de connexion suit le nouveau mot de passe (diagnostic, réparations).
+    byId('password').value = next;
+    byId('np-1').value = byId('np-2').value = '';
+    status.textContent = result.message; setTone(status, 'ok');
+  } catch (error) {
+    status.textContent = error.message; setTone(status, 'err');
+    byId('np-submit').disabled = false;
+  }
+});

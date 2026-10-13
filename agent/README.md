@@ -41,6 +41,20 @@ Le processus garde les identifiants en mémoire pendant la tâche puis abandonne
 
 Fermer/recharger la page n'arrête pas la tâche : l'identifiant de suivi reste dans sessionStorage. Arrêter l'agent perd son état en mémoire, mais n'annule pas une installation déjà demandée au routeur. Aucun redémarrage automatique d'une écriture après interruption ; vérifier le routeur avant de relancer.
 
+## Diagnostic et dépannage
+
+Carte « Diagnostiquer et dépanner » de l'interface (mêmes adresse et identifiants que l'étape 1). Le diagnostic est en **lecture seule** ; chaque réparation se lance séparément, par l'utilisateur.
+
+- **Identité** : modèle, nom commercial, numéro de série, adresse MAC (port d'usine ether1), RouterOS, firmware, durée d'allumage, score de santé.
+- **Tickets MikHmon qui n'expirent pas** : horloge fausse ou NTP inactif (réparation : activer NTP), dates d'expiration au format ISO de RouterOS 7.24 et balayage d'expiration cassé (réparations reprises du SaaS).
+- **Wi-Fi invisible** : radio désactivée (réactiver), SSID masqué (rendre visible), 5 GHz coincé en DFS (débloquer), SSID vide, paquet Wi-Fi absent (signalé : installation manuelle).
+- **Configuration supprimée** : NAT absent (recréer sur le WAN), DNS fermé aux clients, serveur DHCP ou hotspot désactivé (réactiver), client DHCP du WAN supprimé (recréer). Un serveur DHCP ou hotspot entièrement supprimé est signalé (à recréer avec l'assistant RouterOS).
+- **Ports abîmés** : erreurs physiques (FCS, alignement, fragments, jabber, collisions tardives), coupures de liaison répétées, half-duplex ou 10 Mbit/s — avec le **nom** de chaque port (et son nom d'usine).
+- **Session MikHmon effacée** dans MikHmon : détectée en lisant le `config.php` du conteneur, restaurée (compte API `mikhmon-api` limité au réseau des conteneurs, mot de passe d'ouverture de MikHmon conservé), puis vérifiée.
+- Le reste vient de l'audit du SaaS (CPU, mémoire, flash, route, NAT, fasttrack, conteneur MikHmon, firmware…).
+
+« Réparer tout ce qui est sûr » enchaîne les réparations sans geste sur site. NAT et client DHCP du WAN restent unitaires (ils touchent l'accès Internet). Endpoints : `POST /agent/routers/:ip/health` et `POST /agent/routers/:ip/fix` (`{ ...identifiants, fix }`), qui renvoie le message et le diagnostic relu.
+
 ## Détection
 
 Sondes TCP 8728/8729 sur les interfaces IPv4 privées selon leur masque réel (1024 adresses maximum au total), avec écoute passive MNDP pendant 3,5 secondes. Les annonces MNDP peuvent arriver après cette fenêtre : relancer la recherche ou saisir l'IP. Sous-réseaux plus grands : IP manuelle. Les annonces et ports ouverts sont des **candidats**, pas une preuve d'identité. Déduplication par IP. Les ports personnalisés se saisissent manuellement. Sans API accessible, l'agent ne peut pas l'activer par ce même canal.
@@ -76,3 +90,7 @@ Références officielles :
 - https://help.mikrotik.com/docs/spaces/ROS/pages/328142/Upgrading+and+installation
 - https://manual.mikrotik.com/docs/system-information-and-utilities/device-mode/
 - https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API
+
+## Nouveau mot de passe Winbox
+
+Une fois la préparation terminée, l’agent demande un nouveau mot de passe pour le compte utilisé (`admin`). Il refuse les mots de passe faibles, l’applique (`/user/set`) puis le **vérifie en se reconnectant avec**. Le mot de passe reste en mémoire et n’apparaît jamais dans les journaux.
