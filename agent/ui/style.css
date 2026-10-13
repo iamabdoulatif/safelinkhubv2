@@ -224,3 +224,9 @@ textarea.field { height: auto; min-height: 96px; padding: 10px 12px; line-height
 .package-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 12px; }
 .package-list .check { margin: 0; }
 .package-list .muted { font-size: .85em; }
+
+.maintenance { margin-top: 16px; border-top: 1px solid var(--line, #d9dcd3); padding-top: 12px; }
+.maintenance summary { cursor: pointer; font-weight: 600; }
+.maintenance .check-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.maintenance .check-row p { margin: 2px 0 0; font-size: .9em; opacity: .75; }
+.btn.danger { color: #b42318; border-color: #b42318; }

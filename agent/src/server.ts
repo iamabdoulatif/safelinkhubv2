@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { listPackages, PACKAGE_NAME, runConfiguration, PLAN, type Progress, type Transport } from './configurator';
 import { inspectRouter } from './diagnostics';
-import { applyFix, diagnoseRouter, SAFE_FIXES, type FixId } from './health';
+import { applyFix, diagnoseRouter, MAINTENANCE_ACTIONS, SAFE_FIXES, type FixId } from './health';
 import { changeAdminPassword, passwordProblem } from './password';
 import { routerTransport, type Credentials } from './routeros';
 import { discoverRouters, isLocalAddress } from './scanner';
@@ -99,7 +99,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       }
       if (match[2] === 'health' || match[2] === 'fix') {
         const fix = body.fix;
-        const FIXES: readonly string[] = [...SAFE_FIXES, 'nat', 'wan-dhcp'];
+        const FIXES: readonly string[] = [...SAFE_FIXES, ...MAINTENANCE_ACTIONS, 'nat', 'wan-dhcp'];
         if (match[2] === 'fix' && (typeof fix !== 'string' || !FIXES.includes(fix))) {
           credentials.password = '';
           return json(res, 400, { error: 'Réparation inconnue.' });
@@ -110,7 +110,8 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
           if (match[2] === 'health') return json(res, 200, await diagnoseRouter(transport));
           const message = await applyFix(transport, fix as FixId);
           options.log?.({ event: 'fix', fix, host });
-          return json(res, 200, { message, report: await diagnoseRouter(transport) });
+          // Maintenance : pas de rediagnostic (le test de débit ou la réinstallation suffisent à attendre).
+          return json(res, 200, MAINTENANCE_ACTIONS.includes(fix as FixId) ? { message } : { message, report: await diagnoseRouter(transport) });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Diagnostic impossible.';
           return json(res, 422, { error: credentials.password ? message.split(credentials.password).join('[secret]') : message });

@@ -169,6 +169,20 @@
     <p id="health-status" class="callout" data-tone="idle">Le diagnostic est en lecture seule. Chaque réparation se lance séparément, par vous.</p>
     <dl id="health-identity" class="summary-list" hidden></dl>
     <ul id="health-checks" class="checks"></ul>
+
+    <details class="maintenance">
+      <summary>Maintenance</summary>
+      <p class="hint">Les mêmes actions que le menu Maintenance du SaaS, lancées depuis ce poste sur le réseau local (sans tunnel).</p>
+      <ul class="checks">
+        <li class="check-row"><div><strong>Optimiser le Wi-Fi</strong><p>SSID unifié (band steering), 5 GHz en 80 MHz, 2,4 GHz en 20 MHz.</p></div><button type="button" class="btn btn-outline btn-sm" data-maint="wifi-optimize">Optimiser</button></li>
+        <li class="check-row"><div><strong>Optimiser le débit</strong><p>Fasttrack sur les connexions établies, sans casser le filtrage.</p></div><button type="button" class="btn btn-outline btn-sm" data-maint="throughput-optimize">Optimiser</button></li>
+        <li class="check-row"><div><strong>Tester le débit</strong><p>Téléchargement depuis le routeur, par son WAN.</p></div><button type="button" class="btn btn-outline btn-sm" data-maint="speed-test">Tester</button></li>
+        <li class="check-row"><div><strong>Identifiants MikHmon</strong><p>Lus dans la configuration du conteneur MikHmon.</p></div><button type="button" class="btn btn-outline btn-sm" data-maint="mikhmon-credentials">Afficher</button></li>
+        <li class="check-row"><div><strong>Restaurer la session MikHmon</strong><p>Régénère la configuration MikHmon (suppression accidentelle).</p></div><button type="button" class="btn btn-outline btn-sm" data-maint="mikhmon-session">Restaurer</button></li>
+        <li class="check-row"><div><strong>Réinstaller MikHmon</strong><p>Supprime et recrée le conteneur (1 à 3 min, image re-téléchargée).</p></div><button type="button" class="btn btn-outline btn-sm danger" data-maint="mikhmon-reinstall" data-confirm="Confirmer la réinstallation">Réinstaller</button></li>
+      </ul>
+      <p class="hint">« Reposer le portail captif » reste dans le SaaS : il a besoin de vos forfaits et prix.</p>
+    </details>
   </section>
 </main>
 

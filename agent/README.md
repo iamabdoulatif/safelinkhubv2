@@ -109,3 +109,7 @@ Les scripts MikHmon vivent sur le **routeur** (profils hotspot, ventes dans `/sy
 - **Ventes absentes des rapports** → « Réparer les revenus » : ventes remises au format MikHmon (`oct/13/2026`, `owner=oct2026`). Aucune vente supprimée.
 - **RouterOS 7.24+** : le hotspot écrase `owner` en `*sys` → revenus mensuels à 0. La réparation pose la tâche `slh-mikhmon-owner` (2 min) qui corrige les nouvelles ventes.
 - La liste des paquets montre `routeros` (version installée → version disponible), mis à jour par la préparation.
+
+## Maintenance (comme le menu du SaaS)
+
+Bloc « Maintenance » de la carte Diagnostic : optimiser le Wi-Fi, optimiser le débit, tester le débit, **identifiants MikHmon** (lus dans le `config.php` du conteneur, déchiffrés — vérifié conforme au SaaS sur HSPT-BELIKORO ; le format « v2 » chiffré par MikHmon reste illisible), restaurer la session, **réinstaller MikHmon** (double clic de confirmation). Mêmes fonctions `src/lib/mikrotik` que le SaaS. « Reposer le portail captif » reste dans le SaaS (forfaits et prix).

@@ -26,8 +26,10 @@ import { auditRouter, type AuditFinding } from '../../src/lib/mikrotik/router-au
 import { rewriteIsoExpiryComments, repairExpirySweeps } from '../../src/lib/mikrotik/router-audit-fixes';
 import { inspectProfileOnLogin } from '../../src/lib/mikrotik/expiry-sweep-script';
 import { countUnreadableSales, ensureOwnerSweep, OWNER_SWEEP_NAME, overwritesSaleOwner, rewriteIsoSalesRecords } from '../../src/lib/mikrotik/mikhmon-sales';
-import { fixWifiDfs, readWifiState } from '../../src/lib/mikrotik/wifi-compat';
-import { buildMikhmonResyncRos } from '../../src/lib/mikrotik/mikhmon-session';
+import { fixWifiDfs, optimizeWifiThroughput, readWifiState } from '../../src/lib/mikrotik/wifi-compat';
+import { buildMikhmonResyncRos, mikhmonLegacyDecrypt } from '../../src/lib/mikrotik/mikhmon-session';
+import { optimizeRouterThroughput, runRouterSpeedTest } from '../../src/lib/mikrotik/router-throughput';
+import { migrateMikhmonToFlash } from '../../src/lib/mikrotik/mikhmon-flash';
 import { ensureApiReachableFromContainer } from '../../src/lib/mikrotik/api-service-access';
 import type { Transport } from './configurator';
 
@@ -37,7 +39,9 @@ export type FixId =
   | 'ntp' | 'ticket-expiry' | 'expiry-sweep' | 'mikhmon-sales'
   | 'wifi-enable' | 'wifi-unhide' | 'wifi-dfs'
   | 'nat' | 'dns-remote' | 'dhcp-enable' | 'hotspot-enable' | 'wan-dhcp'
-  | 'mikhmon-start' | 'mikhmon-session';
+  | 'mikhmon-start' | 'mikhmon-session'
+  // Maintenance (menu « Maintenance » du SaaS), lancée à la demande :
+  | 'wifi-optimize' | 'throughput-optimize' | 'speed-test' | 'mikhmon-credentials' | 'mikhmon-reinstall';
 export type Check = { id: string; area: string; severity: Severity; title: string; detail: string; fix?: FixId };
 export type Identity = {
   model: string; boardName: string; serial: string; mac: string;
@@ -121,6 +125,25 @@ const MIKHMON_PROBE = [
   '  :local n 0; :local i [:find $t "\\$data[" -1];',
   '  :while ([:typeof $i] = "num") do={ :set n ($n + 1); :set i [:find $t "\\$data[" $i] };',
   '  :set slhOut [:tostr $n];',
+  '};',
+].join('\n');
+
+/** Identifiants d'ouverture de MikHmon, lus dans son config.php (laksa19 :
+ * plusieurs emplacements possibles selon l'image). Sortie « user|mot-chiffré ». */
+const MIKHMON_LOGIN_PROBE = [
+  ':local slhOut "absent";',
+  ':local c [/container find where name~"mikhmon" or root-dir~"mikhmon"];',
+  ':if ([:len $c] > 0) do={',
+  '  :set slhOut "illisible";',
+  '  :local rd [/container get [:pick $c 0] root-dir];',
+  '  :if ([:pick $rd 0 1] = "/") do={ :set rd [:pick $rd 1 [:len $rd]] };',
+  '  :foreach f in={"/src/src/include/config.php";"/var/www/html/include/config.php";"/app/include/config.php";"/include/config.php"} do={',
+  '    :local t ""; :do { :set t [/file get ($rd . $f) contents] } on-error={};',
+  '    :local u [:find $t "mikhmon<|<"]; :local p [:find $t "mikhmon>|>"];',
+  '    :if (([:typeof $u] = "num") and ([:typeof $p] = "num")) do={',
+  '      :set slhOut ([:pick $t ($u + 10) [:find $t "\'" ($u + 10)]] . "|" . [:pick $t ($p + 10) [:find $t "\'" ($p + 10)]]);',
+  '    };',
+  '  };',
   '};',
 ].join('\n');
 
@@ -303,6 +326,31 @@ export async function applyFix(transport: Transport, fix: FixId): Promise<string
         const sweep = overwritesSaleOwner(version) ? await ensureOwnerSweep(client) : null;
         return `${r.rewritten} vente(s) remise(s) au format MikHmon${r.failed ? `, ${r.failed} échec(s)` : ''}${sweep === 'added' ? ` ; tâche « ${OWNER_SWEEP_NAME} » posée pour les ventes à venir` : ''}. Rouvrez Rapports dans MikHmon.`;
       }
+      case 'wifi-optimize':
+        return (await optimizeWifiThroughput(client)).summary;
+      case 'throughput-optimize':
+        return (await optimizeRouterThroughput(client)).summary;
+      case 'speed-test':
+        return (await runRouterSpeedTest(client, { timeoutMs: 90000 })).summary;
+      case 'mikhmon-credentials': {
+        const out = await runScriptForResult(client, MIKHMON_LOGIN_PROBE);
+        if (out === 'absent') throw new Error('Aucun conteneur MikHmon sur ce routeur.');
+        const [user, enc] = out.split('|');
+        if (!enc) throw new Error('config.php de MikHmon introuvable ou illisible (conteneur arrêté ?).');
+        const password = mikhmonLegacyDecrypt(enc);
+        if (password === '1234') return `Identifiant : ${user} · mot de passe : 1234 (celui d’usine — à changer dans MikHmon › Admin Settings).`;
+        return password !== null
+          ? `Identifiant : ${user} · mot de passe : ${password}`
+          : `Identifiant : ${user} · mot de passe chiffré par MikHmon lui-même (format v2), illisible hors du conteneur. Utilisez « Restaurer la session » pour en reposer un connu.`;
+      }
+      case 'mikhmon-reinstall': {
+        // Recrée le conteneur (re-pull de l'image) sur stockage persistant, même
+        // nom / image / interface. La session est ensuite reposée.
+        const r = await migrateMikhmonToFlash(client, { force: true, maxWaitMs: 240000 });
+        if (r.status === 'no-container') throw new Error('Aucun conteneur MikHmon à réinstaller : installez-le depuis le SaaS (auto-setup).');
+        if (r.status === 'failed') throw new Error(r.message);
+        return `${r.message}${r.status === 'pulling' ? ' Téléchargement de l’image en cours : relancez le diagnostic dans 2 minutes, puis « Restaurer la session ».' : ' Pensez à « Restaurer la session » si MikHmon ne montre plus vos tickets.'}`;
+      }
       case 'wifi-dfs': {
         const r = await fixWifiDfs(client);
         return r.applied.length ? `Radios débloquées : ${r.applied.join(', ')}.` : (r.note ?? 'Aucune radio à corriger.');
@@ -380,4 +428,6 @@ export async function applyFix(transport: Transport, fix: FixId): Promise<string
 
 /** Réparations sans geste sur site, applicables d'un coup. */
 export const SAFE_FIXES: readonly FixId[] = ['ntp', 'expiry-sweep', 'ticket-expiry', 'mikhmon-sales', 'wifi-enable', 'wifi-unhide', 'wifi-dfs', 'dns-remote', 'dhcp-enable', 'hotspot-enable', 'mikhmon-start', 'mikhmon-session'];
+/** Actions du menu Maintenance : jamais lancées par « Réparer tout ». */
+export const MAINTENANCE_ACTIONS: readonly FixId[] = ['wifi-optimize', 'throughput-optimize', 'speed-test', 'mikhmon-credentials', 'mikhmon-session', 'mikhmon-reinstall'];
 export type { AuditFinding };

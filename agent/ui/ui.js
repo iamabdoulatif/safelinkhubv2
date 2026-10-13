@@ -296,7 +296,7 @@ function healthStatus(text, tone) { byId('health-status').textContent = text; se
 function healthBody(extra = {}) { const b = connectionBody(); delete b.updateRouterOS; return { ...b, ...extra }; }
 function healthBusy(busy) {
   for (const id of ['health-run', 'health-fix-all']) byId(id).disabled = busy;
-  for (const b of byId('health-checks').querySelectorAll('button')) b.disabled = busy;
+  for (const b of document.querySelectorAll('#health-checks button, [data-maint]')) b.disabled = busy;
 }
 
 function renderHealth(report) {
@@ -352,7 +352,7 @@ async function runFix(fix, title) {
   healthStatus(`Réparation en cours : ${title}…`, 'info');
   try {
     const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/fix`, { method: 'POST', body: JSON.stringify(healthBody({ fix })) });
-    renderHealth(result.report);
+    if (result.report) renderHealth(result.report);
     healthStatus(result.message, 'ok');
   } catch (error) { healthStatus(error.message, 'err'); }
   finally { healthBusy(false); }
@@ -427,3 +427,17 @@ byId('new-password').addEventListener('submit', async event => {
 byId('np-show').addEventListener('change', event => {
   for (const id of ['np-1', 'np-2']) byId(id).type = event.target.checked ? 'text' : 'password';
 });
+
+for (const button of document.querySelectorAll('[data-maint]')) {
+  const label = button.textContent;
+  button.addEventListener('click', () => {
+    // Action destructive : deuxième clic pour confirmer.
+    if (button.dataset.confirm && button.textContent !== button.dataset.confirm) {
+      button.textContent = button.dataset.confirm;
+      setTimeout(() => { button.textContent = label; }, 6000);
+      return;
+    }
+    button.textContent = label;
+    runFix(button.dataset.maint, button.closest('li').querySelector('strong').textContent);
+  });
+}

@@ -40,6 +40,14 @@ export function mikhmonLegacyEncrypt(input: string): string {
   return Buffer.from(bytes).toString("base64");
 }
 
+/** Inverse de mikhmonLegacyEncrypt. null pour le format « v2: » (clé propre au conteneur, indéchiffrable). */
+export function mikhmonLegacyDecrypt(encoded: string): string | null {
+  if (!encoded || encoded.startsWith("v2:")) return null;
+  const K = [56, 49, 50];
+  const bytes = Buffer.from(encoded, "base64");
+  return String.fromCharCode(...bytes.map((b, i) => (b - K[i % 3] + 256) & 0xff));
+}
+
 /** Hex (unpack("H*")) d'une chaîne — pour le champ infolp. */
 function toHex(s: string): string {
   return Buffer.from(s, "utf8").toString("hex");
