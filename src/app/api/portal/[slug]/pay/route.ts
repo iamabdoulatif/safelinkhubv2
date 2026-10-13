@@ -156,7 +156,7 @@ export async function POST(
   void prewarmPortalVoucherProfile(order.id);
 
   const base = appUrl();
-  const payment = await createOrgPayment(creds, {
+  const paymentInput = {
     amountFcfa: order.priceCents ?? 0,
     description: `Forfait ${order.packageName ?? "WiFi"} — WiFi`,
     customer: {
@@ -174,13 +174,39 @@ export async function POST(
       `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}&status=error`,
       theme,
     ),
-  });
+  };
+  let payment = await createOrgPayment(creds, paymentInput);
+  // Rail forcé refusé (cas réel 13/10/2026 : « Your pawaPay account has not
+  // been configured to make deposits using 'ORANGE_CIV' / 'MTN_MOMO_CIV' »,
+  // DEPOSITS_NOT_ALLOWED) → repli sur le checkout HÉBERGÉ GeniusPay, qui liste
+  // et route chaque opérateur (c'est déjà le chemin de Moov, qui fonctionne).
+  // Wave reste en direct : son repli hébergé part sur Paystack, cassé.
+  if (!payment.ok && paymentMethod && paymentMethod !== "wave") {
+    console.error(
+      JSON.stringify({
+        level: "warn",
+        msg: "portal forced rail rejected, falling back to hosted checkout",
+        orderId: order.id,
+        method: methodRaw,
+        error: payment.error,
+      }),
+    );
+    payment = await createOrgPayment(creds, {
+      ...paymentInput,
+      paymentMethod: undefined,
+      mmoProvider: undefined,
+    });
+  }
   if (!payment.ok) {
     await db
       .update(portalOrders)
       .set({ status: "pending", claimedAt: null, failureReason: payment.error })
       .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "payment_initiating")));
-    return corsJson({ error: payment.error }, { status: 502 });
+    // 422, PAS 502 : Cloudflare remplace toute réponse 502 de l'origine par
+    // sa page « error code: 502 » (texte brut) — le portail ne pouvait plus
+    // lire le message et Safari affichait « The string did not match the
+    // expected pattern ».
+    return corsJson({ error: payment.error }, { status: 422 });
   }
 
   const [updated] = await db

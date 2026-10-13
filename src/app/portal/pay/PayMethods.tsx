@@ -192,7 +192,11 @@ export default function PayMethods({
         // sur le téléphone (page web + notification), sans app.
         body: JSON.stringify({ orderId, method, theme, captive: captive && method === "wave" }),
       });
-      const data = (await res.json()) as {
+      // Réponse non-JSON (page d'erreur d'un proxy) : message lisible au lieu
+      // de l'erreur brute de Safari « The string did not match… ».
+      const data = (await res.json().catch(() => ({
+        error: "Le service de paiement ne répond pas. Réessayez dans un instant.",
+      }))) as {
         checkoutUrl?: string;
         error?: string;
         lane?: boolean;

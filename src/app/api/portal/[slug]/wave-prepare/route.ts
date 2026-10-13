@@ -92,7 +92,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   ]);
   const data = (await res.json()) as { checkoutUrl?: string; error?: string };
   if (!res.ok || !data.checkoutUrl) {
-    return corsJson({ error: data.error || "Préparation Wave impossible." }, { status: 502 });
+    return corsJson({ error: data.error || "Préparation Wave impossible." }, { status: 422 });
   }
   const lane = laneRes.lane;
   return corsJson({ orderId: copy.id, checkoutUrl: data.checkoutUrl, lane });
