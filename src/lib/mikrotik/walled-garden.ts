@@ -266,6 +266,34 @@ export function wildcardDomains(disabledHosts: string[] = []): string[] {
 }
 
 /**
+ * Toutes les entrées DNS FWD qui alimentent la liste d'adresses du
+ * walled-garden : les jokers (sous-domaines compris) ET les hôtes concrets
+ * (cdn.tailwindcss.com, fonts.googleapis.com…) que ne couvre aucun joker.
+ *
+ * Pourquoi les concrets aussi : un téléphone dans la VOIE DE PAIEMENT
+ * (payment-lane.ts) est authentifié — le walled-garden du hotspot ne
+ * s'applique plus à lui, seule la liste d'adresses compte. Sans les hôtes
+ * concrets, la page GeniusPay (Orange/MTN/Moov) perdait sa mise en forme
+ * (Tailwind, jsDelivr, Google Fonts rejetés) : « Geni » géant, page cassée
+ * (RUE-NICOLAS, 13/10/2026).
+ */
+export function addressListDnsEntries(
+  disabledHosts: string[] = [],
+): { name: string; matchSubdomain: boolean }[] {
+  const disabled = new Set(disabledHosts);
+  const hosts = PAYMENT_WALLED_GARDEN_HOSTS.filter((h) => !disabled.has(h));
+  const wild = wildcardDomains(disabledHosts);
+  const covered = (h: string) => wild.some((d) => h === d || h.endsWith(`.${d}`));
+  return [
+    ...wild.map((name) => ({ name, matchSubdomain: true })),
+    ...[...new Set(hosts.filter((h) => !h.startsWith("*.") && !covered(h)))].map((name) => ({
+      name,
+      matchSubdomain: false,
+    })),
+  ];
+}
+
+/**
  * Le walled-garden L7 (`/ip hotspot walled-garden`, dst-host) couvre bien le
  * HTTP, mais le HTTPS pré-auth est capricieux (matching SNI selon les
  * versions/situations RouterOS — cas réel : le fetch du portail vers
@@ -306,9 +334,9 @@ export function walledGardenScriptLines(appHost: string, disabledHosts: string[]
     // Marge après expiration du TTL DNS : une session TLS (checkout Wave)
     // qui dure plus que le TTL ne doit pas être coupée au milieu.
     `:do { /ip dns set address-list-extra-time=${ADDRESS_LIST_EXTRA_TIME} } on-error={}`,
-    ...wildcardDomains(disabledHosts).map(
-      (d) =>
-        `:do { /ip dns static add name="${d}" type=FWD forward-to=${WILDCARD_FORWARD_TO} match-subdomain=yes address-list="${WALLED_GARDEN_ADDRESS_LIST}" comment="${WALLED_GARDEN_COMMENT}" } on-error={ :log warning "SafeLinkHub walled-garden: DNS FWD ${d} refuse" }`,
+    ...addressListDnsEntries(disabledHosts).map(
+      ({ name: d, matchSubdomain }) =>
+        `:do { /ip dns static add name="${d}" type=FWD forward-to=${WILDCARD_FORWARD_TO} match-subdomain=${matchSubdomain ? "yes" : "no"} address-list="${WALLED_GARDEN_ADDRESS_LIST}" comment="${WALLED_GARDEN_COMMENT}" } on-error={ :log warning "SafeLinkHub walled-garden: DNS FWD ${d} refuse" }`,
     ),
     ...["tcp", "udp"].map(
       (proto) =>
@@ -361,7 +389,7 @@ export async function reconcileWalledGardenOnce(
      processus. */
   const adresses = await resolveAppAddresses(appHost).catch(() => [] as string[]);
   const pinnedPayment = await resolvePinnedPaymentAddresses(disabledHosts);
-  const key = `wg-v6|${walledGardenHosts(appHost, disabledHosts).join(",")}|${adresses.join(",")}|${pinnedPayment.join(",")}`;
+  const key = `wg-v7|${walledGardenHosts(appHost, disabledHosts).join(",")}|${adresses.join(",")}|${pinnedPayment.join(",")}`;
   if (reconciledRouters.get(routerId) === key) return;
   await ensureWalledGarden(client, appHost, disabledHosts);
   // Voie de paiement (session restreinte pour l'app Wave depuis la fenêtre
@@ -475,7 +503,7 @@ export async function ensureWalledGarden(
   await client
     .talk(["/ip/dns/set", `=address-list-extra-time=${ADDRESS_LIST_EXTRA_TIME}`], timeoutMs)
     .catch(() => {});
-  for (const domain of wildcardDomains(disabledHosts)) {
+  for (const { name: domain, matchSubdomain } of addressListDnsEntries(disabledHosts)) {
     await client
       .talk(
         [
@@ -483,7 +511,7 @@ export async function ensureWalledGarden(
           `=name=${domain}`,
           "=type=FWD",
           `=forward-to=${WILDCARD_FORWARD_TO}`,
-          "=match-subdomain=yes",
+          `=match-subdomain=${matchSubdomain ? "yes" : "no"}`,
           `=address-list=${WALLED_GARDEN_ADDRESS_LIST}`,
           `=comment=${WALLED_GARDEN_COMMENT}`,
         ],
@@ -491,7 +519,7 @@ export async function ensureWalledGarden(
       )
       .catch((err: unknown) => {
         failed.push({
-          host: `*.${domain} (DNS FWD)`,
+          host: `${matchSubdomain ? "*." : ""}${domain} (DNS FWD)`,
           reason: err instanceof Error ? err.message : "refus du routeur",
         });
       });

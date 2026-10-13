@@ -36,6 +36,19 @@ const OPERATOR_BY_METHOD: Record<string, "orange" | "mtn"> = {
   mtn_money: "mtn",
 };
 
+// Rails PawaPay refusés par la configuration du compte (DEPOSITS_NOT_ALLOWED),
+// mémorisés par org/opérateur/pays pour aller directement au checkout hébergé.
+// ponytail: mémoire du process (vidée au redéploiement) ; persister si besoin.
+const REJECTED_RAIL_TTL_MS = 6 * 60 * 60 * 1000;
+const rejectedRails = new Map<string, number>();
+function isRailRejected(key: string): boolean {
+  const until = rejectedRails.get(key);
+  return until !== undefined && until > Date.now();
+}
+function rememberRailRejected(key: string): void {
+  rejectedRails.set(key, Date.now() + REJECTED_RAIL_TTL_MS);
+}
+
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
 }
@@ -124,7 +137,8 @@ export async function POST(
     paymentMethod = "wave";
   } else {
     const operator = OPERATOR_BY_METHOD[methodRaw];
-    if (operator && iso2 && iso2 !== "XX") {
+    const railKey = `${org.id}:${operator}:${iso2}`;
+    if (operator && iso2 && iso2 !== "XX" && !isRailRejected(railKey)) {
       const provider = pickPawapayProvider(await listPawapayProviders(creds, iso2), operator);
       if (provider) {
         paymentMethod = "pawapay";
@@ -182,6 +196,12 @@ export async function POST(
   // et route chaque opérateur (c'est déjà le chemin de Moov, qui fonctionne).
   // Wave reste en direct : son repli hébergé part sur Paystack, cassé.
   if (!payment.ok && paymentMethod && paymentMethod !== "wave") {
+    // Refus de configuration (pas un incident passager) : on ne repasse plus
+    // par ce rail pendant quelques heures — chaque essai coûtait ~3 s au
+    // client avant le repli (vidéo 13/10 05:35, ~12 s d'« Ouverture… »).
+    if (/DEPOSITS_NOT_ALLOWED|not been configured/i.test(payment.error ?? "")) {
+      rememberRailRejected(`${org.id}:${OPERATOR_BY_METHOD[methodRaw]}:${iso2}`);
+    }
     console.error(
       JSON.stringify({
         level: "warn",

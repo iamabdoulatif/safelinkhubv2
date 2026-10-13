@@ -6,6 +6,7 @@ import {
   walledGardenHosts,
   walledGardenScriptLines,
   wildcardDomains,
+  addressListDnsEntries,
 } from "./walled-garden";
 
 test("un joker devient une expression régulière valide pour RouterOS", () => {
@@ -57,4 +58,15 @@ test("walledGardenScriptLines : FWD match-subdomain + liste d'adresses, protég�
   );
   assert.match(script, /walled-garden ip add dst-address-list="safelinkhub-walled-garden" action=accept protocol=udp dst-port=443/);
   assert.match(script, /\/ip dns static remove \[find comment="safelinkhub-walled-garden"\]/);
+});
+
+test("addressListDnsEntries : hôtes concrets non couverts inclus, sans doublon de joker", () => {
+  const entries = addressListDnsEntries();
+  const byName = new Map(entries.map((e) => [e.name, e.matchSubdomain]));
+  assert.equal(byName.get("cdn.tailwindcss.com"), false);
+  assert.equal(byName.get("fonts.googleapis.com"), false);
+  assert.equal(byName.get("wave.com"), true);
+  // checkout.paystack.com est couvert par le joker paystack.com
+  assert.ok(!byName.has("checkout.paystack.com"));
+  assert.equal(entries.length, byName.size);
 });
