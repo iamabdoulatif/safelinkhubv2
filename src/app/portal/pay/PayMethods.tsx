@@ -105,7 +105,7 @@ export default function PayMethods({
             next.searchParams.set("wcu", d.checkoutUrl);
             const target = next.toString();
             reloading = true;
-            window.setTimeout(() => window.location.replace(target), 1200);
+            window.setTimeout(() => window.location.replace(target), 300);
             return;
           }
           setWavePrep({ orderId: d.orderId, checkoutUrl: d.checkoutUrl, lane: false });
