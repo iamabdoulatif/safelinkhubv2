@@ -57,6 +57,9 @@ export type MikhmonSessionValues = {
   infolp: string;
   idle: string; // "disable" ou minutes
   livereport: string; // "enable" | "disable"
+  /** Mot de passe d'ouverture de MikHmon (compte « mikhmon »). Absent = le
+   * « 1234 » d'usine — à éviter : voir mikhmon-admin-password.ts. */
+  adminPassword?: string;
 };
 
 /** Contenu complet de config.php (en-tête + admin par défaut + la session). */
@@ -85,7 +88,7 @@ export function buildMikhmonConfigPhp(session: string, v: MikhmonSessionValues):
     '  header("Location:./");',
     "  exit;",
     "}",
-    "$data['mikhmon'] = array ('1'=>'mikhmon<|<mikhmon','2'=>'mikhmon>|>aWNlbA==');",
+    `$data['mikhmon'] = array ('1'=>'mikhmon<|<mikhmon','2'=>'mikhmon>|>${v.adminPassword ? mikhmonLegacyEncrypt(v.adminPassword) : "aWNlbA=="}');`,
     `$data['${S}'] = array(${entries.join(",")});`,
     "",
   ].join("\n");

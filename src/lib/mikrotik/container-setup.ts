@@ -24,6 +24,7 @@ import {
 import { ROUTER_SETUP_PROFILE } from "./router-setup-profile";
 import { scenarioLabel, type DeploymentScenario } from "./device-catalog";
 import { writeMikhmonSession } from "./mikhmon-session";
+import { getOrCreateMikhmonAdminPassword } from "./mikhmon-admin-password";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { ensureWalledGarden } from "./walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
@@ -237,6 +238,8 @@ async function provisionDockerStack(
       hotspotName?: string;
       dnsName?: string;
       currency?: string;
+      /** Mot de passe d'ouverture de MikHmon (getOrCreateMikhmonAdminPassword). */
+      adminPassword?: string;
     };
   },
 ): Promise<DockerProvisionResult> {
@@ -758,6 +761,7 @@ async function provisionDockerStack(
           hotspot: s.hotspotName ?? "",
           dns: opts.hotspotAddress?.trim() || s.dnsName || "",
           currency: s.currency ?? "fcfa",
+          adminPassword: s.adminPassword,
           autoload: 10,
           iface: 1,
           infolp: "",
@@ -2121,6 +2125,7 @@ export async function provisionHotspotStack(
               hotspotName: opts.hotspotName,
               dnsName: opts.dnsName?.trim() || opts.hotspotAddress,
               currency: "fcfa",
+              adminPassword: await getOrCreateMikhmonAdminPassword(router.id),
             }
           : undefined,
     });

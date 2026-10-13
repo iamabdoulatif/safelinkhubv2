@@ -13,6 +13,7 @@ import { routerMikhmonCloudInstances, routers } from "@/lib/db/schema";
 import { decryptSecret } from "./crypto";
 import { runOnRelay } from "./relay";
 import { buildMikhmonConfigPhp } from "./mikhmon-session";
+import { getOrCreateMikhmonAdminPassword } from "./mikhmon-admin-password";
 import { MIKHMON_EDITIONS, parseEdition, type MikhmonEditionId } from "./mikhmon-editions";
 
 type CloudRouter = {
@@ -23,6 +24,9 @@ type CloudRouter = {
   password: string;
   hotspotName: string;
   dnsName: string;
+  /** Mot de passe d'ouverture de MikHmon (jamais le « 1234 » d'usine :
+   * l'instance cloud est joignable depuis Internet). */
+  mikhmonAdminPassword?: string;
 };
 
 type ExistingCloudInstance = {
@@ -102,6 +106,7 @@ async function writeCloudMikhmonSession(
     infolp: "",
     idle: "disable",
     livereport: "enable",
+    adminPassword: router.mikhmonAdminPassword,
   });
   const b64 = Buffer.from(contenu, "utf8").toString("base64");
   await run(
@@ -331,7 +336,10 @@ export async function ensureCloudMikhmonInstance(
   if (!existing) await sweepOrphanCloudMikhmon((command) => runOnRelay(command, 60_000));
 
   const instance = await provisionCloudMikhmon({
-    router: cloudSessionFromRouter(router),
+    router: {
+      ...cloudSessionFromRouter(router),
+      mikhmonAdminPassword: await getOrCreateMikhmonAdminPassword(router.id),
+    },
     existing,
     usedPorts: rows.map((row) => row.localPort),
     baseDomain,

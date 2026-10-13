@@ -47,6 +47,7 @@ import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
+import { getOrCreateMikhmonAdminPassword } from "./mikhmon-admin-password";
 import { decryptSecret } from "./crypto";
 import { isValidCoordinate } from "@/lib/geo/geocode";
 
@@ -1471,6 +1472,7 @@ export async function reconfigureMikhmonSession(routerId: string) {
         pass: decryptSecret(router.passwordEncrypted),
         hotspot,
         dns,
+        adminPassword: await getOrCreateMikhmonAdminPassword(routerId),
         currency: "fcfa",
         autoload: 10,
         iface: 1,
