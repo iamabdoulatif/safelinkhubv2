@@ -11,43 +11,24 @@ import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
-import {
-  getOrgGeniusCreds,
-  createOrgPayment,
-  listPawapayProviders,
-  pickPawapayProvider,
-} from "@/lib/payment-gateways/geniuspay-org";
+import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
+import { preselectPaiementPro } from "@/lib/payment-gateways/paiementpro";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
 import { prewarmPortalVoucherProfile } from "@/lib/portal/fulfill";
 import { appendPortalTheme, portalThemeFromUnknown } from "@/lib/portal/theme";
 import { openPaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 
-// Routage des rails sur GeniusPay v3 (geniuspay.ci), vérifié le 2026-07-23 :
-//  • "wave"                → rail direct pay.wave.com (fiable en captif)
-//  • "orange_money"/"mtn_money" → payment_method="pawapay" + mmo_provider
-//    (ORANGE_xxx / MTN_MOMO_xxx, résolu par pays via listPawapayProviders) :
-//    l'agrégateur PawaPay aboutit correctement, contrairement à l'ancien
-//    routage Paystack cassé de pay.genius.ci.
-//  • tout le reste (moov, card, hosted, indisponible) → checkout hébergé
-//    geniuspay.ci (payment_method omis), qui liste et route chaque moyen.
-const OPERATOR_BY_METHOD: Record<string, "orange" | "mtn"> = {
-  orange_money: "orange",
-  mtn_money: "mtn",
-};
-
-// Rails PawaPay refusés par la configuration du compte (DEPOSITS_NOT_ALLOWED),
-// mémorisés par org/opérateur/pays pour aller directement au checkout hébergé.
-// ponytail: mémoire du process (vidée au redéploiement) ; persister si besoin.
-const REJECTED_RAIL_TTL_MS = 6 * 60 * 60 * 1000;
-const rejectedRails = new Map<string, number>();
-function isRailRejected(key: string): boolean {
-  const until = rejectedRails.get(key);
-  return until !== undefined && until > Date.now();
-}
-function rememberRailRejected(key: string): void {
-  rejectedRails.set(key, Date.now() + REJECTED_RAIL_TTL_MS);
-}
+// Routage des rails sur GeniusPay (geniuspay.ci) :
+//  • "wave" → rail direct pay.wave.com (lien qr.pay.wave.com côté page).
+//  • "orange_money" / "mtn_money" / "moov_money" → payment_method="paiementpro"
+//    (passerelle PaiementPro activée sur le compte), opérateur PRÉSÉLECTIONNÉ
+//    (lib/payment-gateways/paiementpro.ts). PawaPay abandonné ici le
+//    13/10/2026 : « Your pawaPay account has not been configured to make
+//    deposits » (DEPOSITS_NOT_ALLOWED) ; les rails directs orange_money /
+//    moov_money répondaient « Your IP address is not allowed » (Paystack).
+//  • tout le reste (card, hosted) → checkout hébergé geniuspay.ci.
+const PAIEMENTPRO_METHODS = new Set(["orange_money", "mtn_money", "moov_money"]);
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -132,20 +113,8 @@ export async function POST(
   // marche. Le retour vers la page du code pour Wave passe donc par l'onglet du
   // portail qui sonde /portal/paid (fix v130), pas par une redirection GeniusPay.
   let paymentMethod: string | undefined;
-  let mmoProvider: string | undefined;
-  if (methodRaw === "wave") {
-    paymentMethod = "wave";
-  } else {
-    const operator = OPERATOR_BY_METHOD[methodRaw];
-    const railKey = `${org.id}:${operator}:${iso2}`;
-    if (operator && iso2 && iso2 !== "XX" && !isRailRejected(railKey)) {
-      const provider = pickPawapayProvider(await listPawapayProviders(creds, iso2), operator);
-      if (provider) {
-        paymentMethod = "pawapay";
-        mmoProvider = provider;
-      }
-    }
-  }
+  if (methodRaw === "wave") paymentMethod = "wave";
+  else if (PAIEMENTPRO_METHODS.has(methodRaw)) paymentMethod = "paiementpro";
 
   const [claim] = await db
     .update(portalOrders)
@@ -178,7 +147,6 @@ export async function POST(
       ...(iso2 && iso2 !== "XX" ? { country: iso2 } : {}),
     },
     paymentMethod,
-    mmoProvider,
     metadata: { orderId: order.id, slug, kind: "portal" },
     successUrl: appendPortalTheme(
       `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
@@ -190,18 +158,10 @@ export async function POST(
     ),
   };
   let payment = await createOrgPayment(creds, paymentInput);
-  // Rail forcé refusé (cas réel 13/10/2026 : « Your pawaPay account has not
-  // been configured to make deposits using 'ORANGE_CIV' / 'MTN_MOMO_CIV' »,
-  // DEPOSITS_NOT_ALLOWED) → repli sur le checkout HÉBERGÉ GeniusPay, qui liste
-  // et route chaque opérateur (c'est déjà le chemin de Moov, qui fonctionne).
-  // Wave reste en direct : son repli hébergé part sur Paystack, cassé.
+  // Passerelle forcée refusée → repli sur le checkout HÉBERGÉ GeniusPay (le
+  // client y choisit son opérateur). Wave reste en direct : son repli hébergé
+  // part sur Paystack, cassé.
   if (!payment.ok && paymentMethod && paymentMethod !== "wave") {
-    // Refus de configuration (pas un incident passager) : on ne repasse plus
-    // par ce rail pendant quelques heures — chaque essai coûtait ~3 s au
-    // client avant le repli (vidéo 13/10 05:35, ~12 s d'« Ouverture… »).
-    if (/DEPOSITS_NOT_ALLOWED|not been configured/i.test(payment.error ?? "")) {
-      rememberRailRejected(`${org.id}:${OPERATOR_BY_METHOD[methodRaw]}:${iso2}`);
-    }
     console.error(
       JSON.stringify({
         level: "warn",
@@ -211,11 +171,7 @@ export async function POST(
         error: payment.error,
       }),
     );
-    payment = await createOrgPayment(creds, {
-      ...paymentInput,
-      paymentMethod: undefined,
-      mmoProvider: undefined,
-    });
+    payment = await createOrgPayment(creds, { ...paymentInput, paymentMethod: undefined });
   }
   if (!payment.ok) {
     await db
@@ -258,5 +214,8 @@ export async function POST(
       ? await openPaymentLaneForOrder({ ...order, orgId: org.id, checkoutUrl: payment.paymentUrl })
       : { lane: false, smsSent: false };
 
-  return corsJson({ checkoutUrl: payment.paymentUrl, lane, smsSent });
+  // PaiementPro : opérateur présélectionné → le client arrive directement sur
+  // l'étape de paiement (sans rechoisir pays + opérateur).
+  const checkoutUrl = await preselectPaiementPro(payment.paymentUrl, methodRaw, iso2);
+  return corsJson({ checkoutUrl, lane, smsSent });
 }

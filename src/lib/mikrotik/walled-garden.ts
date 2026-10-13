@@ -66,6 +66,12 @@ export const WALLED_GARDEN_CATALOG: WalledGardenGroup[] = [
     hosts: ["pawapay.io", "*.pawapay.io"],
   },
   {
+    group: "PaiementPro",
+    description:
+      "Passerelle GeniusPay pour Orange, MTN et Moov (Côte d'Ivoire) : la page de paiement est servie sur www.paiementpro.net (logos sur dashboard/event.paiementpro.net).",
+    hosts: ["paiementpro.net", "*.paiementpro.net"],
+  },
+  {
     group: "Wave",
     description: "Redirection directe vers wave.com depuis le checkout.",
     hosts: ["wave.com", "*.wave.com"],

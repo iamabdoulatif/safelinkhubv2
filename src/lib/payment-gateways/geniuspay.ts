@@ -4,22 +4,23 @@
 // captif, qui restent sur le propre compte GeniusPay de chaque org). Ici les
 // clés sont lues depuis l'environnement, jamais depuis la base.
 //
-// Doc : https://pay.genius.ci/doc — auth par en-têtes X-API-Key / X-API-Secret,
+// Doc : https://geniuspay.ci/docs/api — auth par en-têtes X-API-Key / X-API-Secret,
 // POST /payments renvoie un checkout_url, webhooks signés en HMAC-SHA256.
 // Module serveur uniquement (crypto Node) : ne jamais l'importer côté client.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { formatGeniusPayCustomer, type GeniusPayCustomer } from "./phone";
+import { preselectPaiementPro } from "./paiementpro";
 import {
   createOrgPayment,
   getOrgPaymentStatus,
-  listPawapayProviders,
-  pickPawapayProvider,
   type OrgGeniusCreds,
   type CreateOrgPaymentInput,
 } from "./geniuspay-org";
 
-const DEFAULT_BASE_URL = "https://pay.genius.ci/api/v1/merchant";
+// geniuspay.ci (plateforme actuelle) — l'ancien host pay.genius.ci répond
+// encore avec les mêmes clés, mais toutes les nouveautés sont ici (13/10/2026).
+const DEFAULT_BASE_URL = "https://geniuspay.ci/api/v1/merchant";
 
 type GeniusPayConfig = {
   apiKey: string;
@@ -203,23 +204,17 @@ export type PlatformV3PaymentInput = {
 };
 
 /**
- * Traduit un moyen d'UI en rail GeniusPay v3 : wave → direct, orange/mtn →
- * PawaPay (mmo_provider résolu par pays), reste (moov/carte/indispo) → checkout
- * hébergé (payment_method omis). Identique au portail captif (portal/[slug]/pay).
+ * Traduit un moyen d'UI en rail GeniusPay : wave → direct ; orange/mtn/moov →
+ * passerelle PaiementPro (PawaPay refuse ces opérateurs sur le compte :
+ * DEPOSITS_NOT_ALLOWED, 13/10/2026) ; reste (carte/indispo) → checkout
+ * hébergé (payment_method omis). Identique au portail captif.
  */
-async function resolvePlatformRail(
-  creds: OrgGeniusCreds,
-  method: string | undefined,
-  iso2: string | undefined,
-): Promise<{ paymentMethod?: string; mmoProvider?: string }> {
+function resolvePlatformRail(method: string | undefined): { paymentMethod?: string } {
   if (method === "wave") return { paymentMethod: "wave" };
-  const operator =
-    method === "orange_money" ? "orange" : method === "mtn_money" ? "mtn" : undefined;
-  if (operator && iso2 && iso2 !== "XX") {
-    const provider = pickPawapayProvider(await listPawapayProviders(creds, iso2), operator);
-    if (provider) return { paymentMethod: "pawapay", mmoProvider: provider };
+  if (method === "orange_money" || method === "mtn_money" || method === "moov_money") {
+    return { paymentMethod: "paiementpro" };
   }
-  return {}; // checkout hébergé v3
+  return {}; // checkout hébergé
 }
 
 /** Crée un paiement sur le compte PLATEFORME en GeniusPay v3. */
@@ -228,7 +223,7 @@ export async function createPlatformV3Payment(
 ): Promise<CreatePaymentResult> {
   const creds = getPlatformGeniusCreds();
   if (!creds) return { ok: false, error: "GeniusPay non configuré (clés API manquantes)." };
-  const rail = await resolvePlatformRail(creds, input.method, input.countryIso2);
+  const rail = resolvePlatformRail(input.method);
   const payload: CreateOrgPaymentInput = {
     amountFcfa: input.amountFcfa,
     description: input.description,
@@ -238,7 +233,17 @@ export async function createPlatformV3Payment(
     errorUrl: input.errorUrl,
     ...rail,
   };
-  return createOrgPayment(creds, payload);
+  let res = await createOrgPayment(creds, payload);
+  // Passerelle forcée refusée → checkout hébergé (le payeur choisit lui-même).
+  if (!res.ok && rail.paymentMethod && rail.paymentMethod !== "wave") {
+    res = await createOrgPayment(creds, { ...payload, paymentMethod: undefined });
+  }
+  if (!res.ok) return res;
+  // PaiementPro : opérateur présélectionné (étape de paiement directe).
+  return {
+    ...res,
+    paymentUrl: await preselectPaiementPro(res.paymentUrl, input.method ?? "", input.countryIso2),
+  };
 }
 
 /**
