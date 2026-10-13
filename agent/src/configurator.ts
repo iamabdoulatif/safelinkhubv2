@@ -83,7 +83,7 @@ export async function runConfiguration(
   if (!serial) throw new Error('Numéro de série indisponible : impossible de garantir l’identité après redémarrage.');
   const resource = await readOne('/system/resource/print');
   if (versionParts(resource.version)[0] !== 7) throw new Error('Cet agent exige RouterOS 7. La migration depuis RouterOS 6 nécessite une procédure séparée.');
-  if (!['arm', 'arm64', 'x86', 'x86_64'].includes(resource['architecture-name'])) throw new Error('Architecture incompatible avec le parcours container.');
+  if (!['arm', 'arm64', 'x86', 'x86_64'].includes(resource['architecture-name'])) throw new Error(`Architecture ${resource['architecture-name'] ?? 'inconnue'} : container non pris en charge (seuls arm, arm64 et x86 le sont).`);
   const initialMode = await readOne('/system/device-mode/print');
   if (enabled(initialMode.flagged)) throw new Error('Routeur flagged : audit requis avant le déverrouillage.');
 
@@ -194,7 +194,8 @@ export async function runConfiguration(
   if (final.mode !== 'advanced' || !matches(final, DEVICE_STEPS[2].expected)) throw new Error('Vérification finale échouée : fonctionnalités attendues absentes.');
   const warnings: string[] = updateRequested ? [] : ['Mise à jour RouterOS différée explicitement : dernière version non vérifiée. Préparation effectuée avec la version installée.'];
   if (!enabled(final.routerboard)) warnings.push('routerboard=yes n’est plus actif après mode=advanced. Ordre demandé respecté ; aucune correction supplémentaire envoyée.');
-  return { version: (await readOne('/system/resource/print')).version, deviceMode: final, warnings };
+  const res = await readOne('/system/resource/print');
+  return { version: res.version, architecture: res['architecture-name'], model: res['board-name'], serial, deviceMode: final, warnings };
 }
 class IdentityError extends Error {}
 class UpdateError extends Error {}

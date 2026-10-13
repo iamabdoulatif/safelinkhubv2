@@ -37,6 +37,8 @@ function renderSteps(task) {
   byId('progress').value = done;
 }
 
+// arm64, arm, x86 : container (MikHmon local) possible. mipsbe, mmips, ppc, smips, tile : non.
+const archLabel = arch => !arch ? '?' : `${arch} · ${['arm64', 'arm', 'x86', 'x86_64'].includes(arch) ? 'container compatible' : 'container non pris en charge'}`;
 function renderSummary(result) {
   const box = byId('summary');
   box.replaceChildren();
@@ -53,6 +55,7 @@ function renderSummary(result) {
   };
   if (result.version) row('RouterOS', result.version);
   if (result.model) row('Modèle', result.model);
+  if (result.architecture) row('Architecture', archLabel(result.architecture));
   if (result.serial) row('Numéro de série', result.serial);
   const mode = result.deviceMode || {};
   if (mode.mode) row('Device-mode', mode.mode);
@@ -261,7 +264,7 @@ function renderHealth(report) {
   const id = report.identity;
   const dl = byId('health-identity');
   dl.replaceChildren();
-  for (const [label, value] of [['Modèle', `${id.boardName} (${id.model})`], ['Numéro de série', id.serial], ['Adresse MAC', id.mac], ['RouterOS', id.version], ['Firmware', id.firmware], ['Allumé depuis', id.uptime], ['Santé', `${report.score}/100`]]) {
+  for (const [label, value] of [['Modèle', `${id.boardName} (${id.model})`], ['Numéro de série', id.serial], ['Adresse MAC', id.mac], ['Architecture', archLabel(id.architecture)], ['RouterOS', id.version], ['Firmware', id.firmware], ['Allumé depuis', id.uptime], ['Santé', `${report.score}/100`]]) {
     const wrap = document.createElement('div'); wrap.className = 'summary-row';
     const dt = document.createElement('dt'); dt.textContent = label;
     const dd = document.createElement('dd'); dd.textContent = value;
