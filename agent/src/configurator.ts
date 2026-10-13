@@ -48,8 +48,11 @@ export async function listPackages(transport: Transport, sleep = (ms: number) =>
       await sleep(5000);
     }
   } catch (error) { note = `Recherche impossible : ${error instanceof Error ? error.message : 'erreur'}. Seuls les paquets installés sont listés.`; }
-  const packages = (await transport.read('/system/package/print')).filter(row => row.name && row.name !== 'routeros').map(toPackage).sort((a, b) => a.name.localeCompare(b.name));
-  return { packages, note };
+  const rows = (await transport.read('/system/package/print')).filter(row => row.name);
+  // routeros d'abord : paquet système, mis à jour par la préparation, jamais décoché.
+  const packages = rows.map(toPackage).sort((a, b) => Number(b.name === 'routeros') - Number(a.name === 'routeros') || a.name.localeCompare(b.name));
+  const latest = (await transport.read('/system/package/update/print').catch(() => [] as Row[]))[0]?.['latest-version'];
+  return { packages, note, latest };
 }
 
 function versionParts(value: string): number[] {

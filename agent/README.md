@@ -98,3 +98,12 @@ Une fois la préparation terminée, l’agent demande un nouveau mot de passe po
 ## Paquets RouterOS (container, zerotier, wifi-qcom…)
 
 « Afficher les paquets disponibles » lance une recherche de mise à jour puis liste les paquets comme *System › Packages* de Winbox (les « XA » = disponibles). Les paquets cochés sont activés (`/system/package/enable`) après la mise à jour RouterOS, puis `/system/package/apply-changes` les télécharge et redémarre — ce redémarrage applique aussi le firmware RouterBOARD. `container` est pré-coché (MikHmon). Désinstaller n'est pas proposé.
+
+## MikHmon : expiration des tickets et revenus (tout MikHmon)
+
+Les scripts MikHmon vivent sur le **routeur** (profils hotspot, ventes dans `/system script`) : même correctif pour laksa19/mikhmonv3 d'origine et `mikhmon-sf-v1`.
+
+- **Profils incompatibles RouterOS 7.10+** (dates ISO) → « Réparer l'expiration » : conversion de date ajoutée au `on-login` (les variantes qui la gèrent déjà ne sont pas touchées) + balayages d'expiration recréés.
+- **Ventes absentes des rapports** → « Réparer les revenus » : ventes remises au format MikHmon (`oct/13/2026`, `owner=oct2026`). Aucune vente supprimée.
+- **RouterOS 7.24+** : le hotspot écrase `owner` en `*sys` → revenus mensuels à 0. La réparation pose la tâche `slh-mikhmon-owner` (2 min) qui corrige les nouvelles ventes.
+- La liste des paquets montre `routeros` (version installée → version disponible), mis à jour par la préparation.

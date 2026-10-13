@@ -202,7 +202,12 @@ byId('packages-load').addEventListener('click', async () => {
       input.disabled = pkg.installed;
       const text = document.createElement('span');
       text.textContent = pkg.name;
-      if (pkg.installed) { const tag = document.createElement('span'); tag.className = 'muted'; tag.textContent = ` · installé ${pkg.version ?? ''}`; text.append(tag); }
+      if (pkg.installed) {
+        const tag = document.createElement('span'); tag.className = 'muted';
+        const update = pkg.name === 'routeros' && data.latest && data.latest !== pkg.version ? ` → ${data.latest} disponible${byId('update-ros').checked ? ' (installé par la préparation)' : ' (cochez « Mettre RouterOS à jour »)'}` : '';
+        tag.textContent = ` · installé ${pkg.version ?? ''}${update}`;
+        text.append(tag);
+      }
       label.append(input, text);
       return label;
     }));
@@ -249,9 +254,9 @@ byId('configure').addEventListener('submit', async event => {
 });
 
 /* ── Diagnostic et dépannage ──────────────────────────────── */
-const SAFE_FIXES = ['ntp', 'ticket-expiry', 'expiry-sweep', 'wifi-enable', 'wifi-unhide', 'wifi-dfs', 'dns-remote', 'dhcp-enable', 'hotspot-enable', 'mikhmon-start', 'mikhmon-session'];
+const SAFE_FIXES = ['ntp', 'expiry-sweep', 'ticket-expiry', 'mikhmon-sales', 'wifi-enable', 'wifi-unhide', 'wifi-dfs', 'dns-remote', 'dhcp-enable', 'hotspot-enable', 'mikhmon-start', 'mikhmon-session'];
 const SEV_ORDER = { error: 0, warn: 1, info: 2, ok: 3 };
-const FIX_LABEL = { nat: 'Recréer le NAT', 'wan-dhcp': 'Recréer le client DHCP WAN', 'mikhmon-session': 'Restaurer la session', ntp: 'Synchroniser l’heure' };
+const FIX_LABEL = { 'mikhmon-sales': 'Réparer les revenus', 'expiry-sweep': 'Réparer l’expiration', 'ticket-expiry': 'Réécrire les dates', nat: 'Recréer le NAT', 'wan-dhcp': 'Recréer le client DHCP WAN', 'mikhmon-session': 'Restaurer la session', ntp: 'Synchroniser l’heure' };
 
 function healthStatus(text, tone) { byId('health-status').textContent = text; setTone(byId('health-status'), tone); }
 function healthBody(extra = {}) { const b = connectionBody(); delete b.updateRouterOS; return { ...b, ...extra }; }

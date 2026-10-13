@@ -118,7 +118,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       }
       if (match[2] === 'packages') {
         try {
-          if (options.dryRun) return json(res, 200, { packages: [{ name: 'container', installed: false }, { name: 'zerotier', installed: false }, { name: 'wifi-qcom', installed: true }], note: 'Simulation : liste d’exemple.' });
+          if (options.dryRun) return json(res, 200, { packages: [{ name: 'routeros', installed: true, version: '7.24.5' }, { name: 'container', installed: false }, { name: 'zerotier', installed: false }, { name: 'wifi-qcom', installed: true }], note: 'Simulation : liste d’exemple.', latest: '7.25' });
           return json(res, 200, await listPackages((options.transport ?? routerTransport)(credentials)));
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Liste des paquets impossible.';

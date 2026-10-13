@@ -24,6 +24,8 @@ import { randomBytes } from 'node:crypto';
 import type { RouterOSClient } from '../../src/lib/mikrotik/client';
 import { auditRouter, type AuditFinding } from '../../src/lib/mikrotik/router-audit';
 import { rewriteIsoExpiryComments, repairExpirySweeps } from '../../src/lib/mikrotik/router-audit-fixes';
+import { inspectProfileOnLogin } from '../../src/lib/mikrotik/expiry-sweep-script';
+import { countUnreadableSales, ensureOwnerSweep, OWNER_SWEEP_NAME, overwritesSaleOwner, rewriteIsoSalesRecords } from '../../src/lib/mikrotik/mikhmon-sales';
 import { fixWifiDfs, readWifiState } from '../../src/lib/mikrotik/wifi-compat';
 import { buildMikhmonResyncRos } from '../../src/lib/mikrotik/mikhmon-session';
 import { ensureApiReachableFromContainer } from '../../src/lib/mikrotik/api-service-access';
@@ -32,7 +34,7 @@ import type { Transport } from './configurator';
 type Row = Record<string, string>;
 export type Severity = 'error' | 'warn' | 'info' | 'ok';
 export type FixId =
-  | 'ntp' | 'ticket-expiry' | 'expiry-sweep'
+  | 'ntp' | 'ticket-expiry' | 'expiry-sweep' | 'mikhmon-sales'
   | 'wifi-enable' | 'wifi-unhide' | 'wifi-dfs'
   | 'nat' | 'dns-remote' | 'dhcp-enable' | 'hotspot-enable' | 'wan-dhcp'
   | 'mikhmon-start' | 'mikhmon-session';
@@ -176,6 +178,25 @@ export async function diagnoseRouter(transport: Transport): Promise<HealthReport
       add({ id: 'ntp', area: 'Tickets', severity: 'ok', title: 'Horloge synchronisée', detail: `NTP synchronisé (${ntp['synced-server'] ?? 'serveur'}), ${clock.date} ${clock.time}.` });
     }
 
+    // ── MikHmon (laksa19 d'origine ou mikhmon-sf-v1) : profils et ventes ────
+    // Les scripts sont sur le ROUTEUR, pas dans le conteneur : même correctif
+    // quelle que soit l'image MikHmon installée.
+    const profiles = await client.talk(['/ip/hotspot/user/profile/print', '=.proplist=.id,name,on-login']).catch(() => [] as Row[]);
+    const staleProfiles = inspectProfileOnLogin(profiles as Row[]).stale;
+    if (staleProfiles.length) {
+      add({ id: 'onlogin-iso', area: 'Tickets', severity: 'error', title: 'Profils MikHmon incompatibles avec RouterOS 7.10+', detail: `${staleProfiles.length} profil(s) (${staleProfiles.slice(0, 5).map(p => p.name).join(', ')}) enregistrent les dates au format ISO : les tickets n'expirent pas et les ventes n'apparaissent pas dans les rapports. Réparation : conversion des dates ajoutée au script de connexion du profil.`, fix: 'expiry-sweep' });
+    }
+    const sales = await countUnreadableSales(client).catch(() => null);
+    if (sales?.found) {
+      add({ id: 'mikhmon-sales', area: 'Revenus', severity: 'error', title: 'Ventes absentes des rapports MikHmon', detail: `${sales.found} vente(s) sur ${sales.total} enregistrée(s) au format ISO : invisibles dans les revenus du jour, du mois et les rapports. Réparation : remise au format MikHmon (aucune vente supprimée).`, fix: 'mikhmon-sales' });
+    } else if (sales) {
+      add({ id: 'mikhmon-sales', area: 'Revenus', severity: 'ok', title: 'Ventes lisibles par les rapports', detail: `${sales.total} vente(s) MikHmon au bon format.` });
+    }
+    if (sales?.total && overwritesSaleOwner(identity.version)) {
+      const sweep = await client.talk(['/system/scheduler/print', `?name=${OWNER_SWEEP_NAME}`]).catch(() => [] as Row[]);
+      if (!sweep.length) add({ id: 'mikhmon-owner-sweep', area: 'Revenus', severity: 'warn', title: 'Revenus mensuels : correction automatique absente', detail: `RouterOS ${identity.version} enregistre chaque nouvelle vente avec owner=*sys : les revenus mensuels de MikHmon restent à 0. Réparation : tâche planifiée « ${OWNER_SWEEP_NAME} » (toutes les 2 min).`, fix: 'mikhmon-sales' });
+    }
+
     // ── Wi-Fi invisible ─────────────────────────────────────────────────────
     const wifi = await readWifiState(client).catch(() => null);
     const packages = await client.talk(['/system/package/print']).catch(() => [] as Row[]);
@@ -276,6 +297,12 @@ export async function applyFix(transport: Transport, fix: FixId): Promise<string
         const r = await repairExpirySweeps(client);
         return `Balayages d’expiration réparés : ${JSON.stringify(r)}`;
       }
+      case 'mikhmon-sales': {
+        const r = await rewriteIsoSalesRecords(client);
+        const version = ((await client.talk(['/system/resource/print']))[0] ?? {}).version ?? '';
+        const sweep = overwritesSaleOwner(version) ? await ensureOwnerSweep(client) : null;
+        return `${r.rewritten} vente(s) remise(s) au format MikHmon${r.failed ? `, ${r.failed} échec(s)` : ''}${sweep === 'added' ? ` ; tâche « ${OWNER_SWEEP_NAME} » posée pour les ventes à venir` : ''}. Rouvrez Rapports dans MikHmon.`;
+      }
       case 'wifi-dfs': {
         const r = await fixWifiDfs(client);
         return r.applied.length ? `Radios débloquées : ${r.applied.join(', ')}.` : (r.note ?? 'Aucune radio à corriger.');
@@ -352,5 +379,5 @@ export async function applyFix(transport: Transport, fix: FixId): Promise<string
 }
 
 /** Réparations sans geste sur site, applicables d'un coup. */
-export const SAFE_FIXES: readonly FixId[] = ['ntp', 'ticket-expiry', 'expiry-sweep', 'wifi-enable', 'wifi-unhide', 'wifi-dfs', 'dns-remote', 'dhcp-enable', 'hotspot-enable', 'mikhmon-start', 'mikhmon-session'];
+export const SAFE_FIXES: readonly FixId[] = ['ntp', 'expiry-sweep', 'ticket-expiry', 'mikhmon-sales', 'wifi-enable', 'wifi-unhide', 'wifi-dfs', 'dns-remote', 'dhcp-enable', 'hotspot-enable', 'mikhmon-start', 'mikhmon-session'];
 export type { AuditFinding };
