@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { runConfiguration, PLAN, type Progress, type Transport } from './configurator';
+import { listPackages, PACKAGE_NAME, runConfiguration, PLAN, type Progress, type Transport } from './configurator';
 import { inspectRouter } from './diagnostics';
 import { applyFix, diagnoseRouter, SAFE_FIXES, type FixId } from './health';
 import { changeAdminPassword, passwordProblem } from './password';
@@ -64,7 +64,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       const task = tasks.get(id);
       return json(res, task ? 200 : 404, task ?? { error: 'Tâche introuvable.' });
     }
-    const match = /^\/agent\/routers\/([^/]+)\/(configure|diagnose|health|fix|password)$/.exec(path);
+    const match = /^\/agent\/routers\/([^/]+)\/(configure|diagnose|health|fix|password|packages)$/.exec(path);
     if (req.method === 'POST' && match) {
       if (active) return json(res, 409, { error: 'Une configuration est déjà en cours.', taskId: active });
       if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'JSON requis.' });
@@ -77,7 +77,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       }
       const body = JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>;
       const host = decodeURIComponent(match[1]);
-      if ((body.updateRouterOS !== undefined && typeof body.updateRouterOS !== 'boolean') || !isLocalAddress(host) || typeof body.username !== 'string' || !body.username.trim() || typeof body.password !== 'string' || typeof body.tls !== 'boolean' || !Number.isInteger(body.port) || Number(body.port) < 1 || Number(body.port) > 65535 || (body.ca !== undefined && typeof body.ca !== 'string')) return json(res, 400, { error: 'IP locale, identifiants, port et transport valides requis.' });
+      if ((body.updateRouterOS !== undefined && typeof body.updateRouterOS !== 'boolean') || !isLocalAddress(host) || typeof body.username !== 'string' || !body.username.trim() || typeof body.password !== 'string' || typeof body.tls !== 'boolean' || !Number.isInteger(body.port) || Number(body.port) < 1 || Number(body.port) > 65535 || (body.ca !== undefined && typeof body.ca !== 'string') || (body.packages !== undefined && (!Array.isArray(body.packages) || body.packages.length > 20 || !body.packages.every(name => typeof name === 'string' && PACKAGE_NAME.test(name))))) return json(res, 400, { error: 'IP locale, identifiants, port et transport valides requis.' });
       // Recheck after reading the request: two uploads must not race the task lock.
       if (active) return json(res, 409, { error: 'Une configuration est déjà en cours.', taskId: active });
       const credentials: Credentials = { host, port: Number(body.port), username: body.username, password: body.password, tls: body.tls, ca: body.ca as string | undefined };
@@ -116,6 +116,15 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
           return json(res, 422, { error: credentials.password ? message.split(credentials.password).join('[secret]') : message });
         } finally { credentials.password = ''; }
       }
+      if (match[2] === 'packages') {
+        try {
+          if (options.dryRun) return json(res, 200, { packages: [{ name: 'container', installed: false }, { name: 'zerotier', installed: false }, { name: 'wifi-qcom', installed: true }], note: 'Simulation : liste d’exemple.' });
+          return json(res, 200, await listPackages((options.transport ?? routerTransport)(credentials)));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Liste des paquets impossible.';
+          return json(res, 422, { error: credentials.password ? message.split(credentials.password).join('[secret]') : message });
+        } finally { credentials.password = ''; }
+      }
       if (match[2] === 'diagnose') {
         try {
           if (options.dryRun) return json(res, 200, { message: 'Simulation : aucun diagnostic réseau effectué.' });
@@ -128,10 +137,13 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       const task: Task = { id: randomUUID(), state: options.dryRun ? 'simulated' : 'running', createdAt: Date.now(), updateRouterOS: body.updateRouterOS !== false };
       if (tasks.size >= 20) tasks.delete(tasks.keys().next().value!);
       tasks.set(task.id, task);
-      if (options.dryRun) { task.plan = body.updateRouterOS === false ? PLAN.filter(words => !words[0].includes('/package/update')) : PLAN; credentials.password = ''; }
+      if (options.dryRun) { const chosen = (body.packages as string[] | undefined) ?? [];
+        task.plan = PLAN
+          .filter(words => !(body.updateRouterOS === false && words[0].includes('/package/update')) && (chosen.length || !/\/package\/(enable|apply-changes)$/.test(words[0])))
+          .map(words => words.map(word => word.replace('<paquets choisis>', chosen.join(',')))); credentials.password = ''; }
       else {
         active = task.id;
-        void runConfiguration((options.transport ?? routerTransport)(credentials), progress => { task.progress = progress; options.log?.({ taskId: task.id, ...progress }); }, undefined, { updateRouterOS: body.updateRouterOS !== false })
+        void runConfiguration((options.transport ?? routerTransport)(credentials), progress => { task.progress = progress; options.log?.({ taskId: task.id, ...progress }); }, undefined, { updateRouterOS: body.updateRouterOS !== false, packages: body.packages as string[] | undefined })
           .then(result => { task.result = result; task.state = result.warnings.length ? 'completed-with-warnings' : 'completed'; })
           .catch((error: unknown) => { const message = error instanceof Error ? error.message : 'Échec de configuration.'; task.error = credentials.password ? message.split(credentials.password).join('[secret]') : message; task.state = 'failed'; })
           .finally(() => { credentials.password = ''; active = undefined; options.log?.({ taskId: task.id, state: task.state }); });

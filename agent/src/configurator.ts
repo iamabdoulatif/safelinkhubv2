@@ -24,10 +24,33 @@ export const PLAN = [
   ['/system/package/update/print'],
   ['/system/package/update/install'],
   ['/system/routerboard/upgrade'],
-  ['/system/reboot'],
+  ['/system/package/enable', '=numbers=<paquets choisis>'],
+  ['/system/package/apply-changes'],
   ...DEVICE_STEPS.map(s => [...s.words]),
   ['/system/device-mode/print'],
 ];
+
+/** Nom de paquet RouterOS (container, zerotier, wifi-qcom…) : jamais d'injection de mots API. */
+export const PACKAGE_NAME = /^[a-z0-9][a-z0-9-]{0,40}$/;
+export type PackageInfo = { name: string; installed: boolean; version?: string };
+const toPackage = (row: Row): PackageInfo => ({ name: row.name, installed: !enabled(row.available) && !enabled(row.disabled), version: row.version || undefined });
+
+/** Paquets installés + disponibles (« XA » dans Winbox) : ces derniers n'apparaissent qu'après une recherche de mise à jour. */
+export async function listPackages(transport: Transport, sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))) {
+  let note: string | undefined;
+  try {
+    await transport.command(['/system/package/update/set', '=channel=stable']);
+    await transport.command(['/system/package/update/check-for-updates', '=once=']);
+    for (let poll = 0; poll < 12; poll++) {
+      const status = (await transport.read('/system/package/update/print'))[0]?.status ?? '';
+      if (/error|failed/i.test(status)) { note = `Recherche impossible (${status}) : seuls les paquets installés sont listés.`; break; }
+      if (!/finding|checking/i.test(status)) break;
+      await sleep(5000);
+    }
+  } catch (error) { note = `Recherche impossible : ${error instanceof Error ? error.message : 'erreur'}. Seuls les paquets installés sont listés.`; }
+  const packages = (await transport.read('/system/package/print')).filter(row => row.name && row.name !== 'routeros').map(toPackage).sort((a, b) => a.name.localeCompare(b.name));
+  return { packages, note };
+}
 
 function versionParts(value: string): number[] {
   const match = /^(\d+)\.(\d+)(?:\.(\d+))?(?:\s|$)/.exec(value);
@@ -47,7 +70,7 @@ export async function runConfiguration(
   transport: Transport,
   report: (progress: Progress) => void,
   clock = { now: () => Date.now(), sleep: (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)) },
-  options: { updateRouterOS?: boolean } = {},
+  options: { updateRouterOS?: boolean; packages?: string[] } = {},
 ) {
   const readOne = async (path: string) => {
     const row = (await transport.read(path))[0];
@@ -68,7 +91,7 @@ export async function runConfiguration(
     const current = await readOne('/system/routerboard/print');
     if (current['serial-number'] !== serial) throw new IdentityError('Identité du routeur différente : arrêt du suivi.');
   };
-  async function waitFor(pending: Pending, path: string, predicate: (row: Row) => boolean, timeout: number) {
+  async function waitFor(pending: Pending, path: string, predicate: (row: Row) => boolean | Promise<boolean>, timeout: number) {
     const deadline = clock.now() + timeout;
     try {
       while (clock.now() < deadline) {
@@ -79,7 +102,7 @@ export async function runConfiguration(
           await assertIdentity();
           const row = await readOne(path);
           if (pending.error()) throw pending.error();
-          if (predicate(row)) return;
+          if (await predicate(row)) return;
           if (path === '/system/resource/print') {
             const update = await readOne('/system/package/update/print');
             if (/error|failed|not enough/i.test(update.status ?? '')) throw new UpdateError(update.status);
@@ -124,15 +147,32 @@ export async function runConfiguration(
 
   // Firmware RouterBOARD : sa cible (upgrade-firmware) suit le RouterOS installé,
   // donc APRÈS la mise à jour RouterOS. Appliqué au redémarrage. Absent sur CHR/x86.
+  // Paquets choisis (container, zerotier…) : activés puis apply-changes, qui
+  // télécharge et redémarre — ce même redémarrage applique le firmware.
   const firmware = await readOne('/system/routerboard/print');
   const targetFirmware = firmware['upgrade-firmware'];
-  if (targetFirmware && firmware['current-firmware'] !== targetFirmware) {
-    report({ state: 'upgrading', step: 0, message: `Firmware RouterBOARD périmé (${firmware['current-firmware'] ?? '?'}) : mise à jour vers ${targetFirmware} puis redémarrage automatique. Ne coupez pas l’alimentation.`, deadline: clock.now() + 300000 });
+  const flashFirmware = !!targetFirmware && firmware['current-firmware'] !== targetFirmware;
+  const wanted = [...new Set(options.packages ?? [])];
+  const bad = wanted.find(name => !PACKAGE_NAME.test(name));
+  if (bad) throw new Error(`Nom de paquet invalide : ${bad}`);
+  const packageRows = wanted.length ? await transport.read('/system/package/print') : [];
+  const missing = wanted.filter(name => !packageRows.some(row => row.name === name));
+  if (missing.length) throw new Error(`Paquet introuvable pour cette version de RouterOS : ${missing.join(', ')}. Lancez une recherche de mise à jour (Internet requis).`);
+  const toEnable = packageRows.filter(row => wanted.includes(row.name) && !toPackage(row).installed);
+  if (flashFirmware || toEnable.length) {
+    const parts = [flashFirmware && `firmware RouterBOARD ${firmware['current-firmware'] ?? '?'} → ${targetFirmware}`, toEnable.length && `paquets ${toEnable.map(row => row.name).join(', ')}`].filter(Boolean);
+    report({ state: 'upgrading', step: 0, message: `Installation : ${parts.join(' et ')}, puis redémarrage automatique. Ne coupez pas l’alimentation.`, deadline: clock.now() + 900000 });
     await assertIdentity();
-    await transport.command(['/system/routerboard/upgrade']);
-    const pending = await transport.begin(['/system/reboot']);
-    await waitFor(pending, '/system/routerboard/print', row => row['current-firmware'] === targetFirmware, 420000);
-    report({ state: 'upgrading', step: 0, message: `Firmware RouterBOARD ${targetFirmware} confirmé.` });
+    if (flashFirmware) await transport.command(['/system/routerboard/upgrade']);
+    if (toEnable.length) await transport.command(['/system/package/enable', `=numbers=${toEnable.map(row => row['.id']).join(',')}`]);
+    const pending = await transport.begin([toEnable.length ? '/system/package/apply-changes' : '/system/reboot']);
+    await waitFor(pending, '/system/routerboard/print', async row => {
+      if (flashFirmware && row['current-firmware'] !== targetFirmware) return false;
+      if (!toEnable.length) return true;
+      const now = await transport.read('/system/package/print');
+      return toEnable.every(want => now.some(r => r.name === want.name && toPackage(r).installed));
+    }, 900000);
+    report({ state: 'upgrading', step: 0, message: `Confirmé sur le routeur : ${parts.join(' et ')}.` });
   }
 
   for (const [index, step] of DEVICE_STEPS.entries()) {

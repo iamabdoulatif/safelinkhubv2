@@ -174,9 +174,39 @@ byId('discover').addEventListener('click', async () => {
   finally { discover.disabled = false; discover.removeAttribute('aria-busy'); }
 });
 
+// Le champ mot de passe est vidé au lancement de la préparation : on garde la
+// valeur en mémoire de la page pour l'étape « nouveau mot de passe Winbox ».
+let lastPassword = '';
 function connectionBody() {
-  return { username: byId('username').value, password: byId('password').value, port: Number(byId('port').value), tls: byId('tls').checked, ca: byId('ca').value.trim() || undefined, updateRouterOS: byId('update-ros').checked };
+  const packages = [...document.querySelectorAll('#packages input:checked:not(:disabled)')].map(input => input.value);
+  return { username: byId('username').value, password: byId('password').value || lastPassword, port: Number(byId('port').value), tls: byId('tls').checked, ca: byId('ca').value.trim() || undefined, updateRouterOS: byId('update-ros').checked, packages };
 }
+// container est nécessaire à MikHmon : pré-coché s'il n'est pas installé.
+const RECOMMENDED = ['container'];
+byId('packages-load').addEventListener('click', async () => {
+  const button = byId('packages-load');
+  button.disabled = true;
+  byId('packages-note').textContent = 'Recherche des paquets depuis le routeur (Internet requis)…';
+  try {
+    const data = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/packages`, { method: 'POST', body: JSON.stringify(connectionBody()) });
+    byId('packages').replaceChildren(...data.packages.map(pkg => {
+      const label = document.createElement('label');
+      label.className = 'check';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = pkg.name;
+      input.checked = pkg.installed || RECOMMENDED.includes(pkg.name);
+      input.disabled = pkg.installed;
+      const text = document.createElement('span');
+      text.textContent = pkg.name;
+      if (pkg.installed) { const tag = document.createElement('span'); tag.className = 'muted'; tag.textContent = ` · installé ${pkg.version ?? ''}`; text.append(tag); }
+      label.append(input, text);
+      return label;
+    }));
+    byId('packages-note').textContent = data.note ?? `${data.packages.filter(p => !p.installed).length} paquet(s) disponible(s). Les paquets déjà installés restent en place.`;
+  } catch (error) { byId('packages-note').textContent = error.message; }
+  finally { button.disabled = false; }
+});
 byId('factory').addEventListener('click', () => {
   byId('tls').checked = false;
   byId('tls').dispatchEvent(new Event('change'));
@@ -204,6 +234,7 @@ byId('configure').addEventListener('submit', async event => {
   byId('fields').disabled = true;
   try {
     const task = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/configure`, { method: 'POST', body: JSON.stringify(connectionBody()) });
+    lastPassword = byId('password').value;
     byId('password').value = '';
     render(task);
     await follow(task.id);
@@ -341,6 +372,7 @@ byId('new-password').addEventListener('submit', async event => {
     const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/password`, { method: 'POST', body: JSON.stringify({ ...connectionBody(), newPassword: next }) });
     // Le formulaire de connexion suit le nouveau mot de passe (diagnostic, réparations).
     byId('password').value = next;
+    lastPassword = next;
     byId('np-1').value = byId('np-2').value = '';
     byId('np-show').checked = false; byId('np-1').type = byId('np-2').type = 'password';
     status.textContent = result.message; setTone(status, 'ok');

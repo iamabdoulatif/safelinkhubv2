@@ -87,6 +87,14 @@
 
           <label class="check"><input id="update-ros" type="checkbox" checked><span>Mettre RouterOS à jour avant la préparation (Internet requis depuis le routeur)</span></label>
           <p class="hint">Sans Internet sur un routeur neuf, décochez cette option pour préparer les fonctionnalités avec la version déjà installée. La mise à jour sera indiquée comme différée.</p>
+          <fieldset class="packages">
+            <legend>Paquets RouterOS à installer</legend>
+            <p class="hint">Comme <em>System › Packages</em> dans Winbox : cochez les paquets à ajouter (container, zerotier, wifi-qcom…). Ils sont installés après la mise à jour, en un seul redémarrage.</p>
+            <button type="button" id="packages-load" class="btn btn-outline btn-block">Afficher les paquets disponibles</button>
+            <p id="packages-note" class="hint" role="status"></p>
+            <div id="packages" class="package-list" role="group" aria-label="Paquets RouterOS"></div>
+          </fieldset>
+
           <p class="callout" data-tone="info">Le routeur doit avoir accès à Internet pour télécharger RouterOS. Des coupures réseau sont normales pendant les redémarrages.</p>
 
           <label class="check">
@@ -139,7 +147,7 @@
         <button type="submit" id="np-submit" class="btn btn-primary btn-block">Changer le mot de passe</button>
       </form>
 
-      <p class="note">L’ordre demandé est conservé. Le mode avancé peut annuler <code>routerboard=yes</code> : le rapport final le signalera. Le firmware RouterBOARD périmé est mis à jour automatiquement (un redémarrage). Cet outil n’installe pas le package container.</p>
+      <p class="note">L’ordre demandé est conservé. Le mode avancé peut annuler <code>routerboard=yes</code> : le rapport final le signalera. Le firmware RouterBOARD périmé est mis à jour automatiquement (un redémarrage). Les paquets cochés (container, zerotier…) sont installés dans le même redémarrage.</p>
     </section>
   </div>
 

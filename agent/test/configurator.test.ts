@@ -7,6 +7,7 @@ function fixture(options: { confirm?: boolean; changeIdentity?: boolean; reject?
   let version = '7.19';
   let firmware = '7.19';
   let flashed = false;
+  const pkgs: Record<string, string>[] = [{ '.id': '*1', name: 'wifi-qcom' }, { '.id': '*2', name: 'container', available: 'true', disabled: 'true' }, { '.id': '*3', name: 'zerotier', available: 'true', disabled: 'true' }];
   let mode: Record<string, string> = { mode: 'home', routerboard: 'no', container: 'no' };
   const commands: string[][] = [];
   const events: Progress[] = [];
@@ -17,6 +18,7 @@ function fixture(options: { confirm?: boolean; changeIdentity?: boolean; reject?
       if (path === '/system/resource/print') return [{ version, 'architecture-name': 'arm64' }];
       if (path === '/system/package/update/print') return [{ 'installed-version': version, 'latest-version': '7.20', status: options.downloadFails ? 'ERROR: connection failed' : 'New version is available' }];
       if (path === '/system/device-mode/print') return [mode];
+      if (path === '/system/package/print') return pkgs;
       return [];
     },
     async command(words) { commands.push(words); if (words[0] === '/system/routerboard/upgrade') flashed = true; },
@@ -30,7 +32,11 @@ function fixture(options: { confirm?: boolean; changeIdentity?: boolean; reject?
     now += ms;
     if (!pending || options.confirm === false) return;
     if (pending[0].includes('/install')) version = '7.20';
-    else if (pending[0] === '/system/reboot') { if (flashed) firmware = version; }
+    else if (pending[0] === '/system/reboot' || pending[0] === '/system/package/apply-changes') {
+      if (flashed) firmware = version;
+      const ids = commands.find(c => c[0] === '/system/package/enable')?.[1].split('=')[2].split(',') ?? [];
+      for (const p of pkgs) if (ids.includes(p['.id'])) { delete p.available; delete p.disabled; }
+    }
     else {
       if (pending.includes('=mode=advanced')) mode = { mode: 'advanced', routerboard: 'no' };
       for (const word of pending.slice(1)) {
@@ -116,4 +122,21 @@ test('préparation hors ligne explicite : aucune commande package/update', async
   const result = await runConfiguration(f.transport, () => {}, f, { updateRouterOS: false });
   assert.equal(f.commands.some(c => c[0].includes('/package/update')), false);
   assert.ok(result.warnings.some(w => /différée/i.test(w)));
+});
+
+test('paquets choisis : activés puis UN seul redémarrage (apply-changes) qui applique aussi le firmware', async () => {
+  const f = fixture();
+  await runConfiguration(f.transport, () => {}, f, { packages: ['container', 'zerotier', 'wifi-qcom'] });
+  assert.deepEqual(f.commands.find(c => c[0] === '/system/package/enable'), ['/system/package/enable', '=numbers=*2,*3']);
+  assert.equal(f.commands.some(c => c[0] === '/system/reboot'), false);
+  const at = (cmd: string) => f.commands.findIndex(c => c[0] === cmd);
+  assert.ok(at('/system/routerboard/upgrade') < at('/system/package/apply-changes'));
+  assert.ok(at('/system/package/apply-changes') < at('/system/device-mode/update'));
+});
+
+test('paquet inconnu ou nom invalide : refus avant toute écriture', async () => {
+  const f = fixture();
+  await assert.rejects(runConfiguration(f.transport, () => {}, f, { updateRouterOS: false, packages: ['inexistant'] }), /introuvable/);
+  await assert.rejects(runConfiguration(fixture().transport, () => {}, f, { updateRouterOS: false, packages: ['x =disabled=yes'] }), /invalide/);
+  assert.equal(f.commands.length, 0);
 });

@@ -94,3 +94,7 @@ Références officielles :
 ## Nouveau mot de passe Winbox
 
 Une fois la préparation terminée, l’agent demande un nouveau mot de passe pour le compte utilisé (`admin`). Il refuse les mots de passe faibles, l’applique (`/user/set`) puis le **vérifie en se reconnectant avec**. Le mot de passe reste en mémoire et n’apparaît jamais dans les journaux.
+
+## Paquets RouterOS (container, zerotier, wifi-qcom…)
+
+« Afficher les paquets disponibles » lance une recherche de mise à jour puis liste les paquets comme *System › Packages* de Winbox (les « XA » = disponibles). Les paquets cochés sont activés (`/system/package/enable`) après la mise à jour RouterOS, puis `/system/package/apply-changes` les télécharge et redémarre — ce redémarrage applique aussi le firmware RouterBOARD. `container` est pré-coché (MikHmon). Désinstaller n'est pas proposé.
