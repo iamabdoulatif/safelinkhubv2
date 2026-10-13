@@ -9,7 +9,7 @@ import { changeAdminPassword, passwordProblem } from './password';
 import { routerTransport, type Credentials } from './routeros';
 import { discoverRouters, isLocalAddress } from './scanner';
 
-type Task = { id: string; state: string; progress?: Progress; result?: unknown; error?: string; createdAt: number; updateRouterOS?: boolean; plan?: string[][] };
+type Task = { id: string; state: string; progress?: Progress; result?: unknown; error?: string; createdAt: number; updateRouterOS?: boolean; packagesOnly?: boolean; plan?: string[][] };
 export function createAgent(options: { dryRun?: boolean; transport?: (credentials: Credentials) => Transport; assetsDir?: string; log?: (event: Record<string, unknown>) => void } = {}) {
   const token = randomBytes(32).toString('hex');
   const tasks = new Map<string, Task>();
@@ -77,7 +77,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       }
       const body = JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>;
       const host = decodeURIComponent(match[1]);
-      if ((body.updateRouterOS !== undefined && typeof body.updateRouterOS !== 'boolean') || !isLocalAddress(host) || typeof body.username !== 'string' || !body.username.trim() || typeof body.password !== 'string' || typeof body.tls !== 'boolean' || !Number.isInteger(body.port) || Number(body.port) < 1 || Number(body.port) > 65535 || (body.ca !== undefined && typeof body.ca !== 'string') || (body.packages !== undefined && (!Array.isArray(body.packages) || body.packages.length > 20 || !body.packages.every(name => typeof name === 'string' && PACKAGE_NAME.test(name))))) return json(res, 400, { error: 'IP locale, identifiants, port et transport valides requis.' });
+      if ((body.updateRouterOS !== undefined && typeof body.updateRouterOS !== 'boolean') || !isLocalAddress(host) || typeof body.username !== 'string' || !body.username.trim() || typeof body.password !== 'string' || typeof body.tls !== 'boolean' || !Number.isInteger(body.port) || Number(body.port) < 1 || Number(body.port) > 65535 || (body.ca !== undefined && typeof body.ca !== 'string') || (body.packagesOnly !== undefined && typeof body.packagesOnly !== 'boolean') || (body.packages !== undefined && (!Array.isArray(body.packages) || body.packages.length > 20 || !body.packages.every(name => typeof name === 'string' && PACKAGE_NAME.test(name))))) return json(res, 400, { error: 'IP locale, identifiants, port et transport valides requis.' });
       // Recheck after reading the request: two uploads must not race the task lock.
       if (active) return json(res, 409, { error: 'Une configuration est déjà en cours.', taskId: active });
       const credentials: Credentials = { host, port: Number(body.port), username: body.username, password: body.password, tls: body.tls, ca: body.ca as string | undefined };
@@ -134,16 +134,21 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
           return json(res, 422, { error: credentials.password ? message.split(credentials.password).join('[secret]') : message });
         } finally { credentials.password = ''; }
       }
-      const task: Task = { id: randomUUID(), state: options.dryRun ? 'simulated' : 'running', createdAt: Date.now(), updateRouterOS: body.updateRouterOS !== false };
+      const task: Task = { id: randomUUID(), state: options.dryRun ? 'simulated' : 'running', createdAt: Date.now(), updateRouterOS: body.updateRouterOS !== false, packagesOnly: body.packagesOnly === true };
       if (tasks.size >= 20) tasks.delete(tasks.keys().next().value!);
       tasks.set(task.id, task);
-      if (options.dryRun) { const chosen = (body.packages as string[] | undefined) ?? [];
-        task.plan = PLAN
-          .filter(words => !(body.updateRouterOS === false && words[0].includes('/package/update')) && (chosen.length || !/\/package\/(enable|apply-changes)$/.test(words[0])))
-          .map(words => words.map(word => word.replace('<paquets choisis>', chosen.join(',')))); credentials.password = ''; }
+      if (options.dryRun) {
+        const pkg = /\/package\/(enable|uninstall|apply-changes)$/;
+        task.plan = PLAN.filter(words => {
+          if (pkg.test(words[0])) return body.packages !== undefined;
+          if (body.packagesOnly) return words[0] === '/system/routerboard/upgrade';
+          return !(body.updateRouterOS === false && words[0].includes('/package/update'));
+        });
+        credentials.password = '';
+      }
       else {
         active = task.id;
-        void runConfiguration((options.transport ?? routerTransport)(credentials), progress => { task.progress = progress; options.log?.({ taskId: task.id, ...progress }); }, undefined, { updateRouterOS: body.updateRouterOS !== false, packages: body.packages as string[] | undefined })
+        void runConfiguration((options.transport ?? routerTransport)(credentials), progress => { task.progress = progress; options.log?.({ taskId: task.id, ...progress }); }, undefined, { updateRouterOS: body.updateRouterOS !== false, packages: body.packages as string[] | undefined, packagesOnly: body.packagesOnly === true })
           .then(result => { task.result = result; task.state = result.warnings.length ? 'completed-with-warnings' : 'completed'; })
           .catch((error: unknown) => { const message = error instanceof Error ? error.message : 'Échec de configuration.'; task.error = credentials.password ? message.split(credentials.password).join('[secret]') : message; task.state = 'failed'; })
           .finally(() => { credentials.password = ''; active = undefined; options.log?.({ taskId: task.id, state: task.state }); });

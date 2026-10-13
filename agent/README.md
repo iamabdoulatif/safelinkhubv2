@@ -97,7 +97,9 @@ Une fois la préparation terminée, l’agent demande un nouveau mot de passe po
 
 ## Paquets RouterOS (container, zerotier, wifi-qcom…)
 
-« Afficher les paquets disponibles » lance une recherche de mise à jour puis liste les paquets comme *System › Packages* de Winbox (les « XA » = disponibles). Les paquets cochés sont activés (`/system/package/enable`) après la mise à jour RouterOS, puis `/system/package/apply-changes` les télécharge et redémarre — ce redémarrage applique aussi le firmware RouterBOARD. `container` est pré-coché (MikHmon). Désinstaller n'est pas proposé.
+« Afficher les paquets disponibles » lance une recherche de mise à jour puis liste les paquets comme *System › Packages* de Winbox (les « XA » = disponibles). Les paquets cochés sont activés (`/system/package/enable`) après la mise à jour RouterOS, puis `/system/package/apply-changes` les télécharge et redémarre — ce redémarrage applique aussi le firmware RouterBOARD. `container` est pré-coché (MikHmon).
+
+La liste est l'**état voulu** : coché = installé, décoché = désinstallé (`/system/package/uninstall`), sauf `routeros`. « Appliquer les paquets maintenant » le fait sans relancer la préparation, suit le redémarrage et vérifie chaque paquet ; avertissement avant de retirer `container` (MikHmon) ou un paquet Wi-Fi. Liste jamais affichée = paquets non touchés.
 
 ## MikHmon : expiration des tickets et revenus (tout MikHmon)
 

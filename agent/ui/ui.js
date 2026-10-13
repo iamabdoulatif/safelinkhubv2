@@ -29,6 +29,8 @@ function renderSteps(task) {
     else if (task.state === 'failed') state = i < current ? 'done' : i === current ? 'failed' : 'todo';
     else if (task.state === 'running') state = i < current ? 'done' : i === current ? (task.progress?.state === 'waiting-physical' ? 'waiting' : 'active') : 'todo';
     if (task.updateRouterOS === false && i === 1 && current > 1) state = 'todo';
+    // Paquets seuls : seule l'étape « Mettre RouterOS… à jour » (paquets + firmware) est concernée.
+    if (task.packagesOnly && i > 1) state = 'todo';
     if (task.state === 'simulated') state = 'todo';
     li.dataset.state = state;
     if (state === 'done' || state === 'warn') done += 1;
@@ -86,6 +88,7 @@ function renderSummary(result) {
 
 function render(task) {
   const labels = { completed: 'Configuration vérifiée sur le routeur.', 'completed-with-warnings': 'Terminé avec un avertissement à vérifier.', failed: 'Configuration interrompue.', simulated: 'Simulation terminée. Aucune commande envoyée.' };
+  if (task.packagesOnly && task.state === 'completed') labels.completed = 'Paquets appliqués et vérifiés sur le routeur.';
   byId('status').textContent = task.error || labels[task.state] || task.progress?.message || 'Vérification en cours…';
   const waiting = task.progress?.state === 'waiting-physical';
   setTone(byId('status-box'), task.state === 'failed' ? 'err'
@@ -99,7 +102,7 @@ function render(task) {
   byId('result').textContent = plan;
   byId('result').hidden = !plan;
   const ready = task.state === 'completed' || task.state === 'completed-with-warnings';
-  if (ready && byId('new-password').hidden) { byId('np-user').textContent = byId('username').value.trim(); byId('new-password').hidden = false; byId('np-1').focus(); }
+  if (ready && !task.packagesOnly && byId('new-password').hidden) { byId('np-user').textContent = byId('username').value.trim(); byId('new-password').hidden = false; byId('np-1').focus(); }
   byId('fields').disabled = task.state === 'running';
   byId('discover').disabled = task.state === 'running';
 }
@@ -181,9 +184,36 @@ byId('discover').addEventListener('click', async () => {
 // valeur en mémoire de la page pour l'étape « nouveau mot de passe Winbox ».
 let lastPassword = '';
 function connectionBody() {
-  const packages = [...document.querySelectorAll('#packages input:checked:not(:disabled)')].map(input => input.value);
+  // Liste non affichée → paquets non touchés (jamais « tout décoché »).
+  const packages = byId('packages').children.length ? [...document.querySelectorAll('#packages input:checked')].map(input => input.value) : undefined;
   return { username: byId('username').value, password: byId('password').value || lastPassword, port: Number(byId('port').value), tls: byId('tls').checked, ca: byId('ca').value.trim() || undefined, updateRouterOS: byId('update-ros').checked, packages };
 }
+const REMOVAL_RISK = { container: 'MikHmon ne fonctionnera plus (son conteneur sera arrêté).', 'wifi-qcom': 'le Wi-Fi peut disparaître.', wireless: 'le Wi-Fi peut disparaître.', 'wifi-qcom-ac': 'le Wi-Fi peut disparaître.' };
+function packagesWarning() {
+  const inputs = [...document.querySelectorAll('#packages input')];
+  const removed = inputs.filter(i => i.dataset.installed === 'true' && !i.checked).map(i => i.value);
+  const added = inputs.filter(i => i.dataset.installed !== 'true' && i.checked).map(i => i.value);
+  const risks = removed.filter(name => REMOVAL_RISK[name]).map(name => `${name} : ${REMOVAL_RISK[name]}`);
+  const warn = byId('packages-warn');
+  warn.hidden = !removed.length;
+  warn.textContent = removed.length ? `Seront désinstallés : ${removed.join(', ')}.${risks.length ? ` Attention — ${risks.join(' ')}` : ''}` : '';
+  byId('packages-apply').textContent = added.length || removed.length ? `Appliquer maintenant (${[added.length && `+${added.join(', +')}`, removed.length && `−${removed.join(', −')}`].filter(Boolean).join(' ; ')})` : 'Paquets conformes à la sélection';
+  byId('packages-apply').disabled = !added.length && !removed.length;
+}
+byId('packages-apply').addEventListener('click', async () => {
+  byId('fields').disabled = true;
+  try {
+    const task = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/configure`, { method: 'POST', body: JSON.stringify({ ...connectionBody(), packagesOnly: true }) });
+    lastPassword = byId('password').value || lastPassword;
+    render(task);
+    await follow(task.id);
+    byId('packages-load').click(); // relit l'état réel du routeur
+  } catch (error) {
+    byId('status').textContent = error.message;
+    setTone(byId('status-box'), 'err');
+    byId('fields').disabled = false;
+  }
+});
 // container est nécessaire à MikHmon : pré-coché s'il n'est pas installé.
 const RECOMMENDED = ['container'];
 byId('packages-load').addEventListener('click', async () => {
@@ -199,7 +229,9 @@ byId('packages-load').addEventListener('click', async () => {
       input.type = 'checkbox';
       input.value = pkg.name;
       input.checked = pkg.installed || RECOMMENDED.includes(pkg.name);
-      input.disabled = pkg.installed;
+      input.dataset.installed = String(pkg.installed);
+      input.disabled = pkg.name === 'routeros';
+      input.addEventListener('change', packagesWarning);
       const text = document.createElement('span');
       text.textContent = pkg.name;
       if (pkg.installed) {
@@ -211,6 +243,8 @@ byId('packages-load').addEventListener('click', async () => {
       label.append(input, text);
       return label;
     }));
+    byId('packages-apply').hidden = false;
+    packagesWarning();
     byId('packages-note').textContent = data.note ?? `${data.packages.filter(p => !p.installed).length} paquet(s) disponible(s). Les paquets déjà installés restent en place.`;
   } catch (error) { byId('packages-note').textContent = error.message; }
   finally { button.disabled = false; }

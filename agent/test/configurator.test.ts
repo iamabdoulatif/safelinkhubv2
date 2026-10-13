@@ -7,7 +7,7 @@ function fixture(options: { confirm?: boolean; changeIdentity?: boolean; reject?
   let version = '7.19';
   let firmware = '7.19';
   let flashed = false;
-  const pkgs: Record<string, string>[] = [{ '.id': '*1', name: 'wifi-qcom' }, { '.id': '*2', name: 'container', available: 'true', disabled: 'true' }, { '.id': '*3', name: 'zerotier', available: 'true', disabled: 'true' }];
+  const pkgs: Record<string, string>[] = [{ '.id': '*0', name: 'routeros' }, { '.id': '*1', name: 'wifi-qcom' }, { '.id': '*2', name: 'container', available: 'true', disabled: 'true' }, { '.id': '*3', name: 'zerotier', available: 'true', disabled: 'true' }];
   let mode: Record<string, string> = { mode: 'home', routerboard: 'no', container: 'no' };
   const commands: string[][] = [];
   const events: Progress[] = [];
@@ -34,8 +34,9 @@ function fixture(options: { confirm?: boolean; changeIdentity?: boolean; reject?
     if (pending[0].includes('/install')) version = '7.20';
     else if (pending[0] === '/system/reboot' || pending[0] === '/system/package/apply-changes') {
       if (flashed) firmware = version;
-      const ids = commands.find(c => c[0] === '/system/package/enable')?.[1].split('=')[2].split(',') ?? [];
-      for (const p of pkgs) if (ids.includes(p['.id'])) { delete p.available; delete p.disabled; }
+      const ids = (cmd: string) => commands.find(c => c[0] === cmd)?.[1].split('=')[2].split(',') ?? [];
+      for (const p of pkgs) if (ids('/system/package/enable').includes(p['.id'])) { delete p.available; delete p.disabled; }
+      for (const p of pkgs) if (ids('/system/package/uninstall').includes(p['.id'])) { p.available = 'true'; p.disabled = 'true'; }
     }
     else {
       if (pending.includes('=mode=advanced')) mode = { mode: 'advanced', routerboard: 'no' };
@@ -139,4 +140,19 @@ test('paquet inconnu ou nom invalide : refus avant toute écriture', async () =>
   await assert.rejects(runConfiguration(f.transport, () => {}, f, { updateRouterOS: false, packages: ['inexistant'] }), /introuvable/);
   await assert.rejects(runConfiguration(fixture().transport, () => {}, f, { updateRouterOS: false, packages: ['x =disabled=yes'] }), /invalide/);
   assert.equal(f.commands.length, 0);
+});
+
+test('paquets seuls : coché installé, décoché désinstallé, routeros jamais retiré, pas de device-mode', async () => {
+  const f = fixture();
+  const result = await runConfiguration(f.transport, () => {}, f, { packagesOnly: true, packages: ['container', 'zerotier'] });
+  assert.deepEqual(f.commands.find(c => c[0] === '/system/package/enable'), ['/system/package/enable', '=numbers=*2,*3']);
+  assert.deepEqual(f.commands.find(c => c[0] === '/system/package/uninstall'), ['/system/package/uninstall', '=numbers=*1']);
+  assert.equal(f.commands.some(c => c[0].includes('device-mode') || c[0].endsWith('/install')), false);
+  assert.deepEqual((result as { installedPackages: string[] }).installedPackages.sort(), ['container', 'routeros', 'zerotier']);
+});
+
+test('liste non chargée (packages absent) : aucun paquet touché', async () => {
+  const f = fixture();
+  await runConfiguration(f.transport, () => {}, f, { packagesOnly: true });
+  assert.equal(f.commands.some(c => /\/package\/(enable|uninstall)$/.test(c[0])), false);
 });

@@ -89,10 +89,13 @@
           <p class="hint">Sans Internet sur un routeur neuf, décochez cette option pour préparer les fonctionnalités avec la version déjà installée. La mise à jour sera indiquée comme différée.</p>
           <fieldset class="packages">
             <legend>Paquets RouterOS à installer</legend>
-            <p class="hint">Comme <em>System › Packages</em> dans Winbox : cochez les paquets à ajouter (container, zerotier, wifi-qcom…). Ils sont installés après la mise à jour, en un seul redémarrage.</p>
+            <p class="hint">Comme <em>System › Packages</em> dans Winbox : cochez les paquets voulus (container, zerotier, wifi-qcom…), décochez ceux à retirer. Appliqué après la mise à jour, en un seul redémarrage.</p>
             <button type="button" id="packages-load" class="btn btn-outline btn-block">Afficher les paquets disponibles</button>
             <p id="packages-note" class="hint" role="status"></p>
             <div id="packages" class="package-list" role="group" aria-label="Paquets RouterOS"></div>
+            <p id="packages-warn" class="callout" data-tone="warn" hidden></p>
+            <p class="hint">Coché = installé après l’opération, décoché = désinstallé (sauf routeros).</p>
+            <button type="button" id="packages-apply" class="btn btn-outline btn-block" hidden>Appliquer les paquets maintenant</button>
           </fieldset>
 
           <p class="callout" data-tone="info">Le routeur doit avoir accès à Internet pour télécharger RouterOS. Des coupures réseau sont normales pendant les redémarrages.</p>
