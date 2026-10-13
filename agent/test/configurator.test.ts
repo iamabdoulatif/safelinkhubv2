@@ -5,19 +5,21 @@ import { runConfiguration, type Transport, type Progress } from '../src/configur
 function fixture(options: { confirm?: boolean; changeIdentity?: boolean; reject?: boolean; downloadFails?: boolean } = {}) {
   let now = 0;
   let version = '7.19';
+  let firmware = '7.19';
+  let flashed = false;
   let mode: Record<string, string> = { mode: 'home', routerboard: 'no', container: 'no' };
   const commands: string[][] = [];
   const events: Progress[] = [];
   let pending: string[] | undefined;
   const transport: Transport = {
     async read(path) {
-      if (path === '/system/routerboard/print') return [{ 'serial-number': options.changeIdentity && commands.length ? 'OTHER' : 'SERIAL' }];
+      if (path === '/system/routerboard/print') return [{ 'serial-number': options.changeIdentity && commands.length ? 'OTHER' : 'SERIAL', 'current-firmware': firmware, 'upgrade-firmware': version }];
       if (path === '/system/resource/print') return [{ version, 'architecture-name': 'arm64' }];
       if (path === '/system/package/update/print') return [{ 'installed-version': version, 'latest-version': '7.20', status: options.downloadFails ? 'ERROR: connection failed' : 'New version is available' }];
       if (path === '/system/device-mode/print') return [mode];
       return [];
     },
-    async command(words) { commands.push(words); },
+    async command(words) { commands.push(words); if (words[0] === '/system/routerboard/upgrade') flashed = true; },
     async begin(words) {
       commands.push(words);
       pending = words;
@@ -28,6 +30,7 @@ function fixture(options: { confirm?: boolean; changeIdentity?: boolean; reject?
     now += ms;
     if (!pending || options.confirm === false) return;
     if (pending[0].includes('/install')) version = '7.20';
+    else if (pending[0] === '/system/reboot') { if (flashed) firmware = version; }
     else {
       if (pending.includes('=mode=advanced')) mode = { mode: 'advanced', routerboard: 'no' };
       for (const word of pending.slice(1)) {
@@ -49,7 +52,11 @@ test('upgrade puis commandes distinctes dans l’ordre ; signale routerboard ré
     ['/system/device-mode/update', '=mode=advanced'],
     ['/system/device-mode/update', '=container=yes', '=hotspot=yes', '=scheduler=yes', '=fetch=yes'],
   ]);
-  assert.ok(f.commands.findIndex(c => c[0].endsWith('/install')) < f.commands.findIndex(c => c[0].includes('device-mode')));
+  const at = (cmd: string) => f.commands.findIndex(c => c[0] === cmd);
+  // RouterOS → firmware RouterBOARD (upgrade + redémarrage) → device-mode
+  assert.ok(at('/system/package/update/install') < at('/system/routerboard/upgrade'));
+  assert.ok(at('/system/routerboard/upgrade') < at('/system/reboot'));
+  assert.ok(at('/system/reboot') < at('/system/device-mode/update'));
   assert.equal(f.events.filter(e => e.state === 'waiting-physical').length, 3);
 });
 

@@ -182,7 +182,7 @@ byId('factory').addEventListener('click', () => {
   byId('tls').dispatchEvent(new Event('change'));
 });
 byId('update-ros').addEventListener('change', () => {
-  byId('steps').children[1].querySelector('.step-label').textContent = byId('update-ros').checked ? 'Mettre RouterOS à jour (stable)' : 'Mise à jour RouterOS différée';
+  byId('steps').children[1].querySelector('.step-label').textContent = byId('update-ros').checked ? 'Mettre RouterOS et le firmware RouterBOARD à jour (stable)' : 'RouterOS différé · firmware RouterBOARD vérifié';
 });
 byId('diagnose').addEventListener('click', async () => {
   byId('fields').disabled = true;

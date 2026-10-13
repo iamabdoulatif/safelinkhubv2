@@ -73,7 +73,7 @@ Sondes TCP 8728/8729 sur les interfaces IPv4 privées selon leur masque réel (1
 
 - **Internet est nécessaire depuis le routeur** pour la mise à jour RouterOS. Il s'agit d'une exception à l'objectif initial « tout local ».
 - RouterOS 6, versions testing/development et équipements sans numéro de série : arrêt explicite, pas de migration majeure improvisée.
-- L'agent ne met **pas RouterBOOT à jour** : `routerboard=yes` autorise des fonctionnalités et n'est pas une mise à jour du firmware.
+- **Firmware RouterBOARD** : après RouterOS, si `current-firmware` ≠ `upgrade-firmware`, l'agent lance `/system/routerboard/upgrade`, redémarre, puis vérifie le nouveau firmware (même numéro de série). Ne pas confondre avec `routerboard=yes` (device-mode), qui autorise des fonctionnalités.
 - Autoriser `container=yes` n'installe ni le package container ni une image/container, hotspot ou configuration DHCP/NAT.
 - Le mot « dernière » désigne la version stable proposée par le service de mise à jour pour ce routeur au moment de l'exécution, sans numéro figé.
 - Essai sur appareil physique indispensable avant utilisation en production. Les tests du dépôt utilisent exclusivement des simulations et des sockets loopback.

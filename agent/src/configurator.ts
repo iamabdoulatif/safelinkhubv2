@@ -23,6 +23,8 @@ export const PLAN = [
   ['/system/package/update/check-for-updates', '=once='],
   ['/system/package/update/print'],
   ['/system/package/update/install'],
+  ['/system/routerboard/upgrade'],
+  ['/system/reboot'],
   ...DEVICE_STEPS.map(s => [...s.words]),
   ['/system/device-mode/print'],
 ];
@@ -119,6 +121,19 @@ export async function runConfiguration(
     await waitFor(pending, '/system/resource/print', row => compareVersions(row.version, latest) === 0, 900000);
   }
   if (!updated) throw new Error('Limite de mises à jour intermédiaires atteinte. Relancez après vérification de la version.');
+
+  // Firmware RouterBOARD : sa cible (upgrade-firmware) suit le RouterOS installé,
+  // donc APRÈS la mise à jour RouterOS. Appliqué au redémarrage. Absent sur CHR/x86.
+  const firmware = await readOne('/system/routerboard/print');
+  const targetFirmware = firmware['upgrade-firmware'];
+  if (targetFirmware && firmware['current-firmware'] !== targetFirmware) {
+    report({ state: 'upgrading', step: 0, message: `Firmware RouterBOARD périmé (${firmware['current-firmware'] ?? '?'}) : mise à jour vers ${targetFirmware} puis redémarrage automatique. Ne coupez pas l’alimentation.`, deadline: clock.now() + 300000 });
+    await assertIdentity();
+    await transport.command(['/system/routerboard/upgrade']);
+    const pending = await transport.begin(['/system/reboot']);
+    await waitFor(pending, '/system/routerboard/print', row => row['current-firmware'] === targetFirmware, 420000);
+    report({ state: 'upgrading', step: 0, message: `Firmware RouterBOARD ${targetFirmware} confirmé.` });
+  }
 
   for (const [index, step] of DEVICE_STEPS.entries()) {
     await assertIdentity();
