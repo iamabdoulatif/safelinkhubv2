@@ -58,6 +58,7 @@ export default function PayMethods({
   // qr.pay.wave.com — voir /api/portal/[slug]/wave-prepare.
   const [wavePrep, setWavePrep] = useState<{ orderId: string; checkoutUrl: string; lane: boolean } | null>(null);
   const [waveLaunched, setWaveLaunched] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   // En fenêtre captive, la tuile Wave ATTEND la préparation (quelques
   // secondes) plutôt que de lancer l'ancien parcours en cas de tap précoce.
   // Elle ne repasse en bouton classique qu'en cas d'échec.
@@ -267,72 +268,93 @@ export default function PayMethods({
     </div>
   );
 
-  // UN tap = paiement lancé. Les 4 opérateurs SONT le choix principal (grille
-  // 2×2) : avant, un CTA « Choisir mon moyen de paiement » menait à une
-  // seconde page de choix (checkout hébergé) — un écran de plus pour rien.
-  // Le checkout hébergé reste accessible en lien discret (carte, autres).
+  // Champ de sélection (demande opérateur, 13/10/2026) : « Choisir un moyen de
+  // paiement ▾ » déplie les opérateurs, UN tap sur une ligne lance le
+  // paiement — pas de bouton « Payer » en plus. Volontairement PAS un
+  // <select> natif : dans la fenêtre Wi-Fi iOS, seul un vrai lien TOUCHÉ
+  // (ligne Wave = lien qr.pay.wave.com) part vers Chrome puis l'app Wave ;
+  // un changement de <select> suivi d'une navigation reste dans la fenêtre.
+  const chosen = METHODS.find((m) => m.id === busy) ?? (waveLaunched ? METHODS[0] : null);
+  const triggerLabel = waveLaunched
+    ? "Wave ouvert…"
+    : chosen
+      ? `${chosen.label} — ouverture…`
+      : "Choisir un moyen de paiement";
+
+  const optionContent = (m: Method, label: string, badge?: boolean) => (
+    <>
+      <span className={styles.selectLogo}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={m.logo} alt="" />
+      </span>
+      <span className={styles.selectLabel}>{label}</span>
+      {badge ? <span className={styles.selectBadge}>Le plus rapide</span> : null}
+    </>
+  );
+
   return (
     <div>
-      <p className={styles.payHeading}>Payez avec</p>
-      <div className={styles.railGrid}>
-        {METHODS.map((m) => {
-          const loading = busy === m.id;
-          const waveLink = m.id === "wave" && wavePrep ? waveQrHref(wavePrep.checkoutUrl) : null;
-          if (m.id === "wave" && !waveLink && wavePreparing) {
+      <p className={styles.payHeading} id="slh-pay-label">
+        Moyen de paiement
+      </p>
+      <button
+        type="button"
+        className={styles.selectTrigger}
+        aria-haspopup="listbox"
+        aria-expanded={menuOpen}
+        aria-labelledby="slh-pay-label"
+        disabled={Boolean(busy)}
+        onClick={() => setMenuOpen((o) => !o)}
+      >
+        {chosen ? (
+          <span className={styles.selectLogo}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={chosen.logo} alt="" />
+          </span>
+        ) : null}
+        <span className={styles.selectLabel}>{triggerLabel}</span>
+        <span aria-hidden="true" className={styles.selectChevron}>
+          {menuOpen ? "▴" : "▾"}
+        </span>
+      </button>
+
+      {menuOpen && !busy ? (
+        <ul className={styles.selectMenu} role="listbox" aria-labelledby="slh-pay-label">
+          {METHODS.map((m) => {
+            const waveLink = m.id === "wave" && wavePrep ? waveQrHref(wavePrep.checkoutUrl) : null;
+            if (m.id === "wave" && !waveLink && wavePreparing) {
+              return (
+                <li key={m.id} role="option" aria-selected={false} aria-disabled className={`${styles.selectOption} ${styles.selectOptionWait}`}>
+                  {optionContent(m, "Wave — préparation…", true)}
+                </li>
+              );
+            }
+            if (waveLink) {
+              return (
+                <li key={m.id} role="option" aria-selected={false}>
+                  <a href={waveLink} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
+                    {optionContent(m, m.label, true)}
+                  </a>
+                </li>
+              );
+            }
             return (
-              <button
-                key={m.id}
-                type="button"
-                className={`${styles.railTile} ${styles.railTileFeatured}`}
-                disabled
-                aria-busy
-              >
-                <span className={styles.railBadge}>Le plus rapide</span>
-                <span className={styles.railLogo}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={m.logo} alt="" />
-                </span>
-                <span className={styles.railLabel}>Préparation…</span>
-              </button>
+              <li key={m.id} role="option" aria-selected={false}>
+                <button
+                  type="button"
+                  className={styles.selectOption}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void pay(m.id);
+                  }}
+                >
+                  {optionContent(m, m.label, m.id === "wave")}
+                </button>
+              </li>
             );
-          }
-          if (waveLink) {
-            return (
-              <a
-                key={m.id}
-                href={waveLink}
-                className={`${styles.railTile} ${styles.railTileFeatured}`}
-                onClick={onWaveLinkTap}
-                style={{ textDecoration: "none" }}
-              >
-                <span className={styles.railBadge}>Le plus rapide</span>
-                <span className={styles.railLogo}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={m.logo} alt="" />
-                </span>
-                <span className={styles.railLabel}>{waveLaunched ? "Wave ouvert…" : m.label}</span>
-              </a>
-            );
-          }
-          return (
-            <button
-              key={m.id}
-              type="button"
-              className={`${styles.railTile} ${m.id === "wave" ? styles.railTileFeatured : ""}`}
-              disabled={Boolean(busy)}
-              aria-busy={loading}
-              onClick={() => pay(m.id)}
-            >
-              {m.id === "wave" ? <span className={styles.railBadge}>Le plus rapide</span> : null}
-              <span className={styles.railLogo}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={m.logo} alt="" />
-              </span>
-              <span className={styles.railLabel}>{loading ? "Ouverture…" : m.label}</span>
-            </button>
-          );
-        })}
-      </div>
+          })}
+        </ul>
+      ) : null}
 
       {waveLaunched ? (
         <p className={styles.hint} style={{ margin: "12px 0 0" }}>
