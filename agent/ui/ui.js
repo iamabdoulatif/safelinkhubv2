@@ -342,9 +342,14 @@ byId('new-password').addEventListener('submit', async event => {
     // Le formulaire de connexion suit le nouveau mot de passe (diagnostic, réparations).
     byId('password').value = next;
     byId('np-1').value = byId('np-2').value = '';
+    byId('np-show').checked = false; byId('np-1').type = byId('np-2').type = 'password';
     status.textContent = result.message; setTone(status, 'ok');
   } catch (error) {
     status.textContent = error.message; setTone(status, 'err');
     byId('np-submit').disabled = false;
   }
+});
+
+byId('np-show').addEventListener('change', event => {
+  for (const id of ['np-1', 'np-2']) byId(id).type = event.target.checked ? 'text' : 'password';
 });
