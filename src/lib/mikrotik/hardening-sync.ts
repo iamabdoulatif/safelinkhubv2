@@ -10,11 +10,17 @@ import { encryptSecret } from "./crypto";
 import { ensureRouterHardening, generateMikhmonPassword, rotateDefaultMikhmonPassword } from "./hardening";
 
 const HARDENING_VERSION = "h1";
+const MIKHMON_ROTATION_ENABLED = false;
 const hardened = new Map<string, string>();
 
 export async function reconcileHardeningOnce(client: RouterOSClient, routerId: string): Promise<void> {
   if (hardened.get(routerId) === HARDENING_VERSION) return;
   await ensureRouterHardening(client);
+  // SUSPENDU (13/10/2026) : la rotation du mot de passe MikHmon a changé le
+  // mot de passe sur des routeurs sans le conserver (succès non détecté →
+  // valeur effacée). Réactiver seulement avec une confirmation fiable.
+  hardened.set(routerId, HARDENING_VERSION);
+  if (!MIKHMON_ROTATION_ENABLED) return;
 
   // Mot de passe d'usine de MikHmon : un nouveau mot de passe est enregistré
   // AVANT d'être posé (l'exploitant ne doit jamais perdre l'accès), puis
