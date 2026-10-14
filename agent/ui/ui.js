@@ -19,6 +19,14 @@ async function api(path, options = {}) {
 const STEP_COUNT = 6;
 
 function setTone(el, tone) { el.dataset.tone = tone; el.removeAttribute('aria-busy'); }
+/* Anneau de progression (grand cercle central). r=68 → circonférence. */
+const RING_C = 2 * Math.PI * 68;
+function setRing(fillId, pct, spin) {
+  const el = byId(fillId); if (!el) return;
+  el.style.strokeDasharray = String(RING_C);
+  el.style.strokeDashoffset = String(RING_C * (1 - Math.max(0, Math.min(100, pct)) / 100));
+  el.closest('.gauge')?.classList.toggle('gauge-spin', !!spin);
+}
 /* Chargement : anneau sur un bouton, radar sur un encart d'état, logo qui pulse. */
 let busyCount = 0;
 function busy(el, on) {
@@ -46,7 +54,16 @@ function renderSteps(task) {
     li.dataset.state = state;
     if (state === 'done' || state === 'warn') done += 1;
   });
-  byId('meter-fill').style.width = `${Math.round((done / STEP_COUNT) * 100)}%`;
+  const pct = (done / STEP_COUNT) * 100;
+  setRing('run-ring-fill', pct);
+  byId('run-pct').textContent = `${Math.round(pct)}%`;
+  let phase = 'En attente du lancement.';
+  if (task.state === 'simulated') phase = 'Aperçu du plan — aucune écriture.';
+  else if (task.state === 'completed') phase = 'Préparation vérifiée sur le routeur.';
+  else if (task.state === 'completed-with-warnings') phase = 'Terminé — un point à vérifier.';
+  else if (task.state === 'failed') phase = 'Préparation interrompue.';
+  else { const a = items[current]; if (a) phase = a.querySelector('.step-label').textContent.replace(/\s+/g, ' ').trim(); }
+  byId('run-phase').textContent = phase;
   byId('progress').value = done;
 }
 
@@ -109,10 +126,11 @@ function render(task) {
   deadline = task.state === 'running' ? task.progress?.deadline : undefined;
   const running = task.state === 'running';
   if (running) byId('status-box').setAttribute('aria-busy', 'true');
-  byId('meter-fill').parentElement.dataset.running = String(running);
+  setRing('run-ring-fill', 0); // (re)synchronisé par renderSteps juste après
+  byId('run-ring-fill').closest('.gauge').classList.toggle('gauge-spin', running && (task.progress?.step ?? 0) < 0);
   document.body.dataset.busy = String(running || busyCount > 0);
   renderSteps(task);
-  renderSummary(task.result);
+  renderSummary(task.result ?? connected);
   const plan = task.plan ? task.plan.map(words => words.join(' ')).join('\n') : '';
   byId('result').textContent = plan;
   byId('result').hidden = !plan;
@@ -605,16 +623,22 @@ function swirlText(title, sub = '') {
   text.textContent = title;
   byId('swirl-sub').textContent = sub;
 }
-function swirl(on, title = '', sub = '') {
+function setDiagRing(pct, spin) { setRing('diag-ring-fill', pct, spin); byId('diag-pct').textContent = `${Math.round(pct)}%`; }
+function swirl(on, title = '', sub = '', pct) {
   clearInterval(swirlTimer);
   byId('swirl').hidden = !on;
   document.body.dataset.busy = String(on || busyCount > 0);
-  if (on) swirlText(title, sub);
+  if (on) { swirlText(title, sub); setDiagRing(pct ?? 12, pct == null); }
 }
 function cycleStages() {
   let i = 0;
-  swirl(true, `Analyse : ${STAGES[0][0]}`, STAGES[0][1]);
-  swirlTimer = setInterval(() => { i = (i + 1) % STAGES.length; swirlText(`Analyse : ${STAGES[i][0]}`, STAGES[i][1]); }, 1700);
+  swirl(true, `Analyse : ${STAGES[0][0]}`, STAGES[0][1], 4);
+  swirlTimer = setInterval(() => {
+    i += 1;
+    const st = STAGES[i % STAGES.length];
+    swirlText(`Analyse : ${st[0]}`, st[1]);
+    setDiagRing(Math.min(48, ((i + 1) / STAGES.length) * 50));
+  }, 1400);
 }
 
 async function runRepair() {
@@ -632,13 +656,14 @@ async function runRepair() {
     for (const [n, c] of todo.entries()) {
       clearInterval(swirlTimer);
       swirlText(`Réparation ${n + 1}/${todo.length} : ${c.title}`, 'Application sur le routeur…');
+      setDiagRing(50 + (n / Math.max(1, todo.length)) * 45);
       try {
         const result = await api(`/agent/routers/${encodeURIComponent(host)}/fix`, { method: 'POST', body: JSON.stringify(healthBody({ fix: c.fix })) });
         if (result.report) report = result.report;
         applied.push({ check: c, message: result.message });
       } catch (error) { applied.push({ check: c, error: error.message }); }
     }
-    if (todo.length) swirlText('Vérification finale', 'Relecture du routeur pour confirmer chaque réparation');
+    if (todo.length) { swirlText('Vérification finale', 'Relecture du routeur pour confirmer chaque réparation'); setDiagRing(97); }
     swirl(false);
     renderHealth(report);
     renderRepairs(applied, report);

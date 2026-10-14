@@ -151,16 +151,30 @@
     <section class="card panel track" id="panel-3" aria-labelledby="p3-title" aria-live="polite" hidden>
       <h2 id="p3-title">Exécution</h2>
       <p class="sub">Chaque étape n’est validée que par l’état relu sur le routeur.</p>
-      <ol id="steps" class="steps">
-        <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Vérifier la connexion administrateur</span></li>
-        <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Mettre RouterOS et le firmware RouterBOARD à jour <span class="muted">(stable)</span></span></li>
-        <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Autoriser RouterBOARD</span></li>
-        <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Passer en mode avancé</span></li>
-        <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Activer container, hotspot, scheduler et fetch</span></li>
-        <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Vérifier le résultat</span></li>
-      </ol>
-
-      <div class="meter" aria-hidden="true"><span id="meter-fill"></span></div>
+      <div class="stage">
+        <div class="gauge" role="img" aria-labelledby="run-phase">
+          <svg viewBox="0 0 160 160" aria-hidden="true">
+            <circle class="gauge-track" cx="80" cy="80" r="68"></circle>
+            <circle class="gauge-fill" id="run-ring-fill" cx="80" cy="80" r="68"></circle>
+          </svg>
+          <div class="gauge-center">
+            <span id="run-pct">0%</span>
+            <small>préparation</small>
+          </div>
+        </div>
+        <div class="stage-side">
+          <p class="stage-phase" id="run-phase">En attente du lancement.</p>
+          <div id="summary" class="summary" hidden></div>
+          <ol id="steps" class="steps steps-mini">
+            <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Vérifier la connexion administrateur</span></li>
+            <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Mettre RouterOS et le firmware RouterBOARD à jour <span class="muted">(stable)</span></span></li>
+            <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Autoriser RouterBOARD</span></li>
+            <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Passer en mode avancé</span></li>
+            <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Activer container, hotspot, scheduler et fetch</span></li>
+            <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Vérifier le résultat</span></li>
+          </ol>
+        </div>
+      </div>
       <progress id="progress" class="sr-only" max="6" value="0" aria-label="Étapes terminées"></progress>
 
       <div id="status-box" class="callout status" data-tone="idle">
@@ -168,7 +182,6 @@
         <p id="countdown" class="countdown"></p>
       </div>
 
-      <div id="summary" class="summary" hidden></div>
       <pre id="result" class="code" hidden></pre>
 
       <form id="new-password" class="summary" autocomplete="off" hidden>
@@ -202,7 +215,13 @@
       <button type="button" id="health-run" class="btn btn-primary btn-lg">Dépanner ce routeur</button>
     </div>
     <div id="swirl" class="swirl" hidden>
-      <div class="swirl-rings" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
+      <div class="gauge gauge-dark" role="img" aria-labelledby="swirl-text">
+        <svg viewBox="0 0 160 160" aria-hidden="true">
+          <circle class="gauge-track" cx="80" cy="80" r="68"></circle>
+          <circle class="gauge-fill" id="diag-ring-fill" cx="80" cy="80" r="68"></circle>
+        </svg>
+        <div class="gauge-center"><span id="diag-pct">0%</span><small>dépannage</small></div>
+      </div>
       <p id="swirl-text" class="swirl-text" role="status"></p>
       <p id="swirl-sub" class="swirl-sub"></p>
     </div>
