@@ -313,9 +313,13 @@ export default function PayMethods({
           </span>
         ) : null}
         <span className={styles.selectLabel}>{triggerLabel}</span>
-        <span aria-hidden="true" className={styles.selectChevron}>
-          {menuOpen ? "▴" : "▾"}
-        </span>
+        {busy ? (
+          <span aria-hidden="true" className={styles.paySpinner} />
+        ) : (
+          <span aria-hidden="true" className={styles.selectChevron}>
+            {menuOpen ? "▴" : "▾"}
+          </span>
+        )}
       </button>
 
       {menuOpen && !busy ? (
@@ -326,6 +330,7 @@ export default function PayMethods({
               return (
                 <li key={m.id} role="option" aria-selected={false} aria-disabled className={`${styles.selectOption} ${styles.selectOptionWait}`}>
                   {optionContent(m, "Wave — préparation…", true)}
+                  <span aria-hidden="true" className={styles.paySpinner} style={{ marginLeft: "auto" }} />
                 </li>
               );
             }
@@ -354,6 +359,13 @@ export default function PayMethods({
             );
           })}
         </ul>
+      ) : null}
+
+      {busy && !waveLaunched ? (
+        <div className={styles.payLoading} role="status" aria-live="polite">
+          <span aria-hidden="true" className={styles.paySpinner} />
+          <span>Ouverture du paiement sécurisé… un instant.</span>
+        </div>
       ) : null}
 
       {waveLaunched ? (

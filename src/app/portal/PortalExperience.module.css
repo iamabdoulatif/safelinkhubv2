@@ -699,3 +699,37 @@ a.ctaButton {
   text-transform: uppercase;
   white-space: nowrap;
 }
+
+/* ── Loader de patience du paiement ──────────────────────────────
+   Au tap d'un moyen, un spinner + un message masquent le délai de création du
+   checkout (réseau), pour que le clic « corresponde » à une ouverture immédiate. */
+@keyframes slhPaySpin { to { transform: rotate(360deg); } }
+.paySpinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2.5px solid color-mix(in srgb, var(--portal-text) 20%, transparent);
+  border-top-color: var(--portal-accent);
+  animation: slhPaySpin 0.7s linear infinite;
+}
+.payLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: var(--portal-clay);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--portal-text);
+  animation: slhPayFade 0.2s ease both;
+}
+@keyframes slhPayFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .paySpinner { animation: none; }
+  .payLoading { animation: none; }
+}
