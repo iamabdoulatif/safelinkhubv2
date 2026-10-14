@@ -48,3 +48,4 @@ aws/secrets/
 
 # Réglages Claude Code propres à ce poste (chemins locaux, autorisations).
 .claude/settings.local.json
+/dist-agent

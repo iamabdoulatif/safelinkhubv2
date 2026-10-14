@@ -113,3 +113,12 @@ Les scripts MikHmon vivent sur le **routeur** (profils hotspot, ventes dans `/sy
 ## Maintenance (comme le menu du SaaS)
 
 Bloc « Maintenance » de la carte Diagnostic : optimiser le Wi-Fi, optimiser le débit, tester le débit, **identifiants MikHmon** (lus dans le `config.php` du conteneur, déchiffrés — vérifié conforme au SaaS sur HSPT-BELIKORO ; le format « v2 » chiffré par MikHmon reste illisible), restaurer la session, **réinstaller MikHmon** (double clic de confirmation). Mêmes fonctions `src/lib/mikrotik` que le SaaS. « Reposer le portail captif » reste dans le SaaS (forfaits et prix).
+
+## Installables (.dmg / .exe)
+
+Workflow `.github/workflows/agent-installers.yml` (à chaque push touchant `agent/**`, ou à la main) → release GitHub **agent-latest** :
+
+- `SafeLinkHub-Agent-macOS-arm64.dmg` (Apple Silicon) / `-x64.dmg` (Intel) — signature ad hoc, sans compte Apple. 1er lancement : Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ».
+- `SafeLinkHub-Agent-Setup.exe` — installation par utilisateur (sans admin), non signé : SmartScreen › « Informations complémentaires » › « Exécuter quand même ».
+
+L'exécutable embarque Node officiel + l'interface (`agent/packaging/build-sea.mjs`), ouvre le navigateur tout seul, journal dans `~/.safelinkhub-agent/agent.log`. Construire en local (macOS) : `node agent/packaging/build-sea.mjs && agent/packaging/macos-dmg.sh` avec le Node **officiel** (pas Homebrew).

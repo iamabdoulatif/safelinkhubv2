@@ -1,0 +1,88 @@
+name: Agent installers (.dmg / .exe)
+
+# Construit l'agent local en exécutable autonome (Node SEA, Node OFFICIEL) puis :
+#   macOS  → SafeLinkHub-Agent-macOS-arm64.dmg / -x64.dmg (signature ad hoc,
+#            pas de compte Apple : 1er lancement via Réglages › Confidentialité
+#            et sécurité › « Ouvrir quand même »)
+#   Windows → SafeLinkHub-Agent-Setup.exe (Inno Setup, sans droits admin, non
+#            signé : SmartScreen › « Informations complémentaires › Exécuter »)
+# Publiés dans la release GitHub « agent-latest » (remplacée à chaque build).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['agent/**', 'src/lib/mikrotik/**', '.github/workflows/agent-installers.yml']
+
+concurrency:
+  group: agent-installers
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, target: macos, arch: arm64 }
+          - { os: macos-15-intel, target: macos, arch: x64 }
+          - { os: windows-latest, target: windows, arch: x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25.8.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Tests de l'agent
+        if: matrix.target == 'macos'
+        run: npm run agent:test
+      - name: Exécutable autonome
+        run: node agent/packaging/build-sea.mjs
+      - name: Vérifier l'exécutable (interface embarquée)
+        shell: bash
+        run: |
+          BIN=dist-agent/safelinkhub-agent; [ "${{ matrix.target }}" = windows ] && BIN=dist-agent/safelinkhub-agent.exe
+          "$BIN" --dry-run --no-open > sea.log 2>&1 &
+          for i in $(seq 1 20); do grep -q "http://" sea.log && break; sleep 1; done
+          URL=$(grep -o "http://[^ ]*" sea.log | head -1); echo "$URL"
+          for f in / /ui.js /style.css; do curl -fsS -o /dev/null "$URL$f"; done
+          kill %1 || true
+      - name: .dmg (macOS)
+        if: matrix.target == 'macos'
+        run: ./agent/packaging/macos-dmg.sh ${{ matrix.arch }}
+      - name: Installeur .exe (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y; }
+          & $iscc /DAppVersion=$(Get-Date -Format 'yyyy.MM.dd') agent\packaging\windows.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-${{ matrix.target }}-${{ matrix.arch }}
+          path: |
+            dist-agent/*.dmg
+            dist-agent/SafeLinkHub-Agent-Setup.exe
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Release « agent-latest »
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -la out
+          gh release delete agent-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create agent-latest out/* --prerelease --target "${{ github.sha }}" \
+            --title "SafeLinkHub Agent (dernière version)" \
+            --notes "Agent local SafeLinkHub — build ${{ github.sha }}. macOS : ouvrez le .dmg, glissez l'app dans Applications ; au 1er lancement, Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ». Windows : SmartScreen › « Informations complémentaires » › « Exécuter quand même »."

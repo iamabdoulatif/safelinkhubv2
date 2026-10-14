@@ -283,3 +283,76 @@ main { max-width: 1240px; }
 }
 .panel label[for] { margin-bottom: 0; }
 .panel .columns label[for], .advanced label[for] { margin-top: 0; }
+
+/* ── Animations ────────────────────────────────────────────────
+   Langage commun : le « signal » — un point lime qui émet des ondes, comme un
+   routeur. Tout est en CSS (CSP style-src 'self'), piloté par aria-busy /
+   data-state. prefers-reduced-motion coupe tout (règle plus haut). */
+
+/* Loader radar : sur tout encart d'état en cours (aria-busy). */
+.callout[aria-busy="true"], .status[aria-busy="true"] { position: relative; padding-left: 52px; }
+.callout[aria-busy="true"]::before, .status[aria-busy="true"]::before,
+.callout[aria-busy="true"]::after, .status[aria-busy="true"]::after {
+  content: ""; position: absolute; left: 22px; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+  border-radius: 50%;
+}
+.callout[aria-busy="true"]::before, .status[aria-busy="true"]::before { background: var(--brand); box-shadow: 0 0 0 2px var(--slate-deep); z-index: 1; animation: beacon 1.6s ease-in-out infinite; }
+.callout[aria-busy="true"]::after, .status[aria-busy="true"]::after { border: 2px solid var(--brand-deep); animation: ripple 1.6s cubic-bezier(.2,.6,.3,1) infinite; }
+@keyframes beacon { 0%, 100% { transform: scale(1); } 50% { transform: scale(.78); } }
+@keyframes ripple { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(3.4); opacity: 0; } }
+
+/* Boutons en cours : le libellé s'efface, un anneau lime/encre tourne. */
+.btn.is-loading { position: relative; color: transparent !important; pointer-events: none; }
+.btn.is-loading > * { visibility: hidden; }
+.btn.is-loading::after {
+  content: ""; position: absolute; inset: 0; margin: auto; width: 22px; height: 22px; border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 25%, var(--slate-deep) 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  animation: spin .8s linear infinite;
+}
+.btn-primary.is-loading { background-image: linear-gradient(110deg, var(--brand) 0 40%, color-mix(in srgb, var(--brand) 70%, #fff) 50%, var(--brand) 60% 100%); background-size: 250% 100%; animation: sheen 1.4s linear infinite; }
+@keyframes sheen { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+
+/* Recherche réseau : balayage radar sur l'icône loupe. */
+#discover[aria-busy="true"] .icon { animation: spin 1s linear infinite; }
+
+/* Entrée des panneaux et des vues. */
+.panel:not([hidden]), #view-diag:not([hidden]), #view-prep:not([hidden]) { animation: rise .42s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.routers > *, .package-list > *, .checks > * { animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
+.routers > :nth-child(2), .package-list > :nth-child(2n), .checks > :nth-child(2) { animation-delay: .04s; }
+.routers > :nth-child(3), .package-list > :nth-child(3n), .checks > :nth-child(3) { animation-delay: .08s; }
+.package-list > :nth-child(4n), .checks > :nth-child(n+4) { animation-delay: .12s; }
+
+/* Assistant : la pastille de l'étape courante respire, l'étape franchie se coche. */
+.wz { transition: background-color .25s, border-color .25s, color .25s, transform .2s; }
+.wz:not(:disabled):hover { transform: translateY(-1px); }
+.wz[aria-current="step"] .wz-num { animation: beacon 2.4s ease-in-out infinite; }
+.wz[data-done="true"]:not(:disabled) .wz-num { font-size: 0; }
+.wz[data-done="true"]:not(:disabled) .wz-num::after { content: ""; width: 10px; height: 6px; margin-top: -3px; border-left: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: rotate(-45deg); animation: tick .35s ease-out both; }
+@keyframes tick { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* Étapes d'exécution : onde autour de l'étape active, coche dessinée. */
+.steps li[data-state="active"] .dot { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-deep) 45%, transparent); animation: halo 1.6s ease-out infinite; }
+@keyframes halo { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-deep) 45%, transparent); } 100% { box-shadow: 0 0 0 12px transparent; } }
+.steps li[data-state="done"] .dot::after { animation: tick .35s ease-out both; }
+.steps li[data-state="waiting"] .dot { animation: halo-warn 1.2s ease-out infinite; }
+@keyframes halo-warn { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 50%, transparent); } 100% { box-shadow: 0 0 0 12px transparent; } }
+
+/* Jauge : hachures qui défilent tant que la tâche tourne. */
+.meter[data-running="true"] span { background-image: repeating-linear-gradient(-45deg, var(--brand-deep) 0 10px, color-mix(in srgb, var(--brand-deep) 70%, var(--brand)) 10px 20px); background-size: 28px 28px; animation: stripes .8s linear infinite; }
+@keyframes stripes { to { background-position: 28px 0; } }
+
+/* Pastille du routeur : apparition en douceur au changement d'état. */
+#mode { transition: background-color .3s, color .3s, border-color .3s; }
+
+/* Contrôles cochables : petit rebond. */
+input[type="checkbox"]:checked { animation: pop .22s ease-out; }
+@keyframes pop { 50% { transform: scale(1.18); } }
+
+/* Logo : le carré lime pulse quand l'agent travaille. */
+body[data-busy="true"] .logo rect:last-of-type { animation: beacon 1.2s ease-in-out infinite; transform-origin: 26px 7px; }
+.wz[aria-current="step"] strong { color: #fff; }
+.wz[aria-current="step"] small { color: var(--slate-deep-soft); }
+.panel .steps { margin-top: 22px; }

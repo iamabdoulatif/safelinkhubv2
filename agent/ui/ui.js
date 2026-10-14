@@ -18,7 +18,16 @@ async function api(path, options = {}) {
    le résultat ») n'est acquise qu'à la fin de la tâche. */
 const STEP_COUNT = 6;
 
-function setTone(el, tone) { el.dataset.tone = tone; }
+function setTone(el, tone) { el.dataset.tone = tone; el.removeAttribute('aria-busy'); }
+/* Chargement : anneau sur un bouton, radar sur un encart d'état, logo qui pulse. */
+let busyCount = 0;
+function busy(el, on) {
+  if (!el) return;
+  if (el.classList.contains('btn')) el.classList.toggle('is-loading', on);
+  if (on) el.setAttribute('aria-busy', 'true'); else el.removeAttribute('aria-busy');
+  busyCount = Math.max(0, busyCount + (on ? 1 : -1));
+  document.body.dataset.busy = String(busyCount > 0);
+}
 
 function renderSteps(task) {
   const items = [...byId('steps').children];
@@ -98,6 +107,10 @@ function render(task) {
     : task.state === 'completed' ? 'ok'
     : 'info');
   deadline = task.state === 'running' ? task.progress?.deadline : undefined;
+  const running = task.state === 'running';
+  if (running) byId('status-box').setAttribute('aria-busy', 'true');
+  byId('meter-fill').parentElement.dataset.running = String(running);
+  document.body.dataset.busy = String(running || busyCount > 0);
   renderSteps(task);
   renderSummary(task.result);
   const plan = task.plan ? task.plan.map(words => words.join(' ')).join('\n') : '';
@@ -223,7 +236,7 @@ byId('packages-apply').addEventListener('click', async () => {
 const RECOMMENDED = ['container'];
 byId('packages-load').addEventListener('click', async () => {
   const button = byId('packages-load');
-  button.disabled = true;
+  busy(button, true);
   byId('packages-note').textContent = 'Recherche des paquets depuis le routeur (Internet requis)…';
   try {
     const data = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/packages`, { method: 'POST', body: JSON.stringify(connectionBody()) });
@@ -252,22 +265,25 @@ byId('packages-load').addEventListener('click', async () => {
     packagesWarning();
     byId('packages-note').textContent = data.note ?? `${data.packages.filter(p => !p.installed).length} paquet(s) disponible(s). Les paquets déjà installés restent en place.`;
   } catch (error) { byId('packages-note').textContent = error.message; }
-  finally { button.disabled = false; }
+  finally { busy(button, false); }
 });
 byId('update-ros').addEventListener('change', () => {
   byId('steps').children[1].querySelector('.step-label').textContent = byId('update-ros').checked ? 'Mettre RouterOS et le firmware RouterBOARD à jour (stable)' : 'RouterOS différé · firmware RouterBOARD vérifié';
 });
 byId('configure').addEventListener('submit', async event => {
   event.preventDefault();
+  busy(byId('submit'), true);
   byId('fields').disabled = true;
   try {
     const task = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/configure`, { method: 'POST', body: JSON.stringify(connectionBody()) });
     lastPassword = byId('password').value || lastPassword;
     byId('password').value = '';
+    busy(byId('submit'), false);
     goto(3);
     render(task);
     await follow(task.id);
   } catch (error) {
+    busy(byId('submit'), false);
     byId('status').textContent = error.message;
     setTone(byId('status-box'), 'err');
     byId('fields').disabled = false;
@@ -311,7 +327,7 @@ function renderHealth(report) {
     if (c.fix) {
       const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-outline btn-sm';
       btn.textContent = FIX_LABEL[c.fix] || 'Réparer';
-      btn.addEventListener('click', () => runFix(c.fix, c.title));
+      btn.addEventListener('click', () => runFix(c.fix, c.title, btn));
       li.append(btn);
     } else li.append(document.createElement('span'));
     const detail = document.createElement('p'); detail.className = 'check-detail'; detail.textContent = c.detail;
@@ -328,26 +344,29 @@ function renderHealth(report) {
 async function runHealth() {
   healthBusy(true);
   healthStatus('Diagnostic en cours (lecture seule, 10 à 30 secondes)…', 'info');
+  busy(byId('health-run'), true); busy(byId('health-status'), true);
   try {
     renderHealth(await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/health`, { method: 'POST', body: JSON.stringify(healthBody()) }));
   } catch (error) { healthStatus(error.message, 'err'); }
-  finally { healthBusy(false); }
+  finally { healthBusy(false); busy(byId('health-run'), false); busy(byId('health-status'), false); }
 }
 
-async function runFix(fix, title) {
+async function runFix(fix, title, button) {
   healthBusy(true);
-  healthStatus(`Réparation en cours : ${title}…`, 'info');
+  healthStatus(`En cours : ${title}…`, 'info');
+  busy(button, true); busy(byId('health-status'), true);
   try {
     const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/fix`, { method: 'POST', body: JSON.stringify(healthBody({ fix })) });
     if (result.report) renderHealth(result.report);
     healthStatus(result.message, 'ok');
   } catch (error) { healthStatus(error.message, 'err'); }
-  finally { healthBusy(false); }
+  finally { healthBusy(false); busy(button, false); busy(byId('health-status'), false); }
 }
 
 byId('health-run').addEventListener('click', runHealth);
 byId('health-fix-all').addEventListener('click', async () => {
   healthBusy(true);
+  busy(byId('health-fix-all'), true); busy(byId('health-status'), true);
   try {
     let report = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/health`, { method: 'POST', body: JSON.stringify(healthBody()) });
     const todo = [...new Set(report.checks.filter(c => c.fix && SAFE_FIXES.includes(c.fix)).map(c => c.fix))];
@@ -360,7 +379,7 @@ byId('health-fix-all').addEventListener('click', async () => {
     renderHealth(report);
     healthStatus(done.length ? done.join(' ') : 'Rien à réparer automatiquement.', 'ok');
   } catch (error) { healthStatus(error.message, 'err'); }
-  finally { healthBusy(false); }
+  finally { healthBusy(false); busy(byId('health-fix-all'), false); busy(byId('health-status'), false); }
 });
 
 setInterval(() => {
@@ -395,8 +414,8 @@ byId('new-password').addEventListener('submit', async event => {
   const status = byId('np-status');
   const next = byId('np-1').value;
   if (next !== byId('np-2').value) { status.textContent = 'Les deux saisies ne correspondent pas.'; setTone(status, 'err'); return; }
-  byId('np-submit').disabled = true;
   status.textContent = 'Changement puis vérification par reconnexion…'; setTone(status, 'info');
+  busy(byId('np-submit'), true); busy(status, true);
   try {
     const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/password`, { method: 'POST', body: JSON.stringify({ ...connectionBody(), newPassword: next }) });
     // Le formulaire de connexion suit le nouveau mot de passe (diagnostic, réparations).
@@ -405,10 +424,10 @@ byId('new-password').addEventListener('submit', async event => {
     byId('np-1').value = byId('np-2').value = '';
     byId('np-show').checked = false; byId('np-1').type = byId('np-2').type = 'password';
     status.textContent = result.message; setTone(status, 'ok');
+    byId('np-submit').disabled = true;
   } catch (error) {
     status.textContent = error.message; setTone(status, 'err');
-    byId('np-submit').disabled = false;
-  }
+  } finally { busy(byId('np-submit'), false); busy(status, false); }
 });
 
 byId('np-show').addEventListener('change', event => {
@@ -425,7 +444,7 @@ for (const button of document.querySelectorAll('[data-maint]')) {
       return;
     }
     button.textContent = label;
-    runFix(button.dataset.maint, button.closest('li').querySelector('strong').textContent);
+    runFix(button.dataset.maint, button.closest('li').querySelector('strong').textContent, button);
   });
 }
 
@@ -484,10 +503,10 @@ byId('connect-form').addEventListener('submit', async event => {
   event.preventDefault();
   const status = byId('connect-status');
   const button = byId('connect');
-  button.disabled = true;
   status.hidden = false;
-  status.textContent = 'Connexion en lecture seule…';
+  status.textContent = 'Connexion au routeur en lecture seule…';
   setTone(status, 'info');
+  busy(button, true); busy(status, true);
   try {
     const host = byId('host').value.trim();
     const result = await api(`/agent/routers/${encodeURIComponent(host)}/diagnose`, { method: 'POST', body: JSON.stringify(connectionBody()) });
@@ -502,5 +521,5 @@ byId('connect-form').addEventListener('submit', async event => {
     setConnected(null);
     status.textContent = error.message;
     setTone(status, 'err');
-  } finally { button.disabled = false; }
+  } finally { busy(button, false); busy(status, false); }
 });

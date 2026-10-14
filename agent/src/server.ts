@@ -10,7 +10,7 @@ import { routerTransport, type Credentials } from './routeros';
 import { discoverRouters, isLocalAddress } from './scanner';
 
 type Task = { id: string; state: string; progress?: Progress; result?: unknown; error?: string; createdAt: number; updateRouterOS?: boolean; packagesOnly?: boolean; plan?: string[][] };
-export function createAgent(options: { dryRun?: boolean; transport?: (credentials: Credentials) => Transport; assetsDir?: string; log?: (event: Record<string, unknown>) => void } = {}) {
+export function createAgent(options: { dryRun?: boolean; transport?: (credentials: Credentials) => Transport; assetsDir?: string; readAsset?: (filename: string) => Buffer; log?: (event: Record<string, unknown>) => void } = {}) {
   const token = randomBytes(32).toString('hex');
   const tasks = new Map<string, Task>();
   let active: string | undefined;
@@ -45,7 +45,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
     if (req.method === 'GET' && ['/', '/ui.js', '/style.css'].includes(path)) {
       res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors http://localhost:3000 http://127.0.0.1:3000");
       const filename = path === '/' ? 'index.html' : path.slice(1);
-      const data = await readFile(resolve(options.assetsDir ?? 'agent/ui', filename));
+      const data = options.readAsset ? options.readAsset(filename) : await readFile(resolve(options.assetsDir ?? 'agent/ui', filename));
       res.writeHead(200, { 'Content-Type': path === '/' ? 'text/html; charset=utf-8' : path.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/css; charset=utf-8', 'Cache-Control': 'no-store' });
       return res.end(data);
     }
