@@ -63,13 +63,21 @@ export default function MacDetect() {
             .
           </p>
         </div>
-        <a
-          href={`${DL}/${arm ? "macos-arm64.dmg" : "macos-x64.dmg"}`}
-          className="inline-flex items-center gap-2 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-ink"
-        >
-          <Download aria-hidden="true" className="h-4 w-4" />
-          Télécharger pour {arm ? "Apple Silicon" : "Intel"}
-        </a>
+        <div className="flex shrink-0 flex-col items-stretch gap-1.5">
+          <a
+            href={`${DL}/${arm ? "macos-arm64.dmg" : "macos-x64.dmg"}`}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-ink"
+          >
+            <Download aria-hidden="true" className="h-4 w-4" />
+            Télécharger pour {arm ? "Apple Silicon" : "Intel"} (.dmg)
+          </a>
+          <a
+            href={`${DL}/${arm ? "macos-arm64.pkg" : "macos-x64.pkg"}`}
+            className="text-center text-xs text-white/70 underline"
+          >
+            ou l&apos;installeur .pkg
+          </a>
+        </div>
       </div>
     );
   }

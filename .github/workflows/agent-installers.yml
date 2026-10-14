@@ -67,6 +67,7 @@ jobs:
           name: agent-${{ matrix.target }}-${{ matrix.arch }}
           path: |
             dist-agent/*.dmg
+            dist-agent/*.pkg
             dist-agent/SafeLinkHub-Agent-Setup.exe
           if-no-files-found: error
 
@@ -93,6 +94,7 @@ jobs:
             '```' \
             "macOS bloque les apps non notarisées téléchargées (« l'application ne répond pas ») ; la commande installe l'agent et lève ce blocage." \
             "À partir du .dmg : glissez l'app dans Applications (ne l'ouvrez pas depuis le .dmg) ; si bloquée : xattr -dr com.apple.quarantine \"/Applications/SafeLinkHub Agent.app\"" \
+            "À partir du .pkg : double-clic (1er lancement par clic droit › Ouvrir) OU en Terminal, sans boîte Gatekeeper : sudo installer -pkg SafeLinkHub-Agent-macOS-*.pkg -target / — le postinstall lève la quarantaine." \
             '' \
             'Windows : SmartScreen › « Informations complémentaires » › « Exécuter quand même ».' \
             > notes.md

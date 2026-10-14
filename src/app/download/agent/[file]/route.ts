@@ -15,6 +15,8 @@ const RAW = `https://raw.githubusercontent.com/${REPO}/main/agent/packaging`;
 const FILES: Record<string, { url: string; type: string; name: string; inline?: boolean }> = {
   "macos-arm64.dmg": { url: `${REL}/SafeLinkHub-Agent-macOS-arm64.dmg`, type: "application/x-apple-diskimage", name: "SafeLinkHub-Agent-macOS-arm64.dmg" },
   "macos-x64.dmg": { url: `${REL}/SafeLinkHub-Agent-macOS-x64.dmg`, type: "application/x-apple-diskimage", name: "SafeLinkHub-Agent-macOS-x64.dmg" },
+  "macos-arm64.pkg": { url: `${REL}/SafeLinkHub-Agent-macOS-arm64.pkg`, type: "application/octet-stream", name: "SafeLinkHub-Agent-macOS-arm64.pkg" },
+  "macos-x64.pkg": { url: `${REL}/SafeLinkHub-Agent-macOS-x64.pkg`, type: "application/octet-stream", name: "SafeLinkHub-Agent-macOS-x64.pkg" },
   "windows-setup.exe": { url: `${REL}/SafeLinkHub-Agent-Setup.exe`, type: "application/vnd.microsoft.portable-executable", name: "SafeLinkHub-Agent-Setup.exe" },
   // Servi en ligne (pas en pièce jointe) pour `curl … | bash`.
   "install-macos.sh": { url: `${RAW}/install-macos.sh`, type: "text/x-shellscript; charset=utf-8", name: "install-macos.sh", inline: true },

@@ -42,6 +42,28 @@ if qlmanage -t -s 1024 -o "$ICON" "$ICON/logo.svg" >/dev/null 2>&1 && [ -f "$ICO
   iconutil -c icns "$ICON/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
 fi
 codesign --sign - --force --deep "$APP"
+
+# .pkg (installeur guidé) EN PLUS du .dmg. Avantage : installable aussi sans
+# clic, en une commande Terminal — `sudo installer -pkg … -target /` — qui ne
+# déclenche pas la boîte Gatekeeper ; et le postinstall lève la quarantaine de
+# l'app posée, donc elle démarre même quand le .pkg a été téléchargé par le
+# navigateur. (Le .pkg lui-même reste non notarisé : en double-clic, 1er
+# lancement par clic droit › Ouvrir, comme le .dmg.)
+PKGROOT=dist-agent/pkgroot && rm -rf "$PKGROOT" && mkdir -p "$PKGROOT"
+cp -R "$APP" "$PKGROOT/"
+SCRIPTS=dist-agent/pkg-scripts && rm -rf "$SCRIPTS" && mkdir -p "$SCRIPTS"
+cat > "$SCRIPTS/postinstall" <<'POST'
+#!/bin/bash
+xattr -dr com.apple.quarantine "/Applications/SafeLinkHub Agent.app" 2>/dev/null || true
+exit 0
+POST
+chmod +x "$SCRIPTS/postinstall"
+PKG="dist-agent/SafeLinkHub-Agent-macOS-${ARCH}.pkg"
+rm -f "$PKG"
+pkgbuild --root "$PKGROOT" --install-location /Applications --scripts "$SCRIPTS" \
+  --identifier io.safelinkhub.agent --version "$VERSION" "$PKG"
+echo "OK : $PKG"
+
 cp -R "$APP" dist-agent/dmg/
 ln -s /Applications dist-agent/dmg/Applications
 OUT="dist-agent/SafeLinkHub-Agent-macOS-${ARCH}.dmg"
