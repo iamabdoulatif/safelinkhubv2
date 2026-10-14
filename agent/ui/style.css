@@ -420,3 +420,42 @@ body[data-busy="true"] .logo rect:last-of-type { animation: beacon 1.2s ease-in-
 .repair[data-state="failed"] .repair-mark { background: var(--err); }
 .repair[data-state="partial"] .repair-mark::after, .repair[data-state="failed"] .repair-mark::after { content: "!"; color: #fff; font-weight: 800; font-size: 14px; }
 .repairs > :nth-child(2) { animation-delay: .08s; } .repairs > :nth-child(3) { animation-delay: .16s; } .repairs > :nth-child(n+4) { animation-delay: .24s; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Motion design — couche cohérente, discrète, pilotée par les états existants.
+   Tout est coupé par @media (prefers-reduced-motion: reduce) plus haut. */
+
+/* Barre de chargement en haut de page dès qu'une requête est en cours. */
+#loadbar { position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 100; overflow: hidden; opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+body[data-busy="true"] #loadbar { opacity: 1; }
+#loadbar::before { content: ""; position: absolute; top: 0; bottom: 0; left: -42%; width: 42%; border-radius: 0 3px 3px 0; background: linear-gradient(90deg, transparent, var(--brand-deep), var(--brand)); animation: loadsweep 1.1s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes loadsweep { 0% { left: -42%; } 100% { left: 100%; } }
+
+/* Logo : la lettre S se dessine une fois au chargement. */
+.logo svg path { stroke-dasharray: 92; stroke-dashoffset: 92; animation: draw 1s .25s cubic-bezier(.4,0,.2,1) forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* Entrée en cascade de l'assistant. */
+.wizard li { animation: rise .45s cubic-bezier(.2,.7,.2,1) both; }
+.wizard li:nth-child(2) { animation-delay: .07s; }
+.wizard li:nth-child(3) { animation-delay: .14s; }
+
+/* Onglets et étapes : réaction au survol et au clic. */
+.tab { transition: background-color .25s ease, color .25s ease, transform .12s ease; }
+.tab:active { transform: scale(.96); }
+
+/* Boutons : légère pression au clic, montée du bouton principal au survol. */
+.btn { transition: background-color .15s, border-color .15s, opacity .15s, transform .12s ease, box-shadow .2s ease; }
+.btn:active:not(:disabled) { transform: translateY(1px) scale(.99); }
+.btn-primary:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--brand-deep) 70%, transparent); }
+
+/* Champs : halo de marque discret à la prise de focus. */
+.field { transition: border-color .15s ease, box-shadow .2s ease; }
+.field:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 38%, transparent); }
+
+/* Cartes (routeurs détectés, téléchargements) : montée au survol. */
+.router { transition: border-color .15s, background-color .15s, transform .15s ease, box-shadow .2s ease; }
+.router:hover { transform: translateY(-1px); box-shadow: 0 6px 18px -12px rgba(16,22,15,.25); }
+
+/* Pastille d'état du routeur : apparition en douceur quand elle change. */
+#mode { animation: rise .3s ease both; }

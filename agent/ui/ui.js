@@ -27,6 +27,23 @@ function setRing(fillId, pct, spin) {
   el.style.strokeDashoffset = String(RING_C * (1 - Math.max(0, Math.min(100, pct)) / 100));
   el.closest('.gauge')?.classList.toggle('gauge-spin', !!spin);
 }
+/* Compte animé du pourcentage au centre du cercle (de la valeur courante à la cible). */
+const ringCounters = {};
+function countTo(pctId, target) {
+  const el = byId(pctId); if (!el) return;
+  const from = Number((el.textContent || '0').replace('%', '')) || 0;
+  const to = Math.round(Math.max(0, Math.min(100, target)));
+  if (from === to) { el.textContent = `${to}%`; return; }
+  cancelAnimationFrame(ringCounters[pctId]);
+  const start = performance.now(), dur = 450;
+  const tick = now => {
+    const k = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - k, 3);
+    el.textContent = `${Math.round(from + (to - from) * eased)}%`;
+    if (k < 1) ringCounters[pctId] = requestAnimationFrame(tick);
+  };
+  ringCounters[pctId] = requestAnimationFrame(tick);
+}
 /* Chargement : anneau sur un bouton, radar sur un encart d'état, logo qui pulse. */
 let busyCount = 0;
 function busy(el, on) {
@@ -56,7 +73,7 @@ function renderSteps(task) {
   });
   const pct = (done / STEP_COUNT) * 100;
   setRing('run-ring-fill', pct);
-  byId('run-pct').textContent = `${Math.round(pct)}%`;
+  countTo('run-pct', pct);
   let phase = 'En attente du lancement.';
   if (task.state === 'simulated') phase = 'Aperçu du plan — aucune écriture.';
   else if (task.state === 'completed') phase = 'Préparation vérifiée sur le routeur.';
@@ -645,7 +662,7 @@ function swirlText(title, sub = '') {
   text.textContent = title;
   byId('swirl-sub').textContent = sub;
 }
-function setDiagRing(pct, spin) { setRing('diag-ring-fill', pct, spin); byId('diag-pct').textContent = `${Math.round(pct)}%`; }
+function setDiagRing(pct, spin) { setRing('diag-ring-fill', pct, spin); countTo('diag-pct', pct); }
 function swirl(on, title = '', sub = '', pct) {
   clearInterval(swirlTimer);
   byId('swirl').hidden = !on;
