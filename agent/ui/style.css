@@ -459,3 +459,40 @@ body[data-busy="true"] #loadbar { opacity: 1; }
 
 /* Pastille d'état du routeur : apparition en douceur quand elle change. */
 #mode { animation: rise .3s ease both; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Motion design — niveau 2 : lumière, signal, transitions d'élément partagé. */
+
+/* Onglet : une pastille encrée qui GLISSE d'un onglet à l'autre (élément partagé). */
+.tabs { position: relative; }
+.tab-indicator { position: absolute; top: 4px; bottom: 4px; left: 0; width: 0; border-radius: 9999px; background: var(--slate-deep); box-shadow: 0 2px 10px -4px rgba(16,22,15,.5); transition: transform .4s cubic-bezier(.4,0,.2,1), width .4s cubic-bezier(.4,0,.2,1); z-index: 0; }
+.tab { position: relative; z-index: 1; background: transparent !important; }
+.tab:not([aria-current="page"]):hover { background: color-mix(in srgb, var(--line-soft) 60%, transparent) !important; }
+
+/* Grand cercle : halo lumineux de l'arc, et ondes « signal » pendant le travail. */
+.gauge-fill { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--brand-deep) 55%, transparent)); }
+.gauge-dark .gauge-fill { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--brand) 70%, transparent)); }
+.gauge::before, .gauge::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; border: 2px solid var(--brand-deep); opacity: 0; pointer-events: none; }
+.gauge-dark.gauge::before, .gauge-dark.gauge::after { border-color: var(--brand); }
+body[data-busy="true"] .gauge::before { animation: signal 2s ease-out infinite; }
+body[data-busy="true"] .gauge::after { animation: signal 2s ease-out infinite 1s; }
+@keyframes signal { 0% { transform: scale(.82); opacity: .55; } 100% { transform: scale(1.4); opacity: 0; } }
+/* Fin de préparation : le chiffre rebondit, l'arc flashe. */
+.gauge-done .gauge-center span { animation: pop .55s ease; }
+.gauge-done .gauge-fill { animation: doneglow 1.1s ease; }
+@keyframes doneglow { 0%, 100% { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--brand-deep) 55%, transparent)); } 40% { filter: drop-shadow(0 0 16px var(--brand)); } }
+
+/* Aurore : lueur lime lente derrière les surfaces encrées (dépannage, session). */
+.swirl, .session { position: relative; overflow: hidden; isolation: isolate; }
+.swirl::before, .session::before { content: ""; position: absolute; inset: -40%; z-index: -1; background: radial-gradient(42% 42% at 30% 30%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 70%), radial-gradient(38% 38% at 75% 70%, color-mix(in srgb, var(--brand-deep) 30%, transparent), transparent 70%); animation: aurora 14s ease-in-out infinite; }
+@keyframes aurora { 0%, 100% { transform: translate(0,0) rotate(0deg); } 33% { transform: translate(6%, -5%) rotate(8deg); } 66% { transform: translate(-5%, 5%) rotate(-6deg); } }
+
+/* Bouton principal : un éclat de lumière balaie au survol. */
+.btn-primary { position: relative; overflow: hidden; }
+.btn-primary::before { content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent); transform: skewX(-18deg); opacity: 0; pointer-events: none; }
+.btn-primary:not(:disabled):hover::before { animation: shine .9s ease; }
+@keyframes shine { 0% { left: -60%; opacity: 0; } 15% { opacity: .9; } 100% { left: 140%; opacity: 0; } }
+
+/* Marque : le carré lime respire doucement en continu. */
+.logo rect:last-of-type { transform-box: fill-box; transform-origin: center; animation: breathe 3.2s ease-in-out infinite 1.3s; }
+@keyframes breathe { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .82; transform: scale(1.08); } }

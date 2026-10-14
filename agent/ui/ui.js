@@ -148,6 +148,8 @@ function render(task) {
   document.body.dataset.busy = String(running || busyCount > 0);
   renderSteps(task);
   renderSummary(task.result ?? connected);
+  const runGauge = byId('run-ring-fill').closest('.gauge');
+  if (runGauge) runGauge.classList.toggle('gauge-done', task.state === 'completed' || task.state === 'completed-with-warnings');
   const plan = task.plan ? task.plan.map(words => words.join(' ')).join('\n') : '';
   byId('result').textContent = plan;
   byId('result').hidden = !plan;
@@ -414,6 +416,7 @@ setInterval(() => {
     byId('submit').textContent = health.dryRun ? 'Simuler le parcours' : 'Mettre à jour et configurer';
     byId('submit').disabled = false;
     const previous = sessionStorage.getItem('safelinkhub-task');
+    moveTabIndicator();
     if (previous) { byId('wz-3').disabled = false; goto(3); await follow(previous); }
   } catch (error) {
     setMode('Agent injoignable', 'err');
@@ -468,7 +471,16 @@ function showView(view) {
   }
   byId('view-prep').hidden = view !== 'prep';
   byId('view-diag').hidden = view !== 'diag';
+  moveTabIndicator();
 }
+function moveTabIndicator() {
+  const active = document.querySelector('.tab[aria-current="page"]');
+  const ind = byId('tab-indicator');
+  if (!active || !ind) return;
+  ind.style.width = `${active.offsetWidth}px`;
+  ind.style.transform = `translateX(${active.offsetLeft}px)`;
+}
+window.addEventListener('resize', moveTabIndicator);
 for (const tab of document.querySelectorAll('.tab')) tab.addEventListener('click', () => showView(tab.dataset.view));
 for (const link of document.querySelectorAll('[data-view-link]')) link.addEventListener('click', () => { showView(link.dataset.viewLink); goto(1); });
 
