@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { Apple, Download, Laptop, MonitorDown, ShieldCheck, Usb } from "lucide-react";
+import MacDetect from "./MacDetect";
 
 /* Télécharger l'agent local.
  *
@@ -42,13 +43,12 @@ const DOWNLOADS = [
   },
 ] as const;
 
-/* Système de l'opérateur, deviné sur l'en-tête User-Agent : seulement pour
-   mettre UN fichier en avant. Un Mac Apple Silicon se déclare encore « Intel »
-   dans Safari/Chrome : on recommande donc Apple Silicon à tout Mac récent, et
-   la carte Intel reste visible juste à côté. */
+/* Badge « Recommandé » : seulement Windows, décidable sur le User-Agent. Pour
+   le Mac, le User-Agent ne distingue PAS Apple Silicon d'Intel (il déclare
+   « Intel » dans les deux cas) : c'est le détecteur WebGL (MacDetect) qui
+   recommande la bonne version. */
 function guessOs(ua: string): (typeof DOWNLOADS)[number]["os"] | null {
   if (/Windows/i.test(ua)) return "windows";
-  if (/Macintosh|Mac OS X/i.test(ua)) return "mac-arm";
   return null;
 }
 
@@ -66,6 +66,8 @@ export default async function AgentLocalPage() {
         jour RouterOS et firmware, paquets, mode avancé, diagnostic des tickets, revenus MikHmon,
         Wi-Fi et ports. Idéal pour un routeur neuf, sans Internet ni tunnel.
       </p>
+
+      <MacDetect />
 
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         {DOWNLOADS.map(({ os, title, detail, file, size, Icon }) => {
