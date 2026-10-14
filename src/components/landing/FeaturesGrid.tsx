@@ -23,7 +23,7 @@ export default function FeaturesGrid({ dict }: { dict: Dictionary }) {
             return (
             <article
               key={t.title}
-              className={`reveal slate-card p-6 sm:p-7 ${f.span} ${
+              className={`reveal lift slate-card p-6 sm:p-7 ${f.span} ${
                 f.featured ? "border-transparent bg-brand" : "bg-paper hover:bg-clay"
               }`}
             >

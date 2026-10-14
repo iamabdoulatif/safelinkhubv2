@@ -77,7 +77,7 @@ export default function LandingFooter({
             newsletter : aucune liste de diffusion n'existe côté produit, et
             promettre un abonnement qui n'arriverait jamais serait un mensonge. */}
         {/* Capture e-mail */}
-          <div className="mb-14 grid grid-cols-1 gap-8 rounded-2xl border border-slate-deep-line bg-[#0E2618] p-8 lg:grid-cols-12 lg:items-center sm:p-10">
+          <div className="reveal mb-14 grid grid-cols-1 gap-8 rounded-2xl border border-slate-deep-line bg-[#0E2618] p-8 lg:grid-cols-12 lg:items-center sm:p-10">
             <div className="lg:col-span-6">
               <h2 className="font-display text-2xl font-bold leading-snug text-white sm:text-3xl">
                 {dict.footer.tagline}
@@ -110,8 +110,8 @@ export default function LandingFooter({
           </div>
 
         {/* Grille asymétrique : marque large + colonnes serrées */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
-          <div className="lg:col-span-5">
+        <div className="stagger grid grid-cols-1 gap-10 lg:grid-cols-12">
+          <div className="reveal lg:col-span-5">
             <Logo dark />
             <p className={`mt-4 max-w-xs text-sm leading-6 ${muted}`}>
               {dict.footer.address}
@@ -145,7 +145,7 @@ export default function LandingFooter({
             </address>
           </div>
           {columns.map((col) => (
-            <nav key={col.title} aria-label={col.title} className="lg:col-span-2">
+            <nav key={col.title} aria-label={col.title} className="reveal lg:col-span-2">
               <p className={`text-[11px] font-semibold uppercase tracking-wider ${muted}`}>
                 {col.title}
               </p>

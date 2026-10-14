@@ -46,8 +46,8 @@ export default function SafecoinSection({
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionIntro eyebrow={t.eyebrow} title={t.title} marker={t.marker} lead={t.lead} />
 
-        <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="slate-card slate-card-raised relative overflow-hidden bg-slate-deep p-6 text-white sm:p-8 lg:col-span-5">
+        <div className="stagger mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="reveal lift slate-card slate-card-raised relative overflow-hidden bg-slate-deep p-6 text-white sm:p-8 lg:col-span-5">
             <div className="flex items-center justify-between gap-3 border-b border-white/20 pb-4">
               <span className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-brand">
                 {t.card.badge}
@@ -82,7 +82,7 @@ export default function SafecoinSection({
             </div>
           </div>
 
-          <div className="slate-card bg-paper p-6 sm:p-8 lg:col-span-7">
+          <div className="reveal lift slate-card bg-paper p-6 sm:p-8 lg:col-span-7">
             <div className="flex items-start justify-between gap-5">
               <div>
                 <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-brand-deep">
@@ -124,8 +124,8 @@ export default function SafecoinSection({
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="slate-card overflow-hidden bg-paper lg:col-span-7">
+        <div className="stagger mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="reveal lift slate-card overflow-hidden bg-paper lg:col-span-7">
             <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line px-5 py-4">
               <div>
                 <h3 className="font-display text-xl font-bold text-ink">{t.usage.title}</h3>
@@ -161,7 +161,7 @@ export default function SafecoinSection({
             </p>
           </div>
 
-          <div className="rounded-2xl bg-brand p-6 lg:col-span-5">
+          <div className="reveal lift rounded-2xl bg-brand p-6 lg:col-span-5">
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-slate-deep/70">
               {t.setup.eyebrow}
             </p>

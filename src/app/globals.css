@@ -977,6 +977,11 @@ html {
 @keyframes reveal-right { from { opacity: 0; transform: translateX(26px); }  to { opacity: 1; transform: none; } }
 @keyframes reveal-scale { from { opacity: 0; transform: scale(0.965); }      to { opacity: 1; transform: none; } }
 
+/* Survol : les cartes se soulèvent légèrement. La transition ne s'arme qu'une
+   fois la carte révélée, pour ne pas interférer avec l'animation d'entrée. */
+.lift { transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .22s ease; }
+.lift[data-shown="true"]:hover { transform: translateY(-4px); box-shadow: 0 18px 40px -22px rgba(16,22,15,.4); }
+
 /* Cascade : chaque enfant direct part un cran après le précédent. Le pas est
    court exprès — au-delà de ~90 ms par élément, une grille de six cartes met
    plus d'une demi-seconde à se poser et l'attente devient perceptible. */

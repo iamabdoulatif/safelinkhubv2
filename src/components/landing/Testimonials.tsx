@@ -55,11 +55,11 @@ export default async function Testimonials({
         <SectionIntro eyebrow={t.eyebrow} title={t.title} marker={t.marker} lead={t.lead} />
 
         {items.length > 0 ? (
-          <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="stagger mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((item) => (
               <figure
                 key={item.id}
-                className="slate-card flex flex-col justify-between bg-paper p-6 sm:p-7"
+                className="reveal lift slate-card flex flex-col justify-between bg-paper p-6 sm:p-7"
               >
                 <div>
                   {item.rating ? <Stars rating={item.rating} label={t.ratingLabel(item.rating)} /> : null}

@@ -53,7 +53,7 @@ export default function HardwareSection({ dict }: { dict: Dictionary }) {
           {hardware.map((h, i) => {
             const t = dict.content.hardware[i];
             return (
-            <article key={t.name} className="reveal slate-card flex gap-5 bg-paper p-6 sm:p-7">
+            <article key={t.name} className="reveal lift slate-card flex gap-5 bg-paper p-6 sm:p-7">
               <div aria-hidden="true" className="shrink-0 text-ink">
                 <GeoIcon name={h.icon} className="h-10 w-10" accent="#3F6212" />
               </div>

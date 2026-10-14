@@ -106,9 +106,9 @@ export default function Hero({
       {/* Chiffres réels — aucun montant. Flex et non grille : un volume
           masqué ne laisse pas de case vide. */}
       <div className="border-t border-white/10">
-        <dl className="mx-auto flex max-w-6xl flex-wrap gap-px bg-white/10">
+        <dl className="stagger mx-auto flex max-w-6xl flex-wrap gap-px bg-white/10">
           {chiffres.map((c) => (
-            <div key={c.label} className="min-w-0 flex-1 basis-[11rem] bg-[#080A0E] px-6 py-6">
+            <div key={c.label} className="reveal min-w-0 flex-1 basis-[11rem] bg-[#080A0E] px-6 py-6">
               <dt className="text-xs text-white/50">{c.label}</dt>
               <dd className="mt-1 text-2xl font-semibold tabular-nums text-white sm:text-3xl">{c.value}</dd>
               <dd className="mt-1 line-clamp-2 text-xs text-white/40 sm:truncate">{c.sub}</dd>

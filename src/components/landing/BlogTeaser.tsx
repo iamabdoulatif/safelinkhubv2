@@ -67,8 +67,8 @@ export default async function BlogTeaser({
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionIntro eyebrow={t.eyebrow} title={t.title} marker={t.marker} />
 
-        <div className="mt-12 grid grid-cols-1 gap-5 lg:grid-cols-12">
-          <article className="slate-card overflow-hidden bg-paper lg:col-span-7">
+        <div className="stagger mt-12 grid grid-cols-1 gap-5 lg:grid-cols-12">
+          <article className="reveal lift slate-card overflow-hidden bg-paper lg:col-span-7">
             <Cover src={lead.coverImageUrl} className="h-52 w-full object-cover sm:h-64" />
             <div className="p-6 sm:p-7">
               {lead.category ? (
@@ -88,9 +88,9 @@ export default async function BlogTeaser({
             </div>
           </article>
 
-          <div className="grid grid-cols-1 gap-5 lg:col-span-5">
+          <div className="stagger grid grid-cols-1 gap-5 lg:col-span-5">
             {rest.map((p) => (
-              <article key={p.id} className="slate-card flex gap-4 overflow-hidden bg-paper p-4">
+              <article key={p.id} className="reveal lift slate-card flex gap-4 overflow-hidden bg-paper p-4">
                 <Cover src={p.coverImageUrl} className="h-24 w-24 shrink-0 rounded-xl object-cover" />
                 <div className="min-w-0">
                   <h3 className="font-display text-base font-bold leading-snug text-ink">

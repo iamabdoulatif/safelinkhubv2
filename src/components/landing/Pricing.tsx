@@ -43,9 +43,9 @@ export default function Pricing({ dict, locale }: { dict: Dictionary; locale: Lo
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionIntro eyebrow={t.eyebrow} title={t.title} marker={t.marker} lead={t.lead} />
 
-        <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="stagger mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Accès distant — grille de prix (identique pour les 4 services) */}
-          <div className="slate-card slate-card-raised flex flex-col overflow-hidden bg-paper lg:col-span-7">
+          <div className="reveal lift slate-card slate-card-raised flex flex-col overflow-hidden bg-paper lg:col-span-7">
             <div className="border-b border-line bg-slate-deep px-5 py-4">
               <h3 className="font-display text-xl font-bold text-white">{t.remote.title}</h3>
               <p className="mt-1 text-xs text-slate-deep-soft">{t.remote.sub}</p>
@@ -90,7 +90,7 @@ export default function Pricing({ dict, locale }: { dict: Dictionary; locale: Lo
           </div>
 
           {/* Auto-setup + essai gratuit */}
-          <div className="flex flex-col gap-6 lg:col-span-5">
+          <div className="reveal flex flex-col gap-6 lg:col-span-5">
             <div className="slate-card slate-card-raised overflow-hidden bg-paper">
               <div className="border-b border-line bg-brand px-5 py-4">
                 <h3 className="font-display text-xl font-bold text-slate-deep">

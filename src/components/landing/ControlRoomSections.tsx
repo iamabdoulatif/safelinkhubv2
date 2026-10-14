@@ -46,7 +46,7 @@ export function CockpitSection({ dict }: { dict: Dictionary }) {
           {t.vendors.map((v, i) => {
             const Icon = VENDOR_ICONS[i] ?? Activity;
             return (
-              <li key={v.name} className="reveal bg-[#080A0E]/90 p-6 sm:p-7">
+              <li key={v.name} className="reveal lift bg-[#080A0E]/90 p-6 sm:p-7">
                 <Icon aria-hidden="true" className="h-5 w-5 text-[#A5F32E]" />
                 <p className="mt-5 text-lg font-semibold">{v.name}</p>
                 <p className="text-sm text-white/50">{v.role}</p>
@@ -83,7 +83,7 @@ export function AutopilotSection({ dict }: { dict: Dictionary }) {
           {t.items.map((item, i) => {
             const Icon = AUTOPILOT_ICONS[i] ?? Wrench;
             return (
-              <li key={item.title} className="reveal rounded-2xl border border-line bg-paper p-6">
+              <li key={item.title} className="reveal lift rounded-2xl border border-line bg-paper p-6">
                 <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-deep text-brand">
                   <Icon className="h-5 w-5" />
                 </span>
