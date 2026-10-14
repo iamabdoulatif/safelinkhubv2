@@ -93,6 +93,14 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       linkCode = undefined; linkOrg = undefined;
       return json(res, 200, { linked: false });
     }
+    if (req.method === 'POST' && path === '/agent/saas/provision/run') {
+      const chunks: Buffer[] = []; let size = 0;
+      for await (const chunk of req) { size += chunk.length; if (size > 16384) return json(res, 413, { error: 'Trop volumineux.' }); chunks.push(chunk); }
+      const body = JSON.parse(Buffer.concat(chunks).toString() || '{}') as Record<string, unknown>;
+      if (options.dryRun) return json(res, 200, { routerId: 'demo', plan: { supportsContainers: true, hotspotName: 'DEMO WIFI', hotspotAddress: '10.0.0.1/8', forfaits: [{ name: '1 jour', priceFcfa: 200, durationCode: '1d' }] } });
+      try { return json(res, 200, await saas('/provision/run', { method: 'POST', body })); }
+      catch (error) { return json(res, 502, { error: error instanceof Error ? error.message : 'Enregistrement indisponible.' }); }
+    }
     if (req.method === 'POST' && path === '/agent/saas/provision/start') {
       const chunks: Buffer[] = []; let size = 0;
       for await (const chunk of req) { size += chunk.length; if (size > 16384) return json(res, 413, { error: 'Trop volumineux.' }); chunks.push(chunk); }

@@ -863,22 +863,32 @@ byId('auto-run').addEventListener('click', async () => {
   try {
     const r = await api('/agent/saas/provision/start', { method: 'POST', body: JSON.stringify(payload) });
     if (r.stage === 'ready') {
-      status.textContent = r.free
-        ? 'Superadmin : configuration gratuite, aucun paiement. Lancement de l’auto-setup : prochain incrément.'
-        : 'Déjà payé pour cette série. Lancement de l’auto-setup : prochain incrément.';
-      setTone(status, 'ok');
+      status.textContent = (r.free ? 'Superadmin : gratuit. ' : 'Déjà payé. ') + 'Enregistrement du routeur dans le SaaS…';
+      setTone(status, 'info');
+      await registerAndPlan(payload, status);
       return;
     }
     // Paiement requis : on ouvre le checkout et on interroge jusqu’à « payé ».
     status.textContent = `À payer : ${r.amountFcfa.toLocaleString('fr-FR')} FCFA. Une page de paiement s’ouvre — réglez par Wave/Orange/MTN/Moov. Détection automatique du paiement…`;
     setTone(status, 'info');
     window.open(r.paymentUrl, '_blank', 'noopener');
-    await pollPayment(payload.serial, status);
+    await pollPayment(payload, status);
   } catch (error) { status.textContent = error.message; setTone(status, 'err'); }
   finally { busy(byId('auto-run'), false); busy(status, false); }
 });
 
-async function pollPayment(serial, status) {
+async function registerAndPlan(payload, status) {
+  busy(status, true);
+  try {
+    const r = await api('/agent/saas/provision/run', { method: 'POST', body: JSON.stringify(payload) });
+    const f = (r.plan?.forfaits || []).map(x => `${x.name} · ${x.priceFcfa} F`).join(', ');
+    status.textContent = `Routeur enregistré dans le SaaS ✓ (plan reçu : Wi-Fi « ${r.plan?.hotspotName} », ${r.plan?.forfaits?.length || 0} forfait(s)${f ? ' — ' + f : ''}). Application sur le routeur : étape finale (validation sur site).`;
+    setTone(status, 'ok');
+  } catch (error) { status.textContent = `Paiement OK, mais enregistrement SaaS impossible : ${error.message}`; setTone(status, 'err'); }
+  finally { busy(status, false); }
+}
+async function pollPayment(payload, status) {
+  const serial = payload.serial;
   const started = Date.now();
   while (Date.now() - started < 15 * 60 * 1000) { // 15 min max
     await new Promise(r => setTimeout(r, 4000));
@@ -886,8 +896,9 @@ async function pollPayment(serial, status) {
     try { st = await api(`/agent/saas/provision/status?serial=${encodeURIComponent(serial || '')}`); }
     catch { continue; }
     if (st.paid) {
-      status.textContent = 'Paiement détecté ✓ pour cette série. Lancement de l’auto-setup : prochain incrément.';
-      setTone(status, 'ok');
+      status.textContent = 'Paiement détecté ✓. Enregistrement du routeur dans le SaaS…';
+      setTone(status, 'info');
+      await registerAndPlan(payload, status);
       return;
     }
   }
