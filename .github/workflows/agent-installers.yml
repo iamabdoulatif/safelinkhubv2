@@ -85,4 +85,12 @@ jobs:
           gh release delete agent-latest --yes --cleanup-tag 2>/dev/null || true
           gh release create agent-latest out/* --prerelease --target "${{ github.sha }}" \
             --title "SafeLinkHub Agent (dernière version)" \
-            --notes "Agent local SafeLinkHub — build ${{ github.sha }}. macOS : ouvrez le .dmg, glissez l'app dans Applications ; au 1er lancement, Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ». Windows : SmartScreen › « Informations complémentaires » › « Exécuter quand même »."
+            --notes "Agent local SafeLinkHub — build ${{ github.sha }}.
+
+macOS (recommandé, sans compte Apple) — coller dans le Terminal :
+\`\`\`
+curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/agent/packaging/install-macos.sh | bash
+\`\`\`
+macOS bloque les apps non notarisées téléchargées (« l'application ne répond pas ») ; la commande installe l'agent et lève ce blocage. À partir du .dmg : glissez l'app dans Applications (ne l'ouvrez pas depuis le .dmg) ; si bloquée, \`xattr -dr com.apple.quarantine "/Applications/SafeLinkHub Agent.app"\`.
+
+Windows : SmartScreen › « Informations complémentaires » › « Exécuter quand même »."

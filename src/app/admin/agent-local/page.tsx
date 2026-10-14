@@ -101,17 +101,33 @@ export default async function AgentLocalPage() {
         })}
       </div>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
+      <section className="mt-8 rounded-2xl border border-ink bg-ink p-5 text-white">
+        <h2 className="text-base font-semibold">Installer sur macOS — méthode recommandée</h2>
+        <p className="mt-2 text-sm text-white/70">
+          macOS bloque les applications non signées par un compte Apple payant (message «
+          l&apos;application ne répond pas »). Cette commande installe l&apos;agent et lève ce
+          blocage. Ouvrez le <b>Terminal</b> (Applications › Utilitaires), collez la ligne, puis
+          Entrée :
+        </p>
+        <pre className="mt-3 overflow-x-auto rounded-xl bg-black/40 p-4 text-[13px] leading-6 text-brand">
+          <code>curl -fsSL https://raw.githubusercontent.com/iamabdoulatif/safelinkhubv2/main/agent/packaging/install-macos.sh | bash</code>
+        </pre>
+        <p className="mt-2 text-xs text-white/60">
+          Elle détecte votre Mac (Apple Silicon ou Intel), installe l&apos;agent dans Applications et
+          le lance. Rien d&apos;autre à faire.
+        </p>
+      </section>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
         <section className="rounded-2xl border border-line bg-white p-5">
-          <h2 className="text-base font-semibold text-ink">Installer sur macOS</h2>
+          <h2 className="text-base font-semibold text-ink">macOS — à partir du .dmg</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-soft">
-            <li>Ouvrez le fichier .dmg, glissez <b>SafeLinkHub Agent</b> dans <b>Applications</b>.</li>
-            <li>Lancez-le depuis Applications. macOS le bloque la première fois (application non notarisée).</li>
+            <li>Ouvrez le .dmg, glissez <b>SafeLinkHub Agent</b> dans <b>Applications</b> — ne l&apos;ouvrez pas depuis le .dmg.</li>
             <li>
-              Ouvrez <b>Réglages Système › Confidentialité et sécurité</b>, cliquez sur{" "}
-              <b>« Ouvrir quand même »</b>, puis confirmez avec le mot de passe du Mac.
+              S&apos;il refuse de s&apos;ouvrir, levez le blocage dans le Terminal :
+              <code className="mt-1 block overflow-x-auto rounded bg-clay px-2 py-1 text-xs text-ink">xattr -dr com.apple.quarantine &quot;/Applications/SafeLinkHub Agent.app&quot;</code>
             </li>
-            <li>L&apos;agent ouvre votre navigateur. Fermez l&apos;application pour l&apos;arrêter.</li>
+            <li>Rouvrez-le depuis Applications. Il ouvre votre navigateur ; fermez-le pour l&apos;arrêter.</li>
           </ol>
         </section>
         <section className="rounded-2xl border border-line bg-white p-5">
