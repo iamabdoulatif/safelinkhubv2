@@ -1785,3 +1785,22 @@ export const routerRegulationEvents = pgTable(
   },
   (t) => [index("router_regulation_events_router_idx").on(t.routerId, t.createdAt)],
 );
+
+// ── Liaison de l'agent local à une organisation (architecture A) ──────────────
+// Un opérateur CONNECTÉ au SaaS génère un code à usage unique (TTL 2h, même
+// modèle que install-token). L'agent le présente ensuite en Bearer pour agir au
+// nom de cette organisation (suggestions, provisioning). Seul le HACHAGE est
+// stocké ; le code en clair n'existe qu'au moment de la génération.
+export const agentLinkTokens = pgTable("agent_link_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  label: text("label"),
+  expiresAt: timestamp("expires_at").notNull(),
+  lastUsedAt: timestamp("last_used_at"),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

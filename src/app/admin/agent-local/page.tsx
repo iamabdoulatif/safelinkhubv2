@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { Apple, Download, Laptop, MonitorDown, ShieldCheck, Usb } from "lucide-react";
 import MacDetect from "./MacDetect";
+import LinkAgent from "./LinkAgent";
 
 /* Télécharger l'agent local.
  *
@@ -163,6 +164,8 @@ export default async function AgentLocalPage() {
           L&apos;agent n&apos;écoute que sur votre ordinateur (127.0.0.1) et ne stocke jamais vos identifiants sur le disque.
         </p>
       </section>
+
+      <LinkAgent />
     </div>
   );
 }
