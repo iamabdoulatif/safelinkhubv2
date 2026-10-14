@@ -93,6 +93,14 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       linkCode = undefined; linkOrg = undefined;
       return json(res, 200, { linked: false });
     }
+    if (req.method === 'POST' && path === '/agent/saas/provision') {
+      const chunks: Buffer[] = []; let size = 0;
+      for await (const chunk of req) { size += chunk.length; if (size > 16384) return json(res, 413, { error: 'Trop volumineux.' }); chunks.push(chunk); }
+      const body = JSON.parse(Buffer.concat(chunks).toString() || '{}') as Record<string, unknown>;
+      if (options.dryRun) return json(res, 200, { stage: 'payment', free: false, amountFcfa: 2000, walletFcfa: 0, canPayWallet: false });
+      try { return json(res, 200, await saas('/provision', { method: 'POST', body })); }
+      catch (error) { return json(res, 502, { error: error instanceof Error ? error.message : 'Provisioning indisponible.' }); }
+    }
     if (req.method === 'GET' && path === '/agent/saas/suggestions') {
       if (options.dryRun) return json(res, 200, { orgName: 'Organisation simulée', wifiNameSuggestion: 'DEMO WIFI', hotspotAddressDefault: '10.0.0.1/8', portals: [], existingPackages: [{ id: 'x', name: '2 Heures', priceFcfa: 500 }], forfaitPresets: [{ durationCode: '3h', label: '3 heures', priceFcfa: 100 }, { durationCode: '1d', label: '1 jour', priceFcfa: 200 }] });
       try { return json(res, 200, await saas('/suggestions')); }

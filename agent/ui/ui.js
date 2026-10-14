@@ -857,7 +857,18 @@ byId('auto-run').addEventListener('click', async () => {
     portalId: byId('cfg-portal').value || null,
     forfaits: [...chosenForfaits.entries()].map(([key, v]) => ({ key, ...v })),
   };
-  status.textContent = `Prêt : ${payload.forfaits.length} forfait(s), Wi-Fi « ${payload.wifiName} », série ${payload.serial || '?'}. Paiement et exécution : étape suivante (en cours de mise en place).`;
-  setTone(status, 'info');
-  // ponytail: l'exécution (paiement + auto-setup côté SaaS) est le prochain incrément.
+  // architecture container = arm/arm64/x86 (MikHmon local possible).
+  payload.supportsContainers = ['arm', 'arm64', 'x86', 'x86_64'].includes(connected?.architecture);
+  busy(byId('auto-run'), true); busy(status, true); status.textContent = 'Évaluation de la configuration…'; setTone(status, 'info');
+  try {
+    const r = await api('/agent/saas/provision', { method: 'POST', body: JSON.stringify(payload) });
+    if (r.free) {
+      status.textContent = `Superadmin : configuration gratuite. ${payload.forfaits.length} forfait(s), Wi-Fi « ${payload.wifiName} ». Paiement non requis — l'exécution est le prochain incrément.`;
+      setTone(status, 'ok');
+    } else {
+      status.textContent = `À payer : ${r.amountFcfa.toLocaleString('fr-FR')} FCFA pour ce routeur (série ${payload.serial || '?'}). ` + (r.canPayWallet ? `Votre portefeuille (${r.walletFcfa.toLocaleString('fr-FR')} FCFA) suffit.` : `Portefeuille : ${r.walletFcfa.toLocaleString('fr-FR')} FCFA — paiement GeniusPay requis.`) + ` Le paiement et l'exécution sont le prochain incrément.`;
+      setTone(status, 'warn');
+    }
+  } catch (error) { status.textContent = error.message; setTone(status, 'err'); }
+  finally { busy(byId('auto-run'), false); busy(status, false); }
 });

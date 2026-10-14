@@ -31,7 +31,7 @@ export function normalizeCode(input: string): string {
 }
 
 export type LinkResolution =
-  | { ok: true; orgId: string; orgName: string; tokenId: string }
+  | { ok: true; orgId: string; orgName: string; userId: string | null; tokenId: string }
   | { ok: false; reason: "invalid" | "expired" };
 
 /** Crée un code de liaison pour l'organisation de la session. Renvoie le code EN CLAIR une seule fois. */
@@ -54,7 +54,7 @@ export async function resolveAgentLink(rawCode: string): Promise<LinkResolution>
   if (code.replace(/-/g, "").length < 16) return { ok: false, reason: "invalid" };
   const db = getDb();
   const [row] = await db
-    .select({ id: agentLinkTokens.id, orgId: agentLinkTokens.orgId, expiresAt: agentLinkTokens.expiresAt, orgName: organizations.name })
+    .select({ id: agentLinkTokens.id, orgId: agentLinkTokens.orgId, userId: agentLinkTokens.userId, expiresAt: agentLinkTokens.expiresAt, orgName: organizations.name })
     .from(agentLinkTokens)
     .innerJoin(organizations, eq(organizations.id, agentLinkTokens.orgId))
     .where(and(eq(agentLinkTokens.tokenHash, hash(code)), isNull(agentLinkTokens.revokedAt)))
@@ -62,7 +62,7 @@ export async function resolveAgentLink(rawCode: string): Promise<LinkResolution>
   if (!row) return { ok: false, reason: "invalid" };
   if (row.expiresAt.getTime() <= Date.now()) return { ok: false, reason: "expired" };
   await db.update(agentLinkTokens).set({ lastUsedAt: new Date() }).where(eq(agentLinkTokens.id, row.id));
-  return { ok: true, orgId: row.orgId, orgName: row.orgName, tokenId: row.id };
+  return { ok: true, orgId: row.orgId, orgName: row.orgName, userId: row.userId, tokenId: row.id };
 }
 
 /** Variante stricte pour les handlers d'API : lit le header Authorization. */
