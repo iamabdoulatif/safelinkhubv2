@@ -17,6 +17,19 @@ export function subnetHosts(ip: string, mask: string): string[] {
   const network = (numeric(ip) & netmask) >>> 0;
   return Array.from({ length: size - 2 }, (_, index) => address(network + index + 1)).filter(host => host !== ip && isLocalAddress(host));
 }
+/** Pourquoi `host` est injoignable depuis CE poste : l'ordinateur est-il sur le réseau du routeur ? */
+export function networkHint(host: string, interfaces: ReturnType<typeof networkInterfaces> = networkInterfaces()): string {
+  const mine: { name: string; ip: string; mask: string }[] = [];
+  for (const [name, entries] of Object.entries(interfaces)) for (const e of entries ?? []) {
+    if (e.family === 'IPv4' && !e.internal) mine.push({ name, ip: e.address, mask: e.netmask });
+  }
+  const same = isIPv4(host) ? mine.find(i => ((numeric(i.ip) ^ numeric(host)) & numeric(i.mask)) === 0) : undefined;
+  if (same) return `Cet ordinateur est bien sur le réseau du routeur (${same.name} ${same.ip}) : le routeur ne répond pas sur ce port. Vérifiez qu'il est allumé, puis dans Winbox › IP › Services que « api » (8728) est activé et autorisé depuis votre adresse.`;
+  // Affichage : interfaces physiques seulement (pas Docker, ponts, VPN…).
+  const real = mine.filter(i => !/^(feth|bridge|utun|awdl|llw|vmnet|veth|docker|vboxnet|br-|virbr|vEthernet|tailscale|zt|anpi|ap\d)/i.test(i.name));
+  const list = real.length ? real.map(i => `${i.name} ${i.ip}`).join(', ') : 'aucune';
+  return `Cet ordinateur n'a aucune adresse dans le réseau de ${host} (adresses actuelles : ${list}) : il ne peut pas l'atteindre. Branchez le câble Ethernet sur un port LAN du MikroTik (ether2 à ether5, pas le port WAN/Internet) ou connectez-vous à son Wi-Fi, attendez que l'ordinateur reçoive une adresse (192.168.88.x sur un routeur d'usine), puis réessayez.`;
+}
 export type Candidate = { ip: string; ports: number[]; source: string; model?: string; version?: string; mac?: string };
 export function parseMndp(packet: Buffer): Partial<Candidate> | undefined {
   // MNDP header: version, TTL, sequence. Also accept the two-byte relay format in this repository.

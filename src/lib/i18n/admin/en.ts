@@ -18,6 +18,7 @@ export const adminEn: AdminDictionary = {
       remoteAccess: "Remote access",
       roaming: "Roaming",
       mikhmon: "MikHmon Online",
+      localAgent: "Local agent",
       supervision: "Monitoring",
       packages: "Plans",
       tickets: "Tickets",

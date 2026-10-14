@@ -473,6 +473,14 @@ for (const b of document.querySelectorAll('[data-goto]')) b.addEventListener('cl
 
 function setConnected(router) {
   connected = router;
+  // Carte de session à la place du formulaire tant qu'un routeur est connecté.
+  byId('session').hidden = !router;
+  byId('connect-form').hidden = !!router;
+  byId('topbar-disconnect').hidden = !router;
+  if (router) {
+    byId('session-title').textContent = `${router.model ?? 'Routeur'} · ${router.host}`;
+    byId('session-meta').textContent = [router.version && `RouterOS ${router.version}`, router.serial && `SN ${router.serial}`, byId('tls').checked ? `chiffré (API-SSL ${byId('port').value})` : `non chiffré (API ${byId('port').value})`, `compte ${byId('username').value}`].filter(Boolean).join(' · ');
+  }
   document.querySelector('.wz[data-step="2"]').disabled = !router;
   byId('diag-need').hidden = !!router;
   byId('health-run').disabled = !router;
@@ -569,3 +577,32 @@ function restoreTls() {
 }
 byId('host').addEventListener('change', restoreTls);
 restoreTls();
+
+/* ── Déconnexion : on oublie le routeur ET le mot de passe saisi ───────── */
+function disconnect() {
+  if (polling) {
+    byId('connect-status').hidden = false;
+    byId('connect-status').textContent = 'Une préparation est en cours : attendez la fin avant de vous déconnecter.';
+    setTone(byId('connect-status'), 'warn');
+    goto(1);
+    return;
+  }
+  setConnected(null);
+  byId('password').value = '';
+  lastPassword = '';
+  for (const id of ['plan-summary', 'packages', 'health-checks', 'health-identity']) byId(id).replaceChildren();
+  byId('health-identity').hidden = true;
+  byId('packages-apply').hidden = true;
+  byId('packages-warn').hidden = true;
+  byId('packages-note').textContent = '';
+  byId('consent').checked = false;
+  byId('wz-3').disabled = true;
+  byId('connect-status').hidden = false;
+  byId('connect-status').textContent = 'Déconnecté. Le mot de passe a été effacé de cette page.';
+  setTone(byId('connect-status'), 'idle');
+  showView('prep');
+  goto(1);
+  byId('password').focus();
+}
+byId('disconnect').addEventListener('click', disconnect);
+byId('topbar-disconnect').addEventListener('click', disconnect);

@@ -64,6 +64,8 @@ const businessGroups: NavGroup[] = [
       { href: "/admin/roaming", key: "roaming", need: "routers" },
       // Casse officielle du produit : MikHmon.
       { href: "/admin/mikhmon-online", key: "mikhmon", need: "routers" },
+      // L'application de bureau qui prépare un routeur depuis le réseau local.
+      { href: "/admin/agent-local", key: "localAgent", need: "routers" },
       // Utilisateurs actifs + routeurs en ligne : de la supervision réseau,
       // pas de l'analyse commerciale (à ne pas confondre avec « Analyse
       // commerciale », côté superadmin — d'où le renommage).

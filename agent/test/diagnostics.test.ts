@@ -23,3 +23,11 @@ test('passerelles privées indépendantes de la taille du sous-réseau', () => {
   assert.deepEqual(parseGateways('default 10.0.0.1 UGScg en0\ndefault link#20 UCSIg utun1', 'darwin'), ['10.0.0.1']);
   assert.deepEqual(parseGateways('default via 192.168.88.1 dev eth0', 'linux'), ['192.168.88.1']);
 });
+
+test('injoignable : dit si l’ordinateur est sur le réseau du routeur', async () => {
+  const { networkHint } = await import('../src/scanner');
+  const wifiMaison = { en0: [{ address: '192.168.1.23', netmask: '255.255.255.0', family: 'IPv4', internal: false }] } as never;
+  assert.match(networkHint('192.168.88.1', wifiMaison), /aucune adresse dans le réseau de 192\.168\.88\.1.*en0 192\.168\.1\.23.*port LAN/);
+  const cable = { en4: [{ address: '192.168.88.254', netmask: '255.255.255.0', family: 'IPv4', internal: false }] } as never;
+  assert.match(networkHint('192.168.88.1', cable), /bien sur le réseau du routeur \(en4/);
+});

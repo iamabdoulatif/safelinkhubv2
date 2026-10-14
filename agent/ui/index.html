@@ -25,7 +25,10 @@
       <button type="button" class="tab" data-view="prep" aria-current="page">Préparation</button>
       <button type="button" class="tab" data-view="diag">Diagnostic &amp; maintenance</button>
     </nav>
-    <span id="mode" class="pill" data-tone="pending" role="status">Connexion à l’agent…</span>
+    <div class="topbar-right">
+      <span id="mode" class="pill" data-tone="pending" role="status">Connexion à l’agent…</span>
+      <button type="button" id="topbar-disconnect" class="btn btn-ghost btn-sm" hidden>Déconnecter</button>
+    </div>
   </div>
 </header>
 
@@ -44,6 +47,19 @@
     <section class="card panel" id="panel-1" aria-labelledby="p1-title">
       <h2 id="p1-title">Connexion au routeur</h2>
       <p class="sub">Compte RouterOS (Winbox), pas celui du portail captif. Rien n’est modifié à cette étape, sauf le certificat qui chiffre la connexion (option avancée).</p>
+      <div id="session" class="session" hidden>
+        <div class="session-info">
+          <span class="session-mark" aria-hidden="true"></span>
+          <div>
+            <strong id="session-title">Routeur connecté</strong>
+            <small id="session-meta"></small>
+          </div>
+        </div>
+        <div class="session-actions">
+          <button type="button" class="btn btn-primary" data-goto="2">Continuer vers le plan</button>
+          <button type="button" id="disconnect" class="btn btn-outline">Se déconnecter</button>
+        </div>
+      </div>
       <form id="connect-form" autocomplete="off">
         <label for="host">Adresse IP du routeur</label>
         <div class="inline">

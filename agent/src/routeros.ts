@@ -1,7 +1,8 @@
 import net from 'node:net';
 import tls from 'node:tls';
 import { RouterOSClient } from '../../src/lib/mikrotik/client';
-import { connectionMessage } from './diagnostics';
+import { connectionMessage, UNREACHABLE } from './diagnostics';
+import { networkHint } from './scanner';
 import type { Transport } from './configurator';
 
 export interface Credentials { host: string; port: number; username: string; password: string; tls: boolean; ca?: string }
@@ -19,7 +20,12 @@ export function routerTransport(credentials: Credentials): Transport {
       });
       await client.connectViaStream(socket, credentials.username, credentials.password);
       return { client, close() { client.close(); socket.destroy(); } };
-    } catch (error) { socket.destroy(); throw new Error(connectionMessage(error, credentials.tls)); }
+    } catch (error) {
+      socket.destroy();
+      const message = connectionMessage(error, credentials.tls);
+      // Injoignable : dire si le poste est seulement sur le bon réseau.
+      throw new Error(message === UNREACHABLE ? `Routeur ${credentials.host}:${credentials.port} injoignable. ${networkHint(credentials.host)}` : message);
+    }
   }
   return {
     async read(path) {

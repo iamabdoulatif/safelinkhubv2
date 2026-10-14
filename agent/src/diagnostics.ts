@@ -1,5 +1,7 @@
 import type { Transport } from './configurator';
 
+export const UNREACHABLE = 'API RouterOS inaccessible : vérifiez l’adresse, le port et le câble sur un port LAN. Un routeur sans configuration IP nécessite une initialisation locale (par exemple WinBox par MAC). L’agent ne peut pas activer une API inaccessible par cette même API.';
+
 export function connectionMessage(error: unknown, encrypted: boolean): string {
   const message = error instanceof Error ? error.message : String(error);
   if (/handshake|alert number 40|no shared cipher/i.test(message)) return 'API-SSL 8729 : négociation TLS impossible. RouterOS peut avoir un service API-SSL sans certificat (mode anonyme incompatible avec ce client). Configurez un certificat valide, ou sélectionnez explicitement l’API locale 8728 sur un réseau de confiance. Aucun basculement non chiffré automatique.';
@@ -8,7 +10,7 @@ export function connectionMessage(error: unknown, encrypted: boolean): string {
   // Seulement les vrais refus de RouterOS (« invalid user name or password (6) »…) :
   // un mot isolé comme « password » ne suffit plus, et la réponse brute est montrée.
   if (/invalid user name or password|cannot log ?in|login fail(ed|ure)|authentication failed|not logged in/i.test(message)) return `Le routeur refuse cet utilisateur ou ce mot de passe (RouterOS : « ${message.trim()} »). Utilisez le compte RouterOS (Winbox), pas celui du portail captif. Si le mot de passe a été changé avec l’agent, saisissez le NOUVEAU — le navigateur a pu préremplir l’ancien (bouton « Afficher » pour vérifier). Routeur neuf : mot de passe de l’étiquette.`;
-  if (/ECONNREFUSED|ETIMEDOUT|timed out|inaccessible|EHOSTUNREACH|ENETUNREACH/i.test(message)) return 'API RouterOS inaccessible : vérifiez l’adresse, le port et le câble sur un port LAN. Un routeur sans configuration IP nécessite une initialisation locale (par exemple WinBox par MAC). L’agent ne peut pas activer une API inaccessible par cette même API.';
+  if (/ECONNREFUSED|ETIMEDOUT|timed out|inaccessible|EHOSTUNREACH|ENETUNREACH/i.test(message)) return UNREACHABLE;
   return message;
 }
 

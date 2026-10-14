@@ -23,6 +23,7 @@ export const adminFr = {
       remoteAccess: "Accès distant",
       roaming: "Roaming",
       mikhmon: "MikHmon Online",
+      localAgent: "Agent local",
       supervision: "Supervision",
       packages: "Forfaits",
       tickets: "Tickets",
