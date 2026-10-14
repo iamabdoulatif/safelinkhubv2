@@ -511,9 +511,22 @@ byId('connect-form').addEventListener('submit', async event => {
   status.textContent = 'Connexion au routeur en lecture seule…';
   setTone(status, 'info');
   busy(button, true); busy(status, true);
+  const diagnose = h => api(`/agent/routers/${encodeURIComponent(h)}/diagnose`, { method: 'POST', body: JSON.stringify(connectionBody()) });
+  const certError = m => /TLS|certificat|API-SSL/i.test(m);
   try {
     const host = byId('host').value.trim();
-    const result = await api(`/agent/routers/${encodeURIComponent(host)}/diagnose`, { method: 'POST', body: JSON.stringify(connectionBody()) });
+    let result;
+    try {
+      result = await diagnose(host);
+    } catch (error) {
+      // Chiffrement demandé mais certificat absent/obsolète : le créer via 8728, puis reprendre en 8729.
+      if (!(byId('tls').checked && byId('auto-tls').checked && !dryRun && certError(error.message))) throw error;
+      status.textContent = 'Connexion chiffrée impossible (certificat manquant) : création automatique via le port 8728, puis reprise en 8729…';
+      setTone(status, 'info');
+      try { localStorage.removeItem(caKey(host)); } catch { /* stockage indisponible */ }
+      await createCert(host);
+      result = await diagnose(host);
+    }
     if (dryRun && !result.model) Object.assign(result, { model: 'Routeur simulé' });
     lastPassword = byId('password').value || lastPassword;
     status.textContent = result.message;
@@ -526,14 +539,13 @@ byId('connect-form').addEventListener('submit', async event => {
     setConnected(null);
     status.textContent = error.message;
     setTone(status, 'err');
-    // Certificat mémorisé devenu faux (routeur réinitialisé, certificat retiré) : on l'oublie.
-    let saved = null;
-    try { saved = localStorage.getItem(caKey(byId('host').value.trim())); } catch { /* stockage indisponible */ }
-    if (saved && byId('tls').checked && /TLS|certificat|API-SSL/i.test(error.message)) {
-      try { localStorage.removeItem(caKey(byId('host').value.trim())); } catch { /* idem */ }
+    // La création du certificat a aussi échoué (API-SSL restreint, 8728 bloqué…) :
+    // repli propre sur le port 8728 non chiffré, à relancer d'un clic.
+    if (byId('tls').checked && certError(error.message)) {
+      try { localStorage.removeItem(caKey(byId('host').value.trim())); } catch { /* stockage indisponible */ }
       byId('tls').checked = false; byId('port').value = '8728'; byId('ca').value = '';
       byId('tls').dispatchEvent(new Event('change'));
-      status.textContent = `${error.message} Certificat mémorisé obsolète (routeur réinitialisé ?) : retour au port 8728. Cliquez de nouveau sur « Se connecter » : un nouveau certificat sera créé.`;
+      status.textContent = `${error.message} Repli sur le port 8728 (non chiffré) : cliquez de nouveau sur « Se connecter ».`;
       setTone(status, 'warn');
     }
   } finally { busy(button, false); busy(status, false); }
@@ -551,13 +563,22 @@ function applyTls(port, ca) {
   setTone(byId('transport'), 'ok');
   advSummary();
 }
+/* Crée le certificat sur le routeur via une connexion CLAIRE 8728 (le 8729 ne
+   marche pas encore), pré-remplit le champ certificat et bascule l'interface en
+   API-SSL. Utilisé par les deux chemins : montée en 8729 depuis 8728, ET reprise
+   quand une connexion 8729 échoue faute de certificat. */
+async function createCert(host) {
+  const body = { ...connectionBody(), tls: false, port: 8728 };
+  const result = await api(`/agent/routers/${encodeURIComponent(host)}/tls-setup`, { method: 'POST', body: JSON.stringify(body) });
+  applyTls(result.port, result.ca);
+  try { localStorage.setItem(caKey(host), JSON.stringify({ port: result.port, ca: result.ca })); } catch { /* stockage indisponible */ }
+  return result;
+}
 async function secureConnection(host, status) {
   status.textContent = 'Chiffrement de la connexion : création du certificat sur le routeur (jusqu’à 1 minute)…';
   setTone(status, 'info'); busy(status, true);
   try {
-    const result = await api(`/agent/routers/${encodeURIComponent(host)}/tls-setup`, { method: 'POST', body: JSON.stringify(connectionBody()) });
-    applyTls(result.port, result.ca);
-    try { localStorage.setItem(caKey(host), JSON.stringify({ port: result.port, ca: result.ca })); } catch { /* stockage indisponible */ }
+    const result = await createCert(host);
     status.textContent = `${result.message} La suite passe par cette connexion chiffrée.`;
     setTone(status, 'ok');
   } catch (error) {
