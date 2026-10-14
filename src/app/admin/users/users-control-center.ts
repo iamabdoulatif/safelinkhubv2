@@ -10,6 +10,7 @@ export type UserControlRow = {
   quotaCategory: UserQuotaCategory;
   quotaLabel: string;
   quotaExpiresAt: string | null;
+  whatsapp?: string | null;
   createdAt: string;
 };
 
@@ -49,9 +50,9 @@ function csvCell(value: string) {
 }
 
 export function buildUsersCsv(rows: UserControlRow[]): string {
-  const header = ["Nom", "Email", "Organisation", "Rôle", "Quota VPN", "Inscrit le"].join(",");
+  const header = ["Nom", "Email", "WhatsApp", "Organisation", "Rôle", "Quota VPN", "Inscrit le"].join(",");
   const lines = rows.map((row) =>
-    [row.name, row.email, row.orgName, row.role, row.quotaLabel, row.createdAt]
+    [row.name, row.email, row.whatsapp ?? "", row.orgName, row.role, row.quotaLabel, row.createdAt]
       .map(csvCell)
       .join(","),
   );

@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Search,
   ChevronRight,
+  MessageCircle,
   ShieldCheck,
   Wifi,
 } from "lucide-react";
@@ -240,6 +241,21 @@ export default function UsersControlCenter({
 
                     <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-soft/60" />
                   </button>
+
+                  {/* WhatsApp de l'utilisateur, cliquable (wa.me). Hors du bouton
+                      pour ne pas imbriquer deux éléments cliquables. */}
+                  {row.whatsapp && (
+                    <a
+                      href={`https://wa.me/${row.whatsapp.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1.5 px-4 pb-2.5 pl-[4.25rem] text-xs font-medium text-brand-deep hover:underline"
+                    >
+                      <MessageCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">WhatsApp · {row.whatsapp}</span>
+                    </a>
+                  )}
 
                   {/* Téléphone : l'accès passe sous le nom, sur une ligne, sans
                       pastille — la largeur manque pour deux colonnes. */}

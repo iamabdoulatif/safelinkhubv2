@@ -13,6 +13,7 @@ const rows: UserControlRow[] = [
     quotaCategory: "free",
     quotaLabel: "Gratuit jusqu'au 15 août 2026",
     quotaExpiresAt: "2026-08-15T00:00:00.000Z",
+    whatsapp: "+225 07 09 100 552",
     createdAt: "2026-07-01T00:00:00.000Z",
   },
   {
@@ -43,7 +44,8 @@ describe("station de contrôle utilisateurs", () => {
 
   it("génère un CSV UTF-8 échappé", () => {
     const csv = buildUsersCsv(rows);
-    assert.match(csv, /^\uFEFFNom,Email,Organisation/);
+    assert.match(csv, /^\uFEFFNom,Email,WhatsApp,Organisation/);
+    assert.match(csv, /"\+225 07 09 100 552"/);
     assert.match(csv, /"Awa Traoré","awa@example.com"/);
     assert.match(csv, /"Organisation Awa"/);
   });

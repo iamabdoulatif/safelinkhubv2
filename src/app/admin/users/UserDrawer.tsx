@@ -104,6 +104,21 @@ export default function UserDrawer({
               <dt className="text-ink-soft">Organisation</dt>
               <dd className="min-w-0 truncate text-right font-medium text-ink">{row.orgName}</dd>
             </div>
+            {row.whatsapp && (
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <dt className="text-sm text-ink-soft">WhatsApp</dt>
+                <dd className="min-w-0 truncate text-right font-medium">
+                  <a
+                    href={`https://wa.me/${row.whatsapp.replace(/\D/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-deep hover:underline"
+                  >
+                    {row.whatsapp}
+                  </a>
+                </dd>
+              </div>
+            )}
             <div className="flex items-baseline justify-between gap-3">
               <dt className="text-ink-soft">Rôle</dt>
               <dd className="font-medium text-ink">

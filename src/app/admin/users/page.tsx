@@ -59,6 +59,9 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
             name: users.name,
             email: users.email,
             role: users.role,
+            phone: users.phone,
+            phoneDialCode: users.phoneDialCode,
+            whatsapp: users.whatsapp,
             createdAt: users.createdAt,
             orgId: users.orgId,
             orgName: organizations.name,
@@ -75,6 +78,9 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
             name: users.name,
             email: users.email,
             role: users.role,
+            phone: users.phone,
+            phoneDialCode: users.phoneDialCode,
+            whatsapp: users.whatsapp,
             createdAt: users.createdAt,
             orgId: users.orgId,
             orgName: organizations.name,
@@ -177,6 +183,12 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
       quotaCategory: quotaCategory(fields),
       quotaLabel: quotaLabel(fields),
       quotaExpiresAt: status.expiresAt?.toISOString() ?? null,
+      // WhatsApp : le champ dédié, sinon le téléphone (règle du schéma :
+      // whatsapp null = « identique au téléphone »), préfixé de l'indicatif.
+      whatsapp: (() => {
+        const num = user.whatsapp ?? user.phone ?? null;
+        return num ? `${user.phoneDialCode ? user.phoneDialCode + " " : ""}${num}`.trim() : null;
+      })(),
       createdAt: user.createdAt.toISOString(),
     };
   });
