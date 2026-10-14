@@ -298,7 +298,7 @@ const FIX_LABEL = { 'mikhmon-sales': 'Réparer les revenus', 'expiry-sweep': 'R�
 function healthStatus(text, tone) { byId('health-status').textContent = text; setTone(byId('health-status'), tone); }
 function healthBody(extra = {}) { const b = connectionBody(); delete b.updateRouterOS; return { ...b, ...extra }; }
 function healthBusy(busy) {
-  for (const id of ['health-run', 'health-fix-all']) byId(id).disabled = busy;
+  byId('health-run').disabled = busy;
   for (const b of document.querySelectorAll('#health-checks button, [data-maint]')) b.disabled = busy;
 }
 
@@ -315,8 +315,13 @@ function renderHealth(report) {
   dl.hidden = false;
   const list = byId('health-checks');
   list.replaceChildren();
+  byId('health-ok').replaceChildren();
   const checks = [...report.checks].sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
+  const fine = checks.filter(c => c.severity === 'ok' || c.severity === 'info');
+  byId('health-ok-box').hidden = !fine.length;
+  byId('health-ok-title').textContent = `Contrôles conformes (${fine.length})`;
   for (const c of checks) {
+    const target = c.severity === 'ok' || c.severity === 'info' ? byId('health-ok') : list;
     const li = document.createElement('li'); li.className = 'check'; li.dataset.sev = c.severity;
     const dot = document.createElement('span'); dot.className = 'check-dot'; dot.setAttribute('aria-hidden', 'true');
     const head = document.createElement('div');
@@ -332,56 +337,28 @@ function renderHealth(report) {
     } else li.append(document.createElement('span'));
     const detail = document.createElement('p'); detail.className = 'check-detail'; detail.textContent = c.detail;
     li.append(detail);
-    list.append(li);
+    target.append(li);
   }
   const problems = report.checks.filter(c => c.severity === 'error' || c.severity === 'warn').length;
   const safe = report.checks.filter(c => c.fix && SAFE_FIXES.includes(c.fix));
-  byId('health-fix-all').hidden = safe.length < 2;
   healthStatus(problems ? `${problems} problème(s) détecté(s) sur ${id.boardName} (SN ${id.serial}).` : `Aucun problème détecté sur ${id.boardName} (SN ${id.serial}).`, problems ? 'warn' : 'ok');
   return safe;
-}
-
-async function runHealth() {
-  healthBusy(true);
-  healthStatus('Diagnostic en cours (lecture seule, 10 à 30 secondes)…', 'info');
-  busy(byId('health-run'), true); busy(byId('health-status'), true);
-  try {
-    renderHealth(await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/health`, { method: 'POST', body: JSON.stringify(healthBody()) }));
-  } catch (error) { healthStatus(error.message, 'err'); }
-  finally { healthBusy(false); busy(byId('health-run'), false); busy(byId('health-status'), false); }
 }
 
 async function runFix(fix, title, button) {
   healthBusy(true);
   healthStatus(`En cours : ${title}…`, 'info');
-  busy(button, true); busy(byId('health-status'), true);
+  swirl(true, title, 'Application sur le routeur, puis vérification.');
+  busy(button, true);
   try {
     const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/fix`, { method: 'POST', body: JSON.stringify(healthBody({ fix })) });
     if (result.report) renderHealth(result.report);
     healthStatus(result.message, 'ok');
   } catch (error) { healthStatus(error.message, 'err'); }
-  finally { healthBusy(false); busy(button, false); busy(byId('health-status'), false); }
+  finally { healthBusy(false); busy(button, false); swirl(false); }
 }
 
-byId('health-run').addEventListener('click', runHealth);
-byId('health-fix-all').addEventListener('click', async () => {
-  healthBusy(true);
-  busy(byId('health-fix-all'), true); busy(byId('health-status'), true);
-  try {
-    let report = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/health`, { method: 'POST', body: JSON.stringify(healthBody()) });
-    const todo = [...new Set(report.checks.filter(c => c.fix && SAFE_FIXES.includes(c.fix)).map(c => c.fix))];
-    const done = [];
-    for (const fix of todo) {
-      healthStatus(`Réparation ${done.length + 1}/${todo.length}…`, 'info');
-      const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/fix`, { method: 'POST', body: JSON.stringify(healthBody({ fix })) });
-      report = result.report; done.push(result.message);
-    }
-    renderHealth(report);
-    healthStatus(done.length ? done.join(' ') : 'Rien à réparer automatiquement.', 'ok');
-  } catch (error) { healthStatus(error.message, 'err'); }
-  finally { healthBusy(false); busy(byId('health-fix-all'), false); busy(byId('health-status'), false); }
-});
-
+byId('health-run').addEventListener('click', runRepair);
 setInterval(() => {
   if (!deadline) { byId('countdown').textContent = ''; return; }
   const left = Math.ceil((deadline - Date.now()) / 1000);
@@ -606,3 +583,92 @@ function disconnect() {
 }
 byId('disconnect').addEventListener('click', disconnect);
 byId('topbar-disconnect').addEventListener('click', disconnect);
+
+/* ── Dépannage automatique ────────────────────────────────────────────────
+   Au lieu d'exposer chaque compétence en menu : un tourbillon fait défiler les
+   étapes, les réparations sûres s'appliquent, une relecture du routeur les
+   CONFIRME, et l'utilisateur ne voit que le résultat (et ce qui reste à décider). */
+const STAGES = [
+  ['Identité du routeur', 'Modèle, numéro de série, adresse MAC, RouterOS'],
+  ['Horloge', 'Heure et synchronisation NTP — sans elles, les tickets n’expirent pas'],
+  ['Tickets MikHmon', 'Format des dates et balayage d’expiration'],
+  ['Revenus MikHmon', 'Ventes lisibles par les rapports du jour et du mois'],
+  ['Wi-Fi', 'Radios actives, SSID visible, canaux 5 GHz (DFS)'],
+  ['Ports Ethernet', 'Erreurs physiques, coupures, vitesses négociées'],
+  ['Internet', 'WAN, NAT, DNS, DHCP'],
+  ['Hotspot et MikHmon', 'Serveur hotspot, conteneur, session'],
+];
+let swirlTimer;
+function swirlText(title, sub = '') {
+  const text = byId('swirl-text');
+  text.classList.remove('swap'); void text.offsetWidth; text.classList.add('swap');
+  text.textContent = title;
+  byId('swirl-sub').textContent = sub;
+}
+function swirl(on, title = '', sub = '') {
+  clearInterval(swirlTimer);
+  byId('swirl').hidden = !on;
+  document.body.dataset.busy = String(on || busyCount > 0);
+  if (on) swirlText(title, sub);
+}
+function cycleStages() {
+  let i = 0;
+  swirl(true, `Analyse : ${STAGES[0][0]}`, STAGES[0][1]);
+  swirlTimer = setInterval(() => { i = (i + 1) % STAGES.length; swirlText(`Analyse : ${STAGES[i][0]}`, STAGES[i][1]); }, 1700);
+}
+
+async function runRepair() {
+  const host = byId('host').value.trim();
+  healthBusy(true);
+  byId('repairs').replaceChildren();
+  byId('health-status').hidden = true;
+  cycleStages();
+  try {
+    let report = await api(`/agent/routers/${encodeURIComponent(host)}/health`, { method: 'POST', body: JSON.stringify(healthBody()) });
+    if (!Array.isArray(report.checks)) { swirl(false); healthStatus(report.message ?? 'Aucun résultat.', 'warn'); return; }
+    const problems = report.checks.filter(c => (c.severity === 'error' || c.severity === 'warn') && c.fix && SAFE_FIXES.includes(c.fix));
+    const todo = [...new Map(problems.map(c => [c.fix, c])).values()];
+    const applied = [];
+    for (const [n, c] of todo.entries()) {
+      clearInterval(swirlTimer);
+      swirlText(`Réparation ${n + 1}/${todo.length} : ${c.title}`, 'Application sur le routeur…');
+      try {
+        const result = await api(`/agent/routers/${encodeURIComponent(host)}/fix`, { method: 'POST', body: JSON.stringify(healthBody({ fix: c.fix })) });
+        if (result.report) report = result.report;
+        applied.push({ check: c, message: result.message });
+      } catch (error) { applied.push({ check: c, error: error.message }); }
+    }
+    if (todo.length) swirlText('Vérification finale', 'Relecture du routeur pour confirmer chaque réparation');
+    swirl(false);
+    renderHealth(report);
+    renderRepairs(applied, report);
+  } catch (error) {
+    swirl(false);
+    healthStatus(error.message, 'err');
+  } finally { healthBusy(false); byId('health-status').hidden = false; }
+}
+
+/* Chaque réparation est CONFIRMÉE par la relecture : le même contrôle ne doit
+   plus être en erreur/avertissement dans le rapport final. */
+function renderRepairs(applied, report) {
+  const list = byId('repairs');
+  list.replaceChildren();
+  for (const a of applied) {
+    const still = report.checks.some(c => c.id === a.check.id && (c.severity === 'error' || c.severity === 'warn'));
+    const state = a.error ? 'failed' : still ? 'partial' : 'done';
+    const li = document.createElement('li');
+    li.className = 'repair'; li.dataset.state = state;
+    const mark = document.createElement('span'); mark.className = 'repair-mark'; mark.setAttribute('aria-hidden', 'true');
+    const body = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = state === 'done' ? `${a.check.title} — réparé et vérifié` : state === 'partial' ? `${a.check.title} — appliqué, encore signalé` : `${a.check.title} — échec`;
+    const detail = document.createElement('p'); detail.textContent = a.error ?? a.message;
+    body.append(title, detail);
+    li.append(mark, body);
+    list.append(li);
+  }
+  const left = report.checks.filter(c => c.severity === 'error' || c.severity === 'warn').length;
+  const fixed = applied.filter(a => !a.error && !report.checks.some(c => c.id === a.check.id && (c.severity === 'error' || c.severity === 'warn'))).length;
+  const head = applied.length ? `${fixed} réparation(s) confirmée(s) sur le routeur.` : 'Aucune réparation automatique nécessaire.';
+  healthStatus(`${head} ${left ? `${left} point(s) restent à votre décision ci-dessous.` : 'Le routeur est sain.'}`, left ? 'warn' : 'ok');
+}

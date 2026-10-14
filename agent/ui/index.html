@@ -194,20 +194,29 @@
   <section class="card health" aria-labelledby="step3-title" aria-live="polite">
     <div class="card-head">
       <div>
-        <h2 id="step3-title">Diagnostiquer et dépanner</h2>
-        <p class="sub">Identité du routeur, tickets qui n’expirent pas, Wi-Fi invisible, configuration supprimée, ports abîmés, session MikHmon effacée. Utilise le routeur connecté dans « Préparation ».</p>
+        <h2 id="step3-title">Dépannage automatique</h2>
+        <p class="sub">Un clic : l’agent analyse le routeur, répare ce qui peut l’être sans risque, revérifie, puis vous montre ce qu’il a corrigé.</p>
       </div>
     </div>
     <div class="health-actions">
-      <button type="button" id="health-run" class="btn btn-primary">Lancer le diagnostic complet</button>
-      <button type="button" id="health-fix-all" class="btn btn-outline" hidden>Réparer tout ce qui est sûr</button>
+      <button type="button" id="health-run" class="btn btn-primary btn-lg">Dépanner ce routeur</button>
     </div>
-    <p id="health-status" class="callout" data-tone="idle">Le diagnostic est en lecture seule. Chaque réparation se lance séparément, par vous.</p>
+    <div id="swirl" class="swirl" hidden>
+      <div class="swirl-rings" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
+      <p id="swirl-text" class="swirl-text" role="status"></p>
+      <p id="swirl-sub" class="swirl-sub"></p>
+    </div>
+    <p id="health-status" class="callout" data-tone="idle">Seules les réparations sans risque sont appliquées seules ; le reste vous est proposé.</p>
+    <ul id="repairs" class="repairs" aria-label="Réparations appliquées"></ul>
     <dl id="health-identity" class="summary-list" hidden></dl>
-    <ul id="health-checks" class="checks"></ul>
+    <ul id="health-checks" class="checks" aria-label="Points à décider"></ul>
+    <details id="health-ok-box" class="maintenance" hidden>
+      <summary id="health-ok-title">Contrôles conformes</summary>
+      <ul id="health-ok" class="checks"></ul>
+    </details>
 
     <details class="maintenance">
-      <summary>Maintenance</summary>
+      <summary>Outils avancés</summary>
       <p class="hint">Les mêmes actions que le menu Maintenance du SaaS, lancées depuis ce poste sur le réseau local (sans tunnel).</p>
       <ul class="checks">
         <li class="check-row"><div><strong>Optimiser le Wi-Fi</strong><p>SSID unifié (band steering), 5 GHz en 80 MHz, 2,4 GHz en 20 MHz.</p></div><button type="button" class="btn btn-outline btn-sm" data-maint="wifi-optimize">Optimiser</button></li>

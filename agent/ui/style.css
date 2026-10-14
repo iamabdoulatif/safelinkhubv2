@@ -368,3 +368,33 @@ body[data-busy="true"] .logo rect:last-of-type { animation: beacon 1.2s ease-in-
 .session-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .tab { white-space: nowrap; }
 @media (max-width: 1100px) { .tag { display: none; } .tab { padding: 0 12px; font-size: 14px; } }
+
+/* ── Dépannage : tourbillon de cercles + étapes ─────────────────────────── */
+.swirl { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 28px 16px 24px; margin-bottom: 16px; border-radius: 16px; background: var(--slate-deep); color: #fff; animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
+.swirl-rings { position: relative; width: 112px; height: 112px; margin-bottom: 18px; }
+.swirl-rings i { position: absolute; inset: 0; border-radius: 50%; border: 3px solid transparent; }
+.swirl-rings i:nth-child(1) { border-top-color: var(--brand); border-right-color: var(--brand); animation: spin 1.1s cubic-bezier(.6,.2,.4,.8) infinite; }
+.swirl-rings i:nth-child(2) { inset: 14px; border-bottom-color: #fff; border-left-color: color-mix(in srgb, #fff 40%, transparent); animation: spin 1.5s linear infinite reverse; }
+.swirl-rings i:nth-child(3) { inset: 28px; border-top-color: var(--brand); animation: spin .9s cubic-bezier(.5,.1,.5,.9) infinite; }
+.swirl-rings i:nth-child(4) { inset: 40px; border-right-color: color-mix(in srgb, var(--brand) 60%, #fff); border-bottom-color: color-mix(in srgb, var(--brand) 60%, #fff); animation: spin 2.2s linear infinite reverse; }
+.swirl-rings b { position: absolute; inset: 50px; border-radius: 50%; background: var(--brand); animation: beacon 1.2s ease-in-out infinite; }
+.swirl-text { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.swirl-sub { margin-top: 6px; font-size: 13px; color: var(--slate-deep-soft); min-height: 1.4em; }
+.swirl-text.swap, .swirl-text.swap + .swirl-sub { animation: swap .45s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes swap { from { opacity: 0; transform: translateY(8px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
+
+/* Réparations confirmées */
+.repairs { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 10px; }
+.repairs:empty { display: none; }
+.repair { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper); animation: rise .4s cubic-bezier(.2,.7,.2,1) both; }
+.repair[data-state="done"] { background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 25%, transparent); }
+.repair[data-state="partial"] { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+.repair[data-state="failed"] { background: var(--err-soft); border-color: color-mix(in srgb, var(--err) 25%, transparent); }
+.repair strong { display: block; font-size: 14px; }
+.repair p { margin-top: 3px; font-size: 13px; line-height: 1.5; color: var(--ink-soft); overflow-wrap: anywhere; }
+.repair-mark { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: var(--ok); }
+.repair[data-state="done"] .repair-mark::after { content: ""; width: 10px; height: 6px; margin-top: -3px; border-left: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: rotate(-45deg); animation: tick .4s .15s ease-out both; }
+.repair[data-state="partial"] .repair-mark { background: var(--warn); }
+.repair[data-state="failed"] .repair-mark { background: var(--err); }
+.repair[data-state="partial"] .repair-mark::after, .repair[data-state="failed"] .repair-mark::after { content: "!"; color: #fff; font-weight: 800; font-size: 14px; }
+.repairs > :nth-child(2) { animation-delay: .08s; } .repairs > :nth-child(3) { animation-delay: .16s; } .repairs > :nth-child(n+4) { animation-delay: .24s; }
