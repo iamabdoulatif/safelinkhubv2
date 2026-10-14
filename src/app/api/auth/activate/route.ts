@@ -6,6 +6,7 @@ import { hashToken } from "@/lib/auth/tokens";
 import {
   createSessionToken,
   SESSION_COOKIE_NAME,
+  authHintCookieOptions,
   sessionCookieOptions,
 } from "@/lib/auth/session";
 import { isLocale } from "@/lib/i18n/config";
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
 
   const res = seeOther("/admin");
   res.cookies.set(SESSION_COOKIE_NAME, jwt, sessionCookieOptions());
+  res.cookies.set("safelinkhub_authed", "1", authHintCookieOptions());
   if (isLocale(locale)) res.cookies.set(LOCALE_COOKIE, locale, LOCALE_COOKIE_OPTIONS);
   return res;
 }

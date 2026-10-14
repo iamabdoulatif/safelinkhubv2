@@ -1,23 +1,44 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 import type { Dictionary } from "@/lib/i18n/fr";
 import { type Locale, localeHref } from "@/lib/i18n/config";
+import { readAuthHint } from "@/lib/auth/auth-hint";
 // Même liste qu'en pied de page : deux copies auraient divergé au premier
 // réseau ajouté (c'est ce qui est arrivé avec YouTube).
 import { SITE_SOCIALS } from "@/lib/site/contact";
 
-
 /** Bandeau d'annonce vert profond, en tête de page — le motif d'ouverture de
  * Slate. Le nombre de jours vient de la config de facturation, pas d'un
- * littéral : si l'essai change, le bandeau suit, dans les deux langues. */
+ * littéral : si l'essai change, le bandeau suit, dans les deux langues.
+ *
+ * Bandeau de PROMO pour créer un compte : inutile — et à ne pas montrer — à un
+ * utilisateur déjà connecté. On le masque dès le premier rendu via le
+ * cookie-indice (non secret), puis /api/session confirme. */
 export default function AnnounceBar({ dict, locale }: { dict: Dictionary; locale: Locale }) {
+  // Lu à l'initialisation : pas de flash « Commencer » au rechargement connecté.
+  const [authenticated, setAuthenticated] = useState(readAuthHint);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/session")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled) setAuthenticated(!!data?.authenticated);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // hidden + suppressHydrationWarning : le serveur rend le bandeau (statique,
+  // mis en cache) ; connecté, le client le masque sans avertissement ni flash
+  // perceptible.
   return (
-    <div className="bg-slate-deep text-white">
+    <div hidden={authenticated} suppressHydrationWarning className="bg-slate-deep text-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-1.5 sm:px-6 md:justify-between">
-        {/* Sur mobile, `detail` est masqué : sans séparateur, la phrase se
-            terminait directement sur le libellé du lien (« …accès distant
-            Commencer »). Le point médian rétablit la coupure, et le lien reçoit
-            une vraie hauteur de doigt au lieu de ses 14 px de texte. */}
         <p className="text-center text-xs font-medium leading-5 text-slate-deep-soft md:text-left">
           <span className="text-white">{dict.announce.trial(VPN_TRIAL_DAYS)}</span>
           <span className="hidden sm:inline">{dict.announce.detail}</span>
@@ -31,9 +52,6 @@ export default function AnnounceBar({ dict, locale }: { dict: Dictionary; locale
             {dict.announce.cta}
           </Link>
         </p>
-        {/* lg et non md : à 768 px, quatre réseaux plus la phrase d'essai ne
-            tenaient pas sur une ligne — le bandeau passait à 80 px de haut,
-            pour une information que le pied de page porte déjà. */}
         <nav aria-label={dict.announce.socials} className="hidden items-center gap-4 lg:flex">
           {SITE_SOCIALS.map((reseau) => (
             <a

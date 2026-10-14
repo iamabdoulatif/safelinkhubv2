@@ -27,7 +27,13 @@ export type SessionPayload = {
 // Nom du cookie + options + constructeur de jeton exposés pour les Route
 // Handlers (ex. activation par formulaire HTML) qui doivent poser le cookie
 // directement sur leur NextResponse plutôt que via cookies() de next/headers.
+import { AUTH_HINT_COOKIE_NAME } from "./auth-hint";
+
 export const SESSION_COOKIE_NAME = COOKIE_NAME;
+/** Options du cookie-indice (non httpOnly) — même portée/durée que la session. */
+export function authHintCookieOptions() {
+  return { httpOnly: false, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: SESSION_DURATION_SECONDS };
+}
 export const SESSION_COOKIE_MAX_AGE = SESSION_DURATION_SECONDS;
 export function sessionCookieOptions() {
   return {
@@ -51,6 +57,7 @@ export async function createSession(payload: SessionPayload) {
   const token = await createSessionToken(payload);
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, sessionCookieOptions());
+  cookieStore.set(AUTH_HINT_COOKIE_NAME, "1", authHintCookieOptions());
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
@@ -126,6 +133,7 @@ export async function requireCapability(
 export async function destroySession() {
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_NAME);
+  cookieStore.delete(AUTH_HINT_COOKIE_NAME);
 }
 
 export type MfaPendingPayload = SessionPayload & { callback: string };

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LayoutDashboard, Menu, Search, X } from "lucide-react";
 import ServicesMenu from "./ServicesMenu";
+import { readAuthHint } from "@/lib/auth/auth-hint";
 import Logo from "./Logo";
 import { usePathname } from "next/navigation";
 import type { Dictionary } from "@/lib/i18n/fr";
@@ -62,7 +63,9 @@ export default function LandingNav({
   // Le cookie de session est httpOnly : on interroge /api/session côté
   // client plutôt que de lire cookies() dans les pages, ce qui rendrait
   // dynamiques des pages aujourd'hui statiques (/, /blog, /contact).
-  const [authenticated, setAuthenticated] = useState(false);
+  // Cookie-indice (non secret) lu a l initialisation : le bon CTA s affiche
+  // des le premier rendu client, sans flash Connexion. /api/session confirme.
+  const [authenticated, setAuthenticated] = useState(readAuthHint);
 
   /* Le panneau ouvert doit se fermer à Échap, et la page derrière lui ne doit
      pas continuer à défiler sous le doigt : sans le premier, le clavier restait
@@ -86,7 +89,7 @@ export default function LandingNav({
     fetch("/api/session")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!cancelled && data?.authenticated) setAuthenticated(true);
+        if (!cancelled) setAuthenticated(!!data?.authenticated);
       })
       .catch(() => {});
     return () => {
