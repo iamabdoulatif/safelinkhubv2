@@ -6,6 +6,7 @@ import { listPackages, PACKAGE_NAME, runConfiguration, PLAN, type Progress, type
 import { inspectRouter } from './diagnostics';
 import { applyFix, diagnoseRouter, MAINTENANCE_ACTIONS, SAFE_FIXES, type FixId } from './health';
 import { changeAdminPassword, passwordProblem } from './password';
+import { setupApiTls } from './tls-setup';
 import { routerTransport, type Credentials } from './routeros';
 import { discoverRouters, isLocalAddress } from './scanner';
 
@@ -64,7 +65,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       const task = tasks.get(id);
       return json(res, task ? 200 : 404, task ?? { error: 'Tâche introuvable.' });
     }
-    const match = /^\/agent\/routers\/([^/]+)\/(configure|diagnose|health|fix|password|packages)$/.exec(path);
+    const match = /^\/agent\/routers\/([^/]+)\/(configure|diagnose|health|fix|password|packages|tls-setup)$/.exec(path);
     if (req.method === 'POST' && match) {
       if (active) return json(res, 409, { error: 'Une configuration est déjà en cours.', taskId: active });
       if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'JSON requis.' });
@@ -114,6 +115,20 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
           return json(res, 200, MAINTENANCE_ACTIONS.includes(fix as FixId) ? { message } : { message, report: await diagnoseRouter(transport) });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Diagnostic impossible.';
+          return json(res, 422, { error: credentials.password ? message.split(credentials.password).join('[secret]') : message });
+        } finally { credentials.password = ''; }
+      }
+      if (match[2] === 'tls-setup') {
+        try {
+          if (options.dryRun) return json(res, 200, { message: 'Simulation : aucun certificat créé.', simulated: true });
+          const make = options.transport ?? routerTransport;
+          const { ca, port, created } = await setupApiTls(make(credentials), host);
+          // Preuve : une NOUVELLE connexion TLS qui valide le certificat ET l'adresse.
+          await make({ ...credentials, tls: true, port, ca }).read('/system/identity/print');
+          options.log?.({ event: 'tls-setup', host, created });
+          return json(res, 200, { ca, port, message: `Connexion chiffrée vérifiée (API-SSL, port ${port}).${created ? ' Certificat créé sur le routeur.' : ''}` });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Chiffrement impossible.';
           return json(res, 422, { error: credentials.password ? message.split(credentials.password).join('[secret]') : message });
         } finally { credentials.password = ''; }
       }

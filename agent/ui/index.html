@@ -43,7 +43,7 @@
     <!-- ── 1. Connexion ── -->
     <section class="card panel" id="panel-1" aria-labelledby="p1-title">
       <h2 id="p1-title">Connexion au routeur</h2>
-      <p class="sub">Compte RouterOS (Winbox), pas celui du portail captif. Rien n’est modifié à cette étape.</p>
+      <p class="sub">Compte RouterOS (Winbox), pas celui du portail captif. Rien n’est modifié à cette étape, sauf le certificat qui chiffre la connexion (option avancée).</p>
       <form id="connect-form" autocomplete="off">
         <label for="host">Adresse IP du routeur</label>
         <div class="inline">
@@ -85,6 +85,7 @@
               <span>API-SSL (TLS, port 8729)</span>
             </label>
           </div>
+          <label class="check"><input id="auto-tls" type="checkbox" checked><span>Chiffrer automatiquement : après une connexion en 8728, créer un certificat sur le routeur et passer en API-SSL (8729), vérifié.</span></label>
           <p id="transport" class="callout" data-tone="warn">API 8728 : les identifiants circulent sans chiffrement sur le réseau local.</p>
           <label for="ca">Autorité de certification privée (PEM, facultatif)</label>
           <textarea id="ca" class="field mono" rows="3" placeholder="-----BEGIN CERTIFICATE-----"></textarea>

@@ -512,14 +512,60 @@ byId('connect-form').addEventListener('submit', async event => {
     const result = await api(`/agent/routers/${encodeURIComponent(host)}/diagnose`, { method: 'POST', body: JSON.stringify(connectionBody()) });
     if (dryRun && !result.model) Object.assign(result, { model: 'Routeur simulé' });
     lastPassword = byId('password').value || lastPassword;
-    setConnected({ host, ...result });
     status.textContent = result.message;
     setTone(status, 'ok');
+    if (!byId('tls').checked && byId('auto-tls').checked && !dryRun) await secureConnection(host, status);
+    setConnected({ host, ...result });
     renderSummary(result, 'plan-summary');
     goto(2);
   } catch (error) {
     setConnected(null);
     status.textContent = error.message;
     setTone(status, 'err');
+    // Certificat mémorisé devenu faux (routeur réinitialisé, certificat retiré) : on l'oublie.
+    let saved = null;
+    try { saved = localStorage.getItem(caKey(byId('host').value.trim())); } catch { /* stockage indisponible */ }
+    if (saved && byId('tls').checked && /TLS|certificat|API-SSL/i.test(error.message)) {
+      try { localStorage.removeItem(caKey(byId('host').value.trim())); } catch { /* idem */ }
+      byId('tls').checked = false; byId('port').value = '8728'; byId('ca').value = '';
+      byId('tls').dispatchEvent(new Event('change'));
+      status.textContent = `${error.message} Certificat mémorisé obsolète (routeur réinitialisé ?) : retour au port 8728. Cliquez de nouveau sur « Se connecter » : un nouveau certificat sera créé.`;
+      setTone(status, 'warn');
+    }
   } finally { busy(button, false); busy(status, false); }
 });
+
+/* ── Chiffrement automatique (certificat créé sur le routeur) ─────────────
+   Le certificat PUBLIC de l'autorité est mémorisé par routeur dans ce
+   navigateur : la connexion suivante part directement en 8729 vérifié. */
+const caKey = host => `slh-agent-ca:${host}`;
+function applyTls(port, ca) {
+  byId('tls').checked = true;
+  byId('port').value = String(port);
+  byId('ca').value = ca;
+  byId('transport').textContent = 'Connexion chiffrée : certificat du routeur vérifié (adresse comprise).';
+  setTone(byId('transport'), 'ok');
+  advSummary();
+}
+async function secureConnection(host, status) {
+  status.textContent = 'Chiffrement de la connexion : création du certificat sur le routeur (jusqu’à 1 minute)…';
+  setTone(status, 'info'); busy(status, true);
+  try {
+    const result = await api(`/agent/routers/${encodeURIComponent(host)}/tls-setup`, { method: 'POST', body: JSON.stringify(connectionBody()) });
+    applyTls(result.port, result.ca);
+    try { localStorage.setItem(caKey(host), JSON.stringify({ port: result.port, ca: result.ca })); } catch { /* stockage indisponible */ }
+    status.textContent = `${result.message} La suite passe par cette connexion chiffrée.`;
+    setTone(status, 'ok');
+  } catch (error) {
+    status.textContent = `Connecté en 8728 (non chiffré). Chiffrement automatique impossible : ${error.message}`;
+    setTone(status, 'warn');
+  } finally { busy(status, false); }
+}
+function restoreTls() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(caKey(byId('host').value.trim())) ?? 'null');
+    if (saved?.ca) applyTls(saved.port, saved.ca);
+  } catch { /* rien de mémorisé */ }
+}
+byId('host').addEventListener('change', restoreTls);
+restoreTls();

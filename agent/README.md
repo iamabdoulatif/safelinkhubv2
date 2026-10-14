@@ -122,3 +122,7 @@ Workflow `.github/workflows/agent-installers.yml` (à chaque push touchant `agen
 - `SafeLinkHub-Agent-Setup.exe` — installation par utilisateur (sans admin), non signé : SmartScreen › « Informations complémentaires » › « Exécuter quand même ».
 
 L'exécutable embarque Node officiel + l'interface (`agent/packaging/build-sea.mjs`), ouvre le navigateur tout seul, journal dans `~/.safelinkhub-agent/agent.log`. Construire en local (macOS) : `node agent/packaging/build-sea.mjs && agent/packaging/macos-dmg.sh` avec le Node **officiel** (pas Homebrew).
+
+## Chiffrement automatique de l'API (certificat)
+
+Option « Chiffrer automatiquement » (cochée par défaut) : après une connexion réussie en 8728, l'agent crée sur le routeur une autorité `slh-api-ca` et un certificat `slh-api-<IP>` (SAN = IP du routeur), active API-SSL avec, récupère le certificat **public** de l'autorité (aucune clé privée ne sort), puis **vérifie** une connexion TLS (certificat + adresse) avant de basculer en 8729. Le certificat public est mémorisé par routeur dans le navigateur ; s'il devient faux (reset), il est oublié et l'agent repasse en 8728.
