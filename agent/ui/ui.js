@@ -859,16 +859,38 @@ byId('auto-run').addEventListener('click', async () => {
   };
   // architecture container = arm/arm64/x86 (MikHmon local possible).
   payload.supportsContainers = ['arm', 'arm64', 'x86', 'x86_64'].includes(connected?.architecture);
-  busy(byId('auto-run'), true); busy(status, true); status.textContent = 'Évaluation de la configuration…'; setTone(status, 'info');
+  busy(byId('auto-run'), true); busy(status, true); status.textContent = 'Préparation du paiement…'; setTone(status, 'info');
   try {
-    const r = await api('/agent/saas/provision', { method: 'POST', body: JSON.stringify(payload) });
-    if (r.free) {
-      status.textContent = `Superadmin : configuration gratuite. ${payload.forfaits.length} forfait(s), Wi-Fi « ${payload.wifiName} ». Paiement non requis — l'exécution est le prochain incrément.`;
+    const r = await api('/agent/saas/provision/start', { method: 'POST', body: JSON.stringify(payload) });
+    if (r.stage === 'ready') {
+      status.textContent = r.free
+        ? 'Superadmin : configuration gratuite, aucun paiement. Lancement de l’auto-setup : prochain incrément.'
+        : 'Déjà payé pour cette série. Lancement de l’auto-setup : prochain incrément.';
       setTone(status, 'ok');
-    } else {
-      status.textContent = `À payer : ${r.amountFcfa.toLocaleString('fr-FR')} FCFA pour ce routeur (série ${payload.serial || '?'}). ` + (r.canPayWallet ? `Votre portefeuille (${r.walletFcfa.toLocaleString('fr-FR')} FCFA) suffit.` : `Portefeuille : ${r.walletFcfa.toLocaleString('fr-FR')} FCFA — paiement GeniusPay requis.`) + ` Le paiement et l'exécution sont le prochain incrément.`;
-      setTone(status, 'warn');
+      return;
     }
+    // Paiement requis : on ouvre le checkout et on interroge jusqu’à « payé ».
+    status.textContent = `À payer : ${r.amountFcfa.toLocaleString('fr-FR')} FCFA. Une page de paiement s’ouvre — réglez par Wave/Orange/MTN/Moov. Détection automatique du paiement…`;
+    setTone(status, 'info');
+    window.open(r.paymentUrl, '_blank', 'noopener');
+    await pollPayment(payload.serial, status);
   } catch (error) { status.textContent = error.message; setTone(status, 'err'); }
   finally { busy(byId('auto-run'), false); busy(status, false); }
 });
+
+async function pollPayment(serial, status) {
+  const started = Date.now();
+  while (Date.now() - started < 15 * 60 * 1000) { // 15 min max
+    await new Promise(r => setTimeout(r, 4000));
+    let st;
+    try { st = await api(`/agent/saas/provision/status?serial=${encodeURIComponent(serial || '')}`); }
+    catch { continue; }
+    if (st.paid) {
+      status.textContent = 'Paiement détecté ✓ pour cette série. Lancement de l’auto-setup : prochain incrément.';
+      setTone(status, 'ok');
+      return;
+    }
+  }
+  status.textContent = 'Paiement non détecté après 15 min. S’il a été réglé, relancez — la série reste créditée.';
+  setTone(status, 'warn');
+}

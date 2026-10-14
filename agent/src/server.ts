@@ -93,6 +93,20 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       linkCode = undefined; linkOrg = undefined;
       return json(res, 200, { linked: false });
     }
+    if (req.method === 'POST' && path === '/agent/saas/provision/start') {
+      const chunks: Buffer[] = []; let size = 0;
+      for await (const chunk of req) { size += chunk.length; if (size > 16384) return json(res, 413, { error: 'Trop volumineux.' }); chunks.push(chunk); }
+      const body = JSON.parse(Buffer.concat(chunks).toString() || '{}') as Record<string, unknown>;
+      if (options.dryRun) return json(res, 200, { stage: 'payment', amountFcfa: 2000, paymentUrl: 'https://geniuspay.ci/pay/demo', reference: 'DEMO-REF' });
+      try { return json(res, 200, await saas('/provision/start', { method: 'POST', body })); }
+      catch (error) { return json(res, 502, { error: error instanceof Error ? error.message : 'Paiement indisponible.' }); }
+    }
+    if (req.method === 'GET' && path === '/agent/saas/provision/status') {
+      const serial = new URL(req.url ?? '/', `http://127.0.0.1:${port}`).searchParams.get('serial') ?? '';
+      if (options.dryRun) return json(res, 200, { paid: false, status: 'pending' });
+      try { return json(res, 200, await saas(`/provision/status?serial=${encodeURIComponent(serial)}`)); }
+      catch (error) { return json(res, 502, { error: error instanceof Error ? error.message : 'Statut indisponible.' }); }
+    }
     if (req.method === 'POST' && path === '/agent/saas/provision') {
       const chunks: Buffer[] = []; let size = 0;
       for await (const chunk of req) { size += chunk.length; if (size > 16384) return json(res, 413, { error: 'Trop volumineux.' }); chunks.push(chunk); }

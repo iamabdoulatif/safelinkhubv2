@@ -256,4 +256,12 @@ create table if not exists agent_link_tokens (
 create index if not exists agent_link_tokens_org_idx on agent_link_tokens (org_id);
 `.trim(),
   },
+  {
+    id: "0015_auto_setup_authorization_serial",
+    sql: `
+alter table auto_setup_authorizations
+  add column if not exists serial_number text;
+create index if not exists auto_setup_authorizations_serial_idx on auto_setup_authorizations (org_id, serial_number);
+`.trim(),
+  },
 ];

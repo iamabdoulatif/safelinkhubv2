@@ -1348,6 +1348,9 @@ export const autoSetupAuthorizations = pgTable("auto_setup_authorizations", {
   // Routeur ciblé — l'autorisation ne débloque que celui-ci.
   routerId: uuid("router_id").references(() => routers.id, { onDelete: "cascade" }),
   routerName: text("router_name"),
+  // Voie agent (architecture A) : autorisation par NUMÉRO DE SÉRIE, le routeur
+  // n'existe pas encore au paiement ; il est créé au lancement de l'auto-setup.
+  serialNumber: text("serial_number"),
   // Type de MikroTik : détermine le tarif (avec/sans container).
   supportsContainers: boolean("supports_containers").notNull(),
   // Montant déclaré par l'utilisateur, en FCFA (XOF n'a pas de sous-unité).
