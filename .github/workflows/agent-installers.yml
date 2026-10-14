@@ -27,15 +27,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-15, target: macos, arch: arm64 }
-          - { os: macos-15-intel, target: macos, arch: x64 }
-          - { os: windows-latest, target: windows, arch: x64 }
+          - { os: macos-15, target: macos, arch: arm64, node: 25.8.0 }
+          - { os: macos-15-intel, target: macos, arch: x64, node: 24 }
+          - { os: windows-latest, target: windows, arch: x64, node: 25.8.0 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 25.8.0
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Tests de l'agent
