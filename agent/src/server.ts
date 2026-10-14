@@ -221,13 +221,28 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
           if (options.dryRun) return json(res, 200, { message: 'Simulation : mise en ligne non exécutée.' });
           const transport = (options.transport ?? routerTransport)(credentials);
           if (!transport.withClient) throw new Error('Transport sans session complète.');
-          await transport.withClient(async client => {
-            // Exécuter la commande terminal (multi-instructions) via un script RouterOS.
-            const name = `slh-online-${randomBytes(4).toString('hex')}`;
-            await client.talk(['/system/script/add', `=name=${name}`, `=source=${command}`]);
-            try { await client.talk(['/system/script/run', `=number=${name}`], 120000); }
-            finally { const rows = await client.talk(['/system/script/print', `?name=${name}`]).catch(() => [] as Record<string, string>[]); for (const r of rows) if (r['.id']) await client.talk(['/system/script/remove', `=numbers=${r['.id']}`]).catch(() => {}); }
-          });
+          // Une COUPURE de session pendant la mise en ligne est ATTENDUE, pas un
+          // échec : l'import du tunnel reconfigure le routeur (WireGuard, routes,
+          // renommage du WAN) et ferme souvent la session API locale. Le script
+          // continue de tourner côté routeur, qui rejoint quand même le tunnel.
+          // Même raisonnement que routeros.ts (déconnexion pendant un reboot).
+          // On ne traite donc comme échec que les VRAIES erreurs (auth, syntaxe).
+          const DROP = /interrupted|connection closed by peer|ECONNRESET|EPIPE|socket hang up|not connected|closed/i;
+          try {
+            await transport.withClient(async client => {
+              // Exécuter la commande terminal (multi-instructions) via un script RouterOS.
+              const name = `slh-online-${randomBytes(4).toString('hex')}`;
+              await client.talk(['/system/script/add', `=name=${name}`, `=source=${command}`]);
+              try { await client.talk(['/system/script/run', `=number=${name}`], 120000); }
+              finally { const rows = await client.talk(['/system/script/print', `?name=${name}`]).catch(() => [] as Record<string, string>[]); for (const r of rows) if (r['.id']) await client.talk(['/system/script/remove', `=numbers=${r['.id']}`]).catch(() => {}); }
+            });
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : '';
+            if (!DROP.test(msg)) throw error;
+            options.log?.({ event: 'router-online', host, note: 'session interrompue pendant la reconfiguration (normal)' });
+            credentials.password = '';
+            return json(res, 200, { message: 'Mise en ligne lancée — la session locale s’est fermée pendant la reconfiguration du routeur (normal). Le routeur rejoint le tunnel ; la suite se poursuit.', interrupted: true });
+          }
           options.log?.({ event: 'router-online', host });
           return json(res, 200, { message: 'Commande de mise en ligne exécutée sur le routeur.' });
         } catch (error) {

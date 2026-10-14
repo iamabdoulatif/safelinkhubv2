@@ -26,6 +26,31 @@ test('API locale : token, origine, simulation sans transport ni fuite de secret'
   assert.equal(invalid.status, 400);
 });
 
+test('mise en ligne : une session interrompue n’est pas un échec, une vraie erreur oui', async t => {
+  // Le transport simule une coupure de session pendant l'import du tunnel.
+  type TransportFn = NonNullable<NonNullable<Parameters<typeof createAgent>[0]>['transport']>;
+  const makeTransport = (err: string): TransportFn =>
+    (() => ({ async withClient() { throw new Error(err); } })) as unknown as TransportFn;
+  const run = async (err: string) => {
+    const agent = createAgent({ transport: makeTransport(err) });
+    const port = await agent.listen(0, 0);
+    t.after(() => { agent.server.closeAllConnections(); agent.server.close(); });
+    const { token } = await (await fetch(`http://127.0.0.1:${port}/session`)).json();
+    return fetch(`http://127.0.0.1:${port}/agent/routers/192.168.88.1/online`, {
+      method: 'POST',
+      headers: { 'X-Agent-Token': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'x', port: 8728, tls: false, installCommand: '/system/identity/print' }),
+    });
+  };
+  // Coupure attendue → la mise en ligne est réputée lancée (200).
+  const dropped = await run('interrupted');
+  assert.equal(dropped.status, 200);
+  assert.equal((await dropped.json()).interrupted, true);
+  // Vraie erreur (auth, syntaxe) → échec (422).
+  const failed = await run('no such command');
+  assert.equal(failed.status, 422);
+});
+
 test('scan borné au masque réel ; pas de cible publique ou loopback', () => {
   assert.equal(isLocalAddress('127.0.0.1'), false);
   assert.equal(isLocalAddress('8.8.8.8'), false);
