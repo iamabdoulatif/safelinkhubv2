@@ -7,12 +7,11 @@
 # l'app, l'installe dans Applications et LÈVE la quarantaine — l'étape qui débloque
 # tout. Un fichier récupéré par `curl | bash` n'est pas mis en quarantaine.
 #
-#   curl -fsSL https://raw.githubusercontent.com/iamabdoulatif/safelinkhubv2/main/agent/packaging/install-macos.sh | bash
+#   curl -fsSL https://safelinkhub.io/download/agent/install-macos.sh | bash
 set -euo pipefail
 
-REPO="iamabdoulatif/safelinkhubv2"
 ARCH=$([ "$(uname -m)" = "arm64" ] && echo arm64 || echo x64)
-URL="https://github.com/${REPO}/releases/download/agent-latest/SafeLinkHub-Agent-macOS-${ARCH}.dmg"
+URL="https://safelinkhub.io/download/agent/macos-${ARCH}.dmg"
 APP="/Applications/SafeLinkHub Agent.app"
 TMP="$(mktemp -d)"
 MNT="$(mktemp -d)"

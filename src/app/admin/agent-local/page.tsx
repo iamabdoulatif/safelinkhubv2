@@ -11,14 +11,16 @@ import { Apple, Download, Laptop, MonitorDown, ShieldCheck, Usb } from "lucide-r
  * Non signés (pas de compte Apple / certificat Windows) : la page explique le
  * premier lancement, sans quoi l'avertissement du système fait croire à un virus.
  */
-const RELEASE = "https://github.com/iamabdoulatif/safelinkhubv2/releases/download/agent-latest";
+// Téléchargements servis par le SaaS (voir src/app/download/agent/[file]/route.ts),
+// qui relaie la release GitHub « agent-latest ».
+const DL = "/download/agent";
 
 const DOWNLOADS = [
   {
     os: "mac-arm",
     title: "macOS — Apple Silicon",
     detail: "Mac M1, M2, M3, M4 (depuis fin 2020)",
-    file: "SafeLinkHub-Agent-macOS-arm64.dmg",
+    file: "macos-arm64.dmg",
     size: "44 Mo",
     Icon: Apple,
   },
@@ -26,7 +28,7 @@ const DOWNLOADS = [
     os: "mac-intel",
     title: "macOS — Intel",
     detail: "Mac avec processeur Intel (avant 2021)",
-    file: "SafeLinkHub-Agent-macOS-x64.dmg",
+    file: "macos-x64.dmg",
     size: "44 Mo",
     Icon: Laptop,
   },
@@ -34,7 +36,7 @@ const DOWNLOADS = [
     os: "windows",
     title: "Windows",
     detail: "Windows 10 / 11, 64 bits",
-    file: "SafeLinkHub-Agent-Setup.exe",
+    file: "windows-setup.exe",
     size: "23 Mo",
     Icon: MonitorDown,
   },
@@ -71,7 +73,7 @@ export default async function AgentLocalPage() {
           return (
             <a
               key={os}
-              href={`${RELEASE}/${file}`}
+              href={`${DL}/${file}`}
               className={`group flex flex-col rounded-2xl border p-5 transition-colors ${
                 isRecommended
                   ? "border-ink bg-ink text-white"
@@ -110,7 +112,7 @@ export default async function AgentLocalPage() {
           Entrée :
         </p>
         <pre className="mt-3 overflow-x-auto rounded-xl bg-black/40 p-4 text-[13px] leading-6 text-brand">
-          <code>curl -fsSL https://raw.githubusercontent.com/iamabdoulatif/safelinkhubv2/main/agent/packaging/install-macos.sh | bash</code>
+          <code>curl -fsSL https://safelinkhub.io/download/agent/install-macos.sh | bash</code>
         </pre>
         <p className="mt-2 text-xs text-white/60">
           Elle détecte votre Mac (Apple Silicon ou Intel), installe l&apos;agent dans Applications et
