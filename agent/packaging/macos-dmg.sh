@@ -46,5 +46,16 @@ cp -R "$APP" dist-agent/dmg/
 ln -s /Applications dist-agent/dmg/Applications
 OUT="dist-agent/SafeLinkHub-Agent-macOS-${ARCH}.dmg"
 rm -f "$OUT"
-hdiutil create -volname "SafeLinkHub Agent" -srcfolder dist-agent/dmg -ov -format UDZO "$OUT" >/dev/null
+# Un volume resté monté d'un build précédent fait échouer hdiutil (« Resource busy ») :
+# le démonter, puis réessayer quelques fois.
+hdiutil detach "/Volumes/SafeLinkHub Agent" -force >/dev/null 2>&1 || true
+for attempt in 1 2 3 4 5; do
+  if hdiutil create -volname "SafeLinkHub Agent" -srcfolder dist-agent/dmg -ov -format UDZO "$OUT" >/dev/null 2>&1; then
+    echo "OK : $OUT"; exit 0
+  fi
+  echo "hdiutil occupé, nouvelle tentative ($attempt)…"; sleep 3
+  hdiutil detach "/Volumes/SafeLinkHub Agent" -force >/dev/null 2>&1 || true
+done
+# Dernier essai sans masquer l'erreur, pour la voir dans les logs.
+hdiutil create -volname "SafeLinkHub Agent" -srcfolder dist-agent/dmg -ov -format UDZO "$OUT"
 echo "OK : $OUT"
