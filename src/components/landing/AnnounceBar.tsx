@@ -1,11 +1,8 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { VPN_TRIAL_DAYS } from "@/lib/billing/auto-setup-pricing";
 import type { Dictionary } from "@/lib/i18n/fr";
 import { type Locale, localeHref } from "@/lib/i18n/config";
-import { readAuthHint } from "@/lib/auth/auth-hint";
+import AuthHiddenBar from "./AuthHiddenBar";
 // Même liste qu'en pied de page : deux copies auraient divergé au premier
 // réseau ajouté (c'est ce qui est arrivé avec YouTube).
 import { SITE_SOCIALS } from "@/lib/site/contact";
@@ -18,26 +15,10 @@ import { SITE_SOCIALS } from "@/lib/site/contact";
  * utilisateur déjà connecté. On le masque dès le premier rendu via le
  * cookie-indice (non secret), puis /api/session confirme. */
 export default function AnnounceBar({ dict, locale }: { dict: Dictionary; locale: Locale }) {
-  // Lu à l'initialisation : pas de flash « Commencer » au rechargement connecté.
-  const [authenticated, setAuthenticated] = useState(readAuthHint);
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/session")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!cancelled) setAuthenticated(!!data?.authenticated);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
-  // hidden + suppressHydrationWarning : le serveur rend le bandeau (statique,
-  // mis en cache) ; connecté, le client le masque sans avertissement ni flash
-  // perceptible.
   return (
-    <div hidden={authenticated} suppressHydrationWarning className="bg-slate-deep text-white">
+    <AuthHiddenBar>
+      <div className="bg-slate-deep text-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-1.5 sm:px-6 md:justify-between">
         <p className="text-center text-xs font-medium leading-5 text-slate-deep-soft md:text-left">
           <span className="text-white">{dict.announce.trial(VPN_TRIAL_DAYS)}</span>
@@ -66,6 +47,7 @@ export default function AnnounceBar({ dict, locale }: { dict: Dictionary; locale
           ))}
         </nav>
       </div>
-    </div>
+      </div>
+    </AuthHiddenBar>
   );
 }
