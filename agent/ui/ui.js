@@ -417,6 +417,7 @@ setInterval(() => {
     byId('submit').disabled = false;
     const previous = sessionStorage.getItem('safelinkhub-task');
     moveTabIndicator();
+    void refreshLink();
     if (previous) { byId('wz-3').disabled = false; goto(3); await follow(previous); }
   } catch (error) {
     setMode('Agent injoignable', 'err');
@@ -471,6 +472,8 @@ function showView(view) {
   }
   byId('view-prep').hidden = view !== 'prep';
   byId('view-diag').hidden = view !== 'diag';
+  byId('view-auto').hidden = view !== 'auto';
+  if (view === 'auto') refreshAuto();
   moveTabIndicator();
 }
 function moveTabIndicator() {
@@ -510,6 +513,7 @@ function setConnected(router) {
   byId('diag-need').hidden = !!router;
   byId('health-run').disabled = !router;
   for (const b of document.querySelectorAll('[data-maint]')) b.disabled = !router;
+  refreshAuto();
   const suffix = dryRun ? ' · simulation' : '';
   if (router) setMode(`${router.model ?? 'Routeur'} · ${router.host}${suffix}`, 'ok');
   else setMode(`Aucun routeur connecté${suffix}`, dryRun ? 'warn' : 'pending');
@@ -759,4 +763,101 @@ byId('quit').addEventListener('click', async () => {
     byId('quit').disabled = false;
     byId('status').textContent = error.message; setTone(byId('status-box'), 'err');
   }
+});
+
+/* ── Configuration automatique (architecture A) ───────────────────────────
+   L'agent est lié à une organisation (code SaaS), puis PROPOSE la config :
+   forfaits, portail, nom de Wi-Fi. L'utilisateur clique, l'agent transmet. */
+let linked = false;
+const chosenForfaits = new Map(); // clé → { label, priceFcfa, packageId? }
+
+async function refreshLink() {
+  try {
+    const st = await api('/agent/link');
+    linked = !!st.linked;
+    byId('link-idle').hidden = linked;
+    byId('link-done').hidden = !linked;
+    if (linked) byId('link-org').textContent = st.orgName || 'Organisation';
+  } catch { /* agent pas prêt */ }
+  refreshAuto();
+}
+function refreshAuto() {
+  const cfg = byId('auto-config');
+  if (!cfg) return;
+  cfg.hidden = !linked;
+  const ready = linked && !!connected;
+  byId('auto-need').hidden = ready;
+  byId('sugg-load').hidden = !ready;
+}
+byId('link-code').addEventListener('input', e => {
+  // Mise en forme XXXX-XXXX-XXXX-XXXX
+  const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+  e.target.value = v.replace(/(.{4})(?=.)/g, '$1-');
+});
+byId('link-submit').addEventListener('click', async () => {
+  const status = byId('link-status');
+  status.hidden = false; status.textContent = 'Vérification du code…'; setTone(status, 'info'); busy(byId('link-submit'), true); busy(status, true);
+  try {
+    const r = await api('/agent/link', { method: 'POST', body: JSON.stringify({ code: byId('link-code').value.trim() }) });
+    status.hidden = true;
+    linked = true; byId('link-org').textContent = r.orgName || 'Organisation';
+    byId('link-idle').hidden = true; byId('link-done').hidden = false;
+    refreshAuto();
+  } catch (error) { status.textContent = error.message; setTone(status, 'err'); }
+  finally { busy(byId('link-submit'), false); busy(status, false); }
+});
+byId('unlink').addEventListener('click', async () => {
+  await api('/agent/unlink', { method: 'POST' }).catch(() => {});
+  linked = false; byId('link-idle').hidden = false; byId('link-done').hidden = true; byId('sugg-form').hidden = true; refreshAuto();
+});
+
+function forfaitChip(key, label, priceFcfa, packageId, preChecked) {
+  const el = document.createElement('label');
+  el.className = 'check'; el.style.margin = '0';
+  const input = document.createElement('input');
+  input.type = 'checkbox'; input.checked = preChecked || chosenForfaits.has(key);
+  input.addEventListener('change', () => {
+    if (input.checked) chosenForfaits.set(key, { label, priceFcfa, packageId });
+    else chosenForfaits.delete(key);
+  });
+  if (input.checked) chosenForfaits.set(key, { label, priceFcfa, packageId });
+  const span = document.createElement('span');
+  span.innerHTML = `${label} · <b>${priceFcfa} F</b>`;
+  el.append(input, span);
+  return el;
+}
+byId('sugg-load').addEventListener('click', async () => {
+  const status = byId('sugg-status');
+  busy(byId('sugg-load'), true); status.textContent = 'Chargement des suggestions depuis votre organisation…';
+  try {
+    const d = await api('/agent/saas/suggestions');
+    byId('cfg-wifi').value = d.wifiNameSuggestion || '';
+    byId('cfg-hotspot').value = d.hotspotAddressDefault || '10.0.0.1/8';
+    const sel = byId('cfg-portal'); sel.replaceChildren();
+    if (d.portals && d.portals.length) {
+      for (const p of d.portals) { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel.append(o); }
+    } else { const o = document.createElement('option'); o.value = ''; o.textContent = 'Portail par défaut (aucun portail personnalisé)'; sel.append(o); }
+    // Forfaits : ceux de l'org (pré-cochés) puis les presets suggérés.
+    chosenForfaits.clear();
+    const box = byId('cfg-forfaits'); box.replaceChildren();
+    for (const p of d.existingPackages || []) box.append(forfaitChip(`pkg:${p.id}`, p.name, p.priceFcfa, p.id, true));
+    for (const p of d.forfaitPresets || []) box.append(forfaitChip(`preset:${p.durationCode}`, p.label, p.priceFcfa));
+    byId('sugg-form').hidden = false;
+    status.textContent = d.portals && d.portals.length ? '' : 'Aucun portail personnalisé : le portail par défaut sera utilisé.';
+  } catch (error) { status.textContent = error.message; }
+  finally { busy(byId('sugg-load'), false); }
+});
+byId('auto-run').addEventListener('click', async () => {
+  const status = byId('auto-run-status'); status.hidden = false;
+  if (!chosenForfaits.size) { status.textContent = 'Choisissez au moins un forfait.'; setTone(status, 'warn'); return; }
+  const payload = {
+    serial: connected?.serial,
+    wifiName: byId('cfg-wifi').value.trim(),
+    hotspotAddress: byId('cfg-hotspot').value.trim(),
+    portalId: byId('cfg-portal').value || null,
+    forfaits: [...chosenForfaits.entries()].map(([key, v]) => ({ key, ...v })),
+  };
+  status.textContent = `Prêt : ${payload.forfaits.length} forfait(s), Wi-Fi « ${payload.wifiName} », série ${payload.serial || '?'}. Paiement et exécution : étape suivante (en cours de mise en place).`;
+  setTone(status, 'info');
+  // ponytail: l'exécution (paiement + auto-setup côté SaaS) est le prochain incrément.
 });

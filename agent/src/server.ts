@@ -11,10 +11,25 @@ import { routerTransport, type Credentials } from './routeros';
 import { discoverRouters, isLocalAddress } from './scanner';
 
 type Task = { id: string; state: string; progress?: Progress; result?: unknown; error?: string; createdAt: number; updateRouterOS?: boolean; packagesOnly?: boolean; plan?: string[][] };
+const SAAS_BASE = (process.env.SLH_SAAS_URL ?? "https://safelinkhub.io").replace(/\/+$/, "");
+
 export function createAgent(options: { dryRun?: boolean; transport?: (credentials: Credentials) => Transport; assetsDir?: string; readAsset?: (filename: string) => Buffer; onQuit?: () => void; log?: (event: Record<string, unknown>) => void } = {}) {
   const token = randomBytes(32).toString('hex');
   const tasks = new Map<string, Task>();
   let active: string | undefined;
+  let linkCode: string | undefined; // code de liaison SaaS (secret, en mémoire)
+  let linkOrg: string | undefined;  // nom de l'organisation liée
+  async function saas(pathname: string, init?: { method?: string; body?: unknown }) {
+    if (!linkCode) throw new Error('Agent non lié : collez d\'abord un code de liaison.');
+    const res = await fetch(`${SAAS_BASE}/api/agent${pathname}`, {
+      method: init?.method ?? 'GET',
+      headers: { 'Authorization': `Bearer ${linkCode}`, 'Content-Type': 'application/json' },
+      body: init?.body ? JSON.stringify(init.body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as { error?: string }).error ?? `SaaS ${res.status}`);
+    return data;
+  }
   let discovery: ReturnType<typeof discoverRouters> | undefined;
   let lastDiscovery = 0;
   let port = 0;
@@ -52,6 +67,37 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
     }
     const supplied = req.headers['x-agent-token'];
     if (typeof supplied !== 'string' || supplied.length !== token.length || !timingSafeEqual(Buffer.from(supplied), Buffer.from(token))) return json(res, 401, { error: 'Session locale requise.' });
+    if (req.method === 'GET' && path === '/agent/link') {
+      return json(res, 200, { linked: !!linkCode, orgName: linkOrg ?? null, saas: SAAS_BASE });
+    }
+    if (req.method === 'POST' && path === '/agent/link') {
+      const chunks: Buffer[] = []; let size = 0;
+      for await (const chunk of req) { size += chunk.length; if (size > 4096) return json(res, 413, { error: 'Trop volumineux.' }); chunks.push(chunk); }
+      const body = JSON.parse(Buffer.concat(chunks).toString() || '{}') as { code?: string };
+      const code = (body.code ?? '').trim();
+      if (!code) return json(res, 400, { error: 'Code requis.' });
+      if (options.dryRun) { linkCode = code; linkOrg = 'Organisation simulée'; return json(res, 200, { orgName: linkOrg }); }
+      try {
+        const prev = linkCode; linkCode = code;
+        const ctx = await saas('/context') as { orgName?: string };
+        linkOrg = ctx.orgName ?? 'Organisation';
+        options.log?.({ event: 'agent-linked', org: linkOrg });
+        void prev;
+        return json(res, 200, { orgName: linkOrg });
+      } catch (error) {
+        linkCode = undefined; linkOrg = undefined;
+        return json(res, 401, { error: error instanceof Error ? error.message : 'Liaison refusée.' });
+      }
+    }
+    if (req.method === 'POST' && path === '/agent/unlink') {
+      linkCode = undefined; linkOrg = undefined;
+      return json(res, 200, { linked: false });
+    }
+    if (req.method === 'GET' && path === '/agent/saas/suggestions') {
+      if (options.dryRun) return json(res, 200, { orgName: 'Organisation simulée', wifiNameSuggestion: 'DEMO WIFI', hotspotAddressDefault: '10.0.0.1/8', portals: [], existingPackages: [{ id: 'x', name: '2 Heures', priceFcfa: 500 }], forfaitPresets: [{ durationCode: '3h', label: '3 heures', priceFcfa: 100 }, { durationCode: '1d', label: '1 jour', priceFcfa: 200 }] });
+      try { return json(res, 200, await saas('/suggestions')); }
+      catch (error) { return json(res, 502, { error: error instanceof Error ? error.message : 'Suggestions indisponibles.' }); }
+    }
     if (req.method === 'POST' && path === '/quit') {
       if (active) return json(res, 409, { error: 'Une opération est en cours : attendez la fin avant de quitter.', taskId: active });
       json(res, 200, { message: 'Agent arrêté.' });

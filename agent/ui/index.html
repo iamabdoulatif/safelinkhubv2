@@ -26,6 +26,7 @@
       <span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span>
       <button type="button" class="tab" data-view="prep" aria-current="page">Préparation</button>
       <button type="button" class="tab" data-view="diag">Diagnostic &amp; maintenance</button>
+      <button type="button" class="tab" data-view="auto">Configuration automatique</button>
     </nav>
     <div class="topbar-right">
       <span id="mode" class="pill" data-tone="pending" role="status">Connexion à l’agent…</span>
@@ -251,6 +252,50 @@
       <p class="hint">« Reposer le portail captif » reste dans le SaaS : il a besoin de vos forfaits et prix.</p>
     </details>
   </section>
+  </div>
+
+  <div id="view-auto" hidden>
+    <span class="eyebrow-text">Architecture SaaS · configuration guidée</span>
+    <h1>Configuration automatique</h1>
+    <p class="sub" style="max-width:640px">Liez l’agent à votre organisation, puis l’agent vous <b>propose</b> forfaits, portail et nom de Wi-Fi — vous cliquez, sans rien écrire.</p>
+
+    <section class="card panel" aria-labelledby="link-title">
+      <h2 id="link-title">1 · Lier l’agent à votre organisation</h2>
+      <p class="sub">Générez un code dans le SaaS (Réseau › Agent local › « Lier l’agent ») puis collez-le ici.</p>
+      <div id="link-idle">
+        <div class="inline" style="margin-top:16px">
+          <input id="link-code" class="field mono" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" maxlength="19">
+          <button type="button" id="link-submit" class="btn btn-primary">Lier</button>
+        </div>
+        <p id="link-status" class="callout" data-tone="idle" role="status" hidden></p>
+      </div>
+      <div id="link-done" class="session" hidden>
+        <div class="session-info">
+          <span class="session-mark" aria-hidden="true"></span>
+          <div><strong id="link-org">Organisation</strong><small>Agent lié · suggestions et facturation sur ce compte</small></div>
+        </div>
+        <div class="session-actions"><button type="button" id="unlink" class="btn btn-outline">Délier</button></div>
+      </div>
+    </section>
+
+    <section class="card panel" id="auto-config" aria-labelledby="cfg-title" hidden>
+      <h2 id="cfg-title">2 · Choisir la configuration</h2>
+      <p id="auto-need" class="callout" data-tone="info">Connectez d’abord un routeur dans <button type="button" class="link" data-view-link="prep">Préparation › Connexion</button> : son numéro de série sert à l’enregistrement.</p>
+      <button type="button" id="sugg-load" class="btn btn-outline btn-block" hidden>Charger les suggestions</button>
+      <p id="sugg-status" class="hint" role="status"></p>
+      <div id="sugg-form" hidden>
+        <div class="columns">
+          <div><label for="cfg-wifi">Nom du Wi-Fi</label><input id="cfg-wifi" class="field"></div>
+          <div><label for="cfg-hotspot">Adresse du hotspot</label><input id="cfg-hotspot" class="field mono"></div>
+        </div>
+        <label for="cfg-portal">Portail captif</label>
+        <select id="cfg-portal" class="field"></select>
+        <p class="hint">Forfaits à proposer aux clients — cliquez pour (dés)activer. Prix en FCFA, ajustables.</p>
+        <div id="cfg-forfaits" class="package-list" role="group" aria-label="Forfaits"></div>
+        <button type="button" id="auto-run" class="btn btn-primary btn-lg btn-block" style="margin-top:20px">Lancer la configuration automatique</button>
+        <p id="auto-run-status" class="callout" data-tone="idle" role="status" hidden></p>
+      </div>
+    </section>
   </div>
 </main>
 
