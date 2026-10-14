@@ -2,6 +2,8 @@ const byId = id => document.getElementById(id);
 let token = '';
 let deadline;
 let polling = false;
+let dryRun = false;
+let connected = null; // routeur vérifié par « Se connecter » : { host, model, version… }
 
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Agent-Token': token, ...options.headers } });
@@ -41,8 +43,8 @@ function renderSteps(task) {
 
 // arm64, arm, x86 : container (MikHmon local) possible. mipsbe, mmips, ppc, smips, tile : non.
 const archLabel = arch => !arch ? '?' : `${arch} · ${['arm64', 'arm', 'x86', 'x86_64'].includes(arch) ? 'container compatible' : 'container non pris en charge'}`;
-function renderSummary(result) {
-  const box = byId('summary');
+function renderSummary(result, target = 'summary') {
+  const box = byId(target);
   box.replaceChildren();
   if (!result || typeof result !== 'object') { box.hidden = true; return; }
   const list = document.createElement('dl');
@@ -129,6 +131,7 @@ async function follow(id) {
 byId('tls').addEventListener('change', () => {
   const tls = byId('tls').checked;
   byId('port').value = tls ? '8729' : '8728';
+  advSummary();
   byId('transport').textContent = tls
     ? 'Connexion chiffrée : le certificat TLS doit être valide pour l’IP du routeur.'
     : 'API 8728 : les identifiants circulent sans chiffrement sur le réseau local.';
@@ -205,8 +208,10 @@ byId('packages-apply').addEventListener('click', async () => {
   try {
     const task = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/configure`, { method: 'POST', body: JSON.stringify({ ...connectionBody(), packagesOnly: true }) });
     lastPassword = byId('password').value || lastPassword;
+    goto(3);
     render(task);
     await follow(task.id);
+    goto(2);
     byId('packages-load').click(); // relit l'état réel du routeur
   } catch (error) {
     byId('status').textContent = error.message;
@@ -249,35 +254,17 @@ byId('packages-load').addEventListener('click', async () => {
   } catch (error) { byId('packages-note').textContent = error.message; }
   finally { button.disabled = false; }
 });
-byId('factory').addEventListener('click', () => {
-  byId('tls').checked = false;
-  byId('tls').dispatchEvent(new Event('change'));
-});
 byId('update-ros').addEventListener('change', () => {
   byId('steps').children[1].querySelector('.step-label').textContent = byId('update-ros').checked ? 'Mettre RouterOS et le firmware RouterBOARD à jour (stable)' : 'RouterOS différé · firmware RouterBOARD vérifié';
 });
-byId('diagnose').addEventListener('click', async () => {
-  byId('fields').disabled = true;
-  byId('status').textContent = 'Test de connexion administrateur en lecture seule…';
-  setTone(byId('status-box'), 'info');
-  try {
-    const result = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/diagnose`, { method: 'POST', body: JSON.stringify(connectionBody()) });
-    byId('status').textContent = result.message;
-    setTone(byId('status-box'), 'ok');
-    renderSummary(result);
-  } catch (error) {
-    byId('status').textContent = error.message;
-    setTone(byId('status-box'), 'err');
-  } finally { byId('fields').disabled = false; }
-});
-
 byId('configure').addEventListener('submit', async event => {
   event.preventDefault();
   byId('fields').disabled = true;
   try {
     const task = await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/configure`, { method: 'POST', body: JSON.stringify(connectionBody()) });
-    lastPassword = byId('password').value;
+    lastPassword = byId('password').value || lastPassword;
     byId('password').value = '';
+    goto(3);
     render(task);
     await follow(task.id);
   } catch (error) {
@@ -390,12 +377,12 @@ setInterval(() => {
     if (health.version < 2) throw new Error('Redémarrez l’agent : cette interface nécessite la nouvelle version du serveur.');
     if (health.service !== 'safelinkhub-agent') throw new Error('Service local inconnu.');
     token = (await (await fetch('/session')).json()).token;
-    if (health.dryRun) setMode('Simulation — aucune écriture', 'warn');
-    else setMode('Agent connecté', 'ok');
+    dryRun = health.dryRun;
+    setConnected(null);
     byId('submit').textContent = health.dryRun ? 'Simuler le parcours' : 'Mettre à jour et configurer';
     byId('submit').disabled = false;
     const previous = sessionStorage.getItem('safelinkhub-task');
-    if (previous) await follow(previous);
+    if (previous) { byId('wz-3').disabled = false; goto(3); await follow(previous); }
   } catch (error) {
     setMode('Agent injoignable', 'err');
     byId('status').textContent = error.message;
@@ -441,3 +428,79 @@ for (const button of document.querySelectorAll('[data-maint]')) {
     runFix(button.dataset.maint, button.closest('li').querySelector('strong').textContent);
   });
 }
+
+/* ── Navigation : onglets et assistant ────────────────────── */
+function showView(view) {
+  for (const tab of document.querySelectorAll('.tab')) {
+    if (tab.dataset.view === view) tab.setAttribute('aria-current', 'page'); else tab.removeAttribute('aria-current');
+  }
+  byId('view-prep').hidden = view !== 'prep';
+  byId('view-diag').hidden = view !== 'diag';
+}
+for (const tab of document.querySelectorAll('.tab')) tab.addEventListener('click', () => showView(tab.dataset.view));
+for (const link of document.querySelectorAll('[data-view-link]')) link.addEventListener('click', () => { showView(link.dataset.viewLink); goto(1); });
+
+function goto(step) {
+  for (const n of [1, 2, 3]) {
+    byId(`panel-${n}`).hidden = n !== step;
+    const wz = document.querySelector(`.wz[data-step="${n}"]`);
+    if (n === step) wz.setAttribute('aria-current', 'step'); else wz.removeAttribute('aria-current');
+    wz.dataset.done = String(n < step);
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+for (const wz of document.querySelectorAll('.wz')) wz.addEventListener('click', () => goto(Number(wz.dataset.step)));
+for (const b of document.querySelectorAll('[data-goto]')) b.addEventListener('click', () => goto(Number(b.dataset.goto)));
+
+function setConnected(router) {
+  connected = router;
+  document.querySelector('.wz[data-step="2"]').disabled = !router;
+  byId('diag-need').hidden = !!router;
+  byId('health-run').disabled = !router;
+  for (const b of document.querySelectorAll('[data-maint]')) b.disabled = !router;
+  const suffix = dryRun ? ' · simulation' : '';
+  if (router) setMode(`${router.model ?? 'Routeur'} · ${router.host}${suffix}`, 'ok');
+  else setMode(`Aucun routeur connecté${suffix}`, dryRun ? 'warn' : 'pending');
+}
+
+function advSummary() {
+  byId('adv-summary').textContent = `— port ${byId('port').value}, ${byId('tls').checked ? 'TLS' : 'sans TLS'}`;
+}
+byId('port').addEventListener('input', advSummary);
+
+// Toute modification de l'adresse ou des identifiants oblige à se reconnecter.
+for (const id of ['host', 'username', 'password', 'port', 'tls']) {
+  byId(id).addEventListener('input', () => { if (connected) { setConnected(null); byId('connect-status').hidden = true; } });
+}
+
+byId('pw-show').addEventListener('click', () => {
+  const show = byId('password').type === 'password';
+  byId('password').type = show ? 'text' : 'password';
+  byId('pw-show').textContent = show ? 'Masquer' : 'Afficher';
+  byId('pw-show').setAttribute('aria-pressed', String(show));
+});
+
+byId('connect-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const status = byId('connect-status');
+  const button = byId('connect');
+  button.disabled = true;
+  status.hidden = false;
+  status.textContent = 'Connexion en lecture seule…';
+  setTone(status, 'info');
+  try {
+    const host = byId('host').value.trim();
+    const result = await api(`/agent/routers/${encodeURIComponent(host)}/diagnose`, { method: 'POST', body: JSON.stringify(connectionBody()) });
+    if (dryRun && !result.model) Object.assign(result, { model: 'Routeur simulé' });
+    lastPassword = byId('password').value || lastPassword;
+    setConnected({ host, ...result });
+    status.textContent = result.message;
+    setTone(status, 'ok');
+    renderSummary(result, 'plan-summary');
+    goto(2);
+  } catch (error) {
+    setConnected(null);
+    status.textContent = error.message;
+    setTone(status, 'err');
+  } finally { button.disabled = false; }
+});

@@ -21,72 +21,95 @@
       <span class="wordmark" translate="no">SafeLinkHub</span>
       <span class="tag">Agent local</span>
     </span>
+    <nav class="tabs" aria-label="Sections">
+      <button type="button" class="tab" data-view="prep" aria-current="page">Préparation</button>
+      <button type="button" class="tab" data-view="diag">Diagnostic &amp; maintenance</button>
+    </nav>
     <span id="mode" class="pill" data-tone="pending" role="status">Connexion à l’agent…</span>
   </div>
 </header>
 
 <main>
-  <div class="intro">
-    <span class="eyebrow">MikroTik · RouterOS 7</span>
-    <h1>Préparez votre MikroTik.</h1>
-    <p>RouterOS stable, puis activation guidée des fonctionnalités. L’agent attend votre intervention physique entre les étapes qui l’exigent — les identifiants sont envoyés uniquement au routeur choisi.</p>
-  </div>
+  <div id="view-prep">
+    <span class="eyebrow-text">MikroTik · RouterOS 7</span>
+    <h1>Préparez votre MikroTik</h1>
 
-  <div class="layout">
-    <section class="card" aria-labelledby="step1-title">
-      <div class="card-head">
-        <span class="num" aria-hidden="true">1</span>
-        <div>
-          <h2 id="step1-title">Choisir le routeur</h2>
-          <p class="sub">Détection sur le réseau local, ou saisie directe de l’adresse.</p>
+    <ol class="wizard" aria-label="Étapes">
+      <li><button type="button" class="wz" data-step="1" aria-current="step"><span class="wz-num">1</span><span><strong>Connexion</strong><small>Adresse et identifiants</small></span></button></li>
+      <li><button type="button" class="wz" data-step="2" disabled><span class="wz-num">2</span><span><strong>Plan</strong><small>Après connexion</small></span></button></li>
+      <li><button type="button" class="wz" id="wz-3" data-step="3" disabled><span class="wz-num">3</span><span><strong>Exécution</strong><small>Suivi en direct</small></span></button></li>
+    </ol>
+
+    <!-- ── 1. Connexion ── -->
+    <section class="card panel" id="panel-1" aria-labelledby="p1-title">
+      <h2 id="p1-title">Connexion au routeur</h2>
+      <p class="sub">Compte RouterOS (Winbox), pas celui du portail captif. Rien n’est modifié à cette étape.</p>
+      <form id="connect-form" autocomplete="off">
+        <label for="host">Adresse IP du routeur</label>
+        <div class="inline">
+          <input id="host" class="field mono" value="192.168.88.1" inputmode="decimal" autocomplete="off" required>
+          <button type="button" id="discover" class="btn btn-outline">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="icon"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            Rechercher
+          </button>
         </div>
+        <p id="discovery" class="hint" role="status"></p>
+        <div id="routers" class="routers" role="group" aria-label="Routeurs détectés"></div>
+
+        <div class="columns">
+          <div>
+            <label for="username">Utilisateur</label>
+            <input id="username" class="field" value="admin" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+          </div>
+          <div>
+            <label for="password">Mot de passe</label>
+            <div class="inline">
+              <!-- new-password : empêche le navigateur de préremplir un ANCIEN mot de passe mémorisé. -->
+              <input id="password" class="field" type="password" placeholder="Voir l’étiquette sous le routeur" autocomplete="new-password" data-lpignore="true" data-1p-ignore>
+              <button type="button" id="pw-show" class="btn btn-ghost" aria-pressed="false">Afficher</button>
+            </div>
+            <p class="hint">Routeur neuf : mot de passe imprimé sur l’étiquette (RouterOS 7). Changé avec l’agent ? Saisissez le nouveau.</p>
+          </div>
+        </div>
+
+        <details class="advanced">
+          <summary>Options avancées <span id="adv-summary" class="muted">— port 8728, sans TLS</span></summary>
+          <div class="columns">
+            <div>
+              <label for="port">Port API</label>
+              <input id="port" class="field mono" type="number" min="1" max="65535" value="8728" required>
+            </div>
+            <label class="switch">
+              <input id="tls" type="checkbox">
+              <span class="switch-track" aria-hidden="true"></span>
+              <span>API-SSL (TLS, port 8729)</span>
+            </label>
+          </div>
+          <p id="transport" class="callout" data-tone="warn">API 8728 : les identifiants circulent sans chiffrement sur le réseau local.</p>
+          <label for="ca">Autorité de certification privée (PEM, facultatif)</label>
+          <textarea id="ca" class="field mono" rows="3" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+          <p class="hint">Routeur d’usine sans IP ni DHCP (après un reset sans configuration) : initialisez d’abord un accès avec Winbox par MAC. Branchez l’ordinateur sur un port LAN (souvent ether2), pas sur le WAN.</p>
+        </details>
+
+        <p id="connect-status" class="callout" data-tone="idle" role="status" hidden></p>
+        <button type="submit" id="connect" class="btn btn-primary btn-lg btn-block">Se connecter</button>
+      </form>
+    </section>
+
+    <!-- ── 2. Plan ── -->
+    <section class="card panel" id="panel-2" aria-labelledby="p2-title" hidden>
+      <div class="panel-head">
+        <div>
+          <h2 id="p2-title">Plan de préparation</h2>
+          <p class="sub">Vérifiez le routeur, choisissez les options, puis lancez.</p>
+        </div>
+        <button type="button" class="btn btn-ghost" data-goto="1">Changer de routeur</button>
       </div>
-
-      <button type="button" id="discover" class="btn btn-outline btn-block">
-        <svg viewBox="0 0 24 24" aria-hidden="true" class="icon"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        Rechercher sur le réseau
-      </button>
-      <p id="discovery" class="hint" role="status"></p>
-      <div id="routers" class="routers" role="group" aria-label="Routeurs détectés"></div>
-
-      <details class="disclosure"><summary>Routeur d’usine ou sans configuration ?</summary><p>Branchez l’ordinateur sur un port LAN (souvent ether2), pas sur le port WAN. Avec la configuration d’usine, essayez 192.168.88.1 et le mot de passe de l’étiquette du routeur. Aucun compte de portail captif n’est requis pour l’administration.</p><p>Après un reset sans configuration, il peut ne rester ni IP ni DHCP : il faut d’abord initialiser un accès IP/API, par exemple avec WinBox par MAC. Cet agent HTTP/TCP ne peut pas créer cet accès à travers une API inaccessible.</p></details>
+      <div id="plan-summary" class="summary"></div>
       <form id="configure" autocomplete="off">
         <fieldset id="fields">
-          <label>Adresse IP du routeur
-            <input id="host" name="host" class="field mono" value="192.168.88.1" inputmode="decimal" required>
-          </label>
-          <div class="columns">
-            <label>Utilisateur
-              <input id="username" name="username" class="field" value="admin" autocomplete="off" required>
-            </label>
-            <label>Mot de passe
-              <input id="password" name="password" class="field" type="password" autocomplete="off">
-            </label>
-          </div>
-          <div class="columns">
-            <label>Port API
-              <input id="port" name="port" class="field mono" type="number" min="1" max="65535" value="8729" required>
-            </label>
-            <label class="switch">
-              <input id="tls" type="checkbox" checked>
-              <span class="switch-track" aria-hidden="true"></span>
-              <span>API-SSL (TLS)</span>
-            </label>
-          </div>
-          <p id="transport" class="callout" data-tone="ok">Connexion chiffrée : le certificat TLS doit être valide pour l’IP du routeur.</p>
-
-          <button id="factory" type="button" class="btn btn-outline btn-block">Choisir l’API locale 8728 (sans TLS)</button>
-          <p class="hint">Sur un réseau LAN de confiance : ce choix transmet les identifiants sans chiffrement. Aucun basculement automatique depuis TLS.</p>
-          <button id="diagnose" type="button" class="btn btn-outline btn-block">Tester la connexion sans modifier le routeur</button>
-          <details class="disclosure">
-            <summary>Autorité de certification privée <span class="muted">(facultatif)</span></summary>
-            <label>Certificat CA au format PEM
-              <textarea id="ca" class="field mono" rows="4" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
-            </label>
-          </details>
-
-          <label class="check"><input id="update-ros" type="checkbox" checked><span>Mettre RouterOS à jour avant la préparation (Internet requis depuis le routeur)</span></label>
-          <p class="hint">Sans Internet sur un routeur neuf, décochez cette option pour préparer les fonctionnalités avec la version déjà installée. La mise à jour sera indiquée comme différée.</p>
+          <label class="check"><input id="update-ros" type="checkbox" checked><span>Mettre RouterOS à jour avant la préparation <span class="muted">(Internet requis depuis le routeur)</span></span></label>
+          <p class="hint">Sans Internet sur un routeur neuf, décochez : les fonctionnalités sont préparées avec la version installée.</p>
           <fieldset class="packages">
             <legend>Paquets RouterOS à installer</legend>
             <p class="hint">Comme <em>System › Packages</em> dans Winbox : cochez les paquets voulus (container, zerotier, wifi-qcom…), décochez ceux à retirer. Appliqué après la mise à jour, en un seul redémarrage.</p>
@@ -98,26 +121,19 @@
             <button type="button" id="packages-apply" class="btn btn-outline btn-block" hidden>Appliquer les paquets maintenant</button>
           </fieldset>
 
-          <p class="callout" data-tone="info">Le routeur doit avoir accès à Internet pour télécharger RouterOS. Des coupures réseau sont normales pendant les redémarrages.</p>
-
-          <label class="check">
+          <label class="check consent">
             <input id="consent" type="checkbox" required>
-            <span>Je suis prêt à appliquer les opérations sélectionnées sur ce routeur et à effectuer les confirmations physiques demandées.</span>
+            <span>Je suis prêt à appliquer les opérations sélectionnées et à effectuer les confirmations physiques demandées (débrancher / rebrancher l’alimentation).</span>
           </label>
           <button type="submit" id="submit" class="btn btn-primary btn-lg btn-block" disabled>Mettre à jour et configurer</button>
         </fieldset>
       </form>
     </section>
 
-    <section class="card track" aria-labelledby="step2-title" aria-live="polite">
-      <div class="card-head">
-        <span class="num" aria-hidden="true">2</span>
-        <div>
-          <h2 id="step2-title">Suivre la préparation</h2>
-          <p class="sub">Chaque étape n’est validée que par l’état relu sur le routeur.</p>
-        </div>
-      </div>
-
+    <!-- ── 3. Exécution ── -->
+    <section class="card panel track" id="panel-3" aria-labelledby="p3-title" aria-live="polite" hidden>
+      <h2 id="p3-title">Exécution</h2>
+      <p class="sub">Chaque étape n’est validée que par l’état relu sur le routeur.</p>
       <ol id="steps" class="steps">
         <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Vérifier la connexion administrateur</span></li>
         <li data-state="todo"><span class="dot" aria-hidden="true"></span><span class="step-label">Mettre RouterOS et le firmware RouterBOARD à jour <span class="muted">(stable)</span></span></li>
@@ -154,12 +170,15 @@
     </section>
   </div>
 
+  <div id="view-diag" hidden>
+    <span class="eyebrow-text">MikroTik · RouterOS 7</span>
+    <h1>Diagnostic &amp; maintenance</h1>
+    <p id="diag-need" class="callout" data-tone="info">Connectez d’abord un routeur dans <button type="button" class="link" data-view-link="prep">Préparation › Connexion</button>.</p>
   <section class="card health" aria-labelledby="step3-title" aria-live="polite">
     <div class="card-head">
-      <span class="num" aria-hidden="true">3</span>
       <div>
         <h2 id="step3-title">Diagnostiquer et dépanner</h2>
-        <p class="sub">Identité du routeur, tickets qui n’expirent pas, Wi-Fi invisible, configuration supprimée, ports abîmés, session MikHmon effacée. Utilise l’adresse et les identifiants saisis à l’étape 1.</p>
+        <p class="sub">Identité du routeur, tickets qui n’expirent pas, Wi-Fi invisible, configuration supprimée, ports abîmés, session MikHmon effacée. Utilise le routeur connecté dans « Préparation ».</p>
       </div>
     </div>
     <div class="health-actions">
@@ -184,6 +203,7 @@
       <p class="hint">« Reposer le portail captif » reste dans le SaaS : il a besoin de vos forfaits et prix.</p>
     </details>
   </section>
+  </div>
 </main>
 
 <footer class="foot">Agent local SafeLinkHub · écoute sur 127.0.0.1 uniquement · les identifiants ne sont jamais écrits sur disque.</footer>

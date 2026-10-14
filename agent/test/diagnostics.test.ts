@@ -6,7 +6,9 @@ import { parseGateways } from '../src/scanner';
 test('explique TLS sans proposer de désactiver la validation', () => {
   assert.match(connectionMessage(new Error('SSL sslv3 alert handshake failure'), true), /certificat/);
   assert.match(connectionMessage(new Error('read ECONNRESET'), false), /Available From/);
-  assert.match(connectionMessage(new Error('invalid user name or password'), false), /administrateur/);
+  assert.match(connectionMessage(new Error('invalid user name or password (6)'), false), /refuse cet utilisateur.*invalid user name or password \(6\)/);
+  // Un simple mot « password » dans une autre erreur n'est plus pris pour un refus de connexion.
+  assert.equal(connectionMessage(new Error('password too short'), false), 'password too short');
 });
 test('diagnostic strictement en lecture seule', async () => {
   const paths: string[] = [];
