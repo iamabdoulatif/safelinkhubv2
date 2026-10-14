@@ -50,6 +50,7 @@ export const adminFr = {
       blog: "Blog",
       training: "Formations",
       marketing: "Marketing",
+      notifications: "Notifications WhatsApp",
     },
     breadcrumb: "Fil d’Ariane",
     openMenu: "Ouvrir le menu",

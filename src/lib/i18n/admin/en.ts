@@ -45,6 +45,7 @@ export const adminEn: AdminDictionary = {
       blog: "Blog",
       training: "Training",
       marketing: "Marketing",
+      notifications: "WhatsApp notifications",
     },
     breadcrumb: "Breadcrumb",
     openMenu: "Open menu",
