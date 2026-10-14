@@ -54,7 +54,16 @@ cp -R "$APP" "$PKGROOT/"
 SCRIPTS=dist-agent/pkg-scripts && rm -rf "$SCRIPTS" && mkdir -p "$SCRIPTS"
 cat > "$SCRIPTS/postinstall" <<'POST'
 #!/bin/bash
-xattr -dr com.apple.quarantine "/Applications/SafeLinkHub Agent.app" 2>/dev/null || true
+# Lève la quarantaine PUIS lance l'agent dans la session de l'utilisateur
+# connecté. Pourquoi lancer ici : un .app sans fenêtre (LSUIElement) ouvert par
+# un DOUBLE-CLIC Finder déclenche le chien de garde « l'application ne répond
+# pas » — alors que l'app tourne. En le lançant via launchctl asuser depuis le
+# postinstall (comme le fait install-macos.sh avec `open`), l'utilisateur n'a
+# pas à double-cliquer : l'agent démarre et ouvre le navigateur tout seul.
+APP="/Applications/SafeLinkHub Agent.app"
+xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
+uid="$(stat -f %u /dev/console 2>/dev/null)"
+[ -n "$uid" ] && launchctl asuser "$uid" open "$APP" 2>/dev/null || true
 exit 0
 POST
 chmod +x "$SCRIPTS/postinstall"
