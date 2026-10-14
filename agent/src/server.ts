@@ -93,6 +93,18 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       linkCode = undefined; linkOrg = undefined;
       return json(res, 200, { linked: false });
     }
+    if (req.method === 'POST' && path === '/agent/saas/provision/execute') {
+      const chunks: Buffer[] = []; let size = 0;
+      for await (const chunk of req) { size += chunk.length; if (size > 4096) return json(res, 413, { error: 'Trop volumineux.' }); chunks.push(chunk); }
+      const body = JSON.parse(Buffer.concat(chunks).toString() || '{}') as Record<string, unknown>;
+      if (options.dryRun) return json(res, 200, { started: true, jobId: 'demo' });
+      try { return json(res, 200, await saas('/provision/execute', { method: 'POST', body })); }
+      catch (error) {
+        const msg = error instanceof Error ? error.message : 'Exécution indisponible.';
+        // 425 = routeur pas encore en ligne : l'agent réessaie.
+        return json(res, /pas encore en ligne|not online|425/i.test(msg) ? 425 : 502, { error: msg });
+      }
+    }
     if (req.method === 'POST' && path === '/agent/saas/provision/run') {
       const chunks: Buffer[] = []; let size = 0;
       for await (const chunk of req) { size += chunk.length; if (size > 16384) return json(res, 413, { error: 'Trop volumineux.' }); chunks.push(chunk); }
@@ -149,7 +161,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       const task = tasks.get(id);
       return json(res, task ? 200 : 404, task ?? { error: 'Tâche introuvable.' });
     }
-    const match = /^\/agent\/routers\/([^/]+)\/(configure|diagnose|health|fix|password|packages|tls-setup)$/.exec(path);
+    const match = /^\/agent\/routers\/([^/]+)\/(configure|diagnose|health|fix|password|packages|tls-setup|online)$/.exec(path);
     if (req.method === 'POST' && match) {
       if (active) return json(res, 409, { error: 'Une configuration est déjà en cours.', taskId: active });
       if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'JSON requis.' });
@@ -199,6 +211,27 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
           return json(res, 200, MAINTENANCE_ACTIONS.includes(fix as FixId) ? { message } : { message, report: await diagnoseRouter(transport) });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Diagnostic impossible.';
+          return json(res, 422, { error: credentials.password ? message.split(credentials.password).join('[secret]') : message });
+        } finally { credentials.password = ''; }
+      }
+      if (match[2] === 'online') {
+        const command = typeof body.installCommand === 'string' ? body.installCommand : '';
+        if (!command) { credentials.password = ''; return json(res, 400, { error: 'Commande d’installation requise.' }); }
+        try {
+          if (options.dryRun) return json(res, 200, { message: 'Simulation : mise en ligne non exécutée.' });
+          const transport = (options.transport ?? routerTransport)(credentials);
+          if (!transport.withClient) throw new Error('Transport sans session complète.');
+          await transport.withClient(async client => {
+            // Exécuter la commande terminal (multi-instructions) via un script RouterOS.
+            const name = `slh-online-${randomBytes(4).toString('hex')}`;
+            await client.talk(['/system/script/add', `=name=${name}`, `=source=${command}`]);
+            try { await client.talk(['/system/script/run', `=number=${name}`], 120000); }
+            finally { const rows = await client.talk(['/system/script/print', `?name=${name}`]).catch(() => [] as Record<string, string>[]); for (const r of rows) if (r['.id']) await client.talk(['/system/script/remove', `=numbers=${r['.id']}`]).catch(() => {}); }
+          });
+          options.log?.({ event: 'router-online', host });
+          return json(res, 200, { message: 'Commande de mise en ligne exécutée sur le routeur.' });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Mise en ligne impossible.';
           return json(res, 422, { error: credentials.password ? message.split(credentials.password).join('[secret]') : message });
         } finally { credentials.password = ''; }
       }

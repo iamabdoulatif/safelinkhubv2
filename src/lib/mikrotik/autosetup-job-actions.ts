@@ -71,6 +71,20 @@ export async function startRepairJob(routerId: string) {
   );
 }
 
+/**
+ * Lance l'auto-setup pour un routeur DÉJÀ autorisé par la voie agent
+ * (architecture A) : le paiement est vérifié et consommé en amont (autorisation
+ * par numéro de série), donc pas de pré-contrôle ici. Réutilise exactement le
+ * même moteur asynchrone que le SaaS.
+ */
+export async function enqueueAgentAutoSetupJob(
+  orgId: string,
+  routerId: string,
+  opts: HotspotStackOptions,
+) {
+  return enqueue(orgId, routerId, opts, { precheckGate: false });
+}
+
 async function ownedRouter(
   routerId: string,
   session: NonNullable<Awaited<ReturnType<typeof getSession>>>,

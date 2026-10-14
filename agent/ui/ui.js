@@ -880,11 +880,30 @@ byId('auto-run').addEventListener('click', async () => {
 async function registerAndPlan(payload, status) {
   busy(status, true);
   try {
+    // 1) Enregistrer le routeur dans le SaaS + recevoir la commande de mise en ligne.
     const r = await api('/agent/saas/provision/run', { method: 'POST', body: JSON.stringify(payload) });
-    const f = (r.plan?.forfaits || []).map(x => `${x.name} · ${x.priceFcfa} F`).join(', ');
-    status.textContent = `Routeur enregistré dans le SaaS ✓ (plan reçu : Wi-Fi « ${r.plan?.hotspotName} », ${r.plan?.forfaits?.length || 0} forfait(s)${f ? ' — ' + f : ''}). Application sur le routeur : étape finale (validation sur site).`;
-    setTone(status, 'ok');
-  } catch (error) { status.textContent = `Paiement OK, mais enregistrement SaaS impossible : ${error.message}`; setTone(status, 'err'); }
+    status.textContent = `Routeur enregistré dans le SaaS ✓ (Wi-Fi « ${r.plan?.hotspotName} », ${r.plan?.forfaits?.length || 0} forfait(s)). Mise en ligne du routeur…`;
+    setTone(status, 'info');
+    // 2) L'agent exécute LOCALEMENT la commande de mise en ligne (rejoint le tunnel).
+    await api(`/agent/routers/${encodeURIComponent(byId('host').value.trim())}/online`, { method: 'POST', body: JSON.stringify({ ...connectionBody(), installCommand: r.installCommand }) });
+    status.textContent = 'Routeur en ligne — le SaaS applique l’auto-setup (forfaits, portail, MikHmon)… Cela peut prendre quelques minutes.';
+    // 3) Dès que le routeur est en ligne côté SaaS, lancer l’auto-setup éprouvé.
+    const started = Date.now();
+    while (Date.now() - started < 10 * 60 * 1000) {
+      await new Promise(res => setTimeout(res, 5000));
+      const resp = await fetch(`/agent/saas/provision/execute`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Agent-Token': token }, body: JSON.stringify({ routerId: r.routerId }) });
+      if (resp.status === 425) continue; // pas encore en ligne
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.started) {
+        status.textContent = 'Auto-setup lancé sur le routeur ✓. Suivez l’avancement dans le SaaS (Réseau › Routeurs). Le routeur redémarre à la fin.';
+        setTone(status, 'ok');
+        return;
+      }
+      if (!resp.ok) throw new Error(data.error || `Erreur ${resp.status}`);
+    }
+    status.textContent = 'Routeur mis en ligne, mais l’auto-setup n’a pas démarré dans le délai. Lancez-le depuis le SaaS (Réseau › Routeurs › Configurer).';
+    setTone(status, 'warn');
+  } catch (error) { status.textContent = `Échec : ${error.message}`; setTone(status, 'err'); }
   finally { busy(status, false); }
 }
 async function pollPayment(payload, status) {
