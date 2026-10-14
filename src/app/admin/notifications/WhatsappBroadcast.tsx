@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MessageCircle, Send } from "lucide-react";
-import { waMeLink, type WhatsappRecipient } from "@/lib/notifications/whatsapp-broadcast";
+import { waMeLink, type WhatsappRecipient } from "@/lib/notifications/whatsapp-shared";
 import { sendWhatsappBroadcastApi } from "@/lib/notifications/whatsapp-actions";
 
 type ApiResult = {
@@ -78,18 +78,18 @@ export default function WhatsappBroadcast({
           </button>
         </div>
         {typeof result === "string" && (
-          <p className="mt-3 text-sm font-medium text-red-600">{result}</p>
+          <p className="mt-3 text-sm font-medium text-err">{result}</p>
         )}
         {result && typeof result !== "string" && (
           <div className="mt-3 space-y-1 text-sm">
             {!result.configured && (
-              <p className="font-medium text-red-600">API non configurée : aucun envoi.</p>
+              <p className="font-medium text-err">API non configurée : aucun envoi.</p>
             )}
             {result.sent.length > 0 && (
               <p className="text-ink">✅ Envoyé : {result.sent.length} ({result.sent.join(", ")})</p>
             )}
             {result.failed.length > 0 && (
-              <p className="text-red-600">
+              <p className="text-err">
                 ❌ Échecs : {result.failed.map((f) => `${f.org} (${f.error})`).join(", ")}
               </p>
             )}
