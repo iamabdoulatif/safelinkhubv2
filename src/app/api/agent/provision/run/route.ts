@@ -105,7 +105,14 @@ export async function POST(request: Request) {
   // 4) Routeur créé (ou réutilisé) + jeton d'installation + plan stocké.
   const apiPassword = randomBytes(18).toString("base64url");
   const installToken = randomUUID();
+  // status "pending" OBLIGATOIRE : le script /scripts/install-vpn n'émet le
+  // tunnel QUE pour un routeur en "pending" (sinon 403). Sans ça, le /tool
+  // fetch du routeur récupérait un corps d'erreur, /import échouait, le routeur
+  // ne rejoignait jamais le tunnel, son statut ne passait jamais "online" et
+  // l'auto-setup (execute) bouclait en 425 jusqu'au timeout. Même convention que
+  // le flux manuel (actions.ts) et la récupération (router-recovery-actions.ts).
   const installFields = {
+    status: "pending" as const,
     installTokenHash: hashToken(installToken),
     installTokenExpiresAt: new Date(Date.now() + INSTALL_TOKEN_TTL_MS),
     lastAutoSetupConfig: opts,
@@ -122,7 +129,6 @@ export async function POST(request: Request) {
         model: body.model ?? null,
         username: API_USERNAME,
         passwordEncrypted: encryptSecret(apiPassword),
-        status: "configuring",
         supportsContainers: !!body.supportsContainers,
         ...installFields,
       })
