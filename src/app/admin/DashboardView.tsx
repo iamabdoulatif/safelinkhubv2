@@ -14,6 +14,7 @@ import {
   TrendingUp,
   WalletCards,
   Wifi,
+  Download,
 } from "lucide-react";
 import { type DailyPoint } from "@/lib/dashboard/queries";
 import { type MonthlySeries } from "@/lib/dashboard/monthly";
@@ -335,6 +336,29 @@ export default function DashboardView({ kpis, monthly, daily, recentSales, safec
           .
         </p>
       )}
+
+      {/* Agent local : application de bureau qui prépare un MikroTik depuis le
+          réseau local (routeur neuf, sans tunnel). Raccourci vers la page de
+          téléchargement, visible dès le tableau de bord. */}
+      <Link
+        href="/admin/agent-local"
+        className="flex flex-wrap items-center gap-4 rounded-xl border border-line bg-white px-4 py-4 transition-colors hover:border-ink-soft"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink">
+          <Download aria-hidden="true" className="h-5 w-5 text-white" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">Télécharger l&apos;agent local</p>
+          <p className="mt-1 text-xs leading-5 text-ink-soft">
+            Préparez et dépannez un MikroTik depuis votre ordinateur — macOS et Windows. Idéal pour
+            un routeur neuf, sans Internet ni tunnel.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-deep">
+          Voir les téléchargements
+          <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+        </span>
+      </Link>
 
       {/* 1. KPI : quatre chiffres majeurs, puis quatre compteurs compacts.
           Les huit restent cliquables vers leur écran. */}

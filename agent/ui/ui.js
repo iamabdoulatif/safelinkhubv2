@@ -392,6 +392,7 @@ setInterval(() => {
     if (health.service !== 'safelinkhub-agent') throw new Error('Service local inconnu.');
     token = (await (await fetch('/session')).json()).token;
     dryRun = health.dryRun;
+    if (health.packaged) byId('quit').hidden = false;
     setConnected(null);
     byId('submit').textContent = health.dryRun ? 'Simuler le parcours' : 'Mettre à jour et configurer';
     byId('submit').disabled = false;
@@ -697,3 +698,15 @@ function renderRepairs(applied, report) {
   const head = applied.length ? `${fixed} réparation(s) confirmée(s) sur le routeur.` : 'Aucune réparation automatique nécessaire.';
   healthStatus(`${head} ${left ? `${left} point(s) restent à votre décision ci-dessous.` : 'Le routeur est sain.'}`, left ? 'warn' : 'ok');
 }
+
+byId('quit').addEventListener('click', async () => {
+  if (polling) { byId('status').textContent = 'Une opération est en cours : attendez la fin avant de quitter.'; setTone(byId('status-box'), 'warn'); return; }
+  byId('quit').disabled = true;
+  try {
+    await api('/quit', { method: 'POST' });
+    document.body.innerHTML = '<main style="max-width:520px;margin:18vh auto;text-align:center;padding:0 24px"><h1 style="font-size:24px">Agent arrêté</h1><p style="margin-top:12px;color:#5A625A">Vous pouvez fermer cet onglet. Pour reprendre, rouvrez SafeLinkHub Agent.</p></main>';
+  } catch (error) {
+    byId('quit').disabled = false;
+    byId('status').textContent = error.message; setTone(byId('status-box'), 'err');
+  }
+});

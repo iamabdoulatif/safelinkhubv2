@@ -11,7 +11,7 @@ import { routerTransport, type Credentials } from './routeros';
 import { discoverRouters, isLocalAddress } from './scanner';
 
 type Task = { id: string; state: string; progress?: Progress; result?: unknown; error?: string; createdAt: number; updateRouterOS?: boolean; packagesOnly?: boolean; plan?: string[][] };
-export function createAgent(options: { dryRun?: boolean; transport?: (credentials: Credentials) => Transport; assetsDir?: string; readAsset?: (filename: string) => Buffer; log?: (event: Record<string, unknown>) => void } = {}) {
+export function createAgent(options: { dryRun?: boolean; transport?: (credentials: Credentials) => Transport; assetsDir?: string; readAsset?: (filename: string) => Buffer; onQuit?: () => void; log?: (event: Record<string, unknown>) => void } = {}) {
   const token = randomBytes(32).toString('hex');
   const tasks = new Map<string, Task>();
   let active: string | undefined;
@@ -38,7 +38,7 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
       res.writeHead(204); return res.end();
     }
     const path = new URL(req.url ?? '/', `http://127.0.0.1:${port}`).pathname;
-    if (req.method === 'GET' && path === '/health') return json(res, 200, { service: 'safelinkhub-agent', version: 2, port, dryRun: !!options.dryRun });
+    if (req.method === 'GET' && path === '/health') return json(res, 200, { service: 'safelinkhub-agent', version: 2, port, dryRun: !!options.dryRun, packaged: !!options.onQuit });
     if (req.method === 'GET' && path === '/session') {
       if (req.headers['sec-fetch-site'] === 'cross-site' && !origin) return json(res, 403, { error: 'Contexte refusé.' });
       return json(res, 200, { token });
@@ -52,6 +52,14 @@ export function createAgent(options: { dryRun?: boolean; transport?: (credential
     }
     const supplied = req.headers['x-agent-token'];
     if (typeof supplied !== 'string' || supplied.length !== token.length || !timingSafeEqual(Buffer.from(supplied), Buffer.from(token))) return json(res, 401, { error: 'Session locale requise.' });
+    if (req.method === 'POST' && path === '/quit') {
+      if (active) return json(res, 409, { error: 'Une opération est en cours : attendez la fin avant de quitter.', taskId: active });
+      json(res, 200, { message: 'Agent arrêté.' });
+      options.log?.({ event: 'quit' });
+      // Laisser la réponse partir avant de fermer.
+      setTimeout(() => options.onQuit?.(), 50);
+      return;
+    }
     if (req.method === 'GET' && path === '/agent/routers') {
       if (options.dryRun) return json(res, 200, { routers: [], warnings: ['Simulation : aucune détection réseau effectuée.'] });
       if (!discovery || Date.now() - lastDiscovery > 15000) {

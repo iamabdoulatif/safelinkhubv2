@@ -12,7 +12,7 @@ const logFile = packaged ? join(homedir(), '.safelinkhub-agent', 'agent.log') : 
 if (packaged) void mkdir(join(homedir(), '.safelinkhub-agent'), { recursive: true, mode: 0o700 }).catch(() => {});
 const agent = createAgent({
   dryRun: process.argv.includes('--dry-run'),
-  ...(packaged ? { readAsset: (name: string) => Buffer.from(sea.getAsset(name)) } : {}),
+  ...(packaged ? { readAsset: (name: string) => Buffer.from(sea.getAsset(name)), onQuit: () => { agent.server.close(); process.exit(0); } } : {}),
   log(event) {
     void appendFile(logFile, JSON.stringify({ time: new Date().toISOString(), ...event }) + '\n', { mode: 0o600 })
       .catch(() => console.error('Journal local indisponible. Le suivi reste accessible dans l’interface.'));

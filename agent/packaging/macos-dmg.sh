@@ -21,6 +21,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <!-- Agent sans fenêtre native (il sert une interface web) : sans ceci, macOS
+       attend une fenêtre et affiche « l'application ne répond pas ». Accessoire =
+       pas d'icône Dock ; on la quitte depuis le bouton « Quitter » de l'interface. -->
+  <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
 # Icône : logo SafeLinkHub (encre + carré lime), rendu en PNG puis .icns.
