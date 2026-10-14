@@ -7,6 +7,7 @@ import SyncAllButton from "./SyncAllButton";
 import UnbindMacTicketsButton from "./UnbindMacTicketsButton";
 import TicketExpiryFleetButton from "./TicketExpiryFleetButton";
 import WanStealthFleetButton from "./WanStealthFleetButton";
+import MikhmonLocalAccessFleetButton from "./MikhmonLocalAccessFleetButton";
 import type { RouterDictionary } from "./router-row";
 
 /**
@@ -90,6 +91,9 @@ export function FleetActions({
           </MenuGroup>
           <MenuGroup label={t.groupNetwork}>
             <WanStealthFleetButton t={actions} />
+          </MenuGroup>
+          <MenuGroup label="MikHmon">
+            <MikhmonLocalAccessFleetButton />
           </MenuGroup>
         </div>
 

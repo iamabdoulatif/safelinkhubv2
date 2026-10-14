@@ -27,6 +27,7 @@ import { writeMikhmonSession } from "./mikhmon-session";
 import { getOrCreateMikhmonAdminPassword } from "./mikhmon-admin-password";
 import { uploadCaptiveTemplatePackage } from "./captive-template-upload";
 import { ensureWalledGarden } from "./walled-garden";
+import { ensureMikhmonLocalAccess } from "./mikhmon-local-access";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { loadSafelinkBarakaPackage, type PackageFile } from "@/lib/captive-templates/package-files";
 import { setupFeeFcfaFor } from "@/lib/safecoin/service-charges";
@@ -1946,6 +1947,15 @@ export async function provisionHotspotStack(
       log.push(
         `SKIP (walled-garden): ${err instanceof Error ? err.message : "erreur inconnue"} — sera réconcilié au prochain health-check.`,
       );
+    }
+
+    // MikHmon accessible EN LOCAL (http://<passerelle>:8087) depuis le Wi-Fi :
+    // le hotspot le bloque par défaut. Best-effort, idempotent.
+    try {
+      const la = await ensureMikhmonLocalAccess(client);
+      if (la.gateway) log.push(`OK: accès local MikHmon (http://${la.gateway}:8087) — nat ${la.natAdded ? "ajouté" : "présent"}, hotspot ${la.walledGardenAdded ? "ajouté" : "présent"}.`);
+    } catch (err) {
+      log.push(`SKIP (accès local MikHmon): ${err instanceof Error ? err.message : "erreur inconnue"}.`);
     }
 
     // ddns-enabled gives the router a reachable hostname even behind CGNAT;

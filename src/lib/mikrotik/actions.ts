@@ -23,6 +23,7 @@ import {
   setRouterBandwidthCap as setBandwidthCap,
 } from "./router-throughput";
 import { auditRouter } from "./router-audit";
+import { ensureMikhmonLocalAccess } from "./mikhmon-local-access";
 import { describeApiPortVerdict, probeApiPortWith } from "./api-port-probe";
 import { openRouterTunnel } from "./relay";
 import {
@@ -2131,4 +2132,78 @@ export async function checkRouterConnection(routerId: string) {
   revalidatePath("/admin/router");
   revalidatePath("/admin/settings/router-setup");
   return { connected: true };
+}
+
+
+/**
+ * Laisser passer MikHmon EN LOCAL (depuis le Wi-Fi) sur UN routeur : pose le
+ * dst-nat 8087 et la règle hotspot manquants. Voir mikhmon-local-access.ts.
+ */
+export async function fixRouterMikhmonLocalAccess(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router);
+  } catch (err) {
+    return { error: err instanceof Error ? `Routeur injoignable : ${err.message}. Il doit être en ligne.` : "Routeur injoignable (doit être en ligne)." };
+  }
+  try {
+    const r = await ensureMikhmonLocalAccess(client);
+    if (!r.gateway) return { success: true as const, summary: r.note ?? "Aucun hotspot : rien à ouvrir." };
+    revalidatePath(`/admin/router/${routerId}`);
+    const parts = [r.natAdded ? "redirection 8087 ajoutée" : null, r.walledGardenAdded ? "règle hotspot ajoutée" : null].filter(Boolean);
+    return {
+      success: true as const,
+      summary: parts.length
+        ? `Accès local MikHmon ouvert (${parts.join(", ")}). Ouvrez http://${r.gateway}:8087 depuis le Wi-Fi.`
+        : `Accès local déjà ouvert. Ouvrez http://${r.gateway}:8087 depuis le Wi-Fi.`,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? `Échec : ${err.message}` : "Échec de l'ouverture de l'accès local MikHmon." };
+  } finally {
+    client.close();
+  }
+}
+
+/** Idem sur TOUTE la flotte de l'organisation (superadmin : tout le parc). */
+export async function fixAllRoutersMikhmonLocalAccess(): Promise<
+  { error: string } | { success: true; routersScanned: number; opened: string[]; already: string[]; unreachable: string[] }
+> {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  const db = getDb();
+  const fleet = await db
+    .select()
+    .from(routers)
+    .where(isSuperAdmin(session.role) ? isNotNull(routers.id) : eq(routers.orgId, session.orgId));
+  if (fleet.length === 0) return { error: "Aucun routeur enregistré." };
+
+  const opened: string[] = [];
+  const already: string[] = [];
+  const unreachable: string[] = [];
+  for (const router of fleet) {
+    let client: RouterOSClient;
+    try {
+      client = await connectToRouter(router);
+    } catch {
+      unreachable.push(router.name);
+      continue;
+    }
+    try {
+      const r = await ensureMikhmonLocalAccess(client);
+      if (r.gateway && (r.natAdded || r.walledGardenAdded)) opened.push(router.name);
+      else if (r.gateway) already.push(router.name);
+    } catch {
+      unreachable.push(router.name);
+    } finally {
+      client.close();
+    }
+  }
+  return { success: true, routersScanned: fleet.length, opened, already, unreachable };
 }

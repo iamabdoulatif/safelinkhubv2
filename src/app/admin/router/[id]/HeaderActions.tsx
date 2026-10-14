@@ -11,6 +11,7 @@ import {
   KeyRound,
   LayoutTemplate,
   Loader2,
+  Globe,
   PackageOpen,
   Pencil,
   RefreshCw,
@@ -26,6 +27,7 @@ import {
   speedTestRouter,
   reconfigureMikhmonSession,
   getMikhmonAdminCredentials,
+  fixRouterMikhmonLocalAccess,
 } from "@/lib/mikrotik/actions";
 import { reinstallMikhmonContainer } from "@/lib/mikrotik/container-setup";
 import { reposerPortailRouteur } from "@/lib/captive-templates/actions";
@@ -278,6 +280,18 @@ export default function HeaderActions({
                 "mikhmon",
                 () => reconfigureMikhmonSession(routerId),
                 "Session MikHmon restaurée.",
+              )
+            }
+          />
+          <MenuItem
+            icon={Globe}
+            label="Autoriser l'accès local à MikHmon"
+            hint="Ouvre http://<passerelle>:8087 depuis le Wi-Fi (dst-nat + règle hotspot)."
+            onClick={() =>
+              run(
+                "mikhmon-local",
+                () => fixRouterMikhmonLocalAccess(routerId),
+                "Accès local MikHmon ouvert.",
               )
             }
           />
