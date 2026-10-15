@@ -122,6 +122,20 @@ export async function ensureRouterHardening(client: RouterOSClient, timeoutMs = 
     [`=in-interface-list=${HOTSPOT_LIST}`, `=dst-address=${CONTAINER_NET}`, "=action=drop"],
     timeoutMs,
   );
+  // 1 bis. EXCEPTION : MikHmon lui-même (conteneur:80) reste joignable en LOCAL
+  //    depuis le Wi-Fi — mais RIEN D'AUTRE du réseau conteneur. Ajoutée APRÈS le
+  //    drop pour être posée JUSTE AU-DESSUS de lui (addFilterOnTop insère avant
+  //    la 1re règle statique). Sans cette règle, ou placée sous le drop, l'accès
+  //    local à MikHmon (http://<passerelle>:8087 → dst-nat → conteneur:80) était
+  //    droppé — relevé sur tout le parc (l'autorisation « allow top » existait
+  //    mais SOUS le drop). Le mot de passe d'usine étant rotaté (point 2),
+  //    rouvrir le seul port 80 du conteneur ne redonne pas de tickets gratuits.
+  await addFilterOnTop(
+    client,
+    "forward",
+    [`=in-interface-list=${HOTSPOT_LIST}`, `=dst-address=${CONTAINER_NET}`, "=protocol=tcp", "=dst-port=80", "=action=accept"],
+    timeoutMs,
+  );
 
   // 3. MAC-Winbox / MAC-Telnet : toutes les interfaces SAUF le Wi-Fi clients.
   if (!lists.some((l) => l.name === MAC_ADMIN_LIST)) {
