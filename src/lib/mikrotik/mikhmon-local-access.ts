@@ -3,10 +3,21 @@
 // MikHmon tourne dans le conteneur (11.11.11.11:80) et est joignable à
 // `http://<passerelle-hotspot>:8087` via un dst-nat. Mais le hotspot BLOQUE les
 // clients non authentifiés avant qu'ils atteignent ce port : taper
-// `10.10.0.1:8087` dans le navigateur ne répond pas. Il manque deux choses :
+// `10.10.0.1:8087` dans le navigateur ne répond pas. Il manque TROIS choses :
 //   1. le dst-nat 8087 → conteneur:80 (absent sur les routeurs hors auto-setup) ;
-//   2. une règle hotspot walled-garden-ip qui ACCEPTE le port 8087 avant login.
-// Cette fonction pose les deux si elles manquent. Idempotente.
+//   2. une règle hotspot walled-garden-ip qui ACCEPTE le port 8087 avant login ;
+//   3. une règle walled-garden-ip qui accepte aussi l'IP DU CONTENEUR (11.11.11.11).
+//
+// Pourquoi (3) : le dst-nat (1) est évalué AVANT le saut hotspot dans la chaîne
+// dstnat. Pour un client NON authentifié (l'admin sur son téléphone, pas connecté
+// au hotspot), la destination est déjà réécrite en 11.11.11.11 quand le hotspot
+// vérifie son walled-garden — qui n'autorise que 10.0.0.1:8087 (la destination
+// d'ORIGINE). Elle ne correspond plus → le client est REDIRIGÉ vers le portail au
+// lieu d'atteindre MikHmon. Autoriser aussi l'IP conteneur (destination APRÈS NAT)
+// lève ce blocage. Diagnostiqué sur RUE-NICOLAS (conteneur OK en direct, NAT +
+// walled-garden 8087 présents, mais accès local toujours redirigé).
+//
+// Cette fonction pose les trois si elles manquent. Idempotente.
 import type { RouterOSClient } from "./client";
 import { DOCKER_WEB_PORT } from "./constants";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
@@ -14,11 +25,13 @@ import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 type Row = Record<string, string>;
 const NAT_COMMENT = "Docker NAT"; // même commentaire que l'auto-setup
 const WG_COMMENT = "MikHmon local";
+const WG_CONTAINER_COMMENT = "MikHmon container";
 
 export type MikhmonLocalAccessResult = {
   gateway: string | null;
   natAdded: boolean;
   walledGardenAdded: boolean;
+  containerWalledGardenAdded: boolean;
   note?: string;
 };
 
@@ -37,7 +50,7 @@ export async function ensureMikhmonLocalAccess(
 ): Promise<MikhmonLocalAccessResult> {
   const gateway = await hotspotGateway(client, timeoutMs);
   if (!gateway) {
-    return { gateway: null, natAdded: false, walledGardenAdded: false, note: "Aucun serveur hotspot : rien à ouvrir (MikHmon local passe par la passerelle du hotspot)." };
+    return { gateway: null, natAdded: false, walledGardenAdded: false, containerWalledGardenAdded: false, note: "Aucun serveur hotspot : rien à ouvrir (MikHmon local passe par la passerelle du hotspot)." };
   }
   const containerIp = await resolveMikhmonContainerAddress(client).catch(() => "11.11.11.11");
 
@@ -82,5 +95,22 @@ export async function ensureMikhmonLocalAccess(
     walledGardenAdded = true;
   }
 
-  return { gateway, natAdded, walledGardenAdded };
+  // 3) Règle hotspot : accepter l'IP DU CONTENEUR (destination après NAT). Sans
+  //    elle, un client non authentifié est redirigé vers le portail (voir en-tête).
+  const wgContainer = (await client
+    .talk(["/ip/hotspot/walled-garden/ip/print"], timeoutMs)
+    .catch(() => [] as Row[]))
+    .filter((r) => r["dst-address"] === containerIp);
+  let containerWalledGardenAdded = false;
+  if (wgContainer.length === 0) {
+    await client.talk([
+      "/ip/hotspot/walled-garden/ip/add",
+      `=dst-address=${containerIp}`,
+      "=action=accept",
+      `=comment=${WG_CONTAINER_COMMENT}`,
+    ], timeoutMs);
+    containerWalledGardenAdded = true;
+  }
+
+  return { gateway, natAdded, walledGardenAdded, containerWalledGardenAdded };
 }

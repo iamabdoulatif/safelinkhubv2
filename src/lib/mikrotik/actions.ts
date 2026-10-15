@@ -2157,7 +2157,11 @@ export async function fixRouterMikhmonLocalAccess(routerId: string) {
     const r = await ensureMikhmonLocalAccess(client);
     if (!r.gateway) return { success: true as const, summary: r.note ?? "Aucun hotspot : rien à ouvrir." };
     revalidatePath(`/admin/router/${routerId}`);
-    const parts = [r.natAdded ? "redirection 8087 ajoutée" : null, r.walledGardenAdded ? "règle hotspot ajoutée" : null].filter(Boolean);
+    const parts = [
+      r.natAdded ? "redirection 8087 ajoutée" : null,
+      r.walledGardenAdded ? "règle hotspot ajoutée" : null,
+      r.containerWalledGardenAdded ? "accès conteneur autorisé" : null,
+    ].filter(Boolean);
     return {
       success: true as const,
       summary: parts.length
@@ -2197,7 +2201,7 @@ export async function fixAllRoutersMikhmonLocalAccess(): Promise<
     }
     try {
       const r = await ensureMikhmonLocalAccess(client);
-      if (r.gateway && (r.natAdded || r.walledGardenAdded)) opened.push(router.name);
+      if (r.gateway && (r.natAdded || r.walledGardenAdded || r.containerWalledGardenAdded)) opened.push(router.name);
       else if (r.gateway) already.push(router.name);
     } catch {
       unreachable.push(router.name);
