@@ -51,6 +51,7 @@ export const adminFr = {
       training: "Formations",
       marketing: "Marketing",
       notifications: "Notifications WhatsApp",
+      remoteComputers: "Accès ordinateurs",
     },
     breadcrumb: "Fil d’Ariane",
     openMenu: "Ouvrir le menu",

@@ -127,6 +127,7 @@ const superadminLinks: NavLink[] = [
   { href: "/admin/analytics", key: "analytics" },
   { href: "/admin/safecoin", key: "safecoin" },
   { href: "/admin/notifications", key: "notifications" },
+  { href: "/admin/remote-computers", key: "remoteComputers" },
   { href: "/admin/contact", key: "contact" },
   { href: "/admin/testimonials", key: "testimonials" },
   { href: "/admin/blog", key: "blog" },
