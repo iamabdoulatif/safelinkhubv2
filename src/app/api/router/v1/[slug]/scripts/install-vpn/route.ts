@@ -6,8 +6,20 @@ import { decryptSecret } from "@/lib/mikrotik/crypto";
 import { allocateVpnPeer } from "@/lib/mikrotik/relay";
 import { hashToken } from "@/lib/mikrotik/install-token";
 import { buildMikhmonResyncRos } from "@/lib/mikrotik/mikhmon-session";
+import { randomInt } from "node:crypto";
 
-const PEER_LISTEN_PORT = 51821;
+// Port WireGuard ALÉATOIRE par routeur (et non un port fixe partagé par toute
+// la flotte). Deux MikroTik d'un même site derrière UNE seule ligne FAI qui
+// émettaient depuis le MÊME port entraient en collision NAT : le NAT finissait
+// par mapper les deux sur le même port externe, et le serveur, pour joindre un
+// routeur, vise son endpoint ip:port — un seul des deux tunnels vivait donc à
+// la fois (relevé sur RUE-NICOLAS vs BELIKORO, 102.67.221.128:2716). Un port
+// distinct par routeur supprime la collision. Aucun port fixe n'est nécessaire :
+// le routeur INITIE la session, le serveur apprend son endpoint via les
+// handshakes + persistent-keepalive.
+function randomListenPort() {
+  return randomInt(20000, 60000);
+}
 
 function escapeRosString(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -29,7 +41,7 @@ function buildScript(opts: {
   return `# SafeLinkHub managed VPN tunnel - auto-generated, do not edit
 /system identity set name="${escapeRosString(opts.identityName)}"
 /interface/wireguard/remove [find name=safelinkhub-wg0]
-/interface wireguard add name=safelinkhub-wg0 private-key="${opts.peerPrivateKey}" listen-port=${PEER_LISTEN_PORT}
+/interface wireguard add name=safelinkhub-wg0 private-key="${opts.peerPrivateKey}" listen-port=${randomListenPort()}
 /interface wireguard peers remove [find interface=safelinkhub-wg0]
 /interface wireguard peers add interface=safelinkhub-wg0 public-key="${opts.serverPublicKey}" endpoint-address=${endpointHost} endpoint-port=${endpointPort} allowed-address=10.66.0.0/24 persistent-keepalive=25s
 /ip address remove [find interface=safelinkhub-wg0]
