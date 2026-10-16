@@ -727,10 +727,29 @@ export async function restoreBackupToRouter(
     if (opts.shouldStop && (await opts.shouldStop())) throw new Error(RESTORE_CANCELLED);
   };
 
-  const sourceProfiles = snapshot.sections.hotspotUserProfiles ?? [];
+  const capturedProfiles = snapshot.sections.hotspotUserProfiles ?? [];
   const sourceTicketRows = (snapshot.sections.hotspotUsers ?? []).filter(
     (row) => row.name && row.default !== "true",
   );
+  // Certaines (anciennes) sauvegardes n'ont PAS capturé les profils HotSpot —
+  // 0 profil pour des milliers de tickets. Sans eux, aucun profil n'est créé
+  // sur le rechange et les tickets ne peuvent se lier. On recrée donc un profil
+  // MINIMAL (le pool est posé ensuite par la liaison) pour chaque profil NOMMÉ
+  // référencé par un ticket et absent de la sauvegarde — jamais « default »
+  // (intégré au routeur) ni un ID interne « *N » (nom inconnu).
+  const capturedNames = new Set(
+    capturedProfiles.map((p) => p.name).filter((n): n is string => !!n),
+  );
+  const syntheticProfiles = [
+    ...new Set(
+      sourceTicketRows
+        .map((t) => t.profile?.trim())
+        .filter((p): p is string => !!p && p !== "default" && !p.startsWith("*")),
+    ),
+  ]
+    .filter((name) => !capturedNames.has(name))
+    .map((name): Record<string, string> => ({ name }));
+  const sourceProfiles = [...capturedProfiles, ...syntheticProfiles];
   // Avant de toucher le moindre profil, on s'assure que chaque ID source peut
   // déjà être traduit vers un nom de profil et le serveur cible unique. Les
   // profils peuvent encore être absents : ils seront créés à l'étape suivante.

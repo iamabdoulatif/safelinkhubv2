@@ -32,6 +32,41 @@ describe("pré-vol des liaisons HotSpot restaurées", () => {
     });
   });
 
+  const oneServer: HotspotRestoreRow[] = [
+    { name: "hotspot1", disabled: "false", "address-pool": "POOL-HOTSPOT" },
+  ];
+
+  it("résout les profils référencés par NOM même sans section profils dans la sauvegarde", () => {
+    const plan = prepareHotspotRestore({
+      sourceProfiles: [], // vieille sauvegarde : 0 profil capturé
+      sourceTickets: [
+        { name: "1mok28", profile: "1MOIS" },
+        { name: "diakite@", profile: "default" },
+      ],
+      targetProfiles: [
+        { ".id": "*A", name: "default", "address-pool": "POOL-HOTSPOT" },
+        { ".id": "*D", name: "1MOIS", "address-pool": "POOL-HOTSPOT" },
+      ],
+      targetServers: oneServer,
+    });
+    assert.deepEqual(plan.blockers, []);
+    assert.deepEqual(
+      plan.tickets.map((t) => `${t.name}:${t.profile}`).sort(),
+      ["1mok28:1MOIS", "diakite@:default"],
+    );
+  });
+
+  it("ne bloque que sur un IDENTIFIANT interne de profil non résolu", () => {
+    const plan = prepareHotspotRestore({
+      sourceProfiles: [],
+      sourceTickets: [{ name: "orphan", profile: "*7" }],
+      targetProfiles: [{ ".id": "*A", name: "default", "address-pool": "POOL-HOTSPOT" }],
+      targetServers: oneServer,
+    });
+    assert.equal(plan.blockers.length, 1);
+    assert.match(plan.blockers[0], /\*7/);
+  });
+
   it("traduit les références internes de profil et de serveur vers la cible", () => {
     const plan = prepareHotspotRestore({
       sourceProfiles,

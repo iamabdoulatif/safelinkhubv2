@@ -116,10 +116,18 @@ export function prepareHotspotRestore(args: {
       blockers.push(`Le ticket « ${ticket.name} » n'a pas de profil source à traduire.`);
       continue;
     }
-    const profileName = sourceProfileNameByReference.get(sourceReference);
+    // Une référence par NOM (« 1MOIS », « default »…) est utilisable telle
+    // quelle même quand la section profils de la sauvegarde est vide ou
+    // incomplète (vieilles sauvegardes : 0 profil capturé pour des milliers de
+    // tickets). Seul un ID INTERNE source (« *5 ») non résolu doit bloquer —
+    // là, on ne connaît pas le nom. Les profils nommés manquants sont recréés
+    // en amont de la restauration (voir router-backup.ts).
+    const profileName =
+      sourceProfileNameByReference.get(sourceReference) ??
+      (isSourceInternalReference(sourceReference) ? undefined : sourceReference);
     if (!profileName) {
       blockers.push(
-        `Le ticket « ${ticket.name} » référence le profil source inconnu « ${sourceReference} ».`,
+        `Le ticket « ${ticket.name} » référence l'identifiant de profil interne « ${sourceReference} », absent de la sauvegarde.`,
       );
       continue;
     }
