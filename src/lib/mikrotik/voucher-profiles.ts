@@ -192,6 +192,43 @@ export function buildCustomDurationCode(amount: number, unit: DurationUnit): str
   return `${amount}${unit}`;
 }
 
+/**
+ * Déduit une durée depuis le NOM d'un profil voucher, pour RECONSTRUIRE un
+ * profil absent d'une sauvegarde (ancienne capture : 0 profil pour des milliers
+ * de tickets). Reconnaît les conventions MikHmon et SafeLinkHub, avec ou sans
+ * tiret/zéro : « 1MOIS », « 01-MOIS », « 2SEMAINES », « 5JOURS », « 1JOUR »,
+ * « 1H », « 3HEURES », « 30MIN », « 05-MINS »… Renvoie null si le nom n'encode
+ * pas une durée (ex. « default », « VIP ») — l'appelant pose alors un profil
+ * minimal.
+ */
+export function inferVoucherDuration(
+  name: string,
+): { amount: number; unit: DurationUnit } | null {
+  const s = name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  const m = /^0*(\d+)([A-Z]+)$/.exec(s);
+  if (!m) return null;
+  const amount = Number(m[1]);
+  if (!amount || amount > 999) return null;
+  const u = m[2];
+  // Ordre important : « MO » (mois) avant « M » (minute), « MIN » avant « M ».
+  const unit: DurationUnit | null = u.startsWith("MO")
+    ? "mo"
+    : u.startsWith("SEM") || u === "W" || u === "SM"
+      ? "w"
+      : u.startsWith("J") || u === "D"
+        ? "d"
+        : u.startsWith("H")
+          ? "h"
+          : u.startsWith("MIN") || u.startsWith("MINUTE") || u === "M" || u === "MN"
+            ? "m"
+            : null;
+  return unit ? { amount, unit } : null;
+}
+
 // Deterministic per-name offset so several custom profiles' expiry-sweep
 // schedulers don't all tick at the exact same second — mirrors the
 // hand-picked spacing (2m20s–2m44s) the bundled presets already use.

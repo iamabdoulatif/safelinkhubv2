@@ -11,6 +11,12 @@ import {
   type ResolvedHotspotTicket,
 } from "./hotspot-restore-reconciliation";
 import { applySsid, primarySsid, readWifiState, type WifiApi } from "./wifi-compat";
+import {
+  buildCustomDurationCode,
+  buildCustomProfileLabel,
+  buildVoucherProfile,
+  inferVoucherDuration,
+} from "./voucher-profiles";
 import { parseExpiryComment, wallToDate } from "@/lib/vouchers/reconcile";
 import {
   applyIdentity,
@@ -733,22 +739,56 @@ export async function restoreBackupToRouter(
   );
   // Certaines (anciennes) sauvegardes n'ont PAS capturé les profils HotSpot —
   // 0 profil pour des milliers de tickets. Sans eux, aucun profil n'est créé
-  // sur le rechange et les tickets ne peuvent se lier. On recrée donc un profil
-  // MINIMAL (le pool est posé ensuite par la liaison) pour chaque profil NOMMÉ
-  // référencé par un ticket et absent de la sauvegarde — jamais « default »
-  // (intégré au routeur) ni un ID interne « *N » (nom inconnu).
+  // sur le rechange et les tickets ne peuvent se lier. On RECONSTRUIT donc, pour
+  // chaque profil NOMMÉ référencé par un ticket et absent de la sauvegarde
+  // (jamais « default », intégré, ni un ID interne « *N »), un vrai profil
+  // voucher : la durée est déduite du NOM (« 1MOIS » → 30 j, « 2SEMAINES » →
+  // 14 j…) et buildVoucherProfile régénère le `on-login` (tarif/validité lus par
+  // MikHmon) ET le balayage d'expiration. Ainsi profils, tickets déjà vendus et
+  // expiration CONCORDENT. Un nom non interprétable retombe sur un profil minimal
+  // (le ticket se lie, mais sans logique d'expiration). Le tarif, absent d'une
+  // sauvegarde sans profils, repart à 0 — à réajuster dans Forfaits si besoin.
   const capturedNames = new Set(
     capturedProfiles.map((p) => p.name).filter((n): n is string => !!n),
   );
-  const syntheticProfiles = [
+  const missingProfileNames = [
     ...new Set(
       sourceTicketRows
         .map((t) => t.profile?.trim())
         .filter((p): p is string => !!p && p !== "default" && !p.startsWith("*")),
     ),
-  ]
-    .filter((name) => !capturedNames.has(name))
-    .map((name): Record<string, string> => ({ name }));
+  ].filter((name) => !capturedNames.has(name));
+  const syntheticProfiles: Record<string, string>[] = [];
+  const syntheticSchedulers: Record<string, string>[] = [];
+  for (const name of missingProfileNames) {
+    const duration = inferVoucherDuration(name);
+    if (!duration) {
+      syntheticProfiles.push({ name });
+      continue;
+    }
+    const vp = buildVoucherProfile({
+      name,
+      label: buildCustomProfileLabel(duration.amount, duration.unit),
+      durationCode: buildCustomDurationCode(duration.amount, duration.unit),
+    });
+    const profileRow: Record<string, string> = {
+      name,
+      "on-login": vp.onLogin,
+      "shared-users": "1",
+    };
+    if (vp.rateLimit) profileRow["rate-limit"] = vp.rateLimit;
+    syntheticProfiles.push(profileRow);
+    // Même forme que l'auto-setup (container-setup.ts) : le balayage porte le
+    // NOM du profil (selectMikhmonSchedulers le relie par ce nom) et la policy
+    // sans laquelle il ne pourrait pas supprimer un ticket expiré.
+    syntheticSchedulers.push({
+      name: vp.name,
+      interval: vp.monitorInterval,
+      "on-event": vp.monitorOnEvent,
+      policy: "ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon",
+      comment: "mikhmon",
+    });
+  }
   const sourceProfiles = [...capturedProfiles, ...syntheticProfiles];
   // Avant de toucher le moindre profil, on s'assure que chaque ID source peut
   // déjà être traduit vers un nom de profil et le serveur cible unique. Les
@@ -921,7 +961,7 @@ export async function restoreBackupToRouter(
     reports.push(
       await restoreMikhmonSchedulers(
         client,
-        snapshot.sections.schedulers ?? [],
+        [...(snapshot.sections.schedulers ?? []), ...syntheticSchedulers],
         sourceProfiles,
         opts.dryRun,
       ),
