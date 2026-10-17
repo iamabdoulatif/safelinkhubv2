@@ -20,6 +20,8 @@ function fake(failQueue = false, cpu = "20") {
   const client = { talk: async (words: string[]) => {
     calls.push(words);
     const command = words[0], split = command.lastIndexOf("/"), path = command.slice(0, split), action = command.slice(split + 1);
+    if (path === "/queue/type" && words.some(w => w.startsWith("=comment="))) throw new Error("unknown parameter comment");
+    if (path.endsWith("/firewall/filter") && action === "move" && words.includes("=destination=0")) throw new Error("cannot move builtin");
     const now = new Date().toISOString();
     if (command === "/system/resource/print") return [{ "cpu-load": cpu }];
     if (command === "/system/clock/print") return [{ date: now.slice(0, 10), time: now.slice(11, 19), "gmt-offset": "+00:00" }];
@@ -54,6 +56,7 @@ test("adapter verifies shared volume cap, covers both IP families and keeps port
   await releaseFupFromRouter(router.client, result);
   assert.equal(router.tables["/ip/firewall/filter"].find(r => r[".id"] === "*ft")!.disabled, "false");
   assert.deepEqual(router.tables["/queue/simple"], []);
+  assert.deepEqual(router.tables["/queue/type"], []);
 });
 
 test("first installation failure restores FastTrack and removes only FUP resources", async () => {
@@ -61,6 +64,7 @@ test("first installation failure restores FastTrack and removes only FUP resourc
   await assert.rejects(applyFupToRouter(router.client, plan, null), /simulated queue failure/);
   assert.equal(router.tables["/ip/firewall/filter"].find(r => r[".id"] === "*ft")!.disabled, "false");
   assert.equal(router.tables["/ip/firewall/filter"].length, 1);
+  assert.deepEqual(router.tables["/queue/type"], []);
 });
 
 test("high CPU refuses activation before mutating the routeur", async () => {
