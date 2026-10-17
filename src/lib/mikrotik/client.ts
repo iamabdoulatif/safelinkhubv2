@@ -297,7 +297,7 @@ export class RouterOSClient {
     }
   }
 
-  async talk(words: string[], timeoutMs = 8000): Promise<Sentence[]> {
+  async talk(words: string[], timeoutMs = 8000, includeDoneAttributes = false): Promise<Sentence[]> {
     if (!this.conn) throw new Error("Not connected");
     if (this.desynced) throw new Error(ROUTEROS_DESYNC_MESSAGE);
     this.conn.write(words);
@@ -319,7 +319,15 @@ export class RouterOSClient {
         throw err;
       }
       const type = reply[0];
-      if (type === "!done") break;
+      if (type === "!done") {
+        // API add/get return their result in !done (=ret=*ID), not !re.
+        // Existing callers keep their original row-only contract by default.
+        if (includeDoneAttributes) {
+          const attributes = parseReply(reply);
+          if (Object.keys(attributes).length) results.push(attributes);
+        }
+        break;
+      }
       if (type === "!fatal") {
         // Fatal errors close the connection — no !done follows.
         throw new Error(reply.slice(1).join(" ") || "RouterOS connection terminated");

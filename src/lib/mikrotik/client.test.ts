@@ -58,6 +58,17 @@ function fakeRouter(rowCount: number, chunkSize: number) {
 }
 
 describe("RouterOSClient.talk — grosses réponses", () => {
+  it("expose sur demande l'identifiant renvoyé par add dans !done", async () => {
+    const stream = new Duplex({ read() {}, write(chunk, _enc, cb) {
+      this.push(encodeSentence(Buffer.from(chunk).toString("utf8").includes("/login") ? ["!done"] : ["!done", "=ret=*42"]));
+      cb();
+    } });
+    const client = new RouterOSClient();
+    await client.connectViaStream(stream, "u", "p", 1000);
+    assert.deepEqual(await client.talk(["/system/script/add"], 1000, true), [{ ret: "*42" }]);
+    assert.deepEqual(await client.talk(["/system/script/add"], 1000), []);
+    client.close();
+  });
   /**
    * Régression : readSentence attachait/détachait un listener "data" par
    * phrase. Retirer un listener "data" ne repasse PAS un flux Node en pause, si

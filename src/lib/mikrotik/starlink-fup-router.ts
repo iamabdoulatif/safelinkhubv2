@@ -8,16 +8,15 @@ const scriptIndexes = new WeakMap<RouterOSClient, Map<string, Record<string, str
 async function scriptIndex(client: RouterOSClient) {
   let index = scriptIndexes.get(client);
   if (!index) {
-    // MikHmon can leave thousands of expiry scripts. One narrow scan is much
-    // cheaper than a full scan for every managed script name (22s on FOUANGA).
-    const rows = await client.talk(["/system/script/print", "=.proplist=.id,name,comment"], 60000);
-    index = new Map(rows.map(r => [r.name, r]));
+    index = new Map<string, Record<string, string>>();
     scriptIndexes.set(client, index);
   }
   return index;
 }
 async function removeScript(client: RouterOSClient, name: string) {
-  await client.talk(["/system/script/remove", `=numbers=${name}`], 30000);
+  const id = scriptIndexes.get(client)?.get(name)?.[".id"];
+  if (!id) return;
+  await client.talk(["/system/script/remove", `=numbers=${id}`], 30000);
   scriptIndexes.get(client)?.delete(name);
 }
 export type FupRuntime = { fastTrackIds: string[]; backup: string; appliedAt: string; totalBps: number; reserve: boolean; stopped: boolean; baselineKey?: string };
@@ -25,12 +24,16 @@ export type FupRuntime = { fastTrackIds: string[]; backup: string; appliedAt: st
 /** All resources have dedicated names; never reuse an unowned matching object. */
 async function upsert(client: RouterOSClient, path: string, field: string, value: string, params: Record<string, string>) {
   const cached = path === "/system/script" ? await scriptIndex(client) : null;
-  const rows = cached ? (cached.has(value) ? [cached.get(value)!] : []) : await client.talk([`${path}/print`, `?${field}=${value}`], 15000);
+  const rows = cached?.has(value) ? [cached.get(value)!] : await client.talk([`${path}/print`, "=.proplist=.id,name,comment", `?${field}=${value}`], cached ? 60000 : 15000);
   if (rows.some(r => r.comment !== OWNER)) throw new Error(`Ressource ${value} déjà utilisée hors FUP.`);
   const id = rows[0]?.[".id"];
-  await client.talk([`${path}/${id ? "set" : "add"}`, ...(id ? [`=numbers=${id}`] : [`=${field}=${value}`]),
-    ...Object.entries({ ...params, comment: OWNER }).map(([k,v]) => `=${k}=${v}`)], 15000);
-  if (cached) cached.set(value, { ".id": id ?? value, name: value, comment: OWNER });
+  const result = await client.talk([`${path}/${id ? "set" : "add"}`, ...(id ? [`=numbers=${id}`] : [`=${field}=${value}`]),
+    ...Object.entries({ ...params, comment: OWNER }).map(([k,v]) => `=${k}=${v}`)], 30000, Boolean(cached && !id));
+  if (cached) {
+    const actualId = id ?? result.find(r => r.ret)?.ret;
+    if (!actualId) throw new Error("Identifiant API du script non renvoyé par RouterOS.");
+    cached.set(value, { ".id": actualId, name: value, comment: OWNER });
+  }
 }
 
 /** Applies a SHARED conservative cap. No ticket disabling or permanent bans. */
@@ -61,7 +64,7 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
   await upsert(client, "/system/script", "name", "slh-fup-verify", {
     source: `:local verified [:parse ${quoteRos(plan.script)}]; :put "FUP compiled"`, policy: "read,write,policy,test",
   });
-  try { await client.talk(["/system/script/run", "=number=slh-fup-verify"], 30000); }
+  try { await client.talk(["/system/script/run", `=number=${(await scriptIndex(client)).get("slh-fup-verify")![".id"]}`], 30000); }
   finally { await removeScript(client, "slh-fup-verify"); }
 
   const backup = previous?.backup ?? `slh-before-fup-${Date.now()}`;
@@ -106,9 +109,9 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
   // The boot marker is deliberately volatile. After reboot the local guard
   // stops Internet until the provider baseline has been reconciled again.
   await upsert(client, "/system/script", "name", "slh-fup-init", { source: ":global slhFupReady true", policy: "read,write,policy,test" });
-  try { await client.talk(["/system/script/run", "=number=slh-fup-init"], 30000); }
+  try { await client.talk(["/system/script/run", `=number=${(await scriptIndex(client)).get("slh-fup-init")![".id"]}`], 30000); }
   finally { await removeScript(client, "slh-fup-init"); }
-  await client.talk(["/system/script/run", `=number=${FUP_SCRIPT}`], 30000);
+  await client.talk(["/system/script/run", `=number=${(await scriptIndex(client)).get(FUP_SCRIPT)![".id"]}`], 30000);
   const rules = await client.talk(["/ip/firewall/filter/print"], 15000);
   if (rules.some(r => r.comment?.startsWith(FUP_STOP) && (r.disabled !== "true") !== plan.stop)) throw new Error("État du garde-fou différent du résultat attendu.");
   if (!plan.stop) {
@@ -136,10 +139,12 @@ export async function releaseFupFromRouter(client: RouterOSClient, runtime: FupR
   for (const [path, field, value] of [["/system/scheduler", "name", FUP_SCRIPT], ["/system/script", "name", FUP_SCRIPT],
     ["/queue/simple", "name", FUP_QUEUE], ["/queue/type", "name", "slh-fup-up"], ["/queue/type", "name", "slh-fup-down"],
     ["/interface/list/member", "list", FUP_LIST], ["/interface/list", "name", FUP_LIST]]) {
-    const rows = path === "/system/script" ? [...(await scriptIndex(client)).values()].filter(r => r[field] === value)
-      : await client.talk([`${path}/print`, `?${field}=${value}`], 15000);
+    const rows = await client.talk([`${path}/print`, "=.proplist=.id,name,comment", `?${field}=${value}`], path === "/system/script" ? 60000 : 15000);
     for (const row of rows.filter(r => r.comment === OWNER)) {
-      if (path === "/system/script") await removeScript(client, row.name);
+      if (path === "/system/script") {
+        (await scriptIndex(client)).set(row.name, row);
+        await removeScript(client, row.name);
+      }
       else await client.talk([`${path}/remove`, `=numbers=${row[".id"]}`], 15000);
     }
   }

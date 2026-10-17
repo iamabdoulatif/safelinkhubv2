@@ -29,7 +29,11 @@ function fake(failQueue = false, cpu = "20") {
     const params = Object.fromEntries(words.slice(1).filter(w => w.startsWith("=")).map(w => { const n = w.indexOf("=", 1); return [w.slice(1, n), w.slice(n + 1)]; }));
     if (action === "print") return rows.filter(r => words.filter(w => w.startsWith("?")).every(w => { const n = w.indexOf("="); return r[w.slice(1, n)] === w.slice(n + 1); })).map(r => ({ ...r }));
     if (failQueue && command === "/queue/simple/add") throw new Error("simulated queue failure");
-    if (action === "add") rows.push({ ".id": `*${++id}`, ...params, disabled: params.disabled === "yes" ? "true" : "false" });
+    if (action === "add") {
+      const newId = `*${++id}`;
+      rows.push({ ".id": newId, ...params, disabled: params.disabled === "yes" ? "true" : "false" });
+      return [{ ret: newId }];
+    }
     if (action === "set") { const row = rows.find(r => r[".id"] === params.numbers); if (row) Object.assign(row, params, params.disabled ? { disabled: params.disabled === "yes" ? "true" : "false" } : {}); }
     if (action === "remove") tables[path] = rows.filter(r => r[".id"] !== params.numbers);
     return [];
