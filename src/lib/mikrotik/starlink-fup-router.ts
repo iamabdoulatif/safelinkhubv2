@@ -26,9 +26,9 @@ export type FupRuntime = { fastTrackIds: string[]; backup: string; appliedAt: st
 export async function clearFastTrackedConnections(client: RouterOSClient) {
   const connections = (await client.talk(["/ip/firewall/connection/print", "=.proplist=.id,fasttrack"], 15000))
     .filter(c => c.fasttrack === "true" || c.fasttrack === "yes");
-  for (let offset = 0; offset < connections.length; offset += 32) {
-    const results = await client.talkBatch(connections.slice(offset, offset + 32)
-      .map(c => ["/ip/firewall/connection/remove", `=numbers=${c[".id"]}`]), 30000);
+  for (let offset = 0; offset < connections.length; offset += 256) {
+    const results = await client.talkBatch(connections.slice(offset, offset + 256)
+      .map(c => ["/ip/firewall/connection/remove", `=.id=${c[".id"]}`]), 30000);
     for (const result of results) {
       if (result.status === "rejected" && !/^no such item(?: \(4\))?$/.test(String(result.reason?.message ?? result.reason))) throw result.reason;
     }
