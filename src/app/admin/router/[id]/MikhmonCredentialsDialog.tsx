@@ -73,7 +73,7 @@ export default function MikhmonCredentialsDialog({
 
         <div className="space-y-4 px-5 py-5 sm:px-6">
           <div className="rounded-lg border border-line-soft bg-clay/40 px-4 py-3">
-            <p className="text-xs font-bold uppercase tracking-[0.13em] text-ink-soft">État de l'accès</p>
+            <p className="text-xs font-bold uppercase tracking-[0.13em] text-ink-soft">État de l&apos;accès</p>
             <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-ok">
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               {loading ? "Vérification en cours…" : password ? "Identifiants disponibles" : "Identifiants indisponibles"}
@@ -103,7 +103,7 @@ export default function MikhmonCredentialsDialog({
             <div className="flex gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-err" aria-hidden="true" />
               <div className="min-w-0">
-                <h3 id="mikhmon-reset-title" className="text-sm font-bold text-ink">Réinitialisation d'urgence</h3>
+                <h3 id="mikhmon-reset-title" className="text-sm font-bold text-ink">Réinitialisation d&apos;urgence</h3>
                 <p className="mt-1 text-sm leading-6 text-ink-soft">Remet le mot de passe MikHmon à <strong className="text-ink">1234</strong> sur ce routeur. Cette valeur est connue et peu sécurisée.</p>
                 <button
                   type="button"
@@ -116,7 +116,7 @@ export default function MikhmonCredentialsDialog({
                 </button>
                 {confirming && !resetting && (
                   <div className="mt-3 rounded-lg border border-err/35 bg-paper p-3">
-                    <p className="text-sm leading-5 text-ink">Le mot de passe sera remplacé par <strong>1234</strong>. Voulez-vous continuer ?</p>
+                    <p className="text-sm leading-5 text-ink">Le mot de passe sera remplacé par <strong>1234</strong>. Voulez-vous continuer&nbsp;?</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button type="button" onClick={() => setConfirming(false)} className="rounded-full border border-line px-3 py-1.5 text-xs font-bold text-ink-soft hover:bg-clay">Annuler</button>
                       <button type="button" onClick={onReset} className="rounded-full bg-err px-3 py-1.5 text-xs font-bold text-white hover:opacity-90">Restaurer 1234</button>
