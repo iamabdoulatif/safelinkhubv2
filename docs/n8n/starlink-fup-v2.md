@@ -27,11 +27,14 @@ de cycle, refaire ce rapprochement ; aucun crédit n'est recréé silencieusemen
   Le bouton historique n'active pas ce mode. L'ancienne cascade punitive est
   verrouillée sur un site FUP et ne s'exécute plus via le cron.
 - La plateforme calcule le débit partagé conservateur : minimum des budgets
-  journaliers des liaisons, converti en bit/s, avec 5 % de marge. Un basculement
+  journaliers des liaisons, converti en bit/s, avec 20 % de marge pour les écarts de comptage et le trafic hors HotSpot. Un basculement
   de trafic vers le Standard ne peut donc pas exploiter le budget du Mini.
   Ce choix sous-utilise volontairement la capacité disponible ; il ne constitue
   pas un équilibrage WAN optimisé.
-- Une file partagée PCQ couvre toutes les interfaces HotSpot. En réserve,
+- Une file partagée PCQ couvre toutes les interfaces HotSpot. Ses plafonds
+  directionnels totalisent le budget : 20 % envoi et 80 % réception. La part
+  inutilisée dans un sens ne passe pas dans l’autre. Le contrôle porte sur les
+  compteurs WAN réels, pas seulement sur le compteur « total » de la file. En réserve,
   chaque adresse reçoit au plus 128 kbit/s en émission et 256 kbit/s en réception,
   sous le plafond partagé. Aucun ticket n'est désactivé et aucun bannissement
   permanent n'est créé. Les détections individuelles n8n restent des propositions.

@@ -65,6 +65,7 @@ test("adapter verifies shared volume cap, covers both IP families and keeps port
   const q = router.tables["/queue/simple"].find(r => r.name === FUP_QUEUE)!;
   assert.equal(q.target, "HOTSPOT1,HOTSPOT2");
   assert.equal(Number(q["total-max-limit"]), plan.totalBps);
+  assert.equal(q["max-limit"], `${plan.uploadBps}/${plan.downloadBps}`);
   for (const family of ["/ip", "/ipv6"]) assert.equal(router.tables[`${family}/firewall/filter`].filter(r => r.action === "drop" && r.chain === "forward").length, 2);
   const boot = router.tables["/system/scheduler"].find(r => r.name === FUP_BOOT)!;
   assert.equal(boot.interval, "0s");

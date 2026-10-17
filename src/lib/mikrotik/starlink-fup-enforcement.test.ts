@@ -14,8 +14,11 @@ test("conservative shared cap covers the weakest remaining link and reserve PCQ"
   const plan = buildFupEnforcement(links, ledger, at);
   assert.equal(plan.stop, false);
   assert.equal(plan.reserve, true);
-  const safeBps = Math.floor((200e9 * 8 / (3.5 * 86400)) * 0.95);
+  const safeBps = Math.floor((200e9 * 8 / (3.5 * 86400)) * 0.8);
   assert.ok(plan.totalBps <= safeBps && safeBps - plan.totalBps <= 1);
+  assert.equal(plan.uploadBps + plan.downloadBps, plan.totalBps);
+  assert.equal(plan.uploadBps, Math.floor(plan.totalBps / 5));
+  assert.ok(plan.downloadBps > plan.uploadBps);
   assert.match(plan.script, /20261021/);
   assert.match(plan.script, /20261110/);
   assert.match(plan.bootScript, /slh-fup-stop-/);
