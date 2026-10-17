@@ -125,7 +125,7 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
       await upsert(client, "/queue/type", "name", `slh-fup-${direction}`, { kind: "pcq", "pcq-classifier": classifier, "pcq-rate": plan.reserve ? rate : "0" });
     }
     await upsert(client, "/queue/simple", "name", FUP_QUEUE, {
-      target: targets.join(","), "max-limit": `${plan.totalBps}/${plan.totalBps}`, "total-max-limit": `${plan.totalBps}`,
+      target: targets.join(","), "max-limit": `${plan.uploadBps}/${plan.downloadBps}`, "total-max-limit": `${plan.totalBps}`,
       queue: "slh-fup-up/slh-fup-down", "total-queue": "default-small", "burst-limit": "0/0", disabled: "no",
     });
     const [q] = await client.talk(["/queue/simple/print", `?name=${FUP_QUEUE}`], 15000);
@@ -146,7 +146,7 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
   }
   if (!plan.stop) {
     const [queue] = await client.talk(["/queue/simple/print", `?name=${FUP_QUEUE}`], 15000);
-    if (!queue || Number(queue["total-max-limit"]) !== plan.totalBps || queue.disabled === "true") throw new Error("Plafond partagé non confirmé sur le routeur.");
+    if (!queue || Number(queue["total-max-limit"]) !== plan.totalBps || queue["max-limit"] !== `${plan.uploadBps}/${plan.downloadBps}` || queue.disabled === "true") throw new Error("Plafond partagé non confirmé sur le routeur.");
   }
   return { fastTrackIds, backup, appliedAt: new Date().toISOString(), totalBps: plan.totalBps, reserve: plan.reserve, stopped: plan.stop, baselineKey: plan.baselineKey, typeNames: [...ownedQueueTypes.get(client)!] };
   } catch (error) {

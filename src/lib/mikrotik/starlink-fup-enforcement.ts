@@ -19,8 +19,12 @@ export function buildFupEnforcement(links: FupLink[], ledger: Record<string, Fup
   // One GB stays unused as a guard band for the local 5-second polling interval,
   // counter granularity and packets already in flight. This is not a provider meter.
   const stop = budgets.some(({ budget }) => (budget.remainingGB ?? 0) <= 1);
-  const totalBps = stop ? 0 : Math.floor(Math.min(...budgets.map(b => b.budget.aggregateBps!)) * 0.95);
-  if (!stop && totalBps < 1) throw new Error("Budget trop faible pour un débit positif : ne pas créer une file illimitée.");
+  const totalBps = stop ? 0 : Math.floor(Math.min(...budgets.map(b => b.budget.aggregateBps!)) * 0.8);
+  if (!stop && totalBps < 2) throw new Error("Budget trop faible pour deux débits positifs : ne pas créer une file illimitée.");
+  // Bound the sum of BOTH directions, independently of global-total HTB
+  // accounting (which did not match actual WAN bytes on the live HotSpot).
+  const uploadBps = stop ? 0 : Math.max(1, Math.floor(totalBps / 5));
+  const downloadBps = stop ? 0 : totalBps - uploadBps;
   const reserve = budgets.some(b => b.budget.phase === "reserve");
   const block = `/ip firewall filter set [find where comment~"^${FUP_STOP}"] disabled=no; /ipv6 firewall filter set [find where comment~"^${FUP_STOP}"] disabled=no`;
   const parts = [
@@ -48,7 +52,7 @@ export function buildFupEnforcement(links: FupLink[], ledger: Record<string, Fup
     `:if ($safe = false) do={ ${block} }`,
   ];
   if (stop) parts.splice(2, 0, ":set safe false");
-  return { stop, totalBps, reserve, budgets,
+  return { stop, totalBps, uploadBps, downloadBps, reserve, budgets,
     baselineKey: links.map(l => `${l.id}:${ledger[l.id].baselineAt ?? ledger[l.id].at}`).join("|"),
     bootScript: block,
     script: `:do { ${parts.join("; ")} } on-error={ ${block}; :log error "SafeLinkHub FUP: verification locale impossible, Internet suspendu" }`,
