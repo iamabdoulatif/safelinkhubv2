@@ -1,0 +1,13 @@
+[Unit]
+Description=Actualise les accès WebFig/MikHmon du relais
+
+[Timer]
+# Actualise rapidement les nouveaux liens et restaure la configuration après
+# un redémarrage ou un rechargement de la base.
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

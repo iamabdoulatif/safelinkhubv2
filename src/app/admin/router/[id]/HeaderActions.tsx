@@ -27,12 +27,14 @@ import {
   speedTestRouter,
   reconfigureMikhmonSession,
   getMikhmonAdminCredentials,
+  resetMikhmonAdminPassword,
   fixRouterMikhmonLocalAccess,
 } from "@/lib/mikrotik/actions";
 import { reinstallMikhmonContainer } from "@/lib/mikrotik/container-setup";
 import { reposerPortailRouteur } from "@/lib/captive-templates/actions";
 import type { ActionDestructive } from "@/lib/mikrotik/action-destructive";
 import RouterDangerDialog from "../RouterDangerDialog";
+import MikhmonCredentialsDialog from "./MikhmonCredentialsDialog";
 
 /**
  * Barre d'actions de la fiche routeur — quatre niveaux, pas huit boutons.
@@ -78,6 +80,13 @@ export default function HeaderActions({
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
   const [confirming, setConfirming] = useState<ActionDestructive | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [mikhmonOpen, setMikhmonOpen] = useState(false);
+  const [mikhmonPassword, setMikhmonPassword] = useState<string | null>(null);
+  const [mikhmonLoading, setMikhmonLoading] = useState(false);
+  const [mikhmonResetting, setMikhmonResetting] = useState(false);
+  const [mikhmonError, setMikhmonError] = useState<string | null>(null);
+  const [mikhmonSuccess, setMikhmonSuccess] = useState<string | null>(null);
+  const [mikhmonRevealed, setMikhmonRevealed] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -122,6 +131,37 @@ export default function HeaderActions({
 
   const busy = pending;
   const spinner = <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />;
+
+  function openMikhmonCredentials() {
+    setMenuOpen(false);
+    setMikhmonOpen(true);
+    setMikhmonPassword(null);
+    setMikhmonError(null);
+    setMikhmonSuccess(null);
+    setMikhmonRevealed(false);
+    setMikhmonLoading(true);
+    void getMikhmonAdminCredentials(routerId).then((res) => {
+      setMikhmonLoading(false);
+      if (res?.error) setMikhmonError(res.error);
+      else setMikhmonPassword(res?.password ?? null);
+    });
+  }
+
+  function resetMikhmonCredentials() {
+    setMikhmonError(null);
+    setMikhmonSuccess(null);
+    setMikhmonResetting(true);
+    void resetMikhmonAdminPassword(routerId).then((res) => {
+      setMikhmonResetting(false);
+      if (res?.error) setMikhmonError(res.error);
+      else {
+        setMikhmonPassword("1234");
+        setMikhmonRevealed(false);
+        setMikhmonSuccess(res?.summary ?? "Mot de passe MikHmon restauré à 1234.");
+        router.refresh();
+      }
+    });
+  }
 
   function openMenu() {
     const r = menuButton.current?.getBoundingClientRect();
@@ -269,7 +309,7 @@ export default function HeaderActions({
             icon={KeyRound}
             label="Identifiants MikHmon"
             hint="Mot de passe posé par SafeLinkHub à la place du « 1234 » d'usine."
-            onClick={() => run("mikhmon-creds", () => getMikhmonAdminCredentials(routerId))}
+            onClick={openMikhmonCredentials}
           />
           <MenuItem
             icon={RefreshCw}
@@ -321,6 +361,23 @@ export default function HeaderActions({
           onClose={() => {
             setConfirming(null);
             setDialogError(null);
+          }}
+        />
+      )}
+
+      {mikhmonOpen && (
+        <MikhmonCredentialsDialog
+          routerName={routerName}
+          password={mikhmonPassword}
+          loading={mikhmonLoading}
+          resetting={mikhmonResetting}
+          error={mikhmonError}
+          success={mikhmonSuccess}
+          revealed={mikhmonRevealed}
+          onReveal={() => setMikhmonRevealed((value) => !value)}
+          onReset={resetMikhmonCredentials}
+          onClose={() => {
+            if (!mikhmonResetting) setMikhmonOpen(false);
           }}
         />
       )}

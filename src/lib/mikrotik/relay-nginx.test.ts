@@ -16,6 +16,7 @@ describe("routage des instances MikHmon cloud", () => {
       ],
     });
     assert.match(config, /listen 57007 ssl;/, "les redirections par port restent servies par nginx");
+    assert.match(config, /error_page 497 =301 https:\/\/\$host:\$server_port\$request_uri;/, "les anciens liens HTTP sont redirigés vers HTTPS");
     assert.doesNotMatch(config, /listen 443/, "plus aucun vhost sur le port que Traefik détient");
     assert.doesNotMatch(config, /mikhmon\.safelinkhub\.io/);
   });

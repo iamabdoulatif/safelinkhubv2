@@ -16,6 +16,7 @@ function relayForwardServer(forward: RelayWebForward): string {
     `  server_name ${forward.relayHost};\n` +
     `  ssl_certificate     /etc/nginx/certs/wildcard.crt;\n` +
     `  ssl_certificate_key /etc/nginx/certs/wildcard.key;\n` +
+    `  error_page 497 =301 https://$host:$server_port$request_uri;\n` +
     `  error_page 502 503 504 =503 /offline-${forward.publicPort}.html;\n` +
     `  location = /offline-${forward.publicPort}.html {\n` +
     `    root /etc/nginx/slh-errors;\n` +

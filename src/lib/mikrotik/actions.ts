@@ -50,6 +50,7 @@ import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
 import { getOrCreateMikhmonAdminPassword } from "./mikhmon-admin-password";
 import { decryptSecret } from "./crypto";
+import { MIKHMON_DEFAULT_PASSWORD } from "./hardening";
 import { isValidCoordinate } from "@/lib/geo/geocode";
 
 /**
@@ -1423,7 +1424,7 @@ export async function getMikhmonAdminCredentials(routerId: string) {
   } catch {
     return { error: "Mot de passe MikHmon illisible." };
   }
-  return { summary: `MikHmon — identifiant : mikhmon · mot de passe : ${password}` };
+  return { password, summary: `MikHmon — identifiant : mikhmon · mot de passe : ${password}` };
 }
 
 export async function reconfigureMikhmonSession(routerId: string) {
@@ -1489,6 +1490,76 @@ export async function reconfigureMikhmonSession(routerId: string) {
     return { success: true, summary: `Session MikHmon « SafeLinkHub » reconfigurée (hotspot ${hotspot}, DNS ${dns}).` };
   } catch (err) {
     return { error: err instanceof Error ? `Échec : ${err.message}` : "Échec de la reconfiguration." };
+  } finally {
+    client.close();
+  }
+}
+
+/** Restaure volontairement le mot de passe MikHmon d'usine pour récupérer un accès perdu. */
+export async function resetMikhmonAdminPassword(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 30000);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Routeur injoignable : ${err.message}. Il doit être en ligne.`
+          : "Routeur injoignable (doit être en ligne).",
+    };
+  }
+  try {
+    const conts = await client.talk(["/container/print", "=detail"]).catch(() => [] as Record<string, string>[]);
+    const mk = conts.find(
+      (c) => /mikhmon/i.test(String(c.name ?? "")) || /mikhmon/i.test(String(c["root-dir"] ?? "")),
+    );
+    if (!mk?.[".id"]) return { error: "Aucun conteneur MikHmon sur ce routeur." };
+    const rootDir = String(mk["root-dir"] ?? "").replace(/^\//, "");
+    const profs = await client.talk(["/ip/hotspot/profile/print", "=detail"]).catch(() => [] as Record<string, string>[]);
+    const prof = profs.find((p) => p.name && p.name !== "default") ?? {};
+    const hotspot = String(prof.name ?? router.name);
+    const dns = String(prof["hotspot-address"] ?? "");
+    const wrote = await writeMikhmonSession(
+      client,
+      rootDir,
+      "SafeLinkHub",
+      {
+        ip: "11.11.11.1",
+        user: router.username,
+        pass: decryptSecret(router.passwordEncrypted),
+        hotspot,
+        dns,
+        adminPassword: MIKHMON_DEFAULT_PASSWORD,
+        currency: "fcfa",
+        autoload: 10,
+        iface: 1,
+        infolp: "",
+        idle: "disable",
+        livereport: "enable",
+      },
+      mk[".id"],
+    );
+    if (!wrote.ok) return { error: `Écriture impossible : ${wrote.error}` };
+    await db
+      .update(routers)
+      .set({ mikhmonAdminPasswordEncrypted: encryptSecret(MIKHMON_DEFAULT_PASSWORD), mikhmonSessionAt: new Date() })
+      .where(eq(routers.id, routerId));
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: "Mot de passe MikHmon restauré à 1234. Modifiez-le après récupération de l'accès." };
+  } catch (err) {
+    return { error: err instanceof Error ? `Échec : ${err.message}` : "Échec de la restauration du mot de passe." };
   } finally {
     client.close();
   }

@@ -1,0 +1,19 @@
+[Unit]
+Description=SafeLinkHub — synchronise les accès WebFig/MikHmon du relais
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Ajuste le chemin si le fichier .env du relais est ailleurs.
+EnvironmentFile=/root/safelinkhub-app/.env
+ExecStart=/usr/bin/bash -ceu '
+  tmp=$(mktemp /run/slh-forwards.XXXXXX)
+  trap "rm -f \"$tmp\"" EXIT
+  curl -fsS --retry 3 --connect-timeout 10 \
+    -H "Authorization: Bearer ${CRON_SECRET}" \
+    "${RELAY_NGINX_APP_URL:-https://safelinkhub.io}/api/internal/relay-nginx" > "$tmp"
+  install -o root -g root -m 0644 "$tmp" /etc/nginx/conf.d/slh-forwards.conf
+  nginx -t
+  systemctl reload nginx
+'

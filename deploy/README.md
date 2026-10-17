@@ -62,6 +62,22 @@ garde l'EC2 allumé en secours jusqu'à la fin de la Phase 3.
    ```
    Cette route EXIGE `Authorization: Bearer $CRON_SECRET`
    (voir `src/app/api/cron/voucher-expiry-sync/route.ts`).
+
+   **Accès WebFig/MikHmon sur les ports publics** — obligatoire pour que les
+   liens `https://sN.safelinkhub.io:<port>` répondent :
+   ```bash
+   sudo cp deploy/relay-nginx-sync.service deploy/relay-nginx-sync.timer \
+     /etc/systemd/system/
+   # Ajuste EnvironmentFile= si ton .env n'est pas /root/safelinkhub-app/.env
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now relay-nginx-sync.timer
+   sudo systemctl start relay-nginx-sync.service   # synchronisation immédiate
+   journalctl -u relay-nginx-sync.service -n 30 --no-pager
+   ```
+   Le service appelle `/api/internal/relay-nginx`, écrit les vhosts TLS dans
+   `/etc/nginx/conf.d/slh-forwards.conf`, valide Nginx puis le recharge. Il
+   utilise `CRON_SECRET`; si l'application n'est pas joignable par son domaine
+   public depuis le VPS, définis `RELAY_NGINX_APP_URL` avec son URL interne.
 7. **Test** avant bascule DNS : `curl -H 'Host: safelinkhub.io' http://31.97.153.83`
    ou un `/etc/hosts` temporaire. Le DNS apex pointe déjà le VPS, donc dès que le
    conteneur répond, `https://safelinkhub.io` sert l'app auto-hébergée.

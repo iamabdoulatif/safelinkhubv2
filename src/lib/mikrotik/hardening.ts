@@ -28,8 +28,10 @@ export const HARDENING_COMMENT = "safelinkhub-securite";
 const HOTSPOT_LIST = "slh-hotspot";
 const MAC_ADMIN_LIST = "slh-mac-admin";
 const CONTAINER_NET = "11.11.11.0/28";
-/** Mot de passe d'usine de MikHmon (« 1234 ») chiffré par MikHmon (legacy). */
-export const MIKHMON_DEFAULT_PASSWORD_ENC = mikhmonLegacyEncrypt("1234");
+/** Mot de passe d'usine de MikHmon (« 1234 »). */
+export const MIKHMON_DEFAULT_PASSWORD = "1234";
+/** Mot de passe d'usine de MikHmon chiffré par MikHmon (legacy). */
+export const MIKHMON_DEFAULT_PASSWORD_ENC = mikhmonLegacyEncrypt(MIKHMON_DEFAULT_PASSWORD);
 
 type Row = Record<string, string>;
 
