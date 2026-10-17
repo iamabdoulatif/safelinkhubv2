@@ -264,4 +264,14 @@ alter table auto_setup_authorizations
 create index if not exists auto_setup_authorizations_serial_idx on auto_setup_authorizations (org_id, serial_number);
 `.trim(),
   },
+  {
+    id: "0016_starlink_fup_links",
+    sql: `
+ALTER TABLE router_regulation ADD COLUMN IF NOT EXISTS fup_links jsonb;
+ALTER TABLE router_regulation ADD COLUMN IF NOT EXISTS fup_ledger jsonb;
+ALTER TABLE router_regulation ADD COLUMN IF NOT EXISTS fup_observation jsonb;
+ALTER TABLE router_regulation ADD COLUMN IF NOT EXISTS fup_mode text NOT NULL DEFAULT 'observation';
+ALTER TABLE router_regulation ADD COLUMN IF NOT EXISTS fup_runtime jsonb;
+`.trim(),
+  },
 ];

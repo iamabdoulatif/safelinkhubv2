@@ -1,5 +1,8 @@
 # Régulation du trafic
 
+> FUP Starlink par liaison (17/10/2026) : voir [le contrat v2](starlink-fup-v2.md).
+> Les sites v2 utilisent le moteur serveur partagé entre cron et n8n `/enforce`, pas la cascade historique ci-dessous.
+
 > **Depuis le 22/09/2026, la DÉCISION vit dans la plateforme**, pas dans n8n :
 > `src/lib/mikrotik/regulation-decision.ts` (fonction pure, testée) exécutée
 > par `/api/cron/regulation`, que le cron du VPS appelle toutes les 5 minutes

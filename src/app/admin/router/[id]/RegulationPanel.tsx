@@ -5,6 +5,7 @@ import { Bot, Loader2 } from "lucide-react";
 import { readRouterRegulation, saveRouterRegulation } from "@/lib/mikrotik/regulation-actions";
 import { REGULATION_DEFAULTS, type RegulationForm } from "@/lib/mikrotik/regulation-defaults";
 import { buttonClass } from "@/components/ui/Button";
+import StarlinkFupPanel from "./StarlinkFupPanel";
 
 type View = Awaited<ReturnType<typeof readRouterRegulation>>;
 
@@ -95,7 +96,14 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
   const events = (view && "events" in view && view.events) || [];
   const usedPct = state && form.softCapGo > 0 ? Math.min(999, (state.monthBytes / (form.softCapGo * 1024 ** 3)) * 100) : null;
 
+  const starlink = view && "fupLinks" in view && <StarlinkFupPanel routerId={routerId}
+    links={view.fupLinks ?? []} ledger={view.fupLedger ?? {}} active={view.fupMode === "active"} runtime={view.fupRuntime ?? null}
+    onSaved={async () => { setView(await readRouterRegulation(routerId)); }} />;
+  if (view && "fupLinks" in view && view.fupLinks?.length) return starlink;
+
   return (
+    <>
+    {starlink}
     <section className="rounded-xl border border-line bg-paper p-4 sm:p-5">
       <h3 className="flex items-center gap-2 text-base font-semibold text-ink">
         <Bot aria-hidden="true" className="h-5 w-5" /> Régulation du débit (bridage automatique)
@@ -241,5 +249,6 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
         </>
       )}
     </section>
+    </>
   );
 }
