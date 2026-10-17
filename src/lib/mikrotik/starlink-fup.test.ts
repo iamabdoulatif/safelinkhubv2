@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { advanceFupLedger, calculateFupBudget, validateFupLinks, type FupLink } from "./starlink-fup";
+import { advanceFupLedger, calculateFupBudget, sameFupLinks, validateFupLinks, type FupLink } from "./starlink-fup";
 
 const at = new Date("2026-10-17T12:00:00Z");
 const link: FupLink = {
@@ -89,4 +89,10 @@ test("uptime detects a reboot even when the new byte counter exceeds the old one
   const after = advanceFupLedger(link, before, 999999, new Date(at.getTime() + 300000), 120);
   assert.equal(after.baselineConfirmed, false);
   assert.equal(after.issue, "router_reboot_reconcile_required");
+});
+
+test("a JSONB key-order change does not leave the newly saved baseline form disabled", () => {
+  const fromDb = Object.fromEntries(Object.entries(link).reverse()) as FupLink;
+  assert.equal(sameFupLinks([link], [fromDb]), true);
+  assert.equal(sameFupLinks([link], [{ ...fromDb, cycleEnd: "2026-12-03T00:00:00Z" }]), false);
 });

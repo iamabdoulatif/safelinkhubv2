@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveStarlinkFupLinks, reconcileStarlinkBaseline, setStarlinkFupActive } from "@/lib/mikrotik/regulation-actions";
-import type { FupLink, FupLedger } from "@/lib/mikrotik/starlink-fup";
+import { sameFupLinks, type FupLink, type FupLedger } from "@/lib/mikrotik/starlink-fup";
 import { suggestedStarlinkLinks } from "@/lib/mikrotik/starlink-fup-presets";
 import type { FupRuntime } from "@/lib/mikrotik/starlink-fup-router";
 
@@ -19,7 +19,7 @@ export default function StarlinkFupPanel({ routerId, links: saved, ledger, activ
     setMessage("");
     try {
       const result = await task();
-      setMessage(result.error ?? "Réglage enregistré et état du routeur vérifié.");
+      setMessage(result.error ?? "Réglage enregistré.");
       if (result.ok) await onSaved();
     } catch { setMessage("Enregistrement impossible. Vérifiez la connexion au routeur puis réessayez."); }
   });
@@ -43,7 +43,7 @@ export default function StarlinkFupPanel({ routerId, links: saved, ledger, activ
         <p className="text-sm text-ink-soft">{ledger[link.id]?.baselineConfirmed ? `Dernier cumul estimé : ${(ledger[link.id].cycleUsedBytes / 1e9).toFixed(2)} Go, relevé du ${new Date(ledger[link.id].at).toLocaleString("fr-FR", { timeZone: "UTC" })} UTC.` : "Référence de consommation à confirmer. Aucun budget utilisable pour une limitation."}</p>
         <label>Consommation actuelle affichée par Starlink (Go)<input type="number" min="0" step="0.01" className="field mt-1" value={used[link.id] ?? ""} onChange={e => { setUsed(v => ({ ...v, [link.id]: e.target.value })); setConfirmed(v => ({ ...v, [link.id]: false })); }} /></label>
         <label className="block text-sm"><input type="checkbox" checked={confirmed[link.id] ?? false} onChange={e => setConfirmed(v => ({ ...v, [link.id]: e.target.checked }))} /> Je viens de vérifier ce relevé dans le compte Starlink de cette liaison.</label>
-        <button type="button" className="btn btn-sm btn-secondary" disabled={pending || !confirmed[link.id] || !used[link.id] || JSON.stringify(saved) !== JSON.stringify(links)} onClick={() => run(() => reconcileStarlinkBaseline(routerId, link.id, Number(used[link.id]), new Date().toISOString()))}>Rapprocher le compteur avec Starlink</button>
+        <button type="button" className="btn btn-sm btn-secondary" disabled={pending || !confirmed[link.id] || !used[link.id] || !sameFupLinks(saved, links)} onClick={() => run(() => reconcileStarlinkBaseline(routerId, link.id, Number(used[link.id]), new Date().toISOString()))}>Rapprocher le compteur avec Starlink</button>
         <p className="text-xs text-ink-soft">Le cumul MikroTik est une estimation entre deux rapprochements ; le relevé Starlink peut être différé. Une nouvelle vérification est nécessaire après un redémarrage ou un changement de cycle.</p>
       </div>}
     </fieldset>)}
@@ -51,6 +51,6 @@ export default function StarlinkFupPanel({ routerId, links: saved, ledger, activ
       <button type="button" className="btn btn-sm btn-outline" disabled={active || pending || links.length >= 8} onClick={() => setLinks(all => [...all, { id: `wan-${Date.now()}`, name: `Starlink ${all.length + 1}`, interface: "", quotaGB: 5000, reserveGB: 500, cycleStart: "", cycleEnd: "", cycleConfirmed: false }])}>Ajouter une liaison</button>
       <button type="button" className="btn btn-sm btn-secondary" disabled={active || pending || !links.length} onClick={() => run(() => saveStarlinkFupLinks(routerId, links))}>Enregistrer en observation</button>
     </div>
-    {message && <p role="status" className="mt-3 text-sm">{message}</p>}
+    {pending ? <p role="status" className="mt-3 text-sm">Vérification en cours…</p> : message && <p role="status" className="mt-3 text-sm">{message}</p>}
   </section>;
 }
