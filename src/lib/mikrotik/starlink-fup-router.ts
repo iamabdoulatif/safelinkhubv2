@@ -22,6 +22,19 @@ async function removeScript(client: RouterOSClient, name: string) {
 }
 export type FupRuntime = { fastTrackIds: string[]; backup: string; appliedAt: string; totalBps: number; reserve: boolean; stopped: boolean; baselineKey?: string; typeNames?: string[] };
 
+/** Conntrack entries can expire between print and remove on a live router. */
+export async function clearFastTrackedConnections(client: RouterOSClient) {
+  const connections = (await client.talk(["/ip/firewall/connection/print", "=.proplist=.id,fasttrack"], 15000))
+    .filter(c => c.fasttrack === "true" || c.fasttrack === "yes");
+  for (let offset = 0; offset < connections.length; offset += 32) {
+    const results = await client.talkBatch(connections.slice(offset, offset + 32)
+      .map(c => ["/ip/firewall/connection/remove", `=numbers=${c[".id"]}`]), 30000);
+    for (const result of results) {
+      if (result.status === "rejected" && !/^no such item(?: \(4\))?$/.test(String(result.reason?.message ?? result.reason))) throw result.reason;
+    }
+  }
+}
+
 /** All resources have dedicated names; never reuse an unowned matching object. */
 async function upsert(client: RouterOSClient, path: string, field: string, value: string, params: Record<string, string>) {
   if (path === "/queue/type") {
@@ -87,10 +100,7 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
   try {
   for (const id of fastTrackIds) await client.talk(["/ip/firewall/filter/set", `=numbers=${id}`, "=disabled=yes"], 15000);
   // Established FastTracked flows keep bypassing queues until they are removed.
-  const connections = await client.talk(["/ip/firewall/connection/print", "=.proplist=.id,fasttrack"], 15000);
-  for (const c of connections.filter(c => c.fasttrack === "true" || c.fasttrack === "yes")) {
-    await client.talk(["/ip/firewall/connection/remove", `=numbers=${c[".id"]}`], 15000);
-  }
+  await clearFastTrackedConnections(client);
   await upsert(client, "/interface/list", "name", FUP_LIST, {});
   for (const { link } of plan.budgets) {
     const [member] = await client.talk(["/interface/list/member/print", `?list=${FUP_LIST}`, `?interface=${link.interface}`], 15000);
