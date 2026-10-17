@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createPortal } from "react-dom";
 import {
   Activity,
   ChevronDown,
+  X,
   Gauge,
   KeyRound,
   LayoutTemplate,
@@ -43,7 +43,7 @@ import MikhmonCredentialsDialog from "./MikhmonCredentialsDialog";
  *      quotidien (« le lien tient-il ? ») et elle ne casse rien.
  *   2. « Modifier » (secondaire) et « Maintenance ▾ » : les gestes rares
  *      (reposer le portail, optimiser WiFi/débit) rangés hors de vue, avec la
- *      réinstallation de MikHmon isolée en rouge en bas du menu.
+ *      réinstallation de MikHmon isolée dans les options avancées du panneau.
  *   3. « Actualiser » : passif, donc discret — un bouton fantôme collé à la
  *      fraîcheur de la synchro qu'il rafraîchit.
  *   4. « Supprimer » : seul, tout à droite, séparé par un filet — jamais
@@ -77,7 +77,6 @@ export default function HeaderActions({
   const [running, setRunning] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
   const [confirming, setConfirming] = useState<ActionDestructive | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [mikhmonOpen, setMikhmonOpen] = useState(false);
@@ -88,33 +87,24 @@ export default function HeaderActions({
   const [mikhmonSuccess, setMikhmonSuccess] = useState<string | null>(null);
   const [mikhmonRevealed, setMikhmonRevealed] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDialogElement>(null);
 
-  // Fermeture du menu : clic hors, Échap ; le focus revient sur le bouton.
   useEffect(() => {
     if (!menuOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node) && !menuButton.current?.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMenuOpen(false);
-        menuButton.current?.focus();
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
+    const dialog = menuRef.current;
+    const trigger = menuButton.current;
+    const previousOverflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+      trigger?.focus();
     };
   }, [menuOpen]);
 
   /** Lance une action, affiche son résultat, recharge la page. */
   function run(key: string, task: () => Promise<{ error?: string | null; summary?: string } | undefined | null>, okText?: string) {
-    setMenuOpen(false);
     setNotice(null);
     setRunning(key);
     start(async () => {
@@ -122,6 +112,8 @@ export default function HeaderActions({
         const res = await task();
         if (res?.error) setNotice({ kind: "err", text: res.error });
         else setNotice({ kind: "ok", text: res?.summary ?? okText ?? "Terminé." });
+      } catch {
+        setNotice({ kind: "err", text: "L’opération a échoué. Veuillez réessayer." });
       } finally {
         setRunning(null);
         router.refresh();
@@ -164,8 +156,6 @@ export default function HeaderActions({
   }
 
   function openMenu() {
-    const r = menuButton.current?.getBoundingClientRect();
-    if (r) setAnchor({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
     setMenuOpen((o) => !o);
   }
 
@@ -222,9 +212,9 @@ export default function HeaderActions({
           type="button"
           disabled={busy}
           onClick={openMenu}
-          aria-haspopup="menu"
+          aria-haspopup="dialog"
           aria-expanded={menuOpen}
-          aria-controls="router-maintenance-menu"
+          aria-controls="router-maintenance-panel"
           className={SECONDARY}
         >
           <Wrench aria-hidden="true" className="h-4 w-4" />
@@ -268,87 +258,118 @@ export default function HeaderActions({
         </p>
       )}
 
-      {menuOpen && anchor && createPortal(
-        <div
+      {menuOpen && (
+        <dialog
           ref={menuRef}
-          id="router-maintenance-menu"
-          role="menu"
-          aria-label="Actions de maintenance"
-          className="fixed z-50 w-72 overflow-hidden rounded-xl border border-line bg-paper py-1 shadow-menu"
-          style={{ top: anchor.top, right: anchor.right }}
+          id="router-maintenance-panel"
+          aria-labelledby="maintenance-title"
+          onCancel={() => setMenuOpen(false)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              const rect = event.currentTarget.getBoundingClientRect();
+              if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setMenuOpen(false);
+            }
+          }}
+          className="fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-dvh w-full max-w-none border-0 border-l border-line bg-paper p-0 text-ink shadow-modal backdrop:bg-slate-deep/40 sm:w-[440px]"
         >
-          <MenuItem
-            icon={LayoutTemplate}
-            label="Reposer le portail captif"
-            hint="Réécrit les fichiers du portail — fait redescendre les prix corrigés dans Forfaits."
-            onClick={() =>
-              run(
-                "repose",
-                async () => {
-                  const r = await reposerPortailRouteur(routerId);
-                  if ("error" in r && r.error) return { error: r.error };
-                  const nom = "portail" in r ? r.portail : "captif";
-                  return { summary: `Portail « ${nom} » reposé — les prix suivent la page Forfaits.` };
-                },
-              )
-            }
-          />
-          <MenuItem
-            icon={Gauge}
-            label="Optimiser le WiFi"
-            hint="SSID unifié (band steering), 5 GHz en 80 MHz, 2,4 GHz en 20 MHz."
-            onClick={() => run("wifi", () => optimizeRouterWifi(routerId), "WiFi optimisé.")}
-          />
-          <MenuItem
-            icon={Zap}
-            label="Optimiser le débit"
-            hint="Fasttrack sur les connexions établies, sans casser le filtrage."
-            onClick={() => run("tune", () => optimizeRouterThroughput(routerId), "Débit optimisé.")}
-          />
-          <MenuItem
-            icon={KeyRound}
-            label="Identifiants MikHmon"
-            hint="Mot de passe posé par SafeLinkHub à la place du « 1234 » d'usine."
-            onClick={openMikhmonCredentials}
-          />
-          <MenuItem
-            icon={RefreshCw}
-            label="Restaurer la session MikHmon"
-            hint="Régénère la configuration MikHmon (suppression accidentelle)."
-            onClick={() =>
-              run(
-                "mikhmon",
-                () => reconfigureMikhmonSession(routerId),
-                "Session MikHmon restaurée.",
-              )
-            }
-          />
-          <MenuItem
-            icon={Globe}
-            label="Autoriser l'accès local à MikHmon"
-            hint="Ouvre http://<passerelle>:8087 depuis le Wi-Fi (dst-nat + règle hotspot)."
-            onClick={() =>
-              run(
-                "mikhmon-local",
-                () => fixRouterMikhmonLocalAccess(routerId),
-                "Accès local MikHmon ouvert.",
-              )
-            }
-          />
-          <div role="separator" className="my-1 border-t border-line-soft" />
-          <MenuItem
-            icon={PackageOpen}
-            label="Réinstaller MikHmon"
-            hint="Supprime et recrée le conteneur (1 à 3 min). Demande confirmation."
-            danger
-            onClick={() => {
-              setMenuOpen(false);
-              setDialogError(null);
-              setConfirming("reinstall");
-            }}
-          />
-        </div>,
-        document.body,
+          <div className="flex h-full flex-col">
+            <header className="flex shrink-0 items-start gap-3 border-b border-line bg-paper px-5 py-5 sm:px-6">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand text-slate-deep"><Wrench className="h-5 w-5" aria-hidden="true" /></span>
+              <div className="min-w-0 flex-1">
+                <h2 id="maintenance-title" className="text-lg font-bold">Maintenance</h2>
+                <p className="mt-1 truncate text-sm text-ink-soft">{routerName}</p>
+              </div>
+              <button type="button" onClick={() => setMenuOpen(false)} aria-label="Fermer la maintenance" className="rounded-full p-2 text-ink-soft hover:bg-clay focus-visible:outline-2 focus-visible:outline-brand-deep"><X className="h-5 w-5" aria-hidden="true" /></button>
+            </header>
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
+              <p className="mb-6 text-sm leading-6 text-ink-soft">Choisissez une action pour consulter ses détails avant de la lancer.</p>
+              <fieldset disabled={busy} className="min-w-0 space-y-6 disabled:opacity-60">
+              <section aria-label="Réseau">
+                <GroupTitle>Réseau</GroupTitle>
+                <div className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line">
+                  <MenuItem icon={Gauge} label="Optimiser le Wi-Fi" hint="Unifie le SSID (band steering), règle le 5 GHz en 80 MHz et le 2,4 GHz en 20 MHz." onClick={() => run("wifi", () => optimizeRouterWifi(routerId), "Wi-Fi optimisé.")} />
+                  <MenuItem icon={Zap} label="Optimiser le débit" hint="Active Fasttrack sur les connexions établies, sans modifier le filtrage." onClick={() => run("tune", () => optimizeRouterThroughput(routerId), "Débit optimisé.")} />
+                </div>
+              </section>
+              <section aria-label="Portail captif">
+                <GroupTitle>Portail captif</GroupTitle>
+                <div className="overflow-hidden rounded-xl border border-line">
+                  <MenuItem
+                    icon={LayoutTemplate}
+                    label="Réappliquer le portail"
+                    hint="Met à jour le portail captif avec les tarifs actuels de la page Forfaits."
+                    onClick={() =>
+                      run(
+                        "repose",
+                        async () => {
+                          const r = await reposerPortailRouteur(routerId);
+                          if ("error" in r && r.error) return { error: r.error };
+                          const nom = "portail" in r ? r.portail : "captif";
+                          return { summary: `Portail « ${nom} » reposé — les prix suivent la page Forfaits.` };
+                        },
+                      )
+                    }
+                  />
+                </div>
+              </section>
+              <section aria-label="MikHmon">
+                <GroupTitle>MikHmon</GroupTitle>
+                <div className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line">
+                  <MenuItem
+                    icon={KeyRound}
+                    label="Voir les identifiants"
+                    hint="Consultez le mot de passe d’administration MikHmon de ce routeur."
+                    onClick={openMikhmonCredentials}
+                  />
+                  <MenuItem
+                    icon={Globe}
+                    label="Autoriser l’accès local"
+                    hint="Permet d’ouvrir MikHmon depuis le Wi-Fi du routeur à l’adresse http://<passerelle>:8087."
+                    onClick={() =>
+                      run(
+                        "mikhmon-local",
+                        () => fixRouterMikhmonLocalAccess(routerId),
+                        "Accès local MikHmon ouvert.",
+                      )
+                    }
+                  />
+                  <MenuItem
+                    icon={RefreshCw}
+                    label="Restaurer la session"
+                    hint="Régénère la configuration MikHmon (suppression accidentelle)."
+                    onClick={() =>
+                      run(
+                        "mikhmon",
+                        () => reconfigureMikhmonSession(routerId),
+                        "Session MikHmon restaurée.",
+                      )
+                    }
+                  />
+                </div>
+              </section>
+              <details className="group border-t border-line pt-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between py-2 text-xs font-bold uppercase tracking-wider text-ink-soft">Options avancées<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" /></summary>
+                <div className="mt-3 overflow-hidden rounded-xl border border-err/30">
+                  <MenuItem
+                    icon={PackageOpen}
+                    label="Réinstaller MikHmon"
+                    hint="Supprime et recrée le conteneur (1 à 3 min). Demande confirmation."
+                    danger
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setDialogError(null);
+                      setConfirming("reinstall");
+                    }}
+                  />
+                </div>
+              </details>
+              </fieldset>
+            </div>
+            <footer className="shrink-0 border-t border-line bg-clay/40 px-5 py-4 sm:px-6" aria-live="polite">
+              {busy ? <p role="status" className="flex items-center gap-2 text-sm font-semibold text-ink">{spinner} Opération en cours…</p> : notice ? <p role={notice.kind === "err" ? "alert" : "status"} className={`text-sm font-medium ${notice.kind === "err" ? "text-err" : "text-ok"}`}>{notice.text}</p> : <p className="text-xs leading-5 text-ink-soft">Les actions s’appliquent uniquement à ce routeur.</p>}
+            </footer>
+          </div>
+        </dialog>
       )}
 
       {confirming && (
@@ -399,19 +420,20 @@ function MenuItem({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onClick}
-      className={`flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors ${
-        danger ? "text-err hover:bg-err-soft" : "text-ink hover:bg-clay"
-      }`}
-    >
-      <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold leading-5">{label}</span>
-        <span className={`block text-xs leading-4 ${danger ? "text-err/80" : "text-ink-soft"}`}>{hint}</span>
-      </span>
-    </button>
+    <details className="group/action">
+      <summary className={`flex cursor-pointer list-none items-center gap-3 px-4 py-4 transition-colors focus-visible:outline-2 focus-visible:outline-brand-deep ${danger ? "text-err hover:bg-err-soft" : "text-ink hover:bg-clay"}`}>
+        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${danger ? "bg-err-soft" : "bg-clay text-brand-deep"}`}><Icon aria-hidden="true" className="h-4 w-4" /></span>
+        <span className="min-w-0 flex-1 text-sm font-semibold">{label}</span>
+        <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 transition-transform group-open/action:rotate-180" />
+      </summary>
+      <div className="px-4 pb-4 pl-16">
+        <p className="text-sm leading-6 text-ink-soft">{hint}</p>
+        <button type="button" onClick={onClick} className={`mt-3 ${danger ? DANGER : PRIMARY}`}>{danger ? "Continuer vers la confirmation" : label}</button>
+      </div>
+    </details>
   );
+}
+
+function GroupTitle({ children }: { children: React.ReactNode }) {
+  return <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">{children}</h3>;
 }
