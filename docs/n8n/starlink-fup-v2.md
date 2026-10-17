@@ -41,8 +41,10 @@ de cycle, refaire ce rapprochement ; aucun crédit n'est recréé silencieusemen
   familles IP. Le portail local et l'administration du routeur en `input` ne sont
   pas bloqués. Cela ne garantit pas exactement le volume facturé par Starlink :
   ses relevés peuvent être différés, arrondis et compter du trafic différent.
-- Le marqueur local est volatil : un reboot suspend le trafic Internet jusqu'à
-  rapprochement. La fin d'un cycle ne réinitialise pas automatiquement le crédit.
+- Une tâche de démarrage séparée suspend le trafic Internet après un reboot ;
+  les contrôles locaux ne peuvent jamais rétablir le crédit ou rouvrir le trafic.
+  La plateforme exige un rapprochement avant de lever cette protection.
+  La fin d'un cycle ne réinitialise pas automatiquement le crédit.
   L'exploitant confirme le nouveau cycle et sa référence puis relance le FUP.
 - FastTrack est désactivé et ses connexions existantes fermées ; les premiers
   flux clients peuvent se reconnecter. Une sauvegarde binaire du routeur précède

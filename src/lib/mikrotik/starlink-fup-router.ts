@@ -1,6 +1,6 @@
 import type { RouterOSClient } from "./client";
 import { quoteRos } from "./content-filter";
-import { FUP_QUEUE, FUP_SCRIPT, FUP_LIST, FUP_STOP, type buildFupEnforcement } from "./starlink-fup-enforcement";
+import { FUP_QUEUE, FUP_SCRIPT, FUP_BOOT, FUP_LIST, FUP_STOP, type buildFupEnforcement } from "./starlink-fup-enforcement";
 
 type Plan = ReturnType<typeof buildFupEnforcement>;
 const OWNER = "SafeLinkHub FUP v2";
@@ -68,9 +68,10 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
   // IPv6 must be covered too; an unavailable firewall is an activation failure.
   const ft6 = await client.talk(["/ipv6/firewall/filter/print", "?action=fasttrack-connection"], 15000);
   if (ft6.some(r => r.disabled !== "true")) throw new Error("FastTrack IPv6 actif : validation réseau spécifique requise.");
-  if (previous?.baselineKey === plan.baselineKey) {
-    const [marker] = await client.talk(["/system/script/environment/print", "=.proplist=name,value", "?name=slhFupReady"], 15000);
-    if (!marker || marker.value !== "true") throw new Error("Redémarrage détecté : rapprocher le compteur Starlink avant de rétablir Internet.");
+  if (previous?.baselineKey === plan.baselineKey && !plan.stop) {
+    const latched = (await client.talk(["/ip/firewall/filter/print", "=.proplist=comment,disabled"], 15000))
+      .some(r => r.comment?.startsWith(FUP_STOP) && r.disabled !== "true");
+    if (latched) throw new Error("Protection locale déclenchée : rapprocher le compteur Starlink avant de rétablir Internet.");
   }
 
   // Compile the script without executing its forwarding changes.
@@ -121,12 +122,10 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
     await client.talk(["/queue/simple/move", `=numbers=${q[".id"]}`, "=destination=0"], 15000);
   }
   await upsert(client, "/system/script", "name", FUP_SCRIPT, { source: plan.script, policy: "read,write,policy,test" });
-  await upsert(client, "/system/scheduler", "name", FUP_SCRIPT, { "on-event": FUP_SCRIPT, interval: "5s", "start-time": "startup", policy: "read,write,policy,test", disabled: "no" });
-  // The boot marker is deliberately volatile. After reboot the local guard
-  // stops Internet until the provider baseline has been reconciled again.
-  await upsert(client, "/system/script", "name", "slh-fup-init", { source: ":global slhFupReady true", policy: "read,write,policy,test" });
-  try { await client.talk(["/system/script/run", `=number=${(await scriptIndex(client)).get("slh-fup-init")![".id"]}`], 30000); }
-  finally { await removeScript(client, "slh-fup-init"); }
+  await upsert(client, "/system/scheduler", "name", FUP_SCRIPT, { "on-event": FUP_SCRIPT, interval: "5s", "start-time": "00:00:00", policy: "read,write,policy,test", disabled: "no" });
+  // A startup-only scheduler latches the stop rules after every reboot. Do
+  // not rely on sharing global variables between RouterOS execution contexts.
+  await upsert(client, "/system/scheduler", "name", FUP_BOOT, { "on-event": plan.bootScript, interval: "0s", "start-time": "startup", policy: "read,write,policy,test", disabled: "no" });
   await client.talk(["/system/script/run", `=number=${(await scriptIndex(client)).get(FUP_SCRIPT)![".id"]}`], 30000);
   for (const path of ["/ip/firewall/filter", "/ipv6/firewall/filter"]) {
     const rules = (await client.talk([`${path}/print`, "=.proplist=.id,comment,disabled"], 15000)).filter(r => r.comment?.startsWith(FUP_STOP));
@@ -149,13 +148,15 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
 /** Removes only FUP v2 resources. Existing hotspot tickets are untouched. */
 export async function releaseFupFromRouter(client: RouterOSClient, runtime: FupRuntime | null) {
   const typeNames = new Set([...(runtime?.typeNames ?? []), ...(ownedQueueTypes.get(client) ?? [])]);
-  const [scheduler] = await client.talk(["/system/scheduler/print", `?name=${FUP_SCRIPT}`], 15000);
-  if (scheduler?.comment === OWNER) await client.talk(["/system/scheduler/set", `=numbers=${scheduler[".id"]}`, "=disabled=yes"], 15000);
+  for (const name of [FUP_SCRIPT, FUP_BOOT]) {
+    const [scheduler] = await client.talk(["/system/scheduler/print", `?name=${name}`], 15000);
+    if (scheduler?.comment === OWNER) await client.talk(["/system/scheduler/set", `=numbers=${scheduler[".id"]}`, "=disabled=yes"], 15000);
+  }
   for (const path of ["/ip/firewall/filter", "/ipv6/firewall/filter"]) {
     const rules = await client.talk([`${path}/print`], 15000);
     for (const r of rules.filter(r => r.comment?.startsWith(FUP_STOP))) await client.talk([`${path}/remove`, `=numbers=${r[".id"]}`], 15000);
   }
-  for (const [path, field, value] of [["/system/scheduler", "name", FUP_SCRIPT], ["/system/script", "name", FUP_SCRIPT],
+  for (const [path, field, value] of [["/system/scheduler", "name", FUP_SCRIPT], ["/system/scheduler", "name", FUP_BOOT], ["/system/script", "name", FUP_SCRIPT],
     ["/queue/simple", "name", FUP_QUEUE], ["/queue/type", "name", "slh-fup-up"], ["/queue/type", "name", "slh-fup-down"],
     ["/interface/list/member", "list", FUP_LIST], ["/interface/list", "name", FUP_LIST]]) {
     const rows = await client.talk([`${path}/print`, `=.proplist=.id,name,${path === "/queue/type" ? "kind" : "comment"}`, `?${field}=${value}`], path === "/system/script" ? 60000 : 15000);

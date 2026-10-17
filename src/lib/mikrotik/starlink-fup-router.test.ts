@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { applyFupToRouter, releaseFupFromRouter } from "./starlink-fup-router";
-import { buildFupEnforcement, FUP_QUEUE } from "./starlink-fup-enforcement";
+import { buildFupEnforcement, FUP_QUEUE, FUP_SCRIPT, FUP_BOOT } from "./starlink-fup-enforcement";
 import { suggestedStarlinkLinks } from "./starlink-fup-presets";
 
 const at = new Date("2026-10-17T12:00:00Z");
@@ -52,6 +52,12 @@ test("adapter verifies shared volume cap, covers both IP families and keeps port
   assert.equal(q.target, "HOTSPOT1,HOTSPOT2");
   assert.equal(Number(q["total-max-limit"]), plan.totalBps);
   for (const family of ["/ip", "/ipv6"]) assert.equal(router.tables[`${family}/firewall/filter`].filter(r => r.action === "drop" && r.chain === "forward").length, 2);
+  const boot = router.tables["/system/scheduler"].find(r => r.name === FUP_BOOT)!;
+  assert.equal(boot.interval, "0s");
+  assert.equal(boot["start-time"], "startup");
+  assert.equal(router.tables["/system/scheduler"].find(r => r.name === FUP_SCRIPT)!.interval, "5s");
+  router.tables["/ip/firewall/filter"].find(r => r.comment === "slh-fup-stop-in")!.disabled = "false";
+  await assert.rejects(applyFupToRouter(router.client, plan, result), /Protection locale déclenchée/);
   assert.ok(!router.calls.some(w => w.includes("=chain=input") || w.includes("=disabled=yes") && w[0] === "/ip/hotspot/user/set"));
   await releaseFupFromRouter(router.client, result);
   assert.equal(router.tables["/ip/firewall/filter"].find(r => r[".id"] === "*ft")!.disabled, "false");
