@@ -1725,6 +1725,13 @@ export const routerRegulation = pgTable("router_regulation", {
     .primaryKey()
     .references(() => routers.id, { onDelete: "cascade" }),
   enabled: boolean("enabled").notNull().default(false),
+  // Opt-in FUP v2 : jamais exécuté par la cascade historique. Par WAN, cycles
+  // et baselines explicitement confirmés, en octets décimaux.
+  fupLinks: jsonb("fup_links").$type<import("../mikrotik/starlink-fup").FupLink[]>(),
+  fupLedger: jsonb("fup_ledger").$type<Record<string, import("../mikrotik/starlink-fup").FupLedger>>(),
+  fupObservation: jsonb("fup_observation").$type<{ at: string; state: Record<string, unknown>; watch: Record<string, unknown> }>(),
+  fupMode: text("fup_mode").notNull().default("observation"),
+  fupRuntime: jsonb("fup_runtime").$type<import("../mikrotik/starlink-fup-router").FupRuntime>(),
   // Seuils du rythme mensuel (lus par n8n). Cible à respecter, plafond absolu,
   // marge sur le budget du jour, avance tolérée avant de freiner.
   softCapMb: integer("soft_cap_mb").notNull(),

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerRegulation, routers } from "@/lib/db/schema";
 import { n8nAuthorized, policyOf, unauthorized } from "@/lib/mikrotik/regulation-api";
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     .select({ router: routers, regulation: routerRegulation })
     .from(routerRegulation)
     .innerJoin(routers, eq(routers.id, routerRegulation.routerId))
-    .where(eq(routerRegulation.enabled, true));
+    .where(or(eq(routerRegulation.enabled, true), sql`jsonb_array_length(coalesce(${routerRegulation.fupLinks}, '[]'::jsonb)) > 0`));
 
   return Response.json(
     rows.map(({ router, regulation }) => ({
@@ -21,8 +21,13 @@ export async function GET(request: Request) {
       online: router.status === "online",
       billingCycleDay: router.billingCycleDay ?? 1,
       policy: policyOf(regulation),
-      state: regulation.state ?? null,
-      watch: regulation.watch ?? {},
+      state: regulation.fupLinks?.length
+        ? { ...regulation.state, fupV2: regulation.fupObservation?.state }
+        : regulation.state ?? null,
+      watch: regulation.fupLinks?.length ? regulation.fupObservation?.watch ?? {} : regulation.watch ?? {},
+      fupLinks: (regulation.fupLinks ?? []).map(l => ({ ...l, wanInterface: l.interface })),
+      regulationMode: regulation.fupLinks?.length ? regulation.fupMode : "legacy",
+      fupRuntime: regulation.fupRuntime,
     })),
   );
 }

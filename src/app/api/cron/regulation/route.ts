@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   routerRegulation,
@@ -14,6 +14,7 @@ import { applyRegulation, readRegulationInputs, releaseRegulation } from "@/lib/
 import { decideRegulation } from "@/lib/mikrotik/regulation-decision";
 import { notifierClients } from "@/lib/mikrotik/regulation-notify";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
+import { runStarlinkFup } from "@/lib/mikrotik/starlink-fup-service";
 
 export const maxDuration = 300;
 
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
     .select({ router: routers, regulation: routerRegulation })
     .from(routerRegulation)
     .innerJoin(routers, eq(routers.id, routerRegulation.routerId))
-    .where(eq(routerRegulation.enabled, true));
+    .where(or(eq(routerRegulation.enabled, true), eq(routerRegulation.fupMode, "active")));
 
   // LES ROUTEURS EN LIGNE D'ABORD, puis les autres du relevé le plus ancien au
   // plus récent. Un routeur injoignable coûte les 12 s de son délai de
@@ -66,6 +67,9 @@ export async function GET(request: NextRequest) {
   // du budget tente les endormis par rotation, et un routeur revenu finit par
   // être repris — son relevé étant alors le plus ancien de la file.
   const file = lignes
+    // FUP v2 is opt-in and must never run the legacy punitive cascade.
+    // n8n observes these sites until per-WAN enforcement has been verified.
+    .filter((l) => !l.regulation.fupLinks?.length || l.regulation.fupMode === "active")
     .filter((l) => l.router.status !== "pending" && l.router.status !== "replaced")
     .sort((a, b) => {
       const rang = (s: string | null) => (s === "online" ? 0 : 1);
@@ -118,6 +122,7 @@ export async function GET(request: NextRequest) {
       while (curseurLib < aLiberer.length) {
         if (Date.now() > echeance) break;
         const { router, regulation } = aLiberer[curseurLib++];
+        if (regulation.fupLinks?.length) continue;
         let client: RouterOSClient;
         try {
           client = await connectToRouter(router, 12000);
@@ -149,6 +154,14 @@ export async function GET(request: NextRequest) {
 
   async function traiter(ligne: (typeof file)[number]) {
     const { router, regulation } = ligne;
+    if (regulation.fupLinks?.length) {
+      try {
+        const result = await runStarlinkFup(router.id);
+        bilan.traites++;
+        if (result.changed) bilan.changes.push(result.telegram);
+      } catch { bilan.injoignables.push(router.name); }
+      return;
+    }
 
     let client: RouterOSClient;
     try {
