@@ -39,6 +39,7 @@ function fake(failQueue = false, cpu = "20") {
     if (command === "/system/resource/print") return [{ "cpu-load": cpu }];
     if (command === "/system/clock/print") return [{ date: now.slice(0, 10), time: now.slice(11, 19), "gmt-offset": "+00:00" }];
     if (command === "/ip/hotspot/print") return [{ interface: "HOTSPOT1" }, { interface: "HOTSPOT2" }];
+    if (command === "/queue/simple/move" && words.includes("=destination=0") && words.includes(`=numbers=${tables["/queue/simple"]?.[0]?.[".id"]}`)) throw new Error("can not move object before itself");
     if (command === "/system/backup/save" || action === "run" || action === "move") return [];
     const rows = tables[path] ?? (tables[path] = []);
     const params = Object.fromEntries(words.slice(1).filter(w => w.startsWith("=")).map(w => { const n = w.indexOf("=", 1); return [w.slice(1, n), w.slice(n + 1)]; }));
@@ -69,6 +70,7 @@ test("adapter verifies shared volume cap, covers both IP families and keeps port
   assert.equal(boot.interval, "0s");
   assert.equal(boot["start-time"], "startup");
   assert.equal(router.tables["/system/scheduler"].find(r => r.name === FUP_SCRIPT)!.interval, "5s");
+  await applyFupToRouter(router.client, plan, result);
   router.tables["/ip/firewall/filter"].find(r => r.comment === "slh-fup-stop-in")!.disabled = "false";
   await assert.rejects(applyFupToRouter(router.client, plan, result), /Protection locale déclenchée/);
   assert.ok(!router.calls.some(w => w.includes("=chain=input") || w.includes("=disabled=yes") && w[0] === "/ip/hotspot/user/set"));

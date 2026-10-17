@@ -129,7 +129,10 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
       queue: "slh-fup-up/slh-fup-down", "total-queue": "default-small", "burst-limit": "0/0", disabled: "no",
     });
     const [q] = await client.talk(["/queue/simple/print", `?name=${FUP_QUEUE}`], 15000);
-    await client.talk(["/queue/simple/move", `=numbers=${q[".id"]}`, "=destination=0"], 15000);
+    const [firstQueue] = await client.talk(["/queue/simple/print", "=.proplist=.id"], 15000);
+    if (firstQueue && firstQueue[".id"] !== q[".id"]) {
+      await client.talk(["/queue/simple/move", `=numbers=${q[".id"]}`, `=destination=${firstQueue[".id"]}`], 15000);
+    }
   }
   await upsert(client, "/system/script", "name", FUP_SCRIPT, { source: plan.script, policy: "read,write,policy,test" });
   await upsert(client, "/system/scheduler", "name", FUP_SCRIPT, { "on-event": FUP_SCRIPT, interval: "5s", "start-time": "00:00:00", policy: "read,write,policy,test", disabled: "no" });
