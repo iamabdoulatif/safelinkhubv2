@@ -3,6 +3,7 @@ import { quoteRos } from "./content-filter";
 
 export const FUP_QUEUE = "slh-fup-shared";
 export const FUP_SCRIPT = "slh-fup-local-guard";
+export const FUP_BOOT = "slh-fup-boot-guard";
 export const FUP_LIST = "slh-fup-wan";
 export const FUP_STOP = "slh-fup-stop-";
 
@@ -22,10 +23,8 @@ export function buildFupEnforcement(links: FupLink[], ledger: Record<string, Fup
   if (!stop && totalBps < 1) throw new Error("Budget trop faible pour un débit positif : ne pas créer une file illimitée.");
   const reserve = budgets.some(b => b.budget.phase === "reserve");
   const block = `/ip firewall filter set [find where comment~"^${FUP_STOP}"] disabled=no; /ipv6 firewall filter set [find where comment~"^${FUP_STOP}"] disabled=no`;
-  const unblock = `/ip firewall filter set [find where comment~"^${FUP_STOP}"] disabled=yes; /ipv6 firewall filter set [find where comment~"^${FUP_STOP}"] disabled=yes`;
   const parts = [
-    ":global slhFupReady", ":local safe true",
-    ':if ([:typeof $slhFupReady] = "nothing") do={ :set safe false }',
+    ":local safe true",
     ':local d [/system clock get date]',
     ':if ([:len $d] != 10 || [:pick $d 4 5] != "-" || [:pick $d 7 8] != "-") do={ :error "FUP invalid clock format" }',
     ':local today [:tonum ([:pick $d 0 4] . [:pick $d 5 7] . [:pick $d 8 10])]',
@@ -44,11 +43,14 @@ export function buildFupEnforcement(links: FupLink[], ledger: Record<string, Fup
     // Other throughput optimizers must not silently re-enable a bypass.
     '/ip firewall filter set [find where action="fasttrack-connection"] disabled=yes',
     ...(!stop ? [`/queue simple move [find where name="${FUP_QUEUE}"] destination=0`] : []),
-    `:if ($safe = true) do={ ${unblock} } else={ ${block} }`,
+    // Local checks can only STOP forwarding, never silently restore credit.
+    // Only the server, after a confirmed baseline, may disable the stop rules.
+    `:if ($safe = false) do={ ${block} }`,
   ];
   if (stop) parts.splice(2, 0, ":set safe false");
   return { stop, totalBps, reserve, budgets,
     baselineKey: links.map(l => `${l.id}:${ledger[l.id].baselineAt ?? ledger[l.id].at}`).join("|"),
+    bootScript: block,
     script: `:do { ${parts.join("; ")} } on-error={ ${block}; :log error "SafeLinkHub FUP: verification locale impossible, Internet suspendu" }`,
   };
 }

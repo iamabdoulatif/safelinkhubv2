@@ -18,7 +18,9 @@ test("conservative shared cap covers the weakest remaining link and reserve PCQ"
   assert.ok(plan.totalBps <= safeBps && safeBps - plan.totalBps <= 1);
   assert.match(plan.script, /20261021/);
   assert.match(plan.script, /20261110/);
-  assert.match(plan.script, /slhFupReady/);
+  assert.match(plan.bootScript, /slh-fup-stop-/);
+  assert.equal(plan.script.match(/disabled=yes/g)?.length, 1); // FastTrack only
+  assert.doesNotMatch(plan.script, /slhFupReady/);
   assert.match(plan.script, /199000000000/);
   assert.doesNotMatch(plan.script, /:set.*[Bb]ase|month/);
 });

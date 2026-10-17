@@ -27,6 +27,12 @@ const GB = 1e9;
 const DAY = 86400000;
 const bytes = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
 
+/** PostgreSQL JSONB reorders object keys; compare configured values instead. */
+export function sameFupLinks(a: FupLink[], b: FupLink[]): boolean {
+  const fields: (keyof FupLink)[] = ["id", "name", "interface", "quotaGB", "reserveGB", "cycleStart", "cycleEnd", "cycleConfirmed"];
+  return a.length === b.length && a.every((link, i) => fields.every(key => link[key] === b[i][key]));
+}
+
 export function validateFupLinks(links: FupLink[]): string | null {
   if (!Array.isArray(links) || !links.length || links.length > 8) return "Une à huit liaisons requises.";
   const ids = new Set<string>(), interfaces = new Set<string>();
