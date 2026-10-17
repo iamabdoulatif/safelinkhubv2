@@ -22,6 +22,8 @@ test("conservative shared cap covers the weakest remaining link and reserve PCQ"
   assert.equal(plan.script.match(/disabled=yes/g)?.length, 1); // FastTrack only
   assert.doesNotMatch(plan.script, /slhFupReady/);
   assert.match(plan.script, /199000000000/);
+  assert.match(plan.script, /:if \(\[:pick \$q 0\] != \$first\)/);
+  assert.doesNotMatch(plan.script, /destination=0/);
   assert.doesNotMatch(plan.script, /:set.*[Bb]ase|month/);
 });
 test("exhaustion stops Internet forwarding rather than creating an unlimited zero queue", () => {
