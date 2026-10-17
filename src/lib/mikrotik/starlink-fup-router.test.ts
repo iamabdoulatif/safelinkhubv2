@@ -9,12 +9,13 @@ const links = suggestedStarlinkLinks("0c1fea72-50fb-4593-a740-ea2a3fe49c5f");
 test("expired FastTrack sessions are harmless; other cleanup errors still fail", async () => {
   const commands: string[][][] = [];
   const client = {
-    talk: async () => Array.from({ length: 65 }, (_, i) => ({ ".id": `*${i}`, fasttrack: i === 64 ? "false" : "true" })),
+    talk: async () => Array.from({ length: 513 }, (_, i) => ({ ".id": `*${i}`, fasttrack: i === 512 ? "false" : "true" })),
     talkBatch: async (batch: string[][]) => { commands.push(batch); return batch.map(() => ({ status: "rejected", reason: new Error("no such item (4)") })); },
   };
   await clearFastTrackedConnections(client as never);
   assert.equal(commands.length, 2);
-  assert.equal(commands.flat().length, 64);
+  assert.equal(commands.flat().length, 512);
+  assert.ok(commands.flat().every(words => words[1].startsWith("=.id=")));
   client.talkBatch = async () => [{ status: "rejected", reason: new Error("not enough permissions") }];
   await assert.rejects(clearFastTrackedConnections(client as never), /not enough permissions/);
 });

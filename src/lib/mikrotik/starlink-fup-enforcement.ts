@@ -42,7 +42,7 @@ export function buildFupEnforcement(links: FupLink[], ledger: Record<string, Fup
     }),
     // Other throughput optimizers must not silently re-enable a bypass.
     '/ip firewall filter set [find where action="fasttrack-connection"] disabled=yes',
-    ...(!stop ? [`/queue simple move [find where name="${FUP_QUEUE}"] destination=0`] : []),
+    ...(!stop ? [`:local q [/queue simple find where name="${FUP_QUEUE}"]; :if ([:len $q] != 1) do={ :error "FUP queue missing" }; :local first [:pick [/queue simple find] 0]; :if ([:pick $q 0] != $first) do={ /queue simple move $q destination=$first }`] : []),
     // Local checks can only STOP forwarding, never silently restore credit.
     // Only the server, after a confirmed baseline, may disable the stop rules.
     `:if ($safe = false) do={ ${block} }`,
