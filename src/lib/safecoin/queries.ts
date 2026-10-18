@@ -26,7 +26,7 @@ export function aggregateSafecoinEntries(rows: SafecoinReportEntry[]) {
     0,
   );
   const spent = completed.reduce(
-    (sum, row) => sum + (["vpn_charge", "auto_setup_charge"].includes(row.entryType) ? Math.abs(row.amountScCents) : 0),
+    (sum, row) => sum + (["vpn_charge", "auto_setup_charge", "multiwan_charge"].includes(row.entryType) ? Math.abs(row.amountScCents) : 0),
     0,
   );
   const fees = completed.reduce(
@@ -41,7 +41,7 @@ export function aggregateSafecoinEntries(rows: SafecoinReportEntry[]) {
     const day = row.createdAt.toISOString().slice(0, 10);
     const point = dailyMap.get(day) ?? { day, issued: 0, spent: 0, fees: 0 };
     if (row.status === "completed" && ISSUANCE_TYPES.has(row.entryType) && row.amountScCents > 0) point.issued += row.amountScCents;
-    if (row.status === "completed" && ["vpn_charge", "auto_setup_charge"].includes(row.entryType)) point.spent += Math.abs(row.amountScCents);
+    if (row.status === "completed" && ["vpn_charge", "auto_setup_charge", "multiwan_charge"].includes(row.entryType)) point.spent += Math.abs(row.amountScCents);
     if (row.status === "completed" && row.entryType === "fee") point.fees += Math.abs(row.amountScCents);
     dailyMap.set(day, point);
   }
@@ -82,7 +82,7 @@ export async function getSafecoinReport({ from, to }: { from: Date; to: Date }) 
     return {
       ...account,
       issuedScCents: orgRows.reduce((sum, row) => sum + (ISSUANCE_TYPES.has(row.entryType) && row.amountScCents > 0 ? row.amountScCents : 0), 0),
-      spentScCents: orgRows.reduce((sum, row) => sum + (["vpn_charge", "auto_setup_charge"].includes(row.entryType) ? Math.abs(row.amountScCents) : 0), 0),
+      spentScCents: orgRows.reduce((sum, row) => sum + (["vpn_charge", "auto_setup_charge", "multiwan_charge"].includes(row.entryType) ? Math.abs(row.amountScCents) : 0), 0),
     };
   });
 

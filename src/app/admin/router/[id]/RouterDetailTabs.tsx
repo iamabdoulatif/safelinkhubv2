@@ -11,10 +11,11 @@ import CaptivePortalPanel from "./CaptivePortalPanel";
 import UsagePanel from "./UsagePanel";
 import DualWanPanel from "./DualWanPanel";
 import WanStealthPanel from "./WanStealthPanel";
+import MultiwanPremiumPanel from "./MultiwanPremiumPanel";
 import TrafficHistoryPanel from "./TrafficHistoryPanel";
 import TicketDiagnosisPanel from "./TicketDiagnosisPanel";
 
-export type TabKey = "overview" | "history" | "diagnostic" | "filter" | "regulation" | "usage" | "resources" | "services";
+export type TabKey = "overview" | "multiwan" | "history" | "diagnostic" | "filter" | "regulation" | "usage" | "resources" | "services";
 
 /* Ordre = fréquence d'usage : ce qu'on regarde tous les jours d'abord, la
    configuration (une fois) en dernier.
@@ -26,6 +27,7 @@ export type TabKey = "overview" | "history" | "diagnostic" | "filter" | "regulat
 const TABS: { key: TabKey; label: string; icon: typeof Gauge }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutGrid },
   { key: "history", label: "Historique", icon: Activity },
+  { key: "multiwan", label: "Multi-WAN Premium", icon: SlidersHorizontal },
   { key: "usage", label: "Consommation", icon: Activity },
   { key: "diagnostic", label: "Diagnostic", icon: Stethoscope },
   { key: "filter", label: "Filtrage", icon: ShieldBan },
@@ -110,6 +112,8 @@ export default function RouterDetailTabs({
               overview
             ) : key === "history" ? (
               <TrafficHistoryPanel routerId={routerId} />
+            ) : key === "multiwan" ? (
+              <MultiwanPremiumPanel routerId={routerId} />
             ) : !online ? (
               <p className="border border-line bg-clay px-4 py-6 text-center text-sm text-ink-soft rounded-xl">
                 Le routeur doit être en ligne pour lire ses informations en direct.

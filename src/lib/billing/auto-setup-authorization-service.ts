@@ -1,3 +1,4 @@
+import { chargeWalletAtomically } from "@/lib/wallet/charge";
 // TEMPORAIRE — logique métier de la porte d'autorisation Auto-Setup.
 // Module "plain" (pas de "use server") : importable à la fois par les server
 // actions (auto-setup-authorization-actions.ts), les server components
@@ -271,7 +272,7 @@ export async function createApprovedAutoSetupAuthorization(input: {
   paymentMethod: string;
   adminNote: string;
 }): Promise<AutoSetupAuthorizationRow> {
-  const db = getDb();
+  const create = async (db: Pick<ReturnType<typeof getDb>, "insert">) => {
   const [row] = await db
     .insert(autoSetupAuthorizations)
     .values({
@@ -291,6 +292,12 @@ export async function createApprovedAutoSetupAuthorization(input: {
     })
     .returning();
   return row;
+  };
+  if (input.paymentMethod === "wallet") return chargeWalletAtomically({
+    orgId: input.orgId, type: "charge", amountCents: input.amountFcfa, status: "completed",
+    note: "Configuration automatique — " + (input.routerName ?? "routeur"), createdBy: input.userId,
+  }, create, input.routerId);
+  return create(getDb());
 }
 
 /** Filet : rejette une autorisation (ex. si le débit du solde échoue après coup). */

@@ -7,6 +7,7 @@ export type SafecoinEntryType =
   | "topup"
   | "vpn_charge"
   | "auto_setup_charge"
+  | "multiwan_charge"
   | "fee"
   | "admin_credit"
   | "admin_debit"

@@ -1881,3 +1881,19 @@ export const orgTelegramDeliveries = pgTable('org_telegram_deliveries', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   sentAt: timestamp('sent_at'),
 }, t=>[uniqueIndex('org_telegram_deliveries_event_idx').on(t.orgId,t.eventKey),index('org_telegram_deliveries_pending_idx').on(t.status,t.nextAttemptAt)]);
+
+/** A permanent, paid entitlement; scoped to organization AND router. */
+export const routerMultiwanLicenses = pgTable("router_multiwan_licenses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id").notNull().references(()=>organizations.id,{onDelete:"cascade"}),
+  routerId: uuid("router_id").notNull().references(()=>routers.id,{onDelete:"cascade"}),
+  purchasedBy: uuid("purchased_by").references(()=>users.id,{onDelete:"set null"}),
+  amountFcfa: integer("amount_fcfa").notNull(),
+  paymentSource: text("payment_source").notNull(),
+  scCents: integer("sc_cents"),
+  rateFcfaPerSc: integer("rate_fcfa_per_sc"),
+  paymentReference: text("payment_reference").notNull().unique(),
+  config: jsonb("config").$type<import("../multiwan/config").MultiwanConfig>(),
+  generatedAt: timestamp("generated_at"),
+  purchasedAt: timestamp("purchased_at").notNull().defaultNow(),
+},t=>[uniqueIndex("router_multiwan_licenses_org_id_router_id_key").on(t.orgId,t.routerId)]);

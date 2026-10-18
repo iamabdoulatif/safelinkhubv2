@@ -23,6 +23,7 @@ const entryLabels: Record<string, string> = {
   topup: "Recharge",
   vpn_charge: "VPN",
   auto_setup_charge: "Auto-Setup",
+  multiwan_charge: "Multi-WAN Premium",
   fee: "Frais",
   admin_credit: "Crédit admin",
   admin_debit: "Débit admin",

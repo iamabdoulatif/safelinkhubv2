@@ -42,6 +42,7 @@ function entryLabel(entry: Entry) {
   if (entry.entryType === "topup") return "Recharge Safecoin";
   if (entry.entryType === "vpn_charge") return "Accès VPN";
   if (entry.entryType === "auto_setup_charge") return "Auto-Setup";
+  if (entry.entryType === "multiwan_charge") return "Multi-WAN Premium";
   if (entry.entryType === "fee") return "Frais de service";
   if (entry.entryType === "reversal" || entry.entryType === "refund") return "Correction / remboursement";
   return "Opération Safecoin";

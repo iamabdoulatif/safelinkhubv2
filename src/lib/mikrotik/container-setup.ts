@@ -1,9 +1,11 @@
 "use server";
 
+
+
 import { and, asc, eq, isNull, notInArray, or } from "drizzle-orm";
 import type { AutoSetupHooks, AutoSetupStep } from "./autosetup-steps";
 import { getDb } from "@/lib/db";
-import { routers, organizations, captiveTemplates, walletTransactions, packages, bridges } from "@/lib/db/schema";
+import { routers, organizations, captiveTemplates, packages, bridges } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { connectToRouter } from "./router-sync";
@@ -36,6 +38,7 @@ import { awardReferral } from "@/lib/referrals/service";
 import {
   evaluateAutoSetupGate,
   consumeAuthorization,
+  createApprovedAutoSetupAuthorization,
 } from "@/lib/billing/auto-setup-authorization-service";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { getSafecoinAccount } from "@/lib/safecoin/ledger";
@@ -1148,7 +1151,7 @@ export async function provisionHotspotStack(
   // paiement a déjà eu lieu hors-app : on ne débite donc PAS aussi le
   // portefeuille (sinon double facturation). La porte remplace la facturation
   // wallet pour les non-superadmins. TODO: Remplacer par paiement intégré.
-  const billableCents =
+  let billableCents =
     isSuperAdmin(session.role) ||
     hasBonusFreeRouter ||
     gate.reason === "authorized" ||
@@ -1228,6 +1231,26 @@ export async function provisionHotspotStack(
     return { error: serialLock.error };
   }
 
+  // Legacy execution-time wallet billing now buys the same prepaid grant as
+  // the paywall BEFORE network configuration. If firmware restarts or setup
+  // fails, the approved grant remains available for retry without a new debit.
+  let walletPrepaidAuthorizationId: string | null = null;
+  if (balanceSource === "wallet" && billableCents && billableCents > 0) {
+    try {
+      const prepaid = await createApprovedAutoSetupAuthorization({
+        orgId: org.id, userId: session.userId, requesterEmail: session.email,
+        requesterName: session.name, routerId, routerName: router.name,
+        supportsContainers: opts.supportsContainers, amountFcfa: billableCents,
+        paymentMethod: "wallet", adminNote: "Paiement portefeuille confirmé avant la configuration",
+      });
+      walletPrepaidAuthorizationId = prepaid.id;
+      billableCents = null;
+      balanceSource = null;
+    } catch {
+      client.close();
+      return { error: "Solde portefeuille insuffisant ou paiement refusé. Aucune configuration lancée.", paywall: true as const };
+    }
+  }
   let safecoinCharge: { created: boolean; entryId?: string } | null = null;
   if (balanceSource === "safecoin") {
     const charge = await chargeAutoSetup({
@@ -2563,7 +2586,6 @@ export async function provisionHotspotStack(
       .where(and(eq(bridges.routerId, routerId), eq(bridges.hotspotEnabled, true)));
 
     if (billableCents !== null) {
-      await db.update(routers).set({ autoSetupBilled: true }).where(eq(routers.id, routerId));
       if (billableCents === 0) {
         await db
           .update(organizations)
@@ -2576,13 +2598,6 @@ export async function provisionHotspotStack(
             `OK: ${(safecoinRequiredScCents / 100).toLocaleString("fr-FR")} SC débités pour cette configuration.`,
           );
         } else {
-          await db.insert(walletTransactions).values({
-            orgId: org.id,
-            type: "charge",
-            amountCents: billableCents,
-            note: `Configuration automatique — ${router.name} (${opts.supportsContainers ? "Hotspot + MikHmon" : "Hotspot"})`,
-            createdBy: session.userId,
-          });
           log.push(
             `OK: ${billableCents.toLocaleString("fr-FR")} FCFA débités du portefeuille pour cette configuration.`,
           );
@@ -2590,11 +2605,15 @@ export async function provisionHotspotStack(
       }
     }
 
+    if (billableCents !== null || walletPrepaidAuthorizationId) await db.update(routers).set({ autoSetupBilled: true }).where(eq(routers.id, routerId));
+
     // Auto-setup réussi : consomme l'autorisation (une par paiement). Le
     // superadmin n'en a jamais, donc rien à consommer pour lui.
     if (gate.reason === "authorized" && gate.authorizationId) {
       await consumeAuthorization(gate.authorizationId);
     }
+
+    if (walletPrepaidAuthorizationId) await consumeAuthorization(walletPrepaidAuthorizationId);
 
     // Parrainage : le filleul vient de réussir un auto-setup → prime au parrain.
     // Idempotente (une seule fois par filleul) et best-effort : un auto-setup

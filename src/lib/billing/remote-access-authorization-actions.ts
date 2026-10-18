@@ -7,7 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
-import { routers, remoteAccessAuthorizations, walletTransactions, safecoinSettings } from "@/lib/db/schema";
+import { routers, remoteAccessAuthorizations, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
@@ -321,7 +321,9 @@ export async function payRemoteAccessFromBalance(formData: FormData): Promise<
     return { error: "Solde insuffisant (portefeuille et Safecoins) pour cet accès." };
   }
 
-  const auth = await createApprovedRemoteAccessAuthorization({
+  let auth;
+  try {
+    auth = await createApprovedRemoteAccessAuthorization({
     orgId: session.orgId,
     userId: session.userId,
     requesterEmail: session.email,
@@ -334,17 +336,11 @@ export async function payRemoteAccessFromBalance(formData: FormData): Promise<
     paymentMethod: source,
     adminNote: source === "wallet" ? "Payé avec le portefeuille (FCFA)" : "Payé avec les Safecoins",
   });
+  } catch {
+    return { error: "Paiement portefeuille refusé. Actualisez votre solde puis réessayez." };
+  }
 
-  if (source === "wallet") {
-    await db.insert(walletTransactions).values({
-      orgId: session.orgId,
-      type: "charge",
-      amountCents: amountFcfa,
-      status: "completed",
-      note: `Accès distant ${serviceLabel(service)} — ${periodLabel(billingPeriod)} — ${router.name ?? "routeur"}`,
-      createdBy: session.userId,
-    });
-  } else {
+  if (source === "safecoin") {
     const debit = await appendSafecoinDebit({
       orgId: session.orgId,
       userId: session.userId,

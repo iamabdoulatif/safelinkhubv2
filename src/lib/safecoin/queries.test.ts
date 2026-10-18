@@ -13,3 +13,9 @@ test("les agrégats Safecoin séparent émission, consommation et frais", () => 
   assert.equal(report.daily.length, 2);
   assert.equal(report.daily[0].issued, 1000);
 });
+
+test("Multi-WAN est comptabilisé comme une consommation de service", () => {
+ const report=aggregateSafecoinEntries([{orgId:'o1',amountScCents:-15000,entryType:'multiwan_charge',status:'completed',createdAt:new Date('2026-10-18')}]);
+ assert.equal(report.kpis.spent,15000);
+ assert.equal(report.daily[0].spent,15000);
+});

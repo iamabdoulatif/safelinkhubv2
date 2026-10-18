@@ -1,5 +1,8 @@
 "use server";
 
+import { chargeWalletAtomically } from "@/lib/wallet/charge";
+
+
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
@@ -8,7 +11,6 @@ import {
   routerPortForwards,
   routers,
   organizations,
-  walletTransactions,
 } from "@/lib/db/schema";
 import { getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getRouterVpnQuotaFields } from "@/lib/billing/router-vpn-quota";
@@ -301,15 +303,14 @@ async function chargeWalletForActivation(opts: {
   routerName: string;
   priceFcfa: number;
 }) {
-  const db = getDb();
-  await db.insert(walletTransactions).values({
+  await chargeWalletAtomically({
     orgId: opts.orgId,
     type: "charge",
     amountCents: opts.priceFcfa,
     note: `${opts.service} — ${opts.routerName}`,
     relatedForwardId: opts.forwardId,
     createdBy: opts.userId,
-  });
+  }, async () => undefined);
 }
 
 export async function enablePortForward(
@@ -467,6 +468,7 @@ export async function enablePortForward(
           await disablePortForward(result.forwardId);
           return { error: messageSoldeInsuffisant(verdict.manqueCents) };
         }
+        try {
         await chargeWalletForActivation({
           orgId: session.orgId,
           userId: session.userId,
@@ -476,6 +478,12 @@ export async function enablePortForward(
           routerName: router.name,
           priceFcfa,
         });
+        } catch {
+          const cleanup = await disablePortForward(result.forwardId);
+          return { error: cleanup.error
+            ? "Débit portefeuille refusé. La fermeture de l’accès distant a échoué ; contactez le support."
+            : "Débit portefeuille refusé ; l’accès distant a été refermé. Actualisez le solde." };
+        }
       }
     }
   }

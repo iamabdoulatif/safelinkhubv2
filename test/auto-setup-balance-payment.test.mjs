@@ -20,7 +20,8 @@ test("l'auto-setup se paie depuis le solde, comme l'accès distant", async () =>
   assert.match(source, /createApprovedAutoSetupAuthorization/);
   // Le portefeuille est débité par une écriture, les Safecoins par le débit
   // idempotent partagé avec le prélèvement d'exécution.
-  assert.match(source, /walletTransactions\)\.values\(/);
+  const service = await readFile(new URL("../src/lib/billing/auto-setup-authorization-service.ts", import.meta.url), "utf8");
+  assert.match(service, /chargeWalletAtomically/);
   assert.match(source, /chargeAutoSetup\(/);
   // Filet : si le débit Safecoin échoue après coup, l'autorisation est annulée
   // — sinon l'org obtiendrait un auto-setup gratuit.

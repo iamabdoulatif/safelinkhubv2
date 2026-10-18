@@ -1,3 +1,4 @@
+import { chargeWalletAtomically } from "@/lib/wallet/charge";
 // TEMPORAIRE — logique métier de la porte d'autorisation des accès distants.
 // Module "plain" : importable par les server actions, les server components
 // (dashboard) et la garde de enablePortForward.
@@ -235,7 +236,7 @@ export async function createApprovedRemoteAccessAuthorization(input: {
   paymentMethod: string;
   adminNote: string;
 }): Promise<RemoteAccessAuthorizationRow> {
-  const db = getDb();
+  const create = async (db: Pick<ReturnType<typeof getDb>, "insert">) => {
   const [row] = await db
     .insert(remoteAccessAuthorizations)
     .values({
@@ -256,6 +257,12 @@ export async function createApprovedRemoteAccessAuthorization(input: {
     })
     .returning();
   return row;
+  };
+  if (input.paymentMethod === "wallet") return chargeWalletAtomically({
+    orgId: input.orgId, type: "charge", amountCents: input.amountFcfa, status: "completed",
+    note: "Accès distant — " + (input.routerName ?? "routeur"), createdBy: input.userId,
+  }, create, input.routerId);
+  return create(getDb());
 }
 
 /** Filet : rejette une autorisation (ex. si le débit du solde échoue après coup). */

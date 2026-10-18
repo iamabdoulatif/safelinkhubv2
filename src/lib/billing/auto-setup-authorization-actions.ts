@@ -9,7 +9,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
-import { routers, autoSetupAuthorizations, walletTransactions, safecoinSettings } from "@/lib/db/schema";
+import { routers, autoSetupAuthorizations, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
@@ -351,7 +351,9 @@ export async function payAutoSetupFromBalance(formData: FormData): Promise<
     return { error: "Solde insuffisant (portefeuille et Safecoins) pour cette configuration." };
   }
 
-  const auth = await createApprovedAutoSetupAuthorization({
+  let auth;
+  try {
+    auth = await createApprovedAutoSetupAuthorization({
     orgId: session.orgId,
     userId: session.userId,
     requesterEmail: session.email,
@@ -363,17 +365,11 @@ export async function payAutoSetupFromBalance(formData: FormData): Promise<
     paymentMethod: source,
     adminNote: source === "wallet" ? "Payé avec le portefeuille (FCFA)" : "Payé avec les Safecoins",
   });
+  } catch {
+    return { error: "Paiement portefeuille refusé. Actualisez votre solde puis réessayez." };
+  }
 
-  if (source === "wallet") {
-    await db.insert(walletTransactions).values({
-      orgId: session.orgId,
-      type: "charge",
-      amountCents: amountFcfa,
-      status: "completed",
-      note: `Configuration automatique — ${router.name ?? "routeur"} (${mikrotikKindLabel(supportsContainers)}${dualWan ? ", dual WAN" : ""})`,
-      createdBy: session.userId,
-    });
-  } else {
+  if (source === "safecoin") {
     const debit = await chargeAutoSetup({
       orgId: session.orgId,
       userId: session.userId,
