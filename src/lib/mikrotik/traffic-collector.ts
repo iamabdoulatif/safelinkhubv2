@@ -12,7 +12,10 @@ import {
   type TrafficLink,
   type TrafficObservation,
 } from "./traffic-history";
-import { readTrafficObservation } from "./traffic-reader";
+import {
+  enableTrafficGraphing,
+  readTrafficObservation,
+} from "./traffic-reader";
 import { connectToRouter } from "./router-sync";
 import { detectUplinkInterfaces } from "./router-lock";
 import type { RouterOSClient } from "./client";
@@ -38,6 +41,7 @@ export function configuredTrafficLinks(
 }
 
 /** Lightweight collector first, separate from heavy health reconciliation.
+ * Native graphs are activated once, loopback-only until an admin changes access.
  * All network reads per router share an existing DB lock, released even on
  * failures. There is exactly one sample per router and five-minute bucket. */
 export async function collectTrafficHistory(budgetMs = 90000) {
@@ -99,6 +103,7 @@ export async function collectTrafficHistory(budgetMs = 90000) {
               }));
             let client: RouterOSClient | null = null;
             let observation: TrafficObservation;
+            let graphing = saved?.graphing ?? null;
             try {
               client = await connectToRouter(router, 7000, 1);
               if (!links.length)
@@ -115,6 +120,40 @@ export async function collectTrafficHistory(budgetMs = 90000) {
                 links,
                 4000,
               );
+              // The requested native backup history is enabled once per WAN.
+              // Default graph pages stay loopback-only; never open HTTP/firewall.
+              if (
+                observation.uptime !== null &&
+                links.length &&
+                links.some(
+                  (link) => !graphing?.interfaces.includes(link.interface),
+                )
+              ) {
+                try {
+                  const allowAddress = graphing?.allowAddress ?? "127.0.0.1/32";
+                  await enableTrafficGraphing(
+                    client,
+                    links.map((link) => link.interface),
+                    allowAddress,
+                  );
+                  graphing = {
+                    at: new Date().toISOString(),
+                    interfaces: links.map((link) => link.interface),
+                    allowAddress,
+                  };
+                } catch (error) {
+                  console.warn(
+                    JSON.stringify({
+                      msg: "traffic-graphing-failed",
+                      routerId: router.id,
+                      error:
+                        error instanceof Error
+                          ? error.message
+                          : "Graphing unavailable",
+                    }),
+                  );
+                }
+              }
             } catch {
               observation = {
                 at: Date.now(),
@@ -144,10 +183,10 @@ export async function collectTrafficHistory(budgetMs = 90000) {
             });
             await tx
               .insert(routerTrafficState)
-              .values({ routerId: router.id, baseline: state })
+              .values({ routerId: router.id, baseline: state, graphing })
               .onConflictDoUpdate({
                 target: routerTrafficState.routerId,
-                set: { baseline: state, updatedAt: new Date() },
+                set: { baseline: state, graphing, updatedAt: new Date() },
               });
             return true;
           });
