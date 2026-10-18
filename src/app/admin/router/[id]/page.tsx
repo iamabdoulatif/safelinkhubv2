@@ -63,7 +63,8 @@ function Badge({ tone, children }: { tone: "ok" | "brand" | "muted"; children: R
 export const maxDuration = 120;
 
 function parseTab(value: string | undefined) {
-  return value === "diagnostic" ||
+  return value === "history" ||
+    value === "diagnostic" ||
     value === "filter" ||
     value === "regulation" ||
     value === "usage" ||

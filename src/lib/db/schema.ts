@@ -1814,3 +1814,33 @@ export const agentLinkTokens = pgTable("agent_link_tokens", {
   revokedAt: timestamp("revoked_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Five-minute history. Retained centrally, independent of router reboots.
+export const routerTrafficSamples = pgTable("router_traffic_samples", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  routerId: uuid("router_id").notNull().references(() => routers.id, { onDelete: "cascade" }),
+  bucket: timestamp("bucket").notNull(),
+  measuredAt: timestamp("measured_at").notNull(),
+  payload: jsonb("payload").$type<import("../mikrotik/traffic-history").TrafficSample>().notNull(),
+}, table => [uniqueIndex("router_traffic_samples_bucket_idx").on(table.routerId, table.bucket), index("router_traffic_samples_measured_idx").on(table.routerId, table.measuredAt)]);
+
+export const routerTrafficState = pgTable("router_traffic_state", {
+  routerId: uuid("router_id").primaryKey().references(() => routers.id, { onDelete: "cascade" }),
+  baseline: jsonb("baseline").$type<import("../mikrotik/traffic-history").TrafficBaseline>(),
+  graphing: jsonb("graphing").$type<{ at: string; interfaces: string[]; allowAddress: string }>(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const routerTrafficIncidents = pgTable("router_traffic_incidents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  routerId: uuid("router_id").notNull().references(() => routers.id, { onDelete: "cascade" }),
+  linkId: text("link_id").notNull(),
+  kind: text("kind").$type<import("../mikrotik/traffic-history").TrafficCondition["kind"]>().notNull(),
+  source: text("source").$type<import("../mikrotik/traffic-history").TrafficCondition["source"]>().notNull(),
+  certainty: text("certainty").$type<import("../mikrotik/traffic-history").TrafficCondition["certainty"]>().notNull(),
+  evidence: text("evidence").notNull(),
+  startedAt: timestamp("started_at").notNull(),
+  endedAt: timestamp("ended_at"),
+  recordedBy: uuid("recorded_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, table => [index("router_traffic_incidents_router_idx").on(table.routerId, table.startedAt)]);
