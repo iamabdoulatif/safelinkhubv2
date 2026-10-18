@@ -129,7 +129,7 @@ const result = [{json:{routerId:router.routerId,name:router.name,mode:'observati
 
 const d=result[0].json;
 const runtime=router.fupRuntime;
-const lines=['[FUP] '+d.name,router.regulationMode==='active' ? 'FUP actif ; plafond partagé '+((runtime?.totalBps||0)/1e6).toFixed(2)+' Mbit/s envoi + réception.' : 'Observation : FUP désactivé.'];
+const lines=['[FUP] '+d.name,router.regulationMode==='active' ? runtime?.stopped ? 'Internet suspendu : quota épuisé ; portail local conservé.' : 'FUP actif ; plafond partagé '+((runtime?.totalBps||0)/1e6).toFixed(2)+' Mbit/s envoi + réception.' : 'Observation : FUP désactivé.'];
 if(d.fup.pool){const p=d.fup.pool;lines.push('Enveloppe cumulée : '+p.quotaGB+' Go','Consommés : '+(p.usedGB??'?')+' Go ; restants : '+(p.remainingGB??'?')+' Go','État cumulé : '+p.phase+' ; tickets 2M/2M sous plafond partagé.');}
 for(const l of d.fup.links)lines.push(l.name+' : '+(l.usedGB??'?')+' / '+l.quotaGB+' Go ; fin '+l.cycleEnd+' ; '+l.dataQuality);
 if(d.fup.issues.length)lines.push(d.fup.issues.join(' ; '));
