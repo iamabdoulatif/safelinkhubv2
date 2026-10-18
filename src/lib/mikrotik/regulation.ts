@@ -46,17 +46,17 @@ export async function readRegulationInputs(
 ): Promise<RegulationInputs> {
   const wan = wanInterface || (await detectUplinkInterfaces(client, timeoutMs)).join(",") || null;
   const counters = wan ? await readIfaceBytes(client, wan, timeoutMs) : null;
-  const rows = await client.talk(["/ip/hotspot/active/print"], timeoutMs).catch(() => []);
-  const active: ActiveSession[] = rows
-    .filter((r) => r["mac-address"])
-    .map((r) => ({
-      mac: r["mac-address"]!,
-      address: r.address ?? "",
-      user: r.user ?? "",
-      bytesOut: Number(r["bytes-out"] ?? 0),
-      bytesIn: Number(r["bytes-in"] ?? 0),
-    }));
+  const active = await readRegulationSessions(client, timeoutMs);
   return { wanInterface: wan, counters, active };
+}
+
+/** Only fetch the fields used by the automation; a failed read is never an empty hotspot. */
+export async function readRegulationSessions(client: RouterOSClient, timeoutMs = 10000): Promise<ActiveSession[]> {
+  const rows = await client.talk(["/ip/hotspot/active/print", "=.proplist=mac-address,address,user,bytes-out,bytes-in"], timeoutMs);
+  return rows.filter(r => r["mac-address"]).map(r => ({
+    mac: r["mac-address"]!, address: r.address ?? "", user: r.user ?? "",
+    bytesOut: Number(r["bytes-out"] ?? 0), bytesIn: Number(r["bytes-in"] ?? 0),
+  }));
 }
 
 export type RegulationBlock = {
