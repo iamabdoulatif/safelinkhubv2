@@ -1,5 +1,5 @@
 /** Form defaults, price and strict validation; safe for client-side previews. */
-export const MULTIWAN_PRICE_FCFA = 15_000;
+export const MULTIWAN_PRICE_FCFA = 30_000;
 export const UUID = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
 export type MultiwanWan = {
   interface: string;

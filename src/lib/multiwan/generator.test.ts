@@ -8,8 +8,8 @@ import {
 } from "./generator";
 const id = "00000000-0000-0000-0000-000000000001";
 
-test("price is 15000 FCFA and validation rejects injection, duplicates and incomplete WANs", () => {
-  assert.equal(MULTIWAN_PRICE_FCFA, 15000);
+test("price is 30000 FCFA and validation rejects injection, duplicates and incomplete WANs", () => {
+  assert.equal(MULTIWAN_PRICE_FCFA, 30000);
   const config = defaultMultiwanConfig();
   assert.equal(validateMultiwan(config), null);
   assert.ok(

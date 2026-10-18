@@ -1,6 +1,6 @@
 # Multi-WAN Premium implementation plan
 
-Goal: router-scoped 15 000 FCFA licence and a validated RouterOS multi-WAN script generator.
+Goal: router-scoped 30 000 FCFA licence and a validated RouterOS multi-WAN script generator.
 
 - [x] Add failing generator/pricing/validation tests, then implement pure generator with primary RouterOS references.
 - [x] Add next migration and mirrored SQL for router licences and saved generation settings.

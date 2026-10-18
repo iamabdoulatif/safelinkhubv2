@@ -189,7 +189,7 @@ export default function MultiwanPremiumPanel({
               Activé pour ce routeur
             </>
           ) : (
-            <>15 000 FCFA · paiement unique</>
+            <>30 000 FCFA · paiement unique</>
           )}
         </span>
       </header>

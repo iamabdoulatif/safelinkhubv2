@@ -53,11 +53,11 @@ test(
       for (const id of routes)
         await admin.query("insert into routers values($1,$2)", [id, org]);
       await admin.query(
-        "insert into wallet_transactions(org_id,type,amount_cents,status) values($1,'topup',45000,'completed')",
+        "insert into wallet_transactions(org_id,type,amount_cents,status) values($1,'topup',90000,'completed')",
         [org],
       );
       await admin.query(
-        "insert into safecoin_accounts(org_id,balance_sc_cents,status) values($1,45000,'active');",
+        "insert into safecoin_accounts(org_id,balance_sc_cents,status) values($1,90000,'active');",
         [org],
       );
       await admin.query("insert into safecoin_settings values(100)");
@@ -83,8 +83,8 @@ test(
       const same = await Promise.all([
         buy(routes[0]),
         buy(routes[0]),
-        buy(routes[0], "safecoin"),
       ]);
+      assert.equal((await buy(routes[0], "safecoin")).alreadyPaid, true);
       assert.equal(same.filter((r) => !r.alreadyPaid).length, 1);
       assert.equal(
         Number(
@@ -99,7 +99,7 @@ test(
       assert.equal(
         (await admin.query("select balance_sc_cents from safecoin_accounts"))
           .rows[0].balance_sc_cents,
-        45000,
+        90000,
       );
       await Promise.all([buy(routes[1]), buy(routes[2])]);
       await assert.rejects(buy(routes[3]), /insuffisant/);
@@ -107,13 +107,13 @@ test(
       assert.equal(
         (await admin.query("select balance_sc_cents from safecoin_accounts"))
           .rows[0].balance_sc_cents,
-        45000,
+        90000,
       );
       await buy(routes[3], "safecoin");
       assert.equal(
         (await admin.query("select balance_sc_cents from safecoin_accounts"))
           .rows[0].balance_sc_cents,
-        30000,
+        60000,
       );
       await assert.rejects(
         buy(routes[4], "safecoin", 100, otherOrg),
@@ -126,7 +126,7 @@ test(
       assert.equal(
         (await admin.query("select balance_sc_cents from safecoin_accounts"))
           .rows[0].balance_sc_cents,
-        30000,
+        60000,
       );
       assert.equal(
         Number(
@@ -136,7 +136,7 @@ test(
         1,
       );
       await admin.query(
-        "insert into wallet_transactions(org_id,type,amount_cents,status) values($1,'topup',15000,'completed')",
+        "insert into wallet_transactions(org_id,type,amount_cents,status) values($1,'topup',30000,'completed')",
         [org],
       );
       await assert.rejects(buy(routes[5]), /test rollback/);
@@ -148,7 +148,7 @@ test(
             )
           ).rows[0].balance,
         ),
-        15000,
+        30000,
       );
       await admin.query(
         "drop trigger reject_license on router_multiwan_licenses; create table test_grants (router_id uuid references routers(id))",
@@ -162,7 +162,7 @@ test(
           {
             orgId: org,
             type: "charge",
-            amountCents: 15000,
+            amountCents: 30000,
             status: "completed",
             createdBy: user,
           },
@@ -189,7 +189,7 @@ test(
         );
       assert.equal(await balance(), 0);
       await admin.query(
-        "insert into wallet_transactions(org_id,type,amount_cents,status) values($1,'topup',15000,'completed')",
+        "insert into wallet_transactions(org_id,type,amount_cents,status) values($1,'topup',30000,'completed')",
         [org],
       );
       await assert.rejects(
@@ -197,7 +197,7 @@ test(
           {
             orgId: org,
             type: "charge",
-            amountCents: 15000,
+            amountCents: 30000,
             status: "completed",
           },
           async () => {
@@ -208,7 +208,7 @@ test(
       );
       assert.equal(
         await balance(),
-        15000,
+        30000,
         "failed grant must roll back legacy wallet debit",
       );
       await getDb().$client.end();
