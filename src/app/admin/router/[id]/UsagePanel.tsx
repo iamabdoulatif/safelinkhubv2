@@ -14,6 +14,7 @@ import {
   removeRouterQuotaGuard,
   type QuotaGuardView,
 } from "@/lib/mikrotik/quota-guard-actions";
+import FupConfigurationHelp from "./FupConfigurationHelp";
 import { LINK_TYPES, formatBytes, type LinkType } from "@/lib/mikrotik/link-usage";
 import type { RouterUsage, ZoneUsage } from "@/lib/mikrotik/link-usage-reader";
 
@@ -111,6 +112,7 @@ export default function UsagePanel({ routerId }: { routerId: string }) {
 
   return (
     <div className="space-y-6">
+      <FupConfigurationHelp consumption />
       {/* ── Type de lien + quota total ── */}
       <div className="border border-line bg-paper p-5 rounded-xl">
         <div className="flex flex-wrap items-center justify-between gap-3">

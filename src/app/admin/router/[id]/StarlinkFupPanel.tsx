@@ -5,6 +5,7 @@ import { saveStarlinkFupLinks, reconcileStarlinkBaseline, setStarlinkFupActive, 
 import { sameFupLinks, type FupLink, type FupLedger } from "@/lib/mikrotik/starlink-fup";
 import { calculateFupPool } from "@/lib/mikrotik/starlink-fup-pool";
 import { suggestedStarlinkLinks } from "@/lib/mikrotik/starlink-fup-presets";
+import FupConfigurationHelp from "./FupConfigurationHelp";
 import type { FupRuntime } from "@/lib/mikrotik/starlink-fup-router";
 
 type Props = { routerId: string; links: FupLink[]; ledger: Record<string, FupLedger>; active: boolean; pooled?: boolean; runtime: FupRuntime | null; onSaved: () => Promise<void> };
@@ -26,7 +27,9 @@ export default function StarlinkFupPanel({ routerId, links: saved, ledger, activ
   });
 
   const pool = pooled ? calculateFupPool(saved, ledger, new Date()) : null;
-  return <section className="mb-5 rounded-xl border border-line bg-paper p-4 sm:p-5" aria-label={pooled ? "FUP Starlink cumulé" : "FUP Starlink par liaison"}>
+  return <>
+    <FupConfigurationHelp />
+    <section className="mb-5 rounded-xl border border-line bg-paper p-4 sm:p-5" aria-label={pooled ? "FUP Starlink cumulé" : "FUP Starlink par liaison"}>
     <h3 className="text-base font-semibold text-ink">{pooled ? "FUP : enveloppe cumulée des Starlink" : "Budget Starlink par liaison"}</h3>
     <p className="mt-1 text-sm text-ink-soft">{active ? "FUP actif." : "FUP en observation."} Chaque abonnement conserve son propre quota et son cycle. Les dates de fin ci-dessous sont exclusives, à 00:00 UTC.</p>
     <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={pooled} disabled={pending || active || saved.length < 2} onChange={e => run(() => setStarlinkFupPooled(routerId, e.target.checked))} className="mt-1" /><span>Cumuler les quotas des liaisons pour réguler le site. En mode cumulé, plafond par adresse de 2M/2M, même en réserve ; débit réel soumis au plafond partagé.</span></label>
@@ -56,5 +59,5 @@ export default function StarlinkFupPanel({ routerId, links: saved, ledger, activ
       <button type="button" className="btn btn-sm btn-secondary" disabled={active || pending || !links.length} onClick={() => run(() => saveStarlinkFupLinks(routerId, links))}>Enregistrer en observation</button>
     </div>
     {pending ? <p role="status" className="mt-3 text-sm">Vérification en cours…</p> : message && <p role="status" className="mt-3 text-sm">{message}</p>}
-  </section>;
+  </section></>;
 }

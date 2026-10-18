@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Configurer le FUP Starlink dans SafeLinkHub : guides pas à pas FOUANGA pour deux liaisons cumulées et KONGASSO pour une liaison, réglages, cycles et dépannage.">
+<title>Configurer le FUP Starlink — SafeLinkHub</title>
+<style>
+:root{color-scheme:light;--ink:#202f25;--muted:#556354;--line:#d9dfd2;--paper:#fffef9;--accent:#d9f462;--soft:#f0f4e9}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.7 system-ui,sans-serif}header,main,footer{max-width:1000px;margin:auto;padding:32px 28px}header{padding-top:48px;border-bottom:1px solid var(--line)}.brand{font-weight:800;letter-spacing:.08em;font-size:13px}.eyebrow{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.08em}h1,h2,h3{line-height:1.2;letter-spacing:-.025em}h1{font-size:clamp(32px,5vw,54px);max-width:760px;margin:20px 0}h2{font-size:30px;margin:0 0 16px}h3{font-size:21px;margin:30px 0 12px}p{margin:12px 0}.intro{max-width:760px;font-size:18px;color:var(--muted)}a{color:#365a23;text-underline-offset:4px}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #54722c;outline-offset:4px}button{padding:10px 16px;font:inherit;border:1px solid var(--ink);border-radius:8px;background:var(--accent);color:var(--ink);cursor:pointer}nav{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:26px 0}nav a{display:block;padding:18px;border:1px solid var(--line);border-radius:12px;text-decoration:none;background:white}nav strong,nav span{display:block}nav span{font-size:14px;color:var(--muted);margin-top:5px}section{padding:36px 0;border-bottom:1px solid var(--line)}.callout{background:var(--soft);border-left:4px solid #6b8a36;padding:15px 20px;margin:20px 0;border-radius:0 8px 8px 0}.important{background:#fff3d9;border-color:#b67b15}.tag{display:inline-block;padding:3px 10px;background:var(--accent);border-radius:30px;font-size:12px;font-weight:700;margin-bottom:14px}.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin:20px 0}table{border-collapse:collapse;width:100%;background:white;font-size:15px}th,td{text-align:left;vertical-align:top;padding:13px 15px;border-bottom:1px solid var(--line)}th{background:var(--soft)}tr:last-child td{border-bottom:0}code{font-size:.9em;background:var(--soft);padding:2px 5px;border-radius:4px;overflow-wrap:anywhere}ol,ul{padding-left:24px}li{padding-left:4px;margin:12px 0}.steps>li::marker{font-weight:800;color:#486329}small,.muted{color:var(--muted)}details{border-top:1px solid var(--line);padding:16px 0}summary{cursor:pointer;font-weight:700}footer{font-size:14px}.back{font-size:14px;display:inline-block;margin-top:20px}@media(max-width:640px){header,main,footer{padding:24px 18px}nav{grid-template-columns:1fr}h2{font-size:26px}th,td{padding:10px}section{padding:28px 0}}@media print{html{scroll-behavior:auto}body{background:white;font-size:11pt}header,main,footer{max-width:none;padding:16px 0}button,.back{display:none}nav{display:block}nav a{padding:6px 0;border:0}section{break-before:auto}h2,h3{break-after:avoid}tr,.callout{break-inside:avoid}.table-wrap{overflow:visible}a{color:inherit}details{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header id="debut">
+<div class="brand">SAFELINKHUB <span class="muted">/ GUIDE DE CONFIGURATION</span></div>
+<h1>Configurer votre FUP, étape par étape.</h1>
+<p class="intro">Le FUP adapte le débit partagé pour faire durer les données disponibles jusqu’à la prochaine échéance du cycle. Choisissez l’exemple correspondant à votre installation.</p>
+<nav aria-label="Choisir son guide">
+<a href="#fouanga"><strong>01 · FOUANGA</strong><span>Deux Starlink · enveloppe cumulée de 10 To</span></a>
+<a href="#kongasso"><strong>02 · KONGASSO</strong><span>Un Starlink · quota individuel de 5 To</span></a>
+<a href="#consommation"><strong>Consommation ou Régulation ?</strong><span>Choisir le bon écran et comprendre les zones WiFi</span></a>
+<a href="#depannage"><strong>Comprendre une alerte</strong><span>Compteurs, renouvellement, ralentissement et Telegram</span></a>
+</nav>
+<button type="button" onclick="document.querySelectorAll('details').forEach(d=>d.open=true);window.print()">Imprimer / enregistrer en PDF</button>
+<p><small>Exemples pédagogiques d’octobre 2026. Les consommations ci-dessous sont fictives ; aucune donnée de compte client n’est affichée. Adaptez les quotas, les interfaces et les dates à votre installation.</small></p>
+</header>
+<main>
+<section aria-labelledby="preparer">
+<h2 id="preparer">Avant de commencer</h2>
+<ol class="steps">
+<li><strong>Ouvrez chaque compte Starlink.</strong> Notez le quota total autorisé, la consommation déjà utilisée et les dates exactes du cycle de données. La date de paiement seule ne suffit pas.</li>
+<li><strong>Identifiez les interfaces du MikroTik.</strong> Repérez quel WAN est relié à quel Starlink. Dans nos exemples : <code>E1-WAN-FAI</code> et <code>E2-WAN-FAI</code>. Utilisez vos noms exacts.</li>
+<li><strong>Dans SafeLinkHub, ouvrez Réseau → Routeurs → votre routeur → Régulation.</strong> Pour plusieurs sites, configurez chaque routeur séparément.</li>
+</ol>
+<aside class="callout"><strong>Quota ≠ consommation.</strong> Pour un forfait de 5 To ayant déjà utilisé 4,2 To : le champ <strong>Quota total</strong> reste à <strong>5 000 Go</strong> ; le rapprochement reçoit <strong>4 200 Go consommés</strong>. N’indiquez ni 4 200 ni les 800 Go restants comme quota total.</aside>
+<p>Dans le FUP de Régulation, les volumes sont en <strong>Go décimaux : 1 To = 1 000 Go</strong>. La réserve est déjà comprise dans le quota ; 5 000 Go avec 500 Go de réserve représentent toujours 5 000 Go.</p>
+</section>
+<section id="fouanga" aria-labelledby="titre-fouanga">
+<span class="tag">EXEMPLE 1 · DEUX STARLINK</span>
+<h2 id="titre-fouanga">FOUANGA : une enveloppe cumulée de 10 To</h2>
+<p>Vous avez un Standard de 5 To et un Mini de 5 To sur le même MikroTik. Vous souhaitez piloter le débit du site à partir de leur solde cumulé, tout en conservant les cycles propres à chacun.</p>
+<h3>1. Renseigner les deux liaisons</h3>
+<p>Si le FUP est déjà actif et que vous devez modifier les liaisons, désactivez-le d’abord avec <strong>Désactiver le FUP et libérer le routeur</strong>. La modification des quotas et du cumul est verrouillée pendant son activation.</p>
+<p>Dans Régulation, cliquez sur <strong>Ajouter une liaison</strong> si aucune liaison n’est affichée. Remplissez la première, puis cliquez de nouveau sur <strong>Ajouter une liaison</strong> pour la seconde.</p>
+<div class="table-wrap"><table><caption class="muted">Valeurs d’exemple à adapter — les dates de fin sont exclusives.</caption><thead><tr><th scope="col">Champ</th><th scope="col">Standard</th><th scope="col">Mini</th></tr></thead><tbody>
+<tr><th scope="row">Nom</th><td>FOUANGA Standard</td><td>FOUANGA Mini</td></tr>
+<tr><th scope="row">Interface WAN</th><td><code>E1-WAN-FAI</code></td><td><code>E2-WAN-FAI</code></td></tr>
+<tr><th scope="row">Quota total (Go décimaux)</th><td>5 000</td><td>5 000</td></tr>
+<tr><th scope="row">Réserve incluse (Go)</th><td>500</td><td>500</td></tr>
+<tr><th scope="row">Début du cycle UTC</th><td>21 septembre 2026</td><td>10 octobre 2026</td></tr>
+<tr><th scope="row">Début du cycle suivant UTC</th><td>21 octobre 2026</td><td>10 novembre 2026</td></tr>
+</tbody></table></div>
+<p>Un cycle Starlink affiché « du 21 septembre au 20 octobre » se saisit donc du <strong>21 septembre au 21 octobre à 00 h UTC</strong>. « Du 10 octobre au 9 novembre » se termine le <strong>10 novembre à 00 h UTC</strong>.</p>
+<ol class="steps"><li>Cochez, pour chaque liaison, <strong>Ces dates sont celles du cycle de données indiqué par Starlink.</strong></li><li>Cliquez sur <strong>Enregistrer en observation</strong>.</li><li>Cochez <strong>Cumuler les quotas des liaisons pour réguler le site</strong>. Le quota affiché doit devenir <strong>10,00 To</strong>. Attendez la confirmation d’enregistrement.</li></ol>
+<h3>2. Rapprocher chaque compteur</h3>
+<ol class="steps"><li>Vérifiez de nouveau la consommation actuelle du Standard dans son compte Starlink.</li><li>Dans <strong>Consommation actuelle affichée par Starlink (Go)</strong>, saisissez cette consommation, cochez <strong>Je viens de vérifier ce relevé…</strong>, puis cliquez sur <strong>Rapprocher le compteur avec Starlink</strong>.</li><li>Recommencez pour le Mini depuis son propre compte. Faites ces opérations immédiatement après la vérification ; la confirmation doit être récente.</li></ol>
+<aside class="callout"><strong>Calcul illustratif :</strong> Standard utilisé : 4 200 Go ; Mini utilisé : 2 000 Go. L’enveloppe est de 10 000 Go, dont 6 200 Go utilisés et <strong>3 800 Go restants</strong>. Le logiciel recalcule ensuite le solde à partir des compteurs WAN.</aside>
+<h3>3. Activer et vérifier</h3>
+<ol class="steps"><li>Contrôlez les deux références, les dates et le solde cumulé. Si les données sont inconnues ou périmées, suivez le dépannage avant de continuer.</li><li>Cliquez sur <strong>Activer le FUP</strong> et attendez la confirmation.</li><li>Vérifiez <strong>FUP actif</strong> et le <strong>Plafond partagé</strong> affiché. Il est recalculé lors des passages réguliers, environ toutes les cinq minutes.</li></ol>
+<p>En mode cumulé, le plafond partagé est réparti à parts égales entre envoi et réception. La régulation prévoit <strong>2M/2M par adresse</strong>, y compris en réserve. Ce sont des plafonds : si la capacité partagée est insuffisante, chacun peut recevoir moins de 2 Mbit/s.</p>
+<aside class="callout important"><strong>Les cycles restent séparés.</strong> Dans cet exemple, le budget est calculé jusqu’au prochain changement de cycle à confirmer : le <strong>21 octobre</strong>. À cette échéance, le garde-fou peut suspendre Internet sur l’ensemble du site, même s’il reste du volume sur le Mini. Il faut confirmer le nouveau cycle et rapprocher les compteurs avant la reprise. Les deux forfaits ne sont pas recrédités automatiquement de 10 To.</aside>
+<p>Le cumul est une règle de gestion SafeLinkHub : il ne transfère pas les droits de données entre les contrats Starlink et ne modifie pas la répartition du trafic entre les deux WAN.</p>
+<a class="back" href="#debut">Retour au choix des guides ↑</a>
+</section>
+<section id="kongasso" aria-labelledby="titre-kongasso">
+<span class="tag">EXEMPLE 2 · UN STARLINK</span>
+<h2 id="titre-kongasso">KONGASSO : protéger un seul forfait de 5 To</h2>
+<p>Vous avez un seul Starlink et souhaitez adapter le débit du site à son solde restant. Le cumul des liaisons n’est pas utilisé.</p>
+<h3>1. Renseigner la liaison</h3>
+<p>Ouvrez <strong>Régulation → Budget Starlink par liaison</strong>. Si aucune liaison n’est affichée, cliquez sur <strong>Ajouter une liaison</strong>. Pour modifier une liaison déjà active, désactivez d’abord le FUP.</p>
+<div class="table-wrap"><table><caption class="muted">Configuration d’exemple pour un cycle du 3 octobre au 2 novembre inclus.</caption><thead><tr><th scope="col">Champ</th><th scope="col">Valeur</th></tr></thead><tbody>
+<tr><th scope="row">Nom</th><td>KONGASSO Starlink</td></tr><tr><th scope="row">Interface WAN</th><td><code>E1-WAN-FAI</code>, à vérifier sur votre routeur</td></tr><tr><th scope="row">Quota total (Go décimaux)</th><td>5 000</td></tr><tr><th scope="row">Réserve incluse (Go)</th><td>500</td></tr><tr><th scope="row">Début du cycle UTC</th><td>3 octobre 2026</td></tr><tr><th scope="row">Début du cycle suivant UTC</th><td>3 novembre 2026</td></tr><tr><th scope="row">Cumuler les quotas</th><td>Non coché ; indisponible avec une seule liaison</td></tr>
+</tbody></table></div>
+<ol class="steps"><li>Confirmez les dates du cycle avec la case correspondante.</li><li>Cliquez sur <strong>Enregistrer en observation</strong>.</li></ol>
+<h3>2. Confirmer la consommation puis activer</h3>
+<ol class="steps"><li>Consultez la consommation actuelle dans le compte Starlink. Exemple fictif : <strong>3,50 To utilisés</strong>.</li><li>Saisissez <strong>3 500</strong> dans <strong>Consommation actuelle affichée par Starlink (Go)</strong>, confirmez la vérification et cliquez sur <strong>Rapprocher le compteur avec Starlink</strong>.</li><li>Vérifiez le résultat : 5 000 Go de quota, 3 500 Go utilisés, soit <strong>1 500 Go restants</strong>. La réserve de 500 Go est comprise dans ce solde.</li><li>Cliquez sur <strong>Activer le FUP</strong>, attendez la confirmation et vérifiez le plafond partagé.</li></ol>
+<h3>3. Comprendre les trois états</h3>
+<div class="table-wrap"><table><thead><tr><th scope="col">Situation</th><th scope="col">Comportement du FUP individuel</th></tr></thead><tbody>
+<tr><th scope="row">Solde au-dessus de la réserve</th><td>Le débit partagé est lissé selon le volume disponible et le temps restant. Répartition du plafond : 20 % envoi et 80 % réception.</td></tr>
+<tr><th scope="row">Entrée dans la réserve</th><td>Le débit est plus limité : plafonds par adresse de 128 kbit/s en envoi et 256 kbit/s en réception, sous le plafond partagé. Ce mode individuel ne reprend pas la règle 2M/2M de l’exemple cumulé.</td></tr>
+<tr><th scope="row">Quota presque épuisé ou épuisé</th><td>Le garde-fou peut suspendre l’accès Internet pour protéger le volume ; le portail local reste accessible. Il ne crée pas de données supplémentaires.</td></tr>
+</tbody></table></div>
+<aside class="callout important"><strong>Ne masquez pas un dépassement.</strong> Si Starlink affiche par exemple 5 200 Go utilisés sur un forfait de 5 000 Go, saisissez <strong>5 200</strong> au rapprochement. L’activation ne rétablira pas le haut débit avec un quota déjà épuisé. Si Starlink affiche une restriction liée au forfait ou à ses conditions d’utilisation, suivez les indications de Starlink ; le FUP ne lève pas cette restriction.</aside>
+<a class="back" href="#debut">Retour au choix des guides ↑</a>
+</section>
+<section id="consommation" aria-labelledby="titre-consommation">
+<h2 id="titre-consommation">Consommation, Régulation et zones WiFi</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">Votre objectif</th><th scope="col">Écran à utiliser</th><th scope="col">À retenir</th></tr></thead><tbody>
+<tr><th scope="row">Protéger le quota Starlink du site</th><td>Régulation → FUP Starlink</td><td>Utilisez l’exemple FOUANGA ou KONGASSO. Cycles et références propres à chaque liaison.</td></tr>
+<tr><th scope="row">Suivre le volume WAN ou poser un plafond simple</th><td>Consommation → Lien montant (WAN)</td><td>Ce suivi et ses champs en Mo sont distincts des références FUP en Go décimaux. Ils ne se synchronisent pas automatiquement avec les rapprochements Starlink.</td></tr>
+<tr><th scope="row">Limiter un bridge ou VLAN WiFi</th><td>Consommation → Zones WiFi (VLAN)</td><td>La zone doit être un bridge HotSpot provisionné dans le SaaS. Ces champs ne créent pas un FUP progressif indépendant par zone.</td></tr>
+</tbody></table></div>
+<h3>Pour les deux exemples Starlink</h3>
+<p>Configurez le FUP dans <strong>Régulation</strong>. N’ajoutez pas un second bridage WAN ou l’ancien garde-fou autonome dans <strong>Consommation</strong> pour le même trafic. Des limitations concurrentes peuvent produire un débit inattendu. Si l’ancien garde-fou est déjà installé, faites vérifier sa désactivation avant d’activer le FUP Starlink.</p>
+<h3>Exemple de plafond simple pour une zone WiFi</h3>
+<p>Dans un scénario de zone utilisé séparément du FUP global, voici le sens des champs :</p>
+<ul><li><strong>Quota (Mo) : 102 400</strong> correspond à 100 Go selon l’affichage de cet écran, qui utilise 1 024 Mo pour 1 Go. Ne recopiez pas directement les valeurs entre cet écran et le FUP Starlink.</li><li><strong>Débit max du VLAN : 30 Mbps</strong> est partagé par tous les appareils de la zone.</li><li><strong>Débit par client : 2 Mbps</strong> plafonne chaque appareil à 2M/2M. Il ne lui réserve pas ce débit.</li><li>Après <strong>Appliquer</strong>, utilisez <strong>Relire la conso</strong> pour appliquer et contrôler les paramètres. Les lectures et synchronisations mettent à jour ce suivi ; le premier relevé ne reconstitue pas la consommation Starlink historique.</li></ul>
+<p>Le cycle des zones suit le <strong>Jour de remise à zéro</strong> du routeur dans Consommation ; il n’est pas indépendant pour chaque zone. Le quota de zone seul ne crée pas de ralentissement progressif. Au dépassement, le mécanisme actuel utilise le débit de dépassement WAN s’il est défini, sinon conserve le plafond de la zone. Saisir <strong>2 Mbps</strong> dans <strong>Bridage au dépassement</strong> peut donc limiter tout le trafic concerné à 2 Mbps, pas donner 2 Mbps à chaque client.</p>
+<aside class="callout important"><strong>Limite actuelle :</strong> le FUP Starlink régule le routeur entier. Les files de zone et la file FUP globale peuvent se concurrencer selon leur ordre sur le MikroTik. Pour répartir automatiquement les 10 To entre plusieurs zones avec des budgets et des ralentissements indépendants, une adaptation du logiciel et des files est nécessaire. Ne superposez pas ces réglages sans vérification.</aside>
+</section>
+<section id="depannage" aria-labelledby="titre-depannage">
+<h2 id="titre-depannage">Après l’activation : les bons réflexes</h2>
+<details open><summary>Le solde demande un « rapprochement récent »</summary><p>Commencez par actualiser l’écran et attendre le prochain relevé automatique : un compteur trop ancien peut suffire à afficher ce message. Vérifiez les dates et l’état du routeur. Après un redémarrage, un changement de cycle ou une référence non confirmée, consultez Starlink puis rapprochez de nouveau chaque liaison concernée. Ne saisissez jamais zéro pour faire disparaître l’avertissement.</p></details>
+<details open><summary>Le cycle se renouvelle : que faut-il faire ?</summary><ol><li>Vérifiez le nouveau cycle et la consommation affichés dans Starlink. Une échéance de paiement ne prouve pas que les données sont renouvelées.</li><li>Désactivez le FUP pour déverrouiller les champs. Cette action retire ses limites ; choisissez un moment adapté pour éviter une consommation non régulée durant la mise à jour.</li><li>Modifiez uniquement les liaisons dont le cycle a réellement changé, confirmez les dates puis enregistrez en observation. Ne remettez pas les autres forfaits à zéro.</li><li>Rapprochez les compteurs depuis les relevés actuels Starlink, puis réactivez le FUP et vérifiez le résultat.</li></ol><p>Le garde-fou local peut suspendre Internet après redémarrage, à la fin d’un cycle, en cas de compteur incohérent ou de volume épuisé. Attendre le lendemain ne garantit pas la reprise.</p></details>
+<details open><summary>Les utilisateurs n’obtiennent pas tous 2 Mbit/s</summary><p>Un plafond par client n’est pas un débit garanti. Le débit réel dépend du plafond partagé, du nombre d’appareils qui échangent des données, de la capacité Starlink et du réseau WiFi. Dans l’exemple cumulé, un plafond partagé de 40 Mbit/s réserve au maximum 20 Mbit/s à la réception ; dix téléchargements simultanés à 2 Mbit/s suffisent à utiliser cette part.</p></details>
+<details open><summary>Telegram indique une collecte FUP indisponible</summary><p>Le SaaS n’a pas pu actualiser les compteurs. Cela ne confirme pas une panne Internet. Si le FUP est actif, le garde-fou déjà installé reste autonome. Vérifiez la disponibilité du routeur, du tunnel/VPN et de l’API ; ne modifiez pas le quota pour supprimer l’alerte. Une lecture réussie remet le compteur d’échecs consécutifs à zéro.</p></details>
+<details open><summary>Comment arrêter le FUP ?</summary><p>Dans Régulation, cliquez sur <strong>Désactiver le FUP et libérer le routeur</strong>, puis attendez la confirmation. Le SaaS retire les limitations propres au FUP. Les plafonds commerciaux des tickets, les limitations de zone et les restrictions Starlink peuvent rester en place ; désactiver le FUP ne garantit donc pas un accès sans limitation.</p></details>
+<details open><summary>Comment recevoir mes propres alertes Telegram ?</summary><p>Ouvrez <strong>Paramètres → Notifications</strong>, connectez votre bot, confirmez votre conversation privée, envoyez un test puis activez les alertes pour vos routeurs. Vous n’avez pas besoin d’un accès n8n. Consultez le <a href="/guides/telegram-notifications.html">guide Telegram pas à pas</a>.</p></details>
+</section>
+</main>
+<footer><p><strong>Repère :</strong> un site possède un routeur et une ou plusieurs liaisons WAN ; une zone WiFi est un réseau local derrière ce routeur. Les consommations SafeLinkHub sont estimées depuis le MikroTik entre deux rapprochements : le relevé Starlink reste à vérifier.</p><p>Guide de la configuration disponible au 18 octobre 2026. <a href="#debut">Revenir au début</a></p></footer>
+</body></html>
