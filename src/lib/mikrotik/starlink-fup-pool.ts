@@ -8,7 +8,7 @@ export function calculateFupPool(links: FupLink[], ledger: Record<string,FupLedg
   const known=Number.isSafeInteger(quotaGB*1e9) && Number.isSafeInteger(usedBytes) && !validateFupLinks(links) && links.every(l=>calculateFupBudget(l,ledger[l.id]??null,at).phase!=='unknown');
   const usedGB=known ? usedBytes/1e9:null;
   const remainingGB=usedGB===null?null:Math.max(0,quotaGB-usedGB);
-  const endsAt=links.length && !validateFupLinks(links) ? new Date(Math.max(...links.map(l=>Date.parse(l.cycleEnd)))).toISOString():null;
+  const endsAt=links.length && !validateFupLinks(links) ? new Date(Math.min(...links.map(l=>Date.parse(l.cycleEnd)))).toISOString():null;
   const daysRemaining=endsAt?(Date.parse(endsAt)-at.getTime())/86400000:0;
   // The reserve is an alert threshold in pooled mode, not an additional withheld allowance.
   const dailyBudgetGB=remainingGB!==null && daysRemaining>0?remainingGB/daysRemaining:null;

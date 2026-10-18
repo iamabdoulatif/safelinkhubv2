@@ -34,6 +34,8 @@ test('installer requests RouterOS done attributes and applies queues without kic
  assert.equal(result.profiles[0].rate,'2M/2M');
  assert.equal(tables['/ip/hotspot/user/profile'][1]['rate-limit'],undefined);
  assert.equal(tables['/ip/firewall/filter'][0]['connection-mark'],'no-mark');
+ assert.equal(tables['/ip/firewall/filter'][0]['in-interface'],'!HOTSPOT');
+ assert.equal(tables['/ip/firewall/filter'][0]['out-interface'],'!HOTSPOT');
  assert.equal(tables['/queue/type'].length,2);
  assert.ok(tables['/queue/type'].every(t=>t['pcq-rate']==='2000000'));
  assert.ok(!calls.some(c=>c[0]==='/ip/hotspot/active/remove'));
