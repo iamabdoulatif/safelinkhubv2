@@ -17,6 +17,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "/admin/settings/payment-gateways": "Paystack, Genius Pay, PawaPay pour les ventes en ligne.",
   "/admin/settings/captive-templates": "La page de connexion hotspot de vos clients.",
   "/admin/settings/walled-garden": "Hôtes joignables depuis le portail avant connexion.",
+  "/admin/settings/notifications": "Votre bot Telegram et les alertes FUP de vos routeurs.",
   "/admin/settings/sms": "Envoi des codes et notifications par SMS.",
   "/admin/billing": "Formule, solde et factures de votre compte.",
   "/admin/settings/advanced": "Renommer ou supprimer définitivement l'organisation.",
