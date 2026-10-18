@@ -29,7 +29,8 @@ export async function runTelegramMaintenance(now = new Date(), options: {db?:Ret
       const queue = async (routerId:string,key:string,text:string) => {
         await tx.insert(deliveries).values({orgId,revision:config.revision,routerId,eventKey:key,text:text.slice(0,4000),createdAt:now,nextAttemptAt:now}).onConflictDoNothing();
       };
-      const recent = await tx.select({id:events.id,kind:events.kind,payload:events.payload,routerId:events.routerId}).from(events).where(and(inArray(events.routerId,ids),inArray(events.kind,['fup_enforcement','fup_released']),gte(events.createdAt,new Date(Math.max(config.activatedAt.getTime(),now.getTime()-86400000))))).orderBy(asc(events.createdAt)).limit(500);
+      const kinds = [...(prefs.changes ? ['fup_enforcement']:[]),...(prefs.releases ? ['fup_released']:[])];
+      const recent = kinds.length ? await tx.select({id:events.id,kind:events.kind,payload:events.payload,routerId:events.routerId}).from(events).where(and(inArray(events.routerId,ids),inArray(events.kind,kinds),sql`not exists (select 1 from ${deliveries} where ${deliveries.orgId} = ${orgId} and ${deliveries.eventKey} = 'event:' || ${events.id}::text)`,gte(events.createdAt,new Date(Math.max(config.activatedAt.getTime(),now.getTime()-86400000))))).orderBy(asc(events.createdAt)).limit(500) : [];
       for (const event of recent) {
         const name = selected.find(r=>r.router.id===event.routerId)!.router.name;
         const text = fupEventNotice(event.kind,event.payload,name,prefs);
