@@ -11,7 +11,8 @@ function detail(value, depth = 0) {
   if (depth > 5 || value == null) return '';
   if (typeof value === 'string') return value;
   if (typeof value !== 'object') return '';
-  return detail(value.error, depth+1) || detail(value.message, depth+1) || detail(value.description, depth+1) || detail(value.cause, depth+1);
+  return [value.code, value.error, value.message, value.description, value.cause, value.response?.data, value.body]
+    .map(part => detail(part, depth+1)).filter(Boolean).join(' — ');
 }
 const raw = detail(input) || 'Erreur de collecte sans détail exploitable';
 const busy = /FUP_COLLECTION_BUSY/.test(raw) || input.code === 'FUP_COLLECTION_BUSY';
