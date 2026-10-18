@@ -100,3 +100,23 @@ Le budget prend le solde cumulé jusqu’au prochain changement de cycle à conf
 `installTicketFairness` est une installation opérationnelle explicite, exécutée après retrait du FUP. Elle sauvegarde le routeur, pose un PCQ permanent par IP à 2M/2M sans plafond global, relève les profils commerciaux sous 2M/2M, conserve les profils déjà supérieurs et exclut le profil technique `slh-paiement`. Elle limite FastTrack aux connexions sans marque et hors interface HotSpot dans les deux sens et purge les anciennes connexions FastTrack pour que le partage et le routage prennent effet. Les comptes HotSpot ne sont pas déconnectés, mais des sessions applicatives peuvent se reconnecter après purge. Ce partage persiste après désactivation du FUP ; son retrait est une opération distincte. Ne pas l’installer par-dessus un FUP actif.
 
 La stratégie individuelle existante reste inchangée pour KONGASSO et les autres routeurs sans option cumulée.
+
+### Collecte et alertes (correctif du 18 octobre 2026)
+
+Le `/read` n8n distingue une collecte occupée (`FUP_COLLECTION_BUSY`, HTTP 503)
+ d’une lecture impossible. Un relevé serveur complet, confirmé et âgé de 30 secondes
+ au maximum peut être réutilisé avec son horodatage réel lorsque le cron FUP vient
+ de lire les compteurs. Les sessions restent lues directement sur le routeur.
+ Aucun quota n’est recrédité et aucune limitation n’est libérée par ce mécanisme.
+
+Une nouvelle lecture ne relit plus les WAN après `readStarlinkFup`. L’attente du
+ verrou du compteur est limitée à 2 secondes et la collecte HTTP à 45 secondes,
+ sous les 60 secondes du client n8n. Les ressources du routeur sont fermées à
+ l’expiration, y compris une connexion qui termine son ouverture en retard.
+
+Le code `read-error.js` remplace le nœud « Erreur lecture ». Il extrait le message
+ d’erreur sans afficher d’objet Axios ou de pile, distingue une collecte occupée,
+ déduplique l’alerte et indique le temps écoulé réel. `pooled-decision.js` remet le
+ compteur d’échecs à zéro après chaque lecture réussie. L’alerte concerne la
+ collecte ; elle n’annonce ni une panne Internet certaine ni la désactivation du
+ garde-fou MikroTik autonome.

@@ -10,8 +10,8 @@ const read={at,active:[],pool:{quotaGB:10000,usedGB:7180,remainingGB:2820,phase:
 for(const file of ['pooled-decision.js','pooled-recap.js']) {
  test(`published n8n ${file} uses server pool and keeps 2M/2M`,()=>{
   const code=readFileSync(`docs/n8n/${file}`,'utf8');
-  const run=new Function('$','$input','Date',code);
-  const result=run(()=>({item:{json:router}}),{first:()=>({json:read})},Clock)[0].json;
+  const run=new Function('$','$input','Date','$getWorkflowStaticData',code);
+  const result=run(()=>({item:{json:router}}),{first:()=>({json:read})},Clock,()=>({}))[0].json;
   if(file==='pooled-decision.js') {
    assert.equal(result.fup.pool.remainingGB,2820);
    assert.ok(result.fup.links.every((l:{proposedPerTicketUploadDownload:string;proposedAction:string})=>l.proposedPerTicketUploadDownload==='2M/2M' && l.proposedAction==='accounting_only_pooled_policy'));

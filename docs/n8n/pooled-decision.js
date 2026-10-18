@@ -4,6 +4,9 @@
 // Les anciens compteurs WAN ne sont PAS un total de cycle Starlink.
 const router = $('Boucle routeurs').item.json;
 const read = $input.first().json;
+// A successful /read breaks the failure streak, even if quota data needs review.
+const collectionState = $getWorkflowStaticData('global');
+if (collectionState.fail) delete collectionState.fail[router.routerId];
 const GB = 1e9, DAY = 86400000;
 const now = new Date();
 const ms = now.getTime();
