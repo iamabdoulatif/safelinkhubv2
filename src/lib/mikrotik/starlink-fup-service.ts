@@ -17,14 +17,15 @@ export async function runStarlinkFup(routerId: string, activate = false) {
     await readStarlinkFup(client, routerId, row.regulation.fupLinks);
     return await getDb().transaction(async tx => {
       const [current] = await tx.select().from(routerRegulation).where(eq(routerRegulation.routerId, routerId)).for("update");
-      if (!current || (!activate && current.fupMode !== "active") || JSON.stringify(current.fupLinks) !== JSON.stringify(row.regulation.fupLinks)) throw new Error("Configuration FUP modifiée pendant le passage.");
-      const plan = buildFupEnforcement(current.fupLinks!, current.fupLedger ?? {}, new Date());
+      if (!current || (!activate && current.fupMode !== "active") || (current.fupPooled !== row.regulation.fupPooled || JSON.stringify(current.fupLinks) !== JSON.stringify(row.regulation.fupLinks))) throw new Error("Configuration FUP modifiée pendant le passage.");
+      const plan = buildFupEnforcement(current.fupLinks!, current.fupLedger ?? {}, new Date(), current.fupPooled);
       const runtime = await applyFupToRouter(client, plan, current.fupRuntime ?? null);
       const changed = !current.fupRuntime || current.fupRuntime.stopped !== runtime.stopped || current.fupRuntime.reserve !== runtime.reserve;
       await tx.update(routerRegulation).set({ fupMode: "active", fupRuntime: runtime }).where(eq(routerRegulation.routerId, routerId));
       const telegram = `${row.router.name} : ${runtime.stopped ? "Internet suspendu : quota de gestion épuisé ; portail local conservé" : `${runtime.reserve ? "réserve" : "lissage"}, plafond partagé ${(runtime.totalBps / 1e6).toFixed(2)} Mbit/s (upload + download)`}.`;
-      if (changed) await tx.insert(routerRegulationEvents).values({ routerId, kind: "fup_enforcement", payload: { ...runtime, telegram } });
-      return { applied: true, changed, telegram, runtime };
+      const message = plan.pool ? `${telegram} Enveloppe cumulée ${plan.pool.quotaGB.toFixed(0)} Go ; ${plan.pool.remainingGB!.toFixed(1)} Go restants. Tickets 2M/2M, sous plafond partagé symétrique.` : telegram;
+      if (changed) await tx.insert(routerRegulationEvents).values({ routerId, kind: "fup_enforcement", payload: { ...runtime, telegram: message } });
+      return { applied: true, changed, telegram: message, runtime };
     });
   } finally { client.close(); }
 }

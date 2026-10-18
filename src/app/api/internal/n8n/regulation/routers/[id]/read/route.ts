@@ -1,6 +1,7 @@
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { readRegulationInputs } from "@/lib/mikrotik/regulation";
 import { loadRegulatedRouter, n8nAuthorized, unauthorized } from "@/lib/mikrotik/regulation-api";
+import { calculateFupPool } from "@/lib/mikrotik/starlink-fup-pool";
 import { readStarlinkFup } from "@/lib/mikrotik/starlink-fup-reader";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const links = await readStarlinkFup(client, id, row.regulation.fupLinks);
       // Do not sum independent subscriptions into a fictional shared quota.
       const inputs = await readRegulationInputs(client, row.regulation.fupLinks.map(l => l.interface).join(","));
-      return Response.json({ at: new Date().toISOString(), active: inputs.active, links });
+      return Response.json({ at: new Date().toISOString(), active: inputs.active, links, ...(row.regulation.fupPooled ? {pool: calculateFupPool(row.regulation.fupLinks, Object.fromEntries(links.map(l => [l.id, l])), new Date())} : {}) });
     }
     const inputs = await readRegulationInputs(client, row.regulation.state?.wanInterface ?? null);
     if (inputs.counters === null) {

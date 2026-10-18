@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db';
 import { orgTelegramSettings as settings, orgTelegramDeliveries as deliveries, routers, routerRegulation, routerRegulationEvents as events } from '@/lib/db/schema';
 import { decryptSecret } from '@/lib/mikrotik/crypto';
 import { fupEventNotice, normalizeTelegramPreferences, quotaNotices, telegramCall, TelegramError } from './telegram';
+import { calculateFupPool } from '@/lib/mikrotik/starlink-fup-pool';
 import { calculateFupBudget } from '@/lib/mikrotik/starlink-fup';
 
 /** Existing five-minute server cron drives this independently of slow router health checks. */
@@ -22,7 +23,7 @@ export async function runTelegramMaintenance(now = new Date(), options: {db?:Ret
       if (!config?.enabled || !config.chatId || !config.testedAt || !config.activatedAt || !config.routerIds.length) return 0;
       await tx.update(settings).set({lastProcessedAt:now}).where(eq(settings.orgId,orgId));
       const prefs = normalizeTelegramPreferences(config.preferences);
-      const selected = await tx.select({router:{id:routers.id,name:routers.name},regulation:{fupLinks:routerRegulation.fupLinks,fupLedger:routerRegulation.fupLedger,fupRuntime:routerRegulation.fupRuntime,fupMode:routerRegulation.fupMode}}).from(routers).leftJoin(routerRegulation,eq(routerRegulation.routerId,routers.id)).where(and(eq(routers.orgId,orgId),inArray(routers.id,config.routerIds)));
+      const selected = await tx.select({router:{id:routers.id,name:routers.name},regulation:{fupLinks:routerRegulation.fupLinks,fupLedger:routerRegulation.fupLedger,fupRuntime:routerRegulation.fupRuntime,fupMode:routerRegulation.fupMode,fupPooled:routerRegulation.fupPooled}}).from(routers).leftJoin(routerRegulation,eq(routerRegulation.routerId,routers.id)).where(and(eq(routers.orgId,orgId),inArray(routers.id,config.routerIds)));
       const ids = selected.map(r=>r.router.id);
       await tx.update(deliveries).set({status:'cancelled'}).where(and(eq(deliveries.orgId,orgId),eq(deliveries.status,'pending'),ids.length ? sql`${deliveries.routerId} not in (${sql.join(ids.map(id=>sql`${id}::uuid`),sql`, `)})` : sql`true`));
       if (!ids.length) return 0;
@@ -37,7 +38,7 @@ export async function runTelegramMaintenance(now = new Date(), options: {db?:Ret
         if (text) await queue(event.routerId,`event:${event.id}`,text);
       }
       for (const {router,regulation} of selected) {
-        if (prefs.quota && regulation?.fupLinks?.length) for (const notice of quotaNotices(regulation.fupLinks,regulation.fupLedger ?? {},now)) {
+        if (prefs.quota && regulation?.fupLinks?.length) for (const notice of quotaNotices(regulation.fupLinks,regulation.fupLedger ?? {},now,regulation.fupPooled)) {
           await queue(router.id,`quota:${router.id}:${notice.key}`,`${router.name} — ${notice.text}`);
         }
         if (prefs.daily && now.getUTCHours()>=7 && regulation?.fupLinks?.length) {
@@ -45,6 +46,10 @@ export async function runTelegramMaintenance(now = new Date(), options: {db?:Ret
             const budget = calculateFupBudget(link,regulation.fupLedger?.[link.id] ?? null,now);
             return `${link.name} : ${budget.remainingGB === null ? 'solde non confirmé ou relevé périmé' : `${budget.remainingGB.toFixed(1)} Go restants (estimation)`}`;
           });
+          if (regulation.fupPooled) {
+            const pool=calculateFupPool(regulation.fupLinks,regulation.fupLedger ?? {},now);
+            lines.unshift(`Enveloppe cumulée ${(pool.quotaGB/1000).toFixed(2)} To : ${pool.remainingGB===null ? "solde non confirmé" : `${pool.remainingGB.toFixed(1)} Go restants`}. Tickets 2M/2M sous plafond partagé.`);
+          }
           const runtime = regulation.fupRuntime;
           await queue(router.id,`daily:${now.toISOString().slice(0,10)}:${router.id}`,`Bilan FUP — ${router.name}\n${lines.join('\n')}\nMode : ${regulation.fupMode === 'active' ? runtime?.stopped ? 'suspension FUP' : runtime?.reserve ? 'réserve FUP' : 'lissage FUP' : 'observation'}.\nHorodatage : ${now.toISOString()} (UTC). Les restrictions Starlink restent indépendantes du FUP.`);
         }

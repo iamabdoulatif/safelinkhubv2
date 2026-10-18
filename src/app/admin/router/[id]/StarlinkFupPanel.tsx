@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveStarlinkFupLinks, reconcileStarlinkBaseline, setStarlinkFupActive } from "@/lib/mikrotik/regulation-actions";
+import { saveStarlinkFupLinks, reconcileStarlinkBaseline, setStarlinkFupActive, setStarlinkFupPooled } from "@/lib/mikrotik/regulation-actions";
 import { sameFupLinks, type FupLink, type FupLedger } from "@/lib/mikrotik/starlink-fup";
+import { calculateFupPool } from "@/lib/mikrotik/starlink-fup-pool";
 import { suggestedStarlinkLinks } from "@/lib/mikrotik/starlink-fup-presets";
 import type { FupRuntime } from "@/lib/mikrotik/starlink-fup-router";
 
-type Props = { routerId: string; links: FupLink[]; ledger: Record<string, FupLedger>; active: boolean; runtime: FupRuntime | null; onSaved: () => Promise<void> };
+type Props = { routerId: string; links: FupLink[]; ledger: Record<string, FupLedger>; active: boolean; pooled?: boolean; runtime: FupRuntime | null; onSaved: () => Promise<void> };
 
-export default function StarlinkFupPanel({ routerId, links: saved, ledger, active, runtime, onSaved }: Props) {
+export default function StarlinkFupPanel({ routerId, links: saved, ledger, active, pooled = false, runtime, onSaved }: Props) {
   const [links, setLinks] = useState<FupLink[]>(saved.length ? saved : suggestedStarlinkLinks(routerId));
   const [message, setMessage] = useState("");
   const [pending, start] = useTransition();
@@ -24,11 +25,14 @@ export default function StarlinkFupPanel({ routerId, links: saved, ledger, activ
     } catch { setMessage("Enregistrement impossible. Vérifiez la connexion au routeur puis réessayez."); }
   });
 
-  return <section className="mb-5 rounded-xl border border-line bg-paper p-4 sm:p-5" aria-label="FUP Starlink par liaison">
-    <h3 className="text-base font-semibold text-ink">Budget Starlink par liaison</h3>
-    <p className="mt-1 text-sm text-ink-soft">{active ? "FUP actif." : "FUP en observation."} Chaque abonnement garde son propre cycle et ses 5 000 Go, dont 500 Go de réserve. Les dates de fin ci-dessous sont exclusives, à 00:00 UTC.</p>
-    {runtime && <p className="mt-3 text-sm font-medium">{runtime.stopped ? "Quota épuisé : Internet suspendu, portail local conservé." : `Plafond partagé : ${(runtime.totalBps / 1e6).toFixed(2)} Mbit/s cumulés, répartis à 20 % envoi / 80 % réception.${runtime.reserve ? " Réserve : 128 kbit/s envoi et 256 kbit/s réception par adresse." : ""}`}</p>}
-    <p className="mt-2 text-sm text-ink-soft">Le plafond commun protège la liaison la plus contrainte, y compris en cas de basculement. Le garde-fou local vérifie le volume toutes les 5 secondes et conserve 1 Go de marge. Après redémarrage ou fin de cycle, il suspend Internet jusqu’au rapprochement du compteur. Cette régulation ne lève pas une restriction contractuelle Starlink.</p>
+  const pool = pooled ? calculateFupPool(saved, ledger, new Date()) : null;
+  return <section className="mb-5 rounded-xl border border-line bg-paper p-4 sm:p-5" aria-label={pooled ? "FUP Starlink cumulé" : "FUP Starlink par liaison"}>
+    <h3 className="text-base font-semibold text-ink">{pooled ? "FUP : enveloppe cumulée des Starlink" : "Budget Starlink par liaison"}</h3>
+    <p className="mt-1 text-sm text-ink-soft">{active ? "FUP actif." : "FUP en observation."} Chaque abonnement conserve son propre quota et son cycle. Les dates de fin ci-dessous sont exclusives, à 00:00 UTC.</p>
+    <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={pooled} disabled={pending || active || saved.length < 2} onChange={e => run(() => setStarlinkFupPooled(routerId, e.target.checked))} className="mt-1" /><span>Cumuler les quotas des liaisons pour réguler le site. En mode cumulé, plafond par adresse de 2M/2M, même en réserve ; débit réel soumis au plafond partagé.</span></label>
+    {pool && <p className="mt-3 rounded-lg bg-clay p-3 text-sm font-medium">Enveloppe : {(pool.quotaGB/1000).toFixed(2)} To · {pool.usedGB === null ? "Rapprochement récent requis pour le solde." : `Utilisés : ${(pool.usedGB/1000).toFixed(2)} To · Restants : ${(pool.remainingGB!/1000).toFixed(2)} To.`}</p>}
+    {runtime && <p className="mt-3 text-sm font-medium">{runtime.stopped ? "Quota de gestion épuisé : Internet suspendu, portail local conservé." : `Plafond partagé : ${(runtime.totalBps / 1e6).toFixed(2)} Mbit/s cumulés. ${runtime.pooled ? "Envoi/réception à parts égales ; 2M/2M par adresse, sans garantie simultanée." : `Répartition 20 % envoi / 80 % réception.${runtime.reserve ? " Réserve : 128/256 kbit/s par adresse." : ""}`}`}</p>}
+    <p className="mt-2 text-sm text-ink-soft">{pooled ? "Le solde et le seuil de réserve sont calculés sur la somme des abonnements. Un seul kit en réserve n’abaisse plus les profils. Le budget est étalé jusqu’à la dernière fin de cycle configurée ; les périodes de 7, 14, 21 et 28 jours sont bornées par cette échéance. Cette enveloppe SaaS ne transfère pas les droits de données entre contrats Starlink." : "Le plafond commun protège la liaison la plus contrainte, y compris en cas de basculement."} Le garde-fou vérifie le volume toutes les 5 secondes. Après redémarrage ou fin de cycle d’une liaison, un rapprochement est requis avant reprise, sans recréditer automatiquement tous les abonnements.</p>
     {saved.length > 0 && <button type="button" className="btn btn-sm btn-secondary mt-3" disabled={pending} onClick={() => run(() => setStarlinkFupActive(routerId, !active))}>{active ? "Désactiver le FUP et libérer le routeur" : "Activer le FUP"}</button>}
     {links.map(link => <fieldset key={link.id} disabled={pending} className="mt-4 grid gap-3 rounded-lg border border-line p-3 sm:grid-cols-2">
       <legend className="px-1 font-medium">{link.name}</legend>

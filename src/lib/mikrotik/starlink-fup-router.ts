@@ -20,7 +20,7 @@ async function removeScript(client: RouterOSClient, name: string) {
   await client.talk(["/system/script/remove", `=numbers=${id}`], 30000);
   scriptIndexes.get(client)?.delete(name);
 }
-export type FupRuntime = { fastTrackIds: string[]; backup: string; appliedAt: string; totalBps: number; reserve: boolean; stopped: boolean; baselineKey?: string; typeNames?: string[] };
+export type FupRuntime = { fastTrackIds: string[]; backup: string; appliedAt: string; totalBps: number; reserve: boolean; stopped: boolean; baselineKey?: string; typeNames?: string[]; pooled?: boolean; ticketRateBps?: number };
 
 /** Conntrack entries can expire between print and remove on a live router. */
 export async function clearFastTrackedConnections(client: RouterOSClient) {
@@ -122,7 +122,7 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
   }
   if (!plan.stop) {
     for (const [direction, classifier, rate] of [["up", "src-address", "128k"], ["down", "dst-address", "256k"]]) {
-      await upsert(client, "/queue/type", "name", `slh-fup-${direction}`, { kind: "pcq", "pcq-classifier": classifier, "pcq-rate": plan.reserve ? rate : "0" });
+      await upsert(client, "/queue/type", "name", `slh-fup-${direction}`, { kind: "pcq", "pcq-classifier": classifier, "pcq-rate": plan.ticketRateBps ? String(plan.ticketRateBps) : plan.reserve ? rate : "0" });
     }
     await upsert(client, "/queue/simple", "name", FUP_QUEUE, {
       target: targets.join(","), "max-limit": `${plan.uploadBps}/${plan.downloadBps}`, "total-max-limit": `${plan.totalBps}`,
@@ -148,7 +148,7 @@ export async function applyFupToRouter(client: RouterOSClient, plan: Plan, previ
     const [queue] = await client.talk(["/queue/simple/print", `?name=${FUP_QUEUE}`], 15000);
     if (!queue || Number(queue["total-max-limit"]) !== plan.totalBps || queue["max-limit"] !== `${plan.uploadBps}/${plan.downloadBps}` || queue.disabled === "true") throw new Error("Plafond partagé non confirmé sur le routeur.");
   }
-  return { fastTrackIds, backup, appliedAt: new Date().toISOString(), totalBps: plan.totalBps, reserve: plan.reserve, stopped: plan.stop, baselineKey: plan.baselineKey, typeNames: [...ownedQueueTypes.get(client)!] };
+  return { fastTrackIds, backup, appliedAt: new Date().toISOString(), totalBps: plan.totalBps, reserve: plan.reserve, stopped: plan.stop, baselineKey: plan.baselineKey, typeNames: [...ownedQueueTypes.get(client)!], pooled: plan.pooled, ticketRateBps: plan.ticketRateBps };
   } catch (error) {
     if (!previous) {
       try { await releaseFupFromRouter(client, { fastTrackIds, backup, appliedAt: "", totalBps: 0, reserve: false, stopped: false, typeNames: [...ownedQueueTypes.get(client)!] }); }

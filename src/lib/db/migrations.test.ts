@@ -34,6 +34,7 @@ describe("registre des migrations", () => {
   // secours manuel) ne doivent pas diverger : un correctif appliqué à l'un sans
   // l'autre reposerait un piège de dérive de schéma.
   const MIRRORS: Record<string, string> = {
+    "0019_pooled_starlink_fup": "add-pooled-starlink-fup.sql",
     "0018_org_telegram": "add-org-telegram.sql",
     "0017_traffic_history": "add-traffic-history.sql",
     "0016_starlink_fup_links": "add-starlink-fup-links.sql",

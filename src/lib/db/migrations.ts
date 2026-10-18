@@ -347,4 +347,5 @@ create table if not exists org_telegram_deliveries (
 );
 create index if not exists org_telegram_deliveries_pending_idx on org_telegram_deliveries (status, next_attempt_at);
 `.trim() },
+  { id: "0019_pooled_starlink_fup", sql: `alter table router_regulation add column if not exists fup_pooled boolean not null default false;` },
 ];

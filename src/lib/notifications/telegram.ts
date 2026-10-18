@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { calculateFupPool } from '@/lib/mikrotik/starlink-fup-pool';
 import { calculateFupBudget, type FupLink, type FupLedger } from '@/lib/mikrotik/starlink-fup';
 
 export type TelegramPreferences = { changes: boolean; quota: boolean; releases: boolean; daily: boolean };
@@ -48,7 +49,11 @@ export async function telegramCall<T>(token: string, method: 'getMe'|'getWebhook
   }
   return data.result as T;
 }
-export function quotaNotices(links: FupLink[], ledger: Record<string,FupLedger>, now: Date) {
+export function quotaNotices(links: FupLink[], ledger: Record<string,FupLedger>, now: Date, pooled = false) {
+  if (pooled) {
+    const pool=calculateFupPool(links,ledger,now);
+    return pool.phase === "reserve" || pool.phase === "exhausted" ? [{key:`pool:${links.map(l=>`${l.id}:${l.cycleStart}`).join("|")}:${pool.phase}`,level:pool.phase,text:`Enveloppe cumulée ${(pool.quotaGB/1000).toFixed(2)} To : ${pool.phase === "exhausted" ? "quota de gestion épuisé" : `réserve atteinte, ${pool.remainingGB!.toFixed(1)} Go restants`}. Estimation SafeLinkHub.`}] : [];
+  }
   return links.flatMap(link => {
     const budget = calculateFupBudget(link,ledger[link.id] ?? null,now);
     if (budget.phase !== 'reserve' && budget.phase !== 'exhausted') return [];

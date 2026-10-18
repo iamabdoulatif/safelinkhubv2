@@ -94,3 +94,17 @@ test("high CPU refuses activation before mutating the routeur", async () => {
   await assert.rejects(applyFupToRouter(router.client, plan, null), /CPU/);
   assert.ok(router.calls.every(w => w[0].endsWith("/print")));
 });
+
+test("pooled adapter keeps 2M/2M PCQ even when cumulative pool reaches reserve", async () => {
+  const router = fake();
+  const pooled = buildFupEnforcement(links,Object.fromEntries(links.map(l=>[l.id,{
+    cycleStart:l.cycleStart,cycleEnd:l.cycleEnd,cycleUsedBytes:4600e9,rawBytes:1000,
+    uptimeSeconds:3600,at:at.toISOString(),baselineConfirmed:true,
+  }])),at,true);
+  assert.equal(pooled.reserve,true);
+  const result=await applyFupToRouter(router.client,pooled,null);
+  assert.equal(result.ticketRateBps,2000000);
+  assert.equal(result.pooled,true);
+  assert.ok(router.tables['/queue/type'].every(t=>t['pcq-rate']==='2000000'));
+  assert.ok(Math.abs(pooled.uploadBps-pooled.downloadBps)<=1);
+});
