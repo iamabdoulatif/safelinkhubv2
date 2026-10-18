@@ -34,6 +34,7 @@ export async function GET(request: Request) {
       fupLinks: (regulation.fupLinks ?? []).map(l => ({ ...l, wanInterface: l.interface })),
       regulationMode: regulation.fupLinks?.length ? regulation.fupMode : "legacy",
       fupRuntime: regulation.fupRuntime,
+      fupPooled: regulation.fupPooled,
     })),
   );
 }

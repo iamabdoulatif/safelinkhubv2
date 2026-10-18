@@ -1730,6 +1730,7 @@ export const routerRegulation = pgTable("router_regulation", {
   fupLinks: jsonb("fup_links").$type<import("../mikrotik/starlink-fup").FupLink[]>(),
   fupLedger: jsonb("fup_ledger").$type<Record<string, import("../mikrotik/starlink-fup").FupLedger>>(),
   fupObservation: jsonb("fup_observation").$type<{ at: string; state: Record<string, unknown>; watch: Record<string, unknown> }>(),
+  fupPooled: boolean("fup_pooled").notNull().default(false),
   fupMode: text("fup_mode").notNull().default("observation"),
   fupRuntime: jsonb("fup_runtime").$type<import("../mikrotik/starlink-fup-router").FupRuntime>(),
   // Seuils du rythme mensuel (lus par n8n). Cible à respecter, plafond absolu,

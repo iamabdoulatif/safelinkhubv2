@@ -53,6 +53,7 @@ export async function readRouterRegulation(routerId: string) {
     updatedAt: row?.updatedAt?.toISOString() ?? null,
     fupLinks: row?.fupLinks ?? [],
     fupLedger: row?.fupLedger ?? {},
+    fupPooled: row?.fupPooled ?? false,
     fupMode: row?.fupMode ?? "observation",
     fupRuntime: row?.fupRuntime ?? null,
     fupBudgets: (row?.fupLinks ?? []).map(link => ({ id: link.id, ...calculateFupBudget(link, row?.fupLedger?.[link.id] ?? null, new Date()) })),
@@ -113,6 +114,7 @@ export async function saveStarlinkFupLinks(routerId: string, links: FupLink[]) {
     if (!row) return { error: "Enregistrez d'abord les seuils, régulation désactivée." };
     if (row.fupMode === "active") return { error: "Désactivez le FUP avant de modifier les liaisons." };
     if (row.enabled || (row.state && !row.state.released)) return { error: "Désactivez l'ancienne régulation et attendez le nettoyage du routeur avant de configurer le FUP." };
+    if (row.fupPooled && links.length < 2) return { error: "Désactivez le cumul avant de retirer une liaison." };
     const ledger: Record<string, FupLedger> = {};
     for (const l of links) {
       const previous = row.fupLinks?.find(p => p.id === l.id);
@@ -169,4 +171,21 @@ export async function reconcileStarlinkBaseline(routerId: string, linkId: string
     revalidatePath(`/admin/router/${routerId}`);
     return result;
   } finally { client.close(); }
+}
+
+/** Change the management envelope without changing activation or resetting counters. */
+export async function setStarlinkFupPooled(routerId: string, pooled: boolean) {
+  const session = await getSession();
+  if (!session || !can(session.role, "routers") || !(await autorise(routerId))) return { error: "Modification non autorisée." };
+  if (typeof pooled !== "boolean") return { error: "Mode FUP invalide." };
+  const result = await getDb().transaction(async tx => {
+    const [row] = await tx.select().from(routerRegulation).where(eq(routerRegulation.routerId, routerId)).for("update");
+    if (!row || row.fupMode === "active") return { error: "Désactivez le FUP avant de changer son enveloppe." };
+    if (pooled && (row.fupLinks?.length ?? 0) < 2) return { error: "Configurez au moins deux liaisons avant de cumuler les quotas." };
+    await tx.update(routerRegulation).set({ fupPooled: pooled, updatedAt: new Date() }).where(eq(routerRegulation.routerId, routerId));
+    await tx.insert(routerRegulationEvents).values({ routerId, kind: "fup_pool_configured", payload: { pooled, actor: session.userId } });
+    return { ok: true as const };
+  });
+  revalidatePath(`/admin/router/${routerId}`);
+  return result;
 }

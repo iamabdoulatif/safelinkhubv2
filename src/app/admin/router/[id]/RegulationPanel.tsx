@@ -97,7 +97,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
   const usedPct = state && form.softCapGo > 0 ? Math.min(999, (state.monthBytes / (form.softCapGo * 1024 ** 3)) * 100) : null;
 
   const starlink = view && "fupLinks" in view && <StarlinkFupPanel routerId={routerId}
-    links={view.fupLinks ?? []} ledger={view.fupLedger ?? {}} active={view.fupMode === "active"} runtime={view.fupRuntime ?? null}
+    pooled={view.fupPooled ?? false} links={view.fupLinks ?? []} ledger={view.fupLedger ?? {}} active={view.fupMode === "active"} runtime={view.fupRuntime ?? null}
     onSaved={async () => { setView(await readRouterRegulation(routerId)); }} />;
   if (view && "fupLinks" in view && view.fupLinks?.length) return starlink;
 

@@ -21,7 +21,7 @@ test('Telegram organization onboarding, tenant isolation, consent and delivery r
   const previousSecret = process.env.AUTH_SECRET;
   process.env.AUTH_SECRET='isolated-integration-test-secret-not-production';
   try {
-    await pool.query(`create table organizations(id uuid primary key); create table users(id uuid primary key default gen_random_uuid(),org_id uuid references organizations(id),role text); create table routers(id uuid primary key,org_id uuid references organizations(id),name text); create table router_regulation(router_id uuid primary key references routers(id),fup_links jsonb,fup_ledger jsonb,fup_runtime jsonb,fup_mode text); create table router_regulation_events(id uuid primary key default gen_random_uuid(),router_id uuid references routers(id),kind text,payload jsonb,created_at timestamp default now());`);
+    await pool.query(`create table organizations(id uuid primary key); create table users(id uuid primary key default gen_random_uuid(),org_id uuid references organizations(id),role text); create table routers(id uuid primary key,org_id uuid references organizations(id),name text); create table router_regulation(router_id uuid primary key references routers(id),fup_links jsonb,fup_ledger jsonb,fup_runtime jsonb,fup_mode text,fup_pooled boolean default false); create table router_regulation_events(id uuid primary key default gen_random_uuid(),router_id uuid references routers(id),kind text,payload jsonb,created_at timestamp default now());`);
     await pool.query(readFileSync('scripts/add-org-telegram.sql','utf8'));
     const orgA=randomUUID(),orgB=randomUUID(),routerA=randomUUID(),routerB=randomUUID();
     await pool.query('insert into organizations values($1),($2)',[orgA,orgB]);
