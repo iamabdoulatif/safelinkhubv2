@@ -25,3 +25,8 @@ Tests arithmétiques de réinitialisation, horloge, trous et activité ; tests l
 - Le fournisseur Starlink n’est pas interrogé par une API de télémétrie dans cette version. Les confirmations/suspicions fournisseur sont consignées par l’administrateur avec leur référence et identifiées comme déclarations.
 - L’activation des graphiques locaux se fait au premier relevé valide, pour les seules interfaces suivies, en accès loopback. Le réseau privé autorisé peut ensuite être choisi dans l’onglet Historique. La collecte centrale n’attend pas cette activation et n’ouvre aucun service réseau.
 - Aucune purge programmée des échantillons ; période maximale de consultation/export : 31 jours, historiques plus anciens accessibles en changeant les dates. Totaux exclusifs des intervalles commençant avant la période, et couverture indiquée.
+
+## Correction de continuité et de lisibilité
+- Les réservations en mémoire de la collecte et de la maintenance sont séparées : une maintenance encore en cours ne supprime plus le relevé du créneau suivant. Une collecte déjà en cours reste protégée contre les doublons, en complément des verrous PostgreSQL.
+- Les graphiques s’ajustent par défaut aux bornes des relevés disponibles, avec des bornes communes débit/sessions. Un bouton rétablit toute la période demandée. Seuls les bords vides sont retirés ; les véritables lacunes restent des coupures, sans interpolation ou zéro inventé.
+- Le placement et le survol utilisent les horodatages réels. Les lacunes historiques antérieures au correctif ne peuvent pas être reconstituées.

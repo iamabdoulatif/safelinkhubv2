@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { chartWindow, nearestChartPoint } from "./traffic-chart-window";
 import type {
   TrafficChartPoint,
   TrafficCondition,
@@ -24,18 +25,22 @@ const value = (n: number | null) =>
     : n.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
 
 export default function TrafficHistoryChart({
-  points,
+  points: allPoints,
   title,
   users = false,
   periods = [],
+  fitToData = true,
 }: {
   points: TrafficChartPoint[];
   title: string;
   users?: boolean;
   periods?: ChartPeriod[];
+  fitToData?: boolean;
 }) {
   const id = useId();
-  const [hover, setHover] = useState<number | null>(null);
+  const [hoverAt, setHoverAt] = useState<number | null>(null);
+  const points = chartWindow(allPoints, fitToData);
+  const hover = hoverAt === null ? null : nearestChartPoint(points, hoverAt);
   const first = users ? "connected" : "rxMbps",
     second = users ? "exchanging" : "txMbps";
   const a = users ? "Connectés" : "Réception",
@@ -50,8 +55,13 @@ export default function TrafficHistoryChart({
     R = 16,
     T = 15,
     B = 35;
-  const x = (i: number) =>
-    L + (i / Math.max(1, points.length - 1)) * (W - L - R);
+  const start = points[0]?.at ?? 0,
+    end = points.at(-1)?.at ?? start;
+  const timeX = (at: number) =>
+    start === end
+      ? (L + W - R) / 2
+      : L + ((at - start) / (end - start)) * (W - L - R);
+  const x = (i: number) => timeX(points[i].at);
   const y = (n: number) => H - B - (n / max) * (H - T - B);
   const path = (key: typeof first | typeof second) => {
     let d = "",
@@ -69,10 +79,6 @@ export default function TrafficHistoryChart({
   };
   const hasData = points.some((p) => p[first] !== null || p[second] !== null);
   const selected = hover === null ? null : points[hover];
-  const start = points[0]?.at ?? 0,
-    end = points.at(-1)?.at ?? start;
-  const timeX = (at: number) =>
-    L + ((at - start) / Math.max(1, end - start)) * (W - L - R);
   return (
     <section
       className="min-w-0 rounded-xl border border-line bg-paper p-4 sm:p-5"
@@ -104,23 +110,18 @@ export default function TrafficHistoryChart({
             className="mt-4 block w-full"
             role="img"
             aria-label={`${title}. ${users ? "Nombre de sessions" : "Débit moyen en Mbit/s"}. Les interruptions de courbe indiquent des données manquantes.`}
-            onPointerLeave={() => setHover(null)}
+            onPointerLeave={() => setHoverAt(null)}
             onPointerMove={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
               const px = ((e.clientX - r.left) / r.width) * W;
-              setHover(
-                Math.max(
-                  0,
-                  Math.min(
-                    points.length - 1,
-                    Math.round(((px - L) / (W - L - R)) * (points.length - 1)),
-                  ),
-                ),
+              setHoverAt(
+                start + Math.max(0, Math.min(1, (px - L) / (W - L - R))) * (end - start),
               );
             }}
           >
-            <title>{title} — UTC</title>
+            <title>{`${title} — UTC`}</title>
             {periods.map((p, i) => {
+              if (p.start > end || (p.end !== null && p.end < start)) return null;
               const left = Math.max(L, timeX(p.start)),
                 right = Math.min(W - R, timeX(p.end ?? end));
               return right >= left ? (
@@ -137,7 +138,7 @@ export default function TrafficHistoryChart({
                   strokeDasharray="3 3"
                 >
                   <title>
-                    {p.source} · {p.kind} · {p.certainty} : {p.evidence}
+                    {`${p.source} · ${p.kind} · ${p.certainty} : ${p.evidence}`}
                   </title>
                 </rect>
               ) : null;
@@ -169,12 +170,16 @@ export default function TrafficHistoryChart({
               fill="none"
               stroke="var(--brand-deep)"
               strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
             />
             <path
               d={path(second)}
               fill="none"
               stroke="var(--info)"
               strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
             />
             {points.length <= 750 &&
               points.map((p, i) => (
@@ -197,18 +202,18 @@ export default function TrafficHistoryChart({
                   )}
                 </g>
               ))}
-            {[0, 0.25, 0.5, 0.75, 1].map((r) => {
-              const i = Math.round(r * (points.length - 1));
+            {(points.length === 1 ? [0.5] : [0, 0.25, 0.5, 0.75, 1]).map((r) => {
+              const at = start + r * (end - start);
               return (
                 <text
                   key={r}
-                  x={x(i)}
+                  x={timeX(at)}
                   y={H - 9}
                   textAnchor={r === 0 ? "start" : r === 1 ? "end" : "middle"}
                   fontSize="10"
                   fill="var(--ink-soft)"
                 >
-                  {points[i] ? trafficTime(points[i].at) : ""}
+                  {trafficTime(at)}
                 </text>
               );
             })}

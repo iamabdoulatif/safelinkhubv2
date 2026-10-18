@@ -50,6 +50,7 @@ export default function TrafficHistoryPanel({
   const [message, setMessage] = useState("");
   const [selected, setSelected] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fitToData, setFitToData] = useState(true);
   const [pending, start] = useTransition();
   const [custom, setCustom] = useState(false);
   const [begin, setBegin] = useState("");
@@ -394,13 +395,21 @@ export default function TrafficHistoryPanel({
                 environ {Math.ceil((data.end - data.start) / 300000)} attendus.
                 Les volumes affichés correspondent aux intervalles mesurables.
               </p>
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-soft">
+                <p>{fitToData ? "Vue ajustée aux relevés disponibles ; les lacunes restent visibles." : "Période complète, y compris avant le début de la collecte."} Horaires UTC.</p>
+                <button type="button" className={BUTTON} aria-pressed={!fitToData} onClick={() => setFitToData(!fitToData)}>
+                  {fitToData ? "Afficher la période complète" : "Ajuster aux relevés"}
+                </button>
+              </div>
               <TrafficHistoryChart
                 points={link.points}
+                fitToData={fitToData}
                 title={`Débit de ${link.name} (Mbit/s)`}
                 periods={periods}
               />
               <TrafficHistoryChart
                 points={link.points}
+                fitToData={fitToData}
                 title="Sessions du routeur"
                 users
                 periods={periods}

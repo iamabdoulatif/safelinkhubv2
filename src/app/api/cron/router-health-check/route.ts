@@ -3,6 +3,7 @@ import { asc, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { collectTrafficHistory } from "@/lib/mikrotik/traffic-collector";
+import { createHealthSchedule } from "@/lib/mikrotik/health-schedule";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
 import { syncMndpAnnouncementsForAllOrgs } from "@/lib/mikrotik/mndp-sync";
 
@@ -22,30 +23,25 @@ export const maxDuration = 300;
    arrière-plan, un seul passage à la fois, dans un budget de 3 min : avec la
    traîne des dernières sondes, il tient dans les 5 min entre deux ticks. */
 const BUDGET_MS = 3 * 60 * 1000;
-let running = false;
+const schedule = createHealthSchedule(async () => {
+  const traffic = await collectTrafficHistory().catch(error => {
+    console.error(JSON.stringify({ msg: "traffic-history", error: error instanceof Error ? error.message : "Collection failed" }));
+    return { error: "Collection failed" };
+  });
+  console.log(JSON.stringify({ msg: "traffic-history", ...traffic }));
+}, async () => {
+  const summary = await runHealthCheck();
+  console.log(JSON.stringify({ msg: "router-health-check", ...summary }));
+});
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new Response("Unauthorized", { status: 401 });
   }
-  // ponytail: verrou en mémoire, valable tant que l'app tourne dans un seul conteneur.
-  if (running) return Response.json({ skipped: "already running" }, { status: 202 });
-  running = true;
-  after(async () => {
-    try {
-      const started = Date.now();
-      const traffic = await collectTrafficHistory().catch(error => {
-        console.error(JSON.stringify({ msg: "traffic-history", error: error instanceof Error ? error.message : "Collection failed" }));
-        return { error: "Collection failed" };
-      });
-      const summary = await runHealthCheck(Math.max(15000, 250000 - (Date.now() - started)));
-      console.log(JSON.stringify({ msg: "traffic-history", ...traffic }));
-      console.log(JSON.stringify({ msg: "router-health-check", ...summary }));
-    } finally {
-      running = false;
-    }
-  });
+  // Keep separate in-process reservations (single production container).
+  // The collector also has a DB advisory lock and slot deduplication.
+  if (!schedule(after)) return Response.json({ skipped: "already running" }, { status: 202 });
   return Response.json({ started: true }, { status: 202 });
 }
 
