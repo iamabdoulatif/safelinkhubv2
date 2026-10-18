@@ -94,6 +94,15 @@ test('Telegram organization onboarding, tenant isolation, consent and delivery r
       assert.deepEqual(sent,['Fouanga : réserve.']);
       const view=await readOrganizationTelegram(sessionB,db);assert.equal(view?.history.length,0);
     });
+    await t.test('already queued events do not hide new alerts behind a full scan page',async()=>{
+      const revision=(await pool.query('select revision from org_telegram_settings where org_id=$1',[orgA])).rows[0].revision;
+      // More than a worker page of historical events, already delivered.
+      await pool.query(`with inserted as (insert into router_regulation_events(router_id,kind,payload,created_at) select $1,'fup_enforcement','{"telegram":"Already sent"}'::jsonb,$2::timestamp-interval '1 millisecond' from generate_series(1,501) returning id) insert into org_telegram_deliveries(org_id,revision,router_id,event_key,text,status) select $3,$4,$1,'event:'||id,'Already sent','sent' from inserted`,[routerA,now,orgA,revision]);
+      await pool.query('insert into router_regulation_events(router_id,kind,payload,created_at) values($1,$2,$3,$4)',[routerA,'fup_enforcement',JSON.stringify({telegram:'New event after backlog'}),now]);
+      const texts:string[]=[];
+      await runTelegramMaintenance(now,{db,send:async(_t,_c,text)=>{texts.push(text);}});
+      assert.deepEqual(texts,['New event after backlog']);
+    });
     await t.test('temporary errors retry and permanent errors disable consent without leaking raw error',async()=>{
       await pool.query('insert into router_regulation_events(router_id,kind,payload,created_at) values($1,$2,$3,$4)',[routerA,'fup_released','{}',now]);
       await runTelegramMaintenance(now,{db,send:async()=>{throw new TelegramError('Telegram temporairement indisponible.');}});
