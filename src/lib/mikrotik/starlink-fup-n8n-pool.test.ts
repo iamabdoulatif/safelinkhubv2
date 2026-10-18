@@ -20,3 +20,10 @@ for(const file of ['pooled-decision.js','pooled-recap.js']) {
   } else { assert.match(result.text,/10000 Go/);assert.match(result.text,/2820 Go/);assert.match(result.text,/2M\/2M/); }
  });
 }
+test('individual sites retain explicit suspension wording in daily recap',()=>{
+ const run=new Function('$','$input','Date',readFileSync('docs/n8n/pooled-recap.js','utf8'));
+ const input={...router,fupPooled:false,regulationMode:'active',fupRuntime:{stopped:true,totalBps:0}};
+ const result=run(()=>({item:{json:input}}),{first:()=>({json:read})},Clock)[0].json;
+ assert.match(result.text,/Internet suspendu/);
+ assert.doesNotMatch(result.text,/Enveloppe cumulée/);
+});
