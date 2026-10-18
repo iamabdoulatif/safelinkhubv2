@@ -1,7 +1,7 @@
 # Connecter les alertes Telegram à SafeLinkHub
 
 Document de conception et guide du parcours proposé — 18 octobre 2026.
-Ce parcours reste à développer ; ce document ne confirme pas son activation.
+Conception approuvée par le propriétaire le 18 octobre 2026. Guide client livré dans `/guides/telegram-notifications.html` ; exploitation décrite dans `docs/n8n/telegram-clients.md`.
 
 ## Le parcours recommandé
 

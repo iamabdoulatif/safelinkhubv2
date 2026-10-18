@@ -1844,3 +1844,39 @@ export const routerTrafficIncidents = pgTable("router_traffic_incidents", {
   recordedBy: uuid("recorded_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, table => [index("router_traffic_incidents_router_idx").on(table.routerId, table.startedAt)]);
+
+/** Separate from platform marketing credentials: one private bot per organization. */
+export const orgTelegramSettings = pgTable('org_telegram_settings', {
+  orgId: uuid('org_id').primaryKey().references(()=>organizations.id,{onDelete:'cascade'}),
+  botId: text('bot_id').notNull().unique(),
+  botName: text('bot_name').notNull(),
+  botUsername: text('bot_username').notNull(),
+  tokenEncrypted: text('token_encrypted').notNull(),
+  revision: uuid('revision').notNull().defaultRandom(),
+  pending: jsonb('pending').$type<import('@/lib/notifications/telegram').TelegramPending>(),
+  chatId: text('chat_id'),
+  chatLabel: text('chat_label'),
+  testedAt: timestamp('tested_at'),
+  enabled: boolean('enabled').notNull().default(false),
+  preferences: jsonb('preferences').$type<import('@/lib/notifications/telegram').TelegramPreferences>().notNull().default({changes:false,quota:false,releases:false,daily:false}),
+  routerIds: jsonb('router_ids').$type<string[]>().notNull().default([]),
+  activatedAt: timestamp('activated_at'),
+  lastCallAt: timestamp('last_call_at'),
+  lastProcessedAt: timestamp('last_processed_at'),
+  lastError: text('last_error'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+export const orgTelegramDeliveries = pgTable('org_telegram_deliveries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(()=>organizations.id,{onDelete:'cascade'}),
+  revision: uuid('revision').notNull(),
+  routerId: uuid('router_id').notNull().references(()=>routers.id,{onDelete:'cascade'}),
+  eventKey: text('event_key').notNull(),
+  text: text('text').notNull(),
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  nextAttemptAt: timestamp('next_attempt_at').notNull().defaultNow(),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  sentAt: timestamp('sent_at'),
+}, t=>[uniqueIndex('org_telegram_deliveries_event_idx').on(t.orgId,t.eventKey),index('org_telegram_deliveries_pending_idx').on(t.status,t.nextAttemptAt)]);

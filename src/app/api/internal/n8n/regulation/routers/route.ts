@@ -1,6 +1,7 @@
-import { eq, or, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerRegulation, routers } from "@/lib/db/schema";
+import { platformTelegramRouterScope } from "@/lib/notifications/platform-telegram-scope";
 import { n8nAuthorized, policyOf, unauthorized } from "@/lib/mikrotik/regulation-api";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,12 @@ export async function GET(request: Request) {
     .select({ router: routers, regulation: routerRegulation })
     .from(routerRegulation)
     .innerJoin(routers, eq(routers.id, routerRegulation.routerId))
-    .where(or(eq(routerRegulation.enabled, true), sql`jsonb_array_length(coalesce(${routerRegulation.fupLinks}, '[]'::jsonb)) > 0`));
+    // This legacy workflow sends to the platform bot: never feed tenant routers to it.
+    // Tenant FUP enforcement still runs in the server cron; notifications use their own outbox.
+    .where(and(
+      platformTelegramRouterScope(),
+      or(eq(routerRegulation.enabled, true), sql`jsonb_array_length(coalesce(${routerRegulation.fupLinks}, '[]'::jsonb)) > 0`),
+    ));
 
   return Response.json(
     rows.map(({ router, regulation }) => ({
