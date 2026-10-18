@@ -25,10 +25,11 @@ export async function installTicketFairness(client:RouterOSClient) {
  const hotspots=await read('/ip/hotspot','interface,disabled');
  const targets=[...new Set(hotspots.filter(h=>h.disabled!=='true').map(h=>h.interface).filter(Boolean))];
  if(!targets.length)throw new Error('Interface HotSpot absente.');
+ if(targets.length!==1)throw new Error('Plusieurs interfaces HotSpot : exclusion FastTrack spécifique requise.');
  const profiles=(await read('/ip/hotspot/user/profile','.id,name,rate-limit')).filter(p=>p.name!=='slh-paiement');
  const changes=profiles.map(p=>({id:p['.id'],name:p.name,before:p['rate-limit']??'',after:ticketFloorRate(p['rate-limit']??'')})).filter(p=>p.before!==p.after);
- const fasttrack=(await read('/ip/firewall/filter','.id,action,disabled,connection-mark')).filter(r=>r.action==='fasttrack-connection' && r.disabled!=='true');
- if(fasttrack.some(r=>r['connection-mark'] && r['connection-mark']!=='no-mark'))throw new Error('FastTrack personnalisé : vérification manuelle requise.');
+ const fasttrack=(await read('/ip/firewall/filter','.id,action,disabled,connection-mark,in-interface,out-interface')).filter(r=>r.action==='fasttrack-connection' && r.disabled!=='true');
+ if(fasttrack.some(r=>(r['connection-mark'] && r['connection-mark']!=='no-mark') || ['in-interface','out-interface'].some(k=>r[k] && r[k]!==`!${targets[0]}`)))throw new Error('FastTrack personnalisé : vérification manuelle requise.');
  const backup=`slh-before-ticket-fairness-${Date.now()}`;
  await client.talk(['/system/backup/save',`=name=${backup}`],20000);
  const undo:(()=>Promise<unknown>)[]=[];
@@ -45,10 +46,13 @@ export async function installTicketFairness(client:RouterOSClient) {
   else{const result=await client.talk(['/queue/simple/add',`=name=${NAME}`,...Object.entries(params).map(([k,v])=>`=${k}=${v}`)],20000,true);queueId=result.find(r=>r.ret)?.ret;if(!queueId)throw new Error('Identifiant de file absent.');const id=queueId;undo.push(()=>client.talk(['/queue/simple/remove',`=numbers=${id}`],15000));}
   const [first]=await read('/queue/simple','.id');if(first && first['.id']!==queueId)await client.talk(['/queue/simple/move',`=numbers=${queueId}`,`=destination=${first['.id']}`],15000);
   for(const p of changes){await set('/ip/hotspot/user/profile',p.id,{'rate-limit':p.after});undo.push(()=>set('/ip/hotspot/user/profile',p.id,{'rate-limit':p.before}));}
-  // Keep accelerated main-table traffic, but never fasttrack PCC-marked WAN flows.
-  for(const rule of fasttrack)if(rule['connection-mark']!=='no-mark'){
-   await set('/ip/firewall/filter',rule['.id'],{'connection-mark':'no-mark'});
-   undo.push(()=>client.talk(['/ip/firewall/filter/unset',`=numbers=${rule['.id']}`,'=value-name=connection-mark'],15000));
+  // Exclude HotSpot in BOTH directions too: a flow can acquire a WAN mark after initial packets.
+  for(const rule of fasttrack) {
+   const desired={'connection-mark':'no-mark','in-interface':`!${targets[0]}`,'out-interface':`!${targets[0]}`};
+   for(const [key,value] of Object.entries(desired))if(rule[key]!==value){
+    await set('/ip/firewall/filter',rule['.id'],{[key]:value});
+    undo.push(()=>rule[key] ? set('/ip/firewall/filter',rule['.id'],{[key]:rule[key]}) : client.talk(['/ip/firewall/filter/unset',`=numbers=${rule['.id']}`,`=value-name=${key}`],15000));
+   }
   }
   await clearFastTrackedConnections(client);
   const [verified]=await client.talk(['/queue/simple/print',`?name=${NAME}`],15000);
