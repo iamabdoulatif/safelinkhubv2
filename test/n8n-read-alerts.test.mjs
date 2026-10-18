@@ -29,3 +29,12 @@ test('alerts are deduplicated, rearmed by recovery and maintenance respected',()
  assert.equal(execute(source('Erreur lecture'),sd,{error:'timeout'}).alert,false);
  router.maintenance=true;assert.equal(execute(source('Erreur lecture'),sd,{error:'timeout'}).failCount,0);delete router.maintenance;
 });
+test('n8n HTTP error descriptions and nested response bodies retain busy classification',()=>{
+ for(const error of [
+  {message:'Service unavailable',description:'503 - {"code":"FUP_COLLECTION_BUSY"}'},
+  {message:'Service unavailable',response:{data:{code:'FUP_COLLECTION_BUSY',error:'Application FUP en cours'}}},
+ ]) {
+  const out=execute(source('Erreur lecture'),{fail:{fouanga:{count:2,alerted:false}}},{error});
+  assert.equal(out.alert,false);assert.equal(out.collectionStatus,'busy');
+ }
+});
