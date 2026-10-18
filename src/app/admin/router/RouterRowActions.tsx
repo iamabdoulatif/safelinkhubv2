@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Loader2, MoreVertical, Pencil } from "lucide-react";
@@ -43,6 +43,7 @@ export default function RouterRowActions({
   const [renamePending, setRenamePending] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
   const bouton = useRef<HTMLButtonElement>(null);
   /* Position du menu, mesurée sur le bouton. Voir le portail plus bas. */
   const [ancre, setAncre] = useState<{ top: number; right: number } | null>(null);
@@ -50,13 +51,39 @@ export default function RouterRowActions({
   useEffect(() => {
     if (!open) return;
     function onClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node) && !popup.current?.contains(e.target as Node)) {
         setOpen(false);
       }
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setOpen(false); bouton.current?.focus(); }
+    };
+    const onScroll = (e: Event) => {
+      if (!popup.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const close = () => setOpen(false);
     document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", close);
+    };
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !popup.current || !bouton.current) return;
+    const button = bouton.current.getBoundingClientRect();
+    const height = popup.current.getBoundingClientRect().height;
+    const top = button.bottom + 6 + height <= window.innerHeight - 8
+      ? button.bottom + 6
+      : Math.max(8, button.top - height - 6);
+    const right = Math.max(8, Math.min(window.innerWidth - button.right, window.innerWidth - Math.min(256, window.innerWidth - 16) - 8));
+    setAncre({ top, right });
+  }, [open, renaming, renameError]);
 
   async function submitRename() {
     const name = draft.trim();
@@ -128,7 +155,8 @@ export default function RouterRowActions({
           bonne fois, et la position est mesurée sur le bouton. */}
       {open && ancre && createPortal(
         <div
-          className="fixed z-50 w-64 overflow-hidden rounded-xl border border-line bg-paper py-1 shadow-menu"
+          ref={popup}
+          className="fixed z-50 max-h-[calc(100dvh-16px)] w-64 max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-xl border border-line bg-paper py-1 shadow-menu"
           style={{ top: ancre.top, right: ancre.right }}
           onMouseDown={(e) => e.stopPropagation()}
         >

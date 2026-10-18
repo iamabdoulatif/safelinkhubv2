@@ -14,14 +14,22 @@ export function Table({
   children,
   className = "",
   caption,
+  scrollLabel,
 }: {
   children: ReactNode;
   className?: string;
   /** Titre lu par les lecteurs d'écran ; invisible à l'écran. */
   caption?: string;
+  /** Makes a bounded scroll area accessible to keyboard users. */
+  scrollLabel?: string;
 }) {
   return (
-    <div className={`overflow-x-auto rounded-xl border border-line bg-paper ${className}`}>
+    <div
+      className={`overflow-x-auto rounded-xl border border-line bg-paper ${className}`}
+      role={scrollLabel ? "region" : undefined}
+      aria-label={scrollLabel}
+      tabIndex={scrollLabel ? 0 : undefined}
+    >
       <table className="w-full border-collapse text-left text-sm">
         {caption && <caption className="sr-only">{caption}</caption>}
         {children}

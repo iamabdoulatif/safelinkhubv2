@@ -284,7 +284,11 @@ export default function RoutersTable({
 
           {/* Desktop / tablette : table — on y compare des lignes entre elles,
               ce que des cartes côte à côte font moins bien. */}
-          <Table className="hidden md:block" caption={t.page.title}>
+          <Table
+            className="hidden max-h-[65dvh] overflow-y-auto md:block [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 focus-visible:outline-2 focus-visible:outline-brand-deep"
+            caption={t.page.title}
+            scrollLabel={t.page.title}
+          >
             <thead>
               <tr>
                 <Th>{table.router}</Th>
