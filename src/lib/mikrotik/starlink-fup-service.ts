@@ -1,3 +1,4 @@
+import {runTicketPolicy} from "./fup-ticket-service";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerRegulation, routerRegulationEvents } from "@/lib/db/schema";
@@ -15,7 +16,7 @@ export async function runStarlinkFup(routerId: string, activate = false) {
   const client = await connectToRouter(row.router, 20000);
   try {
     await readStarlinkFup(client, routerId, row.regulation.fupLinks);
-    return await getDb().transaction(async tx => {
+    const result = await getDb().transaction(async tx => {
       const [current] = await tx.select().from(routerRegulation).where(eq(routerRegulation.routerId, routerId)).for("update");
       if (!current || (!activate && current.fupMode !== "active") || (current.fupPooled !== row.regulation.fupPooled || JSON.stringify(current.fupLinks) !== JSON.stringify(row.regulation.fupLinks))) throw new Error("Configuration FUP modifiée pendant le passage.");
       const plan = buildFupEnforcement(current.fupLinks!, current.fupLedger ?? {}, new Date(), current.fupPooled);
@@ -27,6 +28,8 @@ export async function runStarlinkFup(routerId: string, activate = false) {
       if (changed) await tx.insert(routerRegulationEvents).values({ routerId, kind: "fup_enforcement", payload: { ...runtime, telegram: message } });
       return { applied: true, changed, telegram: message, runtime };
     });
+    const tickets=await runTicketPolicy(routerId,client,result.runtime.stopped);
+    return {...result,changed:result.changed||tickets.changed,telegram:result.telegram+(tickets.telegram?"\n"+tickets.telegram:"")};
   } finally { client.close(); }
 }
 
@@ -35,6 +38,7 @@ export async function stopStarlinkFup(routerId: string) {
   if (!row) throw new Error("Routeur introuvable.");
   const client = await connectToRouter(row.router, 20000);
   try {
+    await runTicketPolicy(routerId,client,true);
     await getDb().transaction(async tx => {
       const [current] = await tx.select().from(routerRegulation).where(eq(routerRegulation.routerId, routerId)).for("update");
       if (!current) throw new Error("Routeur introuvable.");

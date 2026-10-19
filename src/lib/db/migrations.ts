@@ -365,4 +365,6 @@ create table if not exists router_multiwan_licenses (
   unique (org_id, router_id)
 );
 `.trim() },
+  { id: "0021_fup_ticket_policy", sql: `alter table router_regulation add column if not exists fup_ticket_policy jsonb;
+alter table router_regulation add column if not exists fup_ticket_state jsonb;` },
 ];

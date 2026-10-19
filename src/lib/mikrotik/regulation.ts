@@ -25,6 +25,7 @@ const ABUSE_PERMANENT_RULE_COMMENT = "slh-permanent-block-rule";
 const PCQ = "pcq-upload-default/pcq-download-default";
 
 export type ActiveSession = {
+  sessionId?: string;
   mac: string;
   address: string;
   user: string;
@@ -52,8 +53,9 @@ export async function readRegulationInputs(
 
 /** Only fetch the fields used by the automation; a failed read is never an empty hotspot. */
 export async function readRegulationSessions(client: RouterOSClient, timeoutMs = 10000): Promise<ActiveSession[]> {
-  const rows = await client.talk(["/ip/hotspot/active/print", "=.proplist=mac-address,address,user,bytes-out,bytes-in"], timeoutMs);
+  const rows = await client.talk(["/ip/hotspot/active/print", "=.proplist=.id,mac-address,address,user,bytes-out,bytes-in"], timeoutMs);
   return rows.filter(r => r["mac-address"]).map(r => ({
+    ...(r[".id"] ? {sessionId:r[".id"]} : {}),
     mac: r["mac-address"]!, address: r.address ?? "", user: r.user ?? "",
     bytesOut: Number(r["bytes-out"] ?? 0), bytesIn: Number(r["bytes-in"] ?? 0),
   }));

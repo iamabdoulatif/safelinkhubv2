@@ -144,4 +144,5 @@ if(daily){
 if(d.fup.pool){const p=d.fup.pool;lines.push('Enveloppe cumulée : '+p.quotaGB+' Go','Consommés : '+(p.usedGB??'?')+' Go ; restants : '+(p.remainingGB??'?')+' Go','État cumulé : '+p.phase+' ; tickets 2M/2M sous plafond partagé.');}
 for(const l of d.fup.links)lines.push(l.name+' : '+(l.usedGB??'?')+' / '+l.quotaGB+' Go ; fin '+l.cycleEnd+' ; '+l.dataQuality);
 if(d.fup.issues.length)lines.push(d.fup.issues.join(' ; '));
+if(router.fupTicketPolicy){const t=router.fupTicketPolicy;lines.push('', 'USAGE INTENSIF PAR TICKET',t.enabled?'Seuil : '+t.thresholdMB+' Mo / '+t.windowMinutes+' min ; bridage '+t.throttleKbps+' kbit/s ; persistance '+t.persistenceMinutes+' min → coupure complète 5 h (vidéos comprises).':'Sanctions par ticket désactivées.');for(const s of router.fupTicketState||[])lines.push('Ticket '+s.user+' : '+s.phase+' jusqu’au '+new Date(s.until).toISOString());}
 return [{json:{chatId:'TELEGRAM_CHAT_ID',text:lines.join('\n')}}];
