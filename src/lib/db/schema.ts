@@ -1731,6 +1731,8 @@ export const routerRegulation = pgTable("router_regulation", {
   fupLedger: jsonb("fup_ledger").$type<Record<string, import("../mikrotik/starlink-fup").FupLedger>>(),
   fupObservation: jsonb("fup_observation").$type<{ at: string; state: Record<string, unknown>; watch: Record<string, unknown> }>(),
   fupPooled: boolean("fup_pooled").notNull().default(false),
+  fupTicketPolicy: jsonb("fup_ticket_policy").$type<import("../mikrotik/fup-ticket-policy").TicketPolicy>(),
+  fupTicketState: jsonb("fup_ticket_state").$type<import("../mikrotik/fup-ticket-policy").TicketStates>(),
   fupMode: text("fup_mode").notNull().default("observation"),
   fupRuntime: jsonb("fup_runtime").$type<import("../mikrotik/starlink-fup-router").FupRuntime>(),
   // Seuils du rythme mensuel (lus par n8n). Cible à respecter, plafond absolu,

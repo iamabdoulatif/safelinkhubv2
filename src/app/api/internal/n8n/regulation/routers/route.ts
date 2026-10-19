@@ -1,3 +1,4 @@
+import {DEFAULT_TICKET_POLICY} from "@/lib/mikrotik/fup-ticket-policy";
 import { and, eq, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerRegulation, routers } from "@/lib/db/schema";
@@ -35,6 +36,8 @@ export async function GET(request: Request) {
       regulationMode: regulation.fupLinks?.length ? regulation.fupMode : "legacy",
       fupRuntime: regulation.fupRuntime,
       fupPooled: regulation.fupPooled,
+      fupTicketPolicy: regulation.fupTicketPolicy??DEFAULT_TICKET_POLICY,
+      fupTicketState: Object.entries(regulation.fupTicketState??{}).filter(([,s])=>s.phase!=="normal").map(([user,s])=>({user,phase:s.phase,until:s.until})),
     })),
   );
 }

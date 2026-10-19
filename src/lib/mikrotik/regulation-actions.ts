@@ -8,6 +8,8 @@ import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { REGULATION_DEFAULTS, type RegulationForm } from "./regulation-defaults";
 import { can } from "@/lib/auth/roles";
 import { validateFupLinks, calculateFupBudget, fupUptimeSeconds, type FupLink, type FupLedger } from "./starlink-fup";
+import {DEFAULT_TICKET_POLICY,validateTicketPolicy,type TicketPolicy} from "./fup-ticket-policy";
+import {runTicketPolicy} from "./fup-ticket-service";
 import { connectToRouter } from "./router-sync";
 import { readIfaceBytes } from "./link-usage-reader";
 import { runStarlinkFup, stopStarlinkFup } from "./starlink-fup-service";
@@ -56,6 +58,8 @@ export async function readRouterRegulation(routerId: string) {
     fupPooled: row?.fupPooled ?? false,
     fupMode: row?.fupMode ?? "observation",
     fupRuntime: row?.fupRuntime ?? null,
+    fupTicketPolicy: row?.fupTicketPolicy ?? DEFAULT_TICKET_POLICY,
+    fupTicketState: row?.fupTicketState ?? {},
     fupBudgets: (row?.fupLinks ?? []).map(link => ({ id: link.id, ...calculateFupBudget(link, row?.fupLedger?.[link.id] ?? null, new Date()) })),
     events: events.map((e) => ({ id: e.id, kind: e.kind, payload: e.payload, at: e.createdAt.toISOString() })),
   };
@@ -188,4 +192,14 @@ export async function setStarlinkFupPooled(routerId: string, pooled: boolean) {
   });
   revalidatePath(`/admin/router/${routerId}`);
   return result;
+}
+
+export async function saveFupTicketPolicy(routerId:string,policy:TicketPolicy) {
+ const session=await getSession();
+ const router=await autorise(routerId);
+ if(!router||!session||!can(session.role,"routers"))return {error:"Modification non autorisée."};
+ const error=validateTicketPolicy(policy);if(error)return {error};
+ await getDb().update(routerRegulation).set({fupTicketPolicy:policy,updatedAt:new Date()}).where(eq(routerRegulation.routerId,routerId));
+ if(!policy.enabled){const client=await connectToRouter(router,10000,1);try{await runTicketPolicy(routerId,client,true);}finally{client.close();}}
+ revalidatePath(`/admin/router/${routerId}`);return {ok:true as const};
 }

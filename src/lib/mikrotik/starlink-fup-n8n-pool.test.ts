@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { suggestedStarlinkLinks } from './starlink-fup-presets';
 const cfg=suggestedStarlinkLinks('0c1fea72-50fb-4593-a740-ea2a3fe49c5f');
 const at='2026-10-18T12:00:00.000Z';
-class Clock extends Date { constructor(){super(at);} }
+class Clock extends Date { constructor(value?:string|number){super(value??at);} }
 const router={routerId:'fouanga',name:'FOUANGA',fupLinks:cfg,fupPooled:true,state:{},policy:{},watch:{}};
 const read={at,active:[],pool:{quotaGB:10000,usedGB:7180,remainingGB:2820,phase:'normal'},links:cfg.map((l,i)=>({...l,at,baselineConfirmed:true,cycleUsedBytes:(i?2250:4930)*1e9}))};
 for(const file of ['pooled-decision.js','pooled-recap.js']) {
@@ -41,4 +41,11 @@ test('daily recap never presents missing history as zero consumption',()=>{
  const run=new Function('$','$input','Date',readFileSync('docs/n8n/pooled-recap.js','utf8'));
  const result=run(()=>({item:{json:router}}),{first:()=>({json:{...read,dailyUsage:{date:'2026-10-17',status:'unavailable',downloadBytes:null,uploadBytes:null,links:[]}}})},Clock)[0].json;
  assert.match(result.text,/Téléchargés.*indisponible/);assert.doesNotMatch(result.text,/Téléchargés.*0[,.]00 Go/);
+});
+
+test('daily recap exposes configured progressive policy and complete block expiry',()=>{
+ const run=new Function('$','$input','Date',readFileSync('docs/n8n/pooled-recap.js','utf8'));
+ const input={...router,fupTicketPolicy:{enabled:true,thresholdMB:200,windowMinutes:15,throttleKbps:256,persistenceMinutes:15},fupTicketState:[{user:'ticket-test',phase:'blocked',until:Date.parse('2026-10-18T17:00:00Z')}]};
+ const result=run(()=>({item:{json:input}}),{first:()=>({json:read})},Clock)[0].json;
+ assert.match(result.text,/200 Mo \/ 15 min/);assert.match(result.text,/coupure complète 5 h \(vidéos comprises\)/);assert.match(result.text,/ticket-test.*17:00:00/);
 });

@@ -5,6 +5,7 @@ import { Bot, Loader2 } from "lucide-react";
 import { readRouterRegulation, saveRouterRegulation } from "@/lib/mikrotik/regulation-actions";
 import { REGULATION_DEFAULTS, type RegulationForm } from "@/lib/mikrotik/regulation-defaults";
 import { buttonClass } from "@/components/ui/Button";
+import FupTicketPolicyPanel from "./FupTicketPolicyPanel";
 import StarlinkFupPanel from "./StarlinkFupPanel";
 
 type View = Awaited<ReturnType<typeof readRouterRegulation>>;
@@ -99,7 +100,7 @@ export default function RegulationPanel({ routerId }: { routerId: string }) {
   const starlink = view && "fupLinks" in view && <StarlinkFupPanel routerId={routerId}
     pooled={view.fupPooled ?? false} links={view.fupLinks ?? []} ledger={view.fupLedger ?? {}} active={view.fupMode === "active"} runtime={view.fupRuntime ?? null}
     onSaved={async () => { setView(await readRouterRegulation(routerId)); }} />;
-  if (view && "fupLinks" in view && view.fupLinks?.length) return starlink;
+  if (view && "fupLinks" in view && view.fupLinks?.length) return <>{starlink}<FupTicketPolicyPanel routerId={routerId} policy={view.fupTicketPolicy} state={view.fupTicketState} onSaved={async()=>{setView(await readRouterRegulation(routerId));}}/></>;
 
   return (
     <>
