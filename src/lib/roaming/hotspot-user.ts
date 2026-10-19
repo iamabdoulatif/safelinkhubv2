@@ -35,32 +35,23 @@ export async function purgeHotspotAccount(
   knownMacs: readonly string[] = [],
 ): Promise<boolean> {
   const user = await findHotspotUser(client, username);
-  if (!user?.[".id"]) return false;
-
-  const active = await client
-    .talk(["/ip/hotspot/active/print", `?user=${username}`])
-    .catch(() => [] as Record<string, string>[]);
-  for (const session of active) {
-    if (session[".id"]) {
-      await client.talk(["/ip/hotspot/active/remove", `=.id=${session[".id"]}`]).catch(() => {});
+  const boundMac = (user?.["mac-address"] ?? "").trim();
+  const macs = new Set([boundMac,...knownMacs].map(mac=>mac.trim()).filter(mac=>mac && mac!=="00:00:00:00:00:00" && mac!==username));
+  const names = [username,...macs];
+  // Errors remain errors: the SaaS must retain its row for a safe retry.
+  // Remove sessions/cookies even when a previous attempt already removed a user.
+  for (const name of names) {
+    for (const kind of ["active","cookie"]) {
+      const entries = await client.talk([`/ip/hotspot/${kind}/print`, `?user=${name}`]);
+      for (const entry of entries) {
+        if (entry[".id"]) await client.talk([`/ip/hotspot/${kind}/remove`, `=.id=${entry[".id"]}`]);
+      }
     }
   }
-
-  // Le ticket ne porte plus de mac-address (elle rendait le code inutilisable
-  // depuis une autre adresse) : les compagnons sont donc désignés par les MAC
-  // connues en base, `mac-address` ne servant plus que de repli historique.
-  const boundMac = (user["mac-address"] ?? "").trim();
-  await client.talk(["/ip/hotspot/user/remove", `=.id=${user[".id"]}`]);
-  const macs = new Set(
-    [boundMac, ...knownMacs]
-      .map((mac) => mac.trim())
-      .filter((mac) => mac && mac !== "00:00:00:00:00:00"),
-  );
+  if (user?.[".id"]) await client.talk(["/ip/hotspot/user/remove",`=.id=${user[".id"]}`]);
   for (const mac of macs) {
-    const companion = await findHotspotUser(client, mac).catch(() => null);
-    if (companion?.[".id"]) {
-      await client.talk(["/ip/hotspot/user/remove", `=.id=${companion[".id"]}`]).catch(() => {});
-    }
+    const companion = await findHotspotUser(client,mac);
+    if (companion?.[".id"]) await client.talk(["/ip/hotspot/user/remove",`=.id=${companion[".id"]}`]);
   }
-  return true;
+  return Boolean(user?.[".id"]);
 }

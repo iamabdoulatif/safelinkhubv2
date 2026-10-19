@@ -256,14 +256,16 @@ export async function deleteRoamingGroup(_prevState: unknown, formData: FormData
   if (!groupId) return { error: "Groupe introuvable." };
 
   const db = getDb();
-  const [group] = await db
+  const result = await db.transaction(async (tx) => {
+  const [group] = await tx
     .select({ id: roamingGroups.id, name: roamingGroups.name })
     .from(roamingGroups)
     .where(and(eq(roamingGroups.id, groupId), eq(roamingGroups.orgId, session.orgId)))
+    .for("update")
     .limit(1);
   if (!group) return { error: "Groupe introuvable." };
 
-  const attached = await db
+  const attached = await tx
     .select({ username: vouchers.username, useCase: vouchers.useCase })
     .from(vouchers)
     .where(
@@ -285,20 +287,19 @@ export async function deleteRoamingGroup(_prevState: unknown, formData: FormData
   }
 
   const ticketCount = attached.length - namedAccounts.length;
-  const zones = await db
+  const zones = await tx
     .select({ id: roamingGroupRouters.id })
     .from(roamingGroupRouters)
     .where(eq(roamingGroupRouters.groupId, groupId));
-  const groupOffers = await db
+  const groupOffers = await tx
     .select({ id: roamingGroupOffers.id })
     .from(roamingGroupOffers)
     .where(eq(roamingGroupOffers.groupId, groupId));
 
-  await db
+  await tx
     .delete(roamingGroups)
     .where(and(eq(roamingGroups.id, groupId), eq(roamingGroups.orgId, session.orgId)));
 
-  refreshRoamingPages();
   return {
     success: true,
     summary:
@@ -308,6 +309,9 @@ export async function deleteRoamingGroup(_prevState: unknown, formData: FormData
         : "") +
       " Les profils posés sur les MikroTik ne sont pas retirés.",
   };
+  });
+  refreshRoamingPages();
+  return result;
 }
 
 /**

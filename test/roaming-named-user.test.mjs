@@ -125,7 +125,7 @@ test("la suppression révoque vraiment : session, compte, et compagnon MAC", asy
      les commandes réellement émises — plus solide que la recherche de texte
      que ce test faisait ici. Il ne reste donc qu'à garantir la délégation :
      sans elle, deleteRoamingAccount cesserait de révoquer en silence. */
-  assert.match(body, /purgeHotspotAccount\(client, account\.username\)/);
+  assert.match(body, /purgeHotspotAccount\(client, account\.username, knownMacs\)/);
 
   // Une zone muette interdit de retirer la ligne : on ne déclare pas révoqué un
   // compte qui fonctionne peut-être encore ailleurs.
@@ -235,7 +235,7 @@ test("une zone ajoutée à un groupe reçoit ses comptes déjà existants", asyn
     "chaque compte synchronisé doit être rattaché à la nouvelle zone pour la réconciliation",
   );
   assert.match(console, /Ajouter une zone/);
-  assert.match(console, /useActionState\(addRoamingGroupRouters, undefined\)/);
+  assert.match(console, /useActionState\(\s*addRoamingGroupRouters,\s*undefined,?\s*\)/);
 });
 
 test("modifier un compte propose seulement les offres de son propre groupe", async () => {
@@ -245,15 +245,15 @@ test("modifier un compte propose seulement les offres de son propre groupe", asy
   ]);
 
   assert.match(page, /groupId: vouchers\.roamingGroupId/);
-  assert.match(console, /offers\.filter\(\(offer\) => offer\.groupId === user\.groupId/);
+  assert.match(console, /offers\.filter\(\s*\(offer\) =>\s*offer\.groupId === user\.groupId/);
 });
 
 test("le résultat de modifier ou supprimer reste visible auprès du compte concerné", async () => {
   const console = await read("src/app/admin/roaming/RoamingConsole.tsx");
   const accounts = console.slice(console.indexOf("Comptes existants"));
 
-  assert.match(accounts, /confirmingId === user\.id && <><p[\s\S]*?<Notice state=\{deleteState\} \/><\/>/);
-  assert.match(accounts, /editingId === user\.id && <><form[\s\S]*?<Notice state=\{editState\} \/>[\s\S]*?<\/>/);
+  assert.match(accounts, /confirmingId === user\.id &&[\s\S]*?<Notice state=\{deleteState\}/);
+  assert.match(accounts, /editingId === user\.id &&[\s\S]*?<Notice state=\{editState\}/);
 });
 
 test("le navigateur n'est jamais plus strict que le serveur", async () => {
@@ -292,7 +292,7 @@ test("la création de compte a son propre groupe, indépendant de l'émission", 
   assert.match(console_, /userCreationOffers/);
   assert.match(
     console_,
-    /name="groupId" value=\{userGroupId\}/,
+    /name="groupId"\s+value=\{effectiveUserGroupId\}/,
     "le formulaire de création doit soumettre SON groupe",
   );
   // Et le groupe par défaut doit être ACTIF : le sélecteur ne liste que ceux-là,
@@ -399,10 +399,10 @@ test("supprimer un groupe est refusé tant qu'un compte y vit encore", async () 
   }
 });
 
-test("la station roaming expose les quatre vues de la refonte", async () => {
+test("la station roaming expose les trois étapes du parcours guidé", async () => {
   const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
 
-  for (const label of ["Exploitation", "Groupes", "Catalogue", "Comptes"]) {
+  for (const label of ["Organiser les zones", "Définir les forfaits", "Gérer les comptes"]) {
     // Les libellés vivent dans le tableau navItems (label: "…") depuis la refonte
     // de l'en-tête ; on vérifie leur présence là plutôt que dans une KPI band.
     assert.match(console_, new RegExp(`label: "${label}"`), `la navigation doit exposer « ${label} »`);
@@ -419,13 +419,13 @@ test("l émission est ouverte depuis un tiroir guidé", async () => {
   assert.match(console_, /action=\{ticketAction\}/);
 });
 
-test("la vue exploitation montre la couverture et les zones à vérifier", async () => {
+test("les groupes montrent leur couverture et leurs zones à vérifier", async () => {
   const console_ = await read("src/app/admin/roaming/RoamingConsole.tsx");
 
-  assert.match(console_, /Zones en ligne/);
+  assert.match(console_, /zones\s+en\s+ligne/);
   assert.match(console_, /À vérifier/);
-  assert.match(console_, /group\.routers\.filter\(\(router\) => router\.status === "online"\)/);
-  assert.match(console_, /non joignable/);
+  assert.match(console_, /group\.routers\.filter\(\s*\(router\) => router\.status === "online",?\s*\)/);
+  assert.match(console_, /group.offlineRouters.length/);
 });
 
 test("la vue catalogue conserve les profils et offres administrables", async () => {
@@ -436,7 +436,7 @@ test("la vue catalogue conserve les profils et offres administrables", async () 
   assert.match(console_, /action=\{profileAction\}/);
   assert.match(console_, /action=\{offerAction\}/);
   assert.match(console_, /action=\{offerToggleAction\}/);
-  assert.match(console_, /action=\{offerDropAction\}/);
+  assert.match(console_, /RoamingManageActions\s+entity=\{\{\s*kind:\s*"offer"/);
 });
 
 test("la vue comptes conserve l édition, la révocation et la lecture du mot de passe", async () => {

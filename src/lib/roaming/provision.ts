@@ -11,8 +11,11 @@
 // Dupliquer cette séquence, c'est se garantir qu'un jour les comptes créés à la
 // main se comporteront autrement que les tickets vendus.
 
+import { acquireRoamingMembershipLock } from "./membership-lock";
+import { ROAMING_ISSUANCE_DEADLINE_MS, roamingIssuanceIsLive } from "./issuance-lifetime";
+import { sameRoamingProfile } from "./issuance-snapshot";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   roamingGroupOffers,
@@ -137,7 +140,13 @@ export async function extendRoamingGroup(opts: {
   const requestedRouterIds = [...new Set(opts.routerIds.map((id) => id.trim()).filter(Boolean))];
   if (requestedRouterIds.length === 0) return { error: "Sélectionnez au moins une nouvelle zone." };
 
+  const release=await acquireRoamingMembershipLock(groupId);
+  if(!release)return {error:"Une modification des zones est déjà en cours pour ce groupe. Réessayez dans un instant."};
+  try {
   const db = getDb();
+  const [inProgress]=await db.select({id:vouchers.id}).from(vouchers).where(and(eq(vouchers.orgId,orgId),eq(vouchers.roamingGroupId,groupId),eq(vouchers.status,"PROVISIONING"))).limit(1);
+  if(inProgress)return {error:"Des comptes sont en cours de création. Attendez leur fin avant d’ajouter une zone."};
+
   const [group] = await db
     .select({ id: roamingGroups.id })
     .from(roamingGroups)
@@ -354,6 +363,7 @@ export async function extendRoamingGroup(opts: {
   } finally {
     closeAll();
   }
+  } finally {await release();}
 }
 
 /**
@@ -414,6 +424,8 @@ async function loadNamedAccount(orgId: string, voucherId: string) {
       profileName: vouchers.profileName,
       groupId: vouchers.roamingGroupId,
       useCase: vouchers.useCase,
+      status: vouchers.status,
+      createdAt: vouchers.createdAt,
     })
     .from(vouchers)
     .where(and(eq(vouchers.id, voucherId), eq(vouchers.orgId, orgId)))
@@ -437,6 +449,8 @@ export async function provisionRoamingAccounts(opts: {
   if (credentials.length === 0) return { error: "Aucun compte à créer." };
 
   const db = getDb();
+  const deadline=Date.now()+ROAMING_ISSUANCE_DEADLINE_MS;
+  const checkDeadline=()=>{if(Date.now()>deadline)throw new Error("La création a dépassé son délai. Relancez l’opération.")};
   const [group] = await db
     .select({ active: roamingGroups.active })
     .from(roamingGroups)
@@ -456,22 +470,53 @@ export async function provisionRoamingAccounts(opts: {
   // ses zones. On connecte et provisionne le profil partout avant de créer le
   // premier utilisateur, puis on compense uniquement les users ajoutés par ce
   // lot en cas d'échec ultérieur.
+  const voucherRows = credentials.map(({username})=>({
+    id:randomUUID(),orgId,username,routerId:groupRouters[0].router.id,
+    roamingGroupId:groupId,roamingProfileId:offer.profileId,
+    soldPriceCents:effectiveRoamingPrice(offer.defaultPriceCents,offer.priceOverrideCents),
+    profileName,status:"PROVISIONING",useCase,note,
+  }));
+  const links = voucherRows.flatMap(voucher=>groupRouters.map(({router})=>({orgId,voucherId:voucher.id,routerId:router.id,profileName,status:"PROVISIONING"})));
+  const ids=voucherRows.map(v=>v.id);
+  let reserved=false;
   const connected: { router: (typeof groupRouters)[number]["router"]; client: RouterOSClient }[] = [];
   const added: { routerId: string; username: string }[] = [];
   const closeClients = () => connected.forEach(({ client }) => client.close());
   const cleanupAdded = async () => {
-    await Promise.all(
-      added.map(async ({ routerId, username }) => {
-        const entry = connected.find(({ router }) => router.id === routerId);
-        if (!entry) return;
-        const userId = (await findHotspotUser(entry.client, username))?.[".id"];
-        if (userId) await entry.client.talk(["/ip/hotspot/user/remove", `=.id=${userId}`]).catch(() => {});
-      }),
-    );
+    const results=await Promise.allSettled(added.map(async ({routerId,username})=>{
+      const entry=connected.find(({router})=>router.id===routerId);
+      if(!entry)throw new Error("Zone non connectée");
+      await purgeHotspotAccount(entry.client,username);
+    }));
+    return results.every(result=>result.status==="fulfilled");
   };
-
+  // Reserve recoverable SaaS rows before touching the first router. The group
+  // and profile dependency guards now see an issuance while it is in flight.
+  async function assertSnapshot(tx: Parameters<Parameters<typeof db.transaction>[0]>[0],membership=false) {
+    checkDeadline();
+    if(membership){
+      const lock=await tx.execute(sql`select pg_try_advisory_xact_lock(hashtextextended(${`roaming-membership:${groupId}`},0)) as locked`);
+      if(!lock.rows[0]?.locked)throw new Error("Les zones sont en cours de modification. Relancez la création.");
+      const currentMembers=await tx.select({id:roamingGroupRouters.routerId}).from(roamingGroupRouters).where(and(eq(roamingGroupRouters.groupId,groupId),eq(roamingGroupRouters.orgId,orgId)));
+      const expected=groupRouters.map(({router})=>router.id).sort().join(',');
+      if(currentMembers.map(r=>r.id).sort().join(',')!==expected)throw new Error("Les zones du groupe ont changé. Relancez la création.");
+    }
+    const [currentGroup] = await tx.select({active:roamingGroups.active}).from(roamingGroups).where(and(eq(roamingGroups.id,groupId),eq(roamingGroups.orgId,orgId))).for("update").limit(1);
+    if (!currentGroup?.active) throw new Error("Le groupe a été modifié ou supprimé. Relancez la création.");
+    const [currentProfile] = await tx.select().from(roamingProfiles).where(and(eq(roamingProfiles.id,offer.profileId),eq(roamingProfiles.orgId,orgId))).for("update").limit(1);
+    if (!currentProfile?.active || !sameRoamingProfile(offer,currentProfile)) throw new Error("Le profil a changé pendant la création. Relancez avec ses nouveaux paramètres.");
+    const [currentOffer] = await tx.select().from(roamingGroupOffers).where(and(eq(roamingGroupOffers.id,offerId),eq(roamingGroupOffers.orgId,orgId),eq(roamingGroupOffers.groupId,groupId))).for("update").limit(1);
+    if (!currentOffer?.active || currentOffer.profileId!==offer.profileId || currentOffer.priceOverrideCents!==offer.priceOverrideCents) throw new Error("L’offre a changé pendant la création. Relancez la création.");
+  }
   try {
+    await db.transaction(async tx=>{
+      await assertSnapshot(tx,true);
+      await tx.insert(vouchers).values(voucherRows);
+      await tx.insert(voucherRouters).values(links);
+    });
+    reserved=true;
     for (const { router } of groupRouters) {
+      checkDeadline();
       const client = await connectToRouter(router);
       connected.push({ router, client });
       await prepareProfileOnRouter(client, router.id, voucherProfile);
@@ -484,15 +529,16 @@ export async function provisionRoamingAccounts(opts: {
       for (const { username } of credentials) {
         const existing = await findHotspotUser(client, username);
         if (existing) {
-          return {
-            error: `« ${username} » existe déjà sur ${router.name}. Choisissez un autre nom (ou relancez le lot pour de nouveaux codes).`,
-          };
+          throw new Error(`« ${username} » existe déjà sur ${router.name}. Choisissez un autre nom.`);
         }
       }
     }
 
     for (const { router, client } of connected) {
       for (const { username, password } of credentials) {
+        checkDeadline();
+        // Record the attempt first: a transport timeout can follow a successful add.
+        added.push({ routerId: router.id, username });
         await client.talk([
           "/ip/hotspot/user/add",
           `=name=${username}`,
@@ -500,43 +546,22 @@ export async function provisionRoamingAccounts(opts: {
           `=profile=${profileName}`,
           `=comment=${comment}`,
         ]);
-        added.push({ routerId: router.id, username });
       }
     }
 
-    const soldPriceCents = effectiveRoamingPrice(offer.defaultPriceCents, offer.priceOverrideCents);
-    const voucherRows = credentials.map(({ username }) => ({
-      id: randomUUID(),
-      orgId,
-      username,
-      routerId: connected[0].router.id,
-      roamingGroupId: groupId,
-      roamingProfileId: offer.profileId,
-      soldPriceCents,
-      profileName,
-      status: "PROVISIONED" as const,
-      useCase,
-      note,
-    }));
-    const links = voucherRows.flatMap((voucher) =>
-      connected.map(({ router }) => ({
-        orgId,
-        voucherId: voucher.id,
-        routerId: router.id,
-        profileName,
-        status: "PROVISIONED" as const,
-      })),
-    );
-    await db.transaction(async (tx) => {
-      await tx.insert(vouchers).values(voucherRows);
-      await tx.insert(voucherRouters).values(links);
+    await db.transaction(async tx=>{
+      await assertSnapshot(tx);
+      await tx.update(vouchers).set({status:"PROVISIONED"}).where(and(eq(vouchers.orgId,orgId),inArray(vouchers.id,ids)));
+      await tx.update(voucherRouters).set({status:"PROVISIONED"}).where(and(eq(voucherRouters.orgId,orgId),inArray(voucherRouters.voucherId,ids)));
     });
     return { success: true, created: credentials.length };
   } catch (error) {
-    await cleanupAdded();
-    return {
-      error: `Opération annulée : ${error instanceof Error ? error.message : "un MikroTik a refusé l'opération"}`,
-    };
+    const cleaned=await cleanupAdded();
+    if(reserved){
+      if(cleaned)await db.delete(vouchers).where(and(eq(vouchers.orgId,orgId),inArray(vouchers.id,ids)));
+      else await db.update(vouchers).set({status:"PROVISIONING_ERROR",note:"À révoquer : création interrompue, nettoyage incomplet sur une zone."}).where(and(eq(vouchers.orgId,orgId),inArray(vouchers.id,ids)));
+    }
+    return {error:`${cleaned?"Opération annulée":"Nettoyage incomplet : les comptes sont conservés dans le SaaS pour reprendre leur révocation"} : ${error instanceof Error?error.message:"un MikroTik a refusé l’opération"}`};
   } finally {
     closeClients();
   }
@@ -566,6 +591,7 @@ export async function updateRoamingAccount(opts: {
 
   const account = await loadNamedAccount(orgId, voucherId);
   if (!account) return { error: "Compte introuvable." };
+  if (account.status === "PROVISIONING") return { error: "La création de ce compte est en cours. Attendez sa fin avant de le modifier ou supprimer." };
 
   const rename = opts.username && opts.username !== account.username ? opts.username : null;
   const password = opts.password?.trim() || null;
@@ -706,14 +732,16 @@ export async function deleteRoamingAccount(opts: {
 
   const account = await loadNamedAccount(orgId, voucherId);
   if (!account) return { error: "Compte introuvable." };
+  if (roamingIssuanceIsLive(account.status,account.createdAt)) return { error: "La création de ce compte est en cours. Attendez sa fin avant de le modifier ou supprimer." };
 
-  // Retire d'abord le cookie et la MAC mémorisée. Si une zone ne répond pas,
-  // cette garde refuse aussi la suppression du compte : aucune rémanence ne
-  // doit survivre à une révocation annoncée comme complète.
-  const deviceCleared = await clearRoamingDeviceBinding({ orgId, voucherId });
-  if ("error" in deviceCleared) return deviceCleared;
-
-  const groupRouters = await loadGroupRouters(orgId, account.groupId);
+  // Revoke the account and its MAC companions together; do not first mutate
+  // its MAC address (an intermediate failure used to prevent deletion).
+  const [binding] = await db.select().from(roamingDeviceBindings).where(and(eq(roamingDeviceBindings.orgId,orgId),eq(roamingDeviceBindings.voucherId,voucherId))).limit(1);
+  const knownMacs = binding ? [binding.macAddress,...binding.previousMacs] : [];
+  const members=await loadGroupRouters(orgId,account.groupId);
+  const originalZones=await db.select({router:routers}).from(voucherRouters).innerJoin(routers,eq(voucherRouters.routerId,routers.id)).where(and(eq(voucherRouters.voucherId,voucherId),eq(voucherRouters.orgId,orgId),eq(routers.orgId,orgId)));
+  const groupRouters=[...new Map([...members,...originalZones].map(row=>[row.router.id,row])).values()];
+  if (!groupRouters.length) return {error:"Aucune zone disponible pour vérifier la révocation de ce compte."};
   const { removedOn, unreachable } = await revokeRoamingTargets(
     groupRouters.map(({ router }) => ({ name: router.name, router })),
     async ({ router }) => {
@@ -723,7 +751,7 @@ export async function deleteRoamingAccount(opts: {
       // ligne SaaS n'est jamais supprimée avant une révocation complète.
       const client = await connectToRouter(router, 10_000, 1);
       try {
-        await purgeHotspotAccount(client, account.username);
+        await purgeHotspotAccount(client, account.username, knownMacs);
       } finally {
         client.close();
       }
@@ -770,6 +798,9 @@ export async function shrinkRoamingGroup(opts: {
   { error: string } | { success: true; routerName: string; removedAccounts: number }
 > {
   const { orgId, groupId, routerId } = opts;
+  const release=await acquireRoamingMembershipLock(groupId);
+  if(!release)return {error:"Une modification des zones est déjà en cours pour ce groupe. Réessayez dans un instant."};
+  try {
   const db = getDb();
 
   const [group] = await db
@@ -793,6 +824,9 @@ export async function shrinkRoamingGroup(opts: {
         isNull(vouchers.deletedAt),
       ),
     );
+
+  const [inProgress] = await db.select({id:vouchers.id}).from(vouchers).where(and(eq(vouchers.orgId,orgId),eq(vouchers.roamingGroupId,groupId),eq(vouchers.status,"PROVISIONING"))).limit(1);
+  if(inProgress)return {error:"Des comptes sont en cours de création. Attendez leur fin avant de retirer une zone."};
 
   // Les compagnons `name=<MAC>` ne sont plus retrouvables par la mac-address du
   // ticket (qui n'en porte plus) : la base est désormais la seule à savoir
@@ -890,6 +924,7 @@ export async function shrinkRoamingGroup(opts: {
     );
 
   return { success: true, routerName: target.router.name, removedAccounts };
+  } finally {await release();}
 }
 
 /** Relance la synchronisation d'un appareil d'un compte nominatif. */
@@ -899,6 +934,7 @@ export async function resyncNamedRoamingDevice(opts: {
 }) {
   const account = await loadNamedAccount(opts.orgId, opts.voucherId);
   if (!account) return { error: "Compte introuvable." };
+  if (account.status === "PROVISIONING") return { error: "La création de ce compte est en cours. Attendez sa fin avant de le modifier ou supprimer." };
   return resyncRoamingDeviceBinding(opts);
 }
 
@@ -909,6 +945,7 @@ export async function replaceNamedRoamingDevice(opts: {
 }) {
   const account = await loadNamedAccount(opts.orgId, opts.voucherId);
   if (!account) return { error: "Compte introuvable." };
+  if (account.status === "PROVISIONING") return { error: "La création de ce compte est en cours. Attendez sa fin avant de le modifier ou supprimer." };
   const result = await clearRoamingDeviceBinding(opts);
   if ("error" in result) return result;
   if (!result.hadBinding) return { error: "Aucun appareil n'est encore mémorisé pour ce compte." };

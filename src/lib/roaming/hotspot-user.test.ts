@@ -105,3 +105,28 @@ test("la purge efface aussi les compagnons des MAC connues en base", async () =>
     .map((c) => c[1]);
   assert.deepEqual(removed, ["=.id=*1", "=.id=*2", "=.id=*3"]);
 });
+
+test("la révocation retire les cookies du code et des compagnons connus",async()=>{
+  const client=fakeClient({
+    '/ip/hotspot/user/print ?name=alice':[{'.id':'*1'}],
+    '/ip/hotspot/user/print ?name=AA:BB:CC:DD:EE:FF':[{'.id':'*2'}],
+    '/ip/hotspot/cookie/print ?user=alice':[{'.id':'*cookie'}],
+    '/ip/hotspot/active/print ?user=AA:BB:CC:DD:EE:FF':[{'.id':'*active'}],
+  });
+  await purgeHotspotAccount(client,'alice',['AA:BB:CC:DD:EE:FF']);
+  assert.ok(client.commandes.some(c=>c.join(' ')==='/ip/hotspot/cookie/remove =.id=*cookie'));
+  assert.ok(client.commandes.some(c=>c.join(' ')==='/ip/hotspot/active/remove =.id=*active'));
+});
+test("une session impossible à révoquer interdit d’annoncer une suppression complète",async()=>{
+  await assert.rejects(purgeHotspotAccount({talk:async words=>{
+    if(words[0]==='/ip/hotspot/user/print')return[{'.id':'*1'}];
+    if(words[0]==='/ip/hotspot/active/print')return[{'.id':'*2'}];
+    if(words[0]==='/ip/hotspot/active/remove')throw Error('revocation failed');
+    return[];
+  }},'alice'),/revocation failed/);
+});
+test("un compagnon connu reste révoqué même si le compte principal manque déjà",async()=>{
+  const client=fakeClient({'/ip/hotspot/user/print ?name=AA:BB:CC:DD:EE:FF':[{'.id':'*2'}]});
+  await purgeHotspotAccount(client,'alice',['AA:BB:CC:DD:EE:FF']);
+  assert.ok(client.commandes.some(c=>c.join(' ')==='/ip/hotspot/user/remove =.id=*2'));
+});

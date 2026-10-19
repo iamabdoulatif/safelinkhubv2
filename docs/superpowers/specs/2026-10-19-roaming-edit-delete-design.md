@@ -1,14 +1,14 @@
 # Roaming — Modifier et supprimer chaque élément
 
 ## Objectif
-Chaque groupe, profil de forfait, offre et compte possède deux actions textuelles visibles : « Modifier » et « Supprimer ». Conserver la charte vert profond, citron et blanc, les quatre onglets et les contrôles d'accès par organisation.
+Chaque groupe, profil de forfait, offre et compte possède deux actions textuelles visibles : « Modifier » et « Supprimer ». Conserver la charte vert profond, citron et blanc, les trois étapes du parcours guidé retenu : zones, forfaits, comptes et les contrôles d'accès par organisation.
 
 ## Interface retenue
 - Groupes : modifier le nom et gérer les zones depuis un panneau prérempli ; supprimer avec le nom du groupe et les dépendances annoncées.
 - Catalogue : modifier la durée, les débits et le prix d'un profil ; supprimer un profil inutilisé. Les profils liés à des offres ou accès existants indiquent les éléments à traiter d'abord.
 - Offres : modifier le tarif du groupe dans un formulaire prérempli ; suppression explicite, distincte de la pause.
 - Comptes : conserver et harmoniser les actions existantes de modification et suppression ; afficher les zones où la modification ou révocation a réussi ou reste à reprendre.
-- Exploitation : proposer les mêmes actions sur le groupe et les offres sélectionnés. Cet onglet est une vue des objets précédents, pas un objet à supprimer.
+- Parcours guidé validé : cartes de groupes et couverture dans « Organiser les zones », profils et offres dans « Définir les forfaits », accès nominatifs dans « Gérer les comptes ». Les boutons de continuation sont facultatifs : chaque étape reste directement accessible.
 - Confirmation de suppression nommée, annulation accessible, état en cours et résultat lisible. Aucun bouton destructif représenté seulement par une icône.
 
 ## Comportement
@@ -21,3 +21,6 @@ Tests des actions serveur : session, rôle, organisation, validation des champs,
 
 ## Choix
 Actions visibles par ligne recommandées : plus faciles à découvrir que des menus « ⋮ » et moins de navigation qu'une page de gestion séparée. Réutiliser les panneaux existants pour garder une interface cohérente.
+
+## Protection du provisionnement
+Réserver les lignes de compte et leurs zones dans une transaction avant toute création sur les MikroTik. Revalider le groupe, le profil et l’offre sous verrou avant la réservation et la finalisation. Une compensation incomplète conserve les comptes visibles avec un état explicite de reprise ; les dépendances restent protégées.

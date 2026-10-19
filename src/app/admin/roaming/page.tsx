@@ -99,6 +99,7 @@ export default async function RoamingPage() {
       .select({
         id: vouchers.id,
         username: vouchers.username,
+        status: vouchers.status,
         groupId: vouchers.roamingGroupId,
         profileName: vouchers.profileName,
         groupName: roamingGroups.name,
