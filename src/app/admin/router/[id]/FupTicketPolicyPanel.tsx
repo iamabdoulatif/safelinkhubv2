@@ -8,6 +8,7 @@ export default function FupTicketPolicyPanel({routerId,policy,state,onSaved}:{ro
  return <section className="mb-5 rounded-xl border border-line bg-paper p-5" aria-label="Usage intensif par ticket">
   <h3 className="font-semibold">Usage intensif : bridage puis blocage 5 heures</h3>
   <p className="mt-2 text-sm text-ink-soft">Ce contrôle porte sur le volume et le débit, sans distinguer une vidéo d’un téléchargement. La coupure complète interdit aussi YouTube et TikTok. Le quota partagé reste prioritaire sur tout débit par ticket.</p>
+  <p className="mt-2 text-sm"><a className="underline" href="/guides/configurer-fup.html#tickets" target="_blank" rel="noreferrer">Lire le guide des sanctions et du prorata</a></p>
   <label className="mt-4 flex items-center gap-2"><input type="checkbox" checked={form.enabled} onChange={e=>setForm({...form,enabled:e.target.checked})}/>Activer les sanctions progressives pour cette zone</label>
   <div className="mt-4 grid gap-3 sm:grid-cols-2">{fields.map(([key,label])=><label key={key}>{label}<input className="field mt-1" type="number" min="1" value={form[key]} onChange={e=>setForm({...form,[key]:Number(e.target.value)})}/></label>)}
    <label>Fenêtre de mesure<select className="field mt-1" value={form.windowMinutes} onChange={e=>setForm({...form,windowMinutes:Number(e.target.value)})}>{[5,10,15,30,60].map(n=><option key={n} value={n}>{n} minutes</option>)}</select></label>
