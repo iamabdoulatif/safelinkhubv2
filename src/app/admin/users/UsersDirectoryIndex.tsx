@@ -12,6 +12,9 @@ type UsersDirectoryIndexProps = {
   onQueryChange: (query: string) => void;
   onFilterChange: (filter: UserControlFilter) => void;
   onReset: () => void;
+  roleFilter?: string;
+  roleOptions?: Array<{ value: string; label: string }>;
+  onRoleChange?: (role: string) => void;
 };
 
 export function UsersDirectoryIndex({
@@ -23,27 +26,62 @@ export function UsersDirectoryIndex({
   onQueryChange,
   onFilterChange,
   onReset,
+  roleFilter = "all",
+  roleOptions = [],
+  onRoleChange,
 }: UsersDirectoryIndexProps) {
-  const resetDisabled = !query && activeFilter === "all";
+  const resetDisabled =
+    !query && activeFilter === "all" && roleFilter === "all";
 
   return (
-    <section aria-label="Index du registre" className="border-y border-line py-4">
-      <label className="flex min-w-0 items-center gap-3 border border-line bg-paper px-3.5 py-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink rounded-xl">
-        <Search className="h-4 w-4 shrink-0 text-ink-soft" aria-hidden="true" />
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Rechercher par nom, email ou organisation…"
-          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-soft"
-          aria-label="Rechercher un utilisateur"
-        />
-      </label>
+    <section
+      aria-label="Index du registre"
+      className="rounded-2xl border border-line bg-paper p-4 sm:p-5"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <label className="flex min-w-0 flex-1 items-center gap-3 border border-line bg-paper px-3.5 py-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink rounded-xl">
+          <Search
+            className="h-4 w-4 shrink-0 text-ink-soft"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Rechercher par nom, email ou organisation…"
+            className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-soft"
+            aria-label="Rechercher un utilisateur"
+          />
+        </label>
+        {onRoleChange && (
+          <label className="block text-xs font-medium text-ink-soft sm:w-48">
+            Rôle
+            <select
+              aria-label="Filtrer par rôle"
+              value={roleFilter}
+              onChange={(event) => onRoleChange(event.target.value)}
+              className="field mt-1"
+            >
+              <option value="all">Tous les rôles</option>
+              {roleOptions.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
       <div className="mt-4 flex flex-col gap-3 border-t border-line-soft pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p aria-live="polite" className="flex items-center gap-2 text-xs text-ink-soft">
+        <p
+          aria-live="polite"
+          className="flex items-center gap-2 text-xs text-ink-soft"
+        >
           <SlidersHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="font-semibold text-ink">{resultCount} affiché{resultCount > 1 ? "s" : ""}</span>
+          <span className="font-semibold text-ink">
+            {resultCount} affiché{resultCount > 1 ? "s" : ""}
+          </span>
         </p>
         <button
           type="button"
@@ -55,7 +93,11 @@ export function UsersDirectoryIndex({
         </button>
       </div>
 
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtres utilisateurs">
+      <div
+        className="mt-3 flex flex-wrap gap-2"
+        role="group"
+        aria-label="Filtres utilisateurs"
+      >
         {filters.map((filter) => {
           const active = activeFilter === filter.value;
 
@@ -65,12 +107,16 @@ export function UsersDirectoryIndex({
               type="button"
               onClick={() => onFilterChange(filter.value)}
               aria-pressed={active}
-              className={`inline-flex shrink-0 items-center gap-2 border px-3 py-2 text-xs font-medium transition-colors ${
-                active ? "border-ink bg-ink text-paper" : "border-line bg-paper text-ink hover:bg-clay"
+              className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium transition-colors ${
+                active
+                  ? "border-ink bg-ink text-paper"
+                  : "border-line bg-paper text-ink hover:bg-clay"
               }`}
             >
               {filter.label}
-              <span className="font-semibold tabular-nums">{filterCounts[filter.value]}</span>
+              <span className="font-semibold tabular-nums">
+                {filterCounts[filter.value]}
+              </span>
             </button>
           );
         })}

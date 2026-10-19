@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
+import { roleLabel } from "@/lib/auth/roles";
 import { ArrowUpRight, Check, Copy, Mail, Wifi, X } from "lucide-react";
 import VpnQuotaForm, { type QuotaRouter } from "./VpnQuotaForm";
 import type { UserControlRow } from "./users-control-center";
@@ -27,6 +29,7 @@ export default function UserDrawer({
   superadmin,
   routers,
   copied,
+  copyError,
   onCopyEmail,
   onClose,
 }: {
@@ -35,166 +38,204 @@ export default function UserDrawer({
   /* Routeurs de l'organisation de cet utilisateur — portée possible du quota. */
   routers: QuotaRouter[];
   copied: boolean;
+  copyError?: string | null;
   onCopyEmail: () => void;
   onClose: () => void;
 }) {
+  const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    const surTouche = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", surTouche);
-    const overflowInitial = document.body.style.overflow;
+    const element = dialog.current;
+    if (!element) return;
+    const trigger = document.activeElement;
+    element.showModal();
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", surTouche);
-      document.body.style.overflow = overflowInitial;
+      element.close();
+      document.body.style.overflow = previousOverflow;
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
     };
   }, [onClose]);
 
   const fin = expiryHint(row.quotaExpiresAt);
   const dateFin = row.quotaExpiresAt
-    ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(row.quotaExpiresAt))
+    ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(
+        new Date(row.quotaExpiresAt),
+      )
     : null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-end sm:items-stretch">
-      {/* Voile : referme au clic dehors, et fait reculer la liste au lieu de la
-          laisser rivaliser avec le tiroir. */}
-      <button
-        type="button"
-        aria-label="Fermer le détail"
-        onClick={onClose}
-        className="absolute inset-0 bg-ink/25"
-      />
-
-      {/* Feuille par le bas sur téléphone, tiroir par la droite au-delà : le
-          pouce atteint le bas d'un écran, pas son bord droit. */}
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Détail de ${row.name}`}
-        className="relative flex max-h-[88vh] w-full flex-col overflow-y-auto rounded-t-2xl border border-line bg-paper sm:max-h-none sm:h-full sm:w-[26rem] sm:rounded-none sm:rounded-l-2xl sm:border-y-0 sm:border-r-0"
-      >
-        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line-soft bg-paper px-5 py-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <span
-              aria-hidden="true"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-clay text-sm font-bold text-ink"
-            >
-              {userMonogram(row.name)}
-            </span>
-            <div className="min-w-0">
-              <p className="truncate font-display text-lg font-bold text-ink">{row.name}</p>
-              <p className="truncate text-sm text-ink-soft">{row.email}</p>
-            </div>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <dialog
+      ref={dialog}
+      aria-label={`Détail de ${row.name}`}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const box = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < box.left ||
+          event.clientX > box.right ||
+          event.clientY < box.top ||
+          event.clientY > box.bottom
+        )
+          onClose();
+      }}
+      className="theme-slate fixed inset-x-0 bottom-0 top-auto m-0 max-h-[90dvh] w-full max-w-none overflow-y-auto rounded-t-2xl border border-line bg-paper p-0 text-ink shadow-modal backdrop:bg-ink/35 sm:inset-y-0 sm:left-auto sm:right-0 sm:h-dvh sm:max-h-dvh sm:max-w-md sm:rounded-none sm:rounded-l-2xl sm:border-y-0 sm:border-r-0"
+    >
+      <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line-soft bg-paper px-5 py-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-clay text-sm font-bold text-ink"
+          >
+            {userMonogram(row.name)}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate font-display text-lg font-bold text-ink">
+              {row.name}
+            </p>
+            <p className="break-all text-sm text-ink-soft">{row.email}</p>
           </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fermer"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-soft hover:bg-clay hover:text-ink"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </header>
+
+      <div className="space-y-6 px-5 py-5">
+        <dl className="space-y-2.5 text-sm">
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-ink-soft">Organisation</dt>
+            <dd className="min-w-0 truncate text-right font-medium text-ink">
+              {row.orgName}
+            </dd>
+          </div>
+          {row.whatsapp && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <dt className="text-sm text-ink-soft">WhatsApp</dt>
+              <dd className="min-w-0 truncate text-right font-medium">
+                <a
+                  href={`https://wa.me/${row.whatsapp.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand-deep hover:underline"
+                >
+                  {row.whatsapp}
+                </a>
+              </dd>
+            </div>
+          )}
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-ink-soft">Rôle</dt>
+            <dd className="font-medium text-ink">{roleLabel(row.role)}</dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-ink-soft">Accès</dt>
+            <dd className="text-right font-medium text-ink">
+              {row.quotaLabel}
+              {/* La date exacte n'apparaît QUE là où l'on peut la recopier. */}
+              {dateFin && (
+                <span className="mt-0.5 block text-xs font-normal text-ink-soft">
+                  {dateFin}
+                  {fin.label ? ` · ${fin.label}` : ""}
+                </span>
+              )}
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-ink-soft">Inscrit le</dt>
+            <dd className="font-medium text-ink">
+              {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(
+                new Date(row.createdAt),
+              )}
+            </dd>
+          </div>
+        </dl>
+
+        {copyError && (
+          <p
+            role="alert"
+            className="rounded-lg bg-err-soft p-3 text-sm text-err"
+          >
+            {copyError}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2 border-t border-line-soft pt-5">
           <button
             type="button"
-            onClick={onClose}
-            aria-label="Fermer"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-soft hover:bg-clay hover:text-ink"
+            onClick={onCopyEmail}
+            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-line bg-paper px-3 text-sm font-medium text-ink hover:bg-clay"
           >
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-
-        <div className="space-y-6 px-5 py-5">
-          <dl className="space-y-2.5 text-sm">
-            <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-ink-soft">Organisation</dt>
-              <dd className="min-w-0 truncate text-right font-medium text-ink">{row.orgName}</dd>
-            </div>
-            {row.whatsapp && (
-              <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-                <dt className="text-sm text-ink-soft">WhatsApp</dt>
-                <dd className="min-w-0 truncate text-right font-medium">
-                  <a
-                    href={`https://wa.me/${row.whatsapp.replace(/\D/g, "")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-brand-deep hover:underline"
-                  >
-                    {row.whatsapp}
-                  </a>
-                </dd>
-              </div>
+            {copied ? (
+              <Check className="h-4 w-4 text-ok" />
+            ) : (
+              <Copy className="h-4 w-4" />
             )}
-            <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-ink-soft">Rôle</dt>
-              <dd className="font-medium text-ink">
-                {row.role === "superadmin" ? "Superadmin" : row.role === "admin" ? "Admin" : row.role}
-              </dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-ink-soft">Accès</dt>
-              <dd className="text-right font-medium text-ink">
-                {row.quotaLabel}
-                {/* La date exacte n'apparaît QUE là où l'on peut la recopier. */}
-                {dateFin && <span className="mt-0.5 block text-xs font-normal text-ink-soft">{dateFin}{fin.label ? ` · ${fin.label}` : ""}</span>}
-              </dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-ink-soft">Inscrit le</dt>
-              <dd className="font-medium text-ink">
-                {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(row.createdAt))}
-              </dd>
-            </div>
-          </dl>
+            {copied ? "Copié" : "Copier l'e-mail"}
+          </button>
+          <a
+            href={`mailto:${row.email}`}
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-line bg-paper px-3 text-sm font-medium text-ink hover:bg-clay"
+          >
+            <Mail className="h-4 w-4" />
+            Écrire
+          </a>
+        </div>
 
-          <div className="flex flex-wrap gap-2 border-t border-line-soft pt-5">
-            <button
-              type="button"
-              onClick={onCopyEmail}
-              className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-line bg-paper px-3 text-sm font-medium text-ink hover:bg-clay"
-            >
-              {copied ? <Check className="h-4 w-4 text-ok" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copié" : "Copier l'e-mail"}
-            </button>
-            <a
-              href={`mailto:${row.email}`}
-              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-line bg-paper px-3 text-sm font-medium text-ink hover:bg-clay"
-            >
-              <Mail className="h-4 w-4" />
-              Écrire
-            </a>
-          </div>
-
-          {superadmin && (
-            <section className="border-t border-line-soft pt-5">
-              <h3 className="font-display text-sm font-bold text-ink">Accès VPN</h3>
-              {/* L'avertissement, UNE fois, ici : à l'endroit précis où l'on
+        {superadmin && (
+          <section className="border-t border-line-soft pt-5">
+            <h3 className="font-display text-sm font-bold text-ink">
+              Accès VPN
+            </h3>
+            {/* L'avertissement, UNE fois, ici : à l'endroit précis où l'on
                   s'apprête à donner un accès. Répété sur chaque ligne de la
                   liste, il n'était plus lu par personne. */}
-              <p className="mt-1 text-xs leading-5 text-ink-soft">
-                Les passes promotionnels sont gratuits et ne débitent jamais Safecoin.
-              </p>
-              <div className="mt-3">
-                <VpnQuotaForm userId={row.id} userEmail={row.email} routers={routers} />
-              </div>
-            </section>
-          )}
-
-          <section className="border-t border-line-soft pt-5">
-            <h3 className="font-display text-sm font-bold text-ink">Ouvrir ailleurs</h3>
-            <div className="mt-3 flex flex-col gap-2">
-              {superadmin && (
-                <Link
-                  href="/admin/vpn-access"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-paper px-3 text-sm font-medium text-ink hover:bg-clay"
-                >
-                  <Wifi className="h-4 w-4" /> Accès VPN clients
-                </Link>
-              )}
-              <Link
-                href="/admin/remote-access"
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-paper px-3 text-sm font-medium text-ink hover:bg-clay"
-              >
-                <ArrowUpRight className="h-4 w-4" /> Accès distant
-              </Link>
+            <p className="mt-1 text-xs leading-5 text-ink-soft">
+              Les passes promotionnels sont gratuits et ne débitent jamais
+              Safecoin.
+            </p>
+            <div className="mt-3">
+              <VpnQuotaForm
+                userId={row.id}
+                userEmail={row.email}
+                routers={routers}
+              />
             </div>
           </section>
-        </div>
-      </aside>
-    </div>
+        )}
+
+        <section className="border-t border-line-soft pt-5">
+          <h3 className="font-display text-sm font-bold text-ink">
+            Ouvrir ailleurs
+          </h3>
+          <div className="mt-3 flex flex-col gap-2">
+            {superadmin && (
+              <Link
+                href="/admin/vpn-access"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-paper px-3 text-sm font-medium text-ink hover:bg-clay"
+              >
+                <Wifi className="h-4 w-4" /> Accès VPN clients
+              </Link>
+            )}
+            <Link
+              href="/admin/remote-access"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-paper px-3 text-sm font-medium text-ink hover:bg-clay"
+            >
+              <ArrowUpRight className="h-4 w-4" /> Accès distant
+            </Link>
+          </div>
+        </section>
+      </div>
+    </dialog>,
+    document.body,
   );
 }

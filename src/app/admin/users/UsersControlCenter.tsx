@@ -1,44 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ChevronDown,
   Download,
   Gift,
   RotateCcw,
   Search,
-  ChevronRight,
-  MessageCircle,
-  ShieldCheck,
+  ChevronLeft,
   Wifi,
 } from "lucide-react";
 import UserDrawer from "./UserDrawer";
 import type { QuotaRouter } from "./VpnQuotaForm";
-import { expiryHint } from "./user-expiry";
-import { orgDisplayName, quotaShortLabel, roleBadge } from "./user-labels";
+import { roleLabel } from "@/lib/auth/roles";
+import UsersDirectoryRow from "./UsersDirectoryRow";
+import { userDirectoryPage } from "./users-directory-page";
 import TemporaryAccessPasses, {
   type Grant,
   type GrantRouter,
   type Organization,
 } from "../remote-access/TemporaryAccessPasses";
-import { buildUsersCsv, filterUsers, type UserControlFilter, type UserControlRow } from "./users-control-center";
+import {
+  buildUsersCsv,
+  filterUsers,
+  type UserControlFilter,
+  type UserControlRow,
+} from "./users-control-center";
 import { OrganizationFocusPanel } from "./OrganizationFocusPanel";
 import { UsersDirectoryIndex } from "./UsersDirectoryIndex";
 import { UsersRegisterPriority } from "./UsersRegisterPriority";
 import type { OrganizationFocus } from "./organization-focus";
-import { buildUsersRegisterSummary, userMonogram } from "./users-register";
+import { buildUsersRegisterSummary } from "./users-register";
 
 const FILTERS: Array<{ value: UserControlFilter; label: string }> = [
   { value: "all", label: "Tous" },
-  { value: "admins", label: "Admins" },
-  { value: "superadmins", label: "Superadmins" },
   { value: "free", label: "Quota gratuit" },
   { value: "paid", label: "VPN payant" },
   { value: "expiring", label: "Expire bientôt" },
 ];
-
-
 
 export default function UsersControlCenter({
   rows,
@@ -59,22 +59,58 @@ export default function UsersControlCenter({
   organizationFocus: OrganizationFocus | null;
 }) {
   const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<UserControlFilter>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const now = useMemo(() => new Date(), []);
   const filteredRows = useMemo(
-    () => filterUsers(rows, query, activeFilter, now),
-    [activeFilter, now, query, rows],
+    () =>
+      filterUsers(rows, query, activeFilter, now).filter(
+        (row) => roleFilter === "all" || row.role === roleFilter,
+      ),
+    [activeFilter, now, query, rows, roleFilter],
   );
-  const summary = useMemo(() => buildUsersRegisterSummary(rows, now), [now, rows]);
-  const filterCounts = useMemo(
-    () => Object.fromEntries(FILTERS.map(({ value }) => [value, filterUsers(rows, "", value, now).length])) as Record<UserControlFilter, number>,
+  const summary = useMemo(
+    () => buildUsersRegisterSummary(rows, now),
     [now, rows],
   );
+  const filterCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        (
+          ["all", "admins", "superadmins", "free", "paid", "expiring"] as const
+        ).map((value) => [
+          value,
+          filterUsers(rows, query, value, now).filter(
+            (row) => roleFilter === "all" || row.role === roleFilter,
+          ).length,
+        ]),
+      ) as Record<UserControlFilter, number>,
+    [now, rows, query, roleFilter],
+  );
+
+  const roleOptions = useMemo(
+    () =>
+      [...new Set(rows.map((row) => row.role))].map((value) => ({
+        value,
+        label: roleLabel(value),
+      })),
+    [rows],
+  );
+  const pageKey = `${query}|${activeFilter}|${roleFilter}`;
+  const [pageState, setPageState] = useState({ key: pageKey, page: 0 });
+  const paged = userDirectoryPage(
+    filteredRows,
+    pageState.key === pageKey ? pageState.page : 0,
+  );
+  const setPage = (page: number) => setPageState({ key: pageKey, page });
 
   function exportCsv() {
-    const blob = new Blob([buildUsersCsv(filteredRows)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([buildUsersCsv(filteredRows)], {
+      type: "text/csv;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -84,59 +120,81 @@ export default function UsersControlCenter({
   }
 
   async function copyEmail(row: UserControlRow) {
-    await navigator.clipboard.writeText(row.email);
-    setCopiedId(row.id);
-    window.setTimeout(() => setCopiedId((current) => (current === row.id ? null : current)), 1600);
+    try {
+      await navigator.clipboard.writeText(row.email);
+      setCopyError(null);
+      setCopiedId(row.id);
+      window.setTimeout(
+        () => setCopiedId((current) => (current === row.id ? null : current)),
+        1600,
+      );
+    } catch {
+      setCopyError(
+        "Copie impossible. Sélectionnez l’e-mail dans la fiche pour le copier manuellement.",
+      );
+    }
   }
 
-  const openRow = openRowId ? (rows.find((row) => row.id === openRowId) ?? null) : null;
+  const closeDrawer = useCallback(() => setOpenRowId(null), []);
+
+  const openRow = openRowId
+    ? (rows.find((row) => row.id === openRowId) ?? null)
+    : null;
 
   function resetFilters() {
     setQuery("");
     setActiveFilter("all");
+    setRoleFilter("all");
   }
 
   return (
-    <div className="animate-fade-in-up space-y-8">
-      <section className="border border-line bg-paper p-5 sm:p-6 rounded-xl">
-        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div className="max-w-2xl">
-            <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-ok">
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Station de contrôle
-            </div>
-            <h1 className="text-ink text-2xl font-semibold tracking-tight">
-              {organizationFocus ? `Utilisateurs de ${organizationFocus.name}` : "Utilisateurs"}
-            </h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-ink-soft">
-              {organizationFocus
-                ? `Les membres visibles de ${organizationFocus.name}, avec l’état de ses routeurs.`
-                : superadmin
-                ? "Une vue calme pour comprendre les comptes, les organisations et les accès VPN qui méritent votre attention."
-                : "Les membres de l’équipe qui ont accès à cette organisation SafeLinkHub."}
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Link
-              href={superadmin ? "/admin/vpn-access" : "/admin/remote-access"}
-              className="inline-flex items-center gap-2 border border-line bg-paper px-3.5 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-clay rounded-xl"
-            >
-              <Wifi className="h-4 w-4" aria-hidden="true" /> Accès VPN
-            </Link>
-            <button
-              type="button"
-              onClick={exportCsv}
-              disabled={filteredRows.length === 0}
-              className="btn btn-md btn-primary inline-flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" aria-hidden="true" /> Exporter la liste
-            </button>
-          </div>
+    <div className="animate-fade-in-up min-w-0 space-y-5 pb-8">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 basis-72">
+          <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+            Annuaire
+          </p>
+          <h1 className="mt-2 break-words text-2xl font-semibold tracking-tight text-ink">
+            {organizationFocus
+              ? `Utilisateurs de ${organizationFocus.name}`
+              : "Utilisateurs"}
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-soft">
+            {organizationFocus
+              ? `Consultez les membres de ${organizationFocus.name} et ouvrez leur fiche pour gérer leurs accès.`
+              : superadmin
+                ? "Retrouvez une personne, son organisation et ses accès depuis un seul annuaire."
+                : "Retrouvez les membres de votre équipe et consultez leurs informations."}
+          </p>
         </div>
-      </section>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={superadmin ? "/admin/vpn-access" : "/admin/remote-access"}
+            className="btn btn-md btn-outline"
+          >
+            <Wifi aria-hidden="true" className="h-4 w-4" />
+            Accès VPN
+          </Link>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={!filteredRows.length}
+            className="btn btn-md btn-outline"
+          >
+            <Download aria-hidden="true" className="h-4 w-4" />
+            Exporter la liste
+          </button>
+        </div>
+      </header>
 
-      <UsersRegisterPriority focusedOrganization={organizationFocus} summary={summary} />
+      <UsersRegisterPriority
+        focusedOrganization={organizationFocus}
+        summary={summary}
+      />
 
-      {organizationFocus && <OrganizationFocusPanel focus={organizationFocus} compact />}
+      {organizationFocus && (
+        <OrganizationFocusPanel focus={organizationFocus} compact />
+      )}
 
       <UsersDirectoryIndex
         query={query}
@@ -147,135 +205,105 @@ export default function UsersControlCenter({
         onQueryChange={setQuery}
         onFilterChange={setActiveFilter}
         onReset={resetFilters}
+        roleFilter={roleFilter}
+        roleOptions={roleOptions}
+        onRoleChange={setRoleFilter}
       />
 
       {filteredRows.length === 0 ? (
         <div className="border border-dashed border-line bg-paper px-6 py-14 text-center">
-          <Search className="mx-auto h-8 w-8 text-ink-soft" aria-hidden="true" />
-          <p className="mt-3 font-semibold text-ink">Aucun utilisateur trouvé</p>
-          <p className="mt-1 text-sm text-ink-soft">Modifiez la recherche ou réinitialisez les filtres.</p>
-          <button type="button" onClick={resetFilters} className="btn btn-md btn-outline mt-4 inline-flex items-center gap-2">
-            <RotateCcw className="h-4 w-4" aria-hidden="true" /> Effacer les filtres
+          <Search
+            className="mx-auto h-8 w-8 text-ink-soft"
+            aria-hidden="true"
+          />
+          <p className="mt-3 font-semibold text-ink">
+            Aucun utilisateur trouvé
+          </p>
+          <p className="mt-1 text-sm text-ink-soft">
+            Modifiez la recherche ou réinitialisez les filtres.
+          </p>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="btn btn-md btn-outline mt-4 inline-flex items-center gap-2"
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" /> Effacer les
+            filtres
           </button>
         </div>
       ) : (
         <>
-          {/* ANNUAIRE. Une ligne = UNE ligne. Avant, chaque utilisateur
-              occupait quatre étages : sélecteur de quota, bouton « Appliquer »,
-              trois boutons d'action et la même phrase d'avertissement recopiée
-              à l'infini. On voyait quatre personnes par écran au lieu de vingt,
-              et l'avertissement, répété, ne se lisait plus.
-
-              Une liste sert à TROUVER, un tiroir sert à AGIR : tout ce qui agit
-              est parti dans UserDrawer, pour un utilisateur à la fois. */}
-          <ul
-            role="list"
-            /* L'intitulé de portée était porté par le <caption> de la table.
-               La table a disparu, pas le besoin : un lecteur d'écran doit
-               toujours savoir de QUELS utilisateurs cette liste parle. */
-            aria-label={
-              organizationFocus
-                ? `Utilisateurs de ${organizationFocus.name} correspondant aux filtres actifs`
-                : "Utilisateurs correspondant aux filtres actifs"
-            }
-            className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line bg-paper"
+          <section
+            className="overflow-hidden rounded-2xl border border-line bg-paper"
+            aria-label="Annuaire des utilisateurs"
           >
-            {filteredRows.map((row) => {
-              const fin = expiryHint(row.quotaExpiresAt, now);
-              const org = orgDisplayName(row.orgName, row.name);
-              const acces = quotaShortLabel(row.quotaCategory);
-              const rang = roleBadge(row.role);
-              const alerte = fin.tone === "urgent" || fin.tone === "over";
-              return (
-                <li key={row.id}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenRowId(row.id)}
-                    aria-label={`Ouvrir le détail de ${row.name}`}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-clay/60 focus-visible:bg-clay/60 focus-visible:outline-none sm:gap-4 sm:px-5"
-                  >
-                    {/* Un liseré ne s'allume que sur les comptes qui réclament
-                        une décision. Une bordure verte sur les quarante lignes
-                        ne signalait plus rien : c'était devenu la couleur du
-                        fond. */}
-                    <span
-                      aria-hidden="true"
-                      className={`h-9 w-0.5 shrink-0 rounded-full ${alerte ? "bg-err" : "bg-transparent"}`}
-                    />
-                    <span
-                      aria-hidden="true"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-clay text-xs font-bold text-ink-soft"
-                    >
-                      {userMonogram(row.name)}
-                    </span>
-
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span className="truncate font-semibold text-ink">{row.name}</span>
-                        {/* Le rôle n'apparaît que s'il sort de l'ordinaire :
-                            « Admin » était vrai 38 fois sur 40. */}
-                        {rang && (
-                          <span className="shrink-0 rounded-full bg-ink px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-paper">
-                            {rang}
-                          </span>
-                        )}
-                      </span>
-                      <span className="block truncate text-xs text-ink-soft">
-                        {row.email}
-                        {/* L'organisation ne se répète plus : à l'inscription
-                            elle s'appelle « Organisation de <la personne> ». */}
-                        {org && <span className="hidden sm:inline"> · {org}</span>}
-                      </span>
-                    </span>
-
-                    {superadmin && (acces || fin.label) && (
-                      <span className="hidden shrink-0 text-right sm:block">
-                        <span className="block text-sm font-medium text-ink">{acces}</span>
-                        {fin.label && (
-                          <span className={`block text-xs ${alerte ? "font-semibold text-err" : "text-ink-soft"}`}>
-                            {fin.label}
-                          </span>
-                        )}
-                      </span>
-                    )}
-
-                    <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-soft/60" />
-                  </button>
-
-                  {/* WhatsApp de l'utilisateur, cliquable (wa.me). Hors du bouton
-                      pour ne pas imbriquer deux éléments cliquables. */}
-                  {row.whatsapp && (
-                    <a
-                      href={`https://wa.me/${row.whatsapp.replace(/\D/g, "")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1.5 px-4 pb-2.5 pl-[4.25rem] text-xs font-medium text-brand-deep hover:underline"
-                    >
-                      <MessageCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">WhatsApp · {row.whatsapp}</span>
-                    </a>
-                  )}
-
-                  {/* Téléphone : l'accès passe sous le nom, sur une ligne, sans
-                      pastille — la largeur manque pour deux colonnes. */}
-                  {superadmin && (acces || fin.label) && (
-                    <p className="flex flex-wrap items-center gap-x-2 px-4 pb-3 pl-[4.25rem] text-xs text-ink-soft sm:hidden">
-                      {acces && <span className="font-medium text-ink">{acces}</span>}
-                      {fin.label && (
-                        <span className={alerte ? "font-semibold text-err" : ""}>{fin.label}</span>
-                      )}
-                    </p>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-
-          <p className="mt-3 text-xs text-ink-soft">
-            {filteredRows.length} utilisateur{filteredRows.length > 1 ? "s" : ""} affiché
-            {filteredRows.length > 1 ? "s" : ""} · touchez une ligne pour agir.
-          </p>
+            <div
+              aria-hidden="true"
+              className={`hidden items-center gap-x-4 border-b border-line bg-clay/60 px-5 py-3 text-xs font-medium text-ink-soft lg:grid ${superadmin ? "lg:grid-cols-[2.25rem_minmax(0,1.3fr)_minmax(0,1fr)_7rem_minmax(0,1fr)_1.25rem]" : "lg:grid-cols-[2.25rem_minmax(0,1fr)_9rem_1.25rem]"}`}
+            >
+              <span />
+              <span>Utilisateur</span>
+              {superadmin && <span>Organisation</span>}
+              <span>Rôle</span>
+              {superadmin && <span>Accès VPN</span>}
+              <span />
+            </div>
+            <ul
+              role="list"
+              aria-label={
+                organizationFocus
+                  ? `Utilisateurs de ${organizationFocus.name} correspondant aux filtres actifs`
+                  : "Utilisateurs correspondant aux filtres actifs"
+              }
+              className="divide-y divide-line-soft"
+            >
+              {paged.rows.map((row) => (
+                <UsersDirectoryRow
+                  key={row.id}
+                  row={row}
+                  superadmin={superadmin}
+                  now={now}
+                  onOpen={() => {
+                    setCopyError(null);
+                    setOpenRowId(row.id);
+                  }}
+                />
+              ))}
+            </ul>
+          </section>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-ink-soft">
+              {paged.start}–{paged.end} sur {filteredRows.length} utilisateur
+              {filteredRows.length > 1 ? "s" : ""} · ouvrez une fiche pour agir.
+            </p>
+            {paged.pageCount > 1 && (
+              <nav
+                aria-label="Pagination des utilisateurs"
+                className="flex items-center gap-2"
+              >
+                <button
+                  type="button"
+                  disabled={paged.page === 0}
+                  onClick={() => setPage(paged.page - 1)}
+                  className="btn btn-sm btn-outline"
+                >
+                  <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+                  Précédent
+                </button>
+                <span className="text-xs tabular-nums text-ink-soft">
+                  {paged.page + 1} / {paged.pageCount}
+                </span>
+                <button
+                  type="button"
+                  disabled={paged.page === paged.pageCount - 1}
+                  onClick={() => setPage(paged.page + 1)}
+                  className="btn btn-sm btn-outline"
+                >
+                  Suivant
+                </button>
+              </nav>
+            )}
+          </div>
         </>
       )}
 
@@ -287,27 +315,40 @@ export default function UsersControlCenter({
           superadmin={superadmin}
           routers={routersByOrg[openRow.orgId] ?? []}
           copied={copiedId === openRow.id}
+          copyError={copyError}
           onCopyEmail={() => copyEmail(openRow)}
-          onClose={() => setOpenRowId(null)}
+          onClose={closeDrawer}
         />
       )}
 
       {superadmin && !organizationFocus && temporaryAccess && (
-        <details className="group overflow-hidden border border-line bg-paper">
+        <details className="group overflow-hidden rounded-2xl border border-line bg-paper">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-clay/55 marker:hidden md:px-6">
             <div className="flex min-w-0 items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-brand/20 text-brand-deep">
                 <Gift className="h-4 w-4" aria-hidden="true" />
               </span>
               <span className="min-w-0">
-                <span className="block text-xs font-bold uppercase tracking-[0.16em] text-brand-deep">Superadmin · gratuit</span>
-                <span className="mt-1 block truncate font-semibold text-ink">Passes d’accès temporaire</span>
-                <span className="mt-0.5 block truncate text-xs text-ink-soft">Promo, parrainage, récompense ou intervention MikroTik</span>
+                <span className="block text-xs font-bold uppercase tracking-[0.16em] text-brand-deep">
+                  Superadmin · gratuit
+                </span>
+                <span className="mt-1 block truncate font-semibold text-ink">
+                  Passes d’accès temporaire
+                </span>
+                <span className="mt-0.5 block truncate text-xs text-ink-soft">
+                  Promo, parrainage, récompense ou intervention MikroTik
+                </span>
               </span>
             </div>
             <span className="flex shrink-0 items-center gap-3 text-xs text-ink-soft">
-              <span className="hidden sm:inline">{temporaryAccess.grants.length} récent{temporaryAccess.grants.length > 1 ? "s" : ""}</span>
-              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+              <span className="hidden sm:inline">
+                {temporaryAccess.grants.length} récent
+                {temporaryAccess.grants.length > 1 ? "s" : ""}
+              </span>
+              <ChevronDown
+                className="h-4 w-4 transition-transform group-open:rotate-180"
+                aria-hidden="true"
+              />
             </span>
           </summary>
           <div className="border-t border-line-soft bg-clay/20 p-3 md:p-4">

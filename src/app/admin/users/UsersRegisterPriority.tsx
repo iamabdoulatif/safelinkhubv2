@@ -21,12 +21,12 @@ function PriorityCell({ label, value, hint, icon: Icon, urgent = false, highligh
   const emphasisClass = urgent ? "text-err" : "text-ink";
 
   return (
-    <div className={`min-w-0 p-4 ${highlighted ? "bg-brand/15" : "bg-paper"} ${dividerClassName}`}>
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft">
+    <div className={`min-w-0 p-3 sm:p-4 ${highlighted ? "bg-brand/15" : "bg-paper"} ${dividerClassName}`}>
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">
         <Icon className={`h-4 w-4 shrink-0 ${emphasisClass}`} aria-hidden="true" />
         <span className="truncate">{label}</span>
       </div>
-      <p className={`mt-3 truncate text-3xl font-semibold tracking-tight ${emphasisClass}`}>{value}</p>
+      <p className={`mt-2 truncate text-xl font-semibold tracking-tight ${emphasisClass}`}>{value}</p>
       <p className="mt-1 truncate text-xs text-ink-soft">{hint}</p>
     </div>
   );
@@ -64,7 +64,7 @@ export function UsersRegisterPriority({ summary, focusedOrganization }: UsersReg
           hint: "échéance dans 30 jours",
           icon: CircleAlert,
           urgent: summary.attentionCount > 0,
-          highlighted: true,
+          highlighted: summary.attentionCount > 0,
         },
         { label: "Quota gratuit", value: summary.freeCount, hint: "accès offerts ou illimités", icon: Gift },
         { label: "VPN payant", value: summary.paidCount, hint: "comptes suivis", icon: CreditCard },
@@ -72,7 +72,7 @@ export function UsersRegisterPriority({ summary, focusedOrganization }: UsersReg
       ];
 
   return (
-    <section aria-label="Repères du registre" className="grid border border-line bg-paper sm:grid-cols-2 xl:grid-cols-4">
+    <section aria-label="Repères du registre" className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-paper xl:grid-cols-4">
       {cells.map((cell, index) => <PriorityCell key={cell.label} {...cell} dividerClassName={dividerClassNames[index] ?? ""} />)}
     </section>
   );
