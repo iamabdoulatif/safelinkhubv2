@@ -27,3 +27,18 @@ test('individual sites retain explicit suspension wording in daily recap',()=>{
  assert.match(result.text,/Internet suspendu/);
  assert.doesNotMatch(result.text,/Enveloppe cumulée/);
 });
+
+test('daily recap includes measured WAN downloads and warns about incomplete days',()=>{
+ const run=new Function('$','$input','Date',readFileSync('docs/n8n/pooled-recap.js','utf8'));
+ const dailyUsage={date:'2026-10-17',status:'partial',downloadBytes:30e9,uploadBytes:3e9,links:[{name:'Standard',downloadBytes:20e9,uploadBytes:2e9,coveragePct:90},{name:'Mini',downloadBytes:10e9,uploadBytes:1e9,coveragePct:80}]};
+ const result=run(()=>({item:{json:router}}),{first:()=>({json:{...read,dailyUsage}})},Clock)[0].json;
+ assert.match(result.text,/17\/10\/2026/);assert.match(result.text,/Téléchargés.*30[,.]00 Go/);
+ assert.match(result.text,/Standard.*20[,.]00 Go/);assert.match(result.text,/Mini.*10[,.]00 Go/);
+ assert.match(result.text,/incomplète/);assert.match(result.text,/90/);
+ assert.match(result.text,/Envoyés.*3[,.]00 Go/);
+});
+test('daily recap never presents missing history as zero consumption',()=>{
+ const run=new Function('$','$input','Date',readFileSync('docs/n8n/pooled-recap.js','utf8'));
+ const result=run(()=>({item:{json:router}}),{first:()=>({json:{...read,dailyUsage:{date:'2026-10-17',status:'unavailable',downloadBytes:null,uploadBytes:null,links:[]}}})},Clock)[0].json;
+ assert.match(result.text,/Téléchargés.*indisponible/);assert.doesNotMatch(result.text,/Téléchargés.*0[,.]00 Go/);
+});

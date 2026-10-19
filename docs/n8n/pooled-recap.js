@@ -130,6 +130,17 @@ const result = [{json:{routerId:router.routerId,name:router.name,mode:'observati
 const d=result[0].json;
 const runtime=router.fupRuntime;
 const lines=['[FUP] '+d.name,router.regulationMode==='active' ? runtime?.stopped ? 'Internet suspendu : quota épuisé ; portail local conservé.' : 'FUP actif ; plafond partagé '+((runtime?.totalBps||0)/1e6).toFixed(2)+' Mbit/s envoi + réception.' : 'Observation : FUP désactivé.'];
+const daily=read.dailyUsage;
+const volume=n=>finite(n)?(n/1e9).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' Go':'indisponible';
+if(daily){
+ const date=String(daily.date||'').split('-').reverse().join('/');
+ lines.push('', 'CONSOMMATION DU '+date+' — 00h à 24h UTC (Abidjan)',
+  'Téléchargés (WAN réception) : '+volume(daily.downloadBytes),
+  'Envoyés (WAN émission) : '+volume(daily.uploadBytes));
+ for(const l of daily.links||[])lines.push(l.name+' : téléchargés '+volume(l.downloadBytes)+' ; envoyés '+volume(l.uploadBytes)+' ; couverture '+(l.coveragePct??0)+' %.');
+ if(daily.status!=='complete')lines.push('Journée incomplète : volumes mesurés uniquement ; périodes manquantes et intervalles à cheval sur minuit non estimés. Le total peut être sous-évalué.');
+ lines.push('Mesure MikroTik, distincte du relevé de facturation Starlink. Le FUP comptabilise réception + émission.', '', 'SITUATION DU CYCLE FUP');
+}else lines.push('Téléchargements de la veille : historique indisponible.');
 if(d.fup.pool){const p=d.fup.pool;lines.push('Enveloppe cumulée : '+p.quotaGB+' Go','Consommés : '+(p.usedGB??'?')+' Go ; restants : '+(p.remainingGB??'?')+' Go','État cumulé : '+p.phase+' ; tickets 2M/2M sous plafond partagé.');}
 for(const l of d.fup.links)lines.push(l.name+' : '+(l.usedGB??'?')+' / '+l.quotaGB+' Go ; fin '+l.cycleEnd+' ; '+l.dataQuality);
 if(d.fup.issues.length)lines.push(d.fup.issues.join(' ; '));
