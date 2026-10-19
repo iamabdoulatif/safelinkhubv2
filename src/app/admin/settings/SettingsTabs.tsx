@@ -12,6 +12,8 @@ import { SETTINGS_SECTIONS } from "./sections";
  */
 export default function SettingsTabs() {
   const pathname = usePathname();
+  // The overview already presents every destination, grouped by purpose.
+  if (pathname === "/admin/settings/general") return null;
 
   return (
     <nav aria-label="Sections des paramètres" className="mb-8 border-b border-line">
