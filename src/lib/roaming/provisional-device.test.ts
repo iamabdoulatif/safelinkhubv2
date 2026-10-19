@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {build} from 'esbuild';
+import {createRequire} from 'node:module';
+const context=globalThis as typeof globalThis & {__provisionalDevice:{reads:number;status:string;connections:number}};
+const compiled=build({entryPoints:['src/lib/roaming/mac-propagate.ts'],bundle:true,write:false,platform:'node',format:'cjs',plugins:[{name:'isolate',setup(b){b.onResolve({filter:/^@\/lib\/(db|mikrotik\/router-sync)$/},a=>({path:a.path,namespace:'stub'}));b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:a.path.endsWith('/router-sync')?`export const connectToRouter=async()=>{globalThis.__provisionalDevice.connections++;throw Error('No router should be contacted');};`:`export const getDb=()=>({select(){const c={from(){return c},where(){return c},limit:async()=>++globalThis.__provisionalDevice.reads===1?[{id:'r1',orgId:'o1'}]:[{id:'v1',groupId:'g1',profileName:'ROAM-DEMO',status:globalThis.__provisionalDevice.status}]};return c}});`,loader:'js'}));}}]});
+async function api(){const result=await compiled,m={exports:{}};new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),m,m.exports);return m.exports as typeof import('./mac-propagate')}
+test('accounts still provisioning or awaiting recovery cannot create automatic device companions',async()=>{const a=await api();for(const status of ['PROVISIONING','PROVISIONING_ERROR']){context.__provisionalDevice={reads:0,status,connections:0};const result=await a.confirmAndSyncRoamingDevice({reporterRouterId:'r1',username:'amina',mac:'AA:BB:CC:DD:EE:FF'});assert.equal(result.reason,'provisioning');assert.equal(context.__provisionalDevice.connections,0)}});

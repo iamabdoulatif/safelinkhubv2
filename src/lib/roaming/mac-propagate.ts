@@ -234,7 +234,7 @@ export async function confirmAndSyncRoamingDevice(input: {
   if (!reporter) return { ok: false, reason: "unknown-router" };
 
   const [voucher] = await db
-    .select({ id: vouchers.id, groupId: vouchers.roamingGroupId, profileName: vouchers.profileName })
+    .select({ id: vouchers.id, groupId: vouchers.roamingGroupId, profileName: vouchers.profileName, status: vouchers.status })
     .from(vouchers)
     .where(
       and(
@@ -245,6 +245,8 @@ export async function confirmAndSyncRoamingDevice(input: {
     )
     .limit(1);
   if (!voucher?.groupId || !voucher.profileName) return { ok: false, reason: "not-roaming" };
+  // Reserved or failed creations must not gain auto-login companions before finalization.
+  if (voucher.status === "PROVISIONING" || voucher.status === "PROVISIONING_ERROR") return { ok:false, reason:"provisioning" };
 
   let reporterClient: RouterOSClient;
   try {
