@@ -30,5 +30,8 @@ test('disabled policy releases sanctions and never observes punitive traffic',()
 test('arbitrary ticket names cannot inherit or modify object prototypes',()=>{
  const r=advanceTicketPolicy({},[s(0,'__proto__'),s(0,'constructor')],p,0);
  assert.equal(Object.keys(r.state).length,2);assert.equal(r.state['__proto__'].phase,'normal');
- assert.equal(Object.getPrototypeOf(r.state),null);
+ // Plain prototype so drizzle's is() (Object.getPrototypeOf(v).constructor) can
+ // persist it, yet those names stay own keys and never pollute Object.prototype.
+ assert.equal(Object.getPrototypeOf(r.state),Object.prototype);
+ assert.equal(({} as Record<string,unknown>).phase,undefined);
 });

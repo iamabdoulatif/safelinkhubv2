@@ -44,5 +44,9 @@ export function advanceTicketPolicy(previous:TicketStates,active:ActiveSession[]
   }else if(pair&&points.reduce((n,p)=>n+p.bytes,0)>=policy.thresholdMB*1e6){next.phase='throttle';next.until=at+5*3600000;events.push({user,kind:'throttle',until:next.until});}
   state[user]=next;
  }
- return {state,events};
+ // Built on a null-proto object so a "__proto__"/"constructor" username can't
+ // pollute; return a plain-proto copy so drizzle's is() (Object.getPrototypeOf
+ // (v).constructor) doesn't crash persisting it. Spread keeps those usernames
+ // as own data properties, so no pollution is reintroduced.
+ return {state:{...state},events};
 }
