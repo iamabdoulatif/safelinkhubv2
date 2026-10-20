@@ -1,3 +1,4 @@
+import { cleanupFupResource } from "./fup-cleanup";
 import { createHash } from "node:crypto";
 import type { RouterOSClient } from "./client";
 import { quoteRos } from "./content-filter";
@@ -66,7 +67,7 @@ async function removeVideoRules(client: RouterOSClient, name: string) {
         r.comment ===
         (path.endsWith("filter") ? VIDEO_OWNER + " " + name : VIDEO_OWNER),
     ))
-      await client.talk([path + "/remove", `=numbers=${r[".id"]}`], 10000);
+      await cleanupFupResource(client, [path + "/remove", `=numbers=${r[".id"]}`], 10000);
   }
 }
 async function armVideo(
@@ -192,7 +193,7 @@ async function initializeVideo(
       15000,
     );
     if (row?.comment === VIDEO_OWNER)
-      await client.talk(
+      await cleanupFupResource(client,
         ["/system/script/remove", `=numbers=${row[".id"]}`],
         15000,
       );
@@ -236,7 +237,7 @@ export async function applyTicketPolicy(
         10000,
       );
     await removeVideoRules(client, s.name);
-    await client.talk(
+    await cleanupFupResource(client,
       ["/system/scheduler/remove", `=numbers=${s[".id"]}`],
       10000,
     );
@@ -247,7 +248,7 @@ export async function applyTicketPolicy(
       q.name.startsWith("slh-fup-ticket-") &&
       !wanted.has(q.name.slice("slh-fup-ticket-".length))
     )
-      await client.talk(
+      await cleanupFupResource(client,
         ["/queue/simple/remove", `=numbers=${q[".id"]}`],
         10000,
       );
@@ -267,12 +268,12 @@ export async function applyTicketPolicy(
     ) {
       await removeVideoRules(client, name);
       if (scheduler)
-        await client.talk(
+        await cleanupFupResource(client,
           ["/system/scheduler/remove", `=numbers=${scheduler[".id"]}`],
           10000,
         );
       if (queue)
-        await client.talk(
+        await cleanupFupResource(client,
           ["/queue/simple/remove", `=numbers=${queue[".id"]}`],
           10000,
         );
@@ -283,12 +284,12 @@ export async function applyTicketPolicy(
     if (!u || (u.disabled === "true" && !legacy)) {
       await removeVideoRules(client, name);
       if (scheduler)
-        await client.talk(
+        await cleanupFupResource(client,
           ["/system/scheduler/remove", `=numbers=${scheduler[".id"]}`],
           10000,
         );
       if (queue)
-        await client.talk(
+        await cleanupFupResource(client,
           ["/queue/simple/remove", `=numbers=${queue[".id"]}`],
           10000,
         );
@@ -355,7 +356,7 @@ export async function applyTicketPolicy(
     }
     if (!video && !targets.length) {
       if (queue)
-        await client.talk(
+        await cleanupFupResource(client,
           ["/queue/simple/remove", `=numbers=${queue[".id"]}`],
           10000,
         );

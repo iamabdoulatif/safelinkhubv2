@@ -1,3 +1,4 @@
+import { cleanupFupResource } from "./fup-cleanup";
 import type { RouterOSClient } from "./client";
 import { quoteRos } from "./content-filter";
 import { FUP_QUEUE, FUP_SCRIPT, FUP_BOOT, FUP_LIST, FUP_STOP, type buildFupEnforcement } from "./starlink-fup-enforcement";
@@ -17,7 +18,7 @@ async function scriptIndex(client: RouterOSClient) {
 async function removeScript(client: RouterOSClient, name: string) {
   const id = scriptIndexes.get(client)?.get(name)?.[".id"];
   if (!id) return;
-  await client.talk(["/system/script/remove", `=numbers=${id}`], 30000);
+  await cleanupFupResource(client, ["/system/script/remove", `=numbers=${id}`], 30000);
   scriptIndexes.get(client)?.delete(name);
 }
 export type FupRuntime = { fastTrackIds: string[]; backup: string; appliedAt: string; totalBps: number; reserve: boolean; stopped: boolean; baselineKey?: string; typeNames?: string[]; pooled?: boolean; ticketRateBps?: number };
@@ -163,11 +164,11 @@ export async function releaseFupFromRouter(client: RouterOSClient, runtime: FupR
   const typeNames = new Set([...(runtime?.typeNames ?? []), ...(ownedQueueTypes.get(client) ?? [])]);
   for (const name of [FUP_SCRIPT, FUP_BOOT]) {
     const [scheduler] = await client.talk(["/system/scheduler/print", `?name=${name}`], 15000);
-    if (scheduler?.comment === OWNER) await client.talk(["/system/scheduler/set", `=numbers=${scheduler[".id"]}`, "=disabled=yes"], 15000);
+    if (scheduler?.comment === OWNER) await cleanupFupResource(client, ["/system/scheduler/set", `=numbers=${scheduler[".id"]}`, "=disabled=yes"], 15000);
   }
   for (const path of ["/ip/firewall/filter", "/ipv6/firewall/filter"]) {
     const rules = await client.talk([`${path}/print`], 15000);
-    for (const r of rules.filter(r => r.comment?.startsWith(FUP_STOP))) await client.talk([`${path}/remove`, `=numbers=${r[".id"]}`], 15000);
+    for (const r of rules.filter(r => r.comment?.startsWith(FUP_STOP))) await cleanupFupResource(client, [`${path}/remove`, `=numbers=${r[".id"]}`], 15000);
   }
   for (const [path, field, value] of [["/system/scheduler", "name", FUP_SCRIPT], ["/system/scheduler", "name", FUP_BOOT], ["/system/script", "name", FUP_SCRIPT],
     ["/queue/simple", "name", FUP_QUEUE], ["/queue/type", "name", "slh-fup-up"], ["/queue/type", "name", "slh-fup-down"],
@@ -178,7 +179,7 @@ export async function releaseFupFromRouter(client: RouterOSClient, runtime: FupR
         (await scriptIndex(client)).set(row.name, row);
         await removeScript(client, row.name);
       }
-      else await client.talk([`${path}/remove`, `=numbers=${row[".id"]}`], 15000);
+      else await cleanupFupResource(client, [`${path}/remove`, `=numbers=${row[".id"]}`], 15000);
     }
   }
   for (const id of runtime?.fastTrackIds ?? []) {

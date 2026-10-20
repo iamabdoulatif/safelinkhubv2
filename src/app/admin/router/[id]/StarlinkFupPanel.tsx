@@ -40,7 +40,8 @@ export default function StarlinkFupPanel({ routerId, links: saved, ledger, activ
     <details className="mt-3 rounded-lg border border-line p-3"><summary className="cursor-pointer font-medium">Comment le volume tient jusqu’à la fin du cycle</summary><p className="mt-2 text-sm">Budget quotidien = données encore disponibles ÷ durée restante du cycle. Les données déjà utilisées sont déduites ; il n’y a aucun nouveau crédit automatique. Le plafond réseau conserve une marge de 20 %. Si les cycles diffèrent, le cumul est réparti jusqu’au prochain changement de cycle.</p>
     {pooled ? <p className="mt-2 text-sm">Budget cumulé : {pool?.dailyBudgetGB==null?"rapprochement récent requis":`${pool.dailyBudgetGB.toFixed(2)} Go/jour jusqu’au ${pool.endsAt?.slice(0,10)} (borne exclusive)`}.</p> : saved.map(l=>{const b=calculateFupBudget(l,ledger[l.id]??null,new Date());return <p key={l.id} className="mt-2 text-sm">{l.name} : {b.dailyBudgetGB==null?"rapprochement récent requis":`${b.dailyBudgetGB.toFixed(2)} Go/jour`}.</p>;})}
     <p className="mt-2 text-sm">Exemple du 11 novembre au 11 décembre à 00h UTC : 30 jours. Sans consommation, 5 To donnent 166,67 Go/jour ; 10 To donnent 333,33 Go/jour. Avec 1 To consommé et 20 jours restants : (5 − 1) To ÷ 20 = 200 Go/jour avant réserve et marge. Les vidéos utilisent aussi ce budget.</p></details>
-    {saved.length > 0 && <button type="button" className="btn btn-sm btn-secondary mt-3" disabled={pending} onClick={() => run(() => setStarlinkFupActive(routerId, !active))}>{active ? "Désactiver le FUP et libérer le routeur" : "Activer le FUP"}</button>}
+    {saved.length > 0 && <button type="button" className="btn btn-sm btn-secondary mt-3" disabled={pending} onClick={() => run(() => setStarlinkFupActive(routerId, !active))}>{pending ? "Application en cours…" : active ? "Désactiver le FUP et libérer le routeur" : "Activer le FUP"}</button>}
+    {pending ? <p role="status" className="mt-3 text-sm">Vérification en cours…</p> : message && <p role="status" className="mt-3 text-sm">{message}</p>}
     {links.map(link => <fieldset key={link.id} disabled={pending} className="mt-4 grid gap-3 rounded-lg border border-line p-3 sm:grid-cols-2">
       <legend className="px-1 font-medium">{link.name}</legend>
       <label>Nom<input className="field mt-1" value={link.name} onChange={e => change(link.id, { name: e.target.value })} /></label>
@@ -62,6 +63,5 @@ export default function StarlinkFupPanel({ routerId, links: saved, ledger, activ
       <button type="button" className="btn btn-sm btn-outline" disabled={active || pending || links.length >= 8} onClick={() => setLinks(all => [...all, { id: `wan-${Date.now()}`, name: `Starlink ${all.length + 1}`, interface: "", quotaGB: 5000, reserveGB: 500, cycleStart: "", cycleEnd: "", cycleConfirmed: false }])}>Ajouter une liaison</button>
       <button type="button" className="btn btn-sm btn-secondary" disabled={active || pending || !links.length} onClick={() => run(() => saveStarlinkFupLinks(routerId, links))}>Enregistrer en observation</button>
     </div>
-    {pending ? <p role="status" className="mt-3 text-sm">Vérification en cours…</p> : message && <p role="status" className="mt-3 text-sm">{message}</p>}
   </section></>;
 }

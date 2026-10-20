@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { RouterOSClient } from "./client";
 import { test } from "node:test";
 import { applyFupToRouter, releaseFupFromRouter, clearFastTrackedConnections } from "./starlink-fup-router";
 import { buildFupEnforcement, FUP_QUEUE, FUP_SCRIPT, FUP_BOOT } from "./starlink-fup-enforcement";
@@ -54,7 +55,7 @@ function fake(failQueue = false, cpu = "20") {
     if (action === "remove") tables[path] = rows.filter(r => r[".id"] !== params.numbers);
     return [];
   } };
-  return { client: client as never, calls, tables };
+  return { client: client as unknown as RouterOSClient, calls, tables };
 }
 
 test("adapter verifies shared volume cap, covers both IP families and keeps portal chains untouched", async () => {
@@ -87,6 +88,32 @@ test("first installation failure restores FastTrack and removes only FUP resourc
   assert.equal(router.tables["/ip/firewall/filter"].find(r => r[".id"] === "*ft")!.disabled, "false");
   assert.equal(router.tables["/ip/firewall/filter"].length, 1);
   assert.deepEqual(router.tables["/queue/type"], []);
+});
+
+test("release completes when a local script already removed an inventoried resource", async () => {
+  const router = fake();
+  const runtime = await applyFupToRouter(router.client, plan, null);
+  const talk = router.client.talk.bind(router.client);
+  router.client.talk = async (...args: Parameters<typeof talk>) => {
+    const result = await talk(...args);
+    if (args[0][0].endsWith("/remove")) throw new Error("no such item (4)");
+    return result;
+  };
+  await releaseFupFromRouter(router.client, runtime);
+  assert.deepEqual(router.tables["/queue/simple"], []);
+  assert.equal(router.tables["/ip/firewall/filter"].find(r => r[".id"] === "*ft")!.disabled, "false");
+  await releaseFupFromRouter(router.client, runtime);
+});
+
+test("release still reports permission failures instead of claiming success", async () => {
+  const router = fake();
+  const runtime = await applyFupToRouter(router.client, plan, null);
+  const talk = router.client.talk.bind(router.client);
+  router.client.talk = async (...args: Parameters<typeof talk>) => {
+    if (args[0][0].endsWith("/remove")) throw new Error("not enough permissions");
+    return talk(...args);
+  };
+  await assert.rejects(releaseFupFromRouter(router.client, runtime), /not enough permissions/);
 });
 
 test("high CPU refuses activation before mutating the routeur", async () => {

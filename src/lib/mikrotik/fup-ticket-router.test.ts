@@ -272,6 +272,31 @@ test("release of video-only sanction never re-enables a manually disabled accoun
   assert.ok(!calls.some((w) => w[0] === "/ip/hotspot/user/set"));
   assert.ok(calls.some((w) => w[0] === "/system/scheduler/remove"));
 });
+test("release tolerates sanctions expiring between inventory and cleanup", async () => {
+  const calls: string[][] = [];
+  const name = "slh-fup-ticket-ca978112ca1bbdcafac2";
+  const client = {
+    talk: async (words: string[]) => {
+      calls.push(words);
+      if (words[0] === "/system/scheduler/print") return [{
+        ".id": "*s", name,
+        comment: "SafeLinkHub FUP ticket v1 " + JSON.stringify({
+          user: "a", id: "*1", comment: "valid", until: 1792500000000,
+          blocked: false, video: true,
+        }),
+      }];
+      if (words[0] === "/queue/simple/print") return [{
+        ".id": "*q", name, comment: "SafeLinkHub FUP ticket v1",
+      }];
+      if (words[0].endsWith("/remove")) throw new Error("no such item (4)");
+      return [];
+    },
+  } as unknown as RouterOSClient;
+  await applyTicketPolicy(client, {}, [], { ...DEFAULT_TICKET_POLICY, enabled: false });
+  assert.ok(calls.some(w => w[0] === "/queue/simple/remove"));
+  assert.ok(calls.some(w => w[0] === "/system/scheduler/remove"));
+});
+
 test("missing shared FUP queue prevents video exception installation", async () => {
   const calls: string[][] = [];
   const client = {
