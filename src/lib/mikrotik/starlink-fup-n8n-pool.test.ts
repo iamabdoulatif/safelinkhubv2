@@ -47,5 +47,5 @@ test('daily recap exposes configured progressive policy and complete block expir
  const run=new Function('$','$input','Date',readFileSync('docs/n8n/pooled-recap.js','utf8'));
  const input={...router,fupTicketPolicy:{enabled:true,thresholdMB:200,windowMinutes:15,throttleKbps:256,persistenceMinutes:15},fupTicketState:[{user:'ticket-test',phase:'blocked',until:Date.parse('2026-10-18T17:00:00Z')}]};
  const result=run(()=>({item:{json:input}}),{first:()=>({json:read})},Clock)[0].json;
- assert.match(result.text,/200 Mo \/ 15 min/);assert.match(result.text,/coupure complète 5 h \(vidéos comprises\)/);assert.match(result.text,/ticket-test.*17:00:00/);
+ assert.match(result.text,/200 Mo \/ 15 min/);assert.match(result.text,/YouTube\/TikTok uniquement à 1M\/1M pendant 5 h/);assert.match(result.text,/ticket-test.*17:00:00/);
 });
