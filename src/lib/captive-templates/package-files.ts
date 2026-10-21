@@ -46,6 +46,10 @@ export type PackageBrandingVars = {
   appUrl?: string | null;
   slug?: string | null;
   routerId?: string | null;
+  // Numéro de série RouterOS du routeur : gravé À CÔTÉ de routerId pour servir
+  // de repli STABLE quand l'id gravé devient orphelin (ré-enrôlement). Voir
+  // lib/portal/router-resolve + l'endpoint /initiate.
+  serial?: string | null;
   // Pays où opère le routeur (déduit de l'org) : préfixe d'appel injecté dans
   // le champ téléphone du portail (ex. CI → 🇨🇮 +225). Le client saisit son
   // numéro local, le serveur reconstitue l'international.
@@ -795,7 +799,7 @@ const PORTAL_PAY_SCRIPT = `(function(){
 
     function startPayment(){
       primary.disabled = true; primary.textContent = "Traitement..."; setStatus("Création du paiement...");
-      fetch(api("/initiate"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ packageId: sel.packageId, phone: localPhone(), mac: cfg.mac, routerId: cfg.routerId || "", dialCode: selDial() }) })
+      fetch(api("/initiate"), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ packageId: sel.packageId, phone: localPhone(), mac: cfg.mac, routerId: cfg.routerId || "", serial: cfg.serial || "", dialCode: selDial() }) })
         .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
         .then(function(res){
           if(!res.ok) throw new Error(res.j && res.j.error ? res.j.error : "Echec du paiement.");
@@ -1019,6 +1023,7 @@ function portalPayInjection(vars: PackageBrandingVars): string {
     appUrl: vars.appUrl ?? "",
     slug: vars.slug ?? "",
     routerId: vars.routerId ?? "",
+    serial: vars.serial ?? "", // repli stable si routerId gravé orphelin (ré-enrôlement)
     mac: "$(mac)", // remplacé par le routeur (variable hotspot) au service de la page
     dialCode: vars.dialCode ?? "",
     iso2,
