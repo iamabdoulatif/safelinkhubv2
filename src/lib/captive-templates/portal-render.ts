@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { captiveTemplates, routers } from "@/lib/db/schema";
+import { captiveTemplates, routers, routerSerialLocks } from "@/lib/db/schema";
 import { getPortalPlansForRouter } from "@/lib/portal/plans";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import type { PackageBrandingVars, PackageVendor } from "./package-files";
@@ -51,6 +51,18 @@ export async function buildPortalVars(opts: {
     ? (routerBranding.portalVendors as PackageVendor[])
     : null;
 
+  // Série RouterOS (verrou actif) gravée à côté de routerId : repli stable pour
+  // /initiate quand l'id gravé devient orphelin au ré-enrôlement.
+  let serial: string | null = null;
+  if (routerId) {
+    const [lock] = await getDb()
+      .select({ serialNumber: routerSerialLocks.serialNumber })
+      .from(routerSerialLocks)
+      .where(and(eq(routerSerialLocks.routerId, routerId), isNull(routerSerialLocks.releasedAt)))
+      .limit(1);
+    serial = lock?.serialNumber ?? null;
+  }
+
   return {
     ssid,
     supportWhatsapp: routerBranding?.portalSupportWhatsapp || template.packageSupportWhatsapp,
@@ -63,6 +75,7 @@ export async function buildPortalVars(opts: {
     appUrl,
     slug,
     routerId,
+    serial,
     countryIso2: iso2,
     dialCode,
   };

@@ -8,9 +8,10 @@
 // Le portail poll ensuite /api/portal/<slug>/status?orderId=… jusqu'à ce que le
 // paiement soit confirmé et l'accès créé (voir status/route.ts + fulfill.ts).
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { organizations, packages, routers, portalOrders, portalOtps } from "@/lib/db/schema";
+import { organizations, packages, routers, routerSerialLocks, portalOrders, portalOtps } from "@/lib/db/schema";
+import { resolveOrderRouterId } from "@/lib/portal/router-resolve";
 import { packageProfileName } from "@/lib/mikrotik/package-voucher-profile";
 import { normalizeMac } from "@/lib/portal/fulfill";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
@@ -44,6 +45,7 @@ export async function POST(
   const packageId = String(body.packageId ?? "").trim();
   const macRaw = String(body.mac ?? "").trim();
   const routerIdInput = String(body.routerId ?? "").trim();
+  const serialInput = String(body.serial ?? "").trim();
   const theme = portalThemeFromUnknown(body.theme);
 
   const mac = normalizeMac(macRaw);
@@ -127,24 +129,52 @@ export async function POST(
     return corsJson({ error: "Forfait non provisionnable." }, { status: 400 });
   }
 
-  // Routeur cible : fourni par le portail (injecté par routeur), sinon l'unique
-  // routeur de l'org s'il n'y en a qu'un.
-  let routerId = routerIdInput;
-  if (routerId) {
-    const [r] = await db
-      .select({ id: routers.id })
-      .from(routers)
-      .where(and(eq(routers.id, routerId), eq(routers.orgId, org.id)))
-      .limit(1);
-    if (!r) return corsJson({ error: "Routeur inconnu." }, { status: 404 });
-  } else {
-    const orgRouters = await db
-      .select({ id: routers.id })
-      .from(routers)
-      .where(eq(routers.orgId, org.id))
-      .limit(2);
-    if (orgRouters.length === 1) routerId = orgRouters[0].id;
-    else return corsJson({ error: "Routeur non identifié." }, { status: 400 });
+  // Routeur cible : l'id gravé par le routeur dans login.html, avec REPLI sur
+  // le numéro de série (stable au ré-enrôlement — un id gravé orphelin ne doit
+  // pas tuer le paiement), sinon l'unique routeur de l'org. Voir router-resolve.
+  const routerId = await resolveOrderRouterId(
+    { routerId: routerIdInput, serial: serialInput },
+    {
+      byId: async (id) => {
+        const [r] = await db
+          .select({ id: routers.id })
+          .from(routers)
+          .where(and(eq(routers.id, id), eq(routers.orgId, org.id)))
+          .limit(1);
+        return r?.id ?? null;
+      },
+      bySerial: async (serial) => {
+        // Verrou de série ACTIF (releasedAt null) → routeur courant, tenu à jour
+        // à chaque sync. On re-vérifie l'appartenance à l'org par sécurité.
+        const [lock] = await db
+          .select({ routerId: routerSerialLocks.routerId })
+          .from(routerSerialLocks)
+          .where(and(eq(routerSerialLocks.serialNumber, serial), isNull(routerSerialLocks.releasedAt)))
+          .limit(1);
+        if (!lock?.routerId) return null;
+        const [r] = await db
+          .select({ id: routers.id })
+          .from(routers)
+          .where(and(eq(routers.id, lock.routerId), eq(routers.orgId, org.id)))
+          .limit(1);
+        return r?.id ?? null;
+      },
+      singleOrgRouter: async () => {
+        const orgRouters = await db
+          .select({ id: routers.id })
+          .from(routers)
+          .where(eq(routers.orgId, org.id))
+          .limit(2);
+        return orgRouters.length === 1 ? orgRouters[0].id : null;
+      },
+    },
+  );
+  if (!routerId) {
+    // Un id gravé qui ne résout plus → « inconnu » (404) ; aucun id gravé et
+    // parc multi-routeurs → « non identifié » (400). Même sémantique qu'avant.
+    return routerIdInput
+      ? corsJson({ error: "Routeur inconnu." }, { status: 404 })
+      : corsJson({ error: "Routeur non identifié." }, { status: 400 });
   }
 
   // DOUBLES ACHATS AUTORISÉS (choix produit, 2026-07-24) : chaque « acheter » crée
