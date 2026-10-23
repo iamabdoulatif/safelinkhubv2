@@ -47,6 +47,14 @@ export const LINK_TYPES: { value: LinkType; label: string; hint: string }[] = [
   },
 ];
 
+/** Lien fibre = illimité : exempté de TOUTE régulation par utilisateur (bridage
+ * /blocage). Garde unique partagée par le cron et le moteur n8n historique, pour
+ * que l'exemption ne soit pas débrayable depuis l'UI (le toggle « enabled » ne
+ * peut pas la contourner). Ne concerne pas le FUP par liaison (Starlink). */
+export function isFiberExempt(linkType: string | null | undefined): boolean {
+  return linkType === "fibre";
+}
+
 export function linkTypeLabel(t: string | null | undefined): string {
   return LINK_TYPES.find((x) => x.value === t)?.label ?? "Inconnu";
 }

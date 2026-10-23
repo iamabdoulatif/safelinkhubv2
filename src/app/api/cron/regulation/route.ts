@@ -15,6 +15,7 @@ import { decideRegulation } from "@/lib/mikrotik/regulation-decision";
 import { notifierClients } from "@/lib/mikrotik/regulation-notify";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
 import { runStarlinkFup } from "@/lib/mikrotik/starlink-fup-service";
+import { isFiberExempt } from "@/lib/mikrotik/link-usage";
 
 export const maxDuration = 300;
 
@@ -111,7 +112,9 @@ export async function GET(request: NextRequest) {
     .innerJoin(routers, eq(routers.id, routerRegulation.routerId))
     .where(
       and(
-        eq(routerRegulation.enabled, false),
+        // Désactivée OU lien fibre (exempté, cf. traiter) : dans les deux cas,
+        // tout reliquat de régulation posé sur le routeur doit être retiré.
+        or(eq(routerRegulation.enabled, false), eq(routers.linkType, "fibre")),
         sql`coalesce(${routerRegulation.state}->>'released', '') = ''`,
       ),
     );
@@ -160,6 +163,15 @@ export async function GET(request: NextRequest) {
         bilan.traites++;
         if (result.changed) bilan.changes.push(result.telegram);
       } catch { bilan.injoignables.push(router.name); }
+      return;
+    }
+
+    // Lien fibre = illimité : jamais de bridage/blocage par utilisateur, même
+    // si « enabled » est resté activé (exemption non débrayable depuis l'UI).
+    // Un éventuel reliquat posé avant le marquage fibre est retiré par la passe
+    // de libération ci-dessous (voir le OR linkType='fibre').
+    if (isFiberExempt(router.linkType)) {
+      bilan.traites++;
       return;
     }
 
