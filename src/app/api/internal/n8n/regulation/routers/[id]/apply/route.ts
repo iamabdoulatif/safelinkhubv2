@@ -16,6 +16,7 @@ import {
 } from "@/lib/mikrotik/regulation";
 import { loadRegulatedRouter, n8nAuthorized, unauthorized } from "@/lib/mikrotik/regulation-api";
 import { regulationApplyGuard } from "@/lib/mikrotik/regulation-apply-guard";
+import { isFiberExempt } from "@/lib/mikrotik/link-usage";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const body = (await request.json().catch(() => null)) as ApplyBody | null;
   if (body) {
-    const guard = regulationApplyGuard(body, row.regulation.enabled, Boolean(row.regulation.fupLinks?.length));
+    const guard = regulationApplyGuard(body, row.regulation.enabled, Boolean(row.regulation.fupLinks?.length), isFiberExempt(row.router.linkType));
     if (guard) return Response.json(guard.body, { status: guard.status });
   }
   if (!body || !LIMIT_RE.test(body.limit ?? "") || !body.state?.decision) {
