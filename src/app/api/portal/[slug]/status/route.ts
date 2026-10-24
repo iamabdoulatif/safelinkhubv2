@@ -11,6 +11,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, portalOrders } from "@/lib/db/schema";
 import { fulfillPortalOrder, sendPortalTicketSms } from "@/lib/portal/fulfill";
+import { closePaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 import { buildRouterLoginUrl } from "@/lib/portal/router-login-url";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
@@ -107,6 +108,10 @@ export async function GET(
         .update(portalOrders)
         .set({ status: "failed", failureReason: "Paiement échoué ou annulé." })
         .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "pending")));
+      // Paiement échoué/annulé → fermer la voie de paiement tout de suite :
+      // sans ça le téléphone reste « en ligne » (session restreinte) jusqu'aux
+      // 10 min, donnant l'impression d'une connexion gratuite sans paiement.
+      await closePaymentLaneForOrder(order.id);
       return corsJson({ status: "failed", error: "Paiement échoué ou annulé." });
     }
     if (gp.status !== "completed") {

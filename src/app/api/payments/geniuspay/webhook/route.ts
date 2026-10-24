@@ -18,6 +18,7 @@ import {
   fulfillPortalOrder,
   sendPortalTicketSms,
 } from "@/lib/portal/fulfill";
+import { closePaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 import { completeWalletTopupByReference } from "@/lib/wallet/topup-confirmation";
 import { completeSafecoinTopupByReference } from "@/lib/safecoin/topup-confirmation";
 
@@ -76,6 +77,11 @@ export async function POST(request: Request) {
             revalidatePath("/admin/vouchers");
           }
         });
+      } else {
+        // Échec/annulation : fermer la voie de paiement pour que l'appareil ne
+        // reste pas « connecté » (session restreinte) sans avoir payé.
+        const orderId = portal.orderId;
+        after(() => closePaymentLaneForOrder(orderId));
       }
       console.info("[geniuspay:webhook] commande portail signée", { reference, orgId, succeeded });
       return Response.json({ received: true, handled: true, kind: "portal" });
