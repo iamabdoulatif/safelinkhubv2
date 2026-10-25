@@ -14,7 +14,7 @@ import { fulfillPortalOrder, sendPortalTicketSms } from "@/lib/portal/fulfill";
 import { closePaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 import { buildRouterLoginUrl } from "@/lib/portal/router-login-url";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
-import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
+import { checkPortalPaymentStatus } from "@/lib/portal/payment-status";
 
 export function OPTIONS() {
   return corsPreflight();
@@ -73,37 +73,26 @@ export async function GET(
     return corsJson({ status: "pending" });
   }
 
-  // pending : confirmer le paiement auprès de GeniusPay avant d'honorer.
+  // pending : confirmer le paiement auprès de la passerelle avant d'honorer
+  // (GeniusPay par défaut, CinetPay pour MTN/Moov en API directe).
   if (order.status === "pending") {
     if (!order.paymentReference) {
       return corsJson({ status: "pending" });
     }
-    const creds = await getOrgGeniusCreds(org.id);
-    if (!creds) {
-      const reason = "Passerelle GeniusPay indisponible.";
+    const chk = await checkPortalPaymentStatus(org.id, order.provider, order.paymentReference);
+    if (!chk.ok) {
+      const reason = chk.error.slice(0, 500);
       if (order.failureReason !== reason) {
-        console.error("[portal:status] passerelle GeniusPay indisponible", { orderId, orgId: org.id });
+        console.error("[portal:status] verification paiement impossible", { orderId, provider: order.provider, error: chk.error });
         await db
           .update(portalOrders)
           .set({ failureReason: reason })
           .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "pending")));
       }
+      // Passerelle absente ou erreur transitoire : le portail et le cron re-sondent.
       return corsJson({ status: "pending" });
     }
-    const gp = await getOrgPaymentStatus(creds, order.paymentReference);
-    if (!gp.ok) {
-      const reason = `Confirmation GeniusPay indisponible : ${gp.error}`.slice(0, 500);
-      if (order.failureReason !== reason) {
-        console.error("[portal:status] verification GeniusPay impossible", { orderId, error: gp.error });
-        await db
-          .update(portalOrders)
-          .set({ failureReason: reason })
-          .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "pending")));
-      }
-      // Erreur transitoire : le portail et le cron continuent de re-sonder.
-      return corsJson({ status: "pending" });
-    }
-    if (gp.status === "failed") {
+    if (chk.status === "failed") {
       await db
         .update(portalOrders)
         .set({ status: "failed", failureReason: "Paiement échoué ou annulé." })
@@ -114,7 +103,7 @@ export async function GET(
       await closePaymentLaneForOrder(order.id);
       return corsJson({ status: "failed", error: "Paiement échoué ou annulé." });
     }
-    if (gp.status !== "completed") {
+    if (chk.status !== "completed") {
       return corsJson({ status: "pending" });
     }
     // Payé : bascule pending → paid (garde), puis on tombe dans l'honneur.

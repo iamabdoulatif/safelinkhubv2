@@ -858,7 +858,10 @@ export const portalOrders = pgTable("portal_orders", {
   // Horodatage du claim paid→fulfilling : un claim périmé (crash pendant
   // l'honneur) redevient récupérable (voir fulfill.ts, STALE_CLAIM_MS).
   claimedAt: timestamp("claimed_at"),
-  paymentReference: text("payment_reference"), // référence GeniusPay
+  paymentReference: text("payment_reference"), // référence GeniusPay / CinetPay (merchant_transaction_id)
+  // Passerelle qui a traité la commande : "genius_pay" (défaut) ou "cinetpay".
+  // Détermine quelle API /status et la réconciliation interrogent.
+  provider: text("provider").notNull().default("genius_pay"),
   // Voucher créé à l'honneur de la commande (= le user hotspot, source de vérité).
   voucherId: uuid("voucher_id").references(() => vouchers.id, { onDelete: "set null" }),
   failureReason: text("failure_reason"),
