@@ -8,7 +8,7 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { portalOrders } from "@/lib/db/schema";
-import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
+import { checkPortalPaymentStatus } from "@/lib/portal/payment-status";
 import { fulfillPortalOrder } from "@/lib/portal/fulfill";
 
 const MAX_PAYMENT_CHECKS_PER_RUN = 30;
@@ -70,14 +70,9 @@ export async function reconcilePortalOrders(): Promise<PortalReconcileResult> {
       if (!order.paymentReference) continue;
       result.paymentsChecked += 1;
 
-      const creds = await getOrgGeniusCreds(order.orgId);
-      if (!creds) {
-        result.errors.push(`${order.id}: passerelle GeniusPay absente`);
-        continue;
-      }
-      const payment = await getOrgPaymentStatus(creds, order.paymentReference);
+      const payment = await checkPortalPaymentStatus(order.orgId, order.provider, order.paymentReference);
       if (!payment.ok) {
-        result.errors.push(`${order.id}: vérification du paiement impossible`);
+        result.errors.push(`${order.id}: ${payment.reason === "no_gateway" ? "passerelle absente" : "vérification du paiement impossible"}`);
         continue;
       }
       if (payment.status === "failed") {

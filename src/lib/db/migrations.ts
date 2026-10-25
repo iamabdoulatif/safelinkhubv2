@@ -367,4 +367,7 @@ create table if not exists router_multiwan_licenses (
 `.trim() },
   { id: "0021_fup_ticket_policy", sql: `alter table router_regulation add column if not exists fup_ticket_policy jsonb;
 alter table router_regulation add column if not exists fup_ticket_state jsonb;` },
+  // Passerelle de paiement par commande portail (GeniusPay par défaut, CinetPay
+  // pour MTN/Moov en API directe). Miroir : scripts/add-portal-order-provider.sql.
+  { id: "0022_portal_order_provider", sql: `alter table portal_orders add column if not exists provider text not null default 'genius_pay';` },
 ];

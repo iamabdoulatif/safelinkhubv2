@@ -12,6 +12,7 @@ import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
+import { createCinetpayCharge, getOrgCinetpayCreds } from "@/lib/payment-gateways/cinetpay";
 import { preselectPaiementPro } from "@/lib/payment-gateways/paiementpro";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
@@ -87,6 +88,70 @@ export async function POST(
   if (order.status !== "pending" || order.paymentReference) {
     // Déjà en paiement / honorée : rien à recréer (évite les doublons de charge).
     return corsJson({ error: "Cette commande n'est plus payable." }, { status: 409 });
+  }
+
+  // MTN/Moov en API DIRECTE CinetPay (PUSH/USSD cellulaire) quand l'org a des
+  // clés CinetPay : la validation se fait sur le réseau mobile, SANS internet
+  // côté client — là où PaiementPro (page/app) échoue sur le captif (voir
+  // [[mtn-momo-captive-limit]]). Sans clés CinetPay, on garde GeniusPay ci-dessous.
+  if (methodRaw === "mtn_money" || methodRaw === "moov_money") {
+    const cinet = await getOrgCinetpayCreds(org.id);
+    if (cinet) {
+      const [cClaim] = await db
+        .update(portalOrders)
+        .set({ status: "payment_initiating", claimedAt: new Date(), failureReason: null })
+        .where(
+          and(
+            eq(portalOrders.id, order.id),
+            eq(portalOrders.orgId, org.id),
+            eq(portalOrders.status, "pending"),
+            isNull(portalOrders.paymentReference),
+          ),
+        )
+        .returning({ id: portalOrders.id });
+      if (!cClaim) {
+        return corsJson({ error: "Cette commande est déjà en cours de paiement." }, { status: 409 });
+      }
+      void prewarmPortalVoucherProfile(order.id);
+      const base = appUrl();
+      // Référence ≤ 30 (contrainte CinetPay), unique, = payment_reference (clé de suivi).
+      const merchantTxId = ("SLH" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7))
+        .toUpperCase()
+        .slice(0, 30);
+      // URL de retour CinetPay : courte (≤ 120, contrainte API) et NON utilisée en
+      // PUSH (pas de redirection) — la vraie navigation client est le checkoutUrl renvoyé.
+      const cinetReturn = `${base}/portal/paid?orderId=${order.id}`;
+      const charge = await createCinetpayCharge(cinet, {
+        merchantTransactionId: merchantTxId,
+        amountFcfa: order.priceCents ?? 0,
+        method: methodRaw,
+        phone: `+${order.phone.replace(/[^0-9]/g, "")}`,
+        designation: `Forfait ${order.packageName ?? "WiFi"} — WiFi`,
+        notifyUrl: `${base}/api/payments/cinetpay/webhook?org=${org.id}`,
+        successUrl: cinetReturn,
+        failedUrl: `${cinetReturn}&status=error`,
+      });
+      if (!charge.ok) {
+        await db
+          .update(portalOrders)
+          .set({ status: "pending", claimedAt: null, failureReason: charge.error })
+          .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "payment_initiating")));
+        return corsJson({ error: charge.error }, { status: 422 });
+      }
+      await db
+        .update(portalOrders)
+        .set({ paymentReference: merchantTxId, provider: "cinetpay", status: "pending", claimedAt: null, failureReason: null })
+        .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "payment_initiating")));
+      // PUSH : aucune redirection — le client approuve l'USSD sur son téléphone
+      // (cellulaire). On renvoie la page du code (qui sonde /status) comme
+      // checkoutUrl pour que le portail y navigue, + push:true pour la consigne.
+      const paidUrl = appendPortalTheme(
+        `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
+        theme,
+      );
+      return corsJson({ checkoutUrl: paidUrl, push: true });
+    }
+    // Pas de clés CinetPay → repli sur PaiementPro (GeniusPay) ci-dessous.
   }
 
   const creds = await getOrgGeniusCreds(org.id);
