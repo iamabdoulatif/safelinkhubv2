@@ -37,10 +37,6 @@ const METHODS: Method[] = [
   { id: "orange_money", label: "Orange Money", logo: "/payment/orange.png" },
   { id: "mtn_money", label: "MTN MoMo", logo: "/payment/mtn-momo.png" },
   { id: "moov_money", label: "Moov Money", logo: "/payment/moov.png" },
-  // Carte Visa/Mastercard : routée (comme "hosted") vers le checkout hébergé
-  // GeniusPay qui saisit la carte. Déjà atteignable via le lien « Carte bancaire
-  // ou autre moyen » en bas — ici on la promeut en moyen à part entière.
-  { id: "card", label: "Carte bancaire", logo: "/payment/visa.svg" },
 ];
 
 export default function PayMethods({
@@ -370,6 +366,18 @@ export default function PayMethods({
           <span aria-hidden="true" className={styles.paySpinner} />
           <span>Ouverture du paiement sécurisé… un instant.</span>
         </div>
+      ) : null}
+
+      {/* MTN/Moov : l'approbation se fait dans l'appli MoMo/Flooz, qui a besoin
+          d'INTERNET — le Wi-Fi n'y donne pas encore accès tant que le paiement
+          n'est pas abouti. On guide vers les données mobiles et on rappelle que
+          le code arrive par SMS (confirmation côté serveur, sans ce navigateur). */}
+      {(busy === "mtn_money" || busy === "moov_money") && !waveLaunched ? (
+        <p className={styles.hint} style={{ margin: "12px 0 0", lineHeight: 1.5 }}>
+          Approuvez le débit dans l’appli <b>{busy === "mtn_money" ? "MTN MoMo" : "Moov Money"}</b>{" "}
+          avec vos <b>données mobiles</b> (le Wi-Fi n’a pas encore accès). Votre{" "}
+          <b>code Wi-Fi</b> arrive par <b>SMS</b> dès l’approbation.
+        </p>
       ) : null}
 
       {waveLaunched ? (
