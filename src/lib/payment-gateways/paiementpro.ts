@@ -18,6 +18,19 @@ export function paiementProChannel(method: string, iso2: string | undefined): st
   return (iso2 && CHANNELS[iso2]?.[method]) || null;
 }
 
+/**
+ * Le raccourci `processing_v2.php` saute le chooser et va DIRECT à l'étape de
+ * traitement. Il ne marche que pour les opérateurs dont l'étape est une
+ * REDIRECTION externe (Orange Money → page officielle #144*82#/Max it). Pour
+ * MTN (MOMOCI) et Moov (FLOOZ), cette étape est un formulaire rendu DANS la page
+ * PaiementPro : dans le webview captif il arrivait blanc/bloqué. Ces opérateurs
+ * restent donc sur la page standard PaiementPro (opérateur déjà présélectionné
+ * par setTranChannel), qui s'affiche correctement.
+ */
+export function usesProcessingShortcut(method: string): boolean {
+  return method === "orange_money";
+}
+
 /** sessionid d'une URL de paiement PaiementPro, ou null. */
 export function paiementProSession(paymentUrl: string): string | null {
   try {
@@ -51,6 +64,10 @@ export async function preselectPaiementPro(
     });
     const code = (await res.text()).trim();
     if (code !== "0") return paymentUrl;
+    // Opérateur présélectionné côté serveur. Orange : raccourci direct (redirige
+    // vers la page officielle). MTN/Moov : page standard PaiementPro, sinon le
+    // formulaire de processing arrive blanc dans le webview captif.
+    if (!usesProcessingShortcut(method)) return paymentUrl;
     return `${BASE}/processing_v2.php?sessionid=${encodeURIComponent(session)}`;
   } catch {
     return paymentUrl;

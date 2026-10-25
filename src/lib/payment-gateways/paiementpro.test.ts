@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { paiementProChannel, paiementProSession } from "./paiementpro";
+import { paiementProChannel, paiementProSession, usesProcessingShortcut } from "./paiementpro";
 
 test("paiementProChannel : canaux CI, rien ailleurs", () => {
   assert.equal(paiementProChannel("orange_money", "CI"), "OMCIV2");
@@ -16,4 +16,10 @@ test("paiementProSession : sessionid des seules URL paiementpro.net", () => {
     "abc",
   );
   assert.equal(paiementProSession("https://evil.example/?sessionid=abc"), null);
+});
+
+test("usesProcessingShortcut : Orange seulement (MTN/Moov cassent in-page)", () => {
+  assert.equal(usesProcessingShortcut("orange_money"), true);
+  assert.equal(usesProcessingShortcut("mtn_money"), false);
+  assert.equal(usesProcessingShortcut("moov_money"), false);
 });
