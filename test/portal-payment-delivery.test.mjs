@@ -8,10 +8,11 @@ test("honore une commande portail en envoyant le SMS par défaut", async () => {
   assert.match(source, /const sendSms = opts\?\.sendSms \?\? true;/);
 });
 
-test("journalise une vérification GeniusPay indisponible", async () => {
+test("journalise une vérification de paiement indisponible", async () => {
   const source = await readFile("src/app/api/portal/[slug]/status/route.ts", "utf8");
 
-  assert.match(source, /\[portal:status\] verification GeniusPay impossible/);
+  // Message provider-agnostique depuis le routage CinetPay (GeniusPay ou CinetPay).
+  assert.match(source, /\[portal:status\] verification paiement impossible/);
 });
 
 test("expose les commandes GeniusPay non confirmées dans l'administration", async () => {
