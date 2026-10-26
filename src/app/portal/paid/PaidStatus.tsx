@@ -44,7 +44,6 @@ export default function PaidStatus({
   lane = false,
   smsSent: laneSmsSent = false,
   payUrl,
-  qrDataUrl,
 }: {
   isError: boolean;
   orderId: string;
@@ -55,8 +54,6 @@ export default function PaidStatus({
   lane?: boolean;
   smsSent?: boolean;
   payUrl?: string;
-  /** QR (data URL) du checkout Wave, à scanner avec un AUTRE téléphone. */
-  qrDataUrl?: string;
 }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const waveHref = payUrl ? waveAppHref(payUrl) : null;
@@ -543,30 +540,19 @@ export default function PaidStatus({
             ) : null}
             {lane && inCaptive ? (
               <div style={{ textAlign: "left", margin: "0 0 18px" }}>
-                <p style={{ margin: "0 0 8px", fontSize: "1.05rem", fontWeight: 800, textAlign: "center" }}>
-                  Payez Wave depuis votre téléphone
+                <p style={{ margin: "0 0 10px", fontSize: "1.05rem", fontWeight: 800, textAlign: "center" }}>
+                  Finissez dans l’app Wave
                 </p>
-                <p style={{ margin: "0 0 12px", fontSize: ".84rem", color: INK_SOFT, textAlign: "center", lineHeight: 1.5 }}>
-                  Cette fenêtre Wi-Fi ne peut pas ouvrir l’app Wave. Scannez avec un autre
-                  téléphone, ou ouvrez le lien dans Safari.
-                </p>
-                {qrDataUrl ? (
-                  <div style={{ textAlign: "center", margin: "0 0 16px" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={qrDataUrl}
-                      alt="QR du paiement Wave"
-                      width={180}
-                      height={180}
-                      style={{ display: "inline-block", border: `2px solid ${INK}`, borderRadius: 12, background: PAPER, padding: 8 }}
-                    />
-                    <p style={{ margin: "6px 0 0", fontSize: ".86rem", fontWeight: 700, color: INK }}>
-                      Scannez avec un <b>autre téléphone</b> (ayant ses données) pour payer dans Wave.
-                    </p>
-                  </div>
+                {waveQr ? (
+                  <a
+                    href={waveQr}
+                    style={{ display: "block", margin: "0 0 12px", padding: "15px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: BRAND, color: INK, fontSize: "1.05rem", fontWeight: 800, textAlign: "center", textDecoration: "none", boxShadow: `4px 4px 0 ${INK}` }}
+                  >
+                    Ouvrir dans l’app Wave
+                  </a>
                 ) : null}
                 <p style={{ margin: "0 0 8px", fontSize: ".84rem", color: INK_SOFT, textAlign: "center" }}>
-                  Sur CE téléphone :
+                  Wave ne s’ouvre pas ? Faites ceci :
                 </p>
                 {laneSmsSent ? (
                   <ol style={{ margin: 0, paddingLeft: 22, fontSize: ".95rem", lineHeight: 1.6 }}>
@@ -612,15 +598,6 @@ export default function PaidStatus({
                 <p style={{ margin: "10px 0 0", fontSize: ".76rem", color: INK_SOFT, textAlign: "center" }}>
                   Ce Wi-Fi laisse passer Wave pendant 15 minutes.
                 </p>
-                {waveQr ? (
-                  <p style={{ margin: "8px 0 0", textAlign: "center" }}>
-                    {/* Dernier recours : la fenêtre Wi-Fi n'ouvre quasi jamais
-                        l'app, d'où le lien discret plutôt qu'un bouton. */}
-                    <a href={waveQr} style={{ color: INK_SOFT, fontSize: ".78rem", textDecoration: "underline" }}>
-                      Ou tenter d’ouvrir l’app Wave directement
-                    </a>
-                  </p>
-                ) : null}
               </div>
             ) : null}
             <style>{`@keyframes slh-spin{to{transform:rotate(360deg)}}`}</style>
