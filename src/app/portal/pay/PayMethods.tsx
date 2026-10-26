@@ -224,16 +224,22 @@ export default function PayMethods({
         return;
       }
       if (win && !win.closed) {
-        // Wave : le lien qr.pay.wave.com (lien universel) ouvre l'app directement.
+        // Navigateur normal : nouvel onglet vers le checkout (Wave → l'app
+        // s'ouvre via qr.pay.wave.com), l'onglet d'origine sonde le statut.
+        // GeniusPay v3 ne redirige PAS vers success_url après paiement : c'est
+        // le sondage de /portal/paid qui déclenche la fulfillment et AFFICHE le code.
         win.location.href = waveQrHref(data.checkoutUrl) ?? data.checkoutUrl;
-        // GeniusPay v3 ne redirige PAS vers success_url après paiement (le client
-        // reste bloqué sur geniuspay.ci). On envoie donc l'onglet D'ORIGINE (sur
-        // notre domaine, derrière le walled-garden) sonder le statut : c'est CE
-        // sondage qui déclenche la fulfillment, lance l'auto-login et AFFICHE le
-        // code — indépendamment du retour de geniuspay.ci.
+        window.location.assign(paidUrl);
+      } else if (captive) {
+        // Fenêtre Wi-Fi captive : NE PAS charger le checkout externe ici (le CNA
+        // n'ouvre pas d'app et rabat qr.pay.wave.com sur pay.wave.com). On reste
+        // sur NOTRE page /portal/paid qui affiche le QR du paiement (scan avec
+        // un 2e téléphone → l'app paie, sans syntaxe) + sortie Safari, et sonde
+        // le statut (joignable via le walled-garden même sans voie ouverte).
+        paidUrl.searchParams.set("pay", data.checkoutUrl);
         window.location.assign(paidUrl);
       } else {
-        window.location.assign(waveQrHref(data.checkoutUrl) ?? data.checkoutUrl); // fenêtre bloquée → même fenêtre
+        window.location.assign(waveQrHref(data.checkoutUrl) ?? data.checkoutUrl); // fenêtre bloquée (non-captif) → même fenêtre
       }
     } catch (e) {
       if (win && !win.closed) win.close();
@@ -334,10 +340,18 @@ export default function PayMethods({
                 </li>
               );
             }
-            if (waveLink) {
+            if (waveLink && wavePrep) {
+              // Fenêtre Wi-Fi captive : au lieu d'ouvrir qr.pay.wave.com en
+              // direct (le CNA le rabat sur pay.wave.com, « l'app ne s'ouvre
+              // pas »), on mène à NOTRE page /portal/paid qui affiche le QR
+              // qr.pay.wave.com en grand (scan → l'app Wave s'ouvre et paie,
+              // sans syntaxe) + sortie Safari. Voie déjà ouverte à la préparation.
+              const hub = paidUrlFor(wavePrep.orderId);
+              hub.searchParams.set("lane", "1");
+              hub.searchParams.set("pay", wavePrep.checkoutUrl);
               return (
                 <li key={m.id} role="option" aria-selected={false}>
-                  <a href={waveLink} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
+                  <a href={hub.toString()} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
                     {optionContent(m, m.label, true)}
                   </a>
                 </li>

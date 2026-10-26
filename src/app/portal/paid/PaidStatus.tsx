@@ -44,6 +44,7 @@ export default function PaidStatus({
   lane = false,
   smsSent: laneSmsSent = false,
   payUrl,
+  qrDataUrl,
 }: {
   isError: boolean;
   orderId: string;
@@ -54,6 +55,9 @@ export default function PaidStatus({
   lane?: boolean;
   smsSent?: boolean;
   payUrl?: string;
+  /** QR (data URL) du paiement, à scanner avec un (2e) téléphone pour ouvrir
+   * l'app sans syntaxe. */
+  qrDataUrl?: string;
 }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const waveHref = payUrl ? waveAppHref(payUrl) : null;
@@ -538,66 +542,71 @@ export default function PaidStatus({
                 </p>
               </div>
             ) : null}
-            {lane && inCaptive ? (
+            {inCaptive && payUrl ? (
               <div style={{ textAlign: "left", margin: "0 0 18px" }}>
-                <p style={{ margin: "0 0 10px", fontSize: "1.05rem", fontWeight: 800, textAlign: "center" }}>
-                  Finissez dans l’app Wave
+                <p style={{ margin: "0 0 8px", fontSize: "1.05rem", fontWeight: 800, textAlign: "center" }}>
+                  Payez depuis votre téléphone
                 </p>
-                {waveQr ? (
-                  <a
-                    href={waveQr}
-                    style={{ display: "block", margin: "0 0 12px", padding: "15px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: BRAND, color: INK, fontSize: "1.05rem", fontWeight: 800, textAlign: "center", textDecoration: "none", boxShadow: `4px 4px 0 ${INK}` }}
-                  >
-                    Ouvrir dans l’app Wave
-                  </a>
+                <p style={{ margin: "0 0 12px", fontSize: ".84rem", color: INK_SOFT, textAlign: "center", lineHeight: 1.5 }}>
+                  La fenêtre Wi-Fi ne peut pas ouvrir l’app. <b>Scannez ce QR</b> avec l’appareil
+                  photo {waveQr ? "(ou un autre téléphone)" : "d’un autre téléphone"} pour payer dans l’app.
+                </p>
+                {qrDataUrl ? (
+                  <div style={{ textAlign: "center", margin: "0 0 16px" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={qrDataUrl}
+                      alt="QR du paiement"
+                      width={200}
+                      height={200}
+                      style={{ display: "inline-block", border: `2px solid ${INK}`, borderRadius: 12, background: PAPER, padding: 8 }}
+                    />
+                  </div>
                 ) : null}
                 <p style={{ margin: "0 0 8px", fontSize: ".84rem", color: INK_SOFT, textAlign: "center" }}>
-                  Wave ne s’ouvre pas ? Faites ceci :
+                  Ou, sur CE téléphone :
                 </p>
-                {laneSmsSent ? (
+                {waveQr && laneSmsSent ? (
                   <ol style={{ margin: 0, paddingLeft: 22, fontSize: ".95rem", lineHeight: 1.6 }}>
-                    <li>
-                      Touchez <b>✓</b> en haut à droite de cette fenêtre.
-                    </li>
-                    <li>
-                      Ouvrez le <b>SMS « payer »</b> reçu et touchez le lien : <b>Wave s’ouvre</b>.
-                    </li>
+                    <li>Touchez <b>✓</b> en haut à droite de cette fenêtre.</li>
+                    <li>Ouvrez le <b>SMS « payer »</b> reçu et touchez le lien : <b>Wave s’ouvre</b>.</li>
                     <li>Validez : votre code Wi-Fi arrive par SMS.</li>
                   </ol>
                 ) : (
                   <>
-                    {payUrl ? (
-                      <button
-                        type="button"
-                        onClick={copyPayUrl}
-                        style={{ display: "block", width: "100%", padding: "12px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: PAPER, color: INK, fontSize: ".98rem", fontWeight: 800, cursor: "pointer" }}
-                      >
-                        {linkCopied ? "Lien copié ✓" : "1. Copier le lien de paiement"}
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={copyPayUrl}
+                      style={{ display: "block", width: "100%", padding: "12px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: PAPER, color: INK, fontSize: ".98rem", fontWeight: 800, cursor: "pointer" }}
+                    >
+                      {linkCopied ? "Lien copié ✓" : "1. Copier le lien de paiement"}
+                    </button>
                     <ol start={2} style={{ margin: "12px 0 0", paddingLeft: 22, fontSize: ".95rem", lineHeight: 1.6 }}>
-                      <li>
-                        Touchez <b>✓</b> en haut à droite de cette fenêtre.
-                      </li>
-                      <li>
-                        Ouvrez <b>Safari</b>, collez le lien, touchez <b>Autoriser</b> : Wave s’ouvre.
-                      </li>
-                      <li>Validez : votre code Wi-Fi arrive par SMS.</li>
+                      <li>Touchez <b>✓</b> en haut à droite de cette fenêtre.</li>
+                      <li>Ouvrez <b>Safari</b>, collez le lien, touchez <b>Autoriser</b>.</li>
+                      <li>Payez : votre code Wi-Fi arrive par SMS.</li>
                     </ol>
-                    {payUrl ? (
-                      <input
-                        readOnly
-                        aria-label="Lien de paiement Wave"
-                        value={payUrl}
-                        onFocus={(e) => e.currentTarget.select()}
-                        style={{ width: "100%", boxSizing: "border-box", marginTop: 10, padding: "8px 10px", border: `1px solid ${INK}`, borderRadius: 8, fontSize: ".76rem", background: PAPER, color: INK_SOFT }}
-                      />
-                    ) : null}
+                    <input
+                      readOnly
+                      aria-label="Lien de paiement"
+                      value={payUrl}
+                      onFocus={(e) => e.currentTarget.select()}
+                      style={{ width: "100%", boxSizing: "border-box", marginTop: 10, padding: "8px 10px", border: `1px solid ${INK}`, borderRadius: 8, fontSize: ".76rem", background: PAPER, color: INK_SOFT }}
+                    />
                   </>
                 )}
-                <p style={{ margin: "10px 0 0", fontSize: ".76rem", color: INK_SOFT, textAlign: "center" }}>
-                  Ce Wi-Fi laisse passer Wave pendant 15 minutes.
-                </p>
+                {lane ? (
+                  <p style={{ margin: "10px 0 0", fontSize: ".76rem", color: INK_SOFT, textAlign: "center" }}>
+                    Ce Wi-Fi laisse passer le paiement pendant 15 minutes.
+                  </p>
+                ) : null}
+                {waveQr ? (
+                  <p style={{ margin: "8px 0 0", textAlign: "center" }}>
+                    <a href={waveQr} style={{ color: INK_SOFT, fontSize: ".78rem", textDecoration: "underline" }}>
+                      Ou tenter d’ouvrir l’app Wave directement
+                    </a>
+                  </p>
+                ) : null}
               </div>
             ) : null}
             <style>{`@keyframes slh-spin{to{transform:rotate(360deg)}}`}</style>
