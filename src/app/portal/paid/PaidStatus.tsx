@@ -44,6 +44,7 @@ export default function PaidStatus({
   lane = false,
   smsSent: laneSmsSent = false,
   payUrl,
+  qrDataUrl,
 }: {
   isError: boolean;
   orderId: string;
@@ -54,6 +55,8 @@ export default function PaidStatus({
   lane?: boolean;
   smsSent?: boolean;
   payUrl?: string;
+  /** QR (data URL) du checkout Wave, à scanner avec un AUTRE téléphone. */
+  qrDataUrl?: string;
 }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const waveHref = payUrl ? waveAppHref(payUrl) : null;
@@ -550,6 +553,21 @@ export default function PaidStatus({
                   >
                     Ouvrir dans l’app Wave
                   </a>
+                ) : null}
+                {qrDataUrl ? (
+                  <div style={{ textAlign: "center", margin: "0 0 12px" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={qrDataUrl}
+                      alt="QR du paiement Wave"
+                      width={160}
+                      height={160}
+                      style={{ display: "inline-block", border: `2px solid ${INK}`, borderRadius: 12, background: PAPER, padding: 6 }}
+                    />
+                    <p style={{ margin: "6px 0 0", fontSize: ".82rem", color: INK_SOFT }}>
+                      Ou scannez avec un <b>autre téléphone</b> pour payer dans Wave.
+                    </p>
+                  </div>
                 ) : null}
                 <p style={{ margin: "0 0 8px", fontSize: ".84rem", color: INK_SOFT, textAlign: "center" }}>
                   Wave ne s’ouvre pas ? Faites ceci :

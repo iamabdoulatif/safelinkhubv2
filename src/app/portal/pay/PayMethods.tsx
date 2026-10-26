@@ -25,13 +25,11 @@ import styles from "../PortalExperience.module.css";
 
 type Method = { id: string; label: string; logo: string };
 
-// Liste des moyens affichés (logo + nom). Depuis le 2026-07-23, GeniusPay route
-// TOUT rail forcé sauf Wave vers checkout.paystack.com (canal marchand cassé :
-// « transaction pas valide / déjà effectuée ») — vérifié en créant une
-// transaction test par rail. Le serveur (/api/portal/[slug]/pay) ne force donc
-// plus que "wave" ; tout autre choix ouvre le checkout HÉBERGÉ GeniusPay
-// (geniuspay.ci/checkout, payment_method omis — « Checkout Mode (Recommended) »
-// de la doc), où le client retrouve son opérateur et où le routage est correct.
+// Liste des moyens affichés (logo + nom). Côté serveur
+// (/api/portal/[slug]/pay) : "wave" → direct pay.wave.com ; Orange/MTN/Moov →
+// rail PawaPay de GeniusPay (opérateur du pays du client) ; indisponible →
+// checkout HÉBERGÉ GeniusPay (le client retrouve son opérateur). MTN/Moov en API
+// directe CinetPay si l'org a des clés.
 const METHODS: Method[] = [
   { id: "wave", label: "Wave", logo: "/payment/wave.png" },
   { id: "orange_money", label: "Orange Money", logo: "/payment/orange.png" },
@@ -334,10 +332,19 @@ export default function PayMethods({
                 </li>
               );
             }
-            if (waveLink) {
+            if (waveLink && wavePrep) {
+              // Fenêtre Wi-Fi iOS : un tap sur un lien qr.pay.wave.com direct
+              // ÉCHOUE souvent (le CNA charge pay.wave.com en place et l'app ne
+              // s'ouvre pas — vidéo 25/10/2026). On route donc vers NOTRE page
+              // /portal/paid (voie déjà ouverte) qui propose « Ouvrir dans
+              // l'app Wave », le QR à scanner avec un autre téléphone et la
+              // sortie Safari — sans jamais échouer sur la page de Wave.
+              const escape = paidUrlFor(wavePrep.orderId);
+              escape.searchParams.set("lane", "1");
+              escape.searchParams.set("pay", wavePrep.checkoutUrl);
               return (
                 <li key={m.id} role="option" aria-selected={false}>
-                  <a href={waveLink} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
+                  <a href={escape.toString()} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
                     {optionContent(m, m.label, true)}
                   </a>
                 </li>
@@ -368,15 +375,15 @@ export default function PayMethods({
         </div>
       ) : null}
 
-      {/* MTN/Moov : l'approbation se fait dans l'appli MoMo/Flooz, qui a besoin
-          d'INTERNET — le Wi-Fi n'y donne pas encore accès tant que le paiement
-          n'est pas abouti. On guide vers les données mobiles et on rappelle que
-          le code arrive par SMS (confirmation côté serveur, sans ce navigateur). */}
+      {/* MTN/Moov via PawaPay : une demande de validation arrive sur le
+          téléphone (ou code opérateur à composer) — ça passe par le réseau
+          MOBILE, pas par ce Wi-Fi. Le code part par SMS dès l'approbation
+          (confirmation côté serveur, sans ce navigateur). */}
       {(busy === "mtn_money" || busy === "moov_money") && !waveLaunched ? (
         <p className={styles.hint} style={{ margin: "12px 0 0", lineHeight: 1.5 }}>
-          Approuvez le débit dans l’appli <b>{busy === "mtn_money" ? "MTN MoMo" : "Moov Money"}</b>{" "}
-          avec vos <b>données mobiles</b> (le Wi-Fi n’a pas encore accès). Votre{" "}
-          <b>code Wi-Fi</b> arrive par <b>SMS</b> dès l’approbation.
+          Une demande de validation <b>{busy === "mtn_money" ? "MTN MoMo" : "Moov Money"}</b> arrive sur
+          votre téléphone (ou composez le code opérateur). Votre <b>code Wi-Fi</b> arrive par{" "}
+          <b>SMS</b> dès l’approbation.
         </p>
       ) : null}
 
