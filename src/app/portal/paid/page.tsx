@@ -2,7 +2,9 @@
 // et affiche le ticket sans jamais tenter de soumettre le login RouterOS depuis
 // le domaine SafeLinkHub.
 
+import QRCode from "qrcode";
 import { portalThemeFromParams } from "@/lib/portal/theme";
+import { waveQrHref } from "@/lib/portal/browser-href";
 import PaidStatus from "./PaidStatus";
 
 type PaidSearchParams = {
@@ -26,6 +28,21 @@ export default async function PortalPaidPage({
   const params = await searchParams;
   const theme = portalThemeFromParams(params);
 
+  const payUrl = /^https:\/\//i.test(params.pay ?? "") ? params.pay : undefined;
+  // QR du paiement, scanné avec l'appareil photo d'un (2e) téléphone → ouvre
+  // l'app sans syntaxe. Wave : on encode qr.pay.wave.com (lien universel → app
+  // Wave). Autres (Orange/MTN/Moov via PaiementPro) : l'URL de checkout telle
+  // quelle (ouvre la page opérateur). Généré côté serveur (hors bundle client).
+  const qrTarget = payUrl ? (waveQrHref(payUrl) ?? payUrl) : null;
+  let qrDataUrl: string | undefined;
+  if (qrTarget) {
+    try {
+      qrDataUrl = await QRCode.toDataURL(qrTarget, { margin: 1, width: 260 });
+    } catch {
+      qrDataUrl = undefined;
+    }
+  }
+
   return (
     <PaidStatus
       isError={params.status === "error"}
@@ -34,7 +51,8 @@ export default async function PortalPaidPage({
       theme={theme}
       lane={params.lane === "1"}
       smsSent={params.sms === "1"}
-      payUrl={/^https:\/\//i.test(params.pay ?? "") ? params.pay : undefined}
+      payUrl={payUrl}
+      qrDataUrl={qrDataUrl}
     />
   );
 }
