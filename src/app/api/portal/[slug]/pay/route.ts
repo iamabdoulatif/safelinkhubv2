@@ -12,7 +12,7 @@ import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
-import { preselectPaiementPro } from "@/lib/payment-gateways/paiementpro";
+import { preselectPaiementPro, usesPaiementProPortalMethod } from "@/lib/payment-gateways/paiementpro";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
 import { prewarmPortalVoucherProfile } from "@/lib/portal/fulfill";
@@ -28,8 +28,6 @@ import { openPaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 //    deposits » (DEPOSITS_NOT_ALLOWED) ; les rails directs orange_money /
 //    moov_money répondaient « Your IP address is not allowed » (Paystack).
 //  • tout le reste (card, hosted) → checkout hébergé geniuspay.ci.
-const PAIEMENTPRO_METHODS = new Set(["orange_money", "mtn_money", "moov_money"]);
-
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
 }
@@ -114,7 +112,7 @@ export async function POST(
   // portail qui sonde /portal/paid (fix v130), pas par une redirection GeniusPay.
   let paymentMethod: string | undefined;
   if (methodRaw === "wave") paymentMethod = "wave";
-  else if (PAIEMENTPRO_METHODS.has(methodRaw)) paymentMethod = "paiementpro";
+  else if (usesPaiementProPortalMethod(methodRaw)) paymentMethod = "paiementpro";
 
   const [claim] = await db
     .update(portalOrders)
@@ -158,10 +156,10 @@ export async function POST(
     ),
   };
   let payment = await createOrgPayment(creds, paymentInput);
-  // Passerelle forcée refusée → repli sur le checkout HÉBERGÉ GeniusPay (le
-  // client y choisit son opérateur). Wave reste en direct : son repli hébergé
-  // part sur Paystack, cassé.
-  if (!payment.ok && paymentMethod && paymentMethod !== "wave") {
+  // Wave peut retomber sur le checkout hébergé. Pour PaiementPro, conserver
+  // l'erreur : sinon le client quitte silencieusement le parcours historique
+  // et se retrouve sur un autre agrégateur/moyen de paiement.
+  if (!payment.ok && paymentMethod === "wave") {
     console.error(
       JSON.stringify({
         level: "warn",

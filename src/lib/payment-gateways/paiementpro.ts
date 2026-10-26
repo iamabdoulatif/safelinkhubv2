@@ -14,6 +14,11 @@ const CHANNELS: Record<string, Record<string, string>> = {
   CI: { orange_money: "OMCIV2", mtn_money: "MOMOCI", moov_money: "FLOOZ" },
 };
 
+/** Mobile-money methods that must stay on the merchant's PaiementPro rail. */
+export function usesPaiementProPortalMethod(method: string): boolean {
+  return method === "orange_money" || method === "mtn_money" || method === "moov_money";
+}
+
 export function paiementProChannel(method: string, iso2: string | undefined): string | null {
   return (iso2 && CHANNELS[iso2]?.[method]) || null;
 }

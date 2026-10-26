@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { paiementProChannel, paiementProSession } from "./paiementpro";
+import { paiementProChannel, paiementProSession, usesPaiementProPortalMethod } from "./paiementpro";
 
 test("paiementProChannel : canaux CI, rien ailleurs", () => {
   assert.equal(paiementProChannel("orange_money", "CI"), "OMCIV2");
@@ -16,4 +16,12 @@ test("paiementProSession : sessionid des seules URL paiementpro.net", () => {
     "abc",
   );
   assert.equal(paiementProSession("https://evil.example/?sessionid=abc"), null);
+});
+
+test("le portail captive les trois moyens mobile money sur PaiementPro", () => {
+  assert.equal(usesPaiementProPortalMethod("orange_money"), true);
+  assert.equal(usesPaiementProPortalMethod("mtn_money"), true);
+  assert.equal(usesPaiementProPortalMethod("moov_money"), true);
+  assert.equal(usesPaiementProPortalMethod("wave"), false);
+  assert.equal(usesPaiementProPortalMethod("card"), false);
 });
