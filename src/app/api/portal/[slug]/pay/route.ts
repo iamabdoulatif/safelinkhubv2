@@ -11,7 +11,12 @@ import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
-import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
+import {
+  getOrgGeniusCreds,
+  createOrgPayment,
+  listPawapayProviders,
+  pickPawapayProvider,
+} from "@/lib/payment-gateways/geniuspay-org";
 import { createCinetpayCharge, getOrgCinetpayCreds } from "@/lib/payment-gateways/cinetpay";
 import { preselectPaiementPro } from "@/lib/payment-gateways/paiementpro";
 import { getOrgDial } from "@/lib/portal/org-dial";
@@ -22,14 +27,15 @@ import { openPaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 
 // Routage des rails sur GeniusPay (geniuspay.ci) :
 //  • "wave" → rail direct pay.wave.com (lien qr.pay.wave.com côté page).
-//  • "orange_money" / "mtn_money" / "moov_money" → payment_method="paiementpro"
-//    (passerelle PaiementPro activée sur le compte), opérateur PRÉSÉLECTIONNÉ
-//    (lib/payment-gateways/paiementpro.ts). PawaPay abandonné ici le
-//    13/10/2026 : « Your pawaPay account has not been configured to make
-//    deposits » (DEPOSITS_NOT_ALLOWED) ; les rails directs orange_money /
-//    moov_money répondaient « Your IP address is not allowed » (Paystack).
+//  • "orange_money" / "mtn_money" / "moov_money" → PawaPay EN PREMIER
+//    (payment_method="pawapay" + mmo_provider) : PUSH direct sur le téléphone du
+//    client, sans page ni app. Tant que GeniusPay n'a pas activé les dépôts
+//    PawaPay (DEPOSITS_NOT_ALLOWED), la création échoue et on retombe
+//    automatiquement sur PaiementPro (page opérateur : OTP/Flash QR Orange,
+//    formulaire+push MTN/Moov) — comportement actuel, zéro régression. Le jour
+//    où GeniusPay active les dépôts, le PUSH s'active tout seul.
 //  • tout le reste (card, hosted) → checkout hébergé geniuspay.ci.
-const PAIEMENTPRO_METHODS = new Set(["orange_money", "mtn_money", "moov_money"]);
+const MOBILE_MONEY_METHODS = new Set(["orange_money", "mtn_money", "moov_money"]);
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -178,8 +184,23 @@ export async function POST(
   // marche. Le retour vers la page du code pour Wave passe donc par l'onglet du
   // portail qui sonde /portal/paid (fix v130), pas par une redirection GeniusPay.
   let paymentMethod: string | undefined;
-  if (methodRaw === "wave") paymentMethod = "wave";
-  else if (PAIEMENTPRO_METHODS.has(methodRaw)) paymentMethod = "paiementpro";
+  let mmoProvider: string | undefined;
+  if (methodRaw === "wave") {
+    paymentMethod = "wave";
+  } else if (MOBILE_MONEY_METHODS.has(methodRaw)) {
+    // PawaPay (PUSH) en premier : on récupère le code opérateur du pays du
+    // client (ex. ORANGE_CIV). Introuvable → on part direct sur PaiementPro.
+    const operator =
+      methodRaw === "mtn_money" ? "mtn" : methodRaw === "moov_money" ? "moov" : "orange";
+    const providers = iso2 && iso2 !== "XX" ? await listPawapayProviders(creds, iso2) : [];
+    const code = pickPawapayProvider(providers, operator);
+    if (code) {
+      paymentMethod = "pawapay";
+      mmoProvider = code;
+    } else {
+      paymentMethod = "paiementpro";
+    }
+  }
 
   const [claim] = await db
     .update(portalOrders)
@@ -212,6 +233,7 @@ export async function POST(
       ...(iso2 && iso2 !== "XX" ? { country: iso2 } : {}),
     },
     paymentMethod,
+    mmoProvider,
     metadata: { orderId: order.id, slug, kind: "portal" },
     successUrl: appendPortalTheme(
       `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
@@ -223,6 +245,26 @@ export async function POST(
     ),
   };
   let payment = await createOrgPayment(creds, paymentInput);
+  // PawaPay refusé (dépôts pas encore activés côté GeniusPay → DEPOSITS_NOT_ALLOWED)
+  // → repli sur PaiementPro (page opérateur : OTP/Flash QR Orange, form+push
+  // MTN/Moov). C'est le comportement actuel tant que le PUSH n'est pas dispo.
+  if (!payment.ok && paymentMethod === "pawapay") {
+    console.error(
+      JSON.stringify({
+        level: "warn",
+        msg: "portal pawapay rejected, falling back to paiementpro",
+        orderId: order.id,
+        method: methodRaw,
+        error: payment.error,
+      }),
+    );
+    paymentMethod = "paiementpro";
+    payment = await createOrgPayment(creds, {
+      ...paymentInput,
+      paymentMethod: "paiementpro",
+      mmoProvider: undefined,
+    });
+  }
   // Passerelle forcée refusée → repli sur le checkout HÉBERGÉ GeniusPay (le
   // client y choisit son opérateur). Wave reste en direct : son repli hébergé
   // part sur Paystack, cassé.
@@ -236,7 +278,11 @@ export async function POST(
         error: payment.error,
       }),
     );
-    payment = await createOrgPayment(creds, { ...paymentInput, paymentMethod: undefined });
+    payment = await createOrgPayment(creds, {
+      ...paymentInput,
+      paymentMethod: undefined,
+      mmoProvider: undefined,
+    });
   }
   if (!payment.ok) {
     await db

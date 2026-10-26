@@ -1,48 +1,49 @@
 "use client";
 
-// Paiement du portail (page hébergée /portal/pay). Deux chemins :
-//  • « Payer avec Wave » → rail Wave GeniusPay, mais on envoie le client sur le
-//    LIEN UNIVERSEL qr.pay.wave.com (page Wave avec QR + « Continuer votre
-//    paiement »), PAS pay.wave.com (qui tente d'ouvrir l'app et échoue dans la
-//    fenêtre Wi-Fi iOS). C'est le comportement demandé.
-//  • « Orange, MTN, Moov ou carte » → checkout HÉBERGÉ GeniusPay (geniuspay.ci),
-//    où le client choisit son opérateur. Flux OTP/push, sans app — marche dans
-//    la fenêtre captive (geniuspay.ci est dans le walled-garden).
-// L'argent va sur le compte GeniusPay de l'org (per-org). Le code s'affiche sur
-// /portal/paid au retour + par SMS (webhook).
+// Paiement du portail (page hébergée /portal/pay). Un bouton par opérateur :
+//  • Wave → rail Wave GeniusPay, redirigé sur le LIEN UNIVERSEL qr.pay.wave.com
+//    (page Wave : QR + « Continuer »), jamais pay.wave.com.
+//  • Orange / MTN / Moov → rail PawaPay (PUSH direct sur le téléphone) dès que
+//    GeniusPay a activé les dépôts ; tant que non, repli automatique PaiementPro
+//    (page opérateur : OTP/Flash QR Orange, form+push MTN/Moov). Voir le routage
+//    serveur dans /api/portal/[slug]/pay.
+//  • « Carte bancaire ou autre moyen » → checkout hébergé GeniusPay.
+// L'argent va sur le compte GeniusPay de l'org (per-org). Code sur /portal/paid + SMS.
 
 import { useEffect, useState } from "react";
 import type { PortalTheme } from "@/lib/portal/theme";
 import { waveQrHref } from "@/lib/portal/browser-href";
 import styles from "../PortalExperience.module.css";
 
-function fcfa(cents: number): string {
-  return `${(cents || 0).toLocaleString("fr-FR")} FCFA`;
-}
+type Method = { id: string; label: string; logo: string; badge?: boolean };
+
+const METHODS: Method[] = [
+  { id: "wave", label: "Wave", logo: "/payment/wave.png", badge: true },
+  { id: "orange_money", label: "Orange Money", logo: "/payment/orange.png" },
+  { id: "mtn_money", label: "MTN MoMo", logo: "/payment/mtn-momo.png" },
+  { id: "moov_money", label: "Moov Money", logo: "/payment/moov.png" },
+];
 
 export default function PayMethods({
   slug,
   orderId,
   theme,
-  priceCents = 0,
 }: {
   slug: string;
   orderId: string;
   theme: PortalTheme;
-  priceCents?: number;
 }) {
-  const [busy, setBusy] = useState<"" | "wave" | "hosted">("");
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // client-only : window absent au rendu serveur.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPageUrl(window.location.href);
   }, []);
 
-  async function pay(method: "wave" | "hosted") {
+  async function pay(method: string) {
     if (busy) return;
     setBusy(method);
     setError("");
@@ -58,13 +59,13 @@ export default function PayMethods({
       if (!res.ok || !data.checkoutUrl) {
         throw new Error(data.error || "Paiement impossible. Réessayez.");
       }
-      // Wave : on force le lien universel qr.pay.wave.com. Autres : checkout
-      // GeniusPay tel quel. Même fenêtre ; au retour /portal/paid affiche le code.
+      // Wave : lien universel qr.pay.wave.com. Autres : URL de checkout telle
+      // quelle (push PawaPay / page PaiementPro / checkout hébergé).
       const target =
         method === "wave" ? (waveQrHref(data.checkoutUrl) ?? data.checkoutUrl) : data.checkoutUrl;
       window.location.assign(target);
     } catch (e) {
-      setBusy("");
+      setBusy(null);
       setError(e instanceof Error ? e.message : "Erreur réseau. Réessayez.");
     }
   }
@@ -81,34 +82,33 @@ export default function PayMethods({
 
   return (
     <div>
-      <button
-        type="button"
-        className={styles.primaryButton}
-        disabled={Boolean(busy)}
-        onClick={() => void pay("wave")}
-      >
-        {busy === "wave" ? "Ouverture de Wave…" : `Payer ${fcfa(priceCents)} avec Wave`}
-      </button>
+      <p className={styles.payHeading}>Moyen de paiement</p>
 
-      <button
-        type="button"
-        disabled={Boolean(busy)}
-        onClick={() => void pay("hosted")}
-        style={{
-          width: "100%",
-          marginTop: 10,
-          padding: "13px 16px",
-          border: "2px solid var(--portal-text, #10160F)",
-          borderRadius: 12,
-          background: "var(--portal-surface, #FFFFFF)",
-          color: "var(--portal-text, #10160F)",
-          fontSize: "1rem",
-          fontWeight: 700,
-          cursor: busy ? "default" : "pointer",
-        }}
-      >
-        {busy === "hosted" ? "Ouverture…" : "Orange, MTN, Moov ou carte"}
-      </button>
+      <ul className={styles.selectMenu} role="list" style={{ position: "static", margin: 0 }}>
+        {METHODS.map((m) => (
+          <li key={m.id}>
+            <button
+              type="button"
+              className={styles.selectOption}
+              disabled={Boolean(busy)}
+              onClick={() => void pay(m.id)}
+              style={{ width: "100%" }}
+            >
+              <span className={styles.selectLogo}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={m.logo} alt="" />
+              </span>
+              <span className={styles.selectLabel}>
+                {busy === m.id ? `${m.label} — ouverture…` : m.label}
+              </span>
+              {m.badge ? <span className={styles.selectBadge}>Le plus rapide</span> : null}
+              {busy === m.id ? (
+                <span aria-hidden="true" className={styles.paySpinner} style={{ marginLeft: "auto" }} />
+              ) : null}
+            </button>
+          </li>
+        ))}
+      </ul>
 
       <p
         className={styles.muted}
@@ -125,6 +125,14 @@ export default function PayMethods({
       ) : null}
 
       <div className={styles.secondaryLinks}>
+        <button
+          type="button"
+          className={styles.textLink}
+          disabled={Boolean(busy)}
+          onClick={() => void pay("hosted")}
+        >
+          {busy === "hosted" ? "Ouverture…" : "Carte bancaire ou autre moyen"}
+        </button>
         <a className={styles.textLink} href={`/portal/recover?slug=${encodeURIComponent(slug)}`}>
           Déjà payé ? Retrouver mon code
         </a>
