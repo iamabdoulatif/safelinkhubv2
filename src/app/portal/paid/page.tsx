@@ -2,9 +2,7 @@
 // et affiche le ticket sans jamais tenter de soumettre le login RouterOS depuis
 // le domaine SafeLinkHub.
 
-import QRCode from "qrcode";
 import { portalThemeFromParams } from "@/lib/portal/theme";
-import { waveQrHref } from "@/lib/portal/browser-href";
 import PaidStatus from "./PaidStatus";
 
 type PaidSearchParams = {
@@ -28,21 +26,6 @@ export default async function PortalPaidPage({
   const params = await searchParams;
   const theme = portalThemeFromParams(params);
 
-  const payUrl = /^https:\/\//i.test(params.pay ?? "") ? params.pay : undefined;
-  // QR du checkout Wave (lien universel qr.pay.wave.com) : un SECOND téléphone,
-  // avec ses propres données, le scanne et paie dans son app Wave — la vraie
-  // sortie quand l'app ne s'ouvre pas depuis la fenêtre Wi-Fi captive. Généré
-  // côté serveur pour ne pas alourdir le bundle client.
-  const waveQr = payUrl ? waveQrHref(payUrl) : null;
-  let qrDataUrl: string | undefined;
-  if (waveQr) {
-    try {
-      qrDataUrl = await QRCode.toDataURL(waveQr, { margin: 1, width: 240 });
-    } catch {
-      qrDataUrl = undefined;
-    }
-  }
-
   return (
     <PaidStatus
       isError={params.status === "error"}
@@ -51,8 +34,7 @@ export default async function PortalPaidPage({
       theme={theme}
       lane={params.lane === "1"}
       smsSent={params.sms === "1"}
-      payUrl={payUrl}
-      qrDataUrl={qrDataUrl}
+      payUrl={/^https:\/\//i.test(params.pay ?? "") ? params.pay : undefined}
     />
   );
 }

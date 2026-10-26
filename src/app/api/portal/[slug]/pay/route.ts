@@ -11,13 +11,9 @@ import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
-import {
-  getOrgGeniusCreds,
-  createOrgPayment,
-  listPawapayProviders,
-  pickPawapayProvider,
-} from "@/lib/payment-gateways/geniuspay-org";
+import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
 import { createCinetpayCharge, getOrgCinetpayCreds } from "@/lib/payment-gateways/cinetpay";
+import { preselectPaiementPro } from "@/lib/payment-gateways/paiementpro";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
 import { prewarmPortalVoucherProfile } from "@/lib/portal/fulfill";
@@ -26,15 +22,14 @@ import { openPaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 
 // Routage des rails sur GeniusPay (geniuspay.ci) :
 //  • "wave" → rail direct pay.wave.com (lien qr.pay.wave.com côté page).
-//  • "orange_money" / "mtn_money" / "moov_money" → payment_method="pawapay" +
-//    mmo_provider (code opérateur PawaPay du PAYS du client). PaiementPro
-//    ABANDONNÉ ici le 25/10/2026 : sa page de processing arrivait BLANCHE dans
-//    le webview captif iOS (Orange compris). PawaPay valide par une demande sur
-//    le téléphone (cellulaire) → aboutit même sans internet côté client. Exige
-//    que le compte GeniusPay soit activé « deposits » côté PawaPay.
-//  • MTN/Moov en API directe CinetPay si l'org a des clés (voir plus bas).
+//  • "orange_money" / "mtn_money" / "moov_money" → payment_method="paiementpro"
+//    (passerelle PaiementPro activée sur le compte), opérateur PRÉSÉLECTIONNÉ
+//    (lib/payment-gateways/paiementpro.ts). PawaPay abandonné ici le
+//    13/10/2026 : « Your pawaPay account has not been configured to make
+//    deposits » (DEPOSITS_NOT_ALLOWED) ; les rails directs orange_money /
+//    moov_money répondaient « Your IP address is not allowed » (Paystack).
 //  • tout le reste (card, hosted) → checkout hébergé geniuspay.ci.
-const MOBILE_MONEY_METHODS = new Set(["orange_money", "mtn_money", "moov_money"]);
+const PAIEMENTPRO_METHODS = new Set(["orange_money", "mtn_money", "moov_money"]);
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -95,13 +90,11 @@ export async function POST(
     return corsJson({ error: "Cette commande n'est plus payable." }, { status: 409 });
   }
 
-  // Orange/MTN/Moov en API DIRECTE CinetPay (PUSH/USSD cellulaire) quand l'org a
-  // des clés CinetPay : la validation se fait sur le réseau mobile, SANS internet
-  // ni app côté client — seul rail qui aboutit DANS la fenêtre Wi-Fi captive (le
-  // CNA iOS n'ouvre aucune app, et PawaPay côté GeniusPay renvoie encore
-  // DEPOSITS_NOT_ALLOWED — voir [[mtn-momo-captive-limit]]). Sans clés CinetPay,
-  // on retombe sur GeniusPay (PawaPay si activé, sinon checkout hébergé).
-  if (MOBILE_MONEY_METHODS.has(methodRaw)) {
+  // MTN/Moov en API DIRECTE CinetPay (PUSH/USSD cellulaire) quand l'org a des
+  // clés CinetPay : la validation se fait sur le réseau mobile, SANS internet
+  // côté client — là où PaiementPro (page/app) échoue sur le captif (voir
+  // [[mtn-momo-captive-limit]]). Sans clés CinetPay, on garde GeniusPay ci-dessous.
+  if (methodRaw === "mtn_money" || methodRaw === "moov_money") {
     const cinet = await getOrgCinetpayCreds(org.id);
     if (cinet) {
       const [cClaim] = await db
@@ -174,8 +167,8 @@ export async function POST(
   const phoneCountry = countryForIntlPhone(order.phone.replace(/[^0-9]/g, ""));
   const iso2 = phoneCountry?.iso2 ?? (await getOrgDial(org.id)).iso2;
 
-  // Résolution du rail. wave → DIRECT (pay.wave.com). orange/mtn/moov → PawaPay
-  // avec le code opérateur du PAYS du client (indispo → checkout hébergé).
+  // Résolution du rail. wave → DIRECT (pay.wave.com). orange_money/mtn_money →
+  // PawaPay avec le code opérateur du pays du client (indispo → checkout hébergé).
   // Reste → omis (checkout hébergé, liste tous les moyens).
   //
   // ⚠️ WAVE DOIT RESTER EN DIRECT. Tenté (v133) de le router par le checkout
@@ -185,22 +178,8 @@ export async function POST(
   // marche. Le retour vers la page du code pour Wave passe donc par l'onglet du
   // portail qui sonde /portal/paid (fix v130), pas par une redirection GeniusPay.
   let paymentMethod: string | undefined;
-  let mmoProvider: string | undefined;
-  if (methodRaw === "wave") {
-    paymentMethod = "wave";
-  } else if (MOBILE_MONEY_METHODS.has(methodRaw)) {
-    const operator =
-      methodRaw === "mtn_money" ? "mtn" : methodRaw === "moov_money" ? "moov" : "orange";
-    // Code opérateur PawaPay du pays du client (ex. ORANGE_CIV). Introuvable
-    // (pays non couvert, liste indisponible) → payment_method omis ⇒ checkout
-    // hébergé geniuspay.ci où le client choisit lui-même son opérateur.
-    const providers = iso2 && iso2 !== "XX" ? await listPawapayProviders(creds, iso2) : [];
-    const code = pickPawapayProvider(providers, operator);
-    if (code) {
-      paymentMethod = "pawapay";
-      mmoProvider = code;
-    }
-  }
+  if (methodRaw === "wave") paymentMethod = "wave";
+  else if (PAIEMENTPRO_METHODS.has(methodRaw)) paymentMethod = "paiementpro";
 
   const [claim] = await db
     .update(portalOrders)
@@ -233,7 +212,6 @@ export async function POST(
       ...(iso2 && iso2 !== "XX" ? { country: iso2 } : {}),
     },
     paymentMethod,
-    mmoProvider,
     metadata: { orderId: order.id, slug, kind: "portal" },
     successUrl: appendPortalTheme(
       `${base}/portal/paid?orderId=${order.id}&slug=${encodeURIComponent(slug)}`,
@@ -258,11 +236,7 @@ export async function POST(
         error: payment.error,
       }),
     );
-    payment = await createOrgPayment(creds, {
-      ...paymentInput,
-      paymentMethod: undefined,
-      mmoProvider: undefined,
-    });
+    payment = await createOrgPayment(creds, { ...paymentInput, paymentMethod: undefined });
   }
   if (!payment.ok) {
     await db
@@ -305,9 +279,8 @@ export async function POST(
       ? await openPaymentLaneForOrder({ ...order, orgId: org.id, checkoutUrl: payment.paymentUrl })
       : { lane: false, smsSent: false };
 
-  // PawaPay : la demande de validation part sur le téléphone du client ; le
-  // checkoutUrl geniuspay.ci n'est qu'une page d'attente (joignable par le
-  // walled-garden même sans voie ouverte).
-  const checkoutUrl = payment.paymentUrl;
+  // PaiementPro : opérateur présélectionné → le client arrive directement sur
+  // l'étape de paiement (sans rechoisir pays + opérateur).
+  const checkoutUrl = await preselectPaiementPro(payment.paymentUrl, methodRaw, iso2);
   return corsJson({ checkoutUrl, lane, smsSent });
 }
