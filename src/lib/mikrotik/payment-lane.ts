@@ -36,7 +36,16 @@ export const PAYMENT_LANE_PROFILE = "slh-paiement";
 export const PAYMENT_LANE_LIST = "slh-paiement";
 export const PAYMENT_LANE_OK_LIST = "slh-paiement-ok";
 export const PAYMENT_LANE_COMMENT = "safelinkhub-paiement";
+// Commentaire DISTINCT pour les entrées de liste par client : la réconciliation
+// (ensurePaymentLane) purge par `PAYMENT_LANE_COMMENT` ; ces entrées-là ne
+// doivent PAS être balayées à chaque passage — elles s'auto-expirent au timeout.
+export const PAYMENT_LANE_CLIENT_COMMENT = "safelinkhub-paiement-client";
 export const PAYMENT_LANE_SESSION = "10m";
+// Durée de vie de l'entrée de restriction par client : un peu PLUS longue que la
+// session (limit-uptime=10m) pour couvrir toute la session même si RouterOS
+// élague l'entrée dynamique du profil (constaté : session active, liste vide,
+// client en plein internet → voir openPaymentLane).
+export const PAYMENT_LANE_LIST_TIMEOUT = "12m";
 
 // Sondes de connectivité : tant qu'elles échouent, iOS garde la fenêtre captive
 // ouverte (et Android son avis « réseau sans internet »). Autorisées SEULEMENT
@@ -110,6 +119,44 @@ async function removeLaneCookies(client: RouterOSClient, user: string, timeoutMs
   for (const row of rows) {
     if (row[".id"]) await client.talk(["/ip/hotspot/cookie/remove", `=numbers=${row[".id"]}`], timeoutMs).catch(() => {});
   }
+}
+
+/** Retire les entrées de restriction par client (notre commentaire) pour une IP.
+ * On filtre côté JS (liste + commentaire) : empiler plusieurs `?` dans l'API
+ * RouterOS ne les combine pas en ET sans opérateur explicite. */
+async function removeLaneAddress(client: RouterOSClient, ip: string, timeoutMs: number) {
+  const rows = await client
+    .talk(["/ip/firewall/address-list/print", `?address=${ip}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  for (const row of rows) {
+    if (row[".id"] && row.list === PAYMENT_LANE_LIST && row.comment === PAYMENT_LANE_CLIENT_COMMENT) {
+      await client.talk(["/ip/firewall/address-list/remove", `=numbers=${row[".id"]}`], timeoutMs).catch(() => {});
+    }
+  }
+}
+
+/**
+ * Garantit que l'IP du client est dans la liste `slh-paiement` pour TOUTE la
+ * durée de la voie — entrée STATIQUE à nous (timeout borné), indépendante de
+ * l'entrée dynamique du profil que RouterOS élague parfois en cours de session.
+ * Sans ça, un client authentifié mais absent de la liste ne matche plus le
+ * rejet et tombe dans l'accept par défaut du forward = plein internet gratuit.
+ * Re-pose à neuf (purge + ajout) pour rafraîchir le timeout à chaque ouverture.
+ */
+async function ensureLaneAddress(client: RouterOSClient, ip: string, timeoutMs: number) {
+  await removeLaneAddress(client, ip, timeoutMs);
+  await client
+    .talk(
+      [
+        "/ip/firewall/address-list/add",
+        `=list=${PAYMENT_LANE_LIST}`,
+        `=address=${ip}`,
+        `=timeout=${PAYMENT_LANE_LIST_TIMEOUT}`,
+        `=comment=${PAYMENT_LANE_CLIENT_COMMENT}`,
+      ],
+      timeoutMs,
+    )
+    .catch(() => {});
 }
 
 /**
@@ -214,6 +261,63 @@ export async function ensurePaymentLane(
   return "installed";
 }
 
+/**
+ * Retire uniquement la voie de paiement gérée par SafeLinkHub.
+ *
+ * Le profil et les règles sont identifiés par des noms/commentaires réservés
+ * à ce module. Les règles hotspot, les tickets et le walled-garden général
+ * restent donc intacts. Les sessions de paiement ouvertes sont fermées avant
+ * la suppression du profil pour éviter de laisser une adresse restreinte.
+ */
+export async function removePaymentLane(client: RouterOSClient, timeoutMs = 15000): Promise<void> {
+  const laneUsers = await client
+    .talk(["/ip/hotspot/user/print", `?comment=${PAYMENT_LANE_COMMENT}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  for (const user of laneUsers) {
+    if (!user[".id"]) continue;
+    const active = await client
+      .talk(["/ip/hotspot/active/print", `?user=${user.name ?? ""}`], timeoutMs)
+      .catch(() => [] as Row[]);
+    for (const session of active) {
+      if (session[".id"]) {
+        await client.talk(["/ip/hotspot/active/remove", `=numbers=${session[".id"]}`], timeoutMs).catch(() => {});
+      }
+    }
+    await removeLaneCookies(client, user.name ?? "", timeoutMs);
+    await client.talk(["/ip/hotspot/user/remove", `=numbers=${user[".id"]}`], timeoutMs).catch(() => {});
+  }
+
+  for (const path of [
+    "/ip/dns/static",
+    "/ip/firewall/address-list",
+    "/ip/firewall/filter",
+  ] as const) {
+    await removeByComment(client, path, timeoutMs);
+  }
+
+  // Les entrées de restriction posées au moment d'une ouverture portent un
+  // commentaire distinct, car elles ne doivent pas être purgées par une
+  // réconciliation normale. Ici, l'utilisateur demande explicitement la
+  // désinstallation : on peut les retirer de façon bornée à notre liste.
+  const clientEntries = await client
+    .talk(["/ip/firewall/address-list/print", `?list=${PAYMENT_LANE_LIST}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  for (const entry of clientEntries) {
+    if (entry[".id"] && entry.comment === PAYMENT_LANE_CLIENT_COMMENT) {
+      await client.talk(["/ip/firewall/address-list/remove", `=numbers=${entry[".id"]}`], timeoutMs).catch(() => {});
+    }
+  }
+
+  const profiles = await client
+    .talk(["/ip/hotspot/user/profile/print", `?name=${PAYMENT_LANE_PROFILE}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  for (const profile of profiles) {
+    if (profile[".id"]) {
+      await client.talk(["/ip/hotspot/user/profile/remove", `=numbers=${profile[".id"]}`], timeoutMs).catch(() => {});
+    }
+  }
+}
+
 /** Le routeur porte-t-il la voie (profil présent) ? */
 export async function hasPaymentLane(client: RouterOSClient, timeoutMs = 4000): Promise<boolean> {
   const rows = await client
@@ -241,7 +345,14 @@ export async function openPaymentLane(
   const active = await client
     .talk(["/ip/hotspot/active/print", `?user=${user}`], timeoutMs)
     .catch(() => [] as Row[]);
-  if (active.length > 0) return true;
+  if (active.length > 0) {
+    // Déjà ouverte : NE PAS couper, mais RE-POSER la restriction par client —
+    // RouterOS élague l'entrée dynamique du profil en cours de session, ce qui
+    // laissait le client authentifié filer en plein internet (default accept).
+    const liveIp = active[0]?.["address"];
+    if (liveIp) await ensureLaneAddress(client, liveIp, timeoutMs);
+    return true;
+  }
 
   const [existing] = await client
     .talk(["/ip/hotspot/user/print", `?name=${user}`], timeoutMs)
@@ -275,6 +386,9 @@ export async function openPaymentLane(
     .catch(() => [] as Row[]);
   const ip = hosts[0]?.["address"];
   if (!ip) return false;
+  // Restriction posée AVANT le login : le client ne doit JAMAIS être authentifié
+  // (et donc routé par l'accept par défaut) sans être déjà dans la liste de rejet.
+  await ensureLaneAddress(client, ip, timeoutMs);
   try {
     await client.talk(
       ["/ip/hotspot/active/login", `=user=${user}`, `=password=${user}`, `=ip=${ip}`, `=mac-address=${mac}`],
@@ -297,6 +411,19 @@ export async function closePaymentLane(
 ): Promise<void> {
   const user = paymentLaneUser(mac);
   await removeLaneCookies(client, user, timeoutMs);
+  // IP du client AVANT de couper la session : pour retirer la restriction par
+  // client, sinon un client qui vient de PAYER (ré-authentifié sur le même IP
+  // avec son vrai code) resterait bloqué par l'entrée slh-paiement résiduelle.
+  const active = await client
+    .talk(["/ip/hotspot/active/print", `?user=${user}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  const ips = new Set<string>();
+  if (active[0]?.["address"]) ips.add(active[0]["address"]);
+  const hosts = await client
+    .talk(["/ip/hotspot/host/print", `?mac-address=${mac}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  if (hosts[0]?.["address"]) ips.add(hosts[0]["address"]);
+  for (const ip of ips) await removeLaneAddress(client, ip, timeoutMs);
   for (const path of ["/ip/hotspot/active", "/ip/hotspot/user"]) {
     const key = path.endsWith("active") ? "user" : "name";
     const rows = await client

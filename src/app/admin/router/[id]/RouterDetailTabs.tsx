@@ -14,6 +14,7 @@ import WanStealthPanel from "./WanStealthPanel";
 import MultiwanPremiumPanel from "./MultiwanPremiumPanel";
 import TrafficHistoryPanel from "./TrafficHistoryPanel";
 import TicketDiagnosisPanel from "./TicketDiagnosisPanel";
+import AutomaticPaymentPanel from "./AutomaticPaymentPanel";
 
 export type TabKey = "overview" | "multiwan" | "history" | "diagnostic" | "filter" | "regulation" | "usage" | "resources" | "services";
 
@@ -133,6 +134,7 @@ export default function RouterDetailTabs({
               <ResourcesPanel routerId={routerId} />
             ) : (
               <>
+                <AutomaticPaymentPanel routerId={routerId} />
                 <CaptivePortalPanel routerId={routerId} />
                 <ServicesWizard routerId={routerId} />
                 <DualWanPanel routerId={routerId} />

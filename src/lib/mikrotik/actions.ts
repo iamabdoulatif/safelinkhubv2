@@ -52,6 +52,8 @@ import { getOrCreateMikhmonAdminPassword } from "./mikhmon-admin-password";
 import { decryptSecret } from "./crypto";
 import { MIKHMON_DEFAULT_PASSWORD } from "./hardening";
 import { isValidCoordinate } from "@/lib/geo/geocode";
+import { ensurePaymentLane, hasPaymentLane, removePaymentLane } from "./payment-lane";
+import { WALLED_GARDEN_ADDRESS_LIST } from "./walled-garden";
 
 /**
  * Relay shard for a newly-created router — round-robin over s1..s4 keyed on the
@@ -1673,6 +1675,86 @@ export async function runRouterAudit(routerId: string) {
     return { success: true, audit };
   } catch (err) {
     return { error: err instanceof Error ? `Échec de l'analyse : ${err.message}` : "Échec de l'analyse." };
+  } finally {
+    client.close();
+  }
+}
+
+/**
+ * Installe la voie de paiement restreinte sans exécuter l'auto-setup complet.
+ * Elle est utile pour un routeur déjà configuré manuellement avec un hotspot.
+ */
+export async function installAutomaticPayment(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 30000);
+  } catch (err) {
+    return { error: err instanceof Error ? `Routeur injoignable : ${err.message}` : "Routeur injoignable." };
+  }
+
+  try {
+    const appHost = new URL(getAppUrl()).host;
+    const disabledHosts = await getOrgWalledGardenDisabledHosts(router.orgId).catch(() => []);
+    await ensureWalledGarden(client, appHost, disabledHosts);
+    const addresses = await resolveAppAddresses(appHost).catch(() => [] as string[]);
+    const result = await ensurePaymentLane(client, addresses, WALLED_GARDEN_ADDRESS_LIST);
+    if (result === "skipped-v6") return { error: "Le paiement automatique nécessite RouterOS 7." };
+    if (result === "skipped-no-hotspot") {
+      return { error: "Aucun serveur hotspot détecté. Configurez d'abord un hotspot, sans lancer l'auto-setup complet." };
+    }
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true as const, message: "Paiement automatique installé sur ce routeur." };
+  } catch (err) {
+    return { error: err instanceof Error ? `Installation impossible : ${err.message}` : "Installation impossible." };
+  } finally {
+    client.close();
+  }
+}
+
+/** Désinstalle la voie de paiement SafeLinkHub sans toucher au hotspot. */
+export async function uninstallAutomaticPayment(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+  if (!router.host || !router.username || !router.passwordEncrypted) {
+    return { error: "Détails de connexion du routeur manquants." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 30000);
+  } catch (err) {
+    return { error: err instanceof Error ? `Routeur injoignable : ${err.message}` : "Routeur injoignable." };
+  }
+  try {
+    const installed = await hasPaymentLane(client);
+    await removePaymentLane(client);
+    revalidatePath(`/admin/router/${routerId}`);
+    return {
+      success: true as const,
+      message: installed
+        ? "Paiement automatique désinstallé. Le hotspot et ses tickets restent actifs."
+        : "Aucune voie de paiement SafeLinkHub n'était installée.",
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? `Désinstallation impossible : ${err.message}` : "Désinstallation impossible." };
   } finally {
     client.close();
   }
