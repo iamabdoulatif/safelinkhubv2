@@ -95,11 +95,13 @@ export async function POST(
     return corsJson({ error: "Cette commande n'est plus payable." }, { status: 409 });
   }
 
-  // MTN/Moov en API DIRECTE CinetPay (PUSH/USSD cellulaire) quand l'org a des
-  // clés CinetPay : la validation se fait sur le réseau mobile, SANS internet
-  // côté client — là où PaiementPro (page/app) échoue sur le captif (voir
-  // [[mtn-momo-captive-limit]]). Sans clés CinetPay, on garde GeniusPay ci-dessous.
-  if (methodRaw === "mtn_money" || methodRaw === "moov_money") {
+  // Orange/MTN/Moov en API DIRECTE CinetPay (PUSH/USSD cellulaire) quand l'org a
+  // des clés CinetPay : la validation se fait sur le réseau mobile, SANS internet
+  // ni app côté client — seul rail qui aboutit DANS la fenêtre Wi-Fi captive (le
+  // CNA iOS n'ouvre aucune app, et PawaPay côté GeniusPay renvoie encore
+  // DEPOSITS_NOT_ALLOWED — voir [[mtn-momo-captive-limit]]). Sans clés CinetPay,
+  // on retombe sur GeniusPay (PawaPay si activé, sinon checkout hébergé).
+  if (MOBILE_MONEY_METHODS.has(methodRaw)) {
     const cinet = await getOrgCinetpayCreds(org.id);
     if (cinet) {
       const [cClaim] = await db
