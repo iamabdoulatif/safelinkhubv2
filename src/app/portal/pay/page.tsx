@@ -112,7 +112,7 @@ export default async function PortalPayPage({
         <p className={styles.planName}>{order.packageName ?? "Forfait Wi-Fi"}</p>
         <p className={styles.planPrice}>{fcfa(order.priceCents ?? 0)}</p>
       </div>
-      <PayMethods slug={slug} orderId={orderId} theme={theme} />
+      <PayMethods slug={slug} orderId={orderId} theme={theme} priceCents={order.priceCents ?? 0} />
     </Shell>
   );
 }
