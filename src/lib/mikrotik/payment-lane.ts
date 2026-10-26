@@ -136,6 +136,19 @@ async function removeLaneAddress(client: RouterOSClient, ip: string, timeoutMs: 
 }
 
 /**
+ * Vérifie l'état effectif, indépendamment du commentaire : une ancienne
+ * version ou une ouverture concurrente peut déjà avoir posé la restriction.
+ * Dans ce cas, la restriction est valide et il ne faut surtout pas échouer
+ * sur « already have such entry ».
+ */
+async function hasLaneAddress(client: RouterOSClient, ip: string, timeoutMs: number): Promise<boolean> {
+  const rows = await client
+    .talk(["/ip/firewall/address-list/print", `?address=${ip}`], timeoutMs)
+    .catch(() => [] as Row[]);
+  return rows.some((row) => row.list === PAYMENT_LANE_LIST);
+}
+
+/**
  * Garantit que l'IP du client est dans la liste `slh-paiement` pour TOUTE la
  * durée de la voie — entrée STATIQUE à nous (timeout borné), indépendante de
  * l'entrée dynamique du profil que RouterOS élague parfois en cours de session.
@@ -145,8 +158,9 @@ async function removeLaneAddress(client: RouterOSClient, ip: string, timeoutMs: 
  */
 async function ensureLaneAddress(client: RouterOSClient, ip: string, timeoutMs: number) {
   await removeLaneAddress(client, ip, timeoutMs);
-  await client
-    .talk(
+  if (await hasLaneAddress(client, ip, timeoutMs)) return;
+  try {
+    await client.talk(
       [
         "/ip/firewall/address-list/add",
         `=list=${PAYMENT_LANE_LIST}`,
@@ -155,8 +169,15 @@ async function ensureLaneAddress(client: RouterOSClient, ip: string, timeoutMs: 
         `=comment=${PAYMENT_LANE_CLIENT_COMMENT}`,
       ],
       timeoutMs,
-    )
-    .catch(() => {});
+    );
+  } catch (err) {
+    // Deux onglets peuvent ouvrir le paiement simultanément. Si l'autre
+    // requête a posé la même entrée entre notre lecture et notre ajout, la
+    // restriction est déjà effective : on confirme l'état et on continue.
+    const message = err instanceof Error ? err.message : String(err);
+    if (!/already have such entry|already exists/i.test(message)) throw err;
+    if (!(await hasLaneAddress(client, ip, timeoutMs))) throw err;
+  }
 }
 
 /**
