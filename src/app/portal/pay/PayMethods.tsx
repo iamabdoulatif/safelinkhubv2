@@ -37,6 +37,10 @@ const METHODS: Method[] = [
   { id: "orange_money", label: "Orange Money", logo: "/payment/orange.png" },
   { id: "mtn_money", label: "MTN MoMo", logo: "/payment/mtn-momo.png" },
   { id: "moov_money", label: "Moov Money", logo: "/payment/moov.png" },
+  // Carte Visa/Mastercard : routée (comme "hosted") vers le checkout hébergé
+  // GeniusPay qui saisit la carte. Déjà atteignable via le lien « Carte bancaire
+  // ou autre moyen » en bas — ici on la promeut en moyen à part entière.
+  { id: "card", label: "Carte bancaire", logo: "/payment/visa.svg" },
 ];
 
 export default function PayMethods({
