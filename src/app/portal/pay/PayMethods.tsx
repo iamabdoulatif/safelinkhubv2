@@ -20,7 +20,7 @@
 
 import { useEffect, useState } from "react";
 import type { PortalTheme } from "@/lib/portal/theme";
-import { isCaptiveBrowser, waveQrHref } from "@/lib/portal/browser-href";
+import { isCaptiveBrowser, waveAppHref, waveQrHref } from "@/lib/portal/browser-href";
 import styles from "../PortalExperience.module.css";
 
 type Method = { id: string; label: string; logo: string };
@@ -167,6 +167,18 @@ export default function PayMethods({
       fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
     }
     setWaveLaunched(true);
+    const appHref = waveAppHref(wavePrep.checkoutUrl);
+    const qrHref = waveQrHref(wavePrep.checkoutUrl);
+    if (!appHref || !qrHref) return;
+    // Le clic est une action utilisateur : iOS autorise ici le schéma Wave,
+    // même lorsque la fenêtre captive refuse une ouverture automatique. Le
+    // checkout embarque toujours l'URL universelle qr.pay.wave.com.
+    window.location.href = appHref;
+    // Si iOS refuse le schéma (app absente ou CNA restrictive), conserver un
+    // repli explicite vers le lien QR au lieu de laisser un écran bloqué.
+    window.setTimeout(() => {
+      if (document.visibilityState === "visible") window.location.href = qrHref;
+    }, 1200);
   }
 
   async function pay(method: string) {
@@ -337,7 +349,7 @@ export default function PayMethods({
             if (waveLink) {
               return (
                 <li key={m.id} role="option" aria-selected={false}>
-                  <a href={waveLink} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
+                  <a href={waveLink} className={styles.selectOption} onClick={(event) => { event.preventDefault(); onWaveLinkTap(); setMenuOpen(false); }}>
                     {optionContent(m, m.label, true)}
                   </a>
                 </li>

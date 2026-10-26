@@ -16,8 +16,9 @@ export function isCaptiveBrowser(userAgent: string): boolean {
 export function waveAppHref(checkoutUrl: string): string | null {
   try {
     const u = new URL(checkoutUrl);
-    if (u.hostname !== "pay.wave.com") return null;
-    return `wave://capture/${checkoutUrl}`;
+    if (u.hostname !== "pay.wave.com" && u.hostname !== "qr.pay.wave.com") return null;
+    u.hostname = "qr.pay.wave.com";
+    return `wave://capture/${u.toString()}`;
   } catch {
     return null;
   }
