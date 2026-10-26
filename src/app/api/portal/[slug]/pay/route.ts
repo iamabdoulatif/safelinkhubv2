@@ -19,6 +19,20 @@ import { prewarmPortalVoucherProfile } from "@/lib/portal/fulfill";
 import { appendPortalTheme, portalThemeFromUnknown } from "@/lib/portal/theme";
 import { openPaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 
+/** Retourne le lien universel Wave attendu par le portail captif. */
+function waveQrCheckoutUrl(paymentUrl: string): string {
+  try {
+    const url = new URL(paymentUrl);
+    if (url.hostname === "pay.wave.com" || url.hostname === "qr.pay.wave.com") {
+      url.hostname = "qr.pay.wave.com";
+      return url.toString();
+    }
+  } catch {
+    // GeniusPay a déjà validé l'URL ; conserver sa valeur si elle est atypique.
+  }
+  return paymentUrl;
+}
+
 // Routage des rails sur GeniusPay (geniuspay.ci) :
 //  • "wave" → rail direct pay.wave.com (lien qr.pay.wave.com côté page).
 //  • "orange_money" / "mtn_money" / "moov_money" → payment_method="paiementpro"
@@ -206,14 +220,20 @@ export async function POST(
     return corsJson({ error: "Paiement créé mais commande non mise à jour." }, { status: 500 });
   }
 
+  // Le lien retourné au portail, au SMS et à la page de suivi doit être le lien
+  // universel Wave : qr.pay.wave.com (et non le domaine technique pay.wave.com
+  // renvoyé par GeniusPay). Cela évite que le mini-navigateur captif affiche ou
+  // charge le mauvais hôte au-dessus du portail Yahya Wifi.
+  const checkoutPaymentUrl = paymentMethod === "wave" ? waveQrCheckoutUrl(payment.paymentUrl) : payment.paymentUrl;
+
   // VOIE DE PAIEMENT (mini-navigateur captif) — voir payment-lane-open.ts.
   const { lane, smsSent } =
     body.captive === true
-      ? await openPaymentLaneForOrder({ ...order, orgId: org.id, checkoutUrl: payment.paymentUrl })
+      ? await openPaymentLaneForOrder({ ...order, orgId: org.id, checkoutUrl: checkoutPaymentUrl })
       : { lane: false, smsSent: false };
 
   // PaiementPro : opérateur présélectionné → le client arrive directement sur
   // l'étape de paiement (sans rechoisir pays + opérateur).
-  const checkoutUrl = await preselectPaiementPro(payment.paymentUrl, methodRaw, iso2);
+  const checkoutUrl = await preselectPaiementPro(checkoutPaymentUrl, methodRaw, iso2);
   return corsJson({ checkoutUrl, lane, smsSent });
 }
