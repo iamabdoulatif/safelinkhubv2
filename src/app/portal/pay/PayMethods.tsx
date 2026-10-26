@@ -1,17 +1,19 @@
 "use client";
 
-// Paiement du portail (page hébergée /portal/pay). UN seul bouton « Payer » qui
-// crée la transaction GeniusPay (sans rail forcé) et envoie le client vers le
-// checkout HÉBERGÉ GeniusPay (geniuspay.ci) : il y choisit lui-même son
-// opérateur (Wave, Orange, MTN, Moov, carte) et paie. L'argent va sur le compte
-// GeniusPay de l'org (per-org), et la page est joignable derrière le portail
-// captif (geniuspay.ci est dans le walled-garden) — aucun besoin d'ouvrir une
-// app, ce que la fenêtre Wi-Fi iOS (CNA) interdit de toute façon. Après
-// paiement, GeniusPay revient sur /portal/paid et le code Wi-Fi s'y affiche
-// (+ SMS via le webhook).
+// Paiement du portail (page hébergée /portal/pay). Deux chemins :
+//  • « Payer avec Wave » → rail Wave GeniusPay, mais on envoie le client sur le
+//    LIEN UNIVERSEL qr.pay.wave.com (page Wave avec QR + « Continuer votre
+//    paiement »), PAS pay.wave.com (qui tente d'ouvrir l'app et échoue dans la
+//    fenêtre Wi-Fi iOS). C'est le comportement demandé.
+//  • « Orange, MTN, Moov ou carte » → checkout HÉBERGÉ GeniusPay (geniuspay.ci),
+//    où le client choisit son opérateur. Flux OTP/push, sans app — marche dans
+//    la fenêtre captive (geniuspay.ci est dans le walled-garden).
+// L'argent va sur le compte GeniusPay de l'org (per-org). Le code s'affiche sur
+// /portal/paid au retour + par SMS (webhook).
 
 import { useEffect, useState } from "react";
 import type { PortalTheme } from "@/lib/portal/theme";
+import { waveQrHref } from "@/lib/portal/browser-href";
 import styles from "../PortalExperience.module.css";
 
 function fcfa(cents: number): string {
@@ -29,7 +31,7 @@ export default function PayMethods({
   theme: PortalTheme;
   priceCents?: number;
 }) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"" | "wave" | "hosted">("");
   const [error, setError] = useState("");
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
@@ -40,32 +42,29 @@ export default function PayMethods({
     setPageUrl(window.location.href);
   }, []);
 
-  async function pay() {
+  async function pay(method: "wave" | "hosted") {
     if (busy) return;
-    setBusy(true);
+    setBusy(method);
     setError("");
     try {
       const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // method "hosted" = aucun rail forcé → GeniusPay renvoie son checkout
-        // hébergé où le client choisit son opérateur. Pas de voie de paiement
-        // (captive omis) : geniuspay.ci passe par le walled-garden.
-        body: JSON.stringify({ orderId, method: "hosted", theme }),
+        body: JSON.stringify({ orderId, method, theme }),
       });
-      // Réponse non-JSON (page d'erreur d'un proxy) : message lisible.
       const data = (await res.json().catch(() => ({
         error: "Le service de paiement ne répond pas. Réessayez dans un instant.",
       }))) as { checkoutUrl?: string; error?: string };
       if (!res.ok || !data.checkoutUrl) {
         throw new Error(data.error || "Paiement impossible. Réessayez.");
       }
-      // Même fenêtre → checkout GeniusPay. Au retour (success_url), /portal/paid
-      // sonde le statut et affiche le code ; le webhook + le SMS honorent la
-      // commande même si le client ne revient pas de lui-même.
-      window.location.assign(data.checkoutUrl);
+      // Wave : on force le lien universel qr.pay.wave.com. Autres : checkout
+      // GeniusPay tel quel. Même fenêtre ; au retour /portal/paid affiche le code.
+      const target =
+        method === "wave" ? (waveQrHref(data.checkoutUrl) ?? data.checkoutUrl) : data.checkoutUrl;
+      window.location.assign(target);
     } catch (e) {
-      setBusy(false);
+      setBusy("");
       setError(e instanceof Error ? e.message : "Erreur réseau. Réessayez.");
     }
   }
@@ -85,18 +84,38 @@ export default function PayMethods({
       <button
         type="button"
         className={styles.primaryButton}
-        disabled={busy}
-        onClick={() => void pay()}
+        disabled={Boolean(busy)}
+        onClick={() => void pay("wave")}
       >
-        {busy ? "Ouverture du paiement sécurisé…" : `Payer ${fcfa(priceCents)}`}
+        {busy === "wave" ? "Ouverture de Wave…" : `Payer ${fcfa(priceCents)} avec Wave`}
+      </button>
+
+      <button
+        type="button"
+        disabled={Boolean(busy)}
+        onClick={() => void pay("hosted")}
+        style={{
+          width: "100%",
+          marginTop: 10,
+          padding: "13px 16px",
+          border: "2px solid var(--portal-text, #10160F)",
+          borderRadius: 12,
+          background: "var(--portal-surface, #FFFFFF)",
+          color: "var(--portal-text, #10160F)",
+          fontSize: "1rem",
+          fontWeight: 700,
+          cursor: busy ? "default" : "pointer",
+        }}
+      >
+        {busy === "hosted" ? "Ouverture…" : "Orange, MTN, Moov ou carte"}
       </button>
 
       <p
         className={styles.muted}
         style={{ margin: "12px 0 0", fontSize: ".9rem", textAlign: "center", lineHeight: 1.5 }}
       >
-        Choisissez <b>Wave, Orange, MTN, Moov</b> ou carte sur la page sécurisée. Votre{" "}
-        <b>code Wi-Fi</b> s’affiche ensuite ici et par <b>SMS</b>.
+        Validez le paiement, puis revenez ici : votre <b>code Wi-Fi</b> s’affiche tout seul (et par{" "}
+        <b>SMS</b>).
       </p>
 
       {error ? (
