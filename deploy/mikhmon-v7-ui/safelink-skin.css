@@ -76,14 +76,38 @@ header.main-header {
   border-radius: 6px !important;
   color: var(--slh-ink) !important;
 }
+/* Lignes icône + texte (tableau de bord : date/heure, carte, ressources,
+   revenu). L'icône était à 25% de large et poussait le texte, qui se
+   dispersait. On la fixe à sa taille et le texte coule dans sa colonne, avec
+   un interligne lisible et un libellé:valeur par ligne. */
+.box-group {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+}
 .box-group-icon,
 .box-group-icon .connect {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 2px 0 0 !important;
+  font-size: 26px !important;
+  line-height: 1.1 !important;
   background: transparent !important;
   color: var(--slh-brand) !important;
 }
 .box-group-icon .fa { color: var(--slh-brand) !important; }
+.box-group-area {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
 .box-group-area,
 .box-group-area span { color: var(--slh-ink) !important; }
+.box-group-area span {
+  display: block !important;
+  line-height: 1.7 !important;
+  overflow-wrap: anywhere;
+}
 
 /* Liens d'action dans la tuile (Ouvrir / Modifier) */
 .box-group-area a,
@@ -223,4 +247,16 @@ input.form-control {
   white-space: nowrap !important;
   padding: 6px 10px !important;
   border-radius: 6px !important;
+}
+
+/* ── Filet responsive global (complète mikhmon-responsive.css) ─────────── */
+@media (max-width: 768px) {
+  /* Une table plus large que sa carte défile horizontalement au lieu de
+     déborder la page (overflow-x seul : le contenu vertical n'est pas rogné). */
+  .card-body { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table { width: 100%; }
+  /* Cibles tactiles confortables sur tous les boutons/soumissions. */
+  .btn, input[type="submit"], input[type="button"] { min-height: 36px; }
+  /* Les barres de boutons reviennent à la ligne proprement. */
+  .btn-group, .input-group { flex-wrap: wrap; }
 }
