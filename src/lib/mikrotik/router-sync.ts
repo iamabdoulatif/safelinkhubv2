@@ -10,6 +10,7 @@ import {
 } from "./relay";
 import { reconcileWalledGardenOnce } from "./walled-garden";
 import { reconcileHardeningOnce } from "./hardening-sync";
+import { reconcileMikhmonAutoUpdate } from "./mikhmon-auto-update";
 import { updateRouterUsage } from "./link-usage-reader";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { ensureHotspotLoginByCode } from "./hotspot-login-mode";
@@ -344,6 +345,22 @@ export async function syncRouterStats(
         JSON.stringify({
           level: "warn",
           msg: "router hardening failed",
+          routerId,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+
+    // Mise à jour auto de MikHmon : dépose l'habillage courant dans le conteneur
+    // (refonte d'habillage), et — si activé — met l'image à jour (refonte
+    // totale) en préservant la session. Ne jette jamais la synchro.
+    try {
+      await reconcileMikhmonAutoUpdate(client, routerId);
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          level: "warn",
+          msg: "mikhmon auto-update failed",
           routerId,
           error: err instanceof Error ? err.message : String(err),
         }),
