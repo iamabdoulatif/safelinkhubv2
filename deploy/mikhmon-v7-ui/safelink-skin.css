@@ -1,0 +1,226 @@
+/* ───────────────────────────────────────────────────────────────────────
+   SafeLinkHub — habillage MikHmon (peau « Bitume » : moutarde + anthracite).
+   Chargé EN DERNIER dans headhtml.php, après le thème et le responsive, pour
+   gagner sans toucher à la structure PHP. Palette reprise de globals.css
+   (dark). Pas de dégradés (règle de charte). Mobile-first.
+   ─────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Palette NATIVE MikHmon (thème dark) conservée — on ne rebrande pas les
+     couleurs, on garde seulement la mise en page/habillage. */
+  --slh-paper: #2f353a;      /* fond body natif */
+  --slh-surface: #3a4149;    /* carte native */
+  --slh-surface-2: #343b41;  /* carte interne / tuile routeur (header natif) */
+  --slh-ink: #e4e7ea;        /* texte natif */
+  --slh-ink-soft: #9aa0a6;
+  --slh-brand: #20a8d8;      /* bleu MikHmon natif — accents, actifs */
+  --slh-brand-deep: #1b8ab2;
+  --slh-border: #23282c;     /* bordure native */
+  --slh-danger: #f86c6b;     /* rouge natif bg-danger */
+  --slh-radius: 6px;
+}
+
+body,
+.wrapper,
+.content-wrapper,
+.content {
+  background: var(--slh-paper) !important;
+  color: var(--slh-ink) !important;
+}
+
+/* ── Barre du haut (menu.php) ─────────────────────────────────────────── */
+.main-header,
+.navbar,
+.top-nav,
+header.main-header {
+  background: #343b41 !important;
+  border-bottom: 2px solid var(--slh-border) !important;
+  color: var(--slh-ink) !important;
+}
+.main-header a,
+.navbar a,
+.top-nav a { color: var(--slh-ink) !important; }
+.main-header a:hover,
+.navbar a:hover { color: var(--slh-brand) !important; }
+
+/* ── Cartes ───────────────────────────────────────────────────────────── */
+.card {
+  background: var(--slh-surface) !important;
+  border: 2px solid var(--slh-border) !important;
+  border-radius: var(--slh-radius) !important;
+  box-shadow: none !important;
+}
+.card .card {
+  background: var(--slh-surface-2) !important;
+  border-radius: 12px !important;
+}
+.card-header {
+  background: transparent !important;
+  border-bottom: 2px solid var(--slh-border) !important;
+}
+.card-title,
+.card-header h3 {
+  color: var(--slh-ink) !important;
+  font-weight: 700 !important;
+  letter-spacing: .2px;
+}
+.card-title .fa,
+.card-header .fa { color: var(--slh-brand) !important; }
+.fa-refresh.pointer:hover { color: var(--slh-brand) !important; }
+
+/* ── Tuile routeur : fini la couleur aléatoire, place à la marque ─────── */
+.card-body .box.box-bordered,
+.box.box-bordered[class*="bg-"],
+.box.bg-slh {
+  background: var(--slh-surface-2) !important;
+  border: 1px solid var(--slh-border) !important;
+  border-radius: 6px !important;
+  color: var(--slh-ink) !important;
+}
+.box-group-icon,
+.box-group-icon .connect {
+  background: transparent !important;
+  color: var(--slh-brand) !important;
+}
+.box-group-icon .fa { color: var(--slh-brand) !important; }
+.box-group-area,
+.box-group-area span { color: var(--slh-ink) !important; }
+
+/* Liens d'action dans la tuile (Ouvrir / Modifier) */
+.box-group-area a,
+.box-group-area .connect {
+  color: var(--slh-brand-deep) !important;
+  font-weight: 600;
+}
+.box-group-area a:hover,
+.box-group-area .connect:hover { color: var(--slh-brand) !important; }
+
+/* ── Boutons ──────────────────────────────────────────────────────────── */
+.btn.bg-danger,
+.btn-danger {
+  background: var(--slh-danger) !important;
+  border: none !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+}
+input[type="submit"],
+.group-item-l[type="submit"],
+input[name="save"] {
+  background: var(--slh-brand) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  border: none !important;
+}
+input[type="submit"]:hover { background: var(--slh-brand-deep) !important; }
+
+/* ── Table / formulaire admin ─────────────────────────────────────────── */
+.table,
+.table td,
+.table th {
+  color: var(--slh-ink) !important;
+  border-color: var(--slh-border) !important;
+}
+.form-control,
+.group-item,
+select.form-control,
+input.form-control {
+  background: #2a2f33 !important;
+  color: var(--slh-ink) !important;
+  border: 1.5px solid var(--slh-border) !important;
+  border-radius: 6px !important;
+}
+.form-control:focus {
+  border-color: var(--slh-brand) !important;
+  box-shadow: 0 0 0 2px rgba(32, 168, 216, .3) !important;
+}
+.group-item-r { background: var(--slh-surface-2) !important; }
+
+#loadV, #newVer { color: var(--slh-ink-soft) !important; }
+
+/* ── Mobile : on aère et on empile proprement ─────────────────────────── */
+@media (max-width: 768px) {
+  .card-body { padding: 12px !important; }
+  .card .card { margin-bottom: 12px; }
+  /* Les deux panneaux (Liste des routeurs / Administrateur) passent pleine
+     largeur avec de l'air entre eux. */
+  .card-body > .row > .col-6 {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 14px;
+  }
+  .box.box-bordered { padding: 12px !important; }
+  .box-group { gap: 10px; }
+  /* Cibles tactiles plus confortables */
+  .box-group-area a,
+  .box-group-area .connect,
+  .btn { padding: 6px 10px !important; display: inline-block; }
+  .card-title { font-size: 1.05rem !important; }
+}
+
+/* ── Tuile routeur : disposition en 2 rangées, zéro débordement ─────────
+   Rangée 1 = icône + infos (nom hotspot / session), qui peuvent s'enrouler.
+   Rangée 2 = barre d'actions (Ouvrir / Modifier / Supprimer) séparée par un
+   filet, en flex-wrap avec gouttières : le texte ne vient JAMAIS coller ou
+   déborder sur les boutons, en responsive comme en desktop. */
+.slh-router {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  padding: 12px !important;
+  min-height: 0 !important;
+}
+.slh-router-head {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+.slh-router-ic {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 26px !important;
+  line-height: 1 !important;
+  color: var(--slh-brand) !important;
+}
+.slh-router-info { min-width: 0 !important; flex: 1 1 auto !important; }
+.slh-router-name {
+  font-weight: 600 !important;
+  color: var(--slh-ink) !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.slh-router-sess {
+  color: var(--slh-ink-soft) !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.slh-router-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--slh-border) !important;
+}
+.slh-router-actions .slh-act,
+.slh-router-actions .slh-act-form { margin: 0 !important; }
+.slh-act {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  color: var(--slh-brand-deep) !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  border: none !important;
+  background: none !important;
+}
+.slh-act:hover { color: var(--slh-brand) !important; background: rgba(32,168,216,.12) !important; }
+.slh-act-form { display: inline-flex !important; }
+.slh-act-del {
+  white-space: nowrap !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+}
