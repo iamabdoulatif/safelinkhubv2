@@ -248,14 +248,19 @@ export async function ensureMikhmonImage(client: RouterOSClient, routerId: strin
 /* ═══════════════════════ Orchestrateur (appelé à la synchro) ════════════ */
 
 export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerId: string): Promise<void> {
+  // 1) Image D'ABORD : si on re-crée le conteneur, il repart sur l'image NUE
+  //    (l'habillage n'est pas cuit dedans) — il faut re-déposer les fichiers
+  //    ensuite. L'image a son propre garde-fou (allowlist + cap).
+  let imageUpdated = false;
+  if (IMAGE_UPDATE_ENABLED) {
+    const res = await ensureMikhmonImage(client, routerId).catch(() => "error");
+    imageUpdated = res === "updated";
+  }
+  // 2) Habillage : si la version a changé OU si le conteneur vient d'être
+  //    re-créé (conteneur neuf sans les fichiers), on (re)dépose.
   const tag = `${MIKHMON_UI_VERSION}`;
-  if (UI_SYNC_ENABLED && done.get(routerId) !== tag) {
+  if (UI_SYNC_ENABLED && (done.get(routerId) !== tag || imageUpdated)) {
     await ensureMikhmonUiFiles(client).catch(() => {});
     done.set(routerId, tag);
-  }
-  // L'image est gardée hors du gate versionné : elle a son propre garde-fou
-  // (allowlist + cap) et doit pouvoir s'appliquer dès qu'un routeur canari diffère.
-  if (IMAGE_UPDATE_ENABLED) {
-    await ensureMikhmonImage(client, routerId).catch(() => {});
   }
 }
