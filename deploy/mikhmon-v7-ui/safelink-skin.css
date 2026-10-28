@@ -155,3 +155,72 @@ input.form-control {
   .btn { padding: 6px 10px !important; display: inline-block; }
   .card-title { font-size: 1.05rem !important; }
 }
+
+/* ── Tuile routeur : disposition en 2 rangées, zéro débordement ─────────
+   Rangée 1 = icône + infos (nom hotspot / session), qui peuvent s'enrouler.
+   Rangée 2 = barre d'actions (Ouvrir / Modifier / Supprimer) séparée par un
+   filet, en flex-wrap avec gouttières : le texte ne vient JAMAIS coller ou
+   déborder sur les boutons, en responsive comme en desktop. */
+.slh-router {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  padding: 12px !important;
+  min-height: 0 !important;
+}
+.slh-router-head {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+.slh-router-ic {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 26px !important;
+  line-height: 1 !important;
+  color: var(--slh-brand) !important;
+}
+.slh-router-info { min-width: 0 !important; flex: 1 1 auto !important; }
+.slh-router-name {
+  font-weight: 600 !important;
+  color: var(--slh-ink) !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.slh-router-sess {
+  color: var(--slh-ink-soft) !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.slh-router-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--slh-border) !important;
+}
+.slh-router-actions .slh-act,
+.slh-router-actions .slh-act-form { margin: 0 !important; }
+.slh-act {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  color: var(--slh-brand-deep) !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  border: none !important;
+  background: none !important;
+}
+.slh-act:hover { color: var(--slh-brand) !important; background: rgba(32,168,216,.12) !important; }
+.slh-act-form { display: inline-flex !important; }
+.slh-act-del {
+  white-space: nowrap !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+}

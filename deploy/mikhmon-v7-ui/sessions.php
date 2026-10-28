@@ -85,33 +85,25 @@ if (!isset($_SESSION["mikhmon"])) {
                 if ($value == "" || $value == "mikhmon" || !is_array($row)) {
                 } else { ?>
                     <div class="col-12">
-                        <div class="box bmh-75 box-bordered">
-                                <div class="box-group">
-                                  
-                                  <div class="box-group-icon">
-                                    <span class="connect pointer" id="<?= $value; ?>">
-                                    <i class="fa fa-server"></i>
-                                    </span>
-                                  </div>
-                                
-                                  <div class="box-group-area">
-                                    <span>
-                                      <?= $_hotspot_name ?> : <?= explode('%', $data[$value][4])[1]; ?><br>
-                                      <?= $_session_name ?> : <?= $value; ?><br>
-                                      <span class="connect pointer"  id="<?= $value; ?>"><i class="fa fa-external-link"></i> <?= $_open ?></span>&nbsp;
-                                      <a href="./admin.php?id=settings&session=<?= $value; ?>"><i class="fa fa-edit"></i> <?= $_edit ?></a>&nbsp;
-                                      <form method="post" action="./admin.php?id=remove-session" onsubmit="return confirm('Are you sure to delete data <?= $value;
-                                      echo " (" . explode('%', $data[$value][4])[1] . ")"; ?>?')" style="display:inline;">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="remove_session" value="<?= htmlspecialchars($value); ?>">
-                                        <button type="submit" class="btn bg-danger btn-sm" style="padding:2px 7px;"><i class="fa fa-remove"></i> <?= $_delete ?></button>
-                                      </form>
-                                    </span>
-
-                                  </div>
-                                </div>
-                              
+                        <div class="box box-bordered slh-router">
+                          <div class="slh-router-head">
+                            <span class="slh-router-ic connect pointer" id="<?= $value; ?>"><i class="fa fa-server"></i></span>
+                            <div class="slh-router-info">
+                              <div class="slh-router-name"><?= $_hotspot_name ?> : <?= explode('%', $data[$value][4])[1]; ?></div>
+                              <div class="slh-router-sess"><?= $_session_name ?> : <?= $value; ?></div>
                             </div>
+                          </div>
+                          <div class="slh-router-actions">
+                            <span class="connect pointer slh-act" id="<?= $value; ?>"><i class="fa fa-external-link"></i> <?= $_open ?></span>
+                            <a class="slh-act" href="./admin.php?id=settings&session=<?= $value; ?>"><i class="fa fa-edit"></i> <?= $_edit ?></a>
+                            <form class="slh-act-form" method="post" action="./admin.php?id=remove-session" onsubmit="return confirm('Are you sure to delete data <?= $value;
+                            echo " (" . explode('%', $data[$value][4])[1] . ")"; ?>?')">
+                              <?= csrf_field() ?>
+                              <input type="hidden" name="remove_session" value="<?= htmlspecialchars($value); ?>">
+                              <button type="submit" class="btn bg-danger btn-sm slh-act-del"><i class="fa fa-remove"></i> <?= $_delete ?></button>
+                            </form>
+                          </div>
+                        </div>
                           </div>
               <?php
             }
