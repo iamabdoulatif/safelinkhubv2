@@ -11,6 +11,7 @@ import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { isOrgSmsEnabled, sendOrgSms } from "@/lib/sms/send";
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
 import { voucherProfileForPackage } from "@/lib/mikrotik/package-voucher-profile";
+import { inferVoucherDuration, voucherCodePrefix } from "@/lib/mikrotik/voucher-profiles";
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
 import { dataCapWords } from "@/lib/mikrotik/voucher-data-cap";
 import { reconcileWalledGardenOnce } from "@/lib/mikrotik/walled-garden";
@@ -172,7 +173,14 @@ export async function fulfillPortalOrder(
   }
 
   // Code unique (username hotspot). vouchers.username est unique globalement.
-  let code = randomCode();
+  // PRÉFIXE DE DURÉE (demande portail) : le code 6 car. est précédé de la durée
+  // achetée — 1 jour → "1j…", 2 semaines → "2s…", 1 mois → "1m…" — pour que le
+  // client reconnaisse son forfait dans le code. Déduit du nom du profil
+  // (même convention que buildCustomProfileName) ; vide si le profil n'encode
+  // pas de durée (ex. ILLIMITE). Le préfixe fait partie du username/mdp hotspot.
+  const dur = inferVoucherDuration(profileName);
+  const codePrefix = dur ? voucherCodePrefix(dur.amount, dur.unit) : "";
+  let code = codePrefix + randomCode();
   for (let i = 0; i < 5; i++) {
     const [clash] = await db
       .select({ id: vouchers.id })
@@ -180,7 +188,7 @@ export async function fulfillPortalOrder(
       .where(eq(vouchers.username, code))
       .limit(1);
     if (!clash) break;
-    code = randomCode();
+    code = codePrefix + randomCode();
   }
 
   // Crée le user hotspot lié au MAC. Réutilise le tunnel WireGuard du routeur.

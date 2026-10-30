@@ -43,7 +43,7 @@ function buildScript(opts: {
 /interface/wireguard/remove [find name=safelinkhub-wg0]
 /interface wireguard add name=safelinkhub-wg0 private-key="${opts.peerPrivateKey}" listen-port=${randomListenPort()}
 /interface wireguard peers remove [find interface=safelinkhub-wg0]
-/interface wireguard peers add interface=safelinkhub-wg0 public-key="${opts.serverPublicKey}" endpoint-address=${endpointHost} endpoint-port=${endpointPort} allowed-address=10.66.0.0/24 persistent-keepalive=25s
+/interface wireguard peers add interface=safelinkhub-wg0 public-key="${opts.serverPublicKey}" endpoint-address=${endpointHost} endpoint-port=${endpointPort} allowed-address=10.66.0.0/24 persistent-keepalive=15s
 /ip address remove [find interface=safelinkhub-wg0]
 /ip address add address=${opts.peerAddress} interface=safelinkhub-wg0
 

@@ -138,6 +138,24 @@ export const DURATION_UNIT_LABELS: Record<DurationUnit, { singular: string; plur
   mo: { singular: "mois", plural: "mois" },
 };
 
+/**
+ * Préfixe de code voucher par durée, pour les ventes du portail captif : le
+ * client reconnaît la durée achetée directement dans son code (1 jour → "1j…",
+ * 4 jours → "4j…", 2 semaines → "2s…", 1 mois → "1m…"). La lettre « m » est
+ * réservée au MOIS ; la minute prend "mn" pour éviter la collision.
+ */
+const DURATION_PREFIX_LETTER: Record<DurationUnit, string> = {
+  m: "mn",
+  h: "h",
+  d: "j",
+  w: "s",
+  mo: "m",
+};
+
+export function voucherCodePrefix(amount: number, unit: DurationUnit): string {
+  return `${amount}${DURATION_PREFIX_LETTER[unit]}`;
+}
+
 /** "02-JOURS", "12-HEURES", "30-MINUTES", "03-SEMAINES" — matches the bundled presets' naming convention. */
 /**
  * Variante d'un profil : « 01-MOIS » + « TV-PC » → « 01-MOIS-TV-PC ».

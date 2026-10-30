@@ -262,16 +262,17 @@ export default function PaidStatus({
   }
 
   // Déclenchement AUTOMATIQUE dès l'affichage du code : compte à rebours de
-  // 3 s (le client voit son code — il part aussi par SMS) puis navigation vers
-  // le login du hotspot. Une seule fois (autoTriedRef) : si la connexion
-  // échoue et que le client revient ici (retour navigateur / bfcache), on ne
-  // le repiège pas en boucle — le bouton manuel reste.
+  // 30 s (le temps que le client NOTE son code quelque part avant que le SaaS
+  // ne connecte le téléphone — il part aussi par SMS) puis navigation vers le
+  // login du hotspot. Une seule fois (autoTriedRef) : si la connexion échoue et
+  // que le client revient ici (retour navigateur / bfcache), on ne le repiège
+  // pas en boucle — le bouton manuel reste.
   const autoTriedRef = useRef(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   useEffect(() => {
     if (phase !== "fulfilled" || !code || !loginUrl || autoTriedRef.current) return;
-     
-    setCountdown(3);
+
+    setCountdown(30);
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev === null) return null;
