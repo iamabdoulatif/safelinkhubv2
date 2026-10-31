@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { paymentLaneScriptLines, paymentLaneUser } from "./payment-lane";
+import { CONNECTIVITY_PROBE_HOSTS, paymentLaneScriptLines, paymentLaneUser } from "./payment-lane";
 
 test("paymentLaneUser : dérivé du MAC, sans séparateurs", () => {
   assert.equal(paymentLaneUser("5A:AC:A9:24:BF:63"), "pay-5aaca924bf63");
+});
+
+test("CONNECTIVITY_PROBE_HOSTS : sondes Apple seulement, jamais celles d'Android", () => {
+  // Une sonde Android qui RÉUSSIT fait valider le réseau par le NetworkMonitor,
+  // qui ferme alors l'activité CaptivePortalLogin : le client est renvoyé à la
+  // liste des Wi-Fi en plein paiement. iOS, lui, a besoin que la sienne passe.
+  assert.ok(CONNECTIVITY_PROBE_HOSTS.includes("captive.apple.com"));
+  const android = CONNECTIVITY_PROBE_HOSTS.filter((h) => /gstatic|android|msftconnecttest|ncsi/i.test(h));
+  assert.deepEqual(android, []);
 });
 
 test("paymentLaneScriptLines : profil, sondes en FWD, accept avant reject, en tête du forward", () => {
