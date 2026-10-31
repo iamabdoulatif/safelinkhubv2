@@ -370,4 +370,11 @@ alter table router_regulation add column if not exists fup_ticket_state jsonb;` 
   // Passerelle de paiement par commande portail (GeniusPay par défaut, CinetPay
   // pour MTN/Moov en API directe). Miroir : scripts/add-portal-order-provider.sql.
   { id: "0022_portal_order_provider", sql: `alter table portal_orders add column if not exists provider text not null default 'genius_pay';` },
+  // Inventaire du conteneur MikHmon relevé à chaque synchro : sert à connaître
+  // la répartition v3/v7 du parc sans interroger les routeurs en direct.
+  // Miroir : scripts/add-mikhmon-container-inventory.sql.
+  { id: "0023_mikhmon_container_inventory", sql: `alter table routers add column if not exists mikhmon_image text;
+alter table routers add column if not exists mikhmon_root_dir text;
+alter table routers add column if not exists mikhmon_container_running boolean;
+alter table routers add column if not exists mikhmon_seen_at timestamp;` },
 ];
