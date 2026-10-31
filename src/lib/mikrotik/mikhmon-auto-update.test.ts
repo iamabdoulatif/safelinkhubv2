@@ -72,6 +72,24 @@ test("ensureMikhmonUiFiles : un conteneur MikHmon v3 ne reçoit RIEN", async () 
   assert.equal(calls.filter((c) => c[0] === "/tool/fetch").length, 0);
 });
 
+test("ensureMikhmonImage : un conteneur v3 n'est JAMAIS re-créé (not-v7)", async () => {
+  // /container/remove est irréversible et v3 → v7 est une migration, pas une
+  // mise à jour : le cron ne doit pas la déclencher tout seul.
+  const calls: string[][] = [];
+  const res = await ensureMikhmonImage(
+    fakeClient(calls, {
+      ".id": "*1",
+      name: "mikhmonv3-safelinkhub:latest",
+      "root-dir": "/mikhmonv3",
+      "remote-image": "latif225/mikhmonv3-safelinkhub:latest",
+      running: "true",
+    }),
+    "n-importe-quel-routeur",
+  );
+  assert.equal(res, "not-v7");
+  assert.equal(calls.filter((c) => c[0] === "/container/remove").length, 0);
+});
+
 test("isMikhmonV7Image : v7 oui, v3 et image inconnue non", () => {
   assert.equal(isMikhmonV7Image(MIKHMON_DESIRED_IMAGE), true);
   assert.equal(isMikhmonV7Image("ghcr.io/iamabdoulatif/mikhmon-v7:ui-cobaye"), true);
@@ -93,11 +111,23 @@ test("buildConfigRestoreScript : /file set du bon chemin, contenu échappé", ()
   assert.ok(src.includes("\\n")); // newline échappé
 });
 
-test("ensureMikhmonImage : routeur hors allowlist = not-canary (aucune re-création)", async () => {
+// L'allowlist canari est vide depuis le 31/10 (ouverture au parc) : tout routeur
+// est éligible, et c'est la lignée de l'image qui décide désormais. Une image v7
+// ancienne est bien re-créée ; une image hors-v7 ne l'est jamais (test ci-dessous).
+test("ensureMikhmonImage : allowlist vide = tout routeur v7 est éligible", async () => {
   const calls: string[][] = [];
-  const res = await ensureMikhmonImage(fakeClient(calls, { ".id": "*1", name: "mikhmon", "root-dir": "/usb1/mikhmon-app", "remote-image": "vieille-image" }), "un-autre-routeur");
-  assert.equal(res, "not-canary");
-  assert.equal(calls.length, 0, "ne doit même pas interroger le routeur");
+  const res = await ensureMikhmonImage(
+    fakeClient(calls, {
+      ".id": "*1",
+      name: "mikhmon",
+      "root-dir": "/usb1/mikhmon-app",
+      "remote-image": "ghcr.io/iamabdoulatif/mikhmon-v7:ui-cobaye",
+      running: "true",
+    }),
+    "un-autre-routeur",
+  );
+  assert.notEqual(res, "not-canary");
+  assert.notEqual(res, "not-v7");
 });
 
 test("ensureMikhmonImage : canari déjà sur l'image voulue = already-current", async () => {

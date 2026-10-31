@@ -48,10 +48,15 @@ const UI_SYNC_ENABLED = true;
 /** Mécanisme 2 activé, mais borné par l'allowlist + le cap ci-dessous. */
 const IMAGE_UPDATE_ENABLED = true;
 /** CANARI : seuls ces routeurs sont éligibles à la re-création d'image. Vider
- * (`[]`) = tout le parc. On commence par COUZA, vérifié, puis on élargit. */
-const IMAGE_UPDATE_CANARY_IDS: string[] = ["92eb5519-52b3-49cd-aace-6f5dd7ca2e76"];
-/** Au plus N re-créations par process (roll-out ultra-graduel). */
-const IMAGE_UPDATE_MAX_PER_PROCESS = 1;
+ * (`[]`) = tout le parc. COUZA vérifié le 30/10 → ouvert au parc le 31/10.
+ * La migration v3 → v7 reste exclue (cf. le garde-fou dans ensureMikhmonImage) :
+ * seuls les routeurs DÉJÀ en v7 reçoivent la nouvelle image. */
+const IMAGE_UPDATE_CANARY_IDS: string[] = [];
+/** Au plus N re-créations par process. `recreatesThisProcess` n'est JAMAIS remis
+ * à zéro : c'est un plafond par durée de vie du process, pas par passage du cron.
+ * À 1, le parc avançait d'un routeur par déploiement — intenable sur 59. À 5,
+ * un process qui tourne quelques heures en fait 5 puis s'arrête de lui-même. */
+const IMAGE_UPDATE_MAX_PER_PROCESS = 5;
 
 /** Fichiers d'habillage : servis par l'app, déposés dans le conteneur. */
 export const UI_FILES: { url: string; dst: string }[] = [
@@ -265,6 +270,12 @@ export async function ensureMikhmonImage(client: RouterOSClient, routerId: strin
   const c = await findMikhmonContainer(client);
   if (!c) return "no-container";
   if (c.remoteImage === MIKHMON_DESIRED_IMAGE) return "already-current";
+  // v3 → v7 n'est PAS une mise à jour d'image, c'est une MIGRATION : le root-dir
+  // (/mikhmonv3 sur MAMBA-WIFI) est réutilisé tel quel, l'image v7 s'y extrait, et
+  // un config.php v3 y est restauré verbatim — rien ne garantit la compatibilité
+  // des deux formats. Avec un /container/remove irréversible au milieu, ça ne se
+  // fait pas dans un cron en arrière-plan : il faut un opérateur devant.
+  if (!isMikhmonV7Image(c.remoteImage)) return "not-v7";
   recreatesThisProcess++;
   const res = await recreateMikhmonOnImage(client, MIKHMON_DESIRED_IMAGE);
   return res;
