@@ -247,6 +247,35 @@ export async function ensureMikhmonImage(client: RouterOSClient, routerId: strin
 
 /* ═══════════════════════ Orchestrateur (appelé à la synchro) ════════════ */
 
+/**
+ * Relève l'état du conteneur dans la base (inventaire du parc).
+ *
+ * Appelé APRÈS l'éventuelle mise à jour d'image, pour que l'image enregistrée
+ * soit celle qui tourne vraiment à la fin du passage.
+ *
+ * Pas de conteneur = on écrit des NULL mais on horodate quand même : « relevé,
+ * sans conteneur » et « jamais relevé » sont deux états distincts, et seul
+ * `mikhmonSeenAt` les sépare.
+ *
+ * Ne lève jamais : un inventaire manquant ne doit pas faire échouer une synchro.
+ */
+export async function recordMikhmonInventory(client: RouterOSClient, routerId: string): Promise<void> {
+  try {
+    const c = await findMikhmonContainer(client).catch(() => null);
+    await getDb()
+      .update(routers)
+      .set({
+        mikhmonImage: c?.remoteImage || null,
+        mikhmonRootDir: c?.rootDir || null,
+        mikhmonContainerRunning: c ? c.running : null,
+        mikhmonSeenAt: new Date(),
+      })
+      .where(eq(routers.id, routerId));
+  } catch {
+    /* inventaire best-effort */
+  }
+}
+
 export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerId: string): Promise<void> {
   // 1) Image D'ABORD : si on re-crée le conteneur, il repart sur l'image NUE
   //    (l'habillage n'est pas cuit dedans) — il faut re-déposer les fichiers
@@ -263,4 +292,8 @@ export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerI
     await ensureMikhmonUiFiles(client).catch(() => {});
     done.set(routerId, tag);
   }
+  // 3) Inventaire : on garde l'état du conteneur au lieu de le jeter. Une
+  //    lecture /container/print de plus toutes les 5 min, contre la seule
+  //    réponse fiable à « quelle génération tourne sur quel routeur ? ».
+  await recordMikhmonInventory(client, routerId);
 }
