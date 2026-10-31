@@ -5,6 +5,7 @@ import {
   findMikhmonContainer,
   ensureMikhmonUiFiles,
   ensureMikhmonImage,
+  isMikhmonV7Image,
   escapeRosString,
   buildConfigRestoreScript,
   MIKHMON_DESIRED_IMAGE,
@@ -51,6 +52,31 @@ test("ensureMikhmonUiFiles : /tool fetch par fichier vers le bon chemin", async 
   );
   assert.ok(responsive!.includes("=url=https://safelinkhub.io/mikhmon-ui/mikhmon-responsive.css"));
   assert.ok(responsive!.includes("=dst-path=usb1/mikhmon-app/src/src/css/mikhmon-responsive.css"));
+});
+
+test("ensureMikhmonUiFiles : un conteneur MikHmon v3 ne reçoit RIEN", async () => {
+  // Conteneur réel de MAMBA-WIFI (/container/print detail, 31/10/2026).
+  // Son nom contient « mikhmon » donc findMikhmonContainer le trouve, mais
+  // l'habillage est fait pour la v7 : y déposer des PHP v7 casserait l'UI.
+  const calls: string[][] = [];
+  const n = await ensureMikhmonUiFiles(
+    fakeClient(calls, {
+      ".id": "*1",
+      name: "mikhmonv3-safelinkhub:latest",
+      "root-dir": "/mikhmonv3",
+      "remote-image": "latif225/mikhmonv3-safelinkhub:latest",
+      running: "true",
+    }),
+  );
+  assert.equal(n, -2);
+  assert.equal(calls.filter((c) => c[0] === "/tool/fetch").length, 0);
+});
+
+test("isMikhmonV7Image : v7 oui, v3 et image inconnue non", () => {
+  assert.equal(isMikhmonV7Image(MIKHMON_DESIRED_IMAGE), true);
+  assert.equal(isMikhmonV7Image("ghcr.io/iamabdoulatif/mikhmon-v7:ui-cobaye"), true);
+  assert.equal(isMikhmonV7Image("latif225/mikhmonv3-safelinkhub:latest"), false);
+  assert.equal(isMikhmonV7Image(""), false);
 });
 
 test("escapeRosString : échappe \\ \" $ et retours ligne", () => {
