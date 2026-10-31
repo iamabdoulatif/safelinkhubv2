@@ -39,7 +39,7 @@ import type { RouterOSClient } from "./client";
 type Sentence = Record<string, string>;
 
 /** À incrémenter à chaque refonte d'HABILLAGE (re-dépose les fichiers UI). */
-export const MIKHMON_UI_VERSION = "ui-1";
+export const MIKHMON_UI_VERSION = "ui-2";
 /** Image conteneur voulue sur tout le parc (tag immuable recommandé). */
 export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige";
 
@@ -54,8 +54,12 @@ const IMAGE_UPDATE_CANARY_IDS: string[] = ["92eb5519-52b3-49cd-aace-6f5dd7ca2e76
 const IMAGE_UPDATE_MAX_PER_PROCESS = 1;
 
 /** Fichiers d'habillage : servis par l'app, déposés dans le conteneur. */
-const UI_FILES: { url: string; dst: string }[] = [
+export const UI_FILES: { url: string; dst: string }[] = [
   { url: "mikhmon-ui/safelink-skin.css", dst: "css/safelink-skin.css" },
+  // headhtml.php charge mikhmon-responsive.css : sans ce dépôt, le lien pointe
+  // dans le vide sur tout routeur qui ne l'a pas reçu à la main (COUZA l'avait,
+  // le reste du parc non — l'interface admin y restait non responsive).
+  { url: "mikhmon-ui/mikhmon-responsive.css", dst: "css/mikhmon-responsive.css" },
   { url: "mikhmon-ui/headhtml.txt", dst: "include/headhtml.php" },
   { url: "mikhmon-ui/sessions.txt", dst: "settings/sessions.php" },
 ];

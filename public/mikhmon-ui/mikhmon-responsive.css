@@ -1,0 +1,1380 @@
+/* ================================================================
+   mikhmon-responsive.css  v1.0
+   Responsive overrides for the Mikhmon admin interface.
+
+   Strategy:
+   - Loaded AFTER mikhmon-ui.*.min.css so equal-specificity rules
+     here override theme defaults at the same breakpoints.
+   - Does NOT duplicate work already done in mikhmon-portal.css
+     (seller/manager portals already have their own responsive layer).
+   - No !important unless absolutely necessary.
+   ================================================================ */
+
+/* ── 1. IMAGES – PREVENT OVERFLOW ───────────────────────────────── */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── 2. CARD / BOX – OVERFLOW PROTECTION ────────────────────────── */
+.card,
+.box {
+  max-width: 100%;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* ── 3. TABLE SCROLL UTILITY ─────────────────────────────────────── */
+/* .overflow already has overflow-x:auto in the theme CSS.           */
+/* .table-responsive is only scoped to portals in mikhmon-portal.css */
+/* — this rule makes it work globally in the admin interface too.    */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+/* ── 4. BUTTON TOUCH TARGETS – MOBILE ───────────────────────────── */
+/* Apple/Google HIG recommend ≥ 44 × 44 px for interactive targets. */
+/* Theme CSS sets .btn { padding: 3px 10px } – too small for touch.  */
+@media screen and (max-width: 749px) {
+  .btn {
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 15px;
+  }
+
+  .btn-login {
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 15px;
+  }
+}
+
+/* ── 5. INPUT GROUPS – STACK VERTICALLY ON MOBILE ───────────────── */
+/* Theme CSS floats all [class*=input-group-] left but provides no   */
+/* mobile width override (unlike [class*=col-] which gets 100%).     */
+/* Result: multi-column input rows appear tiny on narrow screens.    */
+/* Fix: collapse all input-group divs to full width on mobile so     */
+/* form fields stack naturally.                                      */
+@media screen and (max-width: 749px) {
+  [class*="input-group-"] {
+    width: 100%;
+    float: none;
+    clear: both;
+    margin-bottom: 4px;
+    box-sizing: border-box;
+  }
+
+  [class*="input-group-"]:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Stacked items no longer need asymmetric border-radius */
+  .group-item-l {
+    border-radius: 3px;
+  }
+
+  .group-item-r {
+    border-radius: 3px;
+  }
+
+  .group-item-md {
+    border-radius: 3px;
+  }
+}
+
+/* ── 6. MODAL – BETTER WIDTHS ACROSS BREAKPOINTS ────────────────── */
+/* Theme: 33.33% desktop, 80% mobile.                                */
+/* Improve: 96% on small phones, 70% on tablets, keep 33% on wide.  */
+@media screen and (max-width: 749px) {
+  .modal-window > div {
+    width: 96%;
+    margin: 4% auto;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+}
+
+@media screen and (min-width: 750px) and (max-width: 1100px) {
+  .modal-window > div {
+    width: 68%;
+    margin: 8% auto;
+  }
+}
+
+/* ── 7. MAIN CONTENT AREA ────────────────────────────────────────── */
+/* Prevent a wide child from creating page-level horizontal scroll.  */
+@media screen and (max-width: 749px) {
+  #main {
+    overflow-x: hidden;
+  }
+
+  .main-container {
+    padding: 5px 8px 10px;
+    box-sizing: border-box;
+  }
+}
+
+/* ── 8. FORM CONTROLS – PREVENT iOS AUTO-ZOOM ───────────────────── */
+/* Safari on iOS zooms when a focused <input> has font-size < 16px.  */
+@media screen and (max-width: 749px) {
+  .form-control,
+  .group-item,
+  select.form-control,
+  select.group-item,
+  input.form-control,
+  input.group-item {
+    font-size: 16px;
+  }
+}
+
+/* ── 9. TABLE INPUTS – OVERFLOW GUARD ───────────────────────────── */
+/* Prevent number/text inputs inside table cells from stretching     */
+/* beyond their cells on small screens.                              */
+@media screen and (max-width: 749px) {
+  .table input[type="text"],
+  .table input[type="number"],
+  .table input[type="password"],
+  .table select {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+/* ── 10. SIDEBAR OVERLAY ─────────────────────────────────────────── */
+/* Provides a semi-transparent backdrop when the sidebar is open on  */
+/* mobile. JS toggles .active to show/hide it.                       */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 8;
+}
+
+.sidebar-overlay.active {
+  display: block;
+}
+
+/* ── 11. SETTINGS PAGE ───────────────────────────────────────────── */
+/* Theme already handles width:95% at max-width:750px.               */
+/* Add box-sizing safety so padding doesn't cause overflow.          */
+.settings {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* ── 12. BOX GROUP – RESPONSIVE ICONS ───────────────────────────── */
+/* Dashboard icon boxes use display:table-cell which doesn't         */
+/* reflow on narrow screens. On mobile, switch to flex wrapping.     */
+@media screen and (max-width: 749px) {
+  .box-group {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .box-group > div {
+    display: block;
+    flex: 1 1 80px;
+    min-width: 80px;
+  }
+
+  .box-group-icon {
+    width: auto;
+    flex: 1 1 72px;
+    min-width: 72px;
+    font-size: 28px;
+    padding: 4px 6px;
+    margin: 3px;
+  }
+}
+
+/* ── 13. TSCROLL – MAX HEIGHT ADJUSTMENT ON MOBILE ──────────────── */
+/* Theme uses height:70vh for .tscroll tbody which is fine on        */
+/* desktop but leaves little room on small phones after the navbar.  */
+@media screen and (max-width: 749px) {
+  .tscroll tbody {
+    height: 55vh;
+  }
+}
+
+/* ── 14. NAVBAR SAFE AREA ────────────────────────────────────────── */
+@media screen and (max-width: 749px) {
+  #navbar.navbar {
+    display: flex;
+    align-items: center;
+    height: 50px;
+    overflow: visible;
+  }
+
+  .navbar-left,
+  .navbar-right {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  #navbar .navbar-left {
+    display: flex;
+    align-items: center;
+    flex: 0 0 44px;
+    min-width: 44px;
+    overflow: visible;
+  }
+
+  #navbar .navbar-left #openNav {
+    display: block !important;
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 44px;
+    min-width: 44px;
+    padding: 14px 0;
+    text-align: center;
+  }
+
+  #navbar .navbar-left #brand,
+  #navbar .navbar-left #closeNav,
+  #navbar .navbar-left #cpage {
+    display: none !important;
+  }
+
+  #navbar .navbar-right {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: calc(100% - 44px);
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    margin-left: 0;
+    padding-left: 0;
+    padding-right: 4px;
+  }
+
+  #navbar .navbar-right a {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 14px 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #navbar .navbar-right .ses {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 104px;
+    margin-top: 0;
+    font-size: 12px;
+    text-align: center;
+  }
+
+  #navbar .navbar-right .connect.optfa {
+    max-width: 130px;
+  }
+}
+
+/* ── 14b. BLOCK FLOW – ADMIN / MANAGER / SELLER ─────────────────── */
+#reloadHome > .row,
+.dashboard-hotspot-row,
+.dashboard-pppoe-row,
+.seller-portal .main-container > .row,
+.manager-portal .main-container > .row,
+.portal-admin-shell > .row {
+  clear: both;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dashboard-hotspot-row > .col-12,
+.dashboard-pppoe-row > .col-12,
+.dashboard-hotspot-card,
+.dashboard-pppoe-card {
+  box-sizing: border-box;
+}
+
+.dashboard-hotspot-card .dashboard-hotspot-grid > .col-3,
+.dashboard-pppoe-card .dashboard-hotspot-grid > .col-3 {
+  float: left;
+  box-sizing: border-box;
+  padding: 4px;
+}
+
+.dashboard-hotspot-card .box.bmh-75 { min-height: 75px; height: 100%; box-sizing: border-box; }
+.dashboard-hotspot-card .box h1 { font-size: 22px; margin: 4px 0 6px; line-height: 1.2; color: #fff; }
+.dashboard-hotspot-card .box a { display: block; color: #f3f4f5; text-decoration: none; }
+.dashboard-hotspot-card .box a div { font-size: 13px; opacity: .92; }
+.dashboard-hotspot-card .box h1.acct-period-h1 { font-size: 16px; white-space: normal; word-break: break-word; }
+
+@media screen and (min-width: 750px) {
+  .dashboard-hotspot-card .dashboard-hotspot-grid > .col-3,
+  .dashboard-pppoe-card .dashboard-hotspot-grid > .col-3 {
+    width: 25%;
+    float: left;
+  }
+}
+
+@media screen and (max-width: 749px) {
+  #reloadHome > .row > [class*="col-"],
+  .seller-portal .main-container > .row > [class*="col-"],
+  .manager-portal .main-container > .row > [class*="col-"],
+  .portal-admin-shell > .row > [class*="col-"] {
+    float: none;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .dashboard-hotspot-row > .col-12,
+  .dashboard-pppoe-row > .col-12 {
+    float: none;
+    width: 100%;
+  }
+
+  .dashboard-hotspot-card .dashboard-hotspot-grid > .col-3,
+  .dashboard-pppoe-card .dashboard-hotspot-grid > .col-3 {
+    width: 50%;
+    float: left;
+  }
+
+  .dashboard-hotspot-card .dashboard-hotspot-grid > .col-box-6 {
+    width: 50%;
+    float: left;
+  }
+
+  .seller-portal .card,
+  .seller-portal .box,
+  .manager-portal .card,
+  .manager-portal .box,
+  .portal-admin-shell .card,
+  .portal-admin-shell .box {
+    clear: both;
+    max-width: 100%;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .dashboard-hotspot-card .dashboard-hotspot-grid > .col-3,
+  .dashboard-pppoe-card .dashboard-hotspot-grid > .col-3 {
+    width: 50%;
+    float: left;
+  }
+  .dashboard-hotspot-card .box h1.acct-period-h1 { font-size: 13px; }
+}
+
+/* ── 15. MANAGER ACCOUNTING – MOBILE LAYOUT ─────────────────────── */
+.manager-portal .mgr-accounting-shell {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.manager-portal .mgr-accounting-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.manager-portal .mgr-accounting-form .portal-filter-item,
+.manager-portal .mgr-accounting-form .form-control {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.manager-portal .mgr-accounting-actions,
+.manager-portal .mgr-accounting-next-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.manager-portal .mgr-accounting-actions .btn,
+.manager-portal .mgr-accounting-next-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 170px;
+  text-align: center;
+  white-space: normal;
+}
+
+.manager-portal .mgr-expense-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.manager-portal .mgr-expense-form .form-control,
+.manager-portal .mgr-expense-list {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media screen and (max-width: 749px) {
+  .manager-portal .mgr-accounting-help {
+    padding: 12px 14px;
+    line-height: 1.55;
+  }
+
+  .manager-portal .mgr-accounting-shell {
+    padding: 14px;
+  }
+
+  .manager-portal .mgr-accounting-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .manager-portal .mgr-accounting-actions,
+  .manager-portal .mgr-accounting-next-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .manager-portal .mgr-accounting-actions .btn,
+  .manager-portal .mgr-accounting-next-actions .btn {
+    width: 100%;
+    min-width: 0;
+    margin-top: 0;
+  }
+
+  .manager-portal .mgr-expense-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .manager-portal .mgr-expense-form .btn {
+    width: 100%;
+  }
+}
+
+/* ── 16. LONG NAV LABELS ────────────────────────────────────────── */
+.sidenav .menu {
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+@media screen and (min-width: 750px) {
+  .sidenav .menu {
+    line-height: 1.25;
+  }
+}
+
+/* ── 17. PPP PAGES – RESPONSIVE ──────────────────────────────────── */
+/* Classes utilisées par ppp/*.php — déplacées depuis pppoe_helpers.php. */
+.ppp-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.ppp-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+.ppp-form-page {
+  display: flex;
+  flex-wrap: wrap;
+}
+.ppp-form-page .ppp-main-panel {
+  flex: 1 1 620px;
+  max-width: 100%;
+}
+.ppp-form-page .ppp-help-panel {
+  flex: 1 1 260px;
+  max-width: 100%;
+}
+.ppp-form-table td:first-child {
+  width: 220px;
+  font-weight: 600;
+}
+.ppp-responsive-table td[data-label] {
+  vertical-align: middle;
+}
+@media (max-width: 760px) {
+  .ppp-form-page .col-8,
+  .ppp-form-page .col-4,
+  .ppp-form-page .ppp-main-panel,
+  .ppp-form-page .ppp-help-panel {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+  }
+  .ppp-action-bar {
+    align-items: stretch;
+  }
+  .ppp-action-bar .btn {
+    flex: 1 1 120px;
+    text-align: center;
+  }
+  .ppp-form-table,
+  .ppp-form-table tbody,
+  .ppp-form-table tr,
+  .ppp-form-table td {
+    display: block;
+    width: 100%;
+  }
+  .ppp-form-table td {
+    border: 0 !important;
+    padding: 6px 0 !important;
+  }
+  .ppp-form-table td:first-child {
+    width: 100%;
+    padding-top: 12px !important;
+  }
+  .ppp-form-table input,
+  .ppp-form-table select,
+  .ppp-form-table .input-group {
+    max-width: 100%;
+    width: 100%;
+  }
+  .ppp-responsive-table,
+  .ppp-responsive-table thead,
+  .ppp-responsive-table tbody,
+  .ppp-responsive-table th,
+  .ppp-responsive-table tr,
+  .ppp-responsive-table td {
+    display: block;
+    width: 100%;
+  }
+  .ppp-responsive-table thead {
+    display: none;
+  }
+  .ppp-responsive-table tr {
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    padding: 6px 8px;
+  }
+  .ppp-responsive-table td {
+    border: 0 !important;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.18) !important;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    text-align: right !important;
+    white-space: normal !important;
+  }
+  .ppp-responsive-table td:last-child {
+    border-bottom: 0 !important;
+  }
+  .ppp-responsive-table td[data-label]:before {
+    content: attr(data-label);
+    flex: 0 0 42%;
+    font-weight: 600;
+    text-align: left;
+  }
+  .ppp-responsive-table td.ppp-empty {
+    justify-content: center;
+    text-align: center !important;
+  }
+  .ppp-responsive-table td.ppp-empty:before {
+    content: "";
+    display: none;
+  }
+}
+
+/* ── 18. OVERFLOW CONTAINERS – HAUTEUR RÉDUITE SUR PETITS ÉCRANS ─── */
+@media screen and (max-width: 480px) {
+  .overflow {
+    max-height: 60vh;
+  }
+}
+
+/* ── 19. TABLEAUX REPORT / DHCP – SCROLL TACTILE ────────────────── */
+.overflow.box-bordered {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── 20. PAGE PARAMÈTRES – AMÉLIORATION FORMULAIRES MOBILE ──────── */
+@media screen and (max-width: 749px) {
+  .settings .input-group {
+    clear: both;
+    margin-bottom: 6px;
+  }
+  /* Les champs de formulaire dans les paramètres doivent s'empiler */
+  .settings [class*="input-group-"] {
+    width: 100%;
+    float: none;
+  }
+}
+
+/* ── 21. MANAGER DASHBOARD – CARTES STAT & ACCÈS RAPIDE ─────────── */
+/* Même comportement responsive que les cartes admin (hotspot/pppoe). */
+
+.manager-dashboard-row {
+  display: block;
+  clear: both;
+  margin-bottom: 14px;
+}
+.manager-dashboard-row > .col-12 {
+  width: 100%;
+  float: none;
+  box-sizing: border-box;
+}
+.manager-dashboard-grid {
+  display: block;
+  clear: both;
+}
+.manager-dashboard-role-row .card-body {
+  color: #cbd5e1;
+}
+.manager-dashboard-role-row p {
+  max-width: 1120px;
+}
+
+.manager-overview-row,
+.manager-accounting-row,
+.manager-tickets-row,
+.manager-vendors-row {
+  clear: both;
+  margin-bottom: 18px;
+}
+.manager-overview-summary-row,
+.manager-overview-profile-row,
+.manager-accounting-summary-row,
+.manager-tickets-summary-row,
+.manager-vendors-summary-row {
+  width: 100%;
+  box-sizing: border-box;
+}
+.manager-overview-grid,
+.manager-accounting-grid,
+.manager-tickets-grid,
+.manager-vendors-grid {
+  clear: both;
+}
+.manager-portal .manager-color-card {
+  border-left: 0 !important;
+  border-radius: 6px !important;
+  color: #fff !important;
+  min-height: 76px;
+  box-sizing: border-box;
+}
+.manager-portal .manager-color-card.bg-blue {
+  background: #20a8d8 !important;
+}
+.manager-portal .manager-color-card.bg-green {
+  background: #4dbd74 !important;
+}
+.manager-portal .manager-color-card.bg-yellow {
+  background: #ffc107 !important;
+}
+.manager-portal .manager-color-card.bg-red {
+  background: #f86c6b !important;
+}
+.manager-portal .manager-color-card.manager-color-card,
+.manager-portal .manager-color-card.manager-color-card *,
+.manager-portal .manager-color-card.manager-color-card small,
+.manager-portal .manager-color-card.manager-color-card .mgr-soft-note {
+  color: #fff !important;
+}
+.manager-portal .manager-color-card > div:first-child {
+  font-size: 12px !important;
+  font-weight: bold !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  opacity: .92;
+}
+.manager-portal .manager-color-card > div:nth-child(2) {
+  font-size: 24px !important;
+  font-weight: bold !important;
+  line-height: 1.25;
+  margin-top: 4px;
+}
+.manager-overview-profile-card {
+  background: #343b43 !important;
+  border: 1px solid #252b31 !important;
+}
+.manager-overview-profile-header {
+  background: #343b43 !important;
+  border-bottom: 1px solid #252b31 !important;
+}
+.manager-overview-profile-header span {
+  color: #fff !important;
+}
+.manager-overview-profile-header span[style*="background:#8e44ad"] {
+  background: #20a8d8 !important;
+  color: #fff !important;
+}
+.manager-overview-profile-stats {
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.manager-overview-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: #fff !important;
+  box-sizing: border-box;
+}
+.manager-overview-stat * {
+  color: #fff !important;
+}
+.manager-overview-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.manager-overview-profile-card .mgr-profile-total-row td {
+  background: #2f363d !important;
+  color: #fff !important;
+}
+
+@media screen and (max-width: 750px) {
+  .manager-overview-table-wrap {
+    overflow-x: visible !important;
+  }
+  .manager-overview-table {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+  .manager-overview-table thead {
+    display: none;
+  }
+  .manager-overview-table tbody,
+  .manager-overview-table tfoot,
+  .manager-overview-table tr,
+  .manager-overview-table td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .manager-overview-table tbody tr,
+  .manager-overview-table tfoot tr {
+    overflow: hidden;
+    margin: 0 0 10px;
+    border: 1px solid #252b31;
+    border-radius: 7px;
+    background: #f8fafc;
+  }
+  .manager-overview-table td,
+  .manager-overview-profile-card .mgr-profile-total-row td {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 10px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #d7dde3 !important;
+    text-align: right !important;
+    white-space: normal !important;
+    color: #233044 !important;
+  }
+  .manager-overview-table tr td:last-child {
+    border-bottom: 0 !important;
+  }
+  .manager-overview-table td::before {
+    content: attr(data-label);
+    flex: 0 0 42%;
+    max-width: 42%;
+    text-align: left;
+    color: #243447;
+    font-weight: bold;
+    line-height: 1.25;
+  }
+  .manager-overview-cell-value {
+    display: inline-flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: 58%;
+    text-align: right;
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .manager-overview-cell-value code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .manager-overview-table tfoot tr {
+    background: #2f363d;
+  }
+  .manager-overview-table tfoot td,
+  .manager-overview-profile-card .mgr-profile-total-row td {
+    background: #2f363d !important;
+    color: #fff !important;
+    border-bottom-color: #404952 !important;
+  }
+  .manager-overview-table tfoot td::before {
+    color: #fff;
+  }
+  .manager-overview-profile-card .mgr-profile-total-row .manager-overview-cell-value {
+    color: #fff !important;
+    font-weight: bold;
+  }
+}
+
+/* Base desktop : h1 et liens identiques aux boxes admin */
+.mgr-dash-card .dashboard-hotspot-grid {
+  clear: both;
+}
+.mgr-dash-card .box.bmh-75 {
+  min-height: 75px;
+  height: 100%;
+  box-sizing: border-box;
+}
+.mgr-dash-card .box h1 {
+  font-size: 30px;
+  margin: 4px 0 6px;
+  line-height: 1.2;
+  color: #fff;
+}
+.mgr-dash-card .box a {
+  display: block;
+  color: #f3f4f5;
+  text-decoration: none;
+}
+.mgr-dash-card .box a div {
+  font-size: 13px;
+  opacity: .92;
+}
+.mgr-dash-card .dashboard-hotspot-grid > .col-3 {
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+
+/* Tablette : 2 colonnes (comme l'admin) */
+@media screen and (max-width: 749px) {
+  .mgr-dash-card .dashboard-hotspot-grid > .col-3 {
+    width: 50%;
+    float: left;
+  }
+}
+
+/* Mobile 480px et moins : 1 colonne pleine largeur */
+@media screen and (max-width: 480px) {
+  .mgr-dash-card .dashboard-hotspot-grid > .col-3 {
+    width: 100%;
+    float: none;
+  }
+  .mgr-dash-card .box h1 {
+    font-size: 26px;
+  }
+}
+
+/* ── Section 22 – Seller dashboard ─────────────────────────────────── */
+.seller-dash-card .dashboard-hotspot-grid {
+  clear: both;
+}
+.seller-dash-card .box.bmh-75 {
+  min-height: 75px;
+  height: 100%;
+  box-sizing: border-box;
+}
+.seller-dash-card .box h1 {
+  font-size: 22px;
+  margin: 4px 0 6px;
+  line-height: 1.2;
+  color: #fff;
+  word-break: break-word;
+}
+.seller-dash-card .box a {
+  display: block;
+  color: #f3f4f5;
+  text-decoration: none;
+}
+.seller-dash-card .box a div {
+  font-size: 13px;
+  opacity: .92;
+}
+.seller-dash-card .dashboard-hotspot-grid > .col-3 {
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+
+/* Tablette : 2 colonnes */
+@media screen and (max-width: 749px) {
+  .seller-dash-card .dashboard-hotspot-grid > .col-3 {
+    width: 50%;
+    float: left;
+  }
+}
+
+/* Mobile : 1 colonne pleine largeur */
+@media screen and (max-width: 480px) {
+  .seller-dash-card .dashboard-hotspot-grid > .col-3 {
+    width: 100%;
+    float: none;
+  }
+  .seller-dash-card .box h1 {
+    font-size: 18px;
+  }
+}
+
+/* ── Section 23 – Fraud page stat grids ─────────────────────────── */
+/*
+ * Les grilles fraud sont dans .fr-wrap (page admin, content area étroite).
+ * Le breakpoint 749px de .dashboard-hotspot-card se déclenche à cause de la
+ * sidebar — on force 4 colonnes sur tout écran > 480px, 2 colonnes sur mobile.
+ */
+.fr-tab-stat-grid { clear: both; margin-bottom: 14px; overflow: hidden; }
+/* fr-ap-hero / fr-device-monitor-head sans stats internes : centrage vertical du texte seul */
+.fr-ap-hero > div:only-child,
+.fr-device-monitor-head > div:only-child { width: 100%; }
+
+/* ── Base (desktop + tablette) : 4 boxes sur 1 seul row ── */
+.fr-wrap .dashboard-hotspot-grid > .col-3,
+.fr-tab-stat-grid > .col-3 {
+  width: 25%;
+  float: left;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+
+/* ── Styles communs des boxes ── */
+.fr-tab-stat-grid .box.bmh-75,
+.fr-wrap .dashboard-hotspot-grid .box.bmh-75 { min-height: 75px; height: 100%; box-sizing: border-box; }
+.fr-tab-stat-grid .box h1,
+.fr-wrap .dashboard-hotspot-grid .box h1 { font-size: 22px; margin: 4px 0 6px; line-height: 1.2; color: #fff; word-break: break-word; }
+.fr-tab-stat-grid .box a,
+.fr-wrap .dashboard-hotspot-grid .box a { display: block; color: #f3f4f5; text-decoration: none; }
+.fr-tab-stat-grid .box a div,
+.fr-wrap .dashboard-hotspot-grid .box a div { font-size: 13px; opacity: .92; }
+
+/* ── Mobile (≤ 480px) : 2 boxes par ligne ── */
+@media screen and (max-width: 480px) {
+  .fr-wrap .dashboard-hotspot-grid > .col-3,
+  .fr-tab-stat-grid > .col-3 {
+    width: 50%;
+    float: left;
+  }
+  .fr-tab-stat-grid .box h1,
+  .fr-wrap .dashboard-hotspot-grid .box h1 { font-size: 18px; }
+}
+
+/* ── Seller sales: desktop cards, mobile-readable table ───────────── */
+.seller-portal .seller-bootstrap-col {
+  box-sizing: border-box;
+  padding-right: 5px;
+  padding-left: 5px;
+}
+.seller-portal .seller-sales-summary-grid {
+  clear: both;
+}
+.seller-portal .seller-sales-summary-grid > .seller-bootstrap-col {
+  margin-bottom: 10px;
+}
+.seller-portal .seller-sales-stock-list {
+  overflow-wrap: anywhere;
+}
+
+@media screen and (min-width: 750px) {
+  .seller-portal .seller-sales-summary-grid > .seller-bootstrap-col {
+    width: 25% !important;
+    float: left;
+  }
+}
+
+@media screen and (max-width: 749px) {
+  .seller-portal .seller-sales-summary-grid > .seller-bootstrap-col {
+    width: 50% !important;
+    float: left;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .seller-portal .seller-sales-summary-grid > .seller-bootstrap-col {
+    width: 50% !important;
+    float: left;
+  }
+}
+
+@media screen and (max-width: 750px) {
+  .seller-portal .portal-sales-table-wrap {
+    overflow-x: visible !important;
+    max-height: none !important;
+  }
+  .seller-portal .seller-sales-table {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+  .seller-portal .seller-sales-table thead {
+    display: none;
+  }
+  .seller-portal .seller-sales-table tbody,
+  .seller-portal .seller-sales-table tfoot,
+  .seller-portal .seller-sales-table tr,
+  .seller-portal .seller-sales-table td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .seller-portal .seller-sales-table tbody tr,
+  .seller-portal .seller-sales-table tfoot tr {
+    overflow: hidden;
+    margin: 0 0 10px;
+    border: 1px solid #252b31;
+    border-radius: 7px;
+    background: #f8fafc;
+  }
+  .seller-portal .seller-sales-table td {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 10px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #d7dde3 !important;
+    text-align: right !important;
+    white-space: normal !important;
+    color: #233044 !important;
+  }
+  .seller-portal .seller-sales-table tr td:last-child {
+    border-bottom: 0 !important;
+  }
+  .seller-portal .portal-sales-table td::before {
+    content: attr(data-label);
+    flex: 0 0 42%;
+    max-width: 42%;
+    text-align: left;
+    color: #243447;
+    font-weight: bold;
+    line-height: 1.25;
+  }
+  .seller-sales-cell-value {
+    display: inline-flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: 58%;
+    text-align: right;
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .seller-portal .seller-sales-empty-row td {
+    justify-content: center;
+    text-align: center !important;
+  }
+  .seller-portal .seller-sales-empty-row td::before {
+    display: none;
+    content: "";
+  }
+  .seller-portal .seller-sales-empty-row .seller-sales-cell-value {
+    max-width: 100%;
+    justify-content: center;
+  }
+  .seller-portal .seller-sales-total-row {
+    background: #2f363d !important;
+  }
+  .seller-portal .seller-sales-total-row td {
+    background: #2f363d !important;
+    color: #fff !important;
+    border-bottom-color: #404952 !important;
+  }
+  .seller-portal .seller-sales-total-row td::before {
+    color: #fff;
+  }
+}
+
+/* ── Admin sellers: stock by vendor in responsive pairs ───────────── */
+.portal-admin-shell .admin-seller-stock-row {
+  clear: both;
+  margin-right: -6px;
+  margin-left: -6px;
+  margin-bottom: 18px;
+}
+.portal-admin-shell .admin-seller-stock-col {
+  box-sizing: border-box;
+  padding-right: 6px;
+  padding-left: 6px;
+  margin-bottom: 12px;
+}
+.portal-admin-shell .admin-seller-stock-card {
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid #252b31;
+  border-radius: 7px;
+  background: #343b43;
+}
+.portal-admin-shell .admin-seller-stock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px;
+  background: #2f363d;
+  color: #fff;
+}
+.portal-admin-shell .admin-seller-stock-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: bold;
+}
+.portal-admin-shell .admin-seller-stock-name span,
+.portal-admin-shell .admin-seller-stock-name small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.portal-admin-shell .admin-seller-stock-total {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: #20a8d8;
+  color: #fff;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.portal-admin-shell .admin-seller-stock-table {
+  width: 100%;
+  margin: 0;
+  min-width: 0 !important;
+  font-size: 13px;
+}
+.portal-admin-shell .admin-seller-stock-table th,
+.portal-admin-shell .admin-seller-stock-table td {
+  color: #f3f4f5;
+}
+.portal-admin-shell .admin-seller-stock-table .admin-seller-stock-qty {
+  color: #4dbd74;
+  font-weight: bold;
+}
+.portal-admin-shell .admin-seller-stock-empty {
+  padding: 16px;
+  margin-bottom: 18px;
+  border: 1px solid #252b31;
+  border-radius: 7px;
+  color: #cbd5e1;
+  text-align: center;
+}
+
+/* ── Admin sellers: registered vendor cards ───────────────────────── */
+.portal-admin-shell .admin-registered-sellers-row {
+  clear: both;
+  margin-right: -6px;
+  margin-left: -6px;
+}
+.portal-admin-shell .admin-registered-seller-col {
+  box-sizing: border-box;
+  padding-right: 6px;
+  padding-left: 6px;
+  margin-bottom: 12px;
+}
+.portal-admin-shell .admin-registered-seller-card {
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid #252b31;
+  border-radius: 7px;
+  background: #343b43;
+}
+.portal-admin-shell .admin-registered-seller-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  background: #2f363d;
+  border-bottom: 1px solid #252b31;
+}
+.portal-admin-shell .admin-registered-seller-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #fff;
+  font-weight: bold;
+}
+.portal-admin-shell .admin-registered-seller-title span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.portal-admin-shell .admin-registered-seller-head code {
+  flex: 0 1 auto;
+  max-width: 46%;
+  overflow-wrap: anywhere;
+  color: #dbeafe;
+}
+.portal-admin-shell .admin-registered-seller-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+}
+.portal-admin-shell .admin-registered-seller-meta-item {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 6px;
+  background: #2f363d;
+  color: #dbe7f5;
+}
+.portal-admin-shell .admin-registered-seller-meta-item span {
+  display: block;
+  margin-bottom: 5px;
+  color: #9aa6b2;
+  font-size: 11px;
+  font-weight: bold;
+}
+.portal-admin-shell .admin-registered-seller-meta-item strong,
+.portal-admin-shell .admin-registered-seller-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.portal-admin-shell .admin-registered-seller-commission {
+  color: #ffc107 !important;
+}
+.portal-admin-shell .admin-registered-seller-commission a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: rgba(255, 193, 7, .18);
+  color: #ffc107 !important;
+}
+.portal-admin-shell .admin-registered-seller-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.portal-admin-shell .admin-registered-seller-actions .btn,
+.portal-admin-shell .admin-registered-seller-actions form,
+.portal-admin-shell .admin-registered-seller-actions button {
+  min-width: 0;
+}
+.portal-admin-shell .admin-registered-seller-actions form {
+  display: flex;
+  margin: 0;
+}
+.portal-admin-shell .admin-registered-seller-actions .btn,
+.portal-admin-shell .admin-registered-seller-actions button {
+  white-space: normal;
+}
+
+@media screen and (min-width: 750px) {
+  .portal-admin-shell .admin-registered-sellers-row.row > .admin-registered-seller-col,
+  .portal-admin-shell .admin-seller-stock-row.row > .admin-seller-stock-col {
+    width: 50% !important;
+    float: left;
+  }
+}
+
+@media screen and (max-width: 749px) {
+  .portal-admin-shell .admin-registered-sellers-row.row > .admin-registered-seller-col,
+  .portal-admin-shell .admin-seller-stock-row.row > .admin-seller-stock-col {
+    width: 100% !important;
+    float: none;
+  }
+  .portal-admin-shell .admin-registered-seller-meta {
+    grid-template-columns: 1fr;
+  }
+  .portal-admin-shell .admin-registered-seller-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .portal-admin-shell .admin-registered-seller-actions .btn,
+  .portal-admin-shell .admin-registered-seller-actions form,
+  .portal-admin-shell .admin-registered-seller-actions button {
+    width: 100%;
+  }
+  .portal-admin-shell .admin-seller-stock-table {
+    display: block;
+    width: 100% !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+  .portal-admin-shell .admin-seller-stock-table thead {
+    display: none;
+  }
+  .portal-admin-shell .admin-seller-stock-table tbody,
+  .portal-admin-shell .admin-seller-stock-table tr,
+  .portal-admin-shell .admin-seller-stock-table td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .portal-admin-shell .admin-seller-stock-table tr {
+    border-top: 1px solid #252b31;
+    background: #f8fafc;
+  }
+  .portal-admin-shell .admin-seller-stock-table td {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 38px;
+    padding: 8px 10px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #d7dde3 !important;
+    color: #233044 !important;
+    text-align: right !important;
+    white-space: normal !important;
+  }
+  .portal-admin-shell .admin-seller-stock-table td::before {
+    content: attr(data-label);
+    flex: 0 0 42%;
+    max-width: 42%;
+    text-align: left;
+    color: #243447;
+    font-weight: bold;
+  }
+  .portal-admin-shell .admin-seller-stock-value {
+    display: inline-flex;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    max-width: 58%;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ── Section 24 – Admin panel column stacking on mobile ──────────── */
+/* Hotspot/settings pages use col-4/col-6/col-8 side-by-side layouts */
+/* without portal wrapper classes. Stack all side-by-side columns on  */
+/* narrow screens so forms and filter bars remain usable on mobile.  */
+
+@media screen and (max-width: 749px) {
+  /* Level 1 – top-level page columns (e.g. adduser col-8 + col-4 side form) */
+  .main-container > .row > .col-8,
+  .main-container > .row > .col-4 {
+    float: none;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Level 2 – inner card-body row columns                           */
+  /* Covers: settings.php inner col-6, users.php filter bar col-6   */
+  /* Excludes: .overflow > .row (quickprint/userbyprofile boxes use  */
+  /* overflow wrapper so they are NOT direct card-body children)     */
+  .main-container .card-body > .row > .col-6 {
+    float: none;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}

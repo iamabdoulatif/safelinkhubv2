@@ -42,10 +42,15 @@ test("findMikhmonContainer : root-dir sans slash de tête", async () => {
 test("ensureMikhmonUiFiles : /tool fetch par fichier vers le bon chemin", async () => {
   const calls: string[][] = [];
   const n = await ensureMikhmonUiFiles(fakeClient(calls));
-  assert.equal(n, 3);
+  assert.equal(n, 4);
   const skin = calls.find((c) => c[0] === "/tool/fetch" && c.some((w) => w.includes("safelink-skin.css")));
   assert.ok(skin!.includes("=url=https://safelinkhub.io/mikhmon-ui/safelink-skin.css"));
   assert.ok(skin!.includes("=dst-path=usb1/mikhmon-app/src/src/css/safelink-skin.css"));
+  const responsive = calls.find(
+    (c) => c[0] === "/tool/fetch" && c.some((w) => w.includes("mikhmon-responsive.css")),
+  );
+  assert.ok(responsive!.includes("=url=https://safelinkhub.io/mikhmon-ui/mikhmon-responsive.css"));
+  assert.ok(responsive!.includes("=dst-path=usb1/mikhmon-app/src/src/css/mikhmon-responsive.css"));
 });
 
 test("escapeRosString : échappe \\ \" $ et retours ligne", () => {
