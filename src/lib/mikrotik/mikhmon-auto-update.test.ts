@@ -90,10 +90,17 @@ test("ensureMikhmonImage : un conteneur v3 n'est JAMAIS re-créé (not-v7)", asy
   assert.equal(calls.filter((c) => c[0] === "/container/remove").length, 0);
 });
 
-test("isMikhmonV7Image : v7 oui, v3 et image inconnue non", () => {
+// Les cinq images réellement présentes sur le parc (inventaire du 31/10/2026).
+test("isMikhmonV7Image : la lignée v7 couvre aussi l'image de base sf-v1", () => {
+  // mikhmon-v7:prix-corrige est une COUCHE MINCE sur mikhmon-sf-v1 :
+  // même génération, même arborescence (deploy/mikhmon-v7/Dockerfile).
   assert.equal(isMikhmonV7Image(MIKHMON_DESIRED_IMAGE), true);
   assert.equal(isMikhmonV7Image("ghcr.io/iamabdoulatif/mikhmon-v7:ui-cobaye"), true);
+  assert.equal(isMikhmonV7Image("latif225/mikhmon-sf-v1:latest"), true);
+  // Vraies v3 : aucun recouvrement avec les motifs ci-dessus.
   assert.equal(isMikhmonV7Image("latif225/mikhmonv3-safelinkhub:latest"), false);
+  assert.equal(isMikhmonV7Image("naufkia/mikhmonv3:latest"), false);
+  // Image non relevée : abstention.
   assert.equal(isMikhmonV7Image(""), false);
 });
 

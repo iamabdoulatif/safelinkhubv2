@@ -108,9 +108,18 @@ export async function findMikhmonContainer(client: RouterOSClient, timeoutMs = 1
  * On ne dépose donc QUE sur un conteneur dont l'image est de la lignée v7.
  * Image inconnue (remote-image vide) = on s'abstient : ne rien faire est
  * toujours moins grave que remplacer du PHP par celui d'une autre génération.
+ *
+ * LIGNÉE v7 = deux images, pas une. `ghcr.io/…/mikhmon-v7:prix-corrige` est une
+ * COUCHE MINCE sur `latif225/mikhmon-sf-v1` (cf. deploy/mikhmon-v7/Dockerfile,
+ * `FROM latif225/mikhmon-sf-v1:latest`) : même génération, même arborescence.
+ * Ne reconnaître que « mikhmon-v7 » écartait 14 routeurs du parc — le plus gros
+ * groupe après la cible elle-même (inventaire du 31/10/2026).
+ *
+ * Les vraies v3 (`naufkia/mikhmonv3`, `latif225/mikhmonv3-safelinkhub`) ne
+ * contiennent ni « mikhmon-v7 » ni « mikhmon-sf-v1 » : aucun recouvrement.
  */
 export function isMikhmonV7Image(remoteImage: string): boolean {
-  return /mikhmon-v7/i.test(remoteImage);
+  return /mikhmon-v7|mikhmon-sf-v1/i.test(remoteImage);
 }
 
 /** Dépose les fichiers d'habillage dans le conteneur en marche. Sûr (présentation
