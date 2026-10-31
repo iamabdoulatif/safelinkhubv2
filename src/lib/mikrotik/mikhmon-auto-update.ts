@@ -39,7 +39,7 @@ import type { RouterOSClient } from "./client";
 type Sentence = Record<string, string>;
 
 /** À incrémenter à chaque refonte d'HABILLAGE (re-dépose les fichiers UI). */
-export const MIKHMON_UI_VERSION = "ui-1";
+export const MIKHMON_UI_VERSION = "ui-2";
 /** Image conteneur voulue sur tout le parc (tag immuable recommandé). */
 export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige";
 
@@ -48,14 +48,23 @@ const UI_SYNC_ENABLED = true;
 /** Mécanisme 2 activé, mais borné par l'allowlist + le cap ci-dessous. */
 const IMAGE_UPDATE_ENABLED = true;
 /** CANARI : seuls ces routeurs sont éligibles à la re-création d'image. Vider
- * (`[]`) = tout le parc. On commence par COUZA, vérifié, puis on élargit. */
-const IMAGE_UPDATE_CANARY_IDS: string[] = ["92eb5519-52b3-49cd-aace-6f5dd7ca2e76"];
-/** Au plus N re-créations par process (roll-out ultra-graduel). */
-const IMAGE_UPDATE_MAX_PER_PROCESS = 1;
+ * (`[]`) = tout le parc. COUZA vérifié le 30/10 → ouvert au parc le 31/10.
+ * La migration v3 → v7 reste exclue (cf. le garde-fou dans ensureMikhmonImage) :
+ * seuls les routeurs DÉJÀ en v7 reçoivent la nouvelle image. */
+const IMAGE_UPDATE_CANARY_IDS: string[] = [];
+/** Au plus N re-créations par process. `recreatesThisProcess` n'est JAMAIS remis
+ * à zéro : c'est un plafond par durée de vie du process, pas par passage du cron.
+ * À 1, le parc avançait d'un routeur par déploiement — intenable sur 59. À 5,
+ * un process qui tourne quelques heures en fait 5 puis s'arrête de lui-même. */
+const IMAGE_UPDATE_MAX_PER_PROCESS = 5;
 
 /** Fichiers d'habillage : servis par l'app, déposés dans le conteneur. */
-const UI_FILES: { url: string; dst: string }[] = [
+export const UI_FILES: { url: string; dst: string }[] = [
   { url: "mikhmon-ui/safelink-skin.css", dst: "css/safelink-skin.css" },
+  // headhtml.php charge mikhmon-responsive.css : sans ce dépôt, le lien pointe
+  // dans le vide sur tout routeur qui ne l'a pas reçu à la main (COUZA l'avait,
+  // le reste du parc non — l'interface admin y restait non responsive).
+  { url: "mikhmon-ui/mikhmon-responsive.css", dst: "css/mikhmon-responsive.css" },
   { url: "mikhmon-ui/headhtml.txt", dst: "include/headhtml.php" },
   { url: "mikhmon-ui/sessions.txt", dst: "settings/sessions.php" },
 ];
@@ -85,11 +94,41 @@ export async function findMikhmonContainer(client: RouterOSClient, timeoutMs = 1
 
 /* ═══════════════════════ Mécanisme 1 : dépôt de fichiers ════════════════ */
 
+/**
+ * L'habillage est fait POUR MikHmon v7 : son arborescence (`src/src/include`,
+ * `src/src/settings`) et ses fichiers PHP n'existent pas en v3.
+ *
+ * Cas réel (MAMBA-WIFI, 31/10/2026) : conteneur `mikhmonv3-safelinkhub:latest`,
+ * root-dir `/mikhmonv3`. `findMikhmonContainer` le reconnaît (« mikhmon » dans
+ * le nom), et on y déposait donc des fichiers v7 — ils atterrissaient hors de
+ * l'arborescence servie (safelink-skin.css y répond 404). Sans dégât tant que
+ * le chemin n'existe pas, mais c'est un coup de dé : écraser un headhtml.php ou
+ * un sessions.php v3 par leur version v7 casserait l'interface.
+ *
+ * On ne dépose donc QUE sur un conteneur dont l'image est de la lignée v7.
+ * Image inconnue (remote-image vide) = on s'abstient : ne rien faire est
+ * toujours moins grave que remplacer du PHP par celui d'une autre génération.
+ *
+ * LIGNÉE v7 = deux images, pas une. `ghcr.io/…/mikhmon-v7:prix-corrige` est une
+ * COUCHE MINCE sur `latif225/mikhmon-sf-v1` (cf. deploy/mikhmon-v7/Dockerfile,
+ * `FROM latif225/mikhmon-sf-v1:latest`) : même génération, même arborescence.
+ * Ne reconnaître que « mikhmon-v7 » écartait 14 routeurs du parc — le plus gros
+ * groupe après la cible elle-même (inventaire du 31/10/2026).
+ *
+ * Les vraies v3 (`naufkia/mikhmonv3`, `latif225/mikhmonv3-safelinkhub`) ne
+ * contiennent ni « mikhmon-v7 » ni « mikhmon-sf-v1 » : aucun recouvrement.
+ */
+export function isMikhmonV7Image(remoteImage: string): boolean {
+  return /mikhmon-v7|mikhmon-sf-v1/i.test(remoteImage);
+}
+
 /** Dépose les fichiers d'habillage dans le conteneur en marche. Sûr (présentation
- * uniquement). Renvoie le nombre de fichiers posés, ou -1 si pas de conteneur. */
+ * uniquement). Renvoie le nombre de fichiers posés, -1 si pas de conteneur,
+ * -2 si le conteneur n'est pas un MikHmon v7 (rien n'est déposé). */
 export async function ensureMikhmonUiFiles(client: RouterOSClient, timeoutMs = 20000): Promise<number> {
   const c = await findMikhmonContainer(client, timeoutMs);
   if (!c) return -1;
+  if (!isMikhmonV7Image(c.remoteImage)) return -2;
   const base = getAppUrl().replace(/\/+$/, "");
   let ok = 0;
   for (const f of UI_FILES) {
@@ -240,6 +279,12 @@ export async function ensureMikhmonImage(client: RouterOSClient, routerId: strin
   const c = await findMikhmonContainer(client);
   if (!c) return "no-container";
   if (c.remoteImage === MIKHMON_DESIRED_IMAGE) return "already-current";
+  // v3 → v7 n'est PAS une mise à jour d'image, c'est une MIGRATION : le root-dir
+  // (/mikhmonv3 sur MAMBA-WIFI) est réutilisé tel quel, l'image v7 s'y extrait, et
+  // un config.php v3 y est restauré verbatim — rien ne garantit la compatibilité
+  // des deux formats. Avec un /container/remove irréversible au milieu, ça ne se
+  // fait pas dans un cron en arrière-plan : il faut un opérateur devant.
+  if (!isMikhmonV7Image(c.remoteImage)) return "not-v7";
   recreatesThisProcess++;
   const res = await recreateMikhmonOnImage(client, MIKHMON_DESIRED_IMAGE);
   return res;
