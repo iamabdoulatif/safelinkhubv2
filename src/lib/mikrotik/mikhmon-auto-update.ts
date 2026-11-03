@@ -45,8 +45,16 @@ export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corr
 
 const UI_SYNC_ENABLED = true;
 
-/** Mécanisme 2 activé, mais borné par l'allowlist + le cap ci-dessous. */
-const IMAGE_UPDATE_ENABLED = true;
+/** Mécanisme 2 DÉSACTIVÉ (28/10/2026) — deux bugs trouvés au canari COUZA :
+ *  (1) course `/container remove` (async) → `/container add` « root-dir overlap » ;
+ *  (2) la restauration par script `/file set` NE CRÉE PAS le fichier : sur un
+ *      conteneur fraîchement re-créé, config.php n'existe qu'en couche basse et
+ *      `/file set` par chemin répond « no such item ». Seul `/tool fetch`
+ *      (depuis une URL servie par l'app) crée réellement config.php en couche
+ *      haute. À réactiver après réécriture de la restauration via endpoint +
+ *      add avec retry (anti-course). Le dépôt de fichiers (mécanisme 1) reste
+ *      actif et couvre les refontes d'habillage. */
+const IMAGE_UPDATE_ENABLED = false;
 /** CANARI : seuls ces routeurs sont éligibles à la re-création d'image. Vider
  * (`[]`) = tout le parc. On commence par COUZA, vérifié, puis on élargit. */
 const IMAGE_UPDATE_CANARY_IDS: string[] = ["92eb5519-52b3-49cd-aace-6f5dd7ca2e76"];
