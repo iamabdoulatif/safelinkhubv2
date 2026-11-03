@@ -8,14 +8,19 @@ import { routers } from "@/lib/db/schema";
 import type { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
 import { ensureRouterHardening, generateMikhmonPassword, rotateDefaultMikhmonPassword } from "./hardening";
+import { ensureMikhmonJournalCap, ensureResourceTuning } from "./resource-tuning";
 
-const HARDENING_VERSION = "h1";
+const HARDENING_VERSION = "h2";
 const MIKHMON_ROTATION_ENABLED = false;
 const hardened = new Map<string, string>();
 
 export async function reconcileHardeningOnce(client: RouterOSClient, routerId: string): Promise<void> {
   if (hardened.get(routerId) === HARDENING_VERSION) return;
   await ensureRouterHardening(client);
+  // Allègement RAM/CPU (27/10/2026) : réglages système légers + plafonnement du
+  // journal de ventes MikHmon qui, sinon, sature la RAM des petits routeurs.
+  await ensureResourceTuning(client).catch(() => {});
+  await ensureMikhmonJournalCap(client).catch(() => {});
   // SUSPENDU (13/10/2026) : la rotation du mot de passe MikHmon a changé le
   // mot de passe sur des routeurs sans le conserver (succès non détecté →
   // valeur effacée). Réactiver seulement avec une confirmation fiable.
