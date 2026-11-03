@@ -520,43 +520,42 @@ export async function openRouterTunnelWithRetry(
  * without this the router would try to answer the original public client
  * IP directly, which it can't reach).
  */
-export async function allocatePortForward(
-  tunnelIp: string,
-  targetPort: number,
-  // Le shard ne détermine plus la PLAGE de port (l'allocation est désormais
-  // aléatoire sur une plage globale, voir plus bas) — il ne sert qu'au HÔTE
-  // public (getRelayPublicHost, sN.safelinkhub.io), résolu par l'appelant.
-  _shard?: string | null,
-  // Browser services (WebFig/MikHmon) are TLS-terminated by nginx on the
-  // public port instead of raw-DNAT'd — browsers force HTTPS and a plain DNAT
-  // port only speaks HTTP. For those we don't add a DNAT; we add a no-op
-  // marker rule so the public port still counts as "used" by the allocator
-  // (which scans iptables), and nginx binds and terminates TLS on it.
-  tlsTerminated = false,
-): Promise<{ publicPort: number }> {
-  // Port public TIRÉ AU HASARD sur une plage large [1500, 64000] (mélange 4 et
-  // 5 chiffres), au lieu du premier libre séquentiel dans la plage du shard —
-  // les ports d'accès distant sont ainsi imprévisibles et variés. On EXCLUT
-  // toujours : les ports déjà pris par un forward (scan iptables) ET les ports
-  // que le relais écoute lui-même (ss), pour ne jamais détourner un service du
-  // relais. On reste ≥ 1500 : les ports < 1024 sont réservés/privilégiés
-  // (SSH/HTTP/HTTPS…) et les détourner casserait le relais.
-  const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${tlsTerminated ? 1 : 0} <<'SCRIPT'
-set -euo pipefail
+/**
+ * Programme relais qui choisit un port public libre puis pose les règles du
+ * forward. Extrait en builder pur (comme buildPortForwardRebindScript) pour
+ * être testable : le test vérifie l'invariant anti-vol de port (voir plus bas).
+ *
+ * INVARIANT : le port public tiré ne tombe JAMAIS dans la plage éphémère du
+ * noyau (net.ipv4.ip_local_port_range, lue À CHAUD sur le relais). Sinon une
+ * socket SORTANTE du conteneur slh-app (tunnel SSH relay → API MikroTik) peut
+ * prendre ce port comme port source et nginx échoue alors son `bind()` du
+ * `listen <port>` (« Address already in use ») — panne intermittente aléatoire
+ * d'un accès distant. En restant hors de cette plage, un port de forward et un
+ * port source éphémère sont disjoints par construction : plus aucun vol
+ * possible, sans liste de ports réservés à maintenir ni fenêtre de course.
+ */
+export function buildAllocatePortForwardScript(): string {
+  return `set -euo pipefail
 TUNNEL_IP="$1"
 TARGET_PORT="$2"
 TLS_TERMINATED="$3"
 
 LOW=1500
 HIGH=64000
+# Plage éphémère du noyau, lue à chaud (défaut Linux 32768-60999). Les ports de
+# forward DOIVENT l'éviter : voir l'invariant dans le commentaire du builder.
+read -r EPH_LO EPH_HI < /proc/sys/net/ipv4/ip_local_port_range
 USED=$(iptables -t nat -L PREROUTING -n | grep -oP 'dpt:\\K[0-9]+' || true)
 LISTEN=$(ss -tlnH 2>/dev/null | awk '{n=split($4,a,":"); print a[n]}' | grep -oE '^[0-9]+$' | sort -un || true)
+
+in_ephemeral() { [ "$1" -ge "$EPH_LO" ] && [ "$1" -le "$EPH_HI" ]; }
 
 PORT=""
 n=0
 while [ "$n" -lt 400 ]; do
   n=$((n + 1))
   cand=$(( ( (RANDOM << 15) | RANDOM ) % (HIGH - LOW + 1) + LOW ))
+  if in_ephemeral "$cand"; then continue; fi
   if grep -qx "$cand" <<< "$USED"; then continue; fi
   if grep -qx "$cand" <<< "$LISTEN"; then continue; fi
   PORT="$cand"
@@ -564,6 +563,7 @@ while [ "$n" -lt 400 ]; do
 done
 if [[ -z "$PORT" ]]; then
   for cand in $(seq "$LOW" "$HIGH"); do
+    if in_ephemeral "$cand"; then continue; fi
     if grep -qx "$cand" <<< "$USED"; then continue; fi
     if grep -qx "$cand" <<< "$LISTEN"; then continue; fi
     PORT="$cand"
@@ -572,6 +572,14 @@ if [[ -z "$PORT" ]]; then
 fi
 if [[ -z "$PORT" ]]; then
   echo "No available forward port" >&2
+  exit 1
+fi
+
+# Garde-fou exécutable : jamais rendre un port volable, même si la logique
+# ci-dessus régressait un jour. Échoue bruyamment plutôt que de poser un forward
+# condamné à un bind() nginx intermittent.
+if in_ephemeral "$PORT"; then
+  echo "Allocated port $PORT is inside the kernel ephemeral range $EPH_LO-$EPH_HI" >&2
   exit 1
 fi
 
@@ -585,7 +593,26 @@ else
 fi
 command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
 
-echo "Port = \${PORT}"
+echo "Port = \${PORT}"`;
+}
+
+export async function allocatePortForward(
+  tunnelIp: string,
+  targetPort: number,
+  // Le shard ne détermine plus la PLAGE de port (l'allocation est désormais
+  // aléatoire sur une plage globale, voir buildAllocatePortForwardScript) — il
+  // ne sert qu'au HÔTE public (getRelayPublicHost, sN.safelinkhub.io), résolu
+  // par l'appelant.
+  _shard?: string | null,
+  // Browser services (WebFig/MikHmon) are TLS-terminated by nginx on the
+  // public port instead of raw-DNAT'd — browsers force HTTPS and a plain DNAT
+  // port only speaks HTTP. For those we don't add a DNAT; we add a no-op
+  // marker rule so the public port still counts as "used" by the allocator
+  // (which scans iptables), and nginx binds and terminates TLS on it.
+  tlsTerminated = false,
+): Promise<{ publicPort: number }> {
+  const output = await runOnRelay(`sudo bash -s -- ${tunnelIp} ${targetPort} ${tlsTerminated ? 1 : 0} <<'SCRIPT'
+${buildAllocatePortForwardScript()}
 SCRIPT`);
 
   const match = output.match(/^Port\s*=\s*(\d+)$/m);
