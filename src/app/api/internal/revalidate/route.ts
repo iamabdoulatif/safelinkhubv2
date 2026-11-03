@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
+import { bearerMatches } from "@/lib/auth/bearer";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
 const PAGES = ["/", "/en", "/formations", "/en/formations", "/blog"] as const;
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!bearerMatches(request, process.env.CRON_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
   for (const page of PAGES) revalidatePath(page);
