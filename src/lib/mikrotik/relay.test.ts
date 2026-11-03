@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { afterEach, describe, it } from "node:test";
 import {
+  __setRelayClientFactoryForTests,
   buildPortForwardRebindScript,
   getRelayPublicHost,
   normalizeRelayPublicHost,
+  openRouterTunnel,
   relayWebUrl,
 } from "./relay";
 
@@ -84,5 +87,84 @@ describe("lien web d'une redirection du relais", () => {
     process.env.RELAY_SHARDING = "1";
     assert.equal(relayWebUrl("s2", 25226), "https://s2.safelinkhub.io:25226");
     assert.ok(!relayWebUrl("s3", 16984).startsWith("http://"), "jamais de http:// nu");
+  });
+});
+
+// Faux ssh2 Client : compte les connexions créées et sert des canaux forwardOut
+// sans réseau. `end()` est idempotent (comme le vrai Client : pas de double
+// 'close').
+class FakeRelayClient extends EventEmitter {
+  static created = 0;
+  static last: FakeRelayClient | null = null;
+  private ended = false;
+  constructor() {
+    super();
+    FakeRelayClient.created++;
+    FakeRelayClient.last = this;
+  }
+  connect() {
+    setImmediate(() => this.emit("ready"));
+    return this;
+  }
+  forwardOut(
+    _src: string,
+    _srcPort: number,
+    _dst: string,
+    _dstPort: number,
+    cb: (err: Error | undefined, stream: unknown) => void,
+  ) {
+    const stream = Object.assign(new EventEmitter(), { end() {}, destroy() {} });
+    setImmediate(() => cb(undefined, stream));
+    return this;
+  }
+  end() {
+    if (!this.ended) {
+      this.ended = true;
+      setImmediate(() => this.emit("close"));
+    }
+    return this;
+  }
+}
+
+describe("connexion relais mutualisée", () => {
+  const KEYS = ["WG_RELAY_HOST", "WG_RELAY_SSH_USER", "WG_RELAY_SSH_KEY_B64"] as const;
+  const savedEnv = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+
+  function withRelayEnv() {
+    process.env.WG_RELAY_HOST = "relay.test";
+    process.env.WG_RELAY_SSH_USER = "relay";
+    process.env.WG_RELAY_SSH_KEY_B64 = Buffer.from("fake-key").toString("base64");
+    FakeRelayClient.created = 0;
+    FakeRelayClient.last = null;
+    __setRelayClientFactoryForTests(
+      () => new FakeRelayClient() as unknown as import("ssh2").Client,
+    );
+  }
+
+  afterEach(() => {
+    __setRelayClientFactoryForTests(null);
+    for (const k of KEYS) restore(k, savedEnv[k]);
+  });
+
+  it("réutilise UNE connexion pour plusieurs routeurs, et fermer un canal ne la ferme pas", async () => {
+    withRelayEnv();
+    const a = await openRouterTunnel("10.66.0.10", 8728);
+    const b = await openRouterTunnel("10.66.0.11", 8728);
+    assert.equal(FakeRelayClient.created, 1, "une seule connexion SSH partagée, pas un handshake par routeur");
+    a.close();
+    b.close();
+    await openRouterTunnel("10.66.0.12", 8728);
+    assert.equal(FakeRelayClient.created, 1, "fermer un canal ne ferme pas la connexion partagée");
+  });
+
+  it("se reconnecte quand la connexion partagée tombe", async () => {
+    withRelayEnv();
+    await openRouterTunnel("10.66.0.10", 8728);
+    assert.equal(FakeRelayClient.created, 1);
+    // Chute silencieuse (sshd redémarré / relais rebooté) → le pool se vide.
+    FakeRelayClient.last?.emit("close");
+    await new Promise((r) => setImmediate(r));
+    await openRouterTunnel("10.66.0.11", 8728);
+    assert.equal(FakeRelayClient.created, 2, "une nouvelle connexion est rouverte après une chute");
   });
 });

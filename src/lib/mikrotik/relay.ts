@@ -395,82 +395,161 @@ export type RelayTunnel = {
 };
 
 /**
- * Opens an SSH connection to the EC2 relay and asks it to forward a TCP
- * connection to <tunnelIp>:<port> on its side (the relay sits on the
- * WireGuard subnet, so it can reach the router's tunnel IP directly).
- * The returned stream behaves like a regular socket for protocol purposes.
+ * Connexion SSH MUTUALISÉE vers le relais.
+ *
+ * Avant, chaque interrogation d'un routeur ouvrait une connexion SSH NEUVE
+ * (new Client + handshake complet). Une passe de santé = ~34 handshakes
+ * concurrents, plus voucher et LiveSync : sur le relais à 1 vCPU, ces rafales
+ * de crypto d'échange de clés pégeaient le cœur, le forwardOut timeoutait et
+ * les routeurs clignotaient « hors ligne » alors qu'ils étaient joignables
+ * (confirmé le 03/11 : un forwardOut isolé s'ouvre en <1 s ; 14 concurrents →
+ * 0/14 ; TCP direct toujours OK).
+ *
+ * On garde donc UNE connexion persistante et on ouvre un canal forwardOut par
+ * routeur dessus. Un canal direct-tcpip n'est pas compté par MaxSessions de
+ * sshd (contrairement à exec de runOnRelay), donc N canaux concurrents sur une
+ * connexion sont permis. keepalive détecte une connexion morte ; sur close /
+ * error on vide le pool et le prochain appel se reconnecte. Fermer un canal ne
+ * ferme JAMAIS la connexion partagée.
  */
-export function openRouterTunnel(
+let sharedRelayConn: Client | null = null;
+let sharedRelayReady: Promise<Client> | null = null;
+
+// Couture de test : injecter un faux Client (voir relay.test.ts). En prod,
+// fabrique un vrai ssh2 Client.
+let createRelayClient: () => Client = () => new Client();
+export function __setRelayClientFactoryForTests(factory: (() => Client) | null): void {
+  createRelayClient = factory ?? (() => new Client());
+  // Repart d'un pool vide pour que chaque scénario de test soit isolé.
+  if (sharedRelayConn) {
+    try {
+      sharedRelayConn.end();
+    } catch {
+      /* déjà tombée */
+    }
+  }
+  sharedRelayConn = null;
+  sharedRelayReady = null;
+}
+
+function dropSharedRelayConn(conn: Client): void {
+  if (sharedRelayConn === conn) {
+    sharedRelayConn = null;
+    sharedRelayReady = null;
+  }
+  try {
+    conn.end();
+  } catch {
+    /* déjà tombée */
+  }
+}
+
+function getSharedRelayConn(readyTimeoutMs: number): Promise<Client> {
+  if (sharedRelayReady) return sharedRelayReady;
+
+  const host = process.env.WG_RELAY_HOST;
+  const username = process.env.WG_RELAY_SSH_USER;
+  if (!host || !username) {
+    return Promise.reject(new Error("WG_RELAY_HOST / WG_RELAY_SSH_USER are not set"));
+  }
+
+  const conn = createRelayClient();
+  sharedRelayConn = conn;
+  const ready = new Promise<Client>((resolve, reject) => {
+    conn
+      .on("ready", () => resolve(conn))
+      .on("error", (err: Error) => {
+        dropSharedRelayConn(conn);
+        reject(err);
+      })
+      // Une chute silencieuse (sshd redémarré, relais rebooté) vide le pool :
+      // le prochain appel rouvre, les appels en vol échouent et sont réessayés.
+      .on("close", () => dropSharedRelayConn(conn))
+      .connect({
+        host,
+        username,
+        privateKey: getRelayPrivateKey(),
+        readyTimeout: readyTimeoutMs,
+        // Garde la connexion vivante et détecte une connexion morte sans close.
+        keepaliveInterval: 15000,
+        keepaliveCountMax: 3,
+      });
+  });
+  // Un handshake raté ne doit pas empoisonner le pool pour l'appel suivant.
+  sharedRelayReady = ready;
+  ready.catch(() => {
+    if (sharedRelayConn === conn) {
+      sharedRelayConn = null;
+      sharedRelayReady = null;
+    }
+  });
+  return ready;
+}
+
+/**
+ * Ouvre, SUR LA CONNEXION MUTUALISÉE au relais, un forwardOut TCP vers
+ * <tunnelIp>:<port> (le relais est sur le sous-réseau WireGuard, il joint
+ * l'IP de tunnel du routeur directement). Le flux renvoyé se comporte comme
+ * une socket ordinaire. `close` ferme le CANAL seul, pas la connexion partagée.
+ */
+export async function openRouterTunnel(
   tunnelIp: string,
   port: number,
   timeoutMs = 8000,
 ): Promise<RelayTunnel> {
-  const host = process.env.WG_RELAY_HOST;
-  const username = process.env.WG_RELAY_SSH_USER;
-  if (!host || !username) {
-    throw new Error("WG_RELAY_HOST / WG_RELAY_SSH_USER are not set");
-  }
-
   const t0 = Date.now();
   const log = (msg: string) => console.log(`[relay tunnel +${Date.now() - t0}ms] ${msg}`);
 
+  const conn = await getSharedRelayConn(timeoutMs);
+
   return new Promise((resolve, reject) => {
-    const conn = new Client();
     let settled = false;
 
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
       log("TIMEOUT before tunnel established");
-      conn.end();
       reject(new Error("Routeur inaccessible — tunnel VPN inactif ou routeur hors ligne"));
     }, timeoutMs);
 
-    log(`connecting to relay ${host} as ${username}`);
-
-    conn
-      .on("ready", () => {
-        log("SSH connection ready, requesting forwardOut");
-        conn.forwardOut("127.0.0.1", 0, tunnelIp, port, (err, stream) => {
-          if (settled) return;
-          if (err) {
-            settled = true;
-            clearTimeout(timer);
-            log(`forwardOut failed: ${err.message}`);
-            conn.end();
-            /* Le message d'origine — « Channel open failure: Connection
-               refused » — ne dit PAS vers quoi. Sur un parc de 36 routeurs
-               c'est une piste morte : on ne sait ni quel équipement ni quel
-               port a refusé, et il faut ouvrir un shell pour l'apprendre.
-               Diagnostiquer un port API mal renseigné a coûté une heure
-               faute de cette ligne. */
-            return reject(
-              new Error(`${err.message} — ${tunnelIp}:${port} (port API du routeur)`),
-            );
-          }
-          settled = true;
-          clearTimeout(timer);
-          log("forwardOut established");
-          stream.on("close", () => conn.end());
-          resolve({
-            stream,
-            close: () => conn.end(),
-          });
-        });
-      })
-      .on("error", (err) => {
-        if (settled) return;
+    log("requesting forwardOut (connexion relais mutualisée)");
+    conn.forwardOut("127.0.0.1", 0, tunnelIp, port, (err, stream) => {
+      if (settled) return;
+      if (err) {
         settled = true;
         clearTimeout(timer);
-        log(`SSH connection error: ${err.message}`);
-        reject(err);
-      })
-      .connect({
-        host,
-        username,
-        privateKey: getRelayPrivateKey(),
-        readyTimeout: timeoutMs,
+        log(`forwardOut failed: ${err.message}`);
+        /* Échec AU NIVEAU DU CANAL (routeur injoignable) : la connexion
+           partagée reste saine, on ne la ferme SURTOUT pas — sinon on
+           relancerait un handshake par routeur mort et on recréerait la
+           tempête. Une vraie chute de connexion est gérée par 'close'/'error'
+           sur conn (vidage du pool). Message enrichi de la cible : le
+           « Connection refused » brut ne dit pas vers quoi. */
+        return reject(
+          new Error(`${err.message} — ${tunnelIp}:${port} (port API du routeur)`),
+        );
+      }
+      settled = true;
+      clearTimeout(timer);
+      log("forwardOut established");
+      resolve({
+        stream,
+        // Ferme le CANAL uniquement. La connexion SSH reste ouverte et
+        // réutilisée par les autres routeurs.
+        close: () => {
+          try {
+            stream.end();
+          } catch {
+            /* déjà fermé */
+          }
+          try {
+            stream.destroy();
+          } catch {
+            /* déjà détruit */
+          }
+        },
       });
+    });
   });
 }
 
