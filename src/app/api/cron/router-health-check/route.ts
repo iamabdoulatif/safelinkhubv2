@@ -6,6 +6,7 @@ import { collectTrafficHistory } from "@/lib/mikrotik/traffic-collector";
 import { runTelegramMaintenance } from "@/lib/notifications/telegram-delivery";
 import { createHealthSchedule } from "@/lib/mikrotik/health-schedule";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
+import { bearerMatches } from "@/lib/auth/bearer";
 import { syncMndpAnnouncementsForAllOrgs } from "@/lib/mikrotik/mndp-sync";
 
 export const maxDuration = 300;
@@ -36,8 +37,7 @@ const schedule = createHealthSchedule(async () => {
 });
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!bearerMatches(request, process.env.CRON_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
   after(async () => {

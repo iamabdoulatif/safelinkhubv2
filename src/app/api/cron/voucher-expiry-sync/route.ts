@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { reconcileVoucherExpiries } from "@/lib/vouchers/reconcile";
 import { reconcilePortalOrders } from "@/lib/portal/reconcile";
 import { retryAllPendingRoamingBindings } from "@/lib/roaming/pending-binding-retry";
+import { bearerMatches } from "@/lib/auth/bearer";
 
 export const maxDuration = 300;
 
@@ -18,8 +19,7 @@ export const maxDuration = 300;
  * en base et propage la même expiration à toutes les zones du ticket.
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!bearerMatches(request, process.env.CRON_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
 

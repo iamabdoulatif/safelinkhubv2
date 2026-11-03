@@ -1,14 +1,14 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerRegulation, routers } from "@/lib/db/schema";
+import { bearerMatches } from "@/lib/auth/bearer";
 
 /**
  * Contrat interne n8n ↔ plateforme (voir docs/n8n/regulation.md). Jeton dédié
  * — pas CRON_SECRET : n8n est un service tiers, sa clé se révoque à part.
  */
 export function n8nAuthorized(request: Request): boolean {
-  const token = process.env.N8N_INTERNAL_TOKEN;
-  return Boolean(token) && request.headers.get("authorization") === `Bearer ${token}`;
+  return bearerMatches(request, process.env.N8N_INTERNAL_TOKEN);
 }
 
 export const unauthorized = () => Response.json({ error: "Unauthorized" }, { status: 401 });
