@@ -281,7 +281,7 @@ describe("l'écran de transfert", () => {
     // Un transfert qui s'applique au premier clic ne laisse pas vérifier ce
     // qui va être posé sur un routeur en service.
     const c = await carte();
-    assert.ok(c.indexOf("planifierTransfertRsc") < c.indexOf("appliquerTransfertRsc"));
+    assert.ok(c.indexOf("planifierTransfertRsc") < c.indexOf("demarrerTransfertRscJob"));
     assert.match(c, /Voir ce qui sera transféré/);
     // Le bouton d'écriture n'apparaît qu'une fois le plan affiché.
     assert.match(c, /\{plan && !bilan && \(/);
