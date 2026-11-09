@@ -10,6 +10,7 @@ import { getDb } from "@/lib/db";
 import { routers, remoteAccessAuthorizations, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import { getUserGeniusCustomer } from "@/lib/payment-gateways/customer";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { getSafecoinBalance, appendSafecoinDebit } from "@/lib/safecoin/ledger";
 import { vpnActivationChargeScCents } from "@/lib/safecoin/service-charges";
@@ -230,7 +231,7 @@ export async function startRemoteAccessPayment(formData: FormData): Promise<
   const payment = await createGeniusPayment({
     amountFcfa,
     description: `Accès distant ${serviceLabel(service)} — ${periodLabel(billingPeriod)} — ${router.name ?? "routeur"}`,
-    customer: { name: session.name, email: session.email },
+    customer: await getUserGeniusCustomer(session.userId),
     metadata: {
       kind: "remote_access",
       authorizationId: row.id,
