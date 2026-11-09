@@ -10,6 +10,10 @@ export type PlatformSaleRow = {
   requesterEmail: string;
   /** Role snapshot for excluding staff-only Auto-Setups from sales. */
   requesterRole?: string | null;
+  /** Téléphone international du demandeur (fiche utilisateur), ou null. */
+  phone?: string | null;
+  /** Référence GeniusPay de la transaction, ou null. */
+  paymentReference?: string | null;
   amountFcfa: number;
   paymentMethod: string;
   service: string | null;
@@ -167,6 +171,8 @@ export function buildPlatformSalesCsv(rows: PlatformSaleRow[]) {
     "Type",
     "Demandeur",
     "Email",
+    "Téléphone",
+    "Référence GeniusPay",
     "Organisation",
     "Service",
     "Période",
@@ -181,6 +187,8 @@ export function buildPlatformSalesCsv(rows: PlatformSaleRow[]) {
       kindLabel(row.kind),
       row.requesterName,
       row.requesterEmail,
+      row.phone ?? "",
+      row.paymentReference ?? "",
       row.orgName,
       row.service ?? "",
       row.billingPeriod ?? "",
