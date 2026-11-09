@@ -12,6 +12,7 @@ import { getDb } from "@/lib/db";
 import { routers, autoSetupAuthorizations, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import { getUserGeniusCustomer } from "@/lib/payment-gateways/customer";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { getSafecoinBalance } from "@/lib/safecoin/ledger";
 import { autoSetupChargeScCents, chargeAutoSetup } from "@/lib/safecoin/service-charges";
@@ -246,7 +247,7 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
   const payment = await createGeniusPayment({
     amountFcfa,
     description: `Auto-Setup ${mikrotikKindLabel(supportsContainers)}${dualWan ? " + dual WAN" : ""} — ${router.name ?? "routeur"}`,
-    customer: { name: session.name, email: session.email },
+    customer: await getUserGeniusCustomer(session.userId),
     metadata: {
       kind: "auto_setup",
       authorizationId: row.id,
