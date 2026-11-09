@@ -161,6 +161,11 @@ export default function SalesView({
                     {s.packageName}
                     {s.routerName ? ` · ${s.routerName}` : ""} · {dateFmt.format(s.createdAt)}
                   </p>
+                  <p className="mt-0.5 text-xs text-ink-soft">
+                    {s.phone}
+                    {s.paymentReference ? ` · ${t.reference} ` : ""}
+                    {s.paymentReference ? <span className="font-mono">{s.paymentReference}</span> : null}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -170,6 +175,8 @@ export default function SalesView({
                 <tr>
                   <th className="px-5 py-2.5 font-medium">{t.date}</th>
                   <th className="px-5 py-2.5 font-medium">{t.voucher}</th>
+                  <th className="px-5 py-2.5 font-medium">{t.phone}</th>
+                  <th className="px-5 py-2.5 font-medium">{t.reference}</th>
                   <th className="px-5 py-2.5 font-medium">{t.zone}</th>
                   <th className="px-5 py-2.5 font-medium">{t.package}</th>
                   <th className="px-5 py-2.5 text-right font-medium">{t.price}</th>
@@ -180,6 +187,8 @@ export default function SalesView({
                   <tr key={s.id} className="hover:bg-clay/40">
                     <td className="whitespace-nowrap px-5 py-3 text-ink-soft">{dateFmt.format(s.createdAt)}</td>
                     <td className="px-5 py-3 font-mono text-[13px] font-semibold text-ink">{s.username}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-ink-soft">{s.phone}</td>
+                    <td className="px-5 py-3 font-mono text-[13px] text-ink-soft">{s.paymentReference ?? "—"}</td>
                     <td className="px-5 py-3 text-ink-soft">{s.routerName ?? "—"}</td>
                     <td className="px-5 py-3 text-ink-soft">{s.packageName}</td>
                     <td className="whitespace-nowrap px-5 py-3 text-right font-medium tabular-nums text-ink">{money(s.priceCents)}</td>

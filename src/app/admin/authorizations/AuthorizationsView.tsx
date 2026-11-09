@@ -23,6 +23,10 @@ type BaseRow = {
   id: string;
   requesterName: string;
   requesterEmail: string;
+  /** Téléphone international du client (joint depuis la fiche utilisateur), ou null. */
+  phone: string | null;
+  /** Référence GeniusPay de la transaction, ou null. */
+  paymentReference: string | null;
   routerName: string | null;
   amountFcfa: number;
   paymentMethod: string;
@@ -151,6 +155,7 @@ function RequestCard({
             </span>
           </div>
           <p className="truncate text-sm text-ink-soft">{row.requesterEmail}</p>
+          {row.phone && <p className="text-sm text-ink-soft">{row.phone}</p>}
           <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-sm text-ink-soft sm:grid-cols-2">
             <span>
               Routeur : <span className="text-ink">{row.routerName ?? "—"}</span>
@@ -166,6 +171,10 @@ function RequestCard({
             </span>
             <span>
               Moyen : <span className="text-ink">{methodLabel(row.paymentMethod)}</span>
+            </span>
+            <span className="sm:col-span-2">
+              Référence GeniusPay :{" "}
+              <span className="font-mono text-ink">{row.paymentReference ?? "—"}</span>
             </span>
             <span>
               Demande : <span className="text-ink">{formatDate(row.createdAt)}</span>

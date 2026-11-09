@@ -81,8 +81,8 @@ export default async function AuthorizationsPage() {
 
   return (
     <AuthorizationsView
-      autoSetup={autoSetup}
-      remoteAccess={remoteAccess}
+      autoSetup={autoSetup.map((r) => ({ ...r, phone: phoneFor(r.userId) }))}
+      remoteAccess={remoteAccess.map((r) => ({ ...r, phone: phoneFor(r.userId) }))}
       autoSetupCsvHref={autoSetupCsvHref}
       remoteAccessCsvHref={remoteAccessCsvHref}
       featureAccess={featureAccess.map((r) => ({
