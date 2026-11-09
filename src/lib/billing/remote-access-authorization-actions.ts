@@ -192,6 +192,9 @@ export async function startRemoteAccessPayment(formData: FormData): Promise<
   const routerId = String(formData.get("routerId") ?? "");
   const service = String(formData.get("service") ?? "");
   const billingPeriod = String(formData.get("billingPeriod") ?? "");
+  // Numéro saisi au paiement : prime sur celui du profil (souvent absent) pour
+  // que GeniusPay reçoive un téléphone sur chaque transaction d'accès distant.
+  const phoneInput = String(formData.get("phone") ?? "").trim();
 
   if (!routerId) return { error: "Routeur manquant." };
   if (!isRemoteAccessService(service)) return { error: "Service invalide." };
@@ -231,7 +234,7 @@ export async function startRemoteAccessPayment(formData: FormData): Promise<
   const payment = await createGeniusPayment({
     amountFcfa,
     description: `Accès distant ${serviceLabel(service)} — ${periodLabel(billingPeriod)} — ${router.name ?? "routeur"}`,
-    customer: await getUserGeniusCustomer(session.userId),
+    customer: { ...(await getUserGeniusCustomer(session.userId)), ...(phoneInput ? { phone: phoneInput } : {}) },
     metadata: {
       kind: "remote_access",
       authorizationId: row.id,
