@@ -63,6 +63,7 @@ export default function AutoSetupPaywallModal({
 }) {
   const [config, setConfig] = useState<PublicConfig | null>(null);
   const [method, setMethod] = useState<PaymentMethodId>("wave");
+  const [phone, setPhone] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [proof, setProof] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -153,6 +154,7 @@ export default function AutoSetupPaywallModal({
     fd.set("routerId", routerId);
     fd.set("supportsContainers", supportsContainers ? "1" : "0");
     fd.set("dualWan", dualWan ? "1" : "0");
+    if (phone.trim()) fd.set("phone", phone.trim());
     startTransition(async () => {
       const res = await startAutoSetupPayment(fd);
       if ("error" in res) {
@@ -297,11 +299,23 @@ export default function AutoSetupPaywallModal({
 
             {geniusOn && (
               <>
+                <label className="mt-5 block">
+                  <span className="text-xs font-medium text-ink-soft">
+                    Numéro de téléphone (mobile money)
+                  </span>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Ex. +225 07 00 00 00 00"
+                    className="mt-1 w-full rounded-lg border border-line-soft px-3 py-2 text-sm"
+                  />
+                </label>
                 <button
                   type="button"
                   onClick={payOnline}
                   disabled={pending || applicable === null}
-                  autoFocus
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-deep px-4 py-3 text-[15px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
                 >
                   {pending ? (

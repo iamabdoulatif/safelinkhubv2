@@ -205,6 +205,9 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
   const routerId = String(formData.get("routerId") ?? "");
   const supportsContainers = String(formData.get("supportsContainers") ?? "") === "1";
   const dualWan = String(formData.get("dualWan") ?? "") === "1";
+  // Numéro saisi au paiement : prime sur celui du profil (souvent absent) pour
+  // que GeniusPay reçoive un téléphone sur chaque transaction auto-setup.
+  const phoneInput = String(formData.get("phone") ?? "").trim();
   if (!routerId) return { error: "Routeur manquant." };
   if (!isGeniusPayCheckoutEnabled()) {
     return { error: "Le paiement en ligne n'est pas encore disponible. Utilisez le paiement manuel." };
@@ -247,7 +250,7 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
   const payment = await createGeniusPayment({
     amountFcfa,
     description: `Auto-Setup ${mikrotikKindLabel(supportsContainers)}${dualWan ? " + dual WAN" : ""} — ${router.name ?? "routeur"}`,
-    customer: await getUserGeniusCustomer(session.userId),
+    customer: { ...(await getUserGeniusCustomer(session.userId)), ...(phoneInput ? { phone: phoneInput } : {}) },
     metadata: {
       kind: "auto_setup",
       authorizationId: row.id,
