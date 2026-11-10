@@ -20,6 +20,7 @@ import { sanitizeClientDial, toInternational } from "@/lib/portal/otp";
 import { appendPortalTheme, portalThemeFromUnknown } from "@/lib/portal/theme";
 import { getOrgGeniusCreds, ensureOrgWebhook } from "@/lib/payment-gateways/geniuspay-org";
 import { isOrgSmsEnabled } from "@/lib/sms/send";
+import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -47,6 +48,9 @@ export async function POST(
   const routerIdInput = String(body.routerId ?? "").trim();
   const serialInput = String(body.serial ?? "").trim();
   const theme = portalThemeFromUnknown(body.theme);
+
+  const limit = await enforcePublicSubmissionRateLimit("portal_order");
+  if (!limit.allowed) return corsJson({ error: limit.error }, { status: 429 });
 
   const mac = normalizeMac(macRaw);
   if (!packageId) return corsJson({ error: "Forfait manquant." }, { status: 400 });

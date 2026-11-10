@@ -9,6 +9,21 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  async headers() {
+    const headers = [
+      // Keep the baseline CSP directives narrow so existing external assets
+      // keep working; the app's portal preview remains embeddable same-origin.
+      { key: "Content-Security-Policy", value: "base-uri 'self'; object-src 'none'; frame-ancestors 'self'" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+    ];
+    if (process.env.NODE_ENV === "production") {
+      headers.push({ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" });
+    }
+    return [{ source: "/:path*", headers }];
+  },
   experimental: {
     serverActions: {
       // L'import d'un portail captif personnalisé (dossier HTML/CSS/JS +
