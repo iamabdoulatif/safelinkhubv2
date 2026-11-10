@@ -1,7 +1,6 @@
-import { and, asc, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
-  routerRegulation,
   routers,
   routerTrafficSamples,
   routerTrafficState,
@@ -49,17 +48,13 @@ export async function collectTrafficHistory(budgetMs = 90000) {
   const deadline = Date.now() + budgetMs;
   const bucket = new Date(trafficBucket(Date.now()));
   const candidates = await db
-    .select({ router: routers, links: routerRegulation.fupLinks })
+    .select({ router: routers })
     .from(routers)
-    .leftJoin(routerRegulation, eq(routerRegulation.routerId, routers.id))
     .leftJoin(routerTrafficState, eq(routerTrafficState.routerId, routers.id))
     .where(
       and(
         isNotNull(routers.host),
-        or(
-          eq(routers.linkType, "starlink"),
-          sql`jsonb_array_length(coalesce(${routerRegulation.fupLinks}, '[]'::jsonb)) > 0`,
-        ),
+        eq(routers.linkType, "starlink"),
       ),
     )
     .orderBy(
@@ -72,7 +67,7 @@ export async function collectTrafficHistory(budgetMs = 90000) {
   await Promise.all(
     Array.from({ length: Math.min(2, candidates.length) }, async () => {
       while (cursor < candidates.length && Date.now() < deadline) {
-        const { router, links: configured } = candidates[cursor++];
+        const { router } = candidates[cursor++];
         try {
           const wrote = await db.transaction(async (tx) => {
             const lock = await tx.execute(
@@ -94,7 +89,7 @@ export async function collectTrafficHistory(budgetMs = 90000) {
               .select()
               .from(routerTrafficState)
               .where(eq(routerTrafficState.routerId, router.id));
-            let links = configuredTrafficLinks(router, configured);
+            let links = configuredTrafficLinks(router, null);
             if (!links.length && saved?.baseline)
               links = Object.entries(saved.baseline.links).map(([id, l]) => ({
                 id,

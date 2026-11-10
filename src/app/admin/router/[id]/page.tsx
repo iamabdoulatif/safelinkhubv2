@@ -67,7 +67,6 @@ function parseTab(value: string | undefined) {
     value === "history" ||
     value === "diagnostic" ||
     value === "filter" ||
-    value === "regulation" ||
     value === "usage" ||
     value === "resources" ||
     value === "services"
@@ -285,9 +284,6 @@ export default async function RouterDetailPage({
           n'a de sens que pour le superadmin, et il n'est utile que lorsque le
           routeur est justement hors ligne. */}
       {isSuperAdmin(session?.role) && !online && <SerialLockPanel routerId={router.id} />}
-      {/* Le diagnostic de tickets a rejoint l'onglet « Diagnostic » : rendu en
-          bas de CHAQUE onglet, il s'affichait aussi sous « Filtrage » ou
-          « Régulation », où il n'a aucun sens (audit UI/UX du 22/09/2026). */}
     </div>
   );
 }

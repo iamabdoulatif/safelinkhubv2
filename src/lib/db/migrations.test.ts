@@ -36,12 +36,9 @@ describe("registre des migrations", () => {
   const MIRRORS: Record<string, string> = {
     "0023_mikhmon_container_inventory": "add-mikhmon-container-inventory.sql",
     "0022_portal_order_provider": "add-portal-order-provider.sql",
-    "0021_fup_ticket_policy": "add-fup-ticket-policy.sql",
     "0020_multiwan_premium": "add-multiwan-premium.sql",
-    "0019_pooled_starlink_fup": "add-pooled-starlink-fup.sql",
     "0018_org_telegram": "add-org-telegram.sql",
     "0017_traffic_history": "add-traffic-history.sql",
-    "0016_starlink_fup_links": "add-starlink-fup-links.sql",
     "0001_link_usage": "add-link-usage.sql",
     "0002_zone_per_client": "add-zone-per-client.sql",
     "0003_roaming_previous_macs": "add-roaming-previous-macs.sql",
@@ -50,9 +47,6 @@ describe("registre des migrations", () => {
     "0006_router_content_filter": "add-router-content-filter.sql",
     "0007_router_vpn_quota_and_package_cap": "add-router-vpn-quota-and-package-cap.sql",
     "0008_router_portal_repaired_at": "add-router-portal-repaired-at.sql",
-    "0009_router_regulation": "add-router-regulation.sql",
-    "0011_regulation_profile_throttle": "add-regulation-profile-throttle.sql",
-    "0012_regulation_abuse_throttle": "add-regulation-abuse-throttle.sql",
     "0013_router_mikhmon_admin_password": "add-router-mikhmon-admin-password.sql",
   };
   for (const [id, file] of Object.entries(MIRRORS)) {

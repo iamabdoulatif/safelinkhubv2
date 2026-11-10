@@ -3,7 +3,6 @@
 import { and, asc, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
-  routerRegulation,
   routers,
   routerTrafficIncidents,
   routerTrafficSamples,
@@ -46,18 +45,13 @@ async function authorize(routerId: string, write = false) {
 }
 async function historyLinks(router: typeof routers.$inferSelect) {
   const db = getDb();
-  const [regulation] = await db
-    .select({ links: routerRegulation.fupLinks })
-    .from(routerRegulation)
-    .where(eq(routerRegulation.routerId, router.id))
-    .limit(1);
   const [latest] = await db
     .select({ payload: routerTrafficSamples.payload })
     .from(routerTrafficSamples)
     .where(eq(routerTrafficSamples.routerId, router.id))
     .orderBy(desc(routerTrafficSamples.measuredAt))
     .limit(1);
-  const links = configuredTrafficLinks(router, regulation?.links ?? null);
+  const links = configuredTrafficLinks(router, null);
   return links.length
     ? links
     : (latest?.payload.links.map(({ id, name, interface: iface }) => ({
@@ -301,7 +295,7 @@ export async function activateRouterTrafficGraphing(
   if (!links.length)
     return {
       error:
-        "Configurez les interfaces Starlink dans Régulation ou attendez leur premier relevé.",
+        "Configurez une interface WAN Starlink ou attendez leur premier relevé.",
     };
   let client;
   try {
