@@ -10,7 +10,7 @@
 // `payment_initiating` et `failed` = aucun encaissement.
 import { and, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { packages, portalOrders, routers, vouchers } from "@/lib/db/schema";
+import { packages, portalCustomers, portalOrders, routers, vouchers } from "@/lib/db/schema";
 
 export const PAID_ORDER_STATUSES = ["paid", "fulfilling", "fulfilled"] as const;
 
@@ -18,8 +18,12 @@ export type PaidSale = {
   id: string;
   /** Code du ticket livré ; retombe sur le numéro du client si l'honneur a échoué. */
   username: string;
-  /** Numéro du client (acheteur du portail captif) — seule info client connue. */
+  /** Numéro du client (acheteur du portail captif). */
   phone: string;
+  /** Nom complet de la fiche client (prénom + nom), saisi à la 1re commande, ou null. */
+  customerName: string | null;
+  /** Email de la fiche client, ou null si jamais renseigné. */
+  customerEmail: string | null;
   /** Référence GeniusPay de la transaction (récapitulatif partenaire), ou null. */
   paymentReference: string | null;
   packageName: string;
@@ -64,6 +68,9 @@ export async function getPaidSales(
       commissionCents: packages.commissionCents,
       routerId: portalOrders.routerId,
       routerName: routers.name,
+      customerFirstName: portalCustomers.firstName,
+      customerLastName: portalCustomers.lastName,
+      customerEmail: portalCustomers.email,
     })
     .from(portalOrders)
     // Jointures externes : un forfait supprimé ou un ticket non encore honoré
@@ -73,6 +80,15 @@ export async function getPaidSales(
     // Externe elle aussi : un routeur retiré du parc ne doit pas faire
     // disparaître les ventes qu'il a encaissées.
     .leftJoin(routers, eq(portalOrders.routerId, routers.id))
+    // Fiche client reliée par (org, numéro) : renseignée à la 1re commande du
+    // numéro, elle rattache nom + email à TOUTES ses ventes (passées et futures).
+    .leftJoin(
+      portalCustomers,
+      and(
+        eq(portalCustomers.orgId, portalOrders.orgId),
+        eq(portalCustomers.phone, portalOrders.phone),
+      ),
+    )
     .where(and(...filters))
     .orderBy(desc(portalOrders.createdAt));
 
@@ -83,6 +99,8 @@ export async function getPaidSales(
     id: r.id,
     username: r.username ?? r.phone,
     phone: r.phone,
+    customerName: [r.customerFirstName, r.customerLastName].filter(Boolean).join(" ") || null,
+    customerEmail: r.customerEmail ?? null,
     paymentReference: r.paymentReference ?? null,
     packageName: r.packageName ?? r.profileName ?? "Forfait",
     priceCents: r.orderPriceCents ?? r.packagePriceCents ?? 0,

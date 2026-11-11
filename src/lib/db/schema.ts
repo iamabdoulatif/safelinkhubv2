@@ -895,6 +895,28 @@ export const portalOrders = pgTable("portal_orders", {
   fulfilledAt: timestamp("fulfilled_at"),
 });
 
+// Fiche client du portail captif, renseignée à la PREMIÈRE commande d'un numéro
+// (prénom/nom/email demandés sur la page de paiement). Clé (org, numéro) : le
+// numéro est déjà porté par chaque `portal_orders`, donc une jointure par
+// (org_id, phone) relie automatiquement toutes les commandes passées et futures
+// à cette fiche — pas de FK sur la commande. Rempli une fois, réutilisé ensuite.
+export const portalCustomers = pgTable(
+  "portal_customers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    phone: text("phone").notNull(), // international, chiffres uniquement (= portal_orders.phone)
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    email: text("email").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("portal_customers_org_phone_idx").on(t.orgId, t.phone)],
+);
+
 // Vérification OTP (SMS) du numéro du client au portail captif, AVANT paiement.
 // Le code n'est jamais stocké en clair (codeHash = sha256(orgId:phone:code)) ;
 // `verifiedAt` mémorise la vérification ~30 min (voir src/lib/portal/otp.ts) →

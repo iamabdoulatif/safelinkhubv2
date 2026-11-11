@@ -377,4 +377,19 @@ alter table router_regulation add column if not exists fup_ticket_state jsonb;` 
 alter table routers add column if not exists mikhmon_root_dir text;
 alter table routers add column if not exists mikhmon_container_running boolean;
 alter table routers add column if not exists mikhmon_seen_at timestamp;` },
+  // Fiche client du portail (prénom/nom/email) saisie à la 1re commande d'un
+  // numéro, reliée aux commandes par (org_id, phone). Miroir : scripts/add-portal-customers.sql.
+  { id: "0024_portal_customers", sql: `
+create table if not exists portal_customers (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id) on delete cascade,
+  phone text not null,
+  first_name text not null,
+  last_name text not null,
+  email text not null,
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now(),
+  unique (org_id, phone)
+);
+`.trim() },
 ];

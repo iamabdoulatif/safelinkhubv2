@@ -344,6 +344,7 @@ export const adminEn: AdminDictionary = {
       salesCommission: "Sales / commissions",
       commission: (amount) => `(${amount} in commissions)`,
       voucher: "Voucher",
+      client: "Customer",
       phone: "Phone",
       reference: "GeniusPay ref.",
       package: "Plan",
