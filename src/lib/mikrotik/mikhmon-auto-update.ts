@@ -45,8 +45,12 @@ type Sentence = Record<string, string>;
  * n'avait pas redémarré, et ce redémarrage n'aboutissait pas partout (vu sur
  * DIAK-HSPT). Plus de redémarrage requis. */
 export const MIKHMON_UI_VERSION = "ui-2";
-/** Image conteneur voulue sur tout le parc (tag immuable recommandé). */
-export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige";
+/** Image conteneur voulue sur tout le parc (tag immuable recommandé).
+ * ui-1 : prix-corrige + habillage SafeLinkHub CUIT dans l'image (skin inline).
+ * On bascule le parc dessus par re-création de conteneur (mécanisme 2) car le
+ * dépôt de fichiers à chaud s'est révélé non fiable (l'overlay du conteneur
+ * continuait de servir le headhtml cuit dans prix-corrige). */
+export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:ui-1";
 
 const UI_SYNC_ENABLED = true;
 
