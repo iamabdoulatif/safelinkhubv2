@@ -377,4 +377,8 @@ alter table router_regulation add column if not exists fup_ticket_state jsonb;` 
 alter table routers add column if not exists mikhmon_root_dir text;
 alter table routers add column if not exists mikhmon_container_running boolean;
 alter table routers add column if not exists mikhmon_seen_at timestamp;` },
+  // Marque qu'un routeur a reçu l'ouverture de l'accès LOCAL MikHmon (dst-nat
+  // 8087 + accepts walled-garden). La synchro réconcilie une seule fois par
+  // routeur sur ce drapeau. Miroir : scripts/add-mikhmon-local-access.sql.
+  { id: "0024_mikhmon_local_access", sql: `alter table routers add column if not exists mikhmon_local_access_at timestamp;` },
 ];

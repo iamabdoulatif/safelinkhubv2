@@ -20,6 +20,7 @@ import { enforceRouterSerialOnSync } from "./router-serial-lock";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { ensureMikhmonTunnelAccess } from "./mikhmon-tunnel-access";
+import { ensureMikhmonLocalAccess } from "./mikhmon-local-access";
 import { repairBrokenMikhmonContainer } from "./mikhmon-flash";
 import { ensureSshTunnelAccess } from "./ssh-tunnel-access";
 import { isWebAccessService } from "./remote-access-host";
@@ -284,6 +285,30 @@ export async function syncRouterStats(
       } catch {
         // Non-fatal — the port forward on the relay side is still valid,
         // and the NAT rule will be retried on the next successful sync.
+      }
+    }
+    // Accès LOCAL MikHmon (http://<passerelle>:8087 depuis le Wi-Fi). Sur les
+    // routeurs posés HORS auto-setup le walled-garden du hotspot est vide : un
+    // client non authentifié qui tape 10.0.0.1:8087 est rejeté/renvoyé au portail
+    // au lieu d'atteindre MikHmon (diagnostiqué sur MAMBA-WIFI, walled-garden
+    // vide, saut hotspot AVANT le dst-nat 8087). On réconcilie le dst-nat + les
+    // deux accepts walled-garden UNE fois par routeur (mikhmonLocalAccessAt) :
+    // la correction devient ainsi globale sur tout le parc sans clic sur le
+    // bouton de flotte, sans rejouer ~7 appels API à chaque sync. Idempotent,
+    // best-effort ; ensureMikhmonLocalAccess ne pose rien sans hotspot ni
+    // conteneur. On ne marque « traité » que si un hotspot existe, pour qu'un
+    // routeur qui en gagne un plus tard soit couvert au passage suivant.
+    if (!router.mikhmonLocalAccessAt) {
+      try {
+        const local = await ensureMikhmonLocalAccess(client);
+        if (local.gateway) {
+          await db
+            .update(routers)
+            .set({ mikhmonLocalAccessAt: new Date() })
+            .where(eq(routers.id, routerId));
+        }
+      } catch {
+        // Non-fatal — retenté à la prochaine synchro réussie.
       }
     }
     if (activeServices.has("ssh")) {
