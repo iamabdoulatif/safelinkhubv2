@@ -35,6 +35,7 @@ import { reposerPortailRouteur } from "@/lib/captive-templates/actions";
 import type { ActionDestructive } from "@/lib/mikrotik/action-destructive";
 import RouterDangerDialog from "../RouterDangerDialog";
 import MikhmonCredentialsDialog from "./MikhmonCredentialsDialog";
+import RouterOsDowngradeDialog from "./RouterOsDowngradeDialog";
 
 /**
  * Barre d'actions de la fiche routeur — quatre niveaux, pas huit boutons.
@@ -86,6 +87,7 @@ export default function HeaderActions({
   const [mikhmonError, setMikhmonError] = useState<string | null>(null);
   const [mikhmonSuccess, setMikhmonSuccess] = useState<string | null>(null);
   const [mikhmonRevealed, setMikhmonRevealed] = useState(false);
+  const [downgradeOpen, setDowngradeOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDialogElement>(null);
 
@@ -361,6 +363,16 @@ export default function HeaderActions({
                       setConfirming("reinstall");
                     }}
                   />
+                  <MenuItem
+                    icon={PackageOpen}
+                    label="Rétrograder RouterOS"
+                    hint="Télécharge une version 7.x plus ancienne et redémarre le routeur (ex. 7.25 → 7.8). Le Wi-Fi est coupé quelques minutes."
+                    danger
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setDowngradeOpen(true);
+                    }}
+                  />
                 </div>
               </details>
               </fieldset>
@@ -400,6 +412,14 @@ export default function HeaderActions({
           onClose={() => {
             if (!mikhmonResetting) setMikhmonOpen(false);
           }}
+        />
+      )}
+
+      {downgradeOpen && (
+        <RouterOsDowngradeDialog
+          routerId={routerId}
+          routerName={routerName}
+          onClose={() => setDowngradeOpen(false)}
         />
       )}
     </div>
