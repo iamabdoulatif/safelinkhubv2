@@ -1,6 +1,6 @@
 -- Fiche client du portail captif, renseignée à la PREMIÈRE commande d'un numéro
 -- (prénom/nom/email demandés sur la page de paiement). Reliée aux commandes par
--- (org_id, phone). Miroir embarqué : migrations.ts 0026.
+-- (org_id, phone). Miroir embarqué : migrations.ts 0027.
 create table if not exists portal_customers (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,

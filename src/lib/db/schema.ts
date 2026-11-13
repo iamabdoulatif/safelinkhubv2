@@ -242,6 +242,11 @@ export const routers = pgTable("routers", {
   mikhmonImage: text("mikhmon_image"),
   mikhmonRootDir: text("mikhmon_root_dir"),
   mikhmonContainerRunning: boolean("mikhmon_container_running"),
+  // Version d'habillage MikHmon réellement DÉPOSÉE + servie sur ce routeur
+  // (après redémarrage du conteneur pour servir les fichiers neufs comme la
+  // skin). Persisté pour ne déposer+redémarrer qu'UNE fois par version, sans
+  // rejouer un redémarrage à chaque déploiement. Voir mikhmon-auto-update.ts.
+  mikhmonUiVersion: text("mikhmon_ui_version"),
   // Null = jamais relevé (routeur jamais synchronisé depuis ce correctif).
   // Distinguer « pas de conteneur » (relevé, image nulle) de « pas encore vu ».
   mikhmonSeenAt: timestamp("mikhmon_seen_at"),

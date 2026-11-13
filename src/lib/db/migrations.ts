@@ -386,9 +386,13 @@ alter table routers add column if not exists mikhmon_seen_at timestamp;` },
   // à null pour que la synchro repasse UNE fois sur tout le parc avec le correctif
   // complet. Idempotent (rejoué = re-null, sans effet). Miroir : scripts/rearm-mikhmon-local-access.sql.
   { id: "0025_rearm_mikhmon_local_access", sql: `update routers set mikhmon_local_access_at = null;` },
+  // Version d'habillage MikHmon déposée+servie (après redémarrage conteneur).
+  // Colonne null = jamais appliquée → la synchro dépose + redémarre une fois.
+  // Miroir : scripts/add-mikhmon-ui-version.sql.
+  { id: "0026_mikhmon_ui_version", sql: `alter table routers add column if not exists mikhmon_ui_version text;` },
   // Fiche client du portail (prénom/nom/email) saisie à la 1re commande d'un
   // numéro, reliée aux commandes par (org_id, phone). Miroir : scripts/add-portal-customers.sql.
-  { id: "0026_portal_customers", sql: `
+  { id: "0027_portal_customers", sql: `
 create table if not exists portal_customers (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
