@@ -83,7 +83,7 @@ export async function createRemoteAccessGrant(input: {
   durationKey: TemporaryAccessDuration;
   reason: TemporaryAccessReason;
   note?: string | null;
-  createdBy: string;
+  createdBy?: string | null;
   startsAt?: Date;
 }) {
   const startsAt = input.startsAt ?? new Date();
@@ -99,10 +99,49 @@ export async function createRemoteAccessGrant(input: {
       status: startsAt.getTime() > Date.now() ? "scheduled" : "active",
       reason: input.reason,
       note: input.note?.trim() || null,
-      createdBy: input.createdBy,
+      createdBy: input.createdBy ?? null,
     })
     .returning();
   return row;
+}
+
+/**
+ * Accès VPN offert d'un mois, sur TOUS les services, CIBLÉ sur ce seul routeur
+ * (routerId renseigné → grantCovers ne couvre que lui, pas les autres routeurs
+ * du client). Appelé après le premier auto-setup réussi d'un nouveau routeur.
+ * Idempotent : marqué par NEW_ROUTER_WELCOME_NOTE, créé une seule fois par
+ * routeur même si l'auto-setup est rejoué.
+ */
+export const NEW_ROUTER_WELCOME_NOTE = "Accès VPN 1 mois offert — nouveau routeur (auto)";
+
+export async function grantNewRouterWelcomeAccess(
+  orgId: string,
+  routerId: string,
+  createdBy?: string | null,
+) {
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: remoteAccessGrants.id })
+    .from(remoteAccessGrants)
+    .where(
+      and(
+        eq(remoteAccessGrants.routerId, routerId),
+        eq(remoteAccessGrants.note, NEW_ROUTER_WELCOME_NOTE),
+      ),
+    )
+    .limit(1);
+  if (existing) return { created: false as const, grant: null };
+
+  const grant = await createRemoteAccessGrant({
+    orgId,
+    routerId,
+    services: [], // vide = tous les services / tous les ports
+    durationKey: "month_1",
+    reason: "promo",
+    note: NEW_ROUTER_WELCOME_NOTE,
+    createdBy: createdBy ?? null,
+  });
+  return { created: true as const, grant };
 }
 
 export async function revokeRemoteAccessGrant(id: string, revokedBy: string, revokeReason: string) {
