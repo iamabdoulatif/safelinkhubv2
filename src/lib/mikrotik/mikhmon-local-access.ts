@@ -21,6 +21,7 @@
 import type { RouterOSClient } from "./client";
 import { DOCKER_WEB_PORT } from "./constants";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
+import { looksLikeMikhmonContainer } from "./port-forward-rules";
 
 type Row = Record<string, string>;
 const NAT_COMMENT = "Docker NAT"; // même commentaire que l'auto-setup
@@ -52,6 +53,17 @@ export async function ensureMikhmonLocalAccess(
   if (!gateway) {
     return { gateway: null, natAdded: false, walledGardenAdded: false, containerWalledGardenAdded: false, note: "Aucun serveur hotspot : rien à ouvrir (MikHmon local passe par la passerelle du hotspot)." };
   }
+
+  // Pas de conteneur MikHmon → ne RIEN poser : sinon le passage de réconciliation
+  // de la synchro (qui balaie tout le parc) ajouterait un dst-nat vers un
+  // 11.11.11.11 où personne n'écoute et deux accepts walled-garden inertes sur
+  // des routeurs hotspot sans MikHmon. On renvoie quand même la passerelle pour
+  // que l'appelant marque le routeur « traité » et ne ré-essaie pas à chaque sync.
+  const containers = await client.talk(["/container/print"], timeoutMs).catch(() => [] as Row[]);
+  if (!containers.some((row) => looksLikeMikhmonContainer(row))) {
+    return { gateway, natAdded: false, walledGardenAdded: false, containerWalledGardenAdded: false, note: "Aucun conteneur MikHmon sur ce routeur : rien à ouvrir." };
+  }
+
   const containerIp = await resolveMikhmonContainerAddress(client).catch(() => "11.11.11.11");
 
   // 1) dst-nat <gateway>:8087 → conteneur:80. Le filtre API ?dst-port est peu

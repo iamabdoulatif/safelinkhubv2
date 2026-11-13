@@ -7,6 +7,7 @@ import {
   selectRecoverableHotspotSessions,
   selectMikhmonSchedulers,
   selectPurgeRows,
+  recentSalesOwnerKeys,
   type BackupSection,
 } from "./router-backup";
 import type { ResolvedHotspotTicket } from "./hotspot-restore-reconciliation";
@@ -301,5 +302,28 @@ describe("cookies hotspot : même relais MAC que les sessions actives", () => {
     assert.equal(sessions.length, 1);
     assert.equal(sessions[0].macAddress, "9A:7E:F0:28:2C:ED");
     assert.equal(sessions[0].profile, "02-HEURES");
+  });
+});
+
+describe("recentSalesOwnerKeys (fenêtre de sauvegarde des ventes)", () => {
+  it("rend le mois courant + les 2 précédents au format MMYYYY", () => {
+    // 13 nov. 2026 -> nov, oct, sept.
+    assert.deepEqual(recentSalesOwnerKeys(new Date("2026-11-13T10:00:00Z")), [
+      "112026",
+      "102026",
+      "092026",
+    ]);
+  });
+
+  it("franchit la bascule d'année (janv. -> déc./nov. de l'an d'avant)", () => {
+    assert.deepEqual(recentSalesOwnerKeys(new Date("2027-01-05T00:00:00Z")), [
+      "012027",
+      "122026",
+      "112026",
+    ]);
+  });
+
+  it("le nombre de mois est réglable", () => {
+    assert.deepEqual(recentSalesOwnerKeys(new Date("2026-03-20T00:00:00Z"), 1), ["032026"]);
   });
 });
