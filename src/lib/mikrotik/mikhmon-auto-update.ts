@@ -38,7 +38,12 @@ import type { RouterOSClient } from "./client";
 
 type Sentence = Record<string, string>;
 
-/** À incrémenter à chaque refonte d'HABILLAGE (re-dépose les fichiers UI). */
+/** À incrémenter à chaque refonte d'HABILLAGE (re-dépose les fichiers UI).
+ * ui-2 : la skin est désormais INLINE dans headhtml.php (un <style>), plus un
+ * fichier css/safelink-skin.css séparé — un ÉCRASEMENT de headhtml.php est servi
+ * à chaud, alors qu'un fichier CSS NEUF restait 404 tant que le conteneur
+ * n'avait pas redémarré, et ce redémarrage n'aboutissait pas partout (vu sur
+ * DIAK-HSPT). Plus de redémarrage requis. */
 export const MIKHMON_UI_VERSION = "ui-2";
 /** Image conteneur voulue sur tout le parc (tag immuable recommandé). */
 export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige";
@@ -59,17 +64,23 @@ const IMAGE_UPDATE_CANARY_IDS: string[] = [];
 const IMAGE_UPDATE_MAX_PER_PROCESS = 5;
 
 /** Fichiers d'habillage : servis par l'app, déposés dans le conteneur. */
+// La skin voyage INLINE dans headhtml.php (voir MIKHMON_UI_VERSION) : on ne
+// dépose que des ÉCRASEMENTS de fichiers existants, servis à chaud sans
+// redémarrage. On ne dépose plus css/safelink-skin.css (fichier neuf = 404 tant
+// que le conteneur n'a pas redémarré).
+//
+// mikhmon-responsive.css échappe à cette règle : il est CUIT DANS L'IMAGE (il
+// existe donc déjà sur le routeur, relevé en HTTP 200 sur COUZA comme sur
+// MAMBA-WIFI le 31/10), et headhtml.php le charge depuis la PR #79. Le déposer
+// est un ÉCRASEMENT, pas un ajout — servi à chaud comme les deux autres.
+// Et s'il manquait sur un routeur, le dépôt serait simplement sans effet
+// jusqu'au redémarrage : même situation qu'aujourd'hui, aucune régression.
 export const UI_FILES: { url: string; dst: string }[] = [
-  { url: "mikhmon-ui/safelink-skin.css", dst: "css/safelink-skin.css" },
-  // headhtml.php charge mikhmon-responsive.css : sans ce dépôt, le lien pointe
-  // dans le vide sur tout routeur qui ne l'a pas reçu à la main (COUZA l'avait,
-  // le reste du parc non — l'interface admin y restait non responsive).
   { url: "mikhmon-ui/mikhmon-responsive.css", dst: "css/mikhmon-responsive.css" },
   { url: "mikhmon-ui/headhtml.txt", dst: "include/headhtml.php" },
   { url: "mikhmon-ui/sessions.txt", dst: "settings/sessions.php" },
 ];
 
-const done = new Map<string, string>();
 let recreatesThisProcess = 0;
 
 type Container = { id: string; rootDir: string; remoteImage: string; running: boolean };
@@ -220,6 +231,24 @@ async function waitRunning(client: RouterOSClient, maxMs = 180000, pollMs = 1000
 }
 
 /**
+ * Redémarre le conteneur MikHmon (stop/start) pour qu'il SERVE les fichiers
+ * d'habillage NEUFS déposés. Un fichier qui n'existait pas dans l'image (ex.
+ * `css/safelink-skin.css`) reste 404 tant que le conteneur tourne : l'overlay
+ * du conteneur en marche ne révèle pas un nouveau fichier déposé dans son
+ * root-dir (les ÉCRASEMENTS de fichiers existants, eux, sont servis à chaud).
+ * Un simple stop/start re-fusionne l'overlay sans ré-extraire l'image. Bornes
+ * courtes ; best-effort. Vérifié sur ASSOINDE (skin 404 → 200 après redémarrage).
+ */
+export async function restartMikhmonContainer(client: RouterOSClient): Promise<boolean> {
+  const c = await findMikhmonContainer(client);
+  if (!c?.id) return false;
+  await client.talk(["/container/stop", `=numbers=${c.id}`]).catch(() => {});
+  await waitStopped(client, c.id, 20000, 2000);
+  await client.talk(["/container/start", `=numbers=${c.id}`]).catch(() => {});
+  return waitRunning(client, 45000, 5000);
+}
+
+/**
  * Re-crée le conteneur MikHmon sur `image`, en préservant la session. Renvoie
  * un statut. Suppose l'allowlist/cap déjà vérifiés par l'appelant.
  */
@@ -292,6 +321,35 @@ export async function ensureMikhmonImage(client: RouterOSClient, routerId: strin
 
 /* ═══════════════════════ Orchestrateur (appelé à la synchro) ════════════ */
 
+/**
+ * Relève l'état du conteneur dans la base (inventaire du parc).
+ *
+ * Appelé APRÈS l'éventuelle mise à jour d'image, pour que l'image enregistrée
+ * soit celle qui tourne vraiment à la fin du passage.
+ *
+ * Pas de conteneur = on écrit des NULL mais on horodate quand même : « relevé,
+ * sans conteneur » et « jamais relevé » sont deux états distincts, et seul
+ * `mikhmonSeenAt` les sépare.
+ *
+ * Ne lève jamais : un inventaire manquant ne doit pas faire échouer une synchro.
+ */
+export async function recordMikhmonInventory(client: RouterOSClient, routerId: string): Promise<void> {
+  try {
+    const c = await findMikhmonContainer(client).catch(() => null);
+    await getDb()
+      .update(routers)
+      .set({
+        mikhmonImage: c?.remoteImage || null,
+        mikhmonRootDir: c?.rootDir || null,
+        mikhmonContainerRunning: c ? c.running : null,
+        mikhmonSeenAt: new Date(),
+      })
+      .where(eq(routers.id, routerId));
+  } catch {
+    /* inventaire best-effort */
+  }
+}
+
 export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerId: string): Promise<void> {
   // 1) Image D'ABORD : si on re-crée le conteneur, il repart sur l'image NUE
   //    (l'habillage n'est pas cuit dedans) — il faut re-déposer les fichiers
@@ -301,11 +359,32 @@ export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerI
     const res = await ensureMikhmonImage(client, routerId).catch(() => "error");
     imageUpdated = res === "updated";
   }
-  // 2) Habillage : si la version a changé OU si le conteneur vient d'être
-  //    re-créé (conteneur neuf sans les fichiers), on (re)dépose.
-  const tag = `${MIKHMON_UI_VERSION}`;
-  if (UI_SYNC_ENABLED && (done.get(routerId) !== tag || imageUpdated)) {
-    await ensureMikhmonUiFiles(client).catch(() => {});
-    done.set(routerId, tag);
+  // 2) Habillage : déposer les fichiers de présentation (ÉCRASEMENTS de fichiers
+  //    existants → servis à chaud, AUCUN redémarrage requis, la skin est inline
+  //    dans headhtml.php). Borné à UNE fois par version via
+  //    routers.mikhmon_ui_version (PERSISTÉ) : un simple redéploiement de l'app
+  //    ne re-dépose donc pas sur les 59 conteneurs. Se relance aussi si le
+  //    conteneur vient d'être re-créé (neuf, sans habillage).
+  if (UI_SYNC_ENABLED) {
+    const [row] = await getDb()
+      .select({ v: routers.mikhmonUiVersion })
+      .from(routers)
+      .where(eq(routers.id, routerId))
+      .limit(1)
+      .catch(() => [] as { v: string | null }[]);
+    if (imageUpdated || row?.v !== MIKHMON_UI_VERSION) {
+      const n = await ensureMikhmonUiFiles(client).catch(() => -1);
+      if (n > 0) {
+        await getDb()
+          .update(routers)
+          .set({ mikhmonUiVersion: MIKHMON_UI_VERSION })
+          .where(eq(routers.id, routerId))
+          .catch(() => {});
+      }
+    }
   }
+  // 3) Inventaire : on garde l'état du conteneur au lieu de le jeter. Une
+  //    lecture /container/print de plus toutes les 5 min, contre la seule
+  //    réponse fiable à « quelle génération tourne sur quel routeur ? ».
+  await recordMikhmonInventory(client, routerId);
 }

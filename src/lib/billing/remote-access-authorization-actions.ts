@@ -10,6 +10,7 @@ import { getDb } from "@/lib/db";
 import { routers, remoteAccessAuthorizations, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import { getUserGeniusCustomer } from "@/lib/payment-gateways/customer";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { getSafecoinBalance, appendSafecoinDebit } from "@/lib/safecoin/ledger";
 import { vpnActivationChargeScCents } from "@/lib/safecoin/service-charges";
@@ -191,6 +192,9 @@ export async function startRemoteAccessPayment(formData: FormData): Promise<
   const routerId = String(formData.get("routerId") ?? "");
   const service = String(formData.get("service") ?? "");
   const billingPeriod = String(formData.get("billingPeriod") ?? "");
+  // Numéro saisi au paiement : prime sur celui du profil (souvent absent) pour
+  // que GeniusPay reçoive un téléphone sur chaque transaction d'accès distant.
+  const phoneInput = String(formData.get("phone") ?? "").trim();
 
   if (!routerId) return { error: "Routeur manquant." };
   if (!isRemoteAccessService(service)) return { error: "Service invalide." };
@@ -230,7 +234,7 @@ export async function startRemoteAccessPayment(formData: FormData): Promise<
   const payment = await createGeniusPayment({
     amountFcfa,
     description: `Accès distant ${serviceLabel(service)} — ${periodLabel(billingPeriod)} — ${router.name ?? "routeur"}`,
-    customer: { name: session.name, email: session.email },
+    customer: { ...(await getUserGeniusCustomer(session.userId)), ...(phoneInput ? { phone: phoneInput } : {}) },
     metadata: {
       kind: "remote_access",
       authorizationId: row.id,

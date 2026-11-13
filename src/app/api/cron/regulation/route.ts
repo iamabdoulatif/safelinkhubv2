@@ -16,6 +16,7 @@ import { notifierClients } from "@/lib/mikrotik/regulation-notify";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
 import { runStarlinkFup } from "@/lib/mikrotik/starlink-fup-service";
 import { isFiberExempt } from "@/lib/mikrotik/link-usage";
+import { bearerMatches } from "@/lib/auth/bearer";
 
 export const maxDuration = 300;
 
@@ -49,7 +50,7 @@ const BUDGET_MS = 240_000;
 const CONCURRENCE = 4;
 
 export async function GET(request: NextRequest) {
-  if (request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!bearerMatches(request, process.env.CRON_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
 

@@ -29,10 +29,29 @@ test("assets servis == fichiers de l'image (pas de dérive)", () => {
 // chargé par headhtml.php et vivait sur COUZA, mais n'était NI dans le dépôt NI
 // dans UI_FILES — aucun autre routeur ne l'a jamais reçu. Un asset posé dans
 // public/mikhmon-ui/ sans entrée UI_FILES n'est déposé sur AUCUN routeur.
-test("tout asset de public/mikhmon-ui est bien distribué (présent dans UI_FILES)", () => {
+/**
+ * Assets présents dans le dépôt mais VOLONTAIREMENT non déposés. Toute entrée
+ * ici doit porter sa raison : l'exemption est la porte de sortie du garde-fou,
+ * elle ne doit pas pouvoir s'élargir en silence.
+ */
+const NON_DEPOSES: Record<string, string> = {
+  // La skin voyage INLINE dans headhtml.php depuis ui-2 : un fichier CSS NEUF
+  // restait 404 tant que le conteneur n'avait pas redémarré (DIAK-HSPT). Le
+  // fichier reste au dépôt car l'IMAGE le contient (Dockerfile), mais il n'est
+  // plus poussé par /tool fetch.
+  "safelink-skin.css": "inline dans headhtml.php depuis ui-2",
+};
+
+test("tout asset de public/mikhmon-ui est distribué, ou exempté avec sa raison", () => {
   const served = new Set(UI_FILES.map((f) => f.url.replace(/^mikhmon-ui\//, "")));
   const onDisk = readdirSync(join(ROOT, "public/mikhmon-ui"));
   for (const file of onDisk) {
+    if (NON_DEPOSES[file]) continue;
     assert.ok(served.has(file), `public/mikhmon-ui/${file} n'est dans aucune entrée UI_FILES`);
+  }
+  // L'exemption doit rester vraie dans l'autre sens : un fichier listé comme
+  // non déposé mais présent dans UI_FILES signale une exemption périmée.
+  for (const file of Object.keys(NON_DEPOSES)) {
+    assert.ok(!served.has(file), `${file} est exempté alors qu'UI_FILES le dépose`);
   }
 });

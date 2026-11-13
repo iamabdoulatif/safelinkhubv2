@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { migrateMikhmonToFlash, isBrokenMikhmonContainer } from "./mikhmon-flash";
+import { migrateMikhmonToFlash, isBrokenMikhmonContainer, repairBrokenMikhmonContainer } from "./mikhmon-flash";
 
 /** Routeur simulé : un seul conteneur MikHmon, qui démarre au premier essai. */
 function routerWithContainer(rootDir: string) {
@@ -27,6 +27,27 @@ function routerWithContainer(rootDir: string) {
 }
 
 describe("réinstallation du conteneur MikHmon", () => {
+  it("relance un conteneur persistant arrêté et le rend persistant au reboot", async () => {
+    const calls: string[][] = [];
+    const client = {
+      async talk(words: string[]) {
+        calls.push(words);
+        if (words[0] === "/container/print") {
+          return [{ ".id": "*1", name: "mikhmon", "root-dir": "usb1/mikhmon-app", "remote-image": "img:1", interface: "MIKHMON", status: "stopped" }];
+        }
+        return [] as Record<string, string>[];
+      },
+    };
+
+    const log: string[] = [];
+    const result = await repairBrokenMikhmonContainer(client as never, log);
+
+    assert.deepEqual(result, { repaired: true, reason: "conteneur arrêté relancé" });
+    assert.ok(calls.some((w) => w[0] === "/container/set" && w.includes("=start-on-boot=yes")));
+    assert.ok(calls.some((w) => w[0] === "/container/start" && w.includes("=numbers=*1")));
+    assert.match(log[0] ?? "", /AUTO-DÉMARRAGE/);
+  });
+
   it("refuse de toucher un conteneur persistant sans force", async () => {
     const { calls, client } = routerWithContainer("usb1/mikhmon");
     const result = await migrateMikhmonToFlash(client as never, { pollMs: 1 });

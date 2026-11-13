@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { sendConversionAlertEmail } from "@/lib/auth/email";
+import { bearerMatches } from "@/lib/auth/bearer";
 
 export const maxDuration = 60;
 
@@ -15,8 +16,7 @@ export const maxDuration = 60;
  * les faux positifs d'un jour à faible trafic.
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!bearerMatches(request, process.env.CRON_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
 

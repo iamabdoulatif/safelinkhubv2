@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { captureAllOnlineRouters, captureRouterBackup } from "@/lib/mikrotik/router-backup";
+import { bearerMatches } from "@/lib/auth/bearer";
 
 export const maxDuration = 800;
 
@@ -17,8 +18,7 @@ export const maxDuration = 800;
  * API passent toutes par le même relais, qu'une salve concurrente fait tomber.
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!bearerMatches(request, process.env.CRON_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
 

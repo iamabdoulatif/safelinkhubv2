@@ -228,6 +228,33 @@ export const routers = pgTable("routers", {
   // SafeLinkHub à la place du « 1234 » d'usine (hardening.ts), chiffré
   // (encryptSecret). Consultable par le propriétaire dans l'admin du routeur.
   mikhmonAdminPasswordEncrypted: text("mikhmon_admin_password_encrypted"),
+  // INVENTAIRE DU CONTENEUR MikHmon, relevé à chaque synchro.
+  //
+  // `reconcileMikhmonAutoUpdate` lisait déjà /container/print toutes les 5 min
+  // sur chaque routeur, puis jetait le résultat. On le garde : sans ça, aucune
+  // réponse à « combien de routeurs sont encore en MikHmon v3 ? » sans
+  // interroger les 59 routeurs en direct — lent, et faux pour ceux hors ligne.
+  //
+  // `mikhmonImage` est l'image BRUTE (`latif225/mikhmonv3-safelinkhub:latest`,
+  // `ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige`…) : on classe v3/v7 à la
+  // LECTURE, pas à l'écriture — une génération future ne demandera pas de
+  // migration de données.
+  mikhmonImage: text("mikhmon_image"),
+  mikhmonRootDir: text("mikhmon_root_dir"),
+  mikhmonContainerRunning: boolean("mikhmon_container_running"),
+  // Version d'habillage MikHmon réellement DÉPOSÉE + servie sur ce routeur
+  // (après redémarrage du conteneur pour servir les fichiers neufs comme la
+  // skin). Persisté pour ne déposer+redémarrer qu'UNE fois par version, sans
+  // rejouer un redémarrage à chaque déploiement. Voir mikhmon-auto-update.ts.
+  mikhmonUiVersion: text("mikhmon_ui_version"),
+  // Null = jamais relevé (routeur jamais synchronisé depuis ce correctif).
+  // Distinguer « pas de conteneur » (relevé, image nulle) de « pas encore vu ».
+  mikhmonSeenAt: timestamp("mikhmon_seen_at"),
+  // Accès LOCAL MikHmon (walled-garden hotspot) réconcilié une fois par routeur
+  // par la synchro : non-null = le dst-nat 8087 + les accepts walled-garden ont
+  // été posés. Borne le correctif à UN passage (≈7 appels API) au lieu de le
+  // rejouer à chaque sync. Voir mikhmon-local-access.ts.
+  mikhmonLocalAccessAt: timestamp("mikhmon_local_access_at"),
   installTokenHash: text("install_token_hash"),
   installTokenExpiresAt: timestamp("install_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

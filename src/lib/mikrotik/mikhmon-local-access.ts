@@ -1,37 +1,43 @@
 // Laisser passer MikHmon EN LOCAL (depuis le Wi-Fi de l'organisation).
 //
-// MikHmon tourne dans le conteneur (11.11.11.11:80) et est joignable à
-// `http://<passerelle-hotspot>:8087` via un dst-nat. Mais le hotspot BLOQUE les
-// clients non authentifiés avant qu'ils atteignent ce port : taper
-// `10.10.0.1:8087` dans le navigateur ne répond pas. Il manque TROIS choses :
-//   1. le dst-nat 8087 → conteneur:80 (absent sur les routeurs hors auto-setup) ;
-//   2. une règle hotspot walled-garden-ip qui ACCEPTE le port 8087 avant login ;
-//   3. une règle walled-garden-ip qui accepte aussi l'IP DU CONTENEUR (11.11.11.11).
+// MikHmon tourne dans le conteneur (11.11.11.11:80), joignable à
+// `http://<passerelle-hotspot>:8087` via un dst-nat. Le hotspot bloque pourtant
+// l'accès, et de DEUX façons selon que le client est connecté au hotspot ou non.
 //
-// Pourquoi (3) : le dst-nat (1) est évalué AVANT le saut hotspot dans la chaîne
-// dstnat. Pour un client NON authentifié (l'admin sur son téléphone, pas connecté
-// au hotspot), la destination est déjà réécrite en 11.11.11.11 quand le hotspot
-// vérifie son walled-garden — qui n'autorise que 10.0.0.1:8087 (la destination
-// d'ORIGINE). Elle ne correspond plus → le client est REDIRIGÉ vers le portail au
-// lieu d'atteindre MikHmon. Autoriser aussi l'IP conteneur (destination APRÈS NAT)
-// lève ce blocage. Diagnostiqué sur RUE-NICOLAS (conteneur OK en direct, NAT +
-// walled-garden 8087 présents, mais accès local toujours redirigé).
+// Chaîne nat du hotspot : saut `dstnat → hotspot` ; `hotspot → pre-hotspot` EN
+// PREMIER ; puis redirections `local-dst 80/443` ; puis `hotspot=!auth → hs-unauth`
+// (clients NON connectés) et `hotspot=auth → hs-auth` (clients connectés). La
+// règle `hs-auth ... hotspot=http action=redirect` est TERMINANTE : elle renvoie
+// le client connecté au proxy (page de statut) AVANT que le dst-nat « Docker NAT »
+// (placé APRÈS le saut hotspot) ne s'exécute. Résultat : `10.0.0.1:8087` renvoie
+// à la page de statut du portail au lieu de MikHmon. Diagnostiqué sur
+// ASSOINDE-WIFI (client admin@ connecté).
 //
-// Cette fonction pose les trois si elles manquent. Idempotente.
+// On pose donc QUATRE choses, idempotentes :
+//   1. le dst-nat 8087 → conteneur:80 dans `dstnat` (compat / routeurs hors auto-setup) ;
+//   2. walled-garden-ip ACCEPT du port 8087 (déverrouille le client NON connecté) ;
+//   3. walled-garden-ip ACCEPT de l'IP conteneur (filtre forward du client NON connecté) ;
+//   4. **le dst-nat 8087 → conteneur:80 dans la chaîne `pre-hotspot`** : elle est
+//      parcourue EN PREMIER (avant la redirection proxy hs-auth) et dst-nat y est
+//      terminant, donc le paquet part vers MikHmon sans voir le proxy — ce qui
+//      corrige le cas du client CONNECTÉ, celui des 2-4 qui manquait vraiment.
 import type { RouterOSClient } from "./client";
 import { DOCKER_WEB_PORT } from "./constants";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
+import { looksLikeMikhmonContainer } from "./port-forward-rules";
 
 type Row = Record<string, string>;
 const NAT_COMMENT = "Docker NAT"; // même commentaire que l'auto-setup
 const WG_COMMENT = "MikHmon local";
 const WG_CONTAINER_COMMENT = "MikHmon container";
+const PRE_HOTSPOT_COMMENT = "MikHmon local pre-hotspot";
 
 export type MikhmonLocalAccessResult = {
   gateway: string | null;
   natAdded: boolean;
   walledGardenAdded: boolean;
   containerWalledGardenAdded: boolean;
+  preHotspotNatAdded: boolean;
   note?: string;
 };
 
@@ -50,8 +56,19 @@ export async function ensureMikhmonLocalAccess(
 ): Promise<MikhmonLocalAccessResult> {
   const gateway = await hotspotGateway(client, timeoutMs);
   if (!gateway) {
-    return { gateway: null, natAdded: false, walledGardenAdded: false, containerWalledGardenAdded: false, note: "Aucun serveur hotspot : rien à ouvrir (MikHmon local passe par la passerelle du hotspot)." };
+    return { gateway: null, natAdded: false, walledGardenAdded: false, containerWalledGardenAdded: false, preHotspotNatAdded: false, note: "Aucun serveur hotspot : rien à ouvrir (MikHmon local passe par la passerelle du hotspot)." };
   }
+
+  // Pas de conteneur MikHmon → ne RIEN poser : sinon le passage de réconciliation
+  // de la synchro (qui balaie tout le parc) ajouterait un dst-nat vers un
+  // 11.11.11.11 où personne n'écoute et deux accepts walled-garden inertes sur
+  // des routeurs hotspot sans MikHmon. On renvoie quand même la passerelle pour
+  // que l'appelant marque le routeur « traité » et ne ré-essaie pas à chaque sync.
+  const containers = await client.talk(["/container/print"], timeoutMs).catch(() => [] as Row[]);
+  if (!containers.some((row) => looksLikeMikhmonContainer(row))) {
+    return { gateway, natAdded: false, walledGardenAdded: false, containerWalledGardenAdded: false, preHotspotNatAdded: false, note: "Aucun conteneur MikHmon sur ce routeur : rien à ouvrir." };
+  }
+
   const containerIp = await resolveMikhmonContainerAddress(client).catch(() => "11.11.11.11");
 
   // 1) dst-nat <gateway>:8087 → conteneur:80. Le filtre API ?dst-port est peu
@@ -112,5 +129,31 @@ export async function ensureMikhmonLocalAccess(
     containerWalledGardenAdded = true;
   }
 
-  return { gateway, natAdded, walledGardenAdded, containerWalledGardenAdded };
+  // 4) dst-nat 8087 → conteneur:80 DANS LA CHAÎNE pre-hotspot. C'EST le correctif
+  //    du client CONNECTÉ : pre-hotspot est parcourue en tout premier (avant la
+  //    redirection proxy hs-auth « hotspot=http »), et dst-nat y est terminant —
+  //    le paquet part vers MikHmon sans jamais voir le proxy, connecté ou non.
+  //    Survit au redémarrage du hotspot (celui-ci recrée le SAUT vers pre-hotspot,
+  //    pas son contenu). Diagnostiqué sur ASSOINDE-WIFI.
+  const preHotspot = (await client
+    .talk(["/ip/firewall/nat/print", "?chain=pre-hotspot", "?action=dst-nat"], timeoutMs)
+    .catch(() => [] as Row[]))
+    .filter((r) => r["dst-port"] === port);
+  let preHotspotNatAdded = false;
+  if (preHotspot.length === 0) {
+    await client.talk([
+      "/ip/firewall/nat/add",
+      "=chain=pre-hotspot",
+      `=dst-address=${gateway}`,
+      `=dst-port=${DOCKER_WEB_PORT}`,
+      "=protocol=tcp",
+      "=action=dst-nat",
+      `=to-addresses=${containerIp}`,
+      "=to-ports=80",
+      `=comment=${PRE_HOTSPOT_COMMENT}`,
+    ], timeoutMs);
+    preHotspotNatAdded = true;
+  }
+
+  return { gateway, natAdded, walledGardenAdded, containerWalledGardenAdded, preHotspotNatAdded };
 }

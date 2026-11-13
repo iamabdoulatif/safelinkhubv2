@@ -210,7 +210,24 @@ export async function repairBrokenMikhmonContainer(
 
   const config = (await client.talk(["/container/config/print"], 20000).catch(() => []))[0] ?? {};
   if (!isBrokenMikhmonContainer(mk, config["layer-dir"])) {
-    return { repaired: false, reason: "conteneur sain" };
+    // A forward MikhHmon actif is an explicit contract that the managed
+    // container must serve traffic.  RouterOS can leave a coherent container
+    // stopped after a reboot, a failed manual restart, or an operator action;
+    // treating that state as "healthy" produced the exact symptom seen in
+    // production: the VPN/API was reachable while the public web forward was
+    // silently empty.  Start it idempotently and persist the intent across the
+    // next reboot.  Corrupt states still take the reinstall path below.
+    const running = mk.running === "true" || String(mk.status ?? "").toLowerCase() === "running";
+    if (running) return { repaired: false, reason: "conteneur sain" };
+
+    if (!mk[".id"]) return { repaired: false, reason: "conteneur arrêté sans identifiant" };
+
+    await client
+      .talk(["/container/set", `=numbers=${mk[".id"]}`, "=start-on-boot=yes"], 20000)
+      .catch(() => {});
+    await client.talk(["/container/start", `=numbers=${mk[".id"]}`], 20000);
+    log?.push("AUTO-DÉMARRAGE MikHmon : conteneur arrêté relancé (start-on-boot=yes)");
+    return { repaired: true, reason: "conteneur arrêté relancé" };
   }
 
   const result = await migrateMikhmonToFlash(client, { force: true, maxWaitMs: 15000 });

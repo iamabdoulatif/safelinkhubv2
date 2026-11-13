@@ -6,7 +6,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, X, Loader2 } from "lucide-react";
+import { Check, X, Loader2, Download } from "lucide-react";
 import {
   formatFcfa,
   mikrotikKindLabel,
@@ -23,6 +23,10 @@ type BaseRow = {
   id: string;
   requesterName: string;
   requesterEmail: string;
+  /** Téléphone international du client (joint depuis la fiche utilisateur), ou null. */
+  phone: string | null;
+  /** Référence GeniusPay de la transaction, ou null. */
+  paymentReference: string | null;
   routerName: string | null;
   amountFcfa: number;
   paymentMethod: string;
@@ -151,6 +155,7 @@ function RequestCard({
             </span>
           </div>
           <p className="truncate text-sm text-ink-soft">{row.requesterEmail}</p>
+          {row.phone && <p className="text-sm text-ink-soft">{row.phone}</p>}
           <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-sm text-ink-soft sm:grid-cols-2">
             <span>
               Routeur : <span className="text-ink">{row.routerName ?? "—"}</span>
@@ -166,6 +171,10 @@ function RequestCard({
             </span>
             <span>
               Moyen : <span className="text-ink">{methodLabel(row.paymentMethod)}</span>
+            </span>
+            <span className="sm:col-span-2">
+              Référence GeniusPay :{" "}
+              <span className="font-mono text-ink">{row.paymentReference ?? "—"}</span>
             </span>
             <span>
               Demande : <span className="text-ink">{formatDate(row.createdAt)}</span>
@@ -275,11 +284,17 @@ function SerialUnlockCard({ row }: { row: SerialUnlockRow }) {
 export default function AuthorizationsView({
   autoSetup,
   remoteAccess,
+  autoSetupCsvHref,
+  remoteAccessCsvHref,
   featureAccess,
   serialUnlock,
 }: {
   autoSetup: AutoSetupRow[];
   remoteAccess: RemoteAccessRow[];
+  /** Lien `data:` CSV (réf GeniusPay + nom/email/téléphone) des demandes Auto-Setup. */
+  autoSetupCsvHref: string;
+  /** Idem pour les demandes d'accès distant (VPN). */
+  remoteAccessCsvHref: string;
   featureAccess: FeatureAccessRow[];
   serialUnlock: SerialUnlockRow[];
 }) {
@@ -340,6 +355,18 @@ export default function AuthorizationsView({
         </div>
       ) : (
         <div className="mt-6 space-y-3">
+          {(tab === "auto_setup" || tab === "remote_access") && (
+            <div className="flex justify-end">
+              <a
+                href={tab === "auto_setup" ? autoSetupCsvHref : remoteAccessCsvHref}
+                download={`${tab === "auto_setup" ? "auto-setup" : "vpn"}-transactions.csv`}
+                className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-clay"
+              >
+                <Download aria-hidden="true" className="h-4 w-4" />
+                Télécharger CSV
+              </a>
+            </div>
+          )}
           {tab === "feature_access" &&
             featureAccess.map((r) => <FeatureAccessCard key={r.id} row={r} />)}
           {tab === "serial_unlock" &&

@@ -5,6 +5,7 @@ import { routerMikhmonCloudInstances, routers, routerPortForwards } from "@/lib/
 import { getRelayPublicHost } from "@/lib/mikrotik/relay";
 import { buildRelayNginxConfig } from "@/lib/mikrotik/relay-nginx";
 import { isWebAccessService } from "@/lib/mikrotik/remote-access-host";
+import { bearerMatches } from "@/lib/auth/bearer";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * serving HTTPS without any manual step. WinBox/SSH are untouched (raw DNAT).
  */
 export async function GET(request: NextRequest) {
-  if (request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!bearerMatches(request, process.env.CRON_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
 

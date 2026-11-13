@@ -34,6 +34,10 @@ describe("registre des migrations", () => {
   // secours manuel) ne doivent pas diverger : un correctif appliqué à l'un sans
   // l'autre reposerait un piège de dérive de schéma.
   const MIRRORS: Record<string, string> = {
+    "0026_mikhmon_ui_version": "add-mikhmon-ui-version.sql",
+    "0025_rearm_mikhmon_local_access": "rearm-mikhmon-local-access.sql",
+    "0024_mikhmon_local_access": "add-mikhmon-local-access.sql",
+    "0023_mikhmon_container_inventory": "add-mikhmon-container-inventory.sql",
     "0022_portal_order_provider": "add-portal-order-provider.sql",
     "0021_fup_ticket_policy": "add-fup-ticket-policy.sql",
     "0020_multiwan_premium": "add-multiwan-premium.sql",
