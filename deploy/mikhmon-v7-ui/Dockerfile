@@ -2,16 +2,18 @@
 #
 # COUCHE MINCE SUR mikhmon-v7:prix-corrige (l'image du parc, tickets corrigés).
 # On ne refait pas le correctif prix : on part de l'image déjà corrigée et on
-# ajoute UNIQUEMENT l'habillage de l'interface admin. Publiée sous un tag DÉDIÉ
-# (:ui-cobaye) pour tester sur 2-3 routeurs sans toucher :prix-corrige du parc.
+# ajoute UNIQUEMENT l'habillage de l'interface admin. Publiée sous le tag PROD
+# IMMUABLE :ui-1 (déploiement sur tout le parc par re-création de conteneur,
+# mécanisme 2 — le dépôt de fichiers à chaud s'est révélé non fiable : l'overlay
+# du conteneur continuait de servir le headhtml cuit dans l'image).
 #
-# Ce que fait l'habillage (cf. safelink-skin.css) :
+# Ce que fait l'habillage :
 #   - garde la palette NATIVE MikHmon (ardoise + bleu #20a8d8), pas de rebrand
 #     couleur ; seulement la mise en page / l'aération / la cohérence ;
 #   - supprime la couleur ALÉATOIRE par carte de session (la « carte violette »)
 #     dans sessions.php ;
-#   - charge safelink-skin.css EN DERNIER via headhtml.php pour gagner sans
-#     réécrire la structure.
+#   - la skin est désormais INLINE dans headhtml.php (un <style>) : plus de <link>
+#     vers css/safelink-skin.css. Le COPY du CSS reste (inoffensif, non référencé).
 FROM ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige
 
 COPY safelink-skin.css /src/src/css/safelink-skin.css
