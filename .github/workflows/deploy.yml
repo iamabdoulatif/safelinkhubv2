@@ -190,9 +190,10 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/mikhmon-v7:latest
 
   # Habillage SafeLinkHub de l'interface admin : couche MINCE sur prix-corrige
-  # (voir deploy/mikhmon-v7-ui). Publiée sous un tag DÉDIÉ :ui-cobaye pour la
-  # valider sur 2-3 routeurs sans toucher l'image du parc (:prix-corrige). Une
-  # fois validée, on replie les fichiers dans deploy/mikhmon-v7/.
+  # (voir deploy/mikhmon-v7-ui). Publiée sous le tag PROD IMMUABLE :ui-1. Le parc
+  # est basculé dessus par re-création de conteneur (mécanisme 2, cf.
+  # MIKHMON_DESIRED_IMAGE), car le dépôt de fichiers à chaud sur l'overlay du
+  # conteneur s'est révélé non fiable.
   mikhmon-v7-ui:
     needs: mikhmon-v7
     runs-on: ubuntu-latest
@@ -233,7 +234,7 @@ jobs:
           sbom: false
           outputs: type=registry,oci-mediatypes=false
           tags: |
-            ghcr.io/${{ github.repository_owner }}/mikhmon-v7:ui-cobaye
+            ghcr.io/${{ github.repository_owner }}/mikhmon-v7:ui-1
 
   deploy:
     needs: build
