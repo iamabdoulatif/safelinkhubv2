@@ -37,6 +37,29 @@ describe("ensureMikhmonLocalAccess — garde conteneur", () => {
     assert.equal(client.calls.some((w) => w[0].endsWith("/add")), false);
   });
 
+  it("hotspot + conteneur + état vierge : pose le dst-nat pre-hotspot (client connecté)", async () => {
+    const calls: string[][] = [];
+    const client = {
+      talk: async (words: string[]) => {
+        calls.push(words);
+        if (words[0] === "/ip/hotspot/print") return [{ interface: "HOTSPOT" }];
+        if (words[0] === "/ip/address/print") return [{ address: "10.0.0.1/24" }];
+        if (words[0] === "/container/print") return [{ name: "mikhmonv3-safelinkhub", interface: "MIKHMON", status: "running" }];
+        if (words[0] === "/interface/veth/print") return [{ address: "11.11.11.11/28" }];
+        return [] as Row[]; // nat/print, walled-garden/print → vides → tout à poser
+      },
+      close: () => {},
+    };
+    const r = await ensureMikhmonLocalAccess(client as never);
+    assert.equal(r.preHotspotNatAdded, true);
+    const preHotspotAdd = calls.find(
+      (w) => w[0] === "/ip/firewall/nat/add" && w.includes("=chain=pre-hotspot"),
+    );
+    assert.ok(preHotspotAdd, "un dst-nat pre-hotspot doit être posé");
+    assert.ok(preHotspotAdd!.includes("=to-addresses=11.11.11.11"));
+    assert.ok(preHotspotAdd!.includes("=dst-port=8087"));
+  });
+
   it("pas de hotspot : rien à ouvrir, pas de lecture de conteneur", async () => {
     const client = {
       calls: [] as string[][],
