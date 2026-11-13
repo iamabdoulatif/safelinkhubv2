@@ -38,8 +38,13 @@ import type { RouterOSClient } from "./client";
 
 type Sentence = Record<string, string>;
 
-/** À incrémenter à chaque refonte d'HABILLAGE (re-dépose les fichiers UI). */
-export const MIKHMON_UI_VERSION = "ui-1";
+/** À incrémenter à chaque refonte d'HABILLAGE (re-dépose les fichiers UI).
+ * ui-2 : la skin est désormais INLINE dans headhtml.php (un <style>), plus un
+ * fichier css/safelink-skin.css séparé — un ÉCRASEMENT de headhtml.php est servi
+ * à chaud, alors qu'un fichier CSS NEUF restait 404 tant que le conteneur
+ * n'avait pas redémarré, et ce redémarrage n'aboutissait pas partout (vu sur
+ * DIAK-HSPT). Plus de redémarrage requis. */
+export const MIKHMON_UI_VERSION = "ui-2";
 /** Image conteneur voulue sur tout le parc (tag immuable recommandé). */
 export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige";
 
@@ -54,8 +59,11 @@ const IMAGE_UPDATE_CANARY_IDS: string[] = ["92eb5519-52b3-49cd-aace-6f5dd7ca2e76
 const IMAGE_UPDATE_MAX_PER_PROCESS = 1;
 
 /** Fichiers d'habillage : servis par l'app, déposés dans le conteneur. */
+// La skin voyage INLINE dans headhtml.php (voir MIKHMON_UI_VERSION) : on ne
+// dépose que des ÉCRASEMENTS de fichiers existants, servis à chaud sans
+// redémarrage. On ne dépose plus css/safelink-skin.css (fichier neuf = 404 tant
+// que le conteneur n'a pas redémarré).
 const UI_FILES: { url: string; dst: string }[] = [
-  { url: "mikhmon-ui/safelink-skin.css", dst: "css/safelink-skin.css" },
   { url: "mikhmon-ui/headhtml.txt", dst: "include/headhtml.php" },
   { url: "mikhmon-ui/sessions.txt", dst: "settings/sessions.php" },
 ];
@@ -302,13 +310,12 @@ export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerI
     const res = await ensureMikhmonImage(client, routerId).catch(() => "error");
     imageUpdated = res === "updated";
   }
-  // 2) Habillage : déposer les fichiers de présentation PUIS REDÉMARRER le
-  //    conteneur, pour qu'il serve les fichiers NEUFS (sans redémarrage, une
-  //    skin qui n'existait pas dans l'image reste 404 — vu sur ASSOINDE). Borné
-  //    à UNE fois par version via routers.mikhmon_ui_version (PERSISTÉ) : un
-  //    simple redéploiement de l'app ne relance donc pas les 59 conteneurs. Le
-  //    budget du health-check étale naturellement le déploiement sur quelques
-  //    passages. Se relance aussi si le conteneur vient d'être re-créé (neuf).
+  // 2) Habillage : déposer les fichiers de présentation (ÉCRASEMENTS de fichiers
+  //    existants → servis à chaud, AUCUN redémarrage requis, la skin est inline
+  //    dans headhtml.php). Borné à UNE fois par version via
+  //    routers.mikhmon_ui_version (PERSISTÉ) : un simple redéploiement de l'app
+  //    ne re-dépose donc pas sur les 59 conteneurs. Se relance aussi si le
+  //    conteneur vient d'être re-créé (neuf, sans habillage).
   if (UI_SYNC_ENABLED) {
     const [row] = await getDb()
       .select({ v: routers.mikhmonUiVersion })
@@ -319,7 +326,6 @@ export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerI
     if (imageUpdated || row?.v !== MIKHMON_UI_VERSION) {
       const n = await ensureMikhmonUiFiles(client).catch(() => -1);
       if (n > 0) {
-        await restartMikhmonContainer(client).catch(() => {});
         await getDb()
           .update(routers)
           .set({ mikhmonUiVersion: MIKHMON_UI_VERSION })
