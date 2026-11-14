@@ -38,10 +38,30 @@ export const PAYMENT_LANE_OK_LIST = "slh-paiement-ok";
 export const PAYMENT_LANE_COMMENT = "safelinkhub-paiement";
 export const PAYMENT_LANE_SESSION = "10m";
 
-// Sondes de connectivité : tant qu'elles échouent, iOS garde la fenêtre captive
-// ouverte (et Android son avis « réseau sans internet »). Autorisées SEULEMENT
-// pour la voie de paiement — jamais dans le walled-garden, sinon le portail ne
-// « jaillit » plus (voir walled-garden.ts).
+// Sondes de connectivité ouvertes dans la voie de paiement. Autorisées
+// SEULEMENT là — jamais dans le walled-garden, sinon le portail ne « jaillit »
+// plus (voir walled-garden.ts).
+//
+// ⚠️ UNIQUEMENT les sondes APPLE. Ne JAMAIS y remettre celles d'Android
+// (connectivitycheck.gstatic.com, connectivitycheck.android.com) : les deux
+// systèmes lisent une sonde réussie de façon OPPOSÉE.
+//
+//   • iOS — captive.apple.com/hotspot-detect.html renvoie « Success » : le CNA
+//     affiche « Terminé » et REND LA MAIN au téléphone. C'est ce qu'on veut :
+//     sans ça l'app Wave n'a aucun réseau depuis la fenêtre Wi-Fi captive.
+//   • Android — connectivitycheck.gstatic.com/generate_204 renvoie 204 : le
+//     NetworkMonitor en conclut que le portail est FRANCHI, valide le réseau
+//     et TERMINE l'activité CaptivePortalLogin. Fermer cette activité renvoie
+//     le client à la LISTE DES WI-FI, en plein paiement.
+//
+// Cas réel (YAHYA WIFI, 26/10/2026) : paiement impeccable sur iPhone, et sur
+// Android retour à la liste des réseaux dès le clic sur « Payer » — l'instant
+// précis où la voie s'ouvre et où la sonde se met à réussir.
+//
+// Les deux jeux sont disjoints par appareil (un iPhone n'interroge jamais
+// gstatic, un Android jamais captive.apple.com) : retirer les hôtes Android ne
+// coûte rien à iOS. Android garde son avis « réseau sans internet », la fenêtre
+// du portail reste ouverte, et le paiement se termine dedans.
 export const CONNECTIVITY_PROBE_HOSTS = [
   "captive.apple.com",
   "www.apple.com",
@@ -50,8 +70,6 @@ export const CONNECTIVITY_PROBE_HOSTS = [
   "www.ibook.info",
   "www.airport.us",
   "www.thinkdifferent.us",
-  "connectivitycheck.gstatic.com",
-  "connectivitycheck.android.com",
 ];
 
 const FORWARD_TO = "1.1.1.1";
