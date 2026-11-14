@@ -24,6 +24,7 @@ import {
 } from "./router-throughput";
 import { auditRouter } from "./router-audit";
 import { ensureMikhmonLocalAccess } from "./mikhmon-local-access";
+import { isResetMode, resetCommand, resetModeSpec, type ResetMode } from "./routeros-reset";
 import { describeApiPortVerdict, probeApiPortWith } from "./api-port-probe";
 import { openRouterTunnel } from "./relay";
 import {
@@ -2097,6 +2098,56 @@ export async function resetRouterDevice(routerId: string) {
     message: deviceReset
       ? "Commande de réinitialisation envoyée au routeur — il redémarre à l'état d'usine. Reconnectez-vous-y directement (WinBox/MAC) pour le relier à nouveau."
       : "Routeur inaccessible — seule la configuration SafeLinkHub a été supprimée. Réinitialisez l'appareil manuellement (bouton reset) avant de le relier à nouveau.",
+  };
+}
+
+/**
+ * Réinitialiser le ROUTEUR (sans le retirer du parc), selon un des modes de
+ * routeros-reset.ts. À la différence de resetRouterDevice — qui efface ET
+ * supprime la fiche SafeLinkHub — on garde la fiche : le routeur retombe
+ * hors-ligne (tunnel coupé) et sera à re-provisionner, mais son historique
+ * reste. Même détection « reboot = succès » que resetRouterDevice : la commande
+ * redémarre l'appareil sans réponse normale, donc une coupure APRÈS l'envoi est
+ * le signal de réussite, alors qu'un vrai refus (!trap) doit remonter.
+ */
+export async function resetRouterConfiguration(routerId: string, mode: ResetMode) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  if (!isResetMode(mode)) return { error: "Mode de réinitialisation inconnu." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 8000);
+  } catch {
+    return {
+      error:
+        "Routeur injoignable — impossible d'envoyer la réinitialisation. Réinitialisez l'appareil manuellement (bouton reset) ou réessayez quand il est en ligne.",
+    };
+  }
+  try {
+    await client.talk(resetCommand(mode));
+  } catch (err) {
+    // Coupure/timeout = le reboot a eu lieu (succès). Un !trap (mauvais
+    // paramètre, permission) répond AVANT de redémarrer et doit remonter.
+    const msg = err instanceof Error ? err.message : "";
+    const looksLikeConnectionDrop = /econnreset|closed|timeout|not connected|length prefix|EOF/i.test(msg);
+    if (!looksLikeConnectionDrop && msg !== "") {
+      try { client.close(); } catch { /* best-effort */ }
+      return { error: `RouterOS a refusé la réinitialisation : ${msg}` };
+    }
+  } finally {
+    try { client.close(); } catch { /* best-effort */ }
+  }
+
+  revalidatePath(`/admin/router/${routerId}`);
+  return {
+    summary: `Réinitialisation « ${resetModeSpec(mode).label} » envoyée — ${router.name} redémarre et sort du parc. Reliez-le à nouveau (WinBox/MAC) une fois redémarré.`,
   };
 }
 

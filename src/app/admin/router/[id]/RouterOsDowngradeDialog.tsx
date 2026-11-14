@@ -131,9 +131,14 @@ export default function RouterOsDowngradeDialog({
                 <p className="font-bold text-ink">Le routeur va redémarrer.</p>
                 <p className="mt-1">
                   Il télécharge d&apos;abord le paquet par son WAN, puis installe la version plus
-                  ancienne et redémarre : le Wi-Fi est coupé quelques minutes. Seul un retour en
-                  <strong className="text-ink"> RouterOS 7.x</strong> est possible (descendre en 6.x
-                  exige un netinstall hors-ligne).
+                  ancienne et redémarre : le Wi-Fi est coupé quelques minutes. Un retour en{" "}
+                  <strong className="text-ink">6.x</strong> (ex. 7.25 → 6.49) n&apos;est possible que
+                  si le matériel le permet — SafeLinkHub lit son plancher et refuse sinon.
+                </p>
+                <p className="mt-2">
+                  Franchir la majeure 7 → 6 peut <strong className="text-ink">corrompre la
+                  configuration</strong> (incompatible entre branches) : réinitialisez le routeur
+                  après coup si le hotspot ne repart pas.
                 </p>
               </div>
             </div>
@@ -147,11 +152,11 @@ export default function RouterOsDowngradeDialog({
               value={version}
               onChange={(e) => setVersion(e.target.value)}
               disabled={busy || phase === "done"}
-              placeholder="7.8"
+              placeholder="7.8 ou 6.49.18"
               className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 font-mono text-sm text-ink outline-none focus:border-brand disabled:opacity-60"
             />
             <span className="mt-1 block text-xs text-ink-soft">
-              Doit être inférieure à la version actuelle (ex. 7.8, 7.15.3).
+              Doit être inférieure à la version actuelle (ex. 7.8, 7.15.3, 6.49.18).
             </span>
           </label>
 

@@ -8,6 +8,7 @@ import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
 import type { RouterOSClient } from "./client";
 import {
+  belowHardwareFloor,
   isKnownArch,
   npkFileName,
   npkUrl,
@@ -108,12 +109,27 @@ export async function startRouterOsDowngradeJob(routerId: string, targetVersion:
       const [resource] = await client.talk(["/system/resource/print"], 20000);
       const current = resource?.version ?? null;
       const arch = String(resource?.["architecture-name"] ?? "").trim();
+      // Plancher matériel : RouterOS refuse d'installer en dessous. Champ
+      // renommé selon les versions (`minimum-version` récent, `factory-software`
+      // ancien) ; on prend celui qui répond.
+      const floor =
+        (resource?.["minimum-version"] as string | undefined) ??
+        (resource?.["factory-software"] as string | undefined) ??
+        null;
 
       const v = validateDowngradeTarget(targetVersion, current);
       if (!v.ok) throw new Error(v.error);
       if (!isKnownArch(arch)) {
         throw new Error(
           `Architecture du routeur inconnue (« ${arch || "?"} ») : impossible de choisir le bon paquet. Rétrogradation annulée.`,
+        );
+      }
+      // Bloque la cible trop basse AVANT le long téléchargement — sinon le
+      // downgrade échoue silencieusement au redémarrage (on repart sur l'ancienne
+      // version sans message clair).
+      if (belowHardwareFloor(v.version, floor)) {
+        throw new Error(
+          `Ce routeur ne descend pas sous RouterOS ${floor} (plancher matériel). La cible ${v.version} est inaccessible à distance : elle imposerait un netinstall hors-ligne.`,
         );
       }
 
