@@ -7,6 +7,7 @@ import { getDb } from "@/lib/db";
 import { organizations, portalOrders } from "@/lib/db/schema";
 import { sendPortalTicketSms } from "@/lib/portal/fulfill";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
+import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 
 export function OPTIONS() {
   return corsPreflight();
@@ -28,6 +29,9 @@ export async function POST(
   const orderId = String(body.orderId ?? "").trim();
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
 
+  const limit = await enforcePublicSubmissionRateLimit("portal_sms");
+  if (!limit.allowed) return corsJson({ error: limit.error }, { status: 429 });
+
   const db = getDb();
   const [org] = await db
     .select({ id: organizations.id })
@@ -39,12 +43,15 @@ export async function POST(
   // La commande doit appartenir à cette org (le code n'est pas révélé, seul son
   // envoi au numéro déjà enregistré sur la commande est déclenché).
   const [order] = await db
-    .select({ id: portalOrders.id, orgId: portalOrders.orgId })
+    .select({ id: portalOrders.id, orgId: portalOrders.orgId, status: portalOrders.status })
     .from(portalOrders)
     .where(eq(portalOrders.id, orderId))
     .limit(1);
   if (!order || order.orgId !== org.id) {
     return corsJson({ error: "Commande introuvable." }, { status: 404 });
+  }
+  if (order.status !== "fulfilled") {
+    return corsJson({ error: "Commande non honorée." }, { status: 409 });
   }
 
   const result = await sendPortalTicketSms(orderId);

@@ -16,7 +16,7 @@ import { findPaidAuthorization } from "@/lib/billing/auto-setup-authorization-se
 /**
  * PROVISIONNEMENT DUAL WAN STARLINK — délégué à n8n (docs/n8n/dualwan.md).
  *
- * Contrairement à la régulation, n8n fait le travail LUI-MÊME en SSH par le
+ * Contrairement à l'application, n8n fait le travail LUI-MÊME en SSH par le
  * relais : la plateforme lui envoie l'hôte/port public SSH du routeur et le
  * compte RouterOS, puis attend la notification sur
  * /api/internal/n8n/dualwan/<jobId>. D'où deux prérequis : le jeton partagé

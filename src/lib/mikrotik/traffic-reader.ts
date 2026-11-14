@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import type { RouterOSClient } from "./client";
-import { fupUptimeSeconds } from "./starlink-fup";
 import {
   privateGraphPrefix,
   type TrafficLink,
@@ -19,6 +18,16 @@ const sum = (a: string | undefined, b: string | undefined) => {
     y = counter(b);
   return x !== null && y !== null && Number.isSafeInteger(x + y) ? x + y : null;
 };
+function uptimeSeconds(value: string | undefined): number | null {
+  if (!value) return null;
+  const parts = value.split(/(?=\d+[wdhms])/).map((part) => {
+    const match = /^(\d+)([wdhms])$/.exec(part);
+    if (!match) return 0;
+    return Number(match[1]) * ({ w: 604800, d: 86400, h: 3600, m: 60, s: 1 }[match[2]] ?? 0);
+  });
+  const total = parts.reduce((a, b) => a + b, 0);
+  return Number.isSafeInteger(total) && total > 0 ? total : null;
+}
 
 /** Passive accounting only, never a bandwidth test or an enforcement call. */
 export async function readTrafficObservation(
@@ -55,7 +64,7 @@ export async function readTrafficObservation(
   ]);
   const observation: TrafficObservation = {
     at: Date.now(),
-    uptime: fupUptimeSeconds(resources?.[0]?.uptime) ?? null,
+    uptime: uptimeSeconds(resources?.[0]?.uptime),
     links: links.map((link) => {
       const row = interfaces?.find((i) => i.name === link.interface);
       return {

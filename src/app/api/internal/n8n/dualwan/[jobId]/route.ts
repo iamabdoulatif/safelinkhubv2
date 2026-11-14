@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerDualwanJobs } from "@/lib/db/schema";
-import { n8nAuthorized, unauthorized } from "@/lib/mikrotik/regulation-api";
+import { n8nAuthorized, unauthorized } from "@/lib/integrations/n8n-auth";
 
 export const dynamic = "force-dynamic";
 

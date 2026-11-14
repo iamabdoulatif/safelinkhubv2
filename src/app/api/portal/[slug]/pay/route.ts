@@ -16,6 +16,7 @@ import { preselectPaiementPro } from "@/lib/payment-gateways/paiementpro";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
 import { prewarmPortalVoucherProfile } from "@/lib/portal/fulfill";
+import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 import { appendPortalTheme, portalThemeFromUnknown } from "@/lib/portal/theme";
 import { openPaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 
@@ -55,6 +56,9 @@ export async function POST(
   const methodRaw = String(body.method ?? "").trim();
   const theme = portalThemeFromUnknown(body.theme);
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
+
+  const limit = await enforcePublicSubmissionRateLimit("portal_payment");
+  if (!limit.allowed) return corsJson({ error: limit.error }, { status: 429 });
 
   const db = getDb();
   const [org] = await db

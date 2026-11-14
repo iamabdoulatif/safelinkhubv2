@@ -1,7 +1,14 @@
 import { headers } from "next/headers";
+import { and, eq, inArray } from "drizzle-orm";
 import { Apple, Download, Laptop, MonitorDown, ShieldCheck, Usb } from "lucide-react";
+import { getDb } from "@/lib/db";
+import { routers } from "@/lib/db/schema";
+import { requireCapability } from "@/lib/auth/session";
+import { hostedAgentEligible } from "@/lib/mikrotik/hosted-agent";
+import { TUNNEL_METHODS } from "@/lib/mikrotik/tunnel-methods";
 import MacDetect from "./MacDetect";
 import LinkAgent from "./LinkAgent";
+import HostedAgentPanel from "./HostedAgentPanel";
 
 /* Télécharger l'agent local.
  *
@@ -55,18 +62,54 @@ function guessOs(ua: string): (typeof DOWNLOADS)[number]["os"] | null {
 
 export default async function AgentLocalPage() {
   const recommended = guessOs((await headers()).get("user-agent") ?? "");
+  const session = await requireCapability("routers");
+  const hostedRouters = session
+    ? (await getDb()
+        .select({
+          id: routers.id,
+          name: routers.name,
+          model: routers.model,
+          status: routers.status,
+          connectionMethod: routers.connectionMethod,
+          tunnelIp: routers.tunnelIp,
+        })
+        .from(routers)
+        .where(
+          and(
+            eq(routers.orgId, session.orgId),
+            eq(routers.status, "online"),
+            inArray(routers.connectionMethod, [...TUNNEL_METHODS]),
+          ),
+        ))
+        .filter(hostedAgentEligible)
+    : [];
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in-up">
       <div className="flex items-center gap-2">
         <Usb className="h-5 w-5 text-ink" />
-        <h1 className="text-ink text-2xl font-semibold tracking-tight">Agent local</h1>
+        <h1 className="text-ink text-2xl font-semibold tracking-tight">Agents RouterOS</h1>
       </div>
       <p className="mt-1 max-w-3xl text-sm text-ink-soft">
-        Préparez et dépannez un MikroTik depuis votre ordinateur, branché sur le routeur : mise à
-        jour RouterOS et firmware, paquets, mode avancé, diagnostic des tickets, revenus MikHmon,
-        Wi-Fi et ports. Idéal pour un routeur neuf, sans Internet ni tunnel.
+        Choisissez le bon mode : l&apos;agent hébergé agit depuis le VPS sur vos routeurs déjà reliés
+        par VPN ; l&apos;agent local prépare un routeur neuf ou un équipement accessible uniquement sur
+        votre réseau LAN.
       </p>
+
+      <HostedAgentPanel routers={hostedRouters} />
+
+      <section className="mt-8">
+        <div className="flex items-start gap-3">
+          <Usb aria-hidden="true" className="mt-0.5 h-5 w-5 text-ink" />
+          <div>
+            <h2 className="text-base font-semibold text-ink">Agent local</h2>
+            <p className="mt-1 max-w-3xl text-sm text-ink-soft">
+              À utiliser pour un routeur neuf, une découverte LAN ou une opération qui ne peut pas
+              encore passer par le tunnel.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <MacDetect />
 

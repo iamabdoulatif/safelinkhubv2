@@ -1,12 +1,11 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Gauge, SlidersHorizontal, LayoutGrid, Stethoscope, ShieldBan, Activity, Bot } from "lucide-react";
+import { Gauge, SlidersHorizontal, LayoutGrid, Stethoscope, ShieldBan, Activity } from "lucide-react";
 import ResourcesPanel from "./ResourcesPanel";
 import ServicesWizard from "./ServicesWizard";
 import AuditPanel from "./AuditPanel";
 import ContentFilterPanel from "./ContentFilterPanel";
-import RegulationPanel from "./RegulationPanel";
 import CaptivePortalPanel from "./CaptivePortalPanel";
 import UsagePanel from "./UsagePanel";
 import DualWanPanel from "./DualWanPanel";
@@ -15,15 +14,12 @@ import MultiwanPremiumPanel from "./MultiwanPremiumPanel";
 import TrafficHistoryPanel from "./TrafficHistoryPanel";
 import TicketDiagnosisPanel from "./TicketDiagnosisPanel";
 
-export type TabKey = "overview" | "multiwan" | "history" | "diagnostic" | "filter" | "regulation" | "usage" | "resources" | "services";
+export type TabKey = "overview" | "multiwan" | "history" | "diagnostic" | "filter" | "usage" | "resources" | "services";
 
 /* Ordre = fréquence d'usage : ce qu'on regarde tous les jours d'abord, la
    configuration (une fois) en dernier.
-   « Filtrage » et « Régulation » sont DEUX onglets depuis l'audit UI/UX du
-   22/09/2026 : empilés, ils formaient un défilement sans fin où le formulaire
-   de seuils n8n se perdait sous les catégories de filtrage. Et le diagnostic
-   de tickets vit dans « Diagnostic » — il était rendu en bas de CHAQUE onglet,
-   y compris ceux où il n'a aucun sens. */
+   Le diagnostic de tickets vit dans « Diagnostic » — il était rendu en bas de
+   CHAQUE onglet, y compris ceux où il n'a aucun sens. */
 const TABS: { key: TabKey; label: string; icon: typeof Gauge }[] = [
   { key: "overview", label: "Vue d'ensemble", icon: LayoutGrid },
   { key: "history", label: "Historique", icon: Activity },
@@ -31,7 +27,6 @@ const TABS: { key: TabKey; label: string; icon: typeof Gauge }[] = [
   { key: "usage", label: "Consommation", icon: Activity },
   { key: "diagnostic", label: "Diagnostic", icon: Stethoscope },
   { key: "filter", label: "Filtrage", icon: ShieldBan },
-  { key: "regulation", label: "Régulation", icon: Bot },
   { key: "resources", label: "Ressources", icon: Gauge },
   { key: "services", label: "Configurer les services", icon: SlidersHorizontal },
 ];
@@ -125,8 +120,6 @@ export default function RouterDetailTabs({
               </div>
             ) : key === "filter" ? (
               <ContentFilterPanel routerId={routerId} />
-            ) : key === "regulation" ? (
-              <RegulationPanel routerId={routerId} />
             ) : key === "usage" ? (
               <UsagePanel routerId={routerId} />
             ) : key === "resources" ? (

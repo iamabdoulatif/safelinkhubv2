@@ -30,9 +30,9 @@ test("l'IPv6 a quitté le produit, sauf le décodage d'une URL", async () => {
      sortie par le relais) et la fermeture de la FUITE IPv6 du portail captif.
      Ce test empêche qu'un morceau revienne par recopie sans décision.
 
-     Le FUP ajouté le 17/10/2026 couvre aussi le trafic de cette famille pour
-     éviter de contourner le quota WAN. Cette exception ne réintroduit ni le
-     bypass du relais ni l'ancienne fonctionnalité du portail captif. */
+     Le contrôle du quota WAN reste indépendant de cette vérification. Cette
+     exception ne réintroduit ni le bypass du relais ni l'ancienne fonctionnalité
+     du portail captif. */
   const { readdir } = await import("node:fs/promises");
   const racine = new URL("../src/", import.meta.url);
   const fautes = [];
@@ -45,9 +45,7 @@ test("l'IPv6 a quitté le produit, sauf le décodage d'une URL", async () => {
       }
       if (!/\.tsx?$/.test(e.name)) continue;
       const chemin = enfant.pathname.slice(racine.pathname.length);
-      if (["lib/mikrotik/walled-garden.ts", "lib/mikrotik/starlink-fup-enforcement.ts",
-        "lib/mikrotik/fup-ticket-video.ts", // read-only prerequisite check; no new IPv6 feature
-        "lib/mikrotik/starlink-fup-router.ts", "lib/mikrotik/starlink-fup-router.test.ts"].includes(chemin)) continue;
+      if (["lib/mikrotik/walled-garden.ts"].includes(chemin)) continue;
       const src = await readFile(enfant, "utf8");
       if (/ipv6/i.test(src)) fautes.push(chemin);
     }

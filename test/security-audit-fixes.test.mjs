@@ -109,6 +109,33 @@ test("public contact and testimonial submissions enforce IP rate limits", async 
   assert.match(limiter, /publicSubmissionAttempts/);
 });
 
+test("global responses include baseline browser security headers", async () => {
+  const config = await readFile(new URL("../next.config.ts", import.meta.url), "utf8");
+
+  assert.match(config, /Strict-Transport-Security/);
+  assert.match(config, /Content-Security-Policy/);
+  assert.match(config, /X-Frame-Options/);
+  assert.match(config, /X-Content-Type-Options/);
+});
+
+test("public portal actions apply abuse limits before costly work", async () => {
+  const limiter = await readFile(new URL("../src/lib/public-rate-limit.ts", import.meta.url), "utf8");
+  const routes = await Promise.all([
+    "initiate",
+    "pay",
+    "otp/send",
+    "ticket-sms",
+    "rebuy",
+    "wave-prepare",
+    "lane",
+  ].map((route) => readFile(new URL(`../src/app/api/portal/[slug]/${route}/route.ts`, import.meta.url), "utf8")));
+
+  assert.match(limiter, /portal_order/);
+  assert.match(limiter, /portal_payment/);
+  assert.match(limiter, /portal_sms/);
+  for (const source of routes) assert.match(source, /enforcePublicSubmissionRateLimit/);
+});
+
 test("Next build does not depend on fetching Google Fonts at build time", async () => {
   const layout = await readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8");
   const globals = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");

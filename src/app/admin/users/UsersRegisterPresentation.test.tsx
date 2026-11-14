@@ -44,14 +44,14 @@ const controlCenterRows: UserControlRow[] = [
   },
 ];
 
-const appRouter: AppRouterInstance = {
+const appRouter = {
   back: () => undefined,
   forward: () => undefined,
   refresh: () => undefined,
   push: () => undefined,
   replace: () => undefined,
   prefetch: () => undefined,
-};
+} as unknown as AppRouterInstance;
 
 function assertMarkupOrder(markup: string, labels: string[]) {
   const positions = labels.map((label) => markup.indexOf(`>${label}<`));
