@@ -8,6 +8,7 @@ import {
   normalizeRelayPublicHost,
   openRouterTunnel,
   relayWebUrl,
+  runOnRelay,
 } from "./relay";
 
 const originalPublicHost = process.env.WG_RELAY_PUBLIC_HOST;
@@ -117,6 +118,34 @@ class FakeRelayClient extends EventEmitter {
     setImmediate(() => cb(undefined, stream));
     return this;
   }
+  // Canal exec simulé. Marqueurs dans la commande : "CHANERR" → échec
+  // d'ouverture de canal ; "FAILCMD" → sortie non nulle + stderr ; sinon
+  // stdout "OK\n" + code 0. Les events sont émis APRÈS que le callback a
+  // attaché ses listeners (double setImmediate).
+  exec(command: string, cb: (err: Error | undefined, channel: unknown) => void) {
+    if (command.includes("CHANERR")) {
+      setImmediate(() => cb(new Error("open channel failed (MaxSessions?)"), undefined));
+      return this;
+    }
+    const channel = Object.assign(new EventEmitter(), {
+      stderr: new EventEmitter(),
+      end() {},
+      destroy() {},
+    });
+    setImmediate(() => {
+      cb(undefined, channel);
+      setImmediate(() => {
+        if (command.includes("FAILCMD")) {
+          channel.stderr.emit("data", Buffer.from("boom"));
+          channel.emit("close", 1);
+        } else {
+          channel.emit("data", Buffer.from("OK\n"));
+          channel.emit("close", 0);
+        }
+      });
+    });
+    return this;
+  }
   end() {
     if (!this.ended) {
       this.ended = true;
@@ -166,5 +195,66 @@ describe("connexion relais mutualisée", () => {
     await new Promise((r) => setImmediate(r));
     await openRouterTunnel("10.66.0.11", 8728);
     assert.equal(FakeRelayClient.created, 2, "une nouvelle connexion est rouverte après une chute");
+  });
+});
+
+describe("runOnRelay sur la connexion mutualisée", () => {
+  const KEYS = ["WG_RELAY_HOST", "WG_RELAY_SSH_USER", "WG_RELAY_SSH_KEY_B64"] as const;
+  const savedEnv = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+
+  function withRelayEnv() {
+    process.env.WG_RELAY_HOST = "relay.test";
+    process.env.WG_RELAY_SSH_USER = "relay";
+    process.env.WG_RELAY_SSH_KEY_B64 = Buffer.from("fake-key").toString("base64");
+    FakeRelayClient.created = 0;
+    FakeRelayClient.last = null;
+    __setRelayClientFactoryForTests(
+      () => new FakeRelayClient() as unknown as import("ssh2").Client,
+    );
+  }
+
+  afterEach(() => {
+    __setRelayClientFactoryForTests(null);
+    for (const k of KEYS) restore(k, savedEnv[k]);
+  });
+
+  it("exécute une commande et renvoie stdout, sans ouvrir de connexion neuve par appel", async () => {
+    withRelayEnv();
+    assert.equal(await runOnRelay("sudo wg show"), "OK\n");
+    assert.equal(await runOnRelay("sudo wg show"), "OK\n");
+    // La commande partage la connexion avec forwardOut : toujours UN handshake.
+    await openRouterTunnel("10.66.0.10", 8728);
+    assert.equal(FakeRelayClient.created, 1, "un seul handshake pour N exec + forwardOut");
+  });
+
+  it("rejette avec stderr quand la commande sort en code non nul", async () => {
+    withRelayEnv();
+    await assert.rejects(() => runOnRelay("FAILCMD"), /boom/);
+    // L'échec de commande ne tue pas la connexion partagée.
+    assert.equal(await runOnRelay("ok"), "OK\n");
+    assert.equal(FakeRelayClient.created, 1);
+  });
+
+  it("un échec d'ouverture de canal ne ferme pas la connexion partagée", async () => {
+    withRelayEnv();
+    await assert.rejects(() => runOnRelay("CHANERR"), /open channel failed/);
+    // Le canal a échoué, mais la connexion reste réutilisable (pas de rafale).
+    assert.equal(await runOnRelay("ok"), "OK\n");
+    assert.equal(FakeRelayClient.created, 1, "pas de reconnexion après un simple échec de canal");
+  });
+
+  it("borne les exec concurrents mais les sert tous (file d'attente)", async () => {
+    withRelayEnv();
+    // Bien plus que MAX_CONCURRENT_RELAY_EXEC (8) : tout doit aboutir et
+    // partager l'unique connexion.
+    const results = await Promise.all(
+      Array.from({ length: 25 }, () => runOnRelay("ok")),
+    );
+    assert.equal(results.length, 25);
+    assert.ok(
+      results.every((r) => r === "OK\n"),
+      "tous les appels concurrents aboutissent",
+    );
+    assert.equal(FakeRelayClient.created, 1, "une seule connexion pour 25 exec concurrents");
   });
 });
