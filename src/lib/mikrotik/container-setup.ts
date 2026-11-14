@@ -419,8 +419,14 @@ async function provisionDockerStack(
       // that would wipe whatever's already pulled/cached — so this only
       // formats when the slot isn't already ext4.
       if (usbDisk && usbDisk["file-system"] !== "ext4") {
+        // Target the disk by its .id via =numbers=, like every other
+        // action-on-an-item in this file (/container/start, /ip/service/set…).
+        // format-drive does NOT take =slot= as a selector (that is only a
+        // creation property on /disk/add); passing =slot= made the format fail
+        // and fall through to the WinBox manual step below. See the matching
+        // fix in the install-vpn bootstrap script.
         await run(
-          ["/disk/format-drive", `=slot=${usbSlot}`, "=file-system=ext4"],
+          ["/disk/format-drive", `=numbers=${usbDisk[".id"]}`, "=file-system=ext4"],
           `format USB stick (${usbSlot}, ext4)`,
           60000,
         );
