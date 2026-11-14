@@ -167,13 +167,33 @@ async function restoreConfigPhp(client: RouterOSClient, rootDir: string, configP
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Attend que le conteneur soit RÉELLEMENT arrêté (le stop est asynchrone, et
- * `/container remove` refuse « cannot remove running »). */
-async function waitStopped(client: RouterOSClient, id: string, maxMs = 30000, pollMs = 3000): Promise<boolean> {
+ * `/container remove` refuse « cannot remove running »). Tolérant au stockage
+ * LENT (clé USB) : le défaut de 30 s ne suffisait pas sur COUZA, le remove
+ * échouait et laissait le conteneur à l'arrêt (puis l'auto-réparation le
+ * ré-installait sur l'ANCIENNE image). */
+async function waitStopped(client: RouterOSClient, id: string, maxMs = 60000, pollMs = 3000): Promise<boolean> {
   const until = Date.now() + maxMs;
   while (Date.now() < until) {
     await sleep(pollMs);
     const rows = await client.talk(["/container/print", `?.id=${id}`]).catch(() => [] as Sentence[]);
     if (!rows[0] || rows[0].running !== "true") return true;
+  }
+  return false;
+}
+
+/** Stop + remove ROBUSTE (clé USB lente) : on réessaie le remove, en re-stoppant
+ * entre deux, et on considère « retiré » dès que le conteneur disparaît de la
+ * liste. Même schéma que la ré-installation éprouvée (mikhmon-flash.ts). */
+async function stopAndRemove(client: RouterOSClient, id: string): Promise<boolean> {
+  await client.talk(["/container/stop", `=numbers=${id}`]).catch(() => {});
+  await waitStopped(client, id);
+  for (let i = 0; i < 8; i++) {
+    const ok = await client.talk(["/container/remove", `=numbers=${id}`]).then(() => true).catch(() => false);
+    if (ok) return true;
+    const still = (await client.talk(["/container/print", `?.id=${id}`]).catch(() => [] as Sentence[]))[0];
+    if (!still) return true; // disparu = retiré
+    await client.talk(["/container/stop", `=numbers=${id}`]).catch(() => {});
+    await sleep(2500);
   }
   return false;
 }
@@ -228,11 +248,16 @@ export async function recreateMikhmonOnImage(
   const configBak = await readConfigPhp(client, c.rootDir);
   if (!configBak || configBak.length <= 50) return "failed-backup";
 
-  // b. stop (attendre l'arrêt réel) + remove.
-  await client.talk(["/container/stop", `=numbers=${c.id}`]).catch(() => {});
-  await waitStopped(client, c.id);
-  const removed = await client.talk(["/container/remove", `=numbers=${c.id}`]).then(() => true).catch(() => false);
-  if (!removed) return "failed";
+  // b. stop + remove ROBUSTE (clé USB lente : réessais + re-stop). Si le remove
+  //    échoue, on ABANDONNE sans toucher davantage (le conteneur reste sur
+  //    l'ancienne image, intact) plutôt que de le laisser à moitié démonté.
+  const removed = await stopAndRemove(client, c.id);
+  if (!removed) {
+    // Le conteneur n'a pas pu être retiré : on le relance pour ne pas le laisser
+    // à l'arrêt (sinon l'auto-réparation le ré-installerait sur l'ancienne image).
+    await client.talk(["/container/start", `=numbers=${c.id}`]).catch(() => {});
+    return "failed";
+  }
 
   // c. add sur la nouvelle image (envlist mikhmon = resync natif au boot ;
   //    mêmes interface/root-dir ; start-on-boot).
@@ -269,8 +294,16 @@ export async function ensureMikhmonImage(client: RouterOSClient, routerId: strin
   const c = await findMikhmonContainer(client);
   if (!c) return "no-container";
   if (c.remoteImage === MIKHMON_DESIRED_IMAGE) return "already-current";
+  // On réserve le quota AVANT la tentative (une re-création en cours ne doit pas
+  // en déclencher une autre en parallèle), mais on le REND si la tentative
+  // échoue sans rien recréer : un échec de sauvegarde ou de remove ne doit pas
+  // « griller » le seul essai du process et bloquer toute reprise. Seul un essai
+  // qui a effectivement recréé le conteneur consomme le quota.
   recreatesThisProcess++;
   const res = await recreateMikhmonOnImage(client, MIKHMON_DESIRED_IMAGE);
+  if (res === "failed" || res === "failed-backup" || res === "no-container" || res === "skipped") {
+    recreatesThisProcess--;
+  }
   return res;
 }
 
