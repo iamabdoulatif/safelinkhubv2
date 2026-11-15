@@ -31,6 +31,7 @@ import {
   apiGroupPolicyCommand,
   rewriteIsoExpiryComments,
   repairExpirySweeps,
+  repairSalesDisplay,
   unbindMacBoundTickets,
   upgradeRouterboardFirmware,
   superfluousServicesToDisable,
@@ -688,6 +689,8 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
       rewritten: number;
       /** Balayages remis en service — le correctif de fond. */
       sweepsRepaired: number;
+      /** Ventes réécrites au format MikHmon — revenus de nouveau comptés. */
+      salesRewritten: number;
       repaired: string[];
       unreachable: string[];
       /** Routeurs non traités faute de temps — relancer pour les reprendre. */
@@ -707,6 +710,7 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
   let found = 0;
   let rewritten = 0;
   let sweepsRepaired = 0;
+  let salesRewritten = 0;
   const repaired: string[] = [];
   const unreachable: string[] = [];
   const echeance = Date.now() + BUDGET_FLOTTE_MS;
@@ -730,10 +734,15 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
       const res = await rewriteIsoExpiryComments(client);
       found += res.found;
       rewritten += res.rewritten;
-      if (res.rewritten > 0 || sweep.repaired > 0) {
+      /* L'AFFICHAGE est l'autre moitié de la même panne ISO : ventes/revenus
+         qui n'apparaissent plus dans les rapports. Même passage, même routeur. */
+      const disp = await repairSalesDisplay(client);
+      salesRewritten += disp.rewritten;
+      if (res.rewritten > 0 || sweep.repaired > 0 || disp.rewritten > 0) {
         const detail = [
           res.rewritten > 0 ? `${res.rewritten} date(s)` : null,
           sweep.repaired > 0 ? `${sweep.repaired} balayage(s)` : null,
+          disp.rewritten > 0 ? `${disp.rewritten} vente(s)` : null,
         ].filter(Boolean).join(", ");
         repaired.push(`${router.name} (${detail})`);
       }
@@ -751,6 +760,7 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
     found,
     rewritten,
     sweepsRepaired,
+    salesRewritten,
     repaired,
     unreachable,
     remaining: fleet.length - traites,
@@ -996,8 +1006,16 @@ export async function fixRouterExpirySweep(routerId: string) {
   }
   try {
     const res = await repairExpirySweeps(client);
-    if (res.stale === 0 && res.onLoginRepaired === 0) {
-      return { success: true, summary: `Les ${res.total} balayage(s) savent déjà lire l'horloge — rien à corriger.` };
+    /* Même racine ISO : les ventes/revenus illisibles dans les rapports. On
+       répare l'AFFICHAGE dans le même geste que l'expiration. */
+    const disp = await repairSalesDisplay(client);
+    if (
+      res.stale === 0 &&
+      res.onLoginRepaired === 0 &&
+      disp.rewritten === 0 &&
+      disp.ownerSweep !== "added"
+    ) {
+      return { success: true, summary: `Les ${res.total} balayage(s) savent déjà lire l'horloge et les ventes sont lisibles — rien à corriger.` };
     }
     revalidatePath(`/admin/router/${routerId}`);
     return {
@@ -1007,6 +1025,12 @@ export async function fixRouterExpirySweep(routerId: string) {
         (res.profiles.length > 0 ? ` (${res.profiles.join(", ")})` : "") +
         (res.onLoginRepaired > 0
           ? `, ${res.onLoginRepaired} script(s) de connexion complété(s) — les prochains tickets seront datés lisiblement`
+          : "") +
+        (disp.rewritten > 0
+          ? `, ${disp.rewritten} vente(s) réécrite(s) — les revenus réapparaissent dans les rapports`
+          : "") +
+        (disp.ownerSweep === "added"
+          ? `, planificateur de revenus posé (RouterOS 7.24+)`
           : "") +
         (res.failed > 0 ? `, ${res.failed} en échec` : "") +
         `. Les tickets périmés partiront au prochain passage (~2 min 30).`,
