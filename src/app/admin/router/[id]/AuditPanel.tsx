@@ -53,7 +53,7 @@ const FIX_LABEL: Record<NonNullable<AuditFinding["fix"]>, string> = {
   "mikhmon-session": "Reconfigurer la session",
   "mikhmon-access": "Rediriger l'accès distant",
   "mikhmon-start": "Démarrer MikHmon",
-  "rb-firmware": "Mettre à niveau le firmware",
+  "rb-firmware": "Mettre à niveau + planifier le reboot",
   "api-policy": "Corriger les droits MikHmon",
   "mikhmon-api-access": "Autoriser MikHmon sur l\u2019API",
   "ticket-expiry": "Réparer les dates d\u2019expiration",

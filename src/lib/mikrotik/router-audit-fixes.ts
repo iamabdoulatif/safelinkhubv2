@@ -164,6 +164,72 @@ export async function upgradeRouterboardFirmware(
   return { ...state, applied: true };
 }
 
+/** Nom de la tâche planifiée one-shot qui applique le firmware stagé. */
+export const FW_REBOOT_SCHEDULER = "slh-fw-reboot";
+
+export type ScheduledRebootResult = {
+  /** La tâche a-t-elle été posée ? */
+  scheduled: boolean;
+  /** Heure locale du routeur (HH:MM:SS) à laquelle elle redémarrera. */
+  at: string;
+  /** RouterOS a refusé la création (compte sans droit suffisant). */
+  refused: boolean;
+};
+
+/**
+ * Pose une tâche planifiée one-shot qui redémarre le routeur à la PROCHAINE
+ * occurrence de `hhmm` (par défaut 03:30, heure locale du routeur) pour
+ * appliquer un firmware RouterBOARD stagé, puis se supprime elle-même.
+ *
+ * Pas de calcul de date : `start-time` seul vise la prochaine occurrence, et
+ * `interval=1d` + auto-suppression dans le `on-event` donnent le one-shot sans
+ * dépendre du format de date (ISO en 7.24, `mmm/jj/aaaa` avant — voir
+ * routeros-724-iso-dates).
+ *
+ * PIÈGE DE POLITIQUE : le `on-event` HÉRITE de la politique du compte qui pose
+ * la ligne (comme repairExpirySweeps). Ce compte doit donc avoir `reboot` À CET
+ * INSTANT — or RouterOS fige la politique d'une session à l'ouverture. Après un
+ * octroi via ensureApiGroupPolicy, il faut ROUVRIR une session pour que `reboot`
+ * soit effectif, sinon le reboot planifié échouera en « not enough
+ * permissions ». L'appelant s'en charge. Idempotent : remplace une ligne
+ * homonyme.
+ */
+export async function scheduleRouterboardReboot(
+  client: RouterOSClient,
+  hhmm = "03:30:00",
+  timeoutMs = 15000,
+): Promise<ScheduledRebootResult> {
+  // Remplacement : deux tâches homonymes ne cohabitent pas. On cherche l'.id
+  // (l'API `remove` ne prend pas un nom) ; absente = rien à retirer.
+  const existing = (await client
+    .talk(["/system/scheduler/print", `?name=${FW_REBOOT_SCHEDULER}`], timeoutMs)
+    .catch(() => [])) as Record<string, string>[];
+  for (const s of existing) {
+    if (s[".id"]) await client.talk(["/system/scheduler/remove", `=.id=${s[".id"]}`], timeoutMs).catch(() => {});
+  }
+
+  const onEvent = `/system scheduler remove [find name=${FW_REBOOT_SCHEDULER}]; /system reboot`;
+  try {
+    await client.talk(
+      [
+        "/system/scheduler/add",
+        `=name=${FW_REBOOT_SCHEDULER}`,
+        `=start-time=${hhmm}`,
+        `=interval=1d`,
+        `=on-event=${onEvent}`,
+        `=comment=SafeLinkHub: applique le firmware RouterBOARD stagé au prochain creux, puis se supprime`,
+      ],
+      timeoutMs,
+    );
+  } catch (err) {
+    if (err instanceof Error && /not enough permissions/i.test(err.message)) {
+      return { scheduled: false, at: hhmm, refused: true };
+    }
+    throw err;
+  }
+  return { scheduled: true, at: hhmm, refused: false };
+}
+
 // ── Tickets épinglés à une adresse MAC ──────────────────────────────────────
 
 export type MacBoundTicketsResult = {

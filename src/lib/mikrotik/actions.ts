@@ -34,6 +34,7 @@ import {
   repairSalesDisplay,
   unbindMacBoundTickets,
   upgradeRouterboardFirmware,
+  scheduleRouterboardReboot,
   superfluousServicesToDisable,
 } from "./router-audit-fixes";
 import { ensureApiReachableFromContainer } from "./api-service-access";
@@ -376,19 +377,38 @@ export async function upgradeRouterFirmware(routerId: string) {
     // échoue en « not enough permissions » si le groupe de service n'a pas la
     // policy `reboot` (cas de tout le parc provisionné avant ce correctif) — y
     // compris un reboot planifié, qui tourne sous ce même compte. On l'accorde
-    // ici, pendant qu'on tient une session, pour que le redémarrage à venir
-    // applique bien le firmware. Idempotent ; `refused` si le compte n'a pas
-    // encore `policy` (prendre alors le compte admin du routeur).
+    // ici, pendant qu'on tient une session. Idempotent ; `refused` = le compte
+    // n'a pas encore `policy` et ne peut pas se l'accorder → compte admin.
     const pol = await ensureApiGroupPolicy(client).catch(() => null);
-    const rebootNote = pol?.refused
-      ? " ⚠️ Le compte de service ne peut pas s'accorder le droit de redémarrer — passez la commande avec le compte admin du routeur : " +
-        apiGroupPolicyCommand()
-      : " Le droit de redémarrer est en place : planifiez le reboot hors-pointe.";
+    const base = `Firmware RouterBOARD ${res.current} → ${res.target} stagé — aucune coupure pour l'instant.`;
+    if (pol?.refused) {
+      revalidatePath(`/admin/router/${routerId}`);
+      return {
+        success: true,
+        summary: `${base} ⚠️ Impossible de planifier le reboot : le compte de service n'a pas le droit de redémarrer et ne se l'accorde pas lui-même. Passez la commande avec le compte admin du routeur, puis relancez : ${apiGroupPolicyCommand()}`,
+      };
+    }
+    // La politique d'une session est figée à l'ouverture : si on vient
+    // d'accorder `reboot`, la session courante ne l'a pas encore, et la tâche
+    // planifiée HÉRITERAIT d'une politique sans reboot. On rouvre une session
+    // pour que le `on-event` hérite bien du droit de redémarrer.
+    let sched: Awaited<ReturnType<typeof scheduleRouterboardReboot>> | null = null;
+    try {
+      if (pol?.applied) {
+        client.close();
+        client = await connectToRouter(router);
+      }
+      sched = await scheduleRouterboardReboot(client);
+    } catch {
+      sched = null;
+    }
     revalidatePath(`/admin/router/${routerId}`);
-    return {
-      success: true,
-      summary: `Firmware RouterBOARD ${res.current} → ${res.target} stagé. Il s'appliquera au PROCHAIN redémarrage du routeur (à planifier hors-pointe) — aucune coupure pour l'instant.${rebootNote}`,
-    };
+    const note = sched?.scheduled
+      ? ` Reboot planifié à ${sched.at} (heure du routeur, prochain creux) : il appliquera le firmware puis se supprimera. Aucune action de plus.`
+      : sched?.refused
+        ? " ⚠️ La tâche de reboot a été refusée (droit insuffisant) — relancez le correctif."
+        : " ⚠️ Firmware stagé mais la planification du reboot a échoué (routeur injoignable) — relancez le correctif.";
+    return { success: true, summary: `${base}${note}` };
   } catch (err) {
     return {
       error: err instanceof Error ? `Échec de la mise à niveau firmware : ${err.message}` : "Échec de la mise à niveau firmware.",

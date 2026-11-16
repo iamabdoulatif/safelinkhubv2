@@ -5,6 +5,8 @@ import {
   ensureApiGroupPolicy,
   missingApiGroupPolicies,
   REQUIRED_API_GROUP_POLICIES,
+  scheduleRouterboardReboot,
+  FW_REBOOT_SCHEDULER,
 } from "./router-audit-fixes";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 
@@ -36,6 +38,54 @@ describe("missingApiGroupPolicies", () => {
 
   it("exige bien « reboot » (sans quoi le firmware RouterBOARD ne s'applique jamais)", () => {
     assert.ok(REQUIRED_API_GROUP_POLICIES.includes("reboot"));
+  });
+});
+
+describe("scheduleRouterboardReboot", () => {
+  /** Client factice : journalise les `talk`, rend l'existant demandé, et peut
+      refuser l'écriture d'ajout. */
+  function fakeClient(opts: { existing?: Record<string, string>[]; addThrows?: Error } = {}) {
+    const calls: string[][] = [];
+    return {
+      calls,
+      async talk(words: string[]) {
+        calls.push(words);
+        if (words[0] === "/system/scheduler/print") return opts.existing ?? [];
+        if (words[0] === "/system/scheduler/add" && opts.addThrows) throw opts.addThrows;
+        return [];
+      },
+    };
+  }
+
+  it("pose une tâche one-shot : start-time, interval 1d, on-event auto-suppression + reboot", async () => {
+    const client = fakeClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await scheduleRouterboardReboot(client as any, "03:30:00");
+    assert.deepEqual(res, { scheduled: true, at: "03:30:00", refused: false });
+    const add = client.calls.find((w) => w[0] === "/system/scheduler/add");
+    assert.ok(add, "pas d'ajout émis");
+    assert.ok(add!.includes(`=name=${FW_REBOOT_SCHEDULER}`));
+    assert.ok(add!.includes("=start-time=03:30:00"));
+    assert.ok(add!.includes("=interval=1d"));
+    const onEvent = add!.find((w) => w.startsWith("=on-event="))!;
+    assert.match(onEvent, /scheduler remove \[find name=slh-fw-reboot\]/);
+    assert.match(onEvent, /\/system reboot/);
+  });
+
+  it("remplace une tâche homonyme existante avant d'ajouter (par .id)", async () => {
+    const client = fakeClient({ existing: [{ ".id": "*7", name: FW_REBOOT_SCHEDULER }] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await scheduleRouterboardReboot(client as any);
+    const removed = client.calls.find((w) => w[0] === "/system/scheduler/remove");
+    assert.ok(removed, "ancienne tâche non retirée");
+    assert.ok(removed!.includes("=.id=*7"));
+  });
+
+  it("rend « refusé » (pas une erreur brute) quand RouterOS manque le droit", async () => {
+    const client = fakeClient({ addThrows: new Error("not enough permissions (9)") });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await scheduleRouterboardReboot(client as any);
+    assert.deepEqual(res, { scheduled: false, at: "03:30:00", refused: true });
   });
 });
 

@@ -539,7 +539,7 @@ export async function auditRouter(
         "Système",
         "rb-firmware",
         "Firmware RouterBOARD périmé",
-        `Le firmware du RouterBOARD est resté en ${fw.current} alors que le RouterOS installé embarque ${fw.target}. Le paquet RouterOS et le firmware du bootloader se mettent à jour séparément : après une montée de RouterOS, le firmware reste en arrière tant qu'on ne lance pas /system/routerboard/upgrade puis un reboot — d'où un décalage fréquent. Le correctif le met à niveau en un clic ; il est STAGÉ et ne s'applique qu'au prochain redémarrage (à planifier hors-pointe), sans coupure immédiate des clients.`,
+        `Le firmware du RouterBOARD est resté en ${fw.current} alors que le RouterOS installé embarque ${fw.target}. Le paquet RouterOS et le firmware du bootloader se mettent à jour séparément : après une montée de RouterOS, le firmware reste en arrière tant qu'on ne lance pas /system/routerboard/upgrade puis un reboot — d'où un décalage fréquent. Le correctif stage le firmware en un clic PUIS planifie un redémarrage au prochain creux (03:30, heure du routeur) qui l'applique et se supprime : aucune coupure immédiate des clients.`,
         "rb-firmware",
       );
     else if (fw.routerboard)
