@@ -372,10 +372,22 @@ export async function upgradeRouterFirmware(routerId: string) {
           : "Pas de RouterBOARD à mettre à niveau (firmware géré autrement).",
       };
     }
+    // Le firmware stagé ne s'applique qu'au redémarrage, et `/system reboot`
+    // échoue en « not enough permissions » si le groupe de service n'a pas la
+    // policy `reboot` (cas de tout le parc provisionné avant ce correctif) — y
+    // compris un reboot planifié, qui tourne sous ce même compte. On l'accorde
+    // ici, pendant qu'on tient une session, pour que le redémarrage à venir
+    // applique bien le firmware. Idempotent ; `refused` si le compte n'a pas
+    // encore `policy` (prendre alors le compte admin du routeur).
+    const pol = await ensureApiGroupPolicy(client).catch(() => null);
+    const rebootNote = pol?.refused
+      ? " ⚠️ Le compte de service ne peut pas s'accorder le droit de redémarrer — passez la commande avec le compte admin du routeur : " +
+        apiGroupPolicyCommand()
+      : " Le droit de redémarrer est en place : planifiez le reboot hors-pointe.";
     revalidatePath(`/admin/router/${routerId}`);
     return {
       success: true,
-      summary: `Firmware RouterBOARD ${res.current} → ${res.target} stagé. Il s'appliquera au PROCHAIN redémarrage du routeur (à planifier hors-pointe) — aucune coupure pour l'instant.`,
+      summary: `Firmware RouterBOARD ${res.current} → ${res.target} stagé. Il s'appliquera au PROCHAIN redémarrage du routeur (à planifier hors-pointe) — aucune coupure pour l'instant.${rebootNote}`,
     };
   } catch (err) {
     return {

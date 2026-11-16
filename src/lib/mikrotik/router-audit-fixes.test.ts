@@ -9,14 +9,14 @@ import {
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 
 describe("missingApiGroupPolicies", () => {
-  it("signale « policy » manquant sur un groupe pré-correctif (cas HSPT-LEGRAND)", () => {
+  it("signale « policy » et « reboot » manquants sur un groupe pré-correctif (cas HSPT-LEGRAND)", () => {
     const before =
       "ssh,ftp,read,write,test,sensitive,api,!local,!telnet,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api";
-    assert.deepEqual(missingApiGroupPolicies(before), ["policy"]);
+    assert.deepEqual(missingApiGroupPolicies(before), ["policy", "reboot"]);
   });
 
   it("ne signale rien quand toutes les permissions requises sont actives", () => {
-    const after = "ssh,ftp,read,write,policy,test,sensitive,api,!local,!telnet";
+    const after = "ssh,ftp,read,write,policy,test,sensitive,api,reboot,!local,!telnet";
     assert.deepEqual(missingApiGroupPolicies(after), []);
   });
 
@@ -32,6 +32,10 @@ describe("missingApiGroupPolicies", () => {
 
   it("exige bien « policy » (permission clé pour l'expiration/revenu MikHmon)", () => {
     assert.ok(REQUIRED_API_GROUP_POLICIES.includes("policy"));
+  });
+
+  it("exige bien « reboot » (sans quoi le firmware RouterBOARD ne s'applique jamais)", () => {
+    assert.ok(REQUIRED_API_GROUP_POLICIES.includes("reboot"));
   });
 });
 
@@ -76,7 +80,7 @@ describe("le compte de service ne peut pas s'accorder « policy » lui-même", (
     const client = clientQuiRefuse();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await ensureApiGroupPolicy(client as any);
-    assert.deepEqual(res, { found: true, missing: ["policy"], applied: false, refused: true });
+    assert.deepEqual(res, { found: true, missing: ["policy", "reboot"], applied: false, refused: true });
   });
 
   it("la commande de secours accorde exactement les permissions requises", () => {

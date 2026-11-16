@@ -13,14 +13,22 @@ import type { RouterOSClient } from "./client";
 export const API_GROUP_NAME = "safelinkhub-group";
 
 /**
- * Policies dont le groupe API a besoin. `policy` est la permission
+ * Policies dont le compte de service a besoin. `policy` est la permission
  * historiquement manquante (routeurs provisionnés avant correctif) : sans elle,
  * le MikHmon hébergé — qui se connecte AVEC ce compte — ne peut pas écrire les
  * scripts `on-login`/`on-logout` des profils, les schedulers d'expiration des
  * tickets, ni les scripts de journal de revenu (`/system script`, comment=
  * mikhmon) qu'il relit pour calculer les recettes. D'où « tickets qui
  * n'expirent pas » + « revenu absent ». `ftp` reste requis pour l'upload du
- * portail captif. On garde le principe de moindre privilège : rien de plus.
+ * portail captif.
+ *
+ * `reboot` : sans elle, `/system reboot` renvoie « not enough permissions (9) »
+ * et le firmware RouterBOARD stagé par upgradeRouterFirmware ne s'applique
+ * JAMAIS (il n'est posé qu'au redémarrage), y compris un reboot planifié — le
+ * scheduler tourne sous ce même compte. Mesuré sur DJI-HSPT le 2026-11-16. Le
+ * compte peut se l'accorder dès qu'il a déjà « policy » (cas courant depuis le
+ * correctif api-policy). On garde le principe de moindre privilège : rien de
+ * plus.
  */
 export const REQUIRED_API_GROUP_POLICIES = [
   "api",
@@ -31,6 +39,7 @@ export const REQUIRED_API_GROUP_POLICIES = [
   "sensitive",
   "ssh",
   "ftp",
+  "reboot",
 ] as const;
 
 /**

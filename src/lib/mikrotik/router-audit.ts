@@ -560,15 +560,21 @@ export async function auditRouter(
     const grp = groups[0];
     if (grp) {
       const missing = missingApiGroupPolicies(grp.policy);
-      if (missing.length > 0)
+      if (missing.length > 0) {
+        // « policy » gouverne les permissions : un compte qui ne l'a pas ne
+        // peut pas se la donner (ni rien d'autre) → correctif par le compte
+        // admin. Dès que « policy » est là, le compte complète le reste
+        // lui-même (ex. « reboot » pour l'application du firmware).
+        const needsAdmin = missing.includes("policy");
         add(
           "warn",
           "MikHmon",
           "api-policy",
           "Droits API du compte de service incomplets",
-          `Le compte de service « ${API_GROUP_NAME} » n'a pas ${missing.map((m) => `« ${m} »`).join(", ")} : ce routeur a été posé avant que l'installation VPN ne les accorde. Sans effet connu sur l'expiration des tickets ni sur le revenu — si ceux-là clochent, voir les contrôles « dates » et « balayage ». Le correctif demande le compte administrateur du routeur : « policy » gouverne les permissions, et le compte de service ne se l'accorde pas lui-même.`,
+          `Le compte de service « ${API_GROUP_NAME} » n'a pas ${missing.map((m) => `« ${m} »`).join(", ")} : ce routeur a été posé avant que l'installation VPN ne les accorde. ${needsAdmin ? "Le correctif demande le compte administrateur du routeur : « policy » gouverne les permissions, et le compte de service ne se l'accorde pas lui-même." : "Le correctif s'applique directement (le compte a déjà « policy »)."}`,
           "api-policy",
         );
+      }
       else
         add("ok", "MikHmon", "api-policy-ok", "Droits API MikHmon complets", "Le compte de service a toutes les permissions accordées par l'installation VPN.");
     }
