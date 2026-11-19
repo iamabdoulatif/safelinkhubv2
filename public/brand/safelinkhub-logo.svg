@@ -1,17 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 32" width="168" height="32"
      style="color:#151515" role="img" aria-label="SafeLinkHub">
   <title>SafeLinkHub</title>
-  <!-- Le wordmark est du TEXTE, pas des tracés vectorisés : aucune fonte de
-       marque n'est sous licence dans ce dépôt, et la pile déclarée ici est
-       celle que rend l'application en peau Slate. Le rendu peut donc varier
-       d'un poste à l'autre. Pour un usage hors navigateur (impression,
-       partenaire), vectoriser le texte au préalable.
-       Encre en currentColor, accent neutralisable via la variable
-       slh-accent : voir safelinkhub-mark.svg. -->
-  <path d="M26 7H12v9h8v9H6" fill="none" stroke="currentColor" stroke-width="3.8"
-        stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="2.4" y="21.4" width="7.2" height="7.2" rx="2.1" fill="currentColor"/>
-  <rect x="22.4" y="3.4" width="7.2" height="7.2" rx="2.1" fill="var(--slh-accent, #D6F344)"/>
+  <!-- Lockup horizontal couleur. Symbole = Hub Badge (disque currentColor, S en
+       trou via mask, port lime). Le wordmark est du TEXTE, pas des tracés
+       vectorisés : aucune fonte de marque n'est sous licence dans ce dépôt, la
+       pile déclarée est celle que rend l'application. Pour un usage hors
+       navigateur (impression, partenaire), vectoriser le texte au préalable. -->
+  <mask id="slhb-logo">
+    <circle cx="16" cy="16" r="14.5" fill="#fff"/>
+    <path d="M24 8 H13 V16 H19 V23.2 H7.8" fill="none" stroke="#000"
+          stroke-width="3.3" stroke-linecap="round" stroke-linejoin="round"/>
+  </mask>
+  <circle cx="16" cy="16" r="14.5" fill="currentColor" mask="url(#slhb-logo)"/>
+  <rect x="23" y="3" width="6" height="6" rx="1.6"
+        fill="var(--slh-accent, #D6F344)" stroke="currentColor" stroke-width="0.7"/>
   <text x="42" y="24.3" fill="currentColor"
         font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
         font-size="22" font-weight="700" letter-spacing="-0.55">SafeLinkHub</text>
