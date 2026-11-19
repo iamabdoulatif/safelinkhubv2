@@ -1,17 +1,23 @@
+"use client";
+
 // Brand name must never be machine-translated
 //
-// Le symbole est INLINÉ, pas servi via <img src="/brand/…">. Trois raisons :
-// le tracé suit currentColor (le même fichier marche sur le blanc de la nav,
-// le vert profond du pied de page et le papier de /admin), il n'y a pas de
-// requête supplémentaire ni de logo qui apparaît en retard, et la géométrie
-// reste la même que public/brand/safelinkhub-mark.svg — toute retouche doit
-// être reportée dans les deux.
+// Le symbole est INLINÉ, pas servi via <img src="/brand/…">. Raisons : le signe
+// suit currentColor (le même composant marche sur le blanc de la nav, le vert
+// profond du pied de page et le papier de /admin), il n'y a pas de requête
+// supplémentaire ni de logo qui apparaît en retard, et la géométrie reste la
+// même que public/brand/safelinkhub-mark.svg — toute retouche doit être
+// reportée dans les deux.
 //
-// Le surligneur .marker a disparu du wordmark : il lisait --brand, dont la
-// valeur change selon la peau (lime en Slate, moutarde en Bitume). Le logo
-// changeait donc de couleur entre la landing et l'admin. L'accent est
-// désormais le nœud d'arrivée du symbole, en lime fixe.
+// Hub Badge : une pastille-hub en currentColor avec le S routé CREUSÉ via un
+// mask (vrai trou), d'où l'adaptabilité — disque encre sur fond clair, blanc
+// sur fond sombre, et le S laisse voir le fond dans les deux cas. Le port
+// d'arrivée est l'accent lime fixe (slh-accent). useId donne au mask un id
+// unique : le logo est rendu plusieurs fois par page (nav, pied, /admin).
+import { useId } from "react";
+
 export default function Logo({ dark = false }: { dark?: boolean }) {
+  const maskId = useId();
   return (
     <span
       className={`inline-flex items-center gap-2 ${dark ? "text-paper" : "text-[#12301D]"}`}
@@ -22,24 +28,29 @@ export default function Logo({ dark = false }: { dark?: boolean }) {
         focusable="false"
         className="h-7 w-7 shrink-0 sm:h-8 sm:w-8"
       >
-        <path
-          d="M26 7H12v9h8v9H6"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <rect x="2.4" y="21.4" width="7.2" height="7.2" rx="2.1" fill="currentColor" />
+        <mask id={maskId}>
+          <circle cx="16" cy="16" r="14.5" fill="#fff" />
+          <path
+            d="M24 8 H13 V16 H19 V23.2 H7.8"
+            fill="none"
+            stroke="#000"
+            strokeWidth="3.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </mask>
+        <circle cx="16" cy="16" r="14.5" fill="currentColor" mask={`url(#${maskId})`} />
         {/* Sur un fond lime, poser --slh-accent: currentColor sur un parent :
-            sans quoi le nœud d'arrivée se fond dans l'aplat. */}
+            sans quoi le port d'arrivée se fond dans l'aplat. */}
         <rect
-          x="22.4"
-          y="3.4"
-          width="7.2"
-          height="7.2"
-          rx="2.1"
+          x="23"
+          y="3"
+          width="6"
+          height="6"
+          rx="1.6"
           fill="var(--slh-accent, #D6F344)"
+          stroke="currentColor"
+          strokeWidth="0.7"
         />
       </svg>
       {/* Sous ~338 px la barre de navigation déborde : le groupe de droite
