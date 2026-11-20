@@ -20,7 +20,7 @@ export default function RouterThumb({
   return (
     <span
       aria-hidden="true"
-      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line-soft bg-clay ${className}`}
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line-soft bg-clay ${className}`}
       style={{ width: size, height: size }}
     >
       {src ? (
