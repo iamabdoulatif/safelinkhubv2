@@ -49,8 +49,10 @@ export const MIKHMON_UI_VERSION = "ui-2";
  * ui-1 : prix-corrige + habillage SafeLinkHub CUIT dans l'image (skin inline).
  * On bascule le parc dessus par re-création de conteneur (mécanisme 2) car le
  * dépôt de fichiers à chaud s'est révélé non fiable (l'overlay du conteneur
- * continuait de servir le headhtml cuit dans prix-corrige). */
-export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:ui-1";
+ * continuait de servir le headhtml cuit dans prix-corrige).
+ * ui-2 (2026-11-21) : même recette, reconstruite sur latif225/mikhmon-sf-v1
+ * qui porte le filtre de revenu par période du rapport de vente. */
+export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:ui-2";
 
 const UI_SYNC_ENABLED = true;
 
@@ -58,9 +60,12 @@ const UI_SYNC_ENABLED = true;
 const IMAGE_UPDATE_ENABLED = true;
 /** CANARI : seuls ces routeurs sont éligibles à la re-création d'image. Vider
  * (`[]`) = tout le parc. On commence par COUZA, vérifié, puis on élargit. */
-const IMAGE_UPDATE_CANARY_IDS: string[] = ["92eb5519-52b3-49cd-aace-6f5dd7ca2e76"];
+const IMAGE_UPDATE_CANARY_IDS: string[] = [
+  "92eb5519-52b3-49cd-aace-6f5dd7ca2e76", // HSPT-COUZA
+  "e0518d2c-f6a6-4289-ba77-8c60be634a46", // GUEASSO-HSPT (ui-2, 2026-11-21)
+];
 /** Au plus N re-créations par process (roll-out ultra-graduel). */
-const IMAGE_UPDATE_MAX_PER_PROCESS = 1;
+const IMAGE_UPDATE_MAX_PER_PROCESS = 2;
 
 /** Fichiers d'habillage : servis par l'app, déposés dans le conteneur. */
 // La skin voyage INLINE dans headhtml.php (voir MIKHMON_UI_VERSION) : on ne
