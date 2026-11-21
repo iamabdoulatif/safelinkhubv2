@@ -70,14 +70,13 @@ test("buildConfigRestoreScript : /file set du bon chemin, contenu échappé", ()
   assert.ok(src.includes("\\n")); // newline échappé
 });
 
-test("ensureMikhmonImage : routeur hors allowlist = not-canary (aucune re-création)", async () => {
+// Mécanisme 2 EN PAUSE (voir IMAGE_UPDATE_ENABLED) : aucune re-création, même
+// pour un canari sur une vieille image. Restaurer les tests allowlist
+// (not-canary / already-current) en réactivant le mécanisme.
+test("ensureMikhmonImage : en pause = disabled, le routeur n'est même pas interrogé", async () => {
   const calls: string[][] = [];
-  const res = await ensureMikhmonImage(fakeClient(calls, { ".id": "*1", name: "mikhmon", "root-dir": "/usb1/mikhmon-app", "remote-image": "vieille-image" }), "un-autre-routeur");
-  assert.equal(res, "not-canary");
-  assert.equal(calls.length, 0, "ne doit même pas interroger le routeur");
-});
-
-test("ensureMikhmonImage : canari déjà sur l'image voulue = already-current", async () => {
-  const res = await ensureMikhmonImage(fakeClient([]), COUZA);
-  assert.equal(res, "already-current");
+  const old = { ".id": "*1", name: "mikhmon", "root-dir": "/usb1/mikhmon-app", "remote-image": "vieille-image" };
+  assert.equal(await ensureMikhmonImage(fakeClient(calls, old), COUZA), "disabled");
+  assert.equal(await ensureMikhmonImage(fakeClient(calls, old), "un-autre-routeur"), "disabled");
+  assert.equal(calls.length, 0);
 });
