@@ -76,7 +76,12 @@ const IMAGE_UPDATE_WINDOW_MS = 10 * 60_000;
 // dépose que des ÉCRASEMENTS de fichiers existants, servis à chaud sans
 // redémarrage. On ne dépose plus css/safelink-skin.css (fichier neuf = 404 tant
 // que le conteneur n'a pas redémarré).
-const UI_FILES: { url: string; dst: string }[] = [
+//
+// mikhmon-responsive.css n'est PAS déposé non plus, bien qu'il soit au dépôt :
+// il voyage par l'IMAGE (:ui-2, cf. deploy/mikhmon-v7-ui/Dockerfile). Le dépôt
+// à chaud s'est révélé non fiable — l'overlay du conteneur continuait de servir
+// le fichier cuit dans l'image — donc une seule voie, celle qui marche.
+export const UI_FILES: { url: string; dst: string }[] = [
   { url: "mikhmon-ui/headhtml.txt", dst: "include/headhtml.php" },
   { url: "mikhmon-ui/sessions.txt", dst: "settings/sessions.php" },
 ];
@@ -107,11 +112,45 @@ export async function findMikhmonContainer(client: RouterOSClient, timeoutMs = 1
 
 /* ═══════════════════════ Mécanisme 1 : dépôt de fichiers ════════════════ */
 
+/**
+ * L'habillage est fait POUR MikHmon v7 : son arborescence (`src/src/include`,
+ * `src/src/settings`) et ses fichiers PHP n'existent pas en v3.
+ *
+ * Cas réel (MAMBA-WIFI, 31/10/2026) : conteneur `mikhmonv3-safelinkhub:latest`,
+ * root-dir `/mikhmonv3`. `findMikhmonContainer` le reconnaît (« mikhmon » dans
+ * le nom), et on y déposait donc des fichiers v7 — ils atterrissaient hors de
+ * l'arborescence servie (safelink-skin.css y répond 404). Sans dégât tant que
+ * le chemin n'existe pas, mais c'est un coup de dé : écraser un headhtml.php ou
+ * un sessions.php v3 par leur version v7 casserait l'interface.
+ *
+ * On ne dépose donc QUE sur un conteneur dont l'image est de la lignée v7.
+ * Image inconnue (remote-image vide) = on s'abstient : ne rien faire est
+ * toujours moins grave que remplacer du PHP par celui d'une autre génération.
+ *
+ * LIGNÉE v7 = deux images, pas une. `ghcr.io/…/mikhmon-v7:prix-corrige` est une
+ * COUCHE MINCE sur `latif225/mikhmon-sf-v1` (cf. deploy/mikhmon-v7/Dockerfile,
+ * `FROM latif225/mikhmon-sf-v1:latest`) : même génération, même arborescence.
+ * Ne reconnaître que « mikhmon-v7 » écartait 14 routeurs du parc — le plus gros
+ * groupe après la cible elle-même (inventaire du 31/10/2026).
+ *
+ * Les vraies v3 (`naufkia/mikhmonv3`, `latif225/mikhmonv3-safelinkhub`) ne
+ * contiennent ni « mikhmon-v7 » ni « mikhmon-sf-v1 » : aucun recouvrement.
+ *
+ * MÉCANISME 1 UNIQUEMENT. La mise à jour d'image a sa propre éligibilité, plus
+ * stricte (IMAGE_UPDATE_SOURCE_IMAGES, liste d'images exactes) : inutile de
+ * doubler ce garde-fou dans ensureMikhmonImage.
+ */
+export function isMikhmonV7Image(remoteImage: string): boolean {
+  return /mikhmon-v7|mikhmon-sf-v1/i.test(remoteImage);
+}
+
 /** Dépose les fichiers d'habillage dans le conteneur en marche. Sûr (présentation
- * uniquement). Renvoie le nombre de fichiers posés, ou -1 si pas de conteneur. */
+ * uniquement). Renvoie le nombre de fichiers posés, -1 si pas de conteneur,
+ * -2 si le conteneur n'est pas un MikHmon v7 (rien n'est déposé). */
 export async function ensureMikhmonUiFiles(client: RouterOSClient, timeoutMs = 20000): Promise<number> {
   const c = await findMikhmonContainer(client, timeoutMs);
   if (!c) return -1;
+  if (!isMikhmonV7Image(c.remoteImage)) return -2;
   const base = getAppUrl().replace(/\/+$/, "");
   let ok = 0;
   for (const f of UI_FILES) {

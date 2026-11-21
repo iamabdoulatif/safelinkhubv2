@@ -5,6 +5,7 @@ import {
   findMikhmonContainer,
   ensureMikhmonUiFiles,
   ensureMikhmonImage,
+  isMikhmonV7Image,
   resetImageUpdateStateForTests,
   MIKHMON_DESIRED_IMAGE,
 } from "./mikhmon-auto-update";
@@ -41,18 +42,52 @@ test("findMikhmonContainer : root-dir sans slash de tête", async () => {
 test("ensureMikhmonUiFiles : écrase headhtml+sessions, PAS de css neuf", async () => {
   const calls: string[][] = [];
   const n = await ensureMikhmonUiFiles(fakeClient(calls));
-  // Deux ÉCRASEMENTS (servis à chaud). La skin est INLINE dans headhtml.php :
-  // on ne dépose plus de fichier css/safelink-skin.css NEUF (qui resterait 404
-  // tant que le conteneur n'a pas redémarré).
+  // Deux ÉCRASEMENTS seulement. La skin est INLINE dans headhtml.php, et
+  // mikhmon-responsive.css voyage par l'IMAGE (:ui-2) : le dépôt à chaud s'est
+  // révélé non fiable, l'overlay continuant de servir le fichier de l'image.
   assert.equal(n, 2);
   const head = calls.find((c) => c[0] === "/tool/fetch" && c.some((w) => w.includes("headhtml")));
   assert.ok(head!.includes("=url=https://safelinkhub.io/mikhmon-ui/headhtml.txt"));
   assert.ok(head!.includes("=dst-path=usb1/mikhmon-app/src/src/include/headhtml.php"));
-  assert.equal(
-    calls.some((c) => c.some((w) => w.includes("safelink-skin.css"))),
-    false,
-    "ne dépose plus css/safelink-skin.css",
+  for (const css of ["safelink-skin.css", "mikhmon-responsive.css"]) {
+    assert.equal(
+      calls.some((c) => c.some((w) => w.includes(css))),
+      false,
+      `ne dépose plus css/${css}`,
+    );
+  }
+});
+
+test("ensureMikhmonUiFiles : un conteneur MikHmon v3 ne reçoit RIEN", async () => {
+  // Conteneur réel de MAMBA-WIFI (/container/print detail, 31/10/2026).
+  // Son nom contient « mikhmon » donc findMikhmonContainer le trouve, mais
+  // l'habillage est fait pour la v7 : y déposer des PHP v7 casserait l'UI.
+  const calls: string[][] = [];
+  const n = await ensureMikhmonUiFiles(
+    fakeClient(calls, {
+      ".id": "*1",
+      name: "mikhmonv3-safelinkhub:latest",
+      "root-dir": "/mikhmonv3",
+      "remote-image": "latif225/mikhmonv3-safelinkhub:latest",
+      running: "true",
+    }),
   );
+  assert.equal(n, -2);
+  assert.equal(calls.filter((c) => c[0] === "/tool/fetch").length, 0);
+});
+
+// Les cinq images réellement présentes sur le parc (inventaire du 31/10/2026).
+test("isMikhmonV7Image : la lignée v7 couvre aussi l'image de base sf-v1", () => {
+  // mikhmon-v7:prix-corrige est une COUCHE MINCE sur mikhmon-sf-v1 :
+  // même génération, même arborescence (deploy/mikhmon-v7/Dockerfile).
+  assert.equal(isMikhmonV7Image(MIKHMON_DESIRED_IMAGE), true);
+  assert.equal(isMikhmonV7Image("ghcr.io/iamabdoulatif/mikhmon-v7:ui-cobaye"), true);
+  assert.equal(isMikhmonV7Image("latif225/mikhmon-sf-v1:latest"), true);
+  // Vraies v3 : aucun recouvrement avec les motifs ci-dessus.
+  assert.equal(isMikhmonV7Image("latif225/mikhmonv3-safelinkhub:latest"), false);
+  assert.equal(isMikhmonV7Image("naufkia/mikhmonv3:latest"), false);
+  // Image non relevée : abstention.
+  assert.equal(isMikhmonV7Image(""), false);
 });
 
 const V3 = "latif225/mikhmonv3-safelinkhub:latest";
