@@ -6,6 +6,7 @@ import { decryptSecret } from "@/lib/mikrotik/crypto";
 import { allocateVpnPeer } from "@/lib/mikrotik/relay";
 import { hashToken } from "@/lib/mikrotik/install-token";
 import { buildMikhmonResyncRos } from "@/lib/mikrotik/mikhmon-session";
+import { REQUIRED_API_GROUP_POLICIES } from "@/lib/mikrotik/router-audit-fixes";
 import { randomInt } from "node:crypto";
 
 // Port WireGuard ALÉATOIRE par routeur (et non un port fixe partagé par toute
@@ -170,7 +171,7 @@ function buildScript(opts: {
 
 /user remove [find name=safelinkhub-api]
 /user group remove [find name=safelinkhub-group]
-/user group add name=safelinkhub-group policy=api,read,write,policy,test,sensitive,ssh,ftp
+/user group add name=safelinkhub-group policy=${REQUIRED_API_GROUP_POLICIES.join(",")}
 /user add name=safelinkhub-api password="${opts.apiPassword}" group=safelinkhub-group
 
 
