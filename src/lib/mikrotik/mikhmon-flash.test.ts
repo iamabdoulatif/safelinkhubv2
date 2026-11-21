@@ -157,3 +157,49 @@ describe("réinstallation du conteneur MikHmon", () => {
     assert.equal(isBrokenMikhmonContainer(after, "usb1/mikhmon-layers"), false);
   });
 });
+
+describe("mise à jour d'image du parc (opts.image)", () => {
+  /** Routeur dont l'add peut être refusé pour certaines images. */
+  function routerRefusing(refused: string[]) {
+    const calls: string[][] = [];
+    let current: Record<string, string> | null = {
+      ".id": "*1", name: "mikhmon-sf-v1:latest", "root-dir": "flash/mikhmon-app",
+      "remote-image": "latif225/mikhmon-sf-v1:latest", interface: "veth-mk", status: "stopped",
+    };
+    const client = {
+      async talk(words: string[]) {
+        calls.push(words);
+        if (words[0] === "/container/print") return current ? [current] : [];
+        if (words[0] === "/container/remove") current = null;
+        if (words[0] === "/container/add") {
+          const img = words.find((w) => w.startsWith("=remote-image="))!.slice(14);
+          if (refused.includes(img)) throw new Error("failure: could not add");
+          const name = words.find((w) => w.startsWith("=name="))!.slice(6);
+          current = { ".id": "*2", name, "root-dir": "flash/mikhmon-app", "remote-image": img, interface: "veth-mk", status: "running" };
+        }
+        return [] as Record<string, string>[];
+      },
+    };
+    return { calls, client, current: () => current };
+  }
+  const UI2 = "ghcr.io/iamabdoulatif/mikhmon-v7:ui-2";
+
+  it("recrée sur l'image demandée, avec l'interface du conteneur d'origine", async () => {
+    const r = routerRefusing([]);
+    const res = await migrateMikhmonToFlash(r.client as never, { force: true, image: UI2, pollMs: 1, maxWaitMs: 5 });
+    assert.equal(res.status, "migrated");
+    assert.equal(r.current()?.["remote-image"], UI2);
+    assert.equal(r.current()?.name, "mikhmon-v7:ui-2");
+    const add = r.calls.find((w) => w[0] === "/container/add")!;
+    assert.ok(add.includes("=interface=veth-mk"), "interface d'origine perdue");
+  });
+
+  it("add refusé : l'ancienne image est remise et démarrée, jamais de routeur sans MikHmon", async () => {
+    const r = routerRefusing([UI2]);
+    const res = await migrateMikhmonToFlash(r.client as never, { force: true, image: UI2, pollMs: 1, maxWaitMs: 5 });
+    assert.equal(res.status, "failed");
+    assert.match(res.message, /ancienne image latif225\/mikhmon-sf-v1:latest remise/);
+    assert.equal(r.current()?.["remote-image"], "latif225/mikhmon-sf-v1:latest");
+    assert.ok(r.calls.some((w) => w[0] === "/container/start" && w.includes("=numbers=*2")));
+  });
+});
