@@ -12,9 +12,10 @@
  * opération réversible avec une opération qui ne l'est pas.
  */
 
-import { useRef, useState, useTransition, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type ChangeEvent } from "react";
 import { AlertTriangle, ArrowRightLeft, Check, FileUp, Loader2 } from "lucide-react";
-import { planifierTransfertRsc, appliquerTransfertRsc } from "@/lib/mikrotik/rsc-transfer-actions";
+import { planifierTransfertRsc, demarrerTransfertRscJob } from "@/lib/mikrotik/rsc-transfer-actions";
+import { getRestoreJob } from "@/lib/mikrotik/backup-actions";
 
 type RouterRow = { id: string; name: string; status: string };
 type Cible = { poolName: string; poolRanges: string; hotspotServer: string; hotspotBridge: string };
@@ -35,6 +36,8 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [plan, setPlan] = useState<{ resume: Resume; ecartees: string[]; cible: Cible; total: number } | null>(null);
   const [bilan, setBilan] = useState<{ posees: number; echecs: { commande: string; raison: string }[] } | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [avancement, setAvancement] = useState<{ posees: number; total: number } | null>(null);
   const [occupe, demarrer] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -74,15 +77,67 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
   function appliquer() {
     if (!rsc || !cibleId) return;
     setErreur(null);
+    setBilan(null);
+    setAvancement({ posees: 0, total: plan?.total ?? 0 });
     demarrer(async () => {
-      const r = await appliquerTransfertRsc(cibleId, rsc);
+      const r = await demarrerTransfertRscJob(cibleId, rsc);
       if ("error" in r && r.error) {
         setErreur(r.error);
+        setAvancement(null);
         return;
       }
-      if (r.success) setBilan({ posees: r.posees ?? 0, echecs: r.echecs ?? [] });
+      if (r.success) setJobId(r.jobId); // déclenche le sondage ci-dessous
     });
   }
+
+  // Sondage du job de transfert : chaque requête est brève (bien en deçà des
+  // ~100 s de Cloudflare), donc un transfert de plusieurs minutes tient. Le
+  // travail vit côté serveur (after()) — fermer l'onglet ne l'arrête pas.
+  useEffect(() => {
+    if (!jobId) return;
+    let vivant = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const sonder = async () => {
+      const r = await getRestoreJob(jobId);
+      if (!vivant) return;
+      if (!("success" in r) || !r.success) {
+        setErreur(("error" in r && r.error) || "Suivi du transfert indisponible.");
+        setJobId(null);
+        setAvancement(null);
+        return;
+      }
+      if (r.stale) {
+        setErreur("Le transfert semble interrompu (serveur redémarré ?). Relancez-le.");
+        setJobId(null);
+        setAvancement(null);
+        return;
+      }
+      const p = (r.progress ?? {}) as {
+        posees?: number;
+        total?: number;
+        echecs?: { commande: string; raison: string }[];
+      };
+      if (r.status === "running") {
+        setAvancement({ posees: p.posees ?? 0, total: p.total ?? 0 });
+        timer = setTimeout(sonder, 1500);
+        return;
+      }
+      if (r.status === "done") {
+        setBilan({ posees: p.posees ?? 0, echecs: p.echecs ?? [] });
+        setAvancement(null);
+        setJobId(null);
+        return;
+      }
+      setErreur(r.error || "Transfert échoué.");
+      setAvancement(null);
+      setJobId(null);
+    };
+    sonder();
+    return () => {
+      vivant = false;
+      clearTimeout(timer);
+    };
+  }, [jobId]);
 
   return (
     <div className="rounded-xl border border-line bg-paper p-4 sm:p-5">
@@ -139,7 +194,7 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
           <button
             type="button"
             onClick={apercu}
-            disabled={!rsc || !cibleId || occupe}
+            disabled={!rsc || !cibleId || occupe || !!jobId}
             className="btn btn-md btn-outline inline-flex items-center gap-2"
           >
             {occupe && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -192,12 +247,41 @@ export default function RscTransferCard({ routers }: { routers: RouterRow[] }) {
             <button
               type="button"
               onClick={appliquer}
-              disabled={occupe}
+              disabled={occupe || !!jobId}
               className="btn btn-md btn-primary mt-4 inline-flex items-center gap-2"
             >
-              {occupe ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
-              Transférer sur ce routeur
+              {occupe || jobId ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowRightLeft className="h-4 w-4" />
+              )}
+              {jobId ? "Transfert en cours…" : "Transférer sur ce routeur"}
             </button>
+
+            {avancement && (
+              <div className="mt-3">
+                <div className="flex justify-between text-xs text-ink-soft">
+                  <span>Transfert en tâche de fond…</span>
+                  <span className="tabular-nums">
+                    {avancement.posees}
+                    {avancement.total ? ` / ${avancement.total}` : ""}
+                  </span>
+                </div>
+                {avancement.total > 0 && (
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-line-soft">
+                    <div
+                      className="h-full rounded-full bg-brand transition-all"
+                      style={{
+                        width: `${Math.min(100, Math.round((avancement.posees / avancement.total) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                )}
+                <p className="mt-1 text-xs leading-5 text-ink-soft">
+                  Vous pouvez laisser cette page ouverte ; le transfert continue côté serveur.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

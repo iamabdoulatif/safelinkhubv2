@@ -3,7 +3,6 @@ import { asc, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { collectTrafficHistory } from "@/lib/mikrotik/traffic-collector";
-import { runTelegramMaintenance } from "@/lib/notifications/telegram-delivery";
 import { createHealthSchedule } from "@/lib/mikrotik/health-schedule";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
 import { bearerMatches } from "@/lib/auth/bearer";
@@ -40,11 +39,6 @@ export async function GET(request: NextRequest) {
   if (!bearerMatches(request, process.env.CRON_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
-  after(async () => {
-    await runTelegramMaintenance().then(result => {
-      if (result.failed) console.error(`[telegram] ${result.failed} organization processing failure(s)`);
-    }).catch(() => console.error("[telegram] maintenance failed"));
-  });
   // Keep separate in-process reservations (single production container).
   // The collector also has a DB advisory lock and slot deduplication.
   if (!schedule(after)) return Response.json({ skipped: "already running" }, { status: 202 });

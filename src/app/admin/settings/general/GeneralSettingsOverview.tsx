@@ -34,8 +34,6 @@ const descriptions: Record<string, string> = {
   "/admin/settings/payment-gateways":
     "Choisissez comment encaisser les paiements en ligne.",
   "/admin/billing": "Retrouvez votre formule, votre solde et vos factures.",
-  "/admin/settings/notifications":
-    "Connectez Telegram et choisissez vos alertes.",
   "/admin/settings/sms": "Envoyez les codes et les notifications par SMS.",
 };
 const sections = [
@@ -59,7 +57,7 @@ const sections = [
     title: "Rester informé",
     description: "Les messages utiles, au bon moment.",
     icon: MessagesSquare,
-    paths: ["/admin/settings/notifications", "/admin/settings/sms"],
+    paths: ["/admin/settings/sms"],
   },
 ];
 

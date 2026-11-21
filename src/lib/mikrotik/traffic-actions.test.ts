@@ -40,7 +40,6 @@ const compiled = build({
           else if (a.path.endsWith("/schema"))
             contents = [
               "routers",
-              "routerRegulation",
               "routerTrafficIncidents",
               "routerTrafficSamples",
               "routerTrafficState",

@@ -16,6 +16,7 @@ import { organizations, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { POST as startPayment } from "../pay/route";
 import { openPaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
+import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 
 export function OPTIONS() {
   return corsPreflight();
@@ -26,6 +27,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const orderId = String(body.orderId ?? "").trim();
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
+
+  const limit = await enforcePublicSubmissionRateLimit("portal_payment");
+  if (!limit.allowed) return corsJson({ error: limit.error }, { status: 429 });
 
   const db = getDb();
   const [org] = await db

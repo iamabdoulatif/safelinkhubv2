@@ -1702,95 +1702,6 @@ export const routerRestoreJobs = pgTable(
   ],
 );
 
-// ── Régulation du trafic pilotée par n8n ─────────────────────────────────────
-// La DÉCISION (rythme du quota, blocage des téléchargeurs abusifs) vit dans le
-// workflow n8n « Regulation quota » ; la plateforme lui sert de source de
-// vérité pour les SEUILS (édités à l'écran, plus jamais des constantes dans un
-// nœud Code) et de mémoire pour l'ÉTAT (n8n n'a plus de $getWorkflowStaticData,
-// qui se perd à chaque republication). n8n ne parle jamais au routeur : il lit
-// et applique via /api/internal/n8n/regulation, qui passe par le tunnel avec
-// les identifiants déjà en base. Voir lib/mikrotik/regulation.ts.
-export type RegulationState = {
-  /** ok | throttle | critical | block */
-  decision: string;
-  previous: string;
-  /** max-limit RouterOS appliqué (« up/down »), « 0/0 » = illimité. */
-  limit: string;
-  wanInterface: string | null;
-  /** Dernier relevé BRUT rx+tx de l'interface WAN (détection de reboot). */
-  counters: number;
-  monthBytes: number;
-  dayBytes: number;
-  monthKey: string;
-  dayKey: string;
-  at: string;
-  changedAt: string | null;
-  stats?: Record<string, number | string>;
-  /** rate-limit d'origine de chaque profil hotspot bridé (nom → « up/down »), pour le rétablir. */
-  profileLimits?: Record<string, string>;
-  /** Régulation désactivée ET routeur nettoyé (files, profils, blocages) —
-   *  posé par /api/cron/regulation. Une réactivation réécrit l'état entier. */
-  released?: string;
-};
-
-export type RegulationWatchEntry = {
-  bytesOut: number;
-  blockedUntil: number;
-  offenseCount: number;
-  permanent: boolean;
-  /** Fin du bridage individuel (ms epoch) ; 0 = pas bridé. */
-  throttledUntil?: number;
-  /** Instant du relevé qui a donné `bytesOut` (ms epoch) — sert à mesurer un
-   *  DÉBIT et non un volume brut : sans lui, une interruption de la régulation
-   *  ferait passer l'accumulation du trou pour un téléchargement abusif. */
-  at?: number;
-  /** Code suspendu définitivement : le ticket lui-même est désactivé. */
-  suspended?: boolean;
-  address?: string;
-  user?: string;
-};
-
-export const routerRegulation = pgTable("router_regulation", {
-  routerId: uuid("router_id")
-    .primaryKey()
-    .references(() => routers.id, { onDelete: "cascade" }),
-  enabled: boolean("enabled").notNull().default(false),
-  // Opt-in FUP v2 : jamais exécuté par la cascade historique. Par WAN, cycles
-  // et baselines explicitement confirmés, en octets décimaux.
-  fupLinks: jsonb("fup_links").$type<import("../mikrotik/starlink-fup").FupLink[]>(),
-  fupLedger: jsonb("fup_ledger").$type<Record<string, import("../mikrotik/starlink-fup").FupLedger>>(),
-  fupObservation: jsonb("fup_observation").$type<{ at: string; state: Record<string, unknown>; watch: Record<string, unknown> }>(),
-  fupPooled: boolean("fup_pooled").notNull().default(false),
-  fupTicketPolicy: jsonb("fup_ticket_policy").$type<import("../mikrotik/fup-ticket-policy").TicketPolicy>(),
-  fupTicketState: jsonb("fup_ticket_state").$type<import("../mikrotik/fup-ticket-policy").TicketStates>(),
-  fupMode: text("fup_mode").notNull().default("observation"),
-  fupRuntime: jsonb("fup_runtime").$type<import("../mikrotik/starlink-fup-router").FupRuntime>(),
-  // Seuils du rythme mensuel (lus par n8n). Cible à respecter, plafond absolu,
-  // marge sur le budget du jour, avance tolérée avant de freiner.
-  softCapMb: integer("soft_cap_mb").notNull(),
-  hardCapMb: integer("hard_cap_mb").notNull(),
-  safety: numeric("safety", { precision: 4, scale: 3 }).notNull().default("0.950"),
-  dayCriticalRatio: numeric("day_critical_ratio", { precision: 4, scale: 3 }).notNull().default("1.100"),
-  // Débit plancher quand le plafond absolu est atteint (« up/down » RouterOS).
-  blockLimit: text("block_limit").notNull().default("64k/64k"),
-  // Téléchargeur abusif : volume par passage (Mo) au-delà duquel on bloque,
-  // durée du blocage, nombre d'avertissements avant blocage définitif.
-  abuseThresholdMb: integer("abuse_threshold_mb").notNull().default(1024),
-  abuseBlockMinutes: integer("abuse_block_minutes").notNull().default(180),
-  abuseMaxOffenses: integer("abuse_max_offenses").notNull().default(3),
-  // Pendant un freinage, chaque profil hotspot garde ce % de son rate-limit
-  // (0 = les profils ne bougent pas, seule la file partagée bride).
-  profileThrottlePct: integer("profile_throttle_pct").notNull().default(0),
-  // Débit laissé au téléchargeur abusif pendant son bridage, AVANT tout
-  // blocage : « le téléchargement lourd n'aboutit pas », la navigation passe.
-  abuseThrottleLimit: text("abuse_throttle_limit").notNull().default("256k/256k"),
-  // État écrit par n8n à chaque passage (voir RegulationState) et mémoire des
-  // appareils surveillés (par MAC).
-  state: jsonb("state").$type<RegulationState>(),
-  watch: jsonb("watch").$type<Record<string, RegulationWatchEntry>>(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
 // Provisionnement dual WAN Starlink délégué à n8n (docs/n8n/dualwan.md) : une
 // ligne par lancement. La plateforme POSTe le webhook avec callback_url
 // = /api/internal/n8n/dualwan/<id>, n8n y renvoie la notification finale.
@@ -1811,22 +1722,6 @@ export const routerDualwanJobs = pgTable(
     finishedAt: timestamp("finished_at"),
   },
   (t) => [index("router_dualwan_jobs_router_idx").on(t.routerId, t.createdAt)],
-);
-
-// Journal lisible à l'écran : changements de décision et blocages.
-export const routerRegulationEvents = pgTable(
-  "router_regulation_events",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    routerId: uuid("router_id")
-      .notNull()
-      .references(() => routers.id, { onDelete: "cascade" }),
-    // decision | block | permanent_block
-    kind: text("kind").notNull(),
-    payload: jsonb("payload").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (t) => [index("router_regulation_events_router_idx").on(t.routerId, t.createdAt)],
 );
 
 // ── Liaison de l'agent local à une organisation (architecture A) ──────────────
@@ -1877,42 +1772,6 @@ export const routerTrafficIncidents = pgTable("router_traffic_incidents", {
   recordedBy: uuid("recorded_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, table => [index("router_traffic_incidents_router_idx").on(table.routerId, table.startedAt)]);
-
-/** Separate from platform marketing credentials: one private bot per organization. */
-export const orgTelegramSettings = pgTable('org_telegram_settings', {
-  orgId: uuid('org_id').primaryKey().references(()=>organizations.id,{onDelete:'cascade'}),
-  botId: text('bot_id').notNull().unique(),
-  botName: text('bot_name').notNull(),
-  botUsername: text('bot_username').notNull(),
-  tokenEncrypted: text('token_encrypted').notNull(),
-  revision: uuid('revision').notNull().defaultRandom(),
-  pending: jsonb('pending').$type<import('@/lib/notifications/telegram').TelegramPending>(),
-  chatId: text('chat_id'),
-  chatLabel: text('chat_label'),
-  testedAt: timestamp('tested_at'),
-  enabled: boolean('enabled').notNull().default(false),
-  preferences: jsonb('preferences').$type<import('@/lib/notifications/telegram').TelegramPreferences>().notNull().default({changes:false,quota:false,releases:false,daily:false}),
-  routerIds: jsonb('router_ids').$type<string[]>().notNull().default([]),
-  activatedAt: timestamp('activated_at'),
-  lastCallAt: timestamp('last_call_at'),
-  lastProcessedAt: timestamp('last_processed_at'),
-  lastError: text('last_error'),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
-export const orgTelegramDeliveries = pgTable('org_telegram_deliveries', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(()=>organizations.id,{onDelete:'cascade'}),
-  revision: uuid('revision').notNull(),
-  routerId: uuid('router_id').notNull().references(()=>routers.id,{onDelete:'cascade'}),
-  eventKey: text('event_key').notNull(),
-  text: text('text').notNull(),
-  status: text('status').notNull().default('pending'),
-  attempts: integer('attempts').notNull().default(0),
-  nextAttemptAt: timestamp('next_attempt_at').notNull().defaultNow(),
-  lastError: text('last_error'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  sentAt: timestamp('sent_at'),
-}, t=>[uniqueIndex('org_telegram_deliveries_event_idx').on(t.orgId,t.eventKey),index('org_telegram_deliveries_pending_idx').on(t.status,t.nextAttemptAt)]);
 
 /** A permanent, paid entitlement; scoped to organization AND router. */
 export const routerMultiwanLicenses = pgTable("router_multiwan_licenses", {
