@@ -12,21 +12,16 @@
 //        ROUTEUR). Rien à re-synchroniser, zéro perte. Versionné MIKHMON_UI_VERSION.
 //
 // 2. MISE À JOUR DE L'IMAGE (ensureMikhmonImage) — pour une REFONTE TOTALE.
-//    Re-crée le conteneur sur l'image voulue. La re-création RÉ-EXTRAIT l'image →
-//    config.php (sessions) revient au modèle (vérifié sur COUZA : l'envlist ne
-//    REPEUPLE PAS au ré-extract, seulement au tout premier boot). On préserve
-//    donc la session par SAUVEGARDE → RESTAURATION verbatim :
-//      a. lit config.php (API /file/get),
-//      b. stop (attend l'arrêt réel) + remove + add (même interface/root-dir +
-//         envlist mikhmon + nouvelle image) + attend le running,
-//      c. restaure config.php verbatim via un script `/file set` ÉCHAPPÉ (seule
-//         écriture qui atteint le container-store ; /file/set direct ne le voit
-//         pas). Sessions + mot de passe admin préservés à l'identique.
+//    Re-crée le conteneur sur l'image voulue par le MÊME chemin que le bouton
+//    « Réinstaller MikHmon » (migrateMikhmonToFlash, force + image) : config du
+//    registre et des couches, stop/remove réessayés, add avec l'interface du
+//    conteneur d'origine ; si l'add échoue, l'ancienne image est remise.
+//    La ré-extraction remet config.php au modèle : la session « SafeLinkHub »
+//    est REPOSÉE ensuite (repostMikhmonSession), dès que le conteneur tourne.
 //    Ventes / expirations / profils vivent sur le ROUTEUR → intacts.
-//    GARDE-FOUS : activable (IMAGE_UPDATE_ENABLED) mais borné à une ALLOWLIST de
-//    canaris (IMAGE_UPDATE_CANARY_IDS) et à IMAGE_UPDATE_MAX_PER_PROCESS
-//    re-créations par process. On élargit l'allowlist (puis on la vide = parc)
-//    une fois le canari vérifié.
+//    GARDE-FOUS : seules les images de la famille sf-v1 sont remplacées (jamais
+//    les éditions v3) ; au plus IMAGE_UPDATE_MAX_PER_WINDOW re-créations par
+//    fenêtre ; au premier échec, coupe-circuit pour le reste du process.
 //
 // Versionné + une fois par routeur et par process (comme le durcissement).
 
@@ -35,6 +30,8 @@ import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { getAppUrl } from "@/lib/net/app-url";
 import type { RouterOSClient } from "./client";
+import { migrateMikhmonToFlash } from "./mikhmon-flash";
+import { repostMikhmonSession } from "./mikhmon-session-repost";
 
 type Sentence = Record<string, string>;
 
@@ -56,19 +53,23 @@ export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:ui-2";
 
 const UI_SYNC_ENABLED = true;
 
-/** Mécanisme 2 activé, borné par l'allowlist + le cap ci-dessous. Mis en pause
- * le 2026-11-21 (#119) après un remove échoué sur GUEASSO-HSPT qui avait laissé
- * le conteneur ARRÊTÉ ; recreateMikhmonOnImage relance désormais le conteneur
- * d'origine (ou remet l'ancienne image) quand remove ou add échoue. */
-const IMAGE_UPDATE_ENABLED = false; // PAUSE 2026-11-21 : add échoué sur GUEASSO-HSPT (interface codée en dur ?)
-/** CANARI : seuls ces routeurs sont éligibles à la re-création d'image. Vider
- * (`[]`) = tout le parc. On commence par COUZA, vérifié, puis on élargit. */
-const IMAGE_UPDATE_CANARY_IDS: string[] = [
-  "92eb5519-52b3-49cd-aace-6f5dd7ca2e76", // HSPT-COUZA
-  "e0518d2c-f6a6-4289-ba77-8c60be634a46", // GUEASSO-HSPT (ui-2, 2026-11-21)
+/** Mécanisme 2. Historique 2026-11-21 : deux échecs sur GUEASSO-HSPT avec une
+ * re-création maison (remove trop tôt, puis add refusé) ; elle passe désormais
+ * par migrateMikhmonToFlash, le chemin de « Réinstaller MikHmon » qui a réparé
+ * ce même routeur. */
+const IMAGE_UPDATE_ENABLED = true;
+/** Images remplacées par MIKHMON_DESIRED_IMAGE : la famille sf-v1 et ses
+ * dérivés SafeLinkHub. Les éditions v3 (latif225/mikhmonv3-safelinkhub,
+ * naufkia/mikhmonv3) ne sont PAS dans la liste : leur code n'est pas le même. */
+export const IMAGE_UPDATE_SOURCE_IMAGES = [
+  "latif225/mikhmon-sf-v1:latest",
+  "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige",
+  "ghcr.io/iamabdoulatif/mikhmon-v7:latest",
+  "ghcr.io/iamabdoulatif/mikhmon-v7:ui-1",
 ];
-/** Au plus N re-créations par process (roll-out ultra-graduel). */
-const IMAGE_UPDATE_MAX_PER_PROCESS = 2;
+/** Déploiement progressif : au plus N re-créations par fenêtre glissante. */
+const IMAGE_UPDATE_MAX_PER_WINDOW = 3;
+const IMAGE_UPDATE_WINDOW_MS = 10 * 60_000;
 
 /** Fichiers d'habillage : servis par l'app, déposés dans le conteneur. */
 // La skin voyage INLINE dans headhtml.php (voir MIKHMON_UI_VERSION) : on ne
@@ -80,7 +81,9 @@ const UI_FILES: { url: string; dst: string }[] = [
   { url: "mikhmon-ui/sessions.txt", dst: "settings/sessions.php" },
 ];
 
-let recreatesThisProcess = 0;
+let recentRecreates: number[] = [];
+/** Coupe-circuit : un échec arrête les re-créations jusqu'au prochain process. */
+let imageUpdateTripped = false;
 
 type Container = { id: string; rootDir: string; remoteImage: string; running: boolean };
 
@@ -122,55 +125,6 @@ export async function ensureMikhmonUiFiles(client: RouterOSClient, timeoutMs = 2
 }
 
 /* ═══════════════════════ Mécanisme 2 : mise à jour image ════════════════ */
-
-/** Échappe une chaîne pour un littéral RouterOS entre guillemets doubles.
- * Validé sur COUZA : restaure config.php verbatim via `/file set`. */
-export function escapeRosString(s: string): string {
-  return s
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\$/g, "\\$")
-    .replace(/\r/g, "\\r")
-    .replace(/\n/g, "\\n");
-}
-
-/** Source du script qui réécrit config.php (couche supérieure du container-store). */
-export function buildConfigRestoreScript(rootDir: string, configPhp: string): string {
-  const path = `${rootDir}/src/src/include/config.php`;
-  return `/file set ${path} contents="${escapeRosString(configPhp)}"`;
-}
-
-/** Lit config.php via l'API (couche supérieure, modifiée = lisible par chemin). */
-async function readConfigPhp(client: RouterOSClient, rootDir: string, timeoutMs = 15000): Promise<string | null> {
-  const path = `${rootDir}/src/src/include/config.php`;
-  // RouterOS renvoie la valeur d'un `get` dans `=ret=` sur la phrase !done :
-  // includeDoneAttributes=true est indispensable pour la capturer.
-  const rows = await client
-    .talk(["/file/get", `=number=${path}`, "=value-name=contents"], timeoutMs, true)
-    .catch(() => null);
-  if (!rows) return null;
-  for (const r of rows as Sentence[]) {
-    const v = r.ret ?? r.value ?? r.contents;
-    if (typeof v === "string" && v.length > 0) return v;
-  }
-  return null;
-}
-
-/** Restaure config.php via un script `/file set` échappé (add + run + remove). */
-async function restoreConfigPhp(client: RouterOSClient, rootDir: string, configPhp: string, timeoutMs = 20000): Promise<boolean> {
-  const name = "slh-cfg-restore";
-  const old = await client.talk(["/system/script/print", `?name=${name}`], timeoutMs).catch(() => [] as Sentence[]);
-  for (const r of old) if (r[".id"]) await client.talk(["/system/script/remove", `=numbers=${r[".id"]}`], timeoutMs).catch(() => {});
-  const ok = await client
-    .talk(["/system/script/add", `=name=${name}`, `=source=${buildConfigRestoreScript(rootDir, configPhp)}`], timeoutMs)
-    .then(() => true)
-    .catch(() => false);
-  if (!ok) return false;
-  await client.talk(["/system/script/run", `=number=${name}`], timeoutMs).catch(() => {});
-  const rows = await client.talk(["/system/script/print", `?name=${name}`], timeoutMs).catch(() => [] as Sentence[]);
-  for (const r of rows) if (r[".id"]) await client.talk(["/system/script/remove", `=numbers=${r[".id"]}`], timeoutMs).catch(() => {});
-  return true;
-}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -225,90 +179,50 @@ export async function restartMikhmonContainer(client: RouterOSClient): Promise<b
 }
 
 /**
- * Re-crée le conteneur MikHmon sur `image`, en préservant la session. Renvoie
- * un statut. Suppose l'allowlist/cap déjà vérifiés par l'appelant.
+ * Met l'image à jour si le conteneur tourne sur une image de la famille sf-v1
+ * différente de l'image voulue — borné par la fenêtre et le coupe-circuit.
+ * `now` et `migrate` sont injectables pour les tests.
  */
-export async function recreateMikhmonOnImage(
+export async function ensureMikhmonImage(
   client: RouterOSClient,
-  image: string,
-  timing: { pollMs?: number; runMs?: number } = {},
-): Promise<"updated" | "failed" | "failed-backup" | "no-container" | "skipped"> {
-  const pollMs = timing.pollMs ?? 3000;
-  const runMs = timing.runMs ?? 180000;
-  const c = await findMikhmonContainer(client);
-  if (!c) return "no-container";
-  if (c.remoteImage === image) return "skipped";
-
-  // a. sauvegarde verbatim de config.php (sessions + admin).
-  // GARDE-FOU CRITIQUE : sans sauvegarde valide, on NE TOUCHE PAS au conteneur —
-  // une re-création sans restauration possible perdrait la session. On abandonne
-  // proprement (le routeur reste tel quel, zéro perte).
-  const configBak = await readConfigPhp(client, c.rootDir);
-  if (!configBak || configBak.length <= 50) return "failed-backup";
-
-  const add = (img: string) =>
-    client
-      .talk([
-        "/container/add",
-        `=remote-image=${img}`,
-        "=interface=MIKHMON",
-        `=root-dir=${c.rootDir}`,
-        "=envlist=mikhmon",
-        "=start-on-boot=yes",
-        "=logging=no",
-      ])
-      .then(() => true)
-      .catch(() => false);
-
-  // b. stop, attendre le statut « stopped », puis remove (3 essais).
-  await client.talk(["/container/stop", `=numbers=${c.id}`]).catch(() => {});
-  await waitStopped(client, c.id, 60000, pollMs);
-  let removed = false;
-  for (let i = 0; i < 3 && !removed; i++) {
-    if (i > 0) await sleep(pollMs * 2);
-    removed = await client.talk(["/container/remove", `=numbers=${c.id}`]).then(() => true).catch(() => false);
-  }
-  if (!removed) {
-    // Le conteneur d'origine est toujours là, arrêté : on le relance. Sans ça,
-    // MikHmon reste éteint jusqu'à une intervention manuelle.
-    await client.talk(["/container/start", `=numbers=${c.id}`]).catch(() => {});
-    await waitRunning(client, Math.min(runMs, 60000), pollMs);
-    return "failed";
-  }
-
-  // c. add sur la nouvelle image (envlist mikhmon = resync natif au boot ;
-  //    mêmes interface/root-dir ; start-on-boot). Si l'ajout échoue, on remet
-  //    l'ancienne image au même emplacement pour ne pas laisser le routeur sans
-  //    MikHmon.
-  const added = await add(image);
-  if (!added) {
-    if (await add(c.remoteImage)) {
-      await waitRunning(client, runMs, pollMs);
-      await restoreConfigPhp(client, c.rootDir, configBak).catch(() => {});
-    }
-    return "failed";
-  }
-  await waitRunning(client, runMs, pollMs);
-
-  // d. restaure config.php verbatim (sauvegarde garantie valide, cf. garde-fou).
-  await restoreConfigPhp(client, c.rootDir, configBak).catch(() => {});
-  return "updated";
-}
-
-/**
- * Met l'image à jour si elle diffère de l'image voulue — borné par le garde-fou,
- * l'allowlist canari et le cap par process.
- */
-export async function ensureMikhmonImage(client: RouterOSClient, routerId: string): Promise<string> {
+  routerId: string,
+  deps: { now?: number; migrate?: typeof migrateMikhmonToFlash } = {},
+): Promise<string> {
   if (!IMAGE_UPDATE_ENABLED) return "disabled";
-  if (IMAGE_UPDATE_CANARY_IDS.length > 0 && !IMAGE_UPDATE_CANARY_IDS.includes(routerId)) return "not-canary";
-  if (recreatesThisProcess >= IMAGE_UPDATE_MAX_PER_PROCESS) return "cap-reached";
+  if (imageUpdateTripped) return "circuit-open";
   const c = await findMikhmonContainer(client);
   if (!c) return "no-container";
   if (c.remoteImage === MIKHMON_DESIRED_IMAGE) return "already-current";
-  recreatesThisProcess++;
-  const res = await recreateMikhmonOnImage(client, MIKHMON_DESIRED_IMAGE);
-  return res;
+  if (!IMAGE_UPDATE_SOURCE_IMAGES.includes(c.remoteImage)) return "not-eligible";
+  const now = deps.now ?? Date.now();
+  recentRecreates = recentRecreates.filter((t) => now - t < IMAGE_UPDATE_WINDOW_MS);
+  if (recentRecreates.length >= IMAGE_UPDATE_MAX_PER_WINDOW) return "cap-reached";
+  recentRecreates.push(now);
+
+  const res = await (deps.migrate ?? migrateMikhmonToFlash)(client, {
+    force: true,
+    image: MIKHMON_DESIRED_IMAGE,
+    maxWaitMs: 240000,
+  });
+  if (res.status === "migrated" || res.status === "pulling") {
+    // La session sera reposée par reconcileMikhmonAutoUpdate dès que le
+    // conteneur tournera (marqueur : mikhmon_session_at remis à NULL).
+    try {
+      await getDb().update(routers).set({ mikhmonSessionAt: null }).where(eq(routers.id, routerId));
+    } catch {
+      /* sans marqueur, la session sera reposée par le bouton ; on n'échoue pas la mise à jour */
+    }
+    return "updated";
+  }
+  imageUpdateTripped = true;
+  console.error(JSON.stringify({ level: "warn", msg: "mikhmon image update failed", routerId, result: res }));
+  return "failed";
+}
+
+/** Tests uniquement : remet la fenêtre et le coupe-circuit à zéro. */
+export function resetImageUpdateStateForTests(): void {
+  recentRecreates = [];
+  imageUpdateTripped = false;
 }
 
 /* ═══════════════════════ Orchestrateur (appelé à la synchro) ════════════ */
@@ -375,7 +289,22 @@ export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerI
       }
     }
   }
-  // 3) Inventaire : on garde l'état du conteneur au lieu de le jeter. Une
+  // 3) Session : un conteneur recréé repart sans session SafeLinkHub. Dès qu'il
+  //    tourne sur l'image voulue, on la repose (une fois : le marqueur
+  //    mikhmon_session_at repasse à une date).
+  try {
+    const [r] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
+    if (r && r.mikhmonSessionAt === null && r.mikhmonImage === MIKHMON_DESIRED_IMAGE) {
+      const c = await findMikhmonContainer(client);
+      if (c?.running && c.remoteImage === MIKHMON_DESIRED_IMAGE) {
+        const res = await repostMikhmonSession(client, r);
+        if (!res.ok) console.error(JSON.stringify({ level: "warn", msg: "mikhmon session repost failed", routerId, error: res.error }));
+      }
+    }
+  } catch {
+    /* best-effort : retenté à la prochaine synchro */
+  }
+  // 4) Inventaire : on garde l'état du conteneur au lieu de le jeter. Une
   //    lecture /container/print de plus toutes les 5 min, contre la seule
   //    réponse fiable à « quelle génération tourne sur quel routeur ? ».
   await recordMikhmonInventory(client, routerId);
