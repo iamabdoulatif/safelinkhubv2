@@ -52,8 +52,12 @@ export async function migrateMikhmonToFlash(
   }
   // Emplacement cible (voir plus bas) : les couches vont sur le MÊME stockage.
   const targetRootDir = persistent && rootDir ? rootDir : "flash/mikhmon-app";
-  const storagePrefix = targetRootDir.replace(/^\/+/, "").split("/")[0];
-  const layerDir = `${storagePrefix}/mikhmon-layers`;
+  const rootParts = targetRootDir.replace(/^\/+/, "").split("/");
+  // Sans préfixe de stockage (root-dir « mikhmon-app »), « <préfixe>/mikhmon-layers »
+  // tombait DANS le root-dir : RouterOS refuse alors tout add (« layer-dir overlap
+  // with root-dir », HSPT-DUBONHEUR le 21/11/2026). Dans ce cas on ne touche pas
+  // au layer-dir du routeur.
+  const layerDir = rootParts.length > 1 ? `${rootParts[0]}/mikhmon-layers` : null;
 
   const iface = mk.interface || "MIKHMON";
   const oldImage = mk["remote-image"];
@@ -72,7 +76,7 @@ export async function migrateMikhmonToFlash(
       // Les couches suivent le conteneur. Les laisser sur la flash pendant que
       // le conteneur vit sur la clé, c'est remplir une flash de 128 Mo avec la
       // plus grosse partie de l'image — le défaut constaté sur HSPT-TOFESSO.
-      `=layer-dir=${layerDir}`,
+      ...(layerDir ? [`=layer-dir=${layerDir}`] : []),
       "=tmpdir=tmp/pull",
     ],
     t,
@@ -266,4 +270,69 @@ export async function repairBrokenMikhmonContainer(
     repaired: result.status === "migrated" || result.status === "pulling",
     reason: result.message,
   };
+}
+
+/**
+ * Recrée un conteneur MikHmon DISPARU (remove réussi, add refusé), sans rejouer
+ * toute l'installation : même interface veth (MIKHMON) et même stockage. Le
+ * root-dir est celui de l'ancien conteneur quand on le connaît ; sinon on
+ * reprend le dossier MikHmon resté sur le routeur, à défaut l'emplacement
+ * standard (flash/mikhmon-app, ou mikhmon-app sur les cartes sans /flash).
+ */
+export async function readdMikhmonContainer(
+  client: RouterOSClient,
+  opts: { image: string; rootDir?: string; iface?: string; timeoutMs?: number; pollMs?: number; maxWaitMs?: number },
+): Promise<MikhmonFlashResult> {
+  const t = opts.timeoutMs ?? 20000;
+  const poll = opts.pollMs ?? 6000;
+  const rounds = Math.max(1, Math.ceil((opts.maxWaitMs ?? 180000) / poll));
+  const isMk = (c: Record<string, string>) =>
+    /mikhmon/i.test(String(c.name ?? "")) || /mikhmon/i.test(String(c["root-dir"] ?? ""));
+  if ((await client.talk(["/container/print", "=detail"], t).catch(() => [])).some(isMk)) {
+    return { status: "failed", message: "Un conteneur MikHmon existe déjà." };
+  }
+
+  let rootDir = (opts.rootDir ?? "").replace(/^\/+/, "");
+  if (!rootDir) {
+    const dirs = (await client.talk(["/file/print", "?type=directory"], t).catch(() => []))
+      .map((f) => String(f.name ?? "").replace(/^\/+/, ""));
+    rootDir =
+      dirs.find((d) => /^([^/]+\/)?mikhmon-app$/.test(d)) ??
+      dirs.find((d) => /^([^/]+\/)?mikhmon[^/]*$/i.test(d) && !/layers|pull|tmp/i.test(d)) ??
+      (dirs.includes("flash") ? "flash/mikhmon-app" : "mikhmon-app");
+  }
+  const parts = rootDir.split("/");
+  await client
+    .talk(
+      [
+        "/container/config/set",
+        "=registry-url=https://registry-1.docker.io",
+        ...(parts.length > 1 ? [`=layer-dir=${parts[0]}/mikhmon-layers`] : []),
+        "=tmpdir=tmp/pull",
+      ],
+      t,
+    )
+    .catch(() => {});
+
+  const name = opts.image.split("/").pop() ?? "mikhmon";
+  await client.talk(
+    [
+      "/container/add",
+      `=interface=${opts.iface ?? "MIKHMON"}`,
+      `=name=${name}`,
+      `=remote-image=${opts.image}`,
+      `=root-dir=${rootDir}`,
+      "=start-on-boot=yes",
+    ],
+    60000,
+  );
+  for (let i = 0; i < rounds; i++) {
+    await sleep(poll);
+    const nc = (await client.talk(["/container/print", "=detail"], t).catch(() => [])).find(isMk);
+    if (nc && (nc.running === "true" || nc.status === "running")) {
+      return { status: "migrated", message: `MikHmon recréé et démarré (root-dir=${rootDir}).` };
+    }
+    if (nc?.[".id"]) await client.talk(["/container/start", `=numbers=${nc[".id"]}`], t).catch(() => {});
+  }
+  return { status: "pulling", message: `Conteneur recréé sur ${rootDir}, téléchargement de l'image en cours.` };
 }
