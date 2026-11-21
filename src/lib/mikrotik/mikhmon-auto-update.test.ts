@@ -5,6 +5,7 @@ import {
   findMikhmonContainer,
   ensureMikhmonUiFiles,
   ensureMikhmonImage,
+  recreateMikhmonOnImage,
   escapeRosString,
   buildConfigRestoreScript,
   MIKHMON_DESIRED_IMAGE,
@@ -70,13 +71,91 @@ test("buildConfigRestoreScript : /file set du bon chemin, contenu échappé", ()
   assert.ok(src.includes("\\n")); // newline échappé
 });
 
-// Mécanisme 2 EN PAUSE (voir IMAGE_UPDATE_ENABLED) : aucune re-création, même
-// pour un canari sur une vieille image. Restaurer les tests allowlist
-// (not-canary / already-current) en réactivant le mécanisme.
-test("ensureMikhmonImage : en pause = disabled, le routeur n'est même pas interrogé", async () => {
+test("ensureMikhmonImage : routeur hors allowlist = not-canary (aucune re-création)", async () => {
   const calls: string[][] = [];
-  const old = { ".id": "*1", name: "mikhmon", "root-dir": "/usb1/mikhmon-app", "remote-image": "vieille-image" };
-  assert.equal(await ensureMikhmonImage(fakeClient(calls, old), COUZA), "disabled");
-  assert.equal(await ensureMikhmonImage(fakeClient(calls, old), "un-autre-routeur"), "disabled");
-  assert.equal(calls.length, 0);
+  const res = await ensureMikhmonImage(fakeClient(calls, { ".id": "*1", name: "mikhmon", "root-dir": "/usb1/mikhmon-app", "remote-image": "vieille-image" }), "un-autre-routeur");
+  assert.equal(res, "not-canary");
+  assert.equal(calls.length, 0, "ne doit même pas interroger le routeur");
+});
+
+test("ensureMikhmonImage : canari déjà sur l'image voulue = already-current", async () => {
+  const res = await ensureMikhmonImage(fakeClient([]), COUZA);
+  assert.equal(res, "already-current");
+});
+
+/* Faux routeur pour recreateMikhmonOnImage : un conteneur sur une vieille image,
+   config.php lisible, et des pannes injectables sur remove / add. */
+function recreateClient(opts: { removeFails?: number; addFailsFor?: string[]; stoppingPolls?: number } = {}) {
+  const calls: string[][] = [];
+  let removeFails = opts.removeFails ?? 0;
+  let stoppingPolls = opts.stoppingPolls ?? 0;
+  let container: Record<string, string> | null = {
+    ".id": "*1",
+    name: "mikhmon-sf-v1:latest",
+    "root-dir": "flash/mikhmon-app",
+    "remote-image": "latif225/mikhmon-sf-v1:latest",
+    running: "true",
+    status: "running",
+  };
+  const client = {
+    talk: async (cmd: string[]) => {
+      calls.push(cmd);
+      const verb = cmd[0];
+      if (verb === "/file/get") return [{ ret: "<?php $data['SafeLinkHub'] = array('x'); // config assez longue pour passer le garde-fou" }];
+      if (verb === "/container/print") {
+        if (container && container.status === "stopping" && stoppingPolls-- <= 0) container.status = "stopped";
+        return container ? [container] : [];
+      }
+      if (verb === "/container/stop" && container) {
+        container.running = "false";
+        container.status = stoppingPolls > 0 ? "stopping" : "stopped";
+      }
+      if (verb === "/container/start" && container) {
+        container.running = "true";
+        container.status = "running";
+      }
+      if (verb === "/container/remove") {
+        if (container?.status !== "stopped" || removeFails-- > 0) throw new Error("cannot remove");
+        container = null;
+      }
+      if (verb === "/container/add") {
+        const img = cmd.find((w) => w.startsWith("=remote-image="))!.slice("=remote-image=".length);
+        if (opts.addFailsFor?.includes(img)) throw new Error("add failed");
+        container = { ".id": "*2", name: img, "root-dir": "flash/mikhmon-app", "remote-image": img, running: "true", status: "running" };
+      }
+      return [];
+    },
+  } as unknown as RouterOSClient;
+  return { client, calls, current: () => container };
+}
+
+const UI2 = "ghcr.io/iamabdoulatif/mikhmon-v7:ui-2";
+const fast = { pollMs: 1, runMs: 50 };
+
+test("recreateMikhmonOnImage : attend « stopped » (pas seulement running=false) avant remove", async () => {
+  const r = recreateClient({ stoppingPolls: 2 });
+  assert.equal(await recreateMikhmonOnImage(r.client, UI2, fast), "updated");
+  assert.equal(r.current()?.["remote-image"], UI2);
+});
+
+test("recreateMikhmonOnImage : remove qui échoue = conteneur d'origine RELANCÉ", async () => {
+  const r = recreateClient({ removeFails: 99 });
+  assert.equal(await recreateMikhmonOnImage(r.client, UI2, fast), "failed");
+  assert.equal(r.current()?.["remote-image"], "latif225/mikhmon-sf-v1:latest");
+  assert.equal(r.current()?.running, "true", "le conteneur est resté arrêté");
+  assert.equal(r.calls.filter((c) => c[0] === "/container/remove").length, 3, "remove réessayé 3 fois");
+});
+
+test("recreateMikhmonOnImage : remove qui échoue une fois puis passe = updated", async () => {
+  const r = recreateClient({ removeFails: 1 });
+  assert.equal(await recreateMikhmonOnImage(r.client, UI2, fast), "updated");
+  assert.equal(r.current()?.["remote-image"], UI2);
+});
+
+test("recreateMikhmonOnImage : add qui échoue = ancienne image remise au même endroit", async () => {
+  const r = recreateClient({ addFailsFor: [UI2] });
+  assert.equal(await recreateMikhmonOnImage(r.client, UI2, fast), "failed");
+  assert.equal(r.current()?.["remote-image"], "latif225/mikhmon-sf-v1:latest");
+  assert.equal(r.current()?.["root-dir"], "flash/mikhmon-app");
+  assert.equal(r.current()?.running, "true");
 });
