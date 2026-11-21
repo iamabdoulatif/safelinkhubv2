@@ -56,8 +56,11 @@ export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:ui-2";
 
 const UI_SYNC_ENABLED = true;
 
-/** Mécanisme 2 activé, mais borné par l'allowlist + le cap ci-dessous. */
-const IMAGE_UPDATE_ENABLED = true;
+/** Mécanisme 2 EN PAUSE (2026-11-21) : sur GUEASSO-HSPT, /container/remove a
+ * échoué juste après le stop — le conteneur est resté ARRÊTÉ sur l'ancienne
+ * image, sans redémarrage. Ne pas réactiver avant d'avoir corrigé ce chemin
+ * (relancer le conteneur quand remove ou add échoue). */
+const IMAGE_UPDATE_ENABLED = false;
 /** CANARI : seuls ces routeurs sont éligibles à la re-création d'image. Vider
  * (`[]`) = tout le parc. On commence par COUZA, vérifié, puis on élargit. */
 const IMAGE_UPDATE_CANARY_IDS: string[] = [
