@@ -337,33 +337,7 @@ export async function recordMikhmonInventory(client: RouterOSClient, routerId: s
   }
 }
 
-/** DIAGNOSTIC TEMPORAIRE (21/11/2026) : routeurs dont MikHmon ne répond plus
- * après la bascule ui-2. À retirer une fois réparés. */
-const MIKHMON_DIAG_IDS = [
-  "52d71a14-a71f-48cd-96c6-93d0cb19be16", // HSPT-DUBONHEUR
-  "4b8ac89d-d317-4583-9099-053dedf5b77e", // DIAK-HSPT
-  "a5d7be90-8c22-4f49-b0df-53ed39544dde", // HSPT-DOUCOURE
-  "ec8522ad-c95c-416a-b4be-5d4e74882951", // HSPT-PHARAON
-];
-
-async function logMikhmonDiag(client: RouterOSClient, routerId: string, stage: string): Promise<void> {
-  const pick = (r: Record<string, string>, keys: string[]) => Object.fromEntries(keys.filter((k) => r[k] !== undefined).map((k) => [k, r[k]]));
-  const conts = await client.talk(["/container/print", "=detail"], 15000).catch((e) => [{ error: String(e) }] as Record<string, string>[]);
-  const cfg = await client.talk(["/container/config/print"], 15000).catch(() => [] as Record<string, string>[]);
-  const logs = (await client.talk(["/log/print"], 20000).catch(() => [] as Record<string, string>[]))
-    .filter((l) => /container|extract|pull|layer/i.test(`${l.topics ?? ""} ${l.message ?? ""}`));
-  const disks = await client.talk(["/disk/print"], 15000).catch(() => [] as Record<string, string>[]);
-  console.warn(JSON.stringify({
-    msg: "mikhmon diag", routerId, stage,
-    containers: conts,
-    config: cfg[0] ? pick(cfg[0], ["registry-url", "layer-dir", "tmpdir", "ram-high"]) : null,
-    logs: logs.slice(-6).map((l) => `${l.time ?? ""} ${l.message ?? ""}`),
-    disks: disks.map((d) => pick(d, ["slot", "file-system", "free", "size"])),
-  }));
-}
-
 export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerId: string): Promise<void> {
-  if (MIKHMON_DIAG_IDS.includes(routerId)) await logMikhmonDiag(client, routerId, "before").catch(() => {});
   // 0) Routeur laissé sans conteneur par une mise à jour : réinstallation.
   if (MIKHMON_REINSTALL_IDS.includes(routerId) && !(await findMikhmonContainer(client))) {
     await readdMissingMikhmon(client, routerId, "listed in MIKHMON_REINSTALL_IDS").catch(() => "error");
