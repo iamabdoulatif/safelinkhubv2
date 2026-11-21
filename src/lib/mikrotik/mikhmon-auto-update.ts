@@ -85,7 +85,7 @@ async function readdMissingMikhmon(
   const res = await readdMikhmonContainer(client, {
     image: old.image || MIKHMON_EDITIONS.v7.image,
     rootDir: old.rootDir,
-  });
+  }).catch((e: unknown) => ({ status: "failed" as const, message: `add: ${e instanceof Error ? e.message : String(e)}` }));
   console.warn(JSON.stringify({ level: "info", msg: "mikhmon auto-readd", routerId, why, result: res }));
   if (res.status !== "failed") {
     try {
@@ -304,11 +304,12 @@ async function logMikhmonDiag(client: RouterOSClient, routerId: string, stage: s
   const pick = (r: Record<string, string>, keys: string[]) => Object.fromEntries(keys.filter((k) => r[k] !== undefined).map((k) => [k, r[k]]));
   const conts = await client.talk(["/container/print", "=detail"], 15000).catch((e) => [{ error: String(e) }] as Record<string, string>[]);
   const cfg = await client.talk(["/container/config/print"], 15000).catch(() => [] as Record<string, string>[]);
-  const logs = await client.talk(["/log/print", "?topics=container"], 15000).catch(() => [] as Record<string, string>[]);
+  const logs = (await client.talk(["/log/print"], 20000).catch(() => [] as Record<string, string>[]))
+    .filter((l) => /container|extract|pull|layer/i.test(`${l.topics ?? ""} ${l.message ?? ""}`));
   const disks = await client.talk(["/disk/print"], 15000).catch(() => [] as Record<string, string>[]);
   console.warn(JSON.stringify({
     msg: "mikhmon diag", routerId, stage,
-    containers: conts.map((c) => pick(c, [".id", "name", "remote-image", "root-dir", "interface", "status", "running", "error"])),
+    containers: conts,
     config: cfg[0] ? pick(cfg[0], ["registry-url", "layer-dir", "tmpdir", "ram-high"]) : null,
     logs: logs.slice(-6).map((l) => `${l.time ?? ""} ${l.message ?? ""}`),
     disks: disks.map((d) => pick(d, ["slot", "file-system", "free", "size"])),
