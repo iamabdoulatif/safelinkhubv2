@@ -60,7 +60,7 @@ const UI_SYNC_ENABLED = true;
  * le 2026-11-21 (#119) après un remove échoué sur GUEASSO-HSPT qui avait laissé
  * le conteneur ARRÊTÉ ; recreateMikhmonOnImage relance désormais le conteneur
  * d'origine (ou remet l'ancienne image) quand remove ou add échoue. */
-const IMAGE_UPDATE_ENABLED = true;
+const IMAGE_UPDATE_ENABLED = false; // PAUSE 2026-11-21 : add échoué sur GUEASSO-HSPT (interface codée en dur ?)
 /** CANARI : seuls ces routeurs sont éligibles à la re-création d'image. Vider
  * (`[]`) = tout le parc. On commence par COUZA, vérifié, puis on élargit. */
 const IMAGE_UPDATE_CANARY_IDS: string[] = [
