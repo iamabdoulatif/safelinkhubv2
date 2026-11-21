@@ -41,7 +41,10 @@ type Sentence = Record<string, string>;
  * à chaud, alors qu'un fichier CSS NEUF restait 404 tant que le conteneur
  * n'avait pas redémarré, et ce redémarrage n'aboutissait pas partout (vu sur
  * DIAK-HSPT). Plus de redémarrage requis. */
-export const MIKHMON_UI_VERSION = "ui-2";
+export const MIKHMON_UI_VERSION = "ui-3";
+/* ui-3 (21/11/2026) : + dépôt des fichiers du RAPPORT DE VENTE (filtres période
+ * et vendeur, mikhmon-sf-v1 81632b5) sur la famille sf-v1 uniquement, sans
+ * re-création : vendeurs, gérants, journaux et ventes restent en place. */
 /** Image conteneur voulue sur tout le parc (tag immuable recommandé).
  * ui-1 : prix-corrige + habillage SafeLinkHub CUIT dans l'image (skin inline).
  * On bascule le parc dessus par re-création de conteneur (mécanisme 2) car le
@@ -113,6 +116,18 @@ const UI_FILES: { url: string; dst: string }[] = [
   { url: "mikhmon-ui/sessions.txt", dst: "settings/sessions.php" },
 ];
 
+/** Fichiers du rapport de vente (copie de mikhmon-sf-v1, public/mikhmon-code). */
+const CODE_FILES: { url: string; dst: string }[] = [
+  { url: "mikhmon-code/mikhmon_compat.txt", dst: "include/mikhmon_compat.php" },
+  { url: "mikhmon-code/selling.txt", dst: "report/selling.php" },
+  { url: "mikhmon-code/print.txt", dst: "report/print.php" },
+];
+
+/** Conteneur de la famille sf-v1 (jamais les éditions v3, dont le code diffère). */
+function isSfFamilyImage(img: string | null | undefined): boolean {
+  return !!img && (img === MIKHMON_DESIRED_IMAGE || IMAGE_UPDATE_SOURCE_IMAGES.includes(img));
+}
+
 let recentRecreates: number[] = [];
 /** Coupe-circuit : un échec arrête les re-créations jusqu'au prochain process. */
 let imageUpdateTripped = false;
@@ -153,6 +168,35 @@ export async function ensureMikhmonUiFiles(client: RouterOSClient, timeoutMs = 2
       .catch(() => false);
     if (r) ok++;
   }
+  return ok;
+}
+
+/**
+ * Dépose les fichiers du rapport de vente dans le conteneur (famille sf-v1
+ * uniquement), puis le redémarre (stop/start, SANS remove : rien n'est perdu)
+ * pour purger l'opcache. Renvoie le nombre de fichiers posés, 0 si le conteneur
+ * n'est pas éligible, -1 s'il n'y en a pas.
+ * `keep-result` reste à sa valeur par défaut (yes) : avec « no », /tool fetch
+ * n'écrit PAS le fichier.
+ */
+export async function ensureMikhmonCodeFiles(
+  client: RouterOSClient,
+  deps: { restart?: (c: RouterOSClient) => Promise<boolean>; timeoutMs?: number } = {},
+): Promise<number> {
+  const t = deps.timeoutMs ?? 30000;
+  const c = await findMikhmonContainer(client, t);
+  if (!c) return -1;
+  if (!isSfFamilyImage(c.remoteImage)) return 0;
+  const base = getAppUrl().replace(/\/+$/, "");
+  let ok = 0;
+  for (const f of CODE_FILES) {
+    const r = await client
+      .talk(["/tool/fetch", `=url=${base}/${f.url}`, `=dst-path=${c.rootDir}/src/src/${f.dst}`], t)
+      .then(() => true)
+      .catch(() => false);
+    if (r) ok++;
+  }
+  if (ok === CODE_FILES.length) await (deps.restart ?? restartMikhmonContainer)(client).catch(() => false);
   return ok;
 }
 
@@ -347,7 +391,9 @@ export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerI
       .catch(() => [] as { v: string | null }[]);
     if (imageUpdated || row?.v !== MIKHMON_UI_VERSION) {
       const n = await ensureMikhmonUiFiles(client).catch(() => -1);
-      if (n > 0) {
+      const code = await ensureMikhmonCodeFiles(client).catch(() => -1);
+      // Version posée seulement si le rapport est complet (ou non concerné : v3).
+      if (n > 0 && (code === 0 || code === CODE_FILES.length)) {
         await getDb()
           .update(routers)
           .set({ mikhmonUiVersion: MIKHMON_UI_VERSION })
@@ -361,8 +407,7 @@ export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerI
   //    mikhmon_session_at repasse à une date).
   try {
     const [r] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
-    const sfFamily = (img: string | null | undefined) =>
-      !!img && (img === MIKHMON_DESIRED_IMAGE || IMAGE_UPDATE_SOURCE_IMAGES.includes(img));
+    const sfFamily = isSfFamilyImage;
     if (r && r.mikhmonSessionAt === null && sfFamily(r.mikhmonImage)) {
       const c = await findMikhmonContainer(client);
       if (c?.running && sfFamily(c.remoteImage)) {
