@@ -56,11 +56,11 @@ export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:ui-2";
 
 const UI_SYNC_ENABLED = true;
 
-/** Mécanisme 2 EN PAUSE (2026-11-21) : sur GUEASSO-HSPT, /container/remove a
- * échoué juste après le stop — le conteneur est resté ARRÊTÉ sur l'ancienne
- * image, sans redémarrage. Ne pas réactiver avant d'avoir corrigé ce chemin
- * (relancer le conteneur quand remove ou add échoue). */
-const IMAGE_UPDATE_ENABLED = false;
+/** Mécanisme 2 activé, borné par l'allowlist + le cap ci-dessous. Mis en pause
+ * le 2026-11-21 (#119) après un remove échoué sur GUEASSO-HSPT qui avait laissé
+ * le conteneur ARRÊTÉ ; recreateMikhmonOnImage relance désormais le conteneur
+ * d'origine (ou remet l'ancienne image) quand remove ou add échoue. */
+const IMAGE_UPDATE_ENABLED = true;
 /** CANARI : seuls ces routeurs sont éligibles à la re-création d'image. Vider
  * (`[]`) = tout le parc. On commence par COUZA, vérifié, puis on élargit. */
 const IMAGE_UPDATE_CANARY_IDS: string[] = [
@@ -175,13 +175,19 @@ async function restoreConfigPhp(client: RouterOSClient, rootDir: string, configP
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Attend que le conteneur soit RÉELLEMENT arrêté (le stop est asynchrone, et
- * `/container remove` refuse « cannot remove running »). */
-async function waitStopped(client: RouterOSClient, id: string, maxMs = 30000, pollMs = 3000): Promise<boolean> {
+ * `/container remove` refuse tant qu'il n'est pas « stopped »). `running` passe
+ * à faux dès l'état « stopping » : c'est ce qui a fait échouer le remove sur
+ * GUEASSO-HSPT le 2026-11-21. On exige donc le statut « stopped » quand RouterOS
+ * le donne. */
+async function waitStopped(client: RouterOSClient, id: string, maxMs = 60000, pollMs = 3000): Promise<boolean> {
   const until = Date.now() + maxMs;
   while (Date.now() < until) {
     await sleep(pollMs);
     const rows = await client.talk(["/container/print", `?.id=${id}`]).catch(() => [] as Sentence[]);
-    if (!rows[0] || rows[0].running !== "true") return true;
+    const r = rows[0];
+    if (!r) return true;
+    const status = String(r.status ?? "");
+    if (status ? status === "stopped" : r.running !== "true") return true;
   }
   return false;
 }
@@ -189,6 +195,7 @@ async function waitStopped(client: RouterOSClient, id: string, maxMs = 30000, po
 /** Attend que le conteneur tourne, en relançant `start` (inoffensif tant que
  * l'image s'extrait encore). */
 async function waitRunning(client: RouterOSClient, maxMs = 180000, pollMs = 10000): Promise<boolean> {
+  if (maxMs <= 0) return (await findMikhmonContainer(client).catch(() => null))?.running ?? false;
   const until = Date.now() + maxMs;
   while (Date.now() < until) {
     const c = await findMikhmonContainer(client).catch(() => null);
@@ -224,7 +231,10 @@ export async function restartMikhmonContainer(client: RouterOSClient): Promise<b
 export async function recreateMikhmonOnImage(
   client: RouterOSClient,
   image: string,
+  timing: { pollMs?: number; runMs?: number } = {},
 ): Promise<"updated" | "failed" | "failed-backup" | "no-container" | "skipped"> {
+  const pollMs = timing.pollMs ?? 3000;
+  const runMs = timing.runMs ?? 180000;
   const c = await findMikhmonContainer(client);
   if (!c) return "no-container";
   if (c.remoteImage === image) return "skipped";
@@ -236,30 +246,49 @@ export async function recreateMikhmonOnImage(
   const configBak = await readConfigPhp(client, c.rootDir);
   if (!configBak || configBak.length <= 50) return "failed-backup";
 
-  // b. stop (attendre l'arrêt réel) + remove.
-  await client.talk(["/container/stop", `=numbers=${c.id}`]).catch(() => {});
-  await waitStopped(client, c.id);
-  const removed = await client.talk(["/container/remove", `=numbers=${c.id}`]).then(() => true).catch(() => false);
-  if (!removed) return "failed";
-
-  // c. add sur la nouvelle image (envlist mikhmon = resync natif au boot ;
-  //    mêmes interface/root-dir ; start-on-boot).
-  const added = await client
-    .talk(
-      [
+  const add = (img: string) =>
+    client
+      .talk([
         "/container/add",
-        `=remote-image=${image}`,
+        `=remote-image=${img}`,
         "=interface=MIKHMON",
         `=root-dir=${c.rootDir}`,
         "=envlist=mikhmon",
         "=start-on-boot=yes",
         "=logging=no",
-      ],
-    )
-    .then(() => true)
-    .catch(() => false);
-  if (!added) return "failed";
-  await waitRunning(client);
+      ])
+      .then(() => true)
+      .catch(() => false);
+
+  // b. stop, attendre le statut « stopped », puis remove (3 essais).
+  await client.talk(["/container/stop", `=numbers=${c.id}`]).catch(() => {});
+  await waitStopped(client, c.id, 60000, pollMs);
+  let removed = false;
+  for (let i = 0; i < 3 && !removed; i++) {
+    if (i > 0) await sleep(pollMs * 2);
+    removed = await client.talk(["/container/remove", `=numbers=${c.id}`]).then(() => true).catch(() => false);
+  }
+  if (!removed) {
+    // Le conteneur d'origine est toujours là, arrêté : on le relance. Sans ça,
+    // MikHmon reste éteint jusqu'à une intervention manuelle.
+    await client.talk(["/container/start", `=numbers=${c.id}`]).catch(() => {});
+    await waitRunning(client, Math.min(runMs, 60000), pollMs);
+    return "failed";
+  }
+
+  // c. add sur la nouvelle image (envlist mikhmon = resync natif au boot ;
+  //    mêmes interface/root-dir ; start-on-boot). Si l'ajout échoue, on remet
+  //    l'ancienne image au même emplacement pour ne pas laisser le routeur sans
+  //    MikHmon.
+  const added = await add(image);
+  if (!added) {
+    if (await add(c.remoteImage)) {
+      await waitRunning(client, runMs, pollMs);
+      await restoreConfigPhp(client, c.rootDir, configBak).catch(() => {});
+    }
+    return "failed";
+  }
+  await waitRunning(client, runMs, pollMs);
 
   // d. restaure config.php verbatim (sauvegarde garantie valide, cf. garde-fou).
   await restoreConfigPhp(client, c.rootDir, configBak).catch(() => {});
