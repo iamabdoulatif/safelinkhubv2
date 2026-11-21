@@ -57,7 +57,7 @@ const UI_SYNC_ENABLED = true;
  * re-création maison (remove trop tôt, puis add refusé) ; elle passe désormais
  * par migrateMikhmonToFlash, le chemin de « Réinstaller MikHmon » qui a réparé
  * ce même routeur. */
-const IMAGE_UPDATE_ENABLED = true;
+const IMAGE_UPDATE_ENABLED = false; // PAUSE 2026-11-21 12:00 : sauvegarder vendeurs/gérants/journaux avant re-création
 /** Images remplacées par MIKHMON_DESIRED_IMAGE : la famille sf-v1 et ses
  * dérivés SafeLinkHub. Les éditions v3 (latif225/mikhmonv3-safelinkhub,
  * naufkia/mikhmonv3) ne sont PAS dans la liste : leur code n'est pas le même. */
