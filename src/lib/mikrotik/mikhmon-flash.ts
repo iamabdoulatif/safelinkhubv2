@@ -18,6 +18,19 @@ import type { RouterOSClient } from "./client";
  */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Image de repli sur Docker Hub (même code sf-v1, filtres période + vendeur) pour
+ * les routeurs qui n'atteignent pas ghcr.io (« Network unreachable », « timeout
+ * connecting » relevés le 21/11/2026 sur PHARAON et DIAK). */
+export const MIKHMON_DOCKERHUB_IMAGE = "latif225/mikhmon-sf-v1:latest";
+
+/** Dossier de téléchargement : sur la clé quand le conteneur y vit (/tmp en RAM
+ * est trop petit pour une couche : « not enough disk space to download layer »,
+ * HSPT-DOUCOURE), sinon /tmp. */
+export function pullTmpDir(rootDir: string): string {
+  const prefix = rootDir.replace(/^\/+/, "").split("/")[0] ?? "";
+  return rootDir.includes("/") && /^(usb|disk|sata|nvme|sd)/i.test(prefix) ? `${prefix}/mikhmon-pull` : "tmp/pull";
+}
+
 export type MikhmonFlashResult = {
   status: "migrated" | "pulling" | "already-persistent" | "no-container" | "failed";
   message: string;
@@ -77,7 +90,7 @@ export async function migrateMikhmonToFlash(
       // le conteneur vit sur la clé, c'est remplir une flash de 128 Mo avec la
       // plus grosse partie de l'image — le défaut constaté sur HSPT-TOFESSO.
       ...(layerDir ? [`=layer-dir=${layerDir}`] : []),
-      "=tmpdir=tmp/pull",
+      `=tmpdir=${pullTmpDir(targetRootDir)}`,
     ],
     t,
   );
@@ -217,6 +230,8 @@ export function isBrokenMikhmonContainer(
   const status = String(row.status ?? "").toLowerCase();
   if (row.running === "true" || status === "running") return false;
   if (/repull|error|fail/.test(status)) return true;
+  // RouterOS récents : plus de « status », un indicateur dédié à l'échec.
+  if (row["download/extract failed"] === "true") return true;
 
   const storageOf = (p: string) => String(p ?? "").replace(/^\/+/, "").split("/")[0];
   const rootStorage = storageOf(row["root-dir"] ?? "");
@@ -264,7 +279,15 @@ export async function repairBrokenMikhmonContainer(
     return { repaired: true, reason: "conteneur arrêté relancé" };
   }
 
-  const result = await migrateMikhmonToFlash(client, { force: true, maxWaitMs: 15000 });
+  // Échec de téléchargement depuis ghcr.io : le routeur n'atteint pas ce
+  // registre, re-tirer la même image échouerait encore. On repart de Docker Hub.
+  const ghcrFailed = mk["download/extract failed"] === "true" && /^ghcr\.io\//.test(String(mk["remote-image"] ?? ""));
+  const result = await migrateMikhmonToFlash(client, {
+    force: true,
+    maxWaitMs: 15000,
+    timeoutMs: 45000,
+    ...(ghcrFailed ? { image: MIKHMON_DOCKERHUB_IMAGE } : {}),
+  });
   log?.push(`AUTO-RÉPARATION MikHmon : ${result.status} — ${result.message}`);
   return {
     repaired: result.status === "migrated" || result.status === "pulling",
@@ -308,7 +331,7 @@ export async function readdMikhmonContainer(
         "/container/config/set",
         "=registry-url=https://registry-1.docker.io",
         ...(parts.length > 1 ? [`=layer-dir=${parts[0]}/mikhmon-layers`] : []),
-        "=tmpdir=tmp/pull",
+        `=tmpdir=${pullTmpDir(rootDir)}`,
       ],
       t,
     )

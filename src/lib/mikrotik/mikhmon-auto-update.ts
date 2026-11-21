@@ -30,8 +30,7 @@ import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { getAppUrl } from "@/lib/net/app-url";
 import type { RouterOSClient } from "./client";
-import { migrateMikhmonToFlash, readdMikhmonContainer } from "./mikhmon-flash";
-import { MIKHMON_EDITIONS } from "./mikhmon-editions";
+import { migrateMikhmonToFlash, readdMikhmonContainer, MIKHMON_DOCKERHUB_IMAGE } from "./mikhmon-flash";
 import { repostMikhmonSession } from "./mikhmon-session-repost";
 
 type Sentence = Record<string, string>;
@@ -73,6 +72,7 @@ export const IMAGE_UPDATE_SOURCE_IMAGES = [
  * qu'un conteneur existe. */
 const MIKHMON_REINSTALL_IDS: string[] = [
   "52d71a14-a71f-48cd-96c6-93d0cb19be16", // HSPT-DUBONHEUR (21/11/2026, layer-dir overlap)
+  "4840d6f8-9110-4053-8cbe-9f254695a33e", // HSPT-BENY (sans conteneur, forward MikHmon 39024 actif)
 ];
 
 /** Recrée le conteneur MikHmon disparu, puis marque la session à reposer. */
@@ -83,8 +83,10 @@ async function readdMissingMikhmon(
   old: { rootDir?: string; image?: string } = {},
 ): Promise<string> {
   const res = await readdMikhmonContainer(client, {
-    image: old.image || MIKHMON_EDITIONS.v7.image,
+    // Docker Hub : joignable même des routeurs qui n'atteignent pas ghcr.io.
+    image: old.image && !/^ghcr\.io\//.test(old.image) ? old.image : MIKHMON_DOCKERHUB_IMAGE,
     rootDir: old.rootDir,
+    timeoutMs: 45000,
   }).catch((e: unknown) => ({ status: "failed" as const, message: `add: ${e instanceof Error ? e.message : String(e)}` }));
   console.warn(JSON.stringify({ level: "info", msg: "mikhmon auto-readd", routerId, why, result: res }));
   if (res.status !== "failed") {
