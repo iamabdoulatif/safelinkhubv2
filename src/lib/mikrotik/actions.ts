@@ -2011,7 +2011,8 @@ export async function deleteRouter(routerId: string) {
      relais injoignable ne doit pas empêcher de retirer le routeur. */
   try {
     const { removeCloudMikhmonInstance } = await import("./mikhmon-cloud");
-    await removeCloudMikhmonInstance(routerId);
+    // Le routeur disparaît : son instance aussi, données comprises.
+    await removeCloudMikhmonInstance(routerId, { purgeData: true });
   } catch {
     // Le conteneur survivra ; provisionCloudMikhmon sait désormais le retirer
     // avant d'en créer un du même nom.
