@@ -27,7 +27,9 @@ export async function migrateMikhmonToFlash(
   client: RouterOSClient,
   // pollMs : cadence des attentes. Réglable pour que les tests ne paient pas
   // les 25 s d'attentes réelles d'un vrai re-pull.
-  opts: { timeoutMs?: number; force?: boolean; pollMs?: number; maxWaitMs?: number } = {},
+  // image : recrée sur cette image plutôt que sur celle du conteneur actuel
+  // (mise à jour d'image du parc, cf. mikhmon-auto-update.ts).
+  opts: { timeoutMs?: number; force?: boolean; pollMs?: number; maxWaitMs?: number; image?: string } = {},
 ): Promise<MikhmonFlashResult> {
   const t = opts.timeoutMs ?? 20000;
   const poll = opts.pollMs ?? 6000;
@@ -54,11 +56,13 @@ export async function migrateMikhmonToFlash(
   const layerDir = `${storagePrefix}/mikhmon-layers`;
 
   const iface = mk.interface || "MIKHMON";
-  const image = mk["remote-image"];
-  const name = mk.name;
-  if (!image || !name || !mk[".id"]) {
+  const oldImage = mk["remote-image"];
+  const oldName = mk.name;
+  if (!oldImage || !oldName || !mk[".id"]) {
     return { status: "failed", message: "Conteneur MikHmon incomplet (image/nom manquants)." };
   }
+  const image = opts.image ?? oldImage;
+  const name = opts.image ? (opts.image.split("/").pop() ?? oldName) : oldName;
 
   // 1. Config : layers sur la flash (persistant), extraction du pull en RAM.
   await client.talk(
@@ -116,17 +120,43 @@ export async function migrateMikhmonToFlash(
   if (!removed) return { status: "failed", message: "Impossible de retirer l'ancien conteneur (réessayez)." };
 
   // 3. Re-création (déclenche le re-pull de l'image).
-  await client.talk(
-    [
-      "/container/add",
-      `=interface=${iface}`,
-      `=name=${name}`,
-      `=remote-image=${image}`,
-      `=root-dir=${targetRootDir}`,
-      "=start-on-boot=yes",
-    ],
-    60000,
-  );
+  const add = (img: string, nm: string) =>
+    client.talk(
+      [
+        "/container/add",
+        `=interface=${iface}`,
+        `=name=${nm}`,
+        `=remote-image=${img}`,
+        `=root-dir=${targetRootDir}`,
+        "=start-on-boot=yes",
+      ],
+      60000,
+    );
+  const addError = await add(image, name).then(() => null, (e: unknown) => e);
+  if (addError) {
+    // Le RouterOS a pu créer l'entrée malgré l'erreur (réponse perdue) : on ne
+    // ré-ajoute l'ancienne image que si aucun conteneur MikHmon n'existe.
+    // Sans ce repli, le routeur restait SANS MikHmon (GUEASSO-HSPT, 21/11/2026).
+    const after = await client.talk(["/container/print", "=detail"], t).catch(() => []);
+    const any = after.find((c) => /mikhmon/i.test(String(c.name ?? "")) || /mikhmon/i.test(String(c["root-dir"] ?? "")));
+    if (!any) {
+      const back = await add(oldImage, oldName).then(() => true, () => false);
+      if (back) {
+        await sleep(Math.min(2000, poll));
+        const re = (await client.talk(["/container/print", "=detail"], t).catch(() => [])).find((c) =>
+          /mikhmon/i.test(String(c.name ?? "")),
+        );
+        if (re?.[".id"]) await client.talk(["/container/start", `=numbers=${re[".id"]}`], t).catch(() => {});
+      }
+      const msg = addError instanceof Error ? addError.message : String(addError);
+      return {
+        status: "failed",
+        message: back
+          ? `Ajout sur ${image} refusé (${msg}) : ancienne image ${oldImage} remise en place.`
+          : `Ajout sur ${image} refusé (${msg}), et l'ancienne image n'a pas pu être remise.`,
+      };
+    }
+  }
   await sleep(Math.min(2000, poll));
   let nc = (await client.talk(["/container/print", "=detail"], t).catch(() => [])).find((c) =>
     /mikhmon/i.test(String(c.name ?? "")),

@@ -50,6 +50,7 @@ import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
+import { repostMikhmonSession } from "./mikhmon-session-repost";
 import { getOrCreateMikhmonAdminPassword } from "./mikhmon-admin-password";
 import { decryptSecret } from "./crypto";
 import { MIKHMON_DEFAULT_PASSWORD } from "./hardening";
@@ -1477,42 +1478,10 @@ export async function reconfigureMikhmonSession(routerId: string) {
     };
   }
   try {
-    const conts = await client.talk(["/container/print", "=detail"]).catch(() => [] as Record<string, string>[]);
-    const mk = conts.find(
-      (c) => /mikhmon/i.test(String(c.name ?? "")) || /mikhmon/i.test(String(c["root-dir"] ?? "")),
-    );
-    if (!mk?.[".id"]) return { error: "Aucun conteneur MikHmon sur ce routeur." };
-    const rootDir = String(mk["root-dir"] ?? "").replace(/^\//, "");
-
-    const profs = await client.talk(["/ip/hotspot/profile/print", "=detail"]).catch(() => [] as Record<string, string>[]);
-    const prof = profs.find((p) => p.name && p.name !== "default") ?? {};
-    const hotspot = String(prof.name ?? router.name);
-    const dns = String(prof["hotspot-address"] ?? "");
-
-    const wrote = await writeMikhmonSession(
-      client,
-      rootDir,
-      "SafeLinkHub",
-      {
-        ip: "11.11.11.1",
-        user: router.username,
-        pass: decryptSecret(router.passwordEncrypted),
-        hotspot,
-        dns,
-        adminPassword: await getOrCreateMikhmonAdminPassword(routerId),
-        currency: "fcfa",
-        autoload: 10,
-        iface: 1,
-        infolp: "",
-        idle: "disable",
-        livereport: "enable",
-      },
-      mk[".id"],
-    );
-    if (!wrote.ok) return { error: `Écriture impossible : ${wrote.error}` };
-    await db.update(routers).set({ mikhmonSessionAt: new Date() }).where(eq(routers.id, routerId));
+    const res = await repostMikhmonSession(client, router);
+    if (!res.ok) return { error: res.error };
     revalidatePath(`/admin/router/${routerId}`);
-    return { success: true, summary: `Session MikHmon « SafeLinkHub » reconfigurée (hotspot ${hotspot}, DNS ${dns}).` };
+    return { success: true, summary: `Session MikHmon « SafeLinkHub » reconfigurée (hotspot ${res.hotspot}, DNS ${res.dns}).` };
   } catch (err) {
     return { error: err instanceof Error ? `Échec : ${err.message}` : "Échec de la reconfiguration." };
   } finally {
