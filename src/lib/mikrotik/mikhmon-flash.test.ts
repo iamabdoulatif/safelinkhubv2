@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { migrateMikhmonToFlash, isBrokenMikhmonContainer, repairBrokenMikhmonContainer, readdMikhmonContainer } from "./mikhmon-flash";
+import { migrateMikhmonToFlash, isBrokenMikhmonContainer, repairBrokenMikhmonContainer, readdMikhmonContainer, pullTmpDir, MIKHMON_DOCKERHUB_IMAGE } from "./mikhmon-flash";
 
 /** Routeur simulé : un seul conteneur MikHmon, qui démarre au premier essai. */
 function routerWithContainer(rootDir: string) {
@@ -267,5 +267,46 @@ describe("readdMikhmonContainer (conteneur disparu)", () => {
     const res = await readdMikhmonContainer(r.client as never, { image: IMG, pollMs: 1, maxWaitMs: 5 });
     assert.equal(res.status, "failed");
     assert.equal(r.calls.filter((w) => w[0] === "/container/add").length, 0);
+  });
+});
+
+describe("échec de téléchargement (RouterOS sans champ status)", () => {
+  const failedRow = {
+    ".id": "*3", name: "mikhmon-v7:ui-2", "remote-image": "ghcr.io/iamabdoulatif/mikhmon-v7:ui-2",
+    "root-dir": "/usb1/mikhmon-app", interface: "MIKHMON", "download/extract failed": "true",
+  };
+
+  it("isBrokenMikhmonContainer reconnaît « download/extract failed »", () => {
+    assert.equal(isBrokenMikhmonContainer(failedRow, "/usb1/mikhmon-layers"), true);
+  });
+
+  it("pullTmpDir : téléchargement sur la clé, /tmp sinon", () => {
+    assert.equal(pullTmpDir("usb1/mikhmon-app"), "usb1/mikhmon-pull");
+    assert.equal(pullTmpDir("/usb1-part1/mikhmon-app"), "usb1-part1/mikhmon-pull");
+    assert.equal(pullTmpDir("flash/mikhmon-app"), "tmp/pull");
+    assert.equal(pullTmpDir("mikhmon-app"), "tmp/pull");
+  });
+
+  it("répare un échec ghcr.io en recréant depuis Docker Hub, couches et pull sur la clé", async () => {
+    const calls: string[][] = [];
+    let current: Record<string, string> | null = { ...failedRow };
+    const client = {
+      async talk(words: string[]) {
+        calls.push(words);
+        if (words[0] === "/container/print") return current ? [current] : [];
+        if (words[0] === "/container/config/print") return [{ "layer-dir": "/usb1/mikhmon-layers" }];
+        if (words[0] === "/container/remove") current = null;
+        if (words[0] === "/container/add") {
+          const img = words.find((w) => w.startsWith("=remote-image="))!.slice(14);
+          current = { ".id": "*4", name: "x", "root-dir": "/usb1/mikhmon-app", "remote-image": img, status: "running" };
+        }
+        return [] as Record<string, string>[];
+      },
+    };
+    const res = await repairBrokenMikhmonContainer(client as never);
+    assert.equal(res.repaired, true);
+    assert.equal(current?.["remote-image"], MIKHMON_DOCKERHUB_IMAGE);
+    const cfg = calls.find((w) => w[0] === "/container/config/set")!;
+    assert.ok(cfg.includes("=tmpdir=usb1/mikhmon-pull"), cfg.join(" "));
   });
 });
