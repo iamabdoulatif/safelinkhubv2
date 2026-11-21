@@ -16,7 +16,9 @@ export const PAID_ORDER_STATUSES = ["paid", "fulfilling", "fulfilled"] as const;
 
 export type PaidSale = {
   id: string;
-  /** Code du ticket livré ; retombe sur le numéro du client si l'honneur a échoué. */
+  /** Code du ticket livré, ou "" tant que la commande n'est pas honorée (paid/fulfilling).
+   *  Ne retombe JAMAIS sur le téléphone : il a sa propre colonne, et l'y copier
+   *  faisait passer le numéro du client pour un code de voucher. */
   username: string;
   /** Numéro du client (acheteur du portail captif) — seule info client connue. */
   phone: string;
@@ -81,7 +83,7 @@ export async function getPaidSales(
   // au snapshot de prix.
   return rows.map((r) => ({
     id: r.id,
-    username: r.username ?? r.phone,
+    username: r.username ?? "",
     phone: r.phone,
     paymentReference: r.paymentReference ?? null,
     packageName: r.packageName ?? r.profileName ?? "Forfait",
