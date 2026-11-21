@@ -12,16 +12,16 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { organizations, packages, portalOrders } from "@/lib/db/schema";
+import { organizations, packages, portalCustomers, portalOrders } from "@/lib/db/schema";
 import {
   SLATE_PORTAL_THEME,
   portalCssVars,
   portalThemeFromParams,
   portalThemeSearch,
 } from "@/lib/portal/theme";
-import PayMethods from "./PayMethods";
+import PayGate from "./PayGate";
 import styles from "../PortalExperience.module.css";
 import { Stepper } from "../Stepper";
 
@@ -76,6 +76,8 @@ export default async function PortalPayPage({
       status: portalOrders.status,
       paymentReference: portalOrders.paymentReference,
       priceCents: portalOrders.priceCents,
+      orgId: portalOrders.orgId,
+      phone: portalOrders.phone,
       packageName: packages.name,
       orgSlug: organizations.slug,
     })
@@ -102,6 +104,15 @@ export default async function PortalPayPage({
     );
   }
 
+  // Fiche client déjà connue pour ce numéro ? Sinon on demande prénom/nom/email
+  // avant le paiement (1re commande), puis on mémorise (lié par (org, numéro)).
+  const [customer] = await db
+    .select({ id: portalCustomers.id })
+    .from(portalCustomers)
+    .where(and(eq(portalCustomers.orgId, order.orgId), eq(portalCustomers.phone, order.phone)))
+    .limit(1);
+  const needsCustomer = !customer;
+
   return (
     <Shell>
       <p className={styles.eyebrow}>Achat Wi-Fi</p>
@@ -112,7 +123,13 @@ export default async function PortalPayPage({
         <p className={styles.planName}>{order.packageName ?? "Forfait Wi-Fi"}</p>
         <p className={styles.planPrice}>{fcfa(order.priceCents ?? 0)}</p>
       </div>
-      <PayMethods slug={slug} orderId={orderId} theme={theme} />
+      <PayGate
+        needsCustomer={needsCustomer}
+        phone={order.phone}
+        slug={slug}
+        orderId={orderId}
+        theme={theme}
+      />
     </Shell>
   );
 }

@@ -66,6 +66,8 @@ export function salesCsv(
     createdAt: Date;
     username: string;
     phone: string;
+    customerName: string | null;
+    customerEmail: string | null;
     paymentReference: string | null;
     routerName: string | null;
     packageName: string;
@@ -78,7 +80,7 @@ export function salesCsv(
     return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [
-    ["Date", "Référence GeniusPay", "Ticket", "Téléphone", "Zone", "Forfait", "Montant FCFA", "Commission FCFA"].join(";"),
+    ["Date", "Référence GeniusPay", "Ticket", "Nom", "Email", "Téléphone", "Zone", "Forfait", "Montant FCFA", "Commission FCFA"].join(";"),
   ];
   for (const s of sales) {
     lines.push(
@@ -86,6 +88,8 @@ export function salesCsv(
         s.createdAt.toISOString(),
         s.paymentReference ?? "",
         s.username,
+        s.customerName ?? "",
+        s.customerEmail ?? "",
         s.phone,
         s.routerName ?? "",
         s.packageName,

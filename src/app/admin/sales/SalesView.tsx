@@ -161,6 +161,13 @@ export default function SalesView({
                     {s.packageName}
                     {s.routerName ? ` · ${s.routerName}` : ""} · {dateFmt.format(s.createdAt)}
                   </p>
+                  {(s.customerName || s.customerEmail) && (
+                    <p className="mt-0.5 truncate text-xs font-medium text-ink">
+                      {s.customerName}
+                      {s.customerName && s.customerEmail ? " · " : ""}
+                      {s.customerEmail}
+                    </p>
+                  )}
                   <p className="mt-0.5 text-xs text-ink-soft">
                     {s.phone}
                     {s.paymentReference ? ` · ${t.reference} ` : ""}
@@ -175,6 +182,7 @@ export default function SalesView({
                 <tr>
                   <th className="px-5 py-2.5 font-medium">{t.date}</th>
                   <th className="px-5 py-2.5 font-medium">{t.voucher}</th>
+                  <th className="px-5 py-2.5 font-medium">{t.client}</th>
                   <th className="px-5 py-2.5 font-medium">{t.phone}</th>
                   <th className="px-5 py-2.5 font-medium">{t.reference}</th>
                   <th className="px-5 py-2.5 font-medium">{t.zone}</th>
@@ -187,6 +195,18 @@ export default function SalesView({
                   <tr key={s.id} className="hover:bg-clay/40">
                     <td className="whitespace-nowrap px-5 py-3 text-ink-soft">{dateFmt.format(s.createdAt)}</td>
                     <td className="px-5 py-3 font-mono text-[13px] font-semibold text-ink">{s.username}</td>
+                    <td className="px-5 py-3 text-ink-soft">
+                      {s.customerName || s.customerEmail ? (
+                        <>
+                          {s.customerName && <span className="text-ink">{s.customerName}</span>}
+                          {s.customerEmail && (
+                            <span className="block text-[12px] text-ink-soft">{s.customerEmail}</span>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-5 py-3 text-ink-soft">{s.phone}</td>
                     <td className="px-5 py-3 font-mono text-[13px] text-ink-soft">{s.paymentReference ?? "—"}</td>
                     <td className="px-5 py-3 text-ink-soft">{s.routerName ?? "—"}</td>

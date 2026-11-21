@@ -32,8 +32,8 @@ test("aucune vente : pas de division par zéro", () => {
 });
 
 test("le CSV échappe les séparateurs", () => {
-  const csv = salesCsv([{ createdAt: at(3), username: 'a;b', phone: "+2250102", paymentReference: "GP123", routerName: null, packageName: 'x"y', priceCents: 200, commissionCents: 0 }]);
-  assert.match(csv.split("\n")[1], /;GP123;"a;b";\+2250102;;"x""y";200;0$/);
+  const csv = salesCsv([{ createdAt: at(3), username: 'a;b', phone: "+2250102", customerName: "Jean Kouassi", customerEmail: "jean@ex.com", paymentReference: "GP123", routerName: null, packageName: 'x"y', priceCents: 200, commissionCents: 0 }]);
+  assert.match(csv.split("\n")[1], /;GP123;"a;b";Jean Kouassi;jean@ex\.com;\+2250102;;"x""y";200;0$/);
 });
 
 test("la période par défaut va du 1er du mois à aujourd'hui", () => {
