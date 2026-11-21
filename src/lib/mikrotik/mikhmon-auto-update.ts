@@ -30,7 +30,8 @@ import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { getAppUrl } from "@/lib/net/app-url";
 import type { RouterOSClient } from "./client";
-import { migrateMikhmonToFlash } from "./mikhmon-flash";
+import { migrateMikhmonToFlash, readdMikhmonContainer } from "./mikhmon-flash";
+import { MIKHMON_EDITIONS } from "./mikhmon-editions";
 import { repostMikhmonSession } from "./mikhmon-session-repost";
 
 type Sentence = Record<string, string>;
@@ -67,6 +68,35 @@ export const IMAGE_UPDATE_SOURCE_IMAGES = [
   "ghcr.io/iamabdoulatif/mikhmon-v7:latest",
   "ghcr.io/iamabdoulatif/mikhmon-v7:ui-1",
 ];
+/** Routeurs laissés SANS conteneur MikHmon par une mise à jour d'image : la
+ * synchronisation y recrée le conteneur (readdMikhmonContainer). Sans effet dès
+ * qu'un conteneur existe. */
+const MIKHMON_REINSTALL_IDS: string[] = [
+  "52d71a14-a71f-48cd-96c6-93d0cb19be16", // HSPT-DUBONHEUR (21/11/2026, layer-dir overlap)
+];
+
+/** Recrée le conteneur MikHmon disparu, puis marque la session à reposer. */
+async function readdMissingMikhmon(
+  client: RouterOSClient,
+  routerId: string,
+  why: string,
+  old: { rootDir?: string; image?: string } = {},
+): Promise<string> {
+  const res = await readdMikhmonContainer(client, {
+    image: old.image || MIKHMON_EDITIONS.v7.image,
+    rootDir: old.rootDir,
+  });
+  console.info(JSON.stringify({ level: "info", msg: "mikhmon auto-readd", routerId, why, result: res }));
+  if (res.status !== "failed") {
+    try {
+      await getDb().update(routers).set({ mikhmonSessionAt: null }).where(eq(routers.id, routerId));
+    } catch {
+      /* la session pourra être reposée par le bouton */
+    }
+  }
+  return res.status;
+}
+
 /** Déploiement progressif : au plus N re-créations par fenêtre glissante. */
 const IMAGE_UPDATE_MAX_PER_WINDOW = 3;
 const IMAGE_UPDATE_WINDOW_MS = 10 * 60_000;
@@ -216,6 +246,11 @@ export async function ensureMikhmonImage(
   }
   imageUpdateTripped = true;
   console.error(JSON.stringify({ level: "warn", msg: "mikhmon image update failed", routerId, result: res }));
+  // Ne jamais laisser le routeur sans MikHmon : si plus aucun conteneur
+  // n'existe, réinstallation complète.
+  if (!deps.migrate && !(await findMikhmonContainer(client))) {
+    await readdMissingMikhmon(client, routerId, "image update left no container", { rootDir: c.rootDir, image: c.remoteImage }).catch(() => "error");
+  }
   return "failed";
 }
 
@@ -257,6 +292,10 @@ export async function recordMikhmonInventory(client: RouterOSClient, routerId: s
 }
 
 export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerId: string): Promise<void> {
+  // 0) Routeur laissé sans conteneur par une mise à jour : réinstallation.
+  if (MIKHMON_REINSTALL_IDS.includes(routerId) && !(await findMikhmonContainer(client))) {
+    await readdMissingMikhmon(client, routerId, "listed in MIKHMON_REINSTALL_IDS").catch(() => "error");
+  }
   // 1) Image D'ABORD : si on re-crée le conteneur, il repart sur l'image NUE
   //    (l'habillage n'est pas cuit dedans) — il faut re-déposer les fichiers
   //    ensuite. L'image a son propre garde-fou (allowlist + cap).
@@ -294,9 +333,11 @@ export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerI
   //    mikhmon_session_at repasse à une date).
   try {
     const [r] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
-    if (r && r.mikhmonSessionAt === null && r.mikhmonImage === MIKHMON_DESIRED_IMAGE) {
+    const sfFamily = (img: string | null | undefined) =>
+      !!img && (img === MIKHMON_DESIRED_IMAGE || IMAGE_UPDATE_SOURCE_IMAGES.includes(img));
+    if (r && r.mikhmonSessionAt === null && sfFamily(r.mikhmonImage)) {
       const c = await findMikhmonContainer(client);
-      if (c?.running && c.remoteImage === MIKHMON_DESIRED_IMAGE) {
+      if (c?.running && sfFamily(c.remoteImage)) {
         const res = await repostMikhmonSession(client, r);
         if (!res.ok) console.error(JSON.stringify({ level: "warn", msg: "mikhmon session repost failed", routerId, error: res.error }));
       }
