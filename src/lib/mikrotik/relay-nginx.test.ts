@@ -15,10 +15,24 @@ describe("routage des instances MikHmon cloud", () => {
         { publicPort: 57007, targetPort: 8089, tunnelIp: "10.66.0.12", relayHost: "s4.safelinkhub.io" },
       ],
     });
-    assert.match(config, /listen 57007 ssl;/, "les redirections par port restent servies par nginx");
+    assert.match(config, /listen 57007 ssl http2;/, "les redirections par port restent servies par nginx");
     assert.match(config, /error_page 497 =301 https:\/\/\$host:\$server_port\$request_uri;/, "les anciens liens HTTP sont redirigés vers HTTPS");
     assert.doesNotMatch(config, /listen 443/, "plus aucun vhost sur le port que Traefik détient");
     assert.doesNotMatch(config, /mikhmon\.safelinkhub\.io/);
+  });
+
+  it("connexions réutilisées vers le routeur, HTTP/2 et cache TLS côté navigateur", () => {
+    const config = buildRelayNginxConfig({
+      webForwards: [
+        { publicPort: 39007, targetPort: 8089, tunnelIp: "10.66.0.5", relayHost: "s2.safelinkhub.io" },
+        { publicPort: 39023, targetPort: 85, tunnelIp: "10.66.0.31", relayHost: "s2.safelinkhub.io" },
+      ],
+    });
+    assert.match(config, /upstream slh_fwd_39007 \{\n  server 10\.66\.0\.5:8089;\n  keepalive 8;/);
+    assert.match(config, /proxy_pass http:\/\/slh_fwd_39007;/);
+    assert.match(config, /proxy_set_header Connection "";/, "sans cela nginx ferme la connexion amont à chaque requête");
+    assert.match(config, /listen 39023 ssl http2;/);
+    assert.equal(config.match(/ssl_session_cache/g)?.length, 1, "un seul cache TLS, au niveau http");
   });
 
   it("le conteneur porte les labels Traefik de son sous-domaine", async () => {
