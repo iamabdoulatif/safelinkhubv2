@@ -7,6 +7,7 @@ export const TEMPORARY_ACCESS_DURATIONS = {
   hour_2: { label: "2 heures", milliseconds: 2 * 60 * 60 * 1000 },
   day_7: { label: "7 jours", milliseconds: 7 * 24 * 60 * 60 * 1000 },
   day_10: { label: "10 jours", milliseconds: 10 * 24 * 60 * 60 * 1000 },
+  month_1: { label: "1 mois", milliseconds: 30 * 24 * 60 * 60 * 1000 },
 } as const;
 
 export type TemporaryAccessDuration = keyof typeof TEMPORARY_ACCESS_DURATIONS;

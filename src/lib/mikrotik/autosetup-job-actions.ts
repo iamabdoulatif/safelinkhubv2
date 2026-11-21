@@ -7,6 +7,7 @@ import { routerRestoreJobs, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
 import { provisionHotspotStack, type HotspotStackOptions } from "./container-setup";
+import { grantNewRouterWelcomeAccess } from "@/lib/remote-access/grants";
 
 /**
  * Auto-setup en TÂCHE DE FOND, suivi par getRestoreJob.
@@ -145,6 +146,17 @@ async function enqueue(
     })
     .returning({ id: routerRestoreJobs.id });
 
+  // « Nouveau routeur » = aucun auto-setup réussi auparavant (lastAutoSetupConfig
+  // est écrit par provisionHotspotStack au succès). On le capture AVANT le run
+  // pour n'offrir le mois d'accès VPN qu'à la première installation, jamais sur
+  // une réparation / un re-run d'un routeur déjà en service.
+  const [before] = await db
+    .select({ lastAutoSetupConfig: routers.lastAutoSetupConfig })
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  const wasNewRouter = !before?.lastAutoSetupConfig;
+
   after(async () => {
     const touch = (progress?: AutoSetupJobProgress) =>
       db
@@ -189,6 +201,16 @@ async function enqueue(
       .catch(() => {
         /* best-effort : la configuration est sur le routeur même si le suivi échoue */
       });
+
+    // Nouveau routeur installé avec succès → un mois d'accès VPN distant offert,
+    // tous services, CIBLÉ sur ce seul routeur (les autres routeurs du client ne
+    // sont pas inclus). Idempotent et best-effort : ne doit jamais faire échouer
+    // l'auto-setup.
+    if (!failed && wasNewRouter) {
+      await grantNewRouterWelcomeAccess(orgId, routerId).catch(() => {
+        /* best-effort : l'accès peut être attribué à la main si besoin */
+      });
+    }
   });
 
   return { success: true as const, jobId: job.id, resumed: false };
