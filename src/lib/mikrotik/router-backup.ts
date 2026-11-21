@@ -250,6 +250,49 @@ const SECTION_PAUSE_MS = 250;
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * Fenêtre de sauvegarde du journal de ventes : mois courant + les (months-1)
+ * mois précédents. Les ventes MikHmon portent leur mois dans `owner` au format
+ * MMYYYY (ex. "112026" = nov. 2026, "092026" = sept. — vérifié en prod). On ne
+ * sauvegarde donc QUE ces mois (par défaut 3 : le mois en cours et les 2
+ * d'avant), au lieu de tout l'historique du routeur.
+ */
+export function recentSalesOwnerKeys(now: Date = new Date(), months = 3): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < months; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    keys.push(`${mm}${d.getUTCFullYear()}`);
+  }
+  return keys;
+}
+
+/**
+ * Lit le journal de ventes borné au mois courant + 2 précédents : une requête
+ * `?owner=MMYYYY` par mois, filtrée CÔTÉ ROUTEUR (donc on ne tire pas les 8+
+ * mois d'historique d'un gros routeur). Le `comment === "mikhmon"` reste un
+ * garde-fou JS au cas où un autre script partagerait ce mois en `owner`.
+ */
+async function readMikhmonSalesWindow(
+  client: RouterOSClient,
+  proplist?: string[],
+): Promise<{ rows: BackupSection; error?: string }> {
+  const rows: BackupSection = [];
+  let firstError: string | undefined;
+  for (const key of recentSalesOwnerKeys()) {
+    const { rows: monthRows, error } = await readSection(
+      client,
+      "/system/script/print",
+      proplist,
+      [`?owner=${key}`],
+    );
+    if (error && !firstError) firstError = error;
+    for (const r of monthRows) if (r.comment === "mikhmon") rows.push(r);
+    await pause(SECTION_PAUSE_MS);
+  }
+  return { rows, error: firstError };
+}
+
+/**
  * Lit tout le routeur et enregistre la sauvegarde. Ne jette pas sur une section
  * illisible : une sauvegarde partielle vaut infiniment mieux que pas de
  * sauvegarde du tout le jour où le routeur meurt.
@@ -288,7 +331,12 @@ export async function captureRouterBackup(
     const sections: Record<string, BackupSection> = {};
     const warnings: string[] = [];
     for (const section of SECTIONS) {
-      const { rows, error } = await readSection(client, section.cmd, section.proplist, section.query);
+      // Le journal de ventes est borné au mois courant + 2 précédents ; les
+      // autres sections sont lues telles quelles.
+      const { rows, error } =
+        section.key === "mikhmonSales"
+          ? await readMikhmonSalesWindow(client, section.proplist)
+          : await readSection(client, section.cmd, section.proplist, section.query);
       sections[section.key] = rows;
       if (error) warnings.push(`${section.key} : ${error}`);
       await pause(SECTION_PAUSE_MS);

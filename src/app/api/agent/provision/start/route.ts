@@ -11,6 +11,7 @@ import { resolveAgentLinkFromRequest } from "@/lib/agent-link/service";
 import { isSuperAdmin } from "@/lib/auth/session";
 import { setupFeeFcfaFor } from "@/lib/safecoin/service-charges";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import { getUserGeniusCustomer } from "@/lib/payment-gateways/customer";
 
 export async function POST(request: Request) {
   const link = await resolveAgentLinkFromRequest(request);
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
   const payment = await createGeniusPayment({
     amountFcfa,
     description: `Configuration automatique — routeur ${serial}`,
-    customer: user ? { name: user.name, email: user.email } : undefined,
+    customer: await getUserGeniusCustomer(link.userId),
     metadata: { kind: "auto_setup", authorizationId: row.id, orgId: link.orgId, serial },
   });
 

@@ -287,6 +287,7 @@ export async function rewriteIsoExpiryComments(
 
 // ── Balayage aveugle à l'horloge ISO ─────────────────────────────────────
 import { inspectProfileOnLogin, inspectSweepSchedulers } from "./expiry-sweep-script";
+import { ensureOwnerSweep, overwritesSaleOwner, rewriteIsoSalesRecords } from "./mikhmon-sales";
 
 export type SweepRepairResult = {
   /** Balayages trouvés sur le routeur. */
@@ -380,6 +381,56 @@ export async function repairExpirySweeps(
   }
 
   return { total, stale: stale.length, repaired, failed, profiles, onLoginRepaired };
+}
+
+// ── Affichage des ventes (revenus) aveugle à l'horloge ISO ───────────────
+export type SalesDisplayResult = {
+  /** Planificateur qui rend leur owner aux ventes (7.24+) : posé, déjà là, ou non pertinent. */
+  ownerSweep: "added" | "present" | "skipped";
+  /** Ventes au format ISO trouvées (nom/owner illisibles par les rapports). */
+  found: number;
+  /** Ventes réécrites au format MikHmon. */
+  rewritten: number;
+  failed: number;
+};
+
+/**
+ * L'AUTRE symptôme de l'horloge ISO : les ventes (et donc revenus du jour/mois)
+ * qui n'apparaissent plus dans les rapports MikHmon. Même cause que la
+ * non-expiration — `$date` rendu « 2026-10-13 » —, autre moitié du script
+ * `on-login`, qui écrit chaque vente en `/system script` (voir mikhmon-sales.ts).
+ *
+ * Deux gestes, repris TELS QUELS du module testé mikhmon-sales.ts :
+ *  - `ensureOwnerSweep` (7.24+ seulement, où le contexte `*sys` écrase le
+ *    `owner=` : le planificateur le repose) — prévient les ventes FUTURES ;
+ *  - `rewriteIsoSalesRecords` — rend lisibles les ventes DÉJÀ enregistrées.
+ *
+ * Le `on-login` lui-même est déjà corrigé par repairExpirySweeps
+ * (patchOnLoginForIsoClock), qui répare du même coup le format de date des
+ * ventes à venir. Fonctionne pour n'importe quelle version de MikHmon
+ * (laksa19/mikhmonv3 d'origine comme mikhmon-sf-v1).
+ */
+export async function repairSalesDisplay(
+  client: RouterOSClient,
+  timeoutMs = 60000,
+): Promise<SalesDisplayResult> {
+  let ownerSweep: SalesDisplayResult["ownerSweep"] = "skipped";
+  try {
+    const res = (await client.talk(
+      ["/system/resource/print", "=.proplist=version"],
+      timeoutMs,
+    )) as Record<string, string>[];
+    // Le planificateur owner ne sert QUE là où RouterOS écrase le owner (7.24+).
+    // Version inconnue → on s'abstient de poser un planificateur inutile ;
+    // la réécriture des ventes existantes, elle, reste sans risque.
+    if (overwritesSaleOwner(res[0]?.version ?? "")) {
+      ownerSweep = await ensureOwnerSweep(client, timeoutMs);
+    }
+  } catch {
+    /* version illisible : on garde ownerSweep="skipped" et on réécrit quand même. */
+  }
+  const sales = await rewriteIsoSalesRecords(client, timeoutMs);
+  return { ownerSweep, found: sales.found, rewritten: sales.rewritten, failed: sales.failed };
 }
 
 // ── Services superflus ──────────────────────────────────────────────────────

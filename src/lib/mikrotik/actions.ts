@@ -24,6 +24,7 @@ import {
 } from "./router-throughput";
 import { auditRouter } from "./router-audit";
 import { ensureMikhmonLocalAccess } from "./mikhmon-local-access";
+import { isResetMode, resetCommand, resetModeSpec, type ResetMode } from "./routeros-reset";
 import { describeApiPortVerdict, probeApiPortWith } from "./api-port-probe";
 import { openRouterTunnel } from "./relay";
 import {
@@ -31,6 +32,7 @@ import {
   apiGroupPolicyCommand,
   rewriteIsoExpiryComments,
   repairExpirySweeps,
+  repairSalesDisplay,
   unbindMacBoundTickets,
   upgradeRouterboardFirmware,
   superfluousServicesToDisable,
@@ -48,6 +50,7 @@ import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
 import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
+import { repostMikhmonSession } from "./mikhmon-session-repost";
 import { getOrCreateMikhmonAdminPassword } from "./mikhmon-admin-password";
 import { decryptSecret } from "./crypto";
 import { MIKHMON_DEFAULT_PASSWORD } from "./hardening";
@@ -688,6 +691,8 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
       rewritten: number;
       /** Balayages remis en service — le correctif de fond. */
       sweepsRepaired: number;
+      /** Ventes réécrites au format MikHmon — revenus de nouveau comptés. */
+      salesRewritten: number;
       repaired: string[];
       unreachable: string[];
       /** Routeurs non traités faute de temps — relancer pour les reprendre. */
@@ -707,6 +712,7 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
   let found = 0;
   let rewritten = 0;
   let sweepsRepaired = 0;
+  let salesRewritten = 0;
   const repaired: string[] = [];
   const unreachable: string[] = [];
   const echeance = Date.now() + BUDGET_FLOTTE_MS;
@@ -730,10 +736,15 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
       const res = await rewriteIsoExpiryComments(client);
       found += res.found;
       rewritten += res.rewritten;
-      if (res.rewritten > 0 || sweep.repaired > 0) {
+      /* L'AFFICHAGE est l'autre moitié de la même panne ISO : ventes/revenus
+         qui n'apparaissent plus dans les rapports. Même passage, même routeur. */
+      const disp = await repairSalesDisplay(client);
+      salesRewritten += disp.rewritten;
+      if (res.rewritten > 0 || sweep.repaired > 0 || disp.rewritten > 0) {
         const detail = [
           res.rewritten > 0 ? `${res.rewritten} date(s)` : null,
           sweep.repaired > 0 ? `${sweep.repaired} balayage(s)` : null,
+          disp.rewritten > 0 ? `${disp.rewritten} vente(s)` : null,
         ].filter(Boolean).join(", ");
         repaired.push(`${router.name} (${detail})`);
       }
@@ -751,6 +762,7 @@ export async function fixAllRoutersTicketExpiryFormat(): Promise<
     found,
     rewritten,
     sweepsRepaired,
+    salesRewritten,
     repaired,
     unreachable,
     remaining: fleet.length - traites,
@@ -996,8 +1008,16 @@ export async function fixRouterExpirySweep(routerId: string) {
   }
   try {
     const res = await repairExpirySweeps(client);
-    if (res.stale === 0 && res.onLoginRepaired === 0) {
-      return { success: true, summary: `Les ${res.total} balayage(s) savent déjà lire l'horloge — rien à corriger.` };
+    /* Même racine ISO : les ventes/revenus illisibles dans les rapports. On
+       répare l'AFFICHAGE dans le même geste que l'expiration. */
+    const disp = await repairSalesDisplay(client);
+    if (
+      res.stale === 0 &&
+      res.onLoginRepaired === 0 &&
+      disp.rewritten === 0 &&
+      disp.ownerSweep !== "added"
+    ) {
+      return { success: true, summary: `Les ${res.total} balayage(s) savent déjà lire l'horloge et les ventes sont lisibles — rien à corriger.` };
     }
     revalidatePath(`/admin/router/${routerId}`);
     return {
@@ -1007,6 +1027,12 @@ export async function fixRouterExpirySweep(routerId: string) {
         (res.profiles.length > 0 ? ` (${res.profiles.join(", ")})` : "") +
         (res.onLoginRepaired > 0
           ? `, ${res.onLoginRepaired} script(s) de connexion complété(s) — les prochains tickets seront datés lisiblement`
+          : "") +
+        (disp.rewritten > 0
+          ? `, ${disp.rewritten} vente(s) réécrite(s) — les revenus réapparaissent dans les rapports`
+          : "") +
+        (disp.ownerSweep === "added"
+          ? `, planificateur de revenus posé (RouterOS 7.24+)`
           : "") +
         (res.failed > 0 ? `, ${res.failed} en échec` : "") +
         `. Les tickets périmés partiront au prochain passage (~2 min 30).`,
@@ -1452,42 +1478,10 @@ export async function reconfigureMikhmonSession(routerId: string) {
     };
   }
   try {
-    const conts = await client.talk(["/container/print", "=detail"]).catch(() => [] as Record<string, string>[]);
-    const mk = conts.find(
-      (c) => /mikhmon/i.test(String(c.name ?? "")) || /mikhmon/i.test(String(c["root-dir"] ?? "")),
-    );
-    if (!mk?.[".id"]) return { error: "Aucun conteneur MikHmon sur ce routeur." };
-    const rootDir = String(mk["root-dir"] ?? "").replace(/^\//, "");
-
-    const profs = await client.talk(["/ip/hotspot/profile/print", "=detail"]).catch(() => [] as Record<string, string>[]);
-    const prof = profs.find((p) => p.name && p.name !== "default") ?? {};
-    const hotspot = String(prof.name ?? router.name);
-    const dns = String(prof["hotspot-address"] ?? "");
-
-    const wrote = await writeMikhmonSession(
-      client,
-      rootDir,
-      "SafeLinkHub",
-      {
-        ip: "11.11.11.1",
-        user: router.username,
-        pass: decryptSecret(router.passwordEncrypted),
-        hotspot,
-        dns,
-        adminPassword: await getOrCreateMikhmonAdminPassword(routerId),
-        currency: "fcfa",
-        autoload: 10,
-        iface: 1,
-        infolp: "",
-        idle: "disable",
-        livereport: "enable",
-      },
-      mk[".id"],
-    );
-    if (!wrote.ok) return { error: `Écriture impossible : ${wrote.error}` };
-    await db.update(routers).set({ mikhmonSessionAt: new Date() }).where(eq(routers.id, routerId));
+    const res = await repostMikhmonSession(client, router);
+    if (!res.ok) return { error: res.error };
     revalidatePath(`/admin/router/${routerId}`);
-    return { success: true, summary: `Session MikHmon « SafeLinkHub » reconfigurée (hotspot ${hotspot}, DNS ${dns}).` };
+    return { success: true, summary: `Session MikHmon « SafeLinkHub » reconfigurée (hotspot ${res.hotspot}, DNS ${res.dns}).` };
   } catch (err) {
     return { error: err instanceof Error ? `Échec : ${err.message}` : "Échec de la reconfiguration." };
   } finally {
@@ -1986,7 +1980,8 @@ export async function deleteRouter(routerId: string) {
      relais injoignable ne doit pas empêcher de retirer le routeur. */
   try {
     const { removeCloudMikhmonInstance } = await import("./mikhmon-cloud");
-    await removeCloudMikhmonInstance(routerId);
+    // Le routeur disparaît : son instance aussi, données comprises.
+    await removeCloudMikhmonInstance(routerId, { purgeData: true });
   } catch {
     // Le conteneur survivra ; provisionCloudMikhmon sait désormais le retirer
     // avant d'en créer un du même nom.
@@ -2097,6 +2092,56 @@ export async function resetRouterDevice(routerId: string) {
     message: deviceReset
       ? "Commande de réinitialisation envoyée au routeur — il redémarre à l'état d'usine. Reconnectez-vous-y directement (WinBox/MAC) pour le relier à nouveau."
       : "Routeur inaccessible — seule la configuration SafeLinkHub a été supprimée. Réinitialisez l'appareil manuellement (bouton reset) avant de le relier à nouveau.",
+  };
+}
+
+/**
+ * Réinitialiser le ROUTEUR (sans le retirer du parc), selon un des modes de
+ * routeros-reset.ts. À la différence de resetRouterDevice — qui efface ET
+ * supprime la fiche SafeLinkHub — on garde la fiche : le routeur retombe
+ * hors-ligne (tunnel coupé) et sera à re-provisionner, mais son historique
+ * reste. Même détection « reboot = succès » que resetRouterDevice : la commande
+ * redémarre l'appareil sans réponse normale, donc une coupure APRÈS l'envoi est
+ * le signal de réussite, alors qu'un vrai refus (!trap) doit remonter.
+ */
+export async function resetRouterConfiguration(routerId: string, mode: ResetMode) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." };
+  if (!isResetMode(mode)) return { error: "Mode de réinitialisation inconnu." };
+
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." };
+  }
+
+  let client: RouterOSClient;
+  try {
+    client = await connectToRouter(router, 8000);
+  } catch {
+    return {
+      error:
+        "Routeur injoignable — impossible d'envoyer la réinitialisation. Réinitialisez l'appareil manuellement (bouton reset) ou réessayez quand il est en ligne.",
+    };
+  }
+  try {
+    await client.talk(resetCommand(mode));
+  } catch (err) {
+    // Coupure/timeout = le reboot a eu lieu (succès). Un !trap (mauvais
+    // paramètre, permission) répond AVANT de redémarrer et doit remonter.
+    const msg = err instanceof Error ? err.message : "";
+    const looksLikeConnectionDrop = /econnreset|closed|timeout|not connected|length prefix|EOF/i.test(msg);
+    if (!looksLikeConnectionDrop && msg !== "") {
+      try { client.close(); } catch { /* best-effort */ }
+      return { error: `RouterOS a refusé la réinitialisation : ${msg}` };
+    }
+  } finally {
+    try { client.close(); } catch { /* best-effort */ }
+  }
+
+  revalidatePath(`/admin/router/${routerId}`);
+  return {
+    summary: `Réinitialisation « ${resetModeSpec(mode).label} » envoyée — ${router.name} redémarre et sort du parc. Reliez-le à nouveau (WinBox/MAC) une fois redémarré.`,
   };
 }
 
@@ -2230,6 +2275,7 @@ export async function fixRouterMikhmonLocalAccess(routerId: string) {
     revalidatePath(`/admin/router/${routerId}`);
     const parts = [
       r.natAdded ? "redirection 8087 ajoutée" : null,
+      r.preHotspotNatAdded ? "redirection pre-hotspot ajoutée (client connecté)" : null,
       r.walledGardenAdded ? "règle hotspot ajoutée" : null,
       r.containerWalledGardenAdded ? "accès conteneur autorisé" : null,
     ].filter(Boolean);
@@ -2272,7 +2318,7 @@ export async function fixAllRoutersMikhmonLocalAccess(): Promise<
     }
     try {
       const r = await ensureMikhmonLocalAccess(client);
-      if (r.gateway && (r.natAdded || r.walledGardenAdded || r.containerWalledGardenAdded)) opened.push(router.name);
+      if (r.gateway && (r.natAdded || r.preHotspotNatAdded || r.walledGardenAdded || r.containerWalledGardenAdded)) opened.push(router.name);
       else if (r.gateway) already.push(router.name);
     } catch {
       unreachable.push(router.name);

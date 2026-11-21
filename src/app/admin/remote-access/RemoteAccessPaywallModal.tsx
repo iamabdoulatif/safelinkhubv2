@@ -49,6 +49,7 @@ export default function RemoteAccessPaywallModal({
   // déclencherait des rendus en cascade, cf. règle react-hooks).
   const [period, setPeriod] = useState<BillingPeriod>(initialPeriod);
   const [method, setMethod] = useState<PaymentMethodId>("wave");
+  const [phone, setPhone] = useState<string>("");
   const [amount, setAmount] = useState<string>(() => String(remoteAccessPriceFcfa(service, initialPeriod)));
   const [proof, setProof] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +126,7 @@ export default function RemoteAccessPaywallModal({
     fd.set("routerId", routerId);
     fd.set("service", service);
     fd.set("billingPeriod", period);
+    if (phone.trim()) fd.set("phone", phone.trim());
     startTransition(async () => {
       const res = await startRemoteAccessPayment(fd);
       if ("error" in res) {
@@ -268,6 +270,19 @@ export default function RemoteAccessPaywallModal({
 
             {onlineEnabled && (
               <div className="mt-4">
+                <label className="mb-2 block">
+                  <span className="text-xs font-medium text-ink-soft">
+                    Numéro de téléphone (mobile money)
+                  </span>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Ex. +225 07 00 00 00 00"
+                    className="mt-1 w-full rounded-lg border border-line-soft px-3 py-2 text-sm"
+                  />
+                </label>
                 <button
                   type="button"
                   onClick={payOnline}

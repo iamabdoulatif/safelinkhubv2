@@ -15,6 +15,7 @@ import {
   PackageOpen,
   Pencil,
   RefreshCw,
+  RotateCcw,
   Trash2,
   Wrench,
   Zap,
@@ -35,6 +36,8 @@ import { reposerPortailRouteur } from "@/lib/captive-templates/actions";
 import type { ActionDestructive } from "@/lib/mikrotik/action-destructive";
 import RouterDangerDialog from "../RouterDangerDialog";
 import MikhmonCredentialsDialog from "./MikhmonCredentialsDialog";
+import RouterOsDowngradeDialog from "./RouterOsDowngradeDialog";
+import RouterResetDialog from "./RouterResetDialog";
 
 /**
  * Barre d'actions de la fiche routeur — quatre niveaux, pas huit boutons.
@@ -86,6 +89,8 @@ export default function HeaderActions({
   const [mikhmonError, setMikhmonError] = useState<string | null>(null);
   const [mikhmonSuccess, setMikhmonSuccess] = useState<string | null>(null);
   const [mikhmonRevealed, setMikhmonRevealed] = useState(false);
+  const [downgradeOpen, setDowngradeOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDialogElement>(null);
 
@@ -361,6 +366,26 @@ export default function HeaderActions({
                       setConfirming("reinstall");
                     }}
                   />
+                  <MenuItem
+                    icon={RotateCcw}
+                    label="Réinitialiser RouterOS"
+                    hint="Efface la configuration selon un mode au choix (usine, en gardant les comptes, ou config d'usine RouterOS). Le routeur redémarre et sort du parc."
+                    danger
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setResetOpen(true);
+                    }}
+                  />
+                  <MenuItem
+                    icon={PackageOpen}
+                    label="Rétrograder RouterOS"
+                    hint="Télécharge une version plus ancienne et redémarre le routeur (ex. 7.25 → 7.8, ou 7.25 → 6.49 si le matériel le permet). Le Wi-Fi est coupé quelques minutes."
+                    danger
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setDowngradeOpen(true);
+                    }}
+                  />
                 </div>
               </details>
               </fieldset>
@@ -400,6 +425,22 @@ export default function HeaderActions({
           onClose={() => {
             if (!mikhmonResetting) setMikhmonOpen(false);
           }}
+        />
+      )}
+
+      {downgradeOpen && (
+        <RouterOsDowngradeDialog
+          routerId={routerId}
+          routerName={routerName}
+          onClose={() => setDowngradeOpen(false)}
+        />
+      )}
+
+      {resetOpen && (
+        <RouterResetDialog
+          routerId={routerId}
+          routerName={routerName}
+          onClose={() => setResetOpen(false)}
         />
       )}
     </div>

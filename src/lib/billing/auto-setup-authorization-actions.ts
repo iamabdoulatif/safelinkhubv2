@@ -12,6 +12,7 @@ import { getDb } from "@/lib/db";
 import { routers, autoSetupAuthorizations, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
+import { getUserGeniusCustomer } from "@/lib/payment-gateways/customer";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { getSafecoinBalance } from "@/lib/safecoin/ledger";
 import { autoSetupChargeScCents, chargeAutoSetup } from "@/lib/safecoin/service-charges";
@@ -204,6 +205,9 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
   const routerId = String(formData.get("routerId") ?? "");
   const supportsContainers = String(formData.get("supportsContainers") ?? "") === "1";
   const dualWan = String(formData.get("dualWan") ?? "") === "1";
+  // Numéro saisi au paiement : prime sur celui du profil (souvent absent) pour
+  // que GeniusPay reçoive un téléphone sur chaque transaction auto-setup.
+  const phoneInput = String(formData.get("phone") ?? "").trim();
   if (!routerId) return { error: "Routeur manquant." };
   if (!isGeniusPayCheckoutEnabled()) {
     return { error: "Le paiement en ligne n'est pas encore disponible. Utilisez le paiement manuel." };
@@ -246,7 +250,7 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
   const payment = await createGeniusPayment({
     amountFcfa,
     description: `Auto-Setup ${mikrotikKindLabel(supportsContainers)}${dualWan ? " + dual WAN" : ""} — ${router.name ?? "routeur"}`,
-    customer: { name: session.name, email: session.email },
+    customer: { ...(await getUserGeniusCustomer(session.userId)), ...(phoneInput ? { phone: phoneInput } : {}) },
     metadata: {
       kind: "auto_setup",
       authorizationId: row.id,

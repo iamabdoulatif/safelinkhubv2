@@ -107,8 +107,8 @@ describe("analyse commerciale plateforme", () => {
 
   it("génère un export CSV lisible avec les montants et le type de vente", () => {
     const csv = buildPlatformSalesCsv(rows.filter((row) => row.status === "approved"));
-    assert.match(csv, /^\uFEFFType,Demandeur,Email,Organisation/);
-    assert.match(csv, /"VPN","Awa Traoré","awa@example.com","Organisation A"/);
+    assert.match(csv, /^\uFEFFType,Demandeur,Email,Téléphone,Référence GeniusPay,Organisation/);
+    assert.match(csv, /"VPN","Awa Traoré","awa@example.com","","","Organisation A"/);
     assert.match(csv, /"Auto-Setup".*10000/);
   });
 

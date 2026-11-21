@@ -18,6 +18,10 @@ export type PaidSale = {
   id: string;
   /** Code du ticket livré ; retombe sur le numéro du client si l'honneur a échoué. */
   username: string;
+  /** Numéro du client (acheteur du portail captif) — seule info client connue. */
+  phone: string;
+  /** Référence GeniusPay de la transaction (récapitulatif partenaire), ou null. */
+  paymentReference: string | null;
   packageName: string;
   priceCents: number;
   commissionCents: number;
@@ -49,6 +53,7 @@ export async function getPaidSales(
     .select({
       id: portalOrders.id,
       phone: portalOrders.phone,
+      paymentReference: portalOrders.paymentReference,
       profileName: portalOrders.profileName,
       status: portalOrders.status,
       createdAt: portalOrders.createdAt,
@@ -77,6 +82,8 @@ export async function getPaidSales(
   return rows.map((r) => ({
     id: r.id,
     username: r.username ?? r.phone,
+    phone: r.phone,
+    paymentReference: r.paymentReference ?? null,
     packageName: r.packageName ?? r.profileName ?? "Forfait",
     priceCents: r.orderPriceCents ?? r.packagePriceCents ?? 0,
     commissionCents: r.commissionCents ?? 0,

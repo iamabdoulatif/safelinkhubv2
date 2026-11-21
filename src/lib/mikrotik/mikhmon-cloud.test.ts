@@ -105,6 +105,38 @@ describe("MikHmon cloud provisioning", () => {
     assert.ok(!creation.includes("s3cr3t"), "mot de passe en clair dans la commande docker run");
   });
 
+  it("monte le volume nommé <conteneur>-src sur /src/src, et aucun nettoyage ne le retire", async () => {
+    /* Sans volume, les données de MikHmon (config.php, secret.key.php,
+       sellers_config.php, logs/, voucher/) vivaient dans la couche du
+       conteneur : toute recréation les effaçait. Convention reprise des
+       instances migrées à la main sur le relais le 2026-11-21. */
+    const commands: string[] = [];
+    await provisionCloudMikhmon({
+      router: {
+        id: "123e4567-e89b-12d3-a456-426614174000",
+        name: "RB951 Korhogo",
+        tunnelIp: "10.66.0.23",
+        username: "api",
+        password: "secret",
+        hotspotName: "KORHOGO-WIFI",
+        dnsName: "korhogo.ci",
+      },
+      existing: null,
+      usedPorts: [],
+      baseDomain: "mikhmon.safelinkhub.io",
+      run: async (command) => { commands.push(command); return ""; },
+    });
+    const creation = commands.find((c) => c.includes("docker run -d"))!;
+    assert.ok(
+      creation.includes("-v 'slh-mikhmon-123e4567e89b12d3a456426614174000-src:/src/src'"),
+      `volume absent du docker run : ${creation}`,
+    );
+    // config.php s'écrit DANS le volume : le chemin reste sous /src/src.
+    assert.ok(commands.some((c) => c.includes("> /src/src/include/config.php")));
+    // Le nettoyage d'un homonyme retire le conteneur, jamais ses données.
+    assert.ok(!commands.some((c) => c.includes("volume rm")), "un volume a été supprimé");
+  });
+
   it("ne recrée pas de conteneur quand l'instance existe — mais repose la session", async () => {
     /* Ce test affirmait auparavant qu'AUCUNE commande n'était lancée. Cette
        promesse-là condamnait toute instance déjà créée à rester vide : le

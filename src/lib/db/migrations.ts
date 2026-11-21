@@ -377,4 +377,17 @@ alter table router_regulation add column if not exists fup_ticket_state jsonb;` 
 alter table routers add column if not exists mikhmon_root_dir text;
 alter table routers add column if not exists mikhmon_container_running boolean;
 alter table routers add column if not exists mikhmon_seen_at timestamp;` },
+  // Marque qu'un routeur a reçu l'ouverture de l'accès LOCAL MikHmon (dst-nat
+  // 8087 + accepts walled-garden). La synchro réconcilie une seule fois par
+  // routeur sur ce drapeau. Miroir : scripts/add-mikhmon-local-access.sql.
+  { id: "0024_mikhmon_local_access", sql: `alter table routers add column if not exists mikhmon_local_access_at timestamp;` },
+  // Ré-arme la réconciliation de l'accès local : la 1re version ne couvrait pas
+  // le client CONNECTÉ (il manquait le dst-nat pre-hotspot). On remet le drapeau
+  // à null pour que la synchro repasse UNE fois sur tout le parc avec le correctif
+  // complet. Idempotent (rejoué = re-null, sans effet). Miroir : scripts/rearm-mikhmon-local-access.sql.
+  { id: "0025_rearm_mikhmon_local_access", sql: `update routers set mikhmon_local_access_at = null;` },
+  // Version d'habillage MikHmon déposée+servie (après redémarrage conteneur).
+  // Colonne null = jamais appliquée → la synchro dépose + redémarre une fois.
+  // Miroir : scripts/add-mikhmon-ui-version.sql.
+  { id: "0026_mikhmon_ui_version", sql: `alter table routers add column if not exists mikhmon_ui_version text;` },
 ];

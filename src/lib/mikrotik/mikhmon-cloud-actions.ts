@@ -161,7 +161,8 @@ export async function supprimerMikhmonCloud(routerId: string) {
   const instance = await instanceDe(routerId);
   if (!instance) return { error: "Aucune instance à supprimer." };
   try {
-    await removeCloudMikhmonInstance(routerId);
+    // Vraie suppression : le volume de données part avec le conteneur.
+    await removeCloudMikhmonInstance(routerId, { purgeData: true });
     /* UNIQUEMENT la redirection MikHmon. Le routeur peut en porter d'autres —
        WinBox, SSH — qui n'ont rien à voir avec ce tableau et dont la
        suppression couperait l'accès distant de l'exploitant. */

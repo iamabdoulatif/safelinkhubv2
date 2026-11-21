@@ -80,6 +80,9 @@ export default async function PlatformAnalyticsPage({
         requesterName: autoSetupAuthorizations.requesterName,
         requesterEmail: autoSetupAuthorizations.requesterEmail,
         requesterRole: users.role,
+        phone: users.phone,
+        phoneDialCode: users.phoneDialCode,
+        paymentReference: autoSetupAuthorizations.paymentReference,
         amountFcfa: autoSetupAuthorizations.amountFcfa,
         paymentMethod: autoSetupAuthorizations.paymentMethod,
         status: autoSetupAuthorizations.status,
@@ -98,6 +101,9 @@ export default async function PlatformAnalyticsPage({
         orgName: organizations.name,
         requesterName: remoteAccessAuthorizations.requesterName,
         requesterEmail: remoteAccessAuthorizations.requesterEmail,
+        phone: users.phone,
+        phoneDialCode: users.phoneDialCode,
+        paymentReference: remoteAccessAuthorizations.paymentReference,
         amountFcfa: remoteAccessAuthorizations.amountFcfa,
         paymentMethod: remoteAccessAuthorizations.paymentMethod,
         service: remoteAccessAuthorizations.service,
@@ -108,6 +114,7 @@ export default async function PlatformAnalyticsPage({
       })
       .from(remoteAccessAuthorizations)
       .innerJoin(organizations, eq(remoteAccessAuthorizations.orgId, organizations.id))
+      .leftJoin(users, eq(remoteAccessAuthorizations.userId, users.id))
       .where(and(gte(remoteAccessAuthorizations.createdAt, precedent.from), lte(remoteAccessAuthorizations.createdAt, toEnd)))
       .orderBy(desc(remoteAccessAuthorizations.createdAt)),
   ]);
@@ -120,6 +127,8 @@ export default async function PlatformAnalyticsPage({
       orgName: row.orgName,
       requesterName: row.requesterName,
       requesterEmail: row.requesterEmail,
+      phone: row.phone ? `${row.phoneDialCode ?? ""}${row.phone}` : null,
+      paymentReference: row.paymentReference,
       amountFcfa: row.amountFcfa,
       paymentMethod: row.paymentMethod,
       service: row.service,
@@ -136,6 +145,8 @@ export default async function PlatformAnalyticsPage({
       requesterName: row.requesterName,
       requesterEmail: row.requesterEmail,
       requesterRole: row.requesterRole,
+      phone: row.phone ? `${row.phoneDialCode ?? ""}${row.phone}` : null,
+      paymentReference: row.paymentReference,
       amountFcfa: row.amountFcfa,
       paymentMethod: row.paymentMethod,
       service: null,

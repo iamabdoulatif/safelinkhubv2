@@ -62,16 +62,36 @@ export function summarizeSales(sales: Sale[], range: { from: Date; to: Date }, n
 
 /** Export CSV (séparateur « ; » : Excel en français l'ouvre sans assistant). */
 export function salesCsv(
-  sales: { createdAt: Date; username: string; routerName: string | null; packageName: string; priceCents: number; commissionCents: number }[],
+  sales: {
+    createdAt: Date;
+    username: string;
+    phone: string;
+    paymentReference: string | null;
+    routerName: string | null;
+    packageName: string;
+    priceCents: number;
+    commissionCents: number;
+  }[],
 ): string {
   const cell = (v: string | number) => {
-    const s = String(v);
+    const s = String(v ?? "");
     return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const lines = [["Date", "Ticket", "Zone", "Forfait", "Montant FCFA", "Commission FCFA"].join(";")];
+  const lines = [
+    ["Date", "Référence GeniusPay", "Ticket", "Téléphone", "Zone", "Forfait", "Montant FCFA", "Commission FCFA"].join(";"),
+  ];
   for (const s of sales) {
     lines.push(
-      [s.createdAt.toISOString(), s.username, s.routerName ?? "", s.packageName, s.priceCents, s.commissionCents]
+      [
+        s.createdAt.toISOString(),
+        s.paymentReference ?? "",
+        s.username,
+        s.phone,
+        s.routerName ?? "",
+        s.packageName,
+        s.priceCents,
+        s.commissionCents,
+      ]
         .map(cell)
         .join(";"),
     );
