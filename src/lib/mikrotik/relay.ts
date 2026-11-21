@@ -88,60 +88,114 @@ function getRelayPrivateKey(): string {
   return Buffer.from(b64, "base64").toString("utf8");
 }
 
-export function runOnRelay(command: string, timeoutMs = 15000): Promise<string> {
-  const host = process.env.WG_RELAY_HOST;
-  const username = process.env.WG_RELAY_SSH_USER;
-  if (!host || !username) {
-    throw new Error("WG_RELAY_HOST / WG_RELAY_SSH_USER are not set");
+/**
+ * Plafond de canaux `exec` CONCURRENTS sur la connexion mutualisée.
+ *
+ * Avant, runOnRelay ouvrait une connexion SSH NEUVE par appel. Le cron de
+ * santé appelle getWireGuardPeerLatestHandshake une fois par routeur : ~59
+ * handshakes SSH simultanés par passe. Cette rafale de logins coinçait
+ * systemd-logind (pam_systemd y bloque ~25 s/login), et l'allocation VPN —
+ * elle aussi un runOnRelay, timeout 15 s < 25 s — expirait → install-vpn 502.
+ *
+ * On passe donc par getSharedRelayConn (une seule connexion, comme forwardOut).
+ * Mais `exec` est une « session » comptée par MaxSessions de sshd (10 par
+ * défaut) — contrairement aux canaux forwardOut. On borne donc les exec
+ * concurrents SOUS cette limite ; le surplus attend un créneau. Le timeout
+ * n'entoure que l'exec (pas l'attente d'un créneau), pour qu'un appel en file
+ * ne fuie jamais de créneau.
+ *
+ * ponytail: un seul pool, partagé avec les ops longues (pull conteneur ~180 s).
+ * Si 8 ops longues saturent les créneaux, les ops courtes patientent ; passer à
+ * des pools par classe (court/long) seulement si ça mord un jour.
+ */
+const MAX_CONCURRENT_RELAY_EXEC = 8;
+let relayExecInFlight = 0;
+const relayExecWaiters: Array<() => void> = [];
+
+function acquireRelayExecSlot(): Promise<void> {
+  if (relayExecInFlight < MAX_CONCURRENT_RELAY_EXEC) {
+    relayExecInFlight++;
+    return Promise.resolve();
   }
+  return new Promise<void>((resolve) => relayExecWaiters.push(resolve));
+}
 
-  return new Promise((resolve, reject) => {
-    const conn = new Client();
-    const timer = setTimeout(() => {
-      conn.end();
-      reject(new Error("SSH command timed out"));
-    }, timeoutMs);
+function releaseRelayExecSlot(): void {
+  const next = relayExecWaiters.shift();
+  // Passe le créneau au suivant (le compteur reste identique) ; sinon libère-le.
+  if (next) next();
+  else relayExecInFlight--;
+}
 
-    let stdout = "";
-    let stderr = "";
+export async function runOnRelay(command: string, timeoutMs = 15000): Promise<string> {
+  await acquireRelayExecSlot();
+  try {
+    const conn = await getSharedRelayConn(timeoutMs);
+    return await new Promise<string>((resolve, reject) => {
+      let settled = false;
+      let stdout = "";
+      let stderr = "";
+      let channel: import("ssh2").ClientChannel | undefined;
 
-    conn
-      .on("ready", () => {
-        conn.exec(command, (err, stream) => {
-          if (err) {
+      const closeChannel = (chan?: import("ssh2").ClientChannel) => {
+        const c = chan ?? channel;
+        // Ferme le CANAL seul — JAMAIS la connexion partagée (sinon on
+        // relancerait un handshake et on recréerait la rafale).
+        try {
+          c?.end();
+        } catch {
+          /* déjà fermé */
+        }
+        try {
+          c?.destroy();
+        } catch {
+          /* déjà détruit */
+        }
+      };
+
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        closeChannel();
+        reject(new Error("SSH command timed out"));
+      }, timeoutMs);
+
+      conn.exec(command, (err, chan) => {
+        if (settled) {
+          // Timeout déjà tiré : referme le canal arrivé en retard.
+          closeChannel(chan);
+          return;
+        }
+        if (err) {
+          settled = true;
+          clearTimeout(timer);
+          // Échec d'OUVERTURE du canal (ex. MaxSessions atteint) : la connexion
+          // partagée reste saine, on rejette seulement.
+          return reject(err);
+        }
+        channel = chan;
+        chan
+          .on("close", (code: number) => {
+            if (settled) return;
+            settled = true;
             clearTimeout(timer);
-            conn.end();
-            return reject(err);
-          }
-          stream
-            .on("close", (code: number) => {
-              clearTimeout(timer);
-              conn.end();
-              if (code !== 0) {
-                reject(new Error(stderr.trim() || `Command exited with code ${code}`));
-              } else {
-                resolve(stdout);
-              }
-            })
-            .on("data", (data: Buffer) => {
-              stdout += data.toString();
-            })
-            .stderr.on("data", (data: Buffer) => {
-              stderr += data.toString();
-            });
-        });
-      })
-      .on("error", (err) => {
-        clearTimeout(timer);
-        reject(err);
-      })
-      .connect({
-        host,
-        username,
-        privateKey: getRelayPrivateKey(),
-        readyTimeout: timeoutMs,
+            if (code !== 0) {
+              reject(new Error(stderr.trim() || `Command exited with code ${code}`));
+            } else {
+              resolve(stdout);
+            }
+          })
+          .on("data", (data: Buffer) => {
+            stdout += data.toString();
+          })
+          .stderr.on("data", (data: Buffer) => {
+            stderr += data.toString();
+          });
       });
-  });
+    });
+  } finally {
+    releaseRelayExecSlot();
+  }
 }
 
 export type VpnPeer = {
