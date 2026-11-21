@@ -45,23 +45,29 @@ type Sentence = Record<string, string>;
  * n'avait pas redémarré, et ce redémarrage n'aboutissait pas partout (vu sur
  * DIAK-HSPT). Plus de redémarrage requis. */
 export const MIKHMON_UI_VERSION = "ui-2";
-/** Image conteneur voulue sur tout le parc (tag immuable recommandé). */
-export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige";
+/** Image conteneur voulue sur tout le parc (tag immuable recommandé).
+ * ui-1 : prix-corrige + habillage SafeLinkHub CUIT dans l'image (skin inline).
+ * On bascule le parc dessus par re-création de conteneur (mécanisme 2) car le
+ * dépôt de fichiers à chaud s'est révélé non fiable (l'overlay du conteneur
+ * continuait de servir le headhtml cuit dans prix-corrige).
+ * ui-2 (2026-11-21) : même recette, reconstruite sur latif225/mikhmon-sf-v1
+ * qui porte le filtre de revenu par période du rapport de vente. */
+export const MIKHMON_DESIRED_IMAGE = "ghcr.io/iamabdoulatif/mikhmon-v7:ui-2";
 
 const UI_SYNC_ENABLED = true;
 
 /** Mécanisme 2 activé, mais borné par l'allowlist + le cap ci-dessous. */
 const IMAGE_UPDATE_ENABLED = true;
 /** CANARI : seuls ces routeurs sont éligibles à la re-création d'image. Vider
- * (`[]`) = tout le parc. COUZA vérifié le 30/10 → ouvert au parc le 31/10.
- * La migration v3 → v7 reste exclue (cf. le garde-fou dans ensureMikhmonImage) :
- * seuls les routeurs DÉJÀ en v7 reçoivent la nouvelle image. */
-const IMAGE_UPDATE_CANARY_IDS: string[] = [];
-/** Au plus N re-créations par process. `recreatesThisProcess` n'est JAMAIS remis
- * à zéro : c'est un plafond par durée de vie du process, pas par passage du cron.
- * À 1, le parc avançait d'un routeur par déploiement — intenable sur 59. À 5,
- * un process qui tourne quelques heures en fait 5 puis s'arrête de lui-même. */
-const IMAGE_UPDATE_MAX_PER_PROCESS = 5;
+ * (`[]`) = tout le parc. On commence par COUZA, vérifié, puis on élargit.
+ * NB : quelle que soit l'allowlist, la migration v3 → v7 reste exclue — cf. le
+ * garde-fou isMikhmonV7Image dans ensureMikhmonImage. */
+const IMAGE_UPDATE_CANARY_IDS: string[] = [
+  "92eb5519-52b3-49cd-aace-6f5dd7ca2e76", // HSPT-COUZA
+  "e0518d2c-f6a6-4289-ba77-8c60be634a46", // GUEASSO-HSPT (ui-2, 2026-11-21)
+];
+/** Au plus N re-créations par process (roll-out ultra-graduel). */
+const IMAGE_UPDATE_MAX_PER_PROCESS = 2;
 
 /** Fichiers d'habillage : servis par l'app, déposés dans le conteneur. */
 // La skin voyage INLINE dans headhtml.php (voir MIKHMON_UI_VERSION) : on ne
@@ -69,14 +75,11 @@ const IMAGE_UPDATE_MAX_PER_PROCESS = 5;
 // redémarrage. On ne dépose plus css/safelink-skin.css (fichier neuf = 404 tant
 // que le conteneur n'a pas redémarré).
 //
-// mikhmon-responsive.css échappe à cette règle : il est CUIT DANS L'IMAGE (il
-// existe donc déjà sur le routeur, relevé en HTTP 200 sur COUZA comme sur
-// MAMBA-WIFI le 31/10), et headhtml.php le charge depuis la PR #79. Le déposer
-// est un ÉCRASEMENT, pas un ajout — servi à chaud comme les deux autres.
-// Et s'il manquait sur un routeur, le dépôt serait simplement sans effet
-// jusqu'au redémarrage : même situation qu'aujourd'hui, aucune régression.
+// mikhmon-responsive.css n'est PAS déposé non plus, bien qu'il soit au dépôt :
+// il voyage par l'IMAGE (:ui-2, cf. deploy/mikhmon-v7-ui/Dockerfile). Le dépôt
+// à chaud s'est révélé non fiable — l'overlay du conteneur continuait de servir
+// le fichier cuit dans l'image — donc une seule voie, celle qui marche.
 export const UI_FILES: { url: string; dst: string }[] = [
-  { url: "mikhmon-ui/mikhmon-responsive.css", dst: "css/mikhmon-responsive.css" },
   { url: "mikhmon-ui/headhtml.txt", dst: "include/headhtml.php" },
   { url: "mikhmon-ui/sessions.txt", dst: "settings/sessions.php" },
 ];

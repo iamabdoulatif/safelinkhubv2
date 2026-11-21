@@ -40,6 +40,10 @@ const NON_DEPOSES: Record<string, string> = {
   // fichier reste au dépôt car l'IMAGE le contient (Dockerfile), mais il n'est
   // plus poussé par /tool fetch.
   "safelink-skin.css": "inline dans headhtml.php depuis ui-2",
+  // Voyage par l'IMAGE (:ui-2, Dockerfile) et non par /tool fetch : le dépôt à
+  // chaud s'est révélé non fiable, l'overlay du conteneur continuant de servir
+  // le fichier cuit dans l'image.
+  "mikhmon-responsive.css": "cuit dans l'image :ui-2, pas déposé à chaud",
 };
 
 test("tout asset de public/mikhmon-ui est distribué, ou exempté avec sa raison", () => {

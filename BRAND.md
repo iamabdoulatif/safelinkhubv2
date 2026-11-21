@@ -185,35 +185,43 @@ Contraintes :
   quatre côtés ;
 - taille minimale du lockup horizontal : 96 px de large.
 
-## Identité retenue — « Le S routé »
+## Identité retenue — « Hub Badge »
 
-Le logomark est le **S de SafeLinkHub tracé comme un chemin réseau** : cinq
-segments orthogonaux, jonctions arrondies, épaisseur unique, terminés par deux
-nœuds carrés — origine encre en bas à gauche, arrivée lime en haut à droite.
-
-Le S n'est pas décoratif, c'est un tracé de routage : les paliers disent le
-passage par un point central (**Hub**), les deux nœuds terminaux la liaison de
-bout en bout (**Link**), la continuité ininterrompue du trait la disponibilité
+Le logomark est une **pastille-hub** : un disque plein (le **Hub**, nœud central
+dominant) dans lequel le **S routé** — cinq segments orthogonaux, jonctions
+arrondies — est creusé en négatif et **sort vers un port actif lime** sur la
+jante (le **Link**). La continuité ininterrompue du tracé porte la disponibilité
 (**Safe**) — sans jamais dessiner de cadenas.
+
+Hiérarchie de lecture : **Hub d'abord** (le disque), **Link ensuite** (la route
+qui rejoint le port), **Safe en dernier** (porté par l'aplomb de la
+construction, jamais par un cadenas).
 
 Géométrie de référence, grille 32 × 32 :
 
 ```
-path  M26 7H12v9h8v9H6      trait 3.8, linecap/linejoin round
-rect  2.4 21.4  7.2×7.2 r2.1   nœud d'origine — encre
-rect  22.4 3.4  7.2×7.2 r2.1   nœud d'arrivée — lime
+circle  cx16 cy16 r14.5                      disque — currentColor (encre)
+mask    S en trou : path M24 8 H13 V16 H19 V23.2 H7.8
+        trait 3.3, linecap/linejoin round
+rect    23 3  6×6 r1.6   port d'arrivée — lime (var --slh-accent)
 ```
+
+Le S n'est pas décoratif, c'est un tracé de routage creusé dans le hub : les
+paliers disent le passage par le point central (**Hub**), le port terminal la
+liaison vers le site actif (**Link**), la continuité du trait la disponibilité
+(**Safe**).
 
 ### Mécanique des couleurs
 
-L'encre est en `currentColor`, l'accent en `var(--slh-accent, #D6F344)`.
-Conséquences :
+Le disque est en `currentColor` et le **S est un vrai trou** (via `<mask>`),
+l'accent (port) en `var(--slh-accent, #D6F344)`. Conséquences :
 
-- **Inliné** dans une page, le signe suit la couleur du texte parent : il est
-  encre sur le blanc de la nav, blanc sur le vert profond du pied de page,
-  correct sur le papier de `/admin`. Un seul tracé pour tous les fonds.
+- **Inliné** dans une page, le disque suit la couleur du texte parent et le S
+  laisse voir le fond : disque encre sur le blanc de la nav, disque **blanc** sur
+  le vert profond du pied de page, correct sur le papier de `/admin`. Un seul
+  signe s'inverse tout seul pour tous les fonds.
 - **Sur un aplat lime**, poser `--slh-accent: currentColor` sur un parent, sinon
-  le nœud d'arrivée se fond dans le fond.
+  le port se fond dans le fond.
 - En `<img>`, `currentColor` retombe sur l'encre déclarée dans le fichier : les
   fichiers couleur sont donc réservés aux fonds clairs. Pour un fond sombre,
   inliner le SVG ou utiliser la version mono en la colorant.
@@ -227,16 +235,20 @@ Conséquences :
 | `public/brand/safelinkhub-logo-mono.svg` | Lockup monochrome, tout en `currentColor` |
 | `public/brand/safelinkhub-favicon.svg` | Pastille lime pleine, S en encre |
 
-Deux écarts assumés dans ces fichiers :
+Trois écarts assumés dans ces fichiers :
 
 - **Le wordmark des lockups est du `<text>`, pas des tracés vectorisés.** Aucune
   fonte de marque n'est sous licence dans ce dépôt. La pile déclarée est celle
   que rend l'application ; hors navigateur (impression, partenaire), vectoriser
   le texte au préalable.
-- **La favicon n'est pas le symbole standard.** À 16 px un nœud d'accent ne fait
-  plus qu'un pixel : le lime y passe en champ plein et porte seul la couleur de
-  marque, le S restant en encre. Elle est ainsi lisible sur onglet clair comme
-  sombre.
+- **Le S est un trou de `<mask>`, pas un détourage vectorisé.** C'est ce qui
+  garde un seul signe adaptatif (currentColor). Pour un consommateur qui ne gère
+  pas les masks, recolorer le blanc du S ou vectoriser le négatif en vrai
+  détourage.
+- **La favicon n'est pas le symbole standard.** À 16 px un port d'accent ne fait
+  plus qu'un pixel : le lime y passe en champ plein (pastille) et porte seul la
+  couleur de marque, le S restant en encre. Elle est ainsi lisible sur onglet
+  clair comme sombre. `src/app/icon.svg` porte la même pastille.
 
 Piège XML rencontré, à ne pas réintroduire : **un `--` est interdit dans un
 commentaire XML**. Un commentaire mentionnant `--font-syne` rendait le fichier
@@ -251,18 +263,20 @@ for f in public/brand/*.svg; do python3 -c "import xml.dom.minidom;xml.dom.minid
 
 - Le composant [`src/components/landing/Logo.tsx`](src/components/landing/Logo.tsx)
   **inline** le symbole plutôt que de servir `/brand/safelinkhub-mark.svg` en
-  `<img>` : c'est ce qui permet à `currentColor` de fonctionner, et cela évite
-  une requête et un logo qui apparaît en retard. La géométrie est donc dupliquée
-  entre le composant et le fichier SVG — **toute retouche doit être reportée
-  dans les deux**.
-- Le composant sert quatre points d'appel :
+  `<img>` : c'est ce qui permet au disque (`currentColor`) et au S (trou de
+  `mask`) de s'inverser seuls, et cela évite une requête et un logo qui apparaît
+  en retard. C'est un **composant client** (`"use client"` + `useId`) : l'`id`
+  du mask doit être unique, le logo étant rendu plusieurs fois par page. La
+  géométrie est donc dupliquée entre le composant et le fichier SVG — **toute
+  retouche doit être reportée dans les deux**.
+- Le composant sert cinq points d'appel :
   [`LandingNav`](src/components/landing/LandingNav.tsx:53),
   [`LandingFooter`](src/components/landing/LandingFooter.tsx:91) (avec `dark`),
-  et [`AdminSidebar`](src/components/AdminSidebar.tsx:237) (barre mobile et
-  tiroir).
+  [`AdminSidebar`](src/components/AdminSidebar.tsx:237) (barre mobile et tiroir)
+  et le dialogue d'activation MikHmon Cloud.
 - **Le surligneur `.marker` a quitté le wordmark.** Il lisait `--brand`, dont la
   valeur change selon la peau — le logo était lime sur la landing et moutarde
-  dans `/admin`. L'accent est désormais le nœud du symbole, en lime fixe : la
+  dans `/admin`. L'accent est désormais le port du symbole, en lime fixe : la
   marque a enfin une couleur unique. La classe `.marker` reste en place, elle
   sert ailleurs (Hero, titres éditoriaux).
 - **Repli sous 360 px.** Le groupe de droite de la nav fait 162 px et le lockup
@@ -274,7 +288,7 @@ for f in public/brand/*.svg; do python3 -c "import xml.dom.minidom;xml.dom.minid
 
 **Deux chartes cohabitent, et le logo les traverse.** Bitume (moutarde `#EAB308`
 / anthracite) sur `/admin` et le portail captif ; Slate (lime / blanc / vert
-profond `#12301D`) sur le site public via `.theme-slate`. Le nœud lime du
+profond `#12301D`) sur le site public via `.theme-slate`. Le port lime du
 symbole est donc, dans `/admin`, une couleur étrangère à la charte locale.
 C'est le prix d'une marque à couleur fixe, et c'est le bon prix — mais si la
 dissonance gêne, l'alternative est de neutraliser l'accent dans `/admin` via

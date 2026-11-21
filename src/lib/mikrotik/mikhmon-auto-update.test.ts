@@ -43,24 +43,20 @@ test("findMikhmonContainer : root-dir sans slash de tête", async () => {
 test("ensureMikhmonUiFiles : écrase headhtml+sessions, PAS de css neuf", async () => {
   const calls: string[][] = [];
   const n = await ensureMikhmonUiFiles(fakeClient(calls));
-  // TROIS ÉCRASEMENTS (servis à chaud). La skin est INLINE dans headhtml.php :
-  // on ne dépose plus de fichier css/safelink-skin.css NEUF (qui resterait 404
-  // tant que le conteneur n'a pas redémarré). mikhmon-responsive.css, lui, est
-  // CUIT DANS L'IMAGE : le déposer est un écrasement, pas un ajout.
-  assert.equal(n, 3);
+  // Deux ÉCRASEMENTS seulement. La skin est INLINE dans headhtml.php, et
+  // mikhmon-responsive.css voyage par l'IMAGE (:ui-2) : le dépôt à chaud s'est
+  // révélé non fiable, l'overlay continuant de servir le fichier de l'image.
+  assert.equal(n, 2);
   const head = calls.find((c) => c[0] === "/tool/fetch" && c.some((w) => w.includes("headhtml")));
   assert.ok(head!.includes("=url=https://safelinkhub.io/mikhmon-ui/headhtml.txt"));
   assert.ok(head!.includes("=dst-path=usb1/mikhmon-app/src/src/include/headhtml.php"));
-  const responsive = calls.find(
-    (c) => c[0] === "/tool/fetch" && c.some((w) => w.includes("mikhmon-responsive.css")),
-  );
-  assert.ok(responsive!.includes("=url=https://safelinkhub.io/mikhmon-ui/mikhmon-responsive.css"));
-  assert.ok(responsive!.includes("=dst-path=usb1/mikhmon-app/src/src/css/mikhmon-responsive.css"));
-  assert.equal(
-    calls.some((c) => c.some((w) => w.includes("safelink-skin.css"))),
-    false,
-    "ne dépose plus css/safelink-skin.css",
-  );
+  for (const css of ["safelink-skin.css", "mikhmon-responsive.css"]) {
+    assert.equal(
+      calls.some((c) => c.some((w) => w.includes(css))),
+      false,
+      `ne dépose plus css/${css}`,
+    );
+  }
 });
 
 test("ensureMikhmonUiFiles : un conteneur MikHmon v3 ne reçoit RIEN", async () => {
@@ -93,7 +89,9 @@ test("ensureMikhmonImage : un conteneur v3 n'est JAMAIS re-créé (not-v7)", asy
       "remote-image": "latif225/mikhmonv3-safelinkhub:latest",
       running: "true",
     }),
-    "n-importe-quel-routeur",
+    // Un CANARI : sans ça on sortirait sur « not-canary » et le garde-fou v7
+    // ne serait jamais exercé par ce test.
+    COUZA,
   );
   assert.equal(res, "not-v7");
   assert.equal(calls.filter((c) => c[0] === "/container/remove").length, 0);
@@ -127,23 +125,11 @@ test("buildConfigRestoreScript : /file set du bon chemin, contenu échappé", ()
   assert.ok(src.includes("\\n")); // newline échappé
 });
 
-// L'allowlist canari est vide depuis le 31/10 (ouverture au parc) : tout routeur
-// est éligible, et c'est la lignée de l'image qui décide désormais. Une image v7
-// ancienne est bien re-créée ; une image hors-v7 ne l'est jamais (test ci-dessous).
-test("ensureMikhmonImage : allowlist vide = tout routeur v7 est éligible", async () => {
+test("ensureMikhmonImage : routeur hors allowlist = not-canary (aucune re-création)", async () => {
   const calls: string[][] = [];
-  const res = await ensureMikhmonImage(
-    fakeClient(calls, {
-      ".id": "*1",
-      name: "mikhmon",
-      "root-dir": "/usb1/mikhmon-app",
-      "remote-image": "ghcr.io/iamabdoulatif/mikhmon-v7:ui-cobaye",
-      running: "true",
-    }),
-    "un-autre-routeur",
-  );
-  assert.notEqual(res, "not-canary");
-  assert.notEqual(res, "not-v7");
+  const res = await ensureMikhmonImage(fakeClient(calls, { ".id": "*1", name: "mikhmon", "root-dir": "/usb1/mikhmon-app", "remote-image": "vieille-image" }), "un-autre-routeur");
+  assert.equal(res, "not-canary");
+  assert.equal(calls.length, 0, "ne doit même pas interroger le routeur");
 });
 
 test("ensureMikhmonImage : canari déjà sur l'image voulue = already-current", async () => {

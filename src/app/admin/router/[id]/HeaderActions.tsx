@@ -15,6 +15,7 @@ import {
   PackageOpen,
   Pencil,
   RefreshCw,
+  RotateCcw,
   Trash2,
   Wrench,
   Zap,
@@ -36,6 +37,7 @@ import type { ActionDestructive } from "@/lib/mikrotik/action-destructive";
 import RouterDangerDialog from "../RouterDangerDialog";
 import MikhmonCredentialsDialog from "./MikhmonCredentialsDialog";
 import RouterOsDowngradeDialog from "./RouterOsDowngradeDialog";
+import RouterResetDialog from "./RouterResetDialog";
 
 /**
  * Barre d'actions de la fiche routeur — quatre niveaux, pas huit boutons.
@@ -88,6 +90,7 @@ export default function HeaderActions({
   const [mikhmonSuccess, setMikhmonSuccess] = useState<string | null>(null);
   const [mikhmonRevealed, setMikhmonRevealed] = useState(false);
   const [downgradeOpen, setDowngradeOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDialogElement>(null);
 
@@ -364,9 +367,19 @@ export default function HeaderActions({
                     }}
                   />
                   <MenuItem
+                    icon={RotateCcw}
+                    label="Réinitialiser RouterOS"
+                    hint="Efface la configuration selon un mode au choix (usine, en gardant les comptes, ou config d'usine RouterOS). Le routeur redémarre et sort du parc."
+                    danger
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setResetOpen(true);
+                    }}
+                  />
+                  <MenuItem
                     icon={PackageOpen}
                     label="Rétrograder RouterOS"
-                    hint="Télécharge une version 7.x plus ancienne et redémarre le routeur (ex. 7.25 → 7.8). Le Wi-Fi est coupé quelques minutes."
+                    hint="Télécharge une version plus ancienne et redémarre le routeur (ex. 7.25 → 7.8, ou 7.25 → 6.49 si le matériel le permet). Le Wi-Fi est coupé quelques minutes."
                     danger
                     onClick={() => {
                       setMenuOpen(false);
@@ -420,6 +433,14 @@ export default function HeaderActions({
           routerId={routerId}
           routerName={routerName}
           onClose={() => setDowngradeOpen(false)}
+        />
+      )}
+
+      {resetOpen && (
+        <RouterResetDialog
+          routerId={routerId}
+          routerName={routerName}
+          onClose={() => setResetOpen(false)}
         />
       )}
     </div>
