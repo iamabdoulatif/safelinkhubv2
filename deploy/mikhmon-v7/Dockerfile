@@ -24,6 +24,11 @@
 #    800 F sortait en gris sans que rien ne le signale. Les deux lisent
 #    maintenant couleurs-prix.php, seule table — et elle couvre les 17 prix
 #    relevés sur les forfaits actifs du parc, au lieu de neuf.
+#
+# RECONSTRUCTION 2026-11-21 : l'image amont latif225/mikhmon-sf-v1:latest porte
+# désormais le filtre de revenu par période (Du … Au …) du rapport de vente.
+# Ce dossier ne change que pour redéclencher le build ; le parc la reçoit via
+# mikhmon-v7:ui-2.
 FROM latif225/mikhmon-sf-v1:latest
 
 COPY couleurs-prix.php /src/src/voucher/couleurs-prix.php
