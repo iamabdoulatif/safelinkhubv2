@@ -1164,13 +1164,37 @@ if (!function_exists('mikhmon_filter_sales_seller')) {
 }
 
 if (!function_exists('mikhmon_seller_breakdown')) {
-  // Récapitulatif par vendeur : tickets, montant, part du total (%) et commission.
-  // Les ventes sans vendeur (admin) sont regroupées sous la clé '' (commission incluse).
+  // Vente faite depuis le SaaS (portail en ligne, lots SafeLinkHub) : le ticket
+  // est créé sans commentaire, alors qu'un ticket généré dans MikHmon porte
+  // « vc-… » ou « up-… » (9e champ de la vente = commentaire du ticket au login).
+  function mikhmon_is_saas_sale($row)
+  {
+    $parts = explode('-|-', isset($row['name']) ? $row['name'] : '');
+    return trim(isset($parts[8]) ? $parts[8] : '') === '';
+  }
+
+  // Ventes SaaS : array('count' => n, 'total' => montant).
+  function mikhmon_saas_sales_total($rows)
+  {
+    $out = array('count' => 0, 'total' => 0.0);
+    foreach ((array) $rows as $row) {
+      if (!mikhmon_is_saas_sale($row)) { continue; }
+      $parts = explode('-|-', $row['name']);
+      $out['count']++;
+      $out['total'] += mikhmon_parse_money_amount(isset($parts[3]) ? $parts[3] : '0');
+    }
+    return $out;
+  }
+
+  // Récapitulatif par vendeur des ventes PHYSIQUES (ventes SaaS exclues) :
+  // tickets, montant, part du total (%) et commission. Les tickets MikHmon sans
+  // vendeur (admin) sont regroupés sous la clé '' (commission incluse).
   function mikhmon_seller_breakdown($rows, $sellersData, $rate = 0.10)
   {
     $by = array();
     $grand = 0.0;
     foreach ((array) $rows as $row) {
+      if (mikhmon_is_saas_sale($row)) { continue; }
       $parts = explode('-|-', isset($row['name']) ? $row['name'] : '');
       $key = mikhmon_accounting_seller_key(isset($parts[8]) ? $parts[8] : '', $sellersData);
       $amount = mikhmon_parse_money_amount(isset($parts[3]) ? $parts[3] : '0');
