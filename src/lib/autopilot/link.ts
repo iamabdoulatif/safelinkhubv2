@@ -141,3 +141,35 @@ export async function linkStatus(orgId: string) {
 export async function revokeLink(orgId: string) {
   await getDb().delete(autopilotLinks).where(eq(autopilotLinks.orgId, orgId));
 }
+
+/** Organisation liée au jeton (null = jeton inconnu). */
+export async function orgForToken(token: string): Promise<{ orgId: string; orgName: string; orgSlug: string } | null> {
+  const [row] = await getDb()
+    .select({ orgId: autopilotLinks.orgId, orgName: organizations.name, orgSlug: organizations.slug })
+    .from(autopilotLinks)
+    .innerJoin(organizations, eq(organizations.id, autopilotLinks.orgId))
+    .where(eq(autopilotLinks.tokenHash, sha256(token)));
+  return row ?? null;
+}
+
+export type AutopilotAccount = { name: string; password: string; access: "read" | "write" };
+
+/** Groupe RouterOS dédié par niveau d'accès (REST compris). */
+export const AUTOPILOT_GROUPS = {
+  read: { name: "autopilot-read", policy: "read,test,web,api,rest-api" },
+  write: { name: "autopilot-write", policy: "read,write,test,web,api,rest-api,reboot" },
+} as const;
+
+export function validAccounts(input: unknown): AutopilotAccount[] | null {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 2) return null;
+  const out: AutopilotAccount[] = [];
+  for (const a of input) {
+    const v = a as Record<string, unknown>;
+    if (typeof v.name !== "string" || !/^[A-Za-z0-9._-]{2,32}$/.test(v.name)) return null;
+    if (typeof v.password !== "string" || v.password.length < 8 || v.password.length > 128 || /["\\\r\n]/.test(v.password)) return null;
+    if (v.access !== "read" && v.access !== "write") return null;
+    if (v.name === "admin" || v.name.startsWith("safelinkhub")) return null;
+    out.push({ name: v.name, password: v.password, access: v.access });
+  }
+  return out;
+}

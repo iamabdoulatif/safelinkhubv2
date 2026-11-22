@@ -28,3 +28,24 @@ test("code de liaison : 8 caractères lisibles, saisie tolérante", () => {
   assert.match(c, /^[A-HJ-NP-Z2-9]{8}$/);
   assert.equal(normalizeCode(" ab3d-ef9h "), "AB3DEF9H");
 });
+
+import { validAccounts } from "./link";
+import { buildGuardedVpnInstallCommand } from "../mikrotik/vpn-install";
+
+test("validAccounts : noms et mots de passe sûrs uniquement", () => {
+  assert.deepEqual(validAccounts([{ name: "app-audit", password: "s3cret-pass", access: "read" }]), [{ name: "app-audit", password: "s3cret-pass", access: "read" }]);
+  assert.equal(validAccounts([{ name: "admin", password: "s3cret-pass", access: "write" }]), null);
+  assert.equal(validAccounts([{ name: "safelinkhub-api", password: "s3cret-pass", access: "read" }]), null);
+  assert.equal(validAccounts([{ name: "app-audit", password: 'abc"defgh', access: "read" }]), null);
+  assert.equal(validAccounts([{ name: "app-audit", password: "short", access: "read" }]), null);
+  assert.equal(validAccounts([{ name: "app-audit", password: "s3cret-pass", access: "full" }]), null);
+  assert.equal(validAccounts([]), null);
+});
+
+test("ligne d'installation sans conflit : n'installe rien si safelinkhub-wg0 existe déjà", () => {
+  const c = buildGuardedVpnInstallCommand("https://x/api/router/v1/o/scripts/install-vpn", "https://x/api/router/v1/o/scripts/install-vpn/cancel", "tok");
+  assert.match(c, /^:if \(\[:len \[\/interface wireguard find name="safelinkhub-wg0"\]\] > 0\) do=\{/);
+  const [deja, sinon] = c.split("} else={");
+  assert.ok(deja.includes("install-vpn/cancel") && !deja.includes("vpn.rsc"), "branche « déjà installé » : annulation seulement");
+  assert.ok(sinon.includes('/import file-name="vpn.rsc"'), "branche normale : installation");
+});

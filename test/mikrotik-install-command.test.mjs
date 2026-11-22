@@ -3,10 +3,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 test("generated RouterOS install command reapplies the SafeLinkHub VPN route after import", async () => {
-  const source = await readFile(new URL("../src/lib/mikrotik/actions.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/lib/mikrotik/vpn-install.ts", import.meta.url), "utf8");
   const commandLine = source
     .split("\n")
-    .find((line) => line.includes("const command ="));
+    .find((line) => line.includes("return `/interface/ethernet/set"));
 
   assert.ok(commandLine, "generateInstallScript should build a RouterOS command");
   assert.match(
