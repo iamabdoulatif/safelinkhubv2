@@ -82,6 +82,22 @@ export async function getWireGuardPeerLatestHandshake(
   return Number.isSafeInteger(seconds) && seconds > 0 ? seconds * 1000 : null;
 }
 
+/** Toutes les poignées de main de wg0 en un seul appel : clé publique → ms. */
+export async function getAllWireGuardHandshakes(): Promise<Map<string, number>> {
+  const output = await runOnRelay("sudo wg show wg0 latest-handshakes", 8000);
+  return parseLatestHandshakes(output);
+}
+
+export function parseLatestHandshakes(output: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const line of output.split("\n")) {
+    const [key, sec] = line.trim().split(/\s+/);
+    const n = Number(sec);
+    if (key && Number.isSafeInteger(n) && n > 0) out.set(key, n * 1000);
+  }
+  return out;
+}
+
 function getRelayPrivateKey(): string {
   const b64 = process.env.WG_RELAY_SSH_KEY_B64;
   if (!b64) throw new Error("WG_RELAY_SSH_KEY_B64 is not set");
