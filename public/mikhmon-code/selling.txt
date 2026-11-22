@@ -460,7 +460,7 @@ $(document).ready(function(){
 						echo "</td>";
 						echo "<td>";
 						$comment = $getname[8];
-						echo $comment;
+						echo trim((string) $comment) !== '' ? $comment : 'SaaS (en ligne)';
 						echo "</td>";
 						echo "<td style='text-align:right;'>";
 						$price = $getname[3];
@@ -492,7 +492,7 @@ $shown[] = $getData[$i];
 					echo "</td>";
 					echo "<td>";
 					$comment = $getname[8];
-					echo $comment;
+					echo trim((string) $comment) !== '' ? $comment : 'SaaS (en ligne)';
 					echo "</td>";
 					echo "<td style='text-align:right;'>";
 					$price = $getname[3];
