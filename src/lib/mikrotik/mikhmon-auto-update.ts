@@ -41,7 +41,7 @@ type Sentence = Record<string, string>;
  * à chaud, alors qu'un fichier CSS NEUF restait 404 tant que le conteneur
  * n'avait pas redémarré, et ce redémarrage n'aboutissait pas partout (vu sur
  * DIAK-HSPT). Plus de redémarrage requis. */
-export const MIKHMON_UI_VERSION = "ui-4";
+export const MIKHMON_UI_VERSION = "ui-5";
 /* ui-4 (21/11/2026) : + correction du prix des tickets (division par 100) sur
  * les conteneurs Docker Hub latif225/mikhmon-sf-v1, modèles non personnalisés
  * uniquement.
@@ -121,6 +121,7 @@ const UI_FILES: { url: string; dst: string }[] = [
 
 /** Fichiers du rapport de vente (copie de mikhmon-sf-v1, public/mikhmon-code). */
 const CODE_FILES: { url: string; dst: string }[] = [
+  { url: "mikhmon-code/seller_summary.txt", dst: "report/seller_summary.php" },
   { url: "mikhmon-code/mikhmon_compat.txt", dst: "include/mikhmon_compat.php" },
   { url: "mikhmon-code/selling.txt", dst: "report/selling.php" },
   { url: "mikhmon-code/print.txt", dst: "report/print.php" },

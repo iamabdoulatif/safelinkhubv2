@@ -102,14 +102,15 @@ test.skip("ensureMikhmonImage : un échec ouvre le coupe-circuit pour tout le pa
   assert.equal(await ensureMikhmonImage(fakeClient([], row(SF)), "r2", { migrate: ok }), "circuit-open");
 });
 
-test("ensureMikhmonCodeFiles : 3 fichiers du rapport déposés (keep-result par défaut) puis redémarrage, famille sf-v1", async () => {
+test("ensureMikhmonCodeFiles : 4 fichiers du rapport déposés (keep-result par défaut) puis redémarrage, famille sf-v1", async () => {
   const calls: string[][] = [];
   let restarted = 0;
   const n = await ensureMikhmonCodeFiles(fakeClient(calls, row(SF)), { restart: async () => ((restarted++), true) });
-  assert.equal(n, 3);
+  assert.equal(n, 4);
   assert.equal(restarted, 1);
   const fetches = calls.filter((c) => c[0] === "/tool/fetch");
-  assert.equal(fetches.length, 3);
+  assert.equal(fetches.length, 4);
+  assert.ok(fetches[0].includes("=dst-path=flash/mikhmon-app/src/src/report/seller_summary.php"), "seller_summary.php avant selling/print");
   assert.ok(fetches.every((c) => !c.includes("=keep-result=no")), "keep-result=no n'écrit pas le fichier");
   assert.ok(fetches.some((c) => c.includes("=dst-path=flash/mikhmon-app/src/src/report/selling.php")));
   assert.ok(fetches.some((c) => c.includes("=url=https://safelinkhub.io/mikhmon-code/mikhmon_compat.txt")));
@@ -133,7 +134,7 @@ test("ensureMikhmonCodeFiles : un fetch en échec = pas de redémarrage (version
       return [];
     },
   } as unknown as RouterOSClient;
-  assert.equal(await ensureMikhmonCodeFiles(client, { restart: async () => ((restarted++), true) }), 2);
+  assert.equal(await ensureMikhmonCodeFiles(client, { restart: async () => ((restarted++), true) }), 3);
   assert.equal(restarted, 0);
 });
 
