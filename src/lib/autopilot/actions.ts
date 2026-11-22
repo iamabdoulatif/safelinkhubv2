@@ -14,6 +14,6 @@ export async function revokeAutopilotLink(): Promise<{ error?: string }> {
   const session = await requireAdminSession();
   if (!session?.orgId) return { error: "Réservé aux administrateurs." };
   await revokeLink(session.orgId);
-  revalidatePath("/admin/settings/advanced");
+  revalidatePath("/admin/settings/autopilot");
   return {};
 }
