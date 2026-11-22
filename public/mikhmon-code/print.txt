@@ -187,48 +187,28 @@ if (!isset($_SESSION["mikhmon"])) {
 		<!-- Tell the browser to be responsive to screen width -->
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<style>
-	/*table*/
-  .table {
-    width: 100%;
-    background-color: #FFFFFF;
-    border-collapse: collapse !important;
-  }
-  
-  .table td,
-  .table th {
-    padding: 5px;
-  }
-  
-  .table td,
-  th,
-  a {
-    color: #000;
-    text-decoration: none;
-  }
-  
-  .table-bordered th,
-  .table-bordered td {
-   border: 1px solid #000 !important;
-  }
-	@page
-	{
-   size: auto;
-   margin-left: 7mm;
-   margin-right: 3mm;
-   margin-top: 9mm;
-   margin-bottom: 3mm;
+	body { font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+	.table { width: 100%; background: #fff; border-collapse: collapse !important; font-size: 12px; }
+	.table td, .table th { padding: 6px 8px; }
+	.table td, th, a { color: #0f172a; text-decoration: none; }
+	.table-bordered th, .table-bordered td { border: 1px solid #cbd5e1 !important; }
+	#dataTable thead th { background: linear-gradient(90deg, #1e3a8a, #2563eb); color: #fff; font-size: 13px; padding: 12px; border: none !important; }
+	#dataTable thead th h3 { color: #fff; font-size: 20px; letter-spacing: .02em; }
+	#dataTable tr:nth-child(2) th { background: #eff6ff; color: #1e3a8a; }
+	#dataTable #total { color: #16a34a; font-size: 15px; }
+	#dataTable tr:nth-child(3) th { background: #1e3a8a; color: #fff; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+	#dataTable tbody tr:nth-child(even) td { background: #f1f5f9; }
+	#dataTable tbody td:last-child { font-weight: 600; text-align: right; }
+	@page { size: auto; margin: 9mm 3mm 3mm 7mm; }
+	@media print {
+	 table { page-break-after: auto }
+	 tr { page-break-inside: avoid; page-break-after: auto }
+	 td { page-break-inside: avoid; page-break-after: auto }
+	 thead { display: table-header-group }
+	 tfoot { display: table-footer-group }
+	 .overflow { max-height: none !important; }
 	}
-	@media print
-	{
-   table { page-break-after:auto }
-   tr    { page-break-inside:avoid; page-break-after:auto }
-   td    { page-break-inside:avoid; page-break-after:auto }
-   thead { display:table-header-group }
-   tfoot { display:table-footer-group }
-	}	 
-	h3 {
-		margin:0px;
-	} 
+	h3 { margin: 0; }
 		</style>
 		
 	</head>
@@ -289,7 +269,7 @@ function number_format(number, decimals, dec_point, thousands_sep) {
           var dataTable = document.getElementById("selling");
           
           // use querySelector to find all second table cells
-          var cells = document.querySelectorAll("td + td + td + td + td + td");
+          var cells = document.querySelectorAll("#dataTable td + td + td + td + td + td");
           for (var i = 0; i < cells.length; i++)
           sum+=mikhmonParseAmount(cells[i].firstChild.data);
           
@@ -303,8 +283,7 @@ function number_format(number, decimals, dec_point, thousands_sep) {
       echo 'th.innerHTML = ' . json_encode($currency . ' ') . ' + number_format(sum, 2, ".", ",");';
     } ?>
 		
-		var tables = document.getElementsByTagName('tbody');
-    var table = tables[tables.length -1];
+		var table = document.querySelector('#dataTable tbody');
     var rows = table.rows;
     for(var i = 0, td; i < rows.length; i++){
         td = document.createElement('td');
@@ -373,6 +352,7 @@ function number_format(number, decimals, dec_point, thousands_sep) {
 						echo $price;
 						echo "</td>";
 						echo "</tr>";
+$shown[] = $getData[$i];
 					}
 				}
 			} elseif ($prefix != "") {
@@ -406,6 +386,7 @@ function number_format(number, decimals, dec_point, thousands_sep) {
 						echo $price;
 						echo "</td>";
 						echo "</tr>";
+$shown[] = $getData[$i];
 					}
 				}
 			} elseif ($range != "") {
@@ -445,6 +426,7 @@ function number_format(number, decimals, dec_point, thousands_sep) {
 						echo $price;
 						echo "</td>";
 						echo "</tr>";
+$shown[] = $getData[$i];
 					}
 				}
 			} else {
@@ -477,6 +459,7 @@ function number_format(number, decimals, dec_point, thousands_sep) {
 					echo $price;
 					echo "</td>";
 					echo "</tr>";
+$shown[] = $getData[$i];
 				
 				$dataresume .= $getname[0].$getname[3];
 				$totalresume += $getname[3];
@@ -489,6 +472,7 @@ function number_format(number, decimals, dec_point, thousands_sep) {
 			</tbody>
 			</table>
 		</div>
+<?php include __DIR__ . '/seller_summary.php'; ?>
 
 </div>
 </div>

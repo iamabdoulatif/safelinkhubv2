@@ -1162,3 +1162,32 @@ if (!function_exists('mikhmon_filter_sales_seller')) {
     return $total;
   }
 }
+
+if (!function_exists('mikhmon_seller_breakdown')) {
+  // Récapitulatif par vendeur : tickets, montant, part du total (%) et commission.
+  // Les ventes sans vendeur (admin) sont regroupées sous la clé '' sans commission.
+  function mikhmon_seller_breakdown($rows, $sellersData, $rate = 0.10)
+  {
+    $by = array();
+    $grand = 0.0;
+    foreach ((array) $rows as $row) {
+      $parts = explode('-|-', isset($row['name']) ? $row['name'] : '');
+      $key = mikhmon_accounting_seller_key(isset($parts[8]) ? $parts[8] : '', $sellersData);
+      $amount = mikhmon_parse_money_amount(isset($parts[3]) ? $parts[3] : '0');
+      if (!isset($by[$key])) {
+        $name = $key === '' ? 'Sans vendeur (admin)' : (isset($sellersData[$key]['name']) && $sellersData[$key]['name'] !== '' ? $sellersData[$key]['name'] : $key);
+        $by[$key] = array('key' => $key, 'name' => $name, 'count' => 0, 'total' => 0.0);
+      }
+      $by[$key]['count']++;
+      $by[$key]['total'] += $amount;
+      $grand += $amount;
+    }
+    foreach ($by as $k => $b) {
+      $by[$k]['share'] = $grand > 0 ? round($b['total'] * 100 / $grand, 1) : 0.0;
+      $by[$k]['commission'] = $k === '' ? 0.0 : round($b['total'] * $rate, 2);
+      $by[$k]['net'] = $b['total'] - $by[$k]['commission'];
+    }
+    usort($by, function ($a, $b) { return $b['total'] <=> $a['total']; });
+    return $by;
+  }
+}

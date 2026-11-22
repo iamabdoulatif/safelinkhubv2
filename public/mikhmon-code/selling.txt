@@ -156,7 +156,7 @@ if (!isset($_SESSION["mikhmon"])) {
 			  var csvFile;
 			  var downloadLink;
 			  // CSV file
-			  csvFile = new Blob([csv], {type: "text/csv"});
+			  csvFile = new Blob([csv], {type: "text/csv;charset=utf-8"});
 			  // Download link
 			  downloadLink = document.createElement("a");
 			  // File name
@@ -173,16 +173,17 @@ if (!isset($_SESSION["mikhmon"])) {
 			  
 			  function exportTableToCSV(filename) {
 			    var csv = [];
-			    var rows = document.querySelectorAll("#dataTable tr");
-			    
+			    var rows = document.querySelectorAll("#dataTable tr, #sellerSummary tr");
+			    var q = function (t) { return '"' + String(t).replace(/\s+/g, ' ').trim().replace(/"/g, '""') + '"'; };
 			   for (var i = 0; i < rows.length; i++) {
+			      if (rows[i].closest('#sellerSummary') && rows[i].parentNode.tagName === 'THEAD') { csv.push(''); csv.push(q('Récapitulatif par vendeur')); }
 			      var row = [], cols = rows[i].querySelectorAll("td, th");
 			   for (var j = 0; j < cols.length; j++)
-            row.push(cols[j].innerText);
+            row.push(q(cols[j].innerText));
         csv.push(row.join(","));
         }
-        // Download CSV file
-        downloadCSV(csv.join("\n"), filename);
+        // Download CSV file (BOM pour les accents dans Excel)
+        downloadCSV("\ufeff" + csv.join("\n"), filename);
         }
 
 // Parse a money amount string with various thousands/decimal separators
@@ -243,7 +244,7 @@ function number_format(number, decimals, dec_point, thousands_sep) {
           var dataTable = document.getElementById("selling");
           
           // use querySelector to find all second table cells
-          var cells = document.querySelectorAll("td + td + td + td + td + td");
+          var cells = document.querySelectorAll("#dataTable td + td + td + td + td + td");
           for (var i = 0; i < cells.length; i++)
           sum+=mikhmonParseAmount(cells[i].firstChild.data);
 
@@ -258,8 +259,7 @@ function number_format(number, decimals, dec_point, thousands_sep) {
     }
     ?>
 		
-		var tables = document.getElementsByTagName('tbody');
-    var table = tables[tables.length -1];
+		var table = document.querySelector('#dataTable tbody');
     var rows = table.rows;
     for(var i = 0, td; i < rows.length; i++){
         td = document.createElement('td');
@@ -467,6 +467,7 @@ $(document).ready(function(){
 						echo $price;
 						echo "</td>";
 						echo "</tr>";
+$shown[] = $getData[$i];
 					}
 				}
 			} else {
@@ -498,6 +499,7 @@ $(document).ready(function(){
 					echo $price;
 					echo "</td>";
 					echo "</tr>";
+$shown[] = $getData[$i];
 				
 				$_parsedPrice = mikhmon_parse_money_amount($getname[3]);
 				$dataresume .= $getname[0] . round($_parsedPrice);
@@ -512,6 +514,7 @@ $(document).ready(function(){
 			</tbody>
 			</table>
 		</div>
+<?php include __DIR__ . '/seller_summary.php'; ?>
 </div>
 </div>
 </div>
