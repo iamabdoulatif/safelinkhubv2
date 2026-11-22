@@ -2,6 +2,8 @@
 // cette liste. Exportée depuis SettingsTabs.tsx (client), elle arrivait côté
 // serveur comme une référence client — `.filter is not a function` en prod.
 import {
+  Bell,
+  Bot,
   CreditCard,
   LayoutTemplate,
   MessageSquare,
@@ -23,6 +25,8 @@ export const SETTINGS_SECTIONS = [
   { href: "/admin/settings/payment-gateways", label: "Passerelles de paiement", icon: CreditCard },
   { href: "/admin/settings/captive-templates", label: "Portail captif", icon: LayoutTemplate },
   { href: "/admin/settings/walled-garden", label: "Walled-garden", icon: ShieldCheck },
+  { href: "/admin/settings/autopilot", label: "SafeLink Auto-Pilot", icon: Bot },
+  { href: "/admin/settings/notifications", label: "Notifications", icon: Bell },
   { href: "/admin/settings/sms", label: "SMS", icon: MessageSquare },
   { href: "/admin/billing", label: "Abonnement", icon: Wallet },
   { href: "/admin/settings/advanced", label: "Avancé", icon: Settings2 },

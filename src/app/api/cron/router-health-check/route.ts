@@ -1,5 +1,5 @@
 import { NextRequest, after } from "next/server";
-import { asc, inArray, sql } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { collectTrafficHistory } from "@/lib/mikrotik/traffic-collector";
@@ -7,6 +7,8 @@ import { createHealthSchedule } from "@/lib/mikrotik/health-schedule";
 import { syncRouterStats } from "@/lib/mikrotik/router-sync";
 import { bearerMatches } from "@/lib/auth/bearer";
 import { syncMndpAnnouncementsForAllOrgs } from "@/lib/mikrotik/mndp-sync";
+import { getAllWireGuardHandshakes } from "@/lib/mikrotik/relay";
+import { orderHealthCandidates } from "@/lib/mikrotik/health-order";
 
 export const maxDuration = 300;
 
@@ -51,7 +53,9 @@ async function runHealthCheck(budgetMs = BUDGET_MS) {
   // "offline" is included so a router that got marked offline by a transient
   // failure (some devices' API takes >10s under hotspot load) heals itself on
   // the next run instead of staying offline until an admin loads a page.
-  // ORDRE : les routeurs en ligne d'abord, puis les hors-ligne du sync le plus
+  // ORDRE (voir health-order.ts) : les hors-ligne dont le tunnel WireGuard est
+  // actif d'abord (revenus), puis — historique ci-dessous — les en ligne, puis
+  // les hors-ligne du sync le plus
   // ancien au plus récent. Un routeur hors ligne coûte 2 × 30 s à l'un des 4
   // travailleurs (deux sondes avant de le déclarer perdu) : avec une part du
   // parc hors ligne, 47 routeurs ne tiennent pas dans les 300 s de la route,
@@ -60,11 +64,20 @@ async function runHealthCheck(budgetMs = BUDGET_MS) {
   // la sonde rapide (et la veille du portail) couvre tout ce qui sert des
   // clients à chaque passage ; le reste du budget balaie les hors-ligne par
   // rotation, et les exécutions successives finissent par tous les revoir.
-  const candidates = await db
-    .select({ id: routers.id, name: routers.name })
+  const rows = await db
+    .select({
+      id: routers.id,
+      name: routers.name,
+      status: routers.status,
+      lastSyncAt: routers.lastSyncAt,
+      wgPeerPublicKey: routers.wgPeerPublicKey,
+    })
     .from(routers)
-    .where(inArray(routers.status, ["online", "installing", "offline"]))
-    .orderBy(sql`case when ${routers.status} = 'online' then 0 else 1 end`, asc(routers.lastSyncAt));
+    .where(inArray(routers.status, ["online", "installing", "offline"]));
+  // Un seul `wg show` pour tout le parc ; s'il échoue, on retombe sur l'ordre
+  // en-ligne puis hors-ligne (aucun routeur n'est jugé « revenu »).
+  const handshakes = await getAllWireGuardHandshakes().catch(() => new Map<string, number>());
+  const candidates = orderHealthCandidates(rows, handshakes);
 
   // Probes go through a single relay host (one SSH connection each), so an
   // unbounded Promise.all stampedes it — 12 concurrent SSH handshakes on the
@@ -105,6 +118,7 @@ async function runHealthCheck(budgetMs = BUDGET_MS) {
 
   return {
     candidates: candidates.length,
+    revived: candidates.filter((c) => c.status !== "online" && results.some((r) => r.id === c.id && r.success)).map((c) => c.name),
     checked: results.length,
     offline: results.filter((r) => !r.success).map((r) => r.name),
     mndp,

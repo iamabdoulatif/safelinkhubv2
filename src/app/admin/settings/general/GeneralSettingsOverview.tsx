@@ -45,6 +45,7 @@ const sections = [
       "/admin/settings/router-setup",
       "/admin/settings/captive-templates",
       "/admin/settings/walled-garden",
+      "/admin/settings/autopilot",
     ],
   },
   {

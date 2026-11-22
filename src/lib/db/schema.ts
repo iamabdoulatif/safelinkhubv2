@@ -1788,3 +1788,20 @@ export const routerMultiwanLicenses = pgTable("router_multiwan_licenses", {
   generatedAt: timestamp("generated_at"),
   purchasedAt: timestamp("purchased_at").notNull().defaultNow(),
 },t=>[uniqueIndex("router_multiwan_licenses_org_id_router_id_key").on(t.orgId,t.routerId)]);
+
+/* Liaison SafeLink Auto-Pilot (app.safelinkhub.io, même VPS) : une organisation
+   génère un code à usage unique, Auto-Pilot l'échange contre un jeton et liste
+   les routeurs déjà joignables par le tunnel WireGuard de SafeLinkHub — un seul
+   gestionnaire WireGuard, aucun second tunnel sur les routeurs. Seuls les hashs
+   sont stockés. */
+export const autopilotLinks = pgTable("autopilot_links", {
+  orgId: uuid("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  codeHash: text("code_hash"),
+  codeExpiresAt: timestamp("code_expires_at"),
+  tokenHash: text("token_hash").unique(),
+  linkedAt: timestamp("linked_at"),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

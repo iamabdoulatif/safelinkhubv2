@@ -41,8 +41,11 @@ type Sentence = Record<string, string>;
  * à chaud, alors qu'un fichier CSS NEUF restait 404 tant que le conteneur
  * n'avait pas redémarré, et ce redémarrage n'aboutissait pas partout (vu sur
  * DIAK-HSPT). Plus de redémarrage requis. */
-export const MIKHMON_UI_VERSION = "ui-3";
-/* ui-3 (21/11/2026) : + dépôt des fichiers du RAPPORT DE VENTE (filtres période
+export const MIKHMON_UI_VERSION = "ui-7";
+/* ui-4 (21/11/2026) : + correction du prix des tickets (division par 100) sur
+ * les conteneurs Docker Hub latif225/mikhmon-sf-v1, modèles non personnalisés
+ * uniquement.
+ * ui-3 (21/11/2026) : + dépôt des fichiers du RAPPORT DE VENTE (filtres période
  * et vendeur, mikhmon-sf-v1 81632b5) sur la famille sf-v1 uniquement, sans
  * re-création : vendeurs, gérants, journaux et ventes restent en place. */
 /** Image conteneur voulue sur tout le parc (tag immuable recommandé).
@@ -118,9 +121,23 @@ const UI_FILES: { url: string; dst: string }[] = [
 
 /** Fichiers du rapport de vente (copie de mikhmon-sf-v1, public/mikhmon-code). */
 const CODE_FILES: { url: string; dst: string }[] = [
+  { url: "mikhmon-code/seller_summary.txt", dst: "report/seller_summary.php" },
   { url: "mikhmon-code/mikhmon_compat.txt", dst: "include/mikhmon_compat.php" },
   { url: "mikhmon-code/selling.txt", dst: "report/selling.php" },
   { url: "mikhmon-code/print.txt", dst: "report/print.php" },
+];
+
+/** Correction du prix (même résultat que deploy/mikhmon-v7/patch-modeles.php),
+ * pour les conteneurs sur l'image Docker Hub — prix-corrige et ui-* l'ont déjà. */
+const PRICE_FIX_IMAGE = "latif225/mikhmon-sf-v1:latest";
+const PRICE_FIX_SHARED = { url: "mikhmon-code/voucher/couleurs-prix.txt", dst: "voucher/couleurs-prix.php" };
+/** Modèles corrigés, avec la taille EXACTE de l'original (inchangé depuis le
+ * 17/05/2026). Un modèle d'une autre taille a été personnalisé dans l'éditeur
+ * de tickets : on n'y touche pas. */
+const PRICE_FIX_TEMPLATES: { url: string; dst: string; stockSize: number }[] = [
+  { url: "mikhmon-code/voucher/template.txt", dst: "voucher/template.php", stockSize: 8894 },
+  { url: "mikhmon-code/voucher/template-small.txt", dst: "voucher/template-small.php", stockSize: 8133 },
+  { url: "mikhmon-code/voucher/safetmp.txt", dst: "voucher/safetmp.php", stockSize: 8838 },
 ];
 
 /** Conteneur de la famille sf-v1 (jamais les éditions v3, dont le code diffère). */
@@ -169,6 +186,35 @@ export async function ensureMikhmonUiFiles(client: RouterOSClient, timeoutMs = 2
     if (r) ok++;
   }
   return ok;
+}
+
+/**
+ * Corrige le prix des tickets sur un conteneur Docker Hub : dépose
+ * couleurs-prix.php puis chaque modèle resté d'origine. Pas de redémarrage ici
+ * (ensureMikhmonCodeFiles redémarre juste après). Renvoie le nombre de modèles
+ * corrigés, 0 si non concerné, -1 en cas d'échec de dépôt.
+ */
+export async function ensureMikhmonPriceFix(client: RouterOSClient, timeoutMs = 30000): Promise<number> {
+  const c = await findMikhmonContainer(client, timeoutMs);
+  if (!c || c.remoteImage !== PRICE_FIX_IMAGE) return 0;
+  const base = getAppUrl().replace(/\/+$/, "");
+  const path = (dst: string) => `${c.rootDir}/src/src/${dst}`;
+  const todo: typeof PRICE_FIX_TEMPLATES = [];
+  for (const f of PRICE_FIX_TEMPLATES) {
+    const rows = await client.talk(["/file/print", `?name=${path(f.dst)}`], timeoutMs).catch(() => [] as Sentence[]);
+    if (Number(rows[0]?.size) === f.stockSize) todo.push(f);
+  }
+  if (todo.length === 0) return 0;
+  const fetch = (f: { url: string; dst: string }) =>
+    client
+      .talk(["/tool/fetch", `=url=${base}/${f.url}`, `=dst-path=${path(f.dst)}`], timeoutMs)
+      .then(() => true)
+      .catch(() => false);
+  // La table des couleurs d'abord : un modèle corrigé sans elle planterait.
+  if (!(await fetch(PRICE_FIX_SHARED))) return -1;
+  let ok = 0;
+  for (const f of todo) if (await fetch(f)) ok++;
+  return ok === todo.length ? ok : -1;
 }
 
 /**
@@ -337,33 +383,7 @@ export async function recordMikhmonInventory(client: RouterOSClient, routerId: s
   }
 }
 
-/** DIAGNOSTIC TEMPORAIRE (21/11/2026) : routeurs dont MikHmon ne répond plus
- * après la bascule ui-2. À retirer une fois réparés. */
-const MIKHMON_DIAG_IDS = [
-  "52d71a14-a71f-48cd-96c6-93d0cb19be16", // HSPT-DUBONHEUR
-  "4b8ac89d-d317-4583-9099-053dedf5b77e", // DIAK-HSPT
-  "a5d7be90-8c22-4f49-b0df-53ed39544dde", // HSPT-DOUCOURE
-  "ec8522ad-c95c-416a-b4be-5d4e74882951", // HSPT-PHARAON
-];
-
-async function logMikhmonDiag(client: RouterOSClient, routerId: string, stage: string): Promise<void> {
-  const pick = (r: Record<string, string>, keys: string[]) => Object.fromEntries(keys.filter((k) => r[k] !== undefined).map((k) => [k, r[k]]));
-  const conts = await client.talk(["/container/print", "=detail"], 15000).catch((e) => [{ error: String(e) }] as Record<string, string>[]);
-  const cfg = await client.talk(["/container/config/print"], 15000).catch(() => [] as Record<string, string>[]);
-  const logs = (await client.talk(["/log/print"], 20000).catch(() => [] as Record<string, string>[]))
-    .filter((l) => /container|extract|pull|layer/i.test(`${l.topics ?? ""} ${l.message ?? ""}`));
-  const disks = await client.talk(["/disk/print"], 15000).catch(() => [] as Record<string, string>[]);
-  console.warn(JSON.stringify({
-    msg: "mikhmon diag", routerId, stage,
-    containers: conts,
-    config: cfg[0] ? pick(cfg[0], ["registry-url", "layer-dir", "tmpdir", "ram-high"]) : null,
-    logs: logs.slice(-6).map((l) => `${l.time ?? ""} ${l.message ?? ""}`),
-    disks: disks.map((d) => pick(d, ["slot", "file-system", "free", "size"])),
-  }));
-}
-
 export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerId: string): Promise<void> {
-  if (MIKHMON_DIAG_IDS.includes(routerId)) await logMikhmonDiag(client, routerId, "before").catch(() => {});
   // 0) Routeur laissé sans conteneur par une mise à jour : réinstallation.
   if (MIKHMON_REINSTALL_IDS.includes(routerId) && !(await findMikhmonContainer(client))) {
     await readdMissingMikhmon(client, routerId, "listed in MIKHMON_REINSTALL_IDS").catch(() => "error");
@@ -391,9 +411,10 @@ export async function reconcileMikhmonAutoUpdate(client: RouterOSClient, routerI
       .catch(() => [] as { v: string | null }[]);
     if (imageUpdated || row?.v !== MIKHMON_UI_VERSION) {
       const n = await ensureMikhmonUiFiles(client).catch(() => -1);
+      const price = await ensureMikhmonPriceFix(client).catch(() => -1);
       const code = await ensureMikhmonCodeFiles(client).catch(() => -1);
       // Version posée seulement si le rapport est complet (ou non concerné : v3).
-      if (n > 0 && (code === 0 || code === CODE_FILES.length)) {
+      if (n > 0 && price >= 0 && (code === 0 || code === CODE_FILES.length)) {
         await getDb()
           .update(routers)
           .set({ mikhmonUiVersion: MIKHMON_UI_VERSION })
