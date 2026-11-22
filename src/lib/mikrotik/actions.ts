@@ -47,7 +47,7 @@ import { ensureWalledGarden, walledGardenHosts } from "./walled-garden";
 import { resolveAppAddresses } from "@/lib/net/app-addresses";
 import { getOrgWalledGardenDisabledHosts } from "./walled-garden-config";
 import { resolveMikhmonContainerAddress } from "./mikhmon-tunnel-access";
-import { WIFI_ENABLE_ANY_VERSION } from "./provisioning-commands";
+import { createVpnInstall } from "./vpn-install";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { writeMikhmonSession } from "./mikhmon-session";
 import { repostMikhmonSession } from "./mikhmon-session-repost";
@@ -1787,51 +1787,15 @@ export async function generateInstallScript(
     .limit(1);
   if (!org) return { error: "Organization not found." };
 
-  // The VPN peer itself is allocated lazily when the router actually fetches
-  // the script (see the install-vpn route handler) so that the peer's
-  // private key never needs to be persisted server-side.
-  const apiPassword = randomBytes(18).toString("base64url");
-  const installToken = randomUUID();
-
-  const [router] = await db
-    .insert(routers)
-    .values({
-      orgId: session.orgId,
-      name,
-      apiPort: 8728,
-      username: API_USERNAME,
-      passwordEncrypted: encryptSecret(apiPassword),
-      status: "pending",
-      connectionMethod: "vpn",
-      installTokenHash: hashToken(installToken),
-      installTokenExpiresAt: new Date(Date.now() + INSTALL_TOKEN_TTL_MS),
-      relayShard: await nextRelayShard(db),
-      ...readLocation(formData),
-    })
-    .returning();
-
-  const appUrl = getAppUrl();
-
-  const scriptUrl = `${appUrl}/api/router/v1/${org.slug}/scripts/install-vpn`;
-  const fetchMode = scriptUrl.startsWith("https://") ? "https" : "http";
-  // [find name=ether1] resolves to the port's real internal .id under the
-  // hood — unlike passing "ether1" as the API's bare =numbers= convenience
-  // (which doesn't reliably resolve for physical ethernet ports, see
-  // container-setup.ts's WAN rename), the RouterOS CLI's own [find ...]
-  // selector always does. A no-op (not an error) if ether1 doesn't exist
-  // or was already renamed, so this is safe to run on every install.
-  // WIFI_ENABLE_ANY_VERSION enables every WiFi radio the board has (no-op if
-  // it has none) — just the on/off flag here, not the band/width/SSID/country
-  // tuning provisionHotspotStack does, since this one-shot script only ever
-  // runs the VPN install, not the full auto-setup. It is version-tolerant
-  // (RouterOS 7.9 → 7.23.x): the WiFi menu path differs across versions/drivers
-  // (/interface/wifi vs /interface/wifiwave2 vs /interface/wireless) and a
-  // missing menu would otherwise fail at PARSE time and abort the whole pasted
-  // line — see provisioning-commands.ts.
-  const command = `/interface/ethernet/set [find name=ether1] name=E1-WAN-FAI; ${WIFI_ENABLE_ANY_VERSION}; /tool fetch url="${scriptUrl}" http-header-field="Authorization: Bearer ${installToken}" dst-path="vpn.rsc" mode=${fetchMode}; :delay 2s; /import file-name="vpn.rsc"; :delay 1s; /ip route remove [find dst-address=10.66.0.0/24 gateway=safelinkhub-wg0]; /ip route add dst-address=10.66.0.0/24 gateway=safelinkhub-wg0; :delay 1s; /file remove "vpn.rsc"`;
+  const { routerId, command } = await createVpnInstall({
+    orgId: session.orgId,
+    orgSlug: org.slug,
+    name,
+    location: readLocation(formData),
+  });
 
   revalidatePath("/admin/settings/router-setup");
-  return { success: true, routerId: router.id, command };
+  return { success: true, routerId, command };
 }
 
 /**
