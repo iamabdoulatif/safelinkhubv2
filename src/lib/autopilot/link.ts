@@ -173,3 +173,25 @@ export function validAccounts(input: unknown): AutopilotAccount[] | null {
   }
   return out;
 }
+
+/**
+ * Espace Auto-Pilot SANS compte SafeLinkHub : une organisation technique lui
+ * est créée (aucun utilisateur, slug « autopilot-<ref> »), liée d'emblée.
+ * SafeLinkHub reste le seul gestionnaire WireGuard : les routeurs ajoutés par
+ * la ligne collée y vivent comme les autres. Idempotent sur la référence.
+ */
+export function standaloneSlug(ref: string): string {
+  return "autopilot-" + sha256("autopilot-space:" + ref).slice(0, 16);
+}
+
+export async function provisionStandaloneOrg(ref: string, label: string): Promise<{ token: string; orgName: string }> {
+  const db = getDb();
+  const slug = standaloneSlug(ref);
+  const name = ("Auto-Pilot — " + label.replace(/[\r\n\t]+/g, " ").trim()).slice(0, 80);
+  const [existing] = await db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.slug, slug));
+  const org = existing ?? (await db.insert(organizations).values({ name, slug }).returning({ id: organizations.id, name: organizations.name }))[0];
+  const token = randomBytes(32).toString("base64url");
+  const values = { tokenHash: sha256(token), codeHash: null, codeExpiresAt: null, linkedAt: new Date() };
+  await db.insert(autopilotLinks).values({ orgId: org.id, ...values }).onConflictDoUpdate({ target: autopilotLinks.orgId, set: values });
+  return { token, orgName: org.name };
+}
