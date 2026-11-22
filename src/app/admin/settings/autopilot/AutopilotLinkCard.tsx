@@ -30,7 +30,7 @@ export default function AutopilotLinkCard({ status }: { status: Status }) {
         <div className="mt-3 rounded-lg border border-line px-3 py-3 text-sm text-ink">
           Code de liaison (valable 10 min, usage unique) :{" "}
           <b className="font-mono text-lg tracking-widest">{code}</b>
-          <br />À saisir dans Auto-Pilot → Routeurs → « Importer depuis SafeLinkHub ».
+          <br />À saisir dans Auto-Pilot → Tableau de bord → « Ajouter un routeur ».
         </div>
       )}
       <div className="mt-4 flex gap-2">
