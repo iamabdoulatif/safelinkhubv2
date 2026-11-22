@@ -1165,7 +1165,7 @@ if (!function_exists('mikhmon_filter_sales_seller')) {
 
 if (!function_exists('mikhmon_seller_breakdown')) {
   // Récapitulatif par vendeur : tickets, montant, part du total (%) et commission.
-  // Les ventes sans vendeur (admin) sont regroupées sous la clé '' sans commission.
+  // Les ventes sans vendeur (admin) sont regroupées sous la clé '' (commission incluse).
   function mikhmon_seller_breakdown($rows, $sellersData, $rate = 0.10)
   {
     $by = array();
@@ -1184,7 +1184,7 @@ if (!function_exists('mikhmon_seller_breakdown')) {
     }
     foreach ($by as $k => $b) {
       $by[$k]['share'] = $grand > 0 ? round($b['total'] * 100 / $grand, 1) : 0.0;
-      $by[$k]['commission'] = $k === '' ? 0.0 : round($b['total'] * $rate, 2);
+      $by[$k]['commission'] = round($b['total'] * $rate, 2);
       $by[$k]['net'] = $b['total'] - $by[$k]['commission'];
     }
     usort($by, function ($a, $b) { return $b['total'] <=> $a['total']; });
