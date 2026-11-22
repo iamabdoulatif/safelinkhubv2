@@ -49,3 +49,12 @@ test("ligne d'installation sans conflit : n'installe rien si safelinkhub-wg0 exi
   assert.ok(deja.includes("install-vpn/cancel") && !deja.includes("vpn.rsc"), "branche « déjà installé » : annulation seulement");
   assert.ok(sinon.includes('/import file-name="vpn.rsc"'), "branche normale : installation");
 });
+
+import { standaloneSlug } from "./link";
+
+test("organisation technique Auto-Pilot : slug stable, préfixé, sans la référence en clair", () => {
+  const ref = "a".repeat(64);
+  assert.equal(standaloneSlug(ref), standaloneSlug(ref));
+  assert.match(standaloneSlug(ref), /^autopilot-[0-9a-f]{16}$/);
+  assert.notEqual(standaloneSlug(ref), standaloneSlug("b".repeat(64)));
+});
