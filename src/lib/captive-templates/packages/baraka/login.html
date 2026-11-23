@@ -31,6 +31,10 @@
 
     <div id="main" class="main">
 
+        <!-- Bandeau personnalisable par org : le SaaS injecte {{PORTAL_BANNER_HTML}}
+             (une <img> si une image est réglée dans le branding du portail, sinon vide). -->
+        {{PORTAL_BANNER_HTML}}
+
         <!-- Nom du réseau : le SaaS injecte le SSID réel du routeur ({{SSID}}). -->
         <h1 id="siteName" class="site-name">{{SSID}}</h1>
 

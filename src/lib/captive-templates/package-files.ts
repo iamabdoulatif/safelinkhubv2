@@ -38,6 +38,9 @@ export type PackageBrandingVars = {
   supportWhatsapp?: string | null; // e.g. "+225 00 00 00 00 00"
   supportPhone?: string | null;
   vendors?: PackageVendor[] | null;
+  // Bandeau/image de fond personnalisable par org (data: URL base64), injecté
+  // dans {{PORTAL_BANNER_HTML}}. Vide/absent = aucun bandeau affiché.
+  backgroundImage?: string | null;
   plans?: PortalPlan[] | null;
   // Câblage du paiement en ligne (portail captif) : URL absolue de SafeLinkHub
   // (le portail est servi par le routeur → il lui faut l'origine absolue),
@@ -131,6 +134,16 @@ function renderSupportLinksHtml(supportWhatsapp?: string | null, supportPhone?: 
     );
   }
   return links.join("\n");
+}
+
+// Bandeau personnalisable par org. On n'émet un <img> que si la valeur est une
+// data: URL d'image (garde-fou contre toute injection de markup via ce champ) ;
+// sinon chaîne vide → aucun bandeau. La CSS .portal-banner(-img) vit dans le
+// style.css du portail Baraka.
+function renderBannerHtml(backgroundImage?: string | null): string {
+  const src = (backgroundImage ?? "").trim();
+  if (!/^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+$/i.test(src)) return "";
+  return `<div class="portal-banner"><img class="portal-banner-img" src="${src}" alt="" /></div>`;
 }
 
 const DURATION_UNIT_LABELS: Record<string, { singular: string; plural: string; short: string }> = {
@@ -1061,6 +1074,7 @@ export function renderPackageFile(file: PackageFile, vars: PackageBrandingVars):
     .replaceAll("{{APP_URL}}", vars.appUrl ?? "")
     .replaceAll("{{ORG_SLUG}}", vars.slug ?? "")
     .replaceAll("{{ROUTER_ID}}", vars.routerId ?? "")
+    .replaceAll("{{PORTAL_BANNER_HTML}}", renderBannerHtml(vars.backgroundImage))
     // Placeholder explicite pour les portails qui veulent placer eux-mêmes la
     // bande des logos de paiement. Les portails qui n'en ont pas la reçoivent
     // via l'injection auto de login.html ci-dessous.

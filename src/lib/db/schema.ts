@@ -531,6 +531,9 @@ export const captiveTemplates = pgTable("captive_templates", {
   packageSupportWhatsapp: text("package_support_whatsapp"),
   packageSupportPhone: text("package_support_phone"),
   packageVendors: jsonb("package_vendors"), // Array of { name, location, phone }
+  // Bandeau/image de fond personnalisable par org : data: URL base64 plafonnée,
+  // injectée dans {{PORTAL_BANNER_HTML}} au rendu (vide = aucune image).
+  packageBackgroundImage: text("package_background_image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

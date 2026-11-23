@@ -27,6 +27,8 @@ export type CaptiveTemplateRow = {
   templateType: string;
   packageSupportWhatsapp?: string | null;
   packageSupportPhone?: string | null;
+  // data: URL base64 — bandeau/image de fond personnalisable par org.
+  packageBackgroundImage?: string | null;
   // jsonb column — drizzle infers `unknown`; cast to Vendor[] where consumed.
   packageVendors?: unknown;
   // jsonb column — drizzle infers `unknown`; cast to PackageFile[] where consumed.

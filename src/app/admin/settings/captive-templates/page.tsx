@@ -11,6 +11,7 @@ import { listCaptiveTemplates } from "@/lib/captive-templates/actions";
 import {
   loadSafelinkhubDefaultPackage,
   loadYahyaWifiPackage,
+  loadSafelinkBarakaPackage,
   type PackageFile,
   type PackageVendor,
 } from "@/lib/captive-templates/package-files";
@@ -79,6 +80,13 @@ export default async function CaptiveTemplatesPage({
       description: "Le portail hotspot SafeLink Africa (design Yahya WiFi).",
       previewFiles: cssOnly(loadYahyaWifiPackage()),
       alreadyAdded: templates.some((t) => t.name === "hotspot-sfh2"),
+    },
+    {
+      key: "sfh3",
+      name: "Portail SafeLink Baraka",
+      description: "Le portail hotspot SafeLink Baraka (design moutarde, forfaits en direct).",
+      previewFiles: cssOnly(loadSafelinkBarakaPackage()),
+      alreadyAdded: templates.some((t) => t.name === "hotspot-sfh3"),
     },
   ];
 
