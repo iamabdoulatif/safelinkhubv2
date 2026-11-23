@@ -267,6 +267,14 @@ export async function importYahyaWifiPackage() {
   return importBundledPackage("hotspot-sfh2", loadYahyaWifiPackage());
 }
 
+export async function importSafelinkBarakaPackage() {
+  // Third bundled portal choice (SafeLink Baraka — déjà le portail par défaut
+  // de l'auto-setup), nommé "hotspot-sfh3" pour l'aligner sur sfh1/sfh2 dans
+  // la liste des modèles.
+  const { loadSafelinkBarakaPackage } = await import("./package-files");
+  return importBundledPackage("hotspot-sfh3", loadSafelinkBarakaPackage());
+}
+
 export async function updateCaptiveTemplate(
   templateId: string,
   _prevState: unknown,
@@ -310,9 +318,20 @@ export async function updateCaptiveTemplate(
  * {{VENDORS_HTML}} placeholders at fetch time (see package-files.ts),
  * rather than being hardcoded in the bundled portal files.
  */
+// Plafond du bandeau stocké (data: URL). ~500k caractères ≈ 375 Ko d'image : le
+// portail est servi HORS LIGNE depuis le routeur et cette chaîne est injectée
+// dans login.html à chaque chargement — on garde l'image légère. L'éditeur
+// redimensionne côté client, ce plafond n'est qu'un garde-fou.
+const PORTAL_BANNER_MAX_CHARS = 500_000;
+
 export async function updatePackageTemplateBranding(
   templateId: string,
-  branding: { supportWhatsapp: string; supportPhone: string; vendors: PackageVendor[] },
+  branding: {
+    supportWhatsapp: string;
+    supportPhone: string;
+    vendors: PackageVendor[];
+    backgroundImage?: string | null;
+  },
 ) {
   const session = await getSession();
   if (!session) return { error: "Not authenticated." };
@@ -332,12 +351,26 @@ export async function updatePackageTemplateBranding(
 
   const vendors = branding.vendors.filter((v) => v.name.trim() && v.phone.trim());
 
+  // Bandeau perso : data: URL d'image uniquement (ou vide pour retirer), bornée.
+  let backgroundImage: string | null = null;
+  if (branding.backgroundImage) {
+    const img = branding.backgroundImage.trim();
+    if (!/^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+$/i.test(img)) {
+      return { error: "Image de fond invalide (formats image uniquement)." };
+    }
+    if (img.length > PORTAL_BANNER_MAX_CHARS) {
+      return { error: "Image de fond trop lourde — choisissez une image plus légère." };
+    }
+    backgroundImage = img;
+  }
+
   await db
     .update(captiveTemplates)
     .set({
       packageSupportWhatsapp: branding.supportWhatsapp.trim() || null,
       packageSupportPhone: branding.supportPhone.trim() || null,
       packageVendors: vendors,
+      packageBackgroundImage: backgroundImage,
       updatedAt: new Date(),
     })
     .where(eq(captiveTemplates.id, templateId));
@@ -556,6 +589,7 @@ async function currentBundledFiles(name: string): Promise<PackageFile[] | null> 
   const bundles = await import("./package-files");
   if (name === "hotspot-sfh1") return bundles.loadSafelinkhubDefaultPackage();
   if (name === "hotspot-sfh2") return bundles.loadYahyaWifiPackage();
+  if (name === "hotspot-sfh3") return bundles.loadSafelinkBarakaPackage();
   if (name === "SafeLink Baraka" || name.startsWith("SafeLink Baraka — ")) return bundles.loadSafelinkBarakaPackage();
   return null;
 }

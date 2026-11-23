@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import {
   PathnameContext,
   SearchParamsContext,
@@ -12,7 +13,7 @@ import { adminFr } from "@/lib/i18n/admin/fr";
 const appRouter = {
   back() {}, forward() {}, refresh() {}, hmrRefresh() {},
   push() {}, replace() {}, prefetch() {},
-};
+} as unknown as AppRouterInstance;
 
 function zone(over: Partial<RouterRow> & { id: string }): RouterRow {
   return {

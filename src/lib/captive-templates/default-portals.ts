@@ -1,4 +1,4 @@
-// Les deux portails livrés par SafeLinkHub, présents d'office dans CHAQUE
+// Les trois portails livrés par SafeLinkHub, présents d'office dans CHAQUE
 // compte. Module « plain » : rien ici ne doit devenir un endpoint.
 //
 // POURQUOI ILS SONT SEMÉS À LA LECTURE plutôt qu'à l'inscription : semer au
@@ -11,11 +11,16 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { captiveTemplates } from "@/lib/db/schema";
-import { loadSafelinkhubDefaultPackage, loadYahyaWifiPackage } from "./package-files";
+import {
+  loadSafelinkhubDefaultPackage,
+  loadYahyaWifiPackage,
+  loadSafelinkBarakaPackage,
+} from "./package-files";
 
 export const DEFAULT_PORTALS = [
   { name: "hotspot-sfh1", load: loadSafelinkhubDefaultPackage },
   { name: "hotspot-sfh2", load: loadYahyaWifiPackage },
+  { name: "hotspot-sfh3", load: loadSafelinkBarakaPackage },
 ] as const;
 
 const DEFAULT_PORTAL_NAMES = DEFAULT_PORTALS.map((portal) => portal.name);

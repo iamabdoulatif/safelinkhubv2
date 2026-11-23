@@ -7,19 +7,19 @@
  * pures ; ce module ne fait que lire le routeur d'accueil, appeler le
  * planificateur, puis exécuter. Toute la logique testable est de l'autre côté.
  */
-import { eq } from "drizzle-orm";
+import { after } from "next/server";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers } from "@/lib/db/schema";
+import { routers, routerRestoreJobs } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { connectToRouter } from "./router-sync";
 import {
   planifierTransfert,
   type CibleRouteur,
-  type PlanTransfert,
-  decouperArguments,
   estSauvegardeBinaire,
   MESSAGE_BACKUP_BINAIRE,
 } from "./rsc-selective-restore";
+import { executerPlan } from "./rsc-transfer-exec";
 
 /**
  * Refuse un `.backup` AVANT de joindre le routeur.
@@ -114,16 +114,20 @@ export async function planifierTransfertRsc(routerId: string, rsc: string) {
   }
 }
 
+/** Battement de cœur / péremption d'un job — aligné sur la restauration. */
+const TRANSFERT_JOB_STALE_MS = 120_000;
+
 /**
- * Exécute le transfert, commande par commande.
+ * Démarre le transfert en TÂCHE DE FOND et rend la main tout de suite.
  *
- * PAS DE `/import` : celui-ci demande d'écrire un fichier sur le routeur, et
- * s'arrête à la PREMIÈRE erreur en laissant la moitié du travail fait, sans
- * dire laquelle. En passant par l'API, chaque commande est isolée : une ligne
- * refusée est nommée et le reste continue, ce qui compte pour soixante
- * tickets dont un seul peut porter un caractère que RouterOS n'accepte plus.
+ * L'ancienne version posait les ~13 400 commandes d'un gros site (tickets +
+ * ventes) une par une DANS la requête : au-delà des ~100 s de Cloudflare, la
+ * requête était coupée (« aborted »), l'écran basculait sur l'erreur, et le
+ * transfert restait à moitié fait. On reprend donc le patron de la restauration
+ * (startBackupJob) : une ligne router_restore_jobs (backup_id NULL), un
+ * `after()` qui applique le plan avec heartbeat, et l'UI qui sonde getRestoreJob.
  */
-export async function appliquerTransfertRsc(routerId: string, rsc: string) {
+export async function demarrerTransfertRscJob(routerId: string, rsc: string) {
   const binaire = refuserSiBinaire(rsc);
   if (binaire) return { error: binaire };
 
@@ -136,48 +140,101 @@ export async function appliquerTransfertRsc(routerId: string, rsc: string) {
     return { error: "Routeur introuvable." };
   }
 
-  let client;
-  try {
-    client = await connectToRouter(routeur, 60_000);
-    const cible = await lireCible(client);
-    if (!cible.ok) return { error: cible.erreur };
-
-    const plan: PlanTransfert = planifierTransfert(rsc, cible.cible);
-    const echecs: { commande: string; raison: string }[] = [];
-    let posees = 0;
-
-    for (const c of plan.commandes) {
-      /* `/ip pool` est le seul cas où l'on RÈGLE au lieu d'ajouter : le pool
-         du routeur d'accueil existe déjà et sert son hotspot. En ajouter un
-         second du même nom serait refusé, et le supprimer couperait les
-         clients connectés. */
-      const chemin = c.section.trim().replace(/\s+/g, "/");
-      if (c.section === "/ip pool") {
-        posees += 1; // déjà en place, adapté par construction
-        continue;
-      }
-      const mots = [`${chemin}/add`, ...decouperArguments(c.arguments)];
-      try {
-        await client.talk(mots);
-        posees += 1;
-      } catch (cause) {
-        echecs.push({
-          commande: `${c.section} ${c.arguments.slice(0, 60)}…`,
-          raison: cause instanceof Error ? cause.message : "refusé par RouterOS",
-        });
-      }
-    }
-
-    return {
-      success: true as const,
-      posees,
-      echecs,
-      resume: plan.resume,
-      cible: cible.cible,
-    };
-  } catch (cause) {
-    return { error: cause instanceof Error ? cause.message : "Transfert impossible." };
-  } finally {
-    client?.close();
+  // Une seule opération vivante par routeur (transfert / restauration /
+  // sauvegarde partagent router_restore_jobs) : deux écritures de masse en
+  // parallèle sur un boîtier déjà chargé étrangleraient le portail des clients.
+  const [running] = await db
+    .select({ id: routerRestoreJobs.id, updatedAt: routerRestoreJobs.updatedAt })
+    .from(routerRestoreJobs)
+    .where(
+      and(eq(routerRestoreJobs.targetRouterId, routerId), eq(routerRestoreJobs.status, "running")),
+    )
+    .orderBy(desc(routerRestoreJobs.updatedAt))
+    .limit(1);
+  if (running && Date.now() - running.updatedAt.getTime() < TRANSFERT_JOB_STALE_MS) {
+    return { error: "Une opération est déjà en cours sur ce routeur — attendez qu'elle finisse." };
   }
+
+  const [job] = await db
+    .insert(routerRestoreJobs)
+    .values({
+      orgId: session.orgId,
+      backupId: null,
+      targetRouterId: routerId,
+      status: "running",
+      progress: { phase: "transfert", posees: 0, total: 0 },
+    })
+    .returning({ id: routerRestoreJobs.id });
+
+  after(async () => {
+    // Heartbeat : getRestoreJob déclare « périmé » un running sans écriture
+    // depuis TRANSFERT_JOB_STALE_MS. Poser des milliers de tickets dépasse ces
+    // 2 min, et talk() peut rester long sur un boîtier chargé.
+    const heartbeat = setInterval(() => {
+      db.update(routerRestoreJobs)
+        .set({ updatedAt: new Date() })
+        .where(eq(routerRestoreJobs.id, job.id))
+        .catch(() => {
+          /* best-effort */
+        });
+    }, 30_000);
+
+    let client: Awaited<ReturnType<typeof connectToRouter>> | undefined;
+    try {
+      client = await connectToRouter(routeur, 60_000);
+      const cible = await lireCible(client);
+      if (!cible.ok) throw new Error(cible.erreur);
+
+      const plan = planifierTransfert(rsc, cible.cible);
+      const total = plan.commandes.length;
+      const bilan = await executerPlan(client, plan.commandes, (posees) =>
+        db
+          .update(routerRestoreJobs)
+          .set({ progress: { phase: "transfert", posees, total }, updatedAt: new Date() })
+          .where(eq(routerRestoreJobs.id, job.id))
+          .then(() => {})
+          .catch(() => {
+            /* best-effort */
+          }),
+      );
+
+      await db
+        .update(routerRestoreJobs)
+        .set({
+          status: "done",
+          progress: {
+            phase: "done",
+            posees: bilan.posees,
+            total,
+            echecs: bilan.echecs,
+            resume: plan.resume,
+            cible: cible.cible,
+          },
+          updatedAt: new Date(),
+          finishedAt: new Date(),
+        })
+        .where(eq(routerRestoreJobs.id, job.id))
+        .catch(() => {
+          /* best-effort */
+        });
+    } catch (cause) {
+      await db
+        .update(routerRestoreJobs)
+        .set({
+          status: "error",
+          error: cause instanceof Error ? cause.message : "Transfert impossible.",
+          updatedAt: new Date(),
+          finishedAt: new Date(),
+        })
+        .where(eq(routerRestoreJobs.id, job.id))
+        .catch(() => {
+          /* best-effort */
+        });
+    } finally {
+      clearInterval(heartbeat);
+      client?.close();
+    }
+  });
+
+  return { success: true as const, jobId: job.id };
 }

@@ -15,6 +15,7 @@ import { getDb } from "@/lib/db";
 import { organizations, portalOtps } from "@/lib/db/schema";
 import { sendOrgSms } from "@/lib/sms/send";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
+import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import {
   OTP_TTL_MS,
@@ -42,6 +43,9 @@ export async function POST(
   } catch {
     return corsJson({ error: "Corps JSON invalide." }, { status: 400 });
   }
+
+  const limit = await enforcePublicSubmissionRateLimit("portal_sms");
+  if (!limit.allowed) return corsJson({ error: limit.error }, { status: 429 });
 
   const db = getDb();
   const [org] = await db

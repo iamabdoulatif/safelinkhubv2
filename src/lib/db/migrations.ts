@@ -390,4 +390,8 @@ alter table routers add column if not exists mikhmon_seen_at timestamp;` },
   // Colonne null = jamais appliquée → la synchro dépose + redémarre une fois.
   // Miroir : scripts/add-mikhmon-ui-version.sql.
   { id: "0026_mikhmon_ui_version", sql: `alter table routers add column if not exists mikhmon_ui_version text;` },
+  // Bandeau/image de fond personnalisable par org pour les portails « package »
+  // (data URL base64 plafonnée), injectée dans {{PORTAL_BANNER_HTML}} au rendu.
+  // Miroir : scripts/add-captive-template-package-background.sql.
+  { id: "0027_captive_template_package_background", sql: `alter table captive_templates add column if not exists package_background_image text;` },
 ];

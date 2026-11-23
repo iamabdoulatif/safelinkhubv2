@@ -314,7 +314,7 @@ export default function TrafficHistoryPanel({
           {!data.links.length ? (
             <p className="rounded-xl border border-line bg-paper p-5 text-sm text-ink-soft">
               Aucune liaison Starlink identifiée. Configurez les interfaces dans
-              Régulation → Budget Starlink par liaison, ou indiquez le type
+              Budget Starlink par liaison, ou indiquez le type
               Starlink dans Consommation.
             </p>
           ) : (
