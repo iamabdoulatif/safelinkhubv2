@@ -44,6 +44,9 @@ export default function TicketExpiryFleetButton({ t }: { t: RouterDictionary["ac
           if (result.sweepsRepaired > 0) {
             parts.push(t.ticketExpirySweeps.replace("{count}", String(result.sweepsRepaired)));
           }
+          if (result.salesRewritten > 0) {
+            parts.push(t.ticketExpirySales.replace("{count}", String(result.salesRewritten)));
+          }
           parts.push(
             result.rewritten > 0
               ? t.ticketExpiryDone

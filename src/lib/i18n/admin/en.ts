@@ -309,6 +309,7 @@ export const adminEn: AdminDictionary = {
         ticketExpiryHelp: "RouterOS 7.24 writes dates in ISO form; the router's sweep no longer recognises them and those tickets never expire. This rewrites the date in the expected format, deleting nothing.",
         ticketExpiryDone: "{count} date(s) rewritten on {routers}. The sweep will remove expired ones within ~2 min 30.",
         ticketExpirySweeps: "{count} expiry sweep(s) put back in service.",
+        ticketExpirySales: "{count} sale(s) rewritten — revenue shows up in reports again.",
         ticketExpiryNone: "No mis-formatted date on the {count} reachable router(s).",
         ticketExpiryRemaining: "{count} router(s) left untouched for lack of time — run it again to continue.",
         stealth: "Hide the fleet from the ISP",

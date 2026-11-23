@@ -7,6 +7,7 @@ import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { openPaymentLaneForOrder } from "@/lib/portal/payment-lane-open";
 import { waveQrHref } from "@/lib/portal/browser-href";
+import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 
 export function OPTIONS() {
   return corsPreflight();
@@ -21,6 +22,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   if (!orderId || !waveQrHref(checkoutUrl)) {
     return corsJson({ error: "Requête invalide." }, { status: 400 });
   }
+
+  const limit = await enforcePublicSubmissionRateLimit("portal_payment");
+  if (!limit.allowed) return corsJson({ error: limit.error }, { status: 429 });
 
   const db = getDb();
   const [org] = await db

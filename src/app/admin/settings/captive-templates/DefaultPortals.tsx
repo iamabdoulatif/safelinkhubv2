@@ -6,6 +6,7 @@ import { Check, Package, RefreshCw } from "lucide-react";
 import {
   importSafelinkhubDefaultPackage,
   importYahyaWifiPackage,
+  importSafelinkBarakaPackage,
 } from "@/lib/captive-templates/actions";
 import type { PackageFile } from "@/lib/captive-templates/package-files";
 import { ButtonLoader } from "@/components/FancyLoader";
@@ -13,7 +14,7 @@ import PackagePreview from "./PackagePreview";
 
 export type DefaultPortal = {
   // Clé de l'importeur bundled correspondant (voir IMPORTERS).
-  key: "sfh1" | "sfh2";
+  key: "sfh1" | "sfh2" | "sfh3";
   name: string;
   description: string;
   // Uniquement les .css : PackagePreview n'en tire que le schéma de couleurs,
@@ -28,6 +29,7 @@ export type DefaultPortal = {
 const IMPORTERS = {
   sfh1: importSafelinkhubDefaultPackage,
   sfh2: importYahyaWifiPackage,
+  sfh3: importSafelinkBarakaPackage,
 } as const;
 
 /**
@@ -69,7 +71,7 @@ export default function DefaultPortals({ portals }: { portals: DefaultPortal[] }
     <section className="mt-6">
       <h2 className="text-sm font-semibold text-ink">Portails par défaut</h2>
       <p className="mt-1 text-sm text-ink-soft">
-        Deux portails captifs prêts à l&apos;emploi fournis par SafeLinkHub.
+        Trois portails captifs prêts à l&apos;emploi fournis par SafeLinkHub.
         Utilisez-les tels quels — vous pourrez ensuite les personnaliser, les
         définir par défaut ou les assigner à un bridge.
       </p>

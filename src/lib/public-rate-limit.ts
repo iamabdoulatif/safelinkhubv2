@@ -13,10 +13,20 @@ const PUBLIC_SUBMISSION_MAX_ATTEMPTS: Record<PublicSubmissionBucket, number> = {
   testimonial: 5,
   recover: 5,
   chat: 30,
+  portal_order: 10,
+  portal_payment: 10,
+  portal_sms: 3,
 };
 const PUBLIC_SUBMISSION_PRUNE_AFTER_HOURS = 24;
 
-export type PublicSubmissionBucket = "contact" | "testimonial" | "recover" | "chat";
+export type PublicSubmissionBucket =
+  | "contact"
+  | "testimonial"
+  | "recover"
+  | "chat"
+  | "portal_order"
+  | "portal_payment"
+  | "portal_sms";
 
 type PublicSubmissionRateLimitResult =
   | { allowed: true }

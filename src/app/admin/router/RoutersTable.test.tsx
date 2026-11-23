@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import {
   PathnameContext,
   SearchParamsContext,
@@ -18,7 +19,7 @@ const router = {
   push() {},
   replace() {},
   prefetch() {},
-};
+} as unknown as AppRouterInstance;
 
 test("la vue ciblée conserve son CTA de liaison lorsque les actions de parc sont masquées", () => {
   const markup = renderToStaticMarkup(

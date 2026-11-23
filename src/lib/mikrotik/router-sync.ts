@@ -280,7 +280,7 @@ export async function syncRouterStats(
         // bouton — ce qui n'arrive pas.
         const repair = await repairBrokenMikhmonContainer(client);
         if (repair.repaired) {
-          console.info("[mikhmon:auto-repair]", { router: router.name, reason: repair.reason });
+          console.warn("[mikhmon:auto-repair]", { router: router.name, reason: repair.reason });
         }
       } catch {
         // Non-fatal — the port forward on the relay side is still valid,
