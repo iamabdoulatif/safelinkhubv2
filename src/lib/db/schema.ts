@@ -298,6 +298,13 @@ export const routers = pgTable("routers", {
   locationNeighbourhood: text("location_neighbourhood"),
   locationCommune: text("location_commune"),
   locationCountry: text("location_country"),
+  // Site (agence/succursale) auquel ce routeur est rattaché, ou NULL s'il n'est
+  // rangé dans aucun. Un routeur est physiquement dans UN seul site → simple FK
+  // nullable plutôt qu'une jointure M2M (voir `sites` plus bas). `set null` à la
+  // suppression du site : le routeur redevient « non rangé », jamais orphelin.
+  siteId: uuid("site_id").references((): AnyPgColumn => sites.id, {
+    onDelete: "set null",
+  }),
   // Branding du portail captif SCOPÉ AU ROUTEUR, saisi dans l'auto-setup :
   // contact support/paiement + « espaces vendeurs » (vendeurs agréés). Rendu
   // par le portail de CE routeur avec priorité sur le branding du modèle
@@ -647,6 +654,37 @@ export const packages = pgTable("packages", {
   portalPayDisabled: boolean("portal_pay_disabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Site = agence/succursale d'une entreprise : un regroupement de routeurs à
+// l'INTÉRIEUR d'une org (l'org reste l'entreprise). Fondation de l'offre
+// entreprise (SD-WAN, VPN employés, supervision par site…). Un routeur porte
+// un `site_id` nullable (voir table routers) ; le lien est donc 1 site → N
+// routeurs, pas une jointure M2M (contrairement aux groupes roaming, qui
+// servent le roaming inter-zones). `code` = identifiant court saisi par
+// l'opérateur, unique par org.
+export const sites = pgTable(
+  "sites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    code: text("code").notNull(),
+    // Adresse du site : même convention que les routeurs (texte libre + coord.
+    // filtrables), tout optionnel — un site peut n'être qu'un nom au départ.
+    locationCommune: text("location_commune"),
+    locationCountry: text("location_country"),
+    latitude: numeric("latitude", { precision: 9, scale: 6 }),
+    longitude: numeric("longitude", { precision: 9, scale: 6 }),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("sites_org_code_idx").on(t.orgId, t.code),
+    index("sites_org_created_idx").on(t.orgId, t.createdAt),
+  ],
+);
 
 // Catalogue commun de profils destinés aux groupes roaming. Les forfaits
 // classiques restent rattachés à un routeur ; ces profils, eux, représentent

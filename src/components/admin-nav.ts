@@ -102,6 +102,9 @@ const businessGroups: NavGroup[] = [
     icon: Users,
     links: [
       { href: "/admin/users", key: "users" },
+      // Regroupement des routeurs par agence/succursale — fondation de l'offre
+      // entreprise. Même capacité que le parc : organiser, c'est gérer le parc.
+      { href: "/admin/sites", key: "sites", need: "routers" },
       { href: "/admin/members", key: "members", need: "members" },
       { href: "/admin/router-transfers", key: "transfers", need: "routers" },
       { href: "/admin/verification", key: "verification" },

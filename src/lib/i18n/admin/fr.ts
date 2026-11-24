@@ -34,6 +34,7 @@ export const adminFr = {
       float: "Solde flottant",
       expenses: "Dépenses",
       users: "Utilisateurs",
+      sites: "Sites & agences",
       members: "Membres",
       transfers: "Transferts de routeur",
       verification: "Vérification",
