@@ -1,7 +1,8 @@
-import { eq, asc, desc } from "drizzle-orm";
+import { and, eq, asc, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { packages, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import CreatePackageModal from "./CreatePackageModal";
 import PackageCatalog from "./PackageCatalog";
 import { grouperForfaits } from "./package-ladder";
@@ -39,7 +40,8 @@ export default async function PackagesPage() {
     ? await db
         .select({ id: routers.id, name: routers.name })
         .from(routers)
-        .where(eq(routers.orgId, session.orgId))
+        // Périmètre par site : forfaits rattachés aux routeurs de ses agences.
+        .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
         .orderBy(asc(routers.name))
     : [];
 

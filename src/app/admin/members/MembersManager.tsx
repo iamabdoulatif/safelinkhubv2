@@ -1,15 +1,18 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Loader2, Mail, Shield, Trash2, UserPlus } from "lucide-react";
+import { Building2, Loader2, Mail, Shield, Trash2, UserPlus } from "lucide-react";
 import { ROLES, roleLabel } from "@/lib/auth/roles";
 import {
   changeMemberRole,
   inviteMember,
   removeMember,
   revokeInvitation,
+  setMemberSites,
 } from "@/lib/org/member-actions";
 import type { Member, PendingInvitation } from "@/lib/org/members";
+
+type SiteOption = { id: string; name: string };
 
 type Etat = { error?: string; success?: true; sent?: boolean; link?: string } | null;
 
@@ -17,11 +20,18 @@ export default function MembersManager({
   membres,
   invitations,
   moiId,
+  sites,
+  sitesByMember,
 }: {
   membres: Member[];
   invitations: PendingInvitation[];
   moiId: string;
+  sites: SiteOption[];
+  sitesByMember: Record<string, string[]>;
 }) {
+  // Sélection d'agences par membre, amorcée depuis la base et mise à jour à
+  // chaque case cochée (post immédiat de setMemberSites).
+  const [sitesSel, setSitesSel] = useState<Record<string, string[]>>(sitesByMember);
   const [etat, inviter, invitePending] = useActionState<Etat, FormData>(
     (_prev, formData) => inviteMember(_prev, formData),
     null,
@@ -35,6 +45,16 @@ export default function MembersManager({
       const res = await action(fd);
       if (res && "error" in res && res.error) setMsg({ ok: false, texte: res.error });
     });
+  }
+
+  function toggleSite(userId: string, siteId: string, checked: boolean) {
+    const current = sitesSel[userId] ?? [];
+    const next = checked ? [...current, siteId] : current.filter((id) => id !== siteId);
+    setSitesSel((prev) => ({ ...prev, [userId]: next }));
+    const fd = new FormData();
+    fd.set("userId", userId);
+    for (const id of next) fd.append("siteId", id);
+    agir(setMemberSites, fd);
   }
 
   return (
@@ -117,6 +137,14 @@ export default function MembersManager({
           <Shield className="h-4 w-4 text-brand-deep" />
           Membres du compte
         </h2>
+        <p className="flex items-start gap-2 border-b border-line-soft bg-clay/40 px-5 py-2.5 text-xs leading-5 text-ink-soft">
+          <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            « Agences » limite ce qu&apos;un membre <strong>voit</strong> du parc
+            (listes, supervision). Sans agence cochée, il voit tout. Les
+            administrateurs voient toujours tout.
+          </span>
+        </p>
         {/* Pas de `table-mobile-wrapper` ici : trois colonnes tiennent dans un
             téléphone. Le wrapper leur imposait 640 px de large et un
             défilement latéral pour rien — il cachait la colonne d'action. */}
@@ -126,6 +154,7 @@ export default function MembersManager({
               <tr>
                 <th className="px-4 py-2.5 font-semibold sm:px-5">Personne</th>
                 <th className="px-4 py-2.5 font-semibold sm:px-5">Rôle</th>
+                <th className="px-4 py-2.5 font-semibold sm:px-5">Agences</th>
                 <th className="px-4 py-2.5 text-right font-semibold sm:px-5">Action</th>
               </tr>
             </thead>
@@ -162,6 +191,39 @@ export default function MembersManager({
                             </option>
                           ))}
                         </select>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 sm:px-5">
+                      {m.role === "admin" || m.role === "superadmin" ? (
+                        <span className="text-xs text-ink-soft">Toutes les agences</span>
+                      ) : sites.length === 0 ? (
+                        <span className="text-xs text-ink-soft">Aucune agence</span>
+                      ) : (
+                        <details>
+                          <summary className="cursor-pointer list-none text-xs font-medium text-brand-deep">
+                            {(sitesSel[m.id]?.length ?? 0) === 0
+                              ? "Toutes les agences"
+                              : `${sitesSel[m.id]!.length} agence${sitesSel[m.id]!.length > 1 ? "s" : ""}`}
+                          </summary>
+                          <ul className="mt-2 space-y-1" role="list">
+                            {sites.map((s) => {
+                              const checked = (sitesSel[m.id] ?? []).includes(s.id);
+                              return (
+                                <li key={s.id}>
+                                  <label className="flex items-center gap-2 text-xs text-ink">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      disabled={busy}
+                                      onChange={(e) => toggleSite(m.id, s.id, e.target.checked)}
+                                    />
+                                    {s.name}
+                                  </label>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </details>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right sm:px-5">
