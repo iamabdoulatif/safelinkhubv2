@@ -2,6 +2,7 @@ import { Building2 } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 import { listSites, listOrgRoutersWithSite } from "@/lib/org/sites";
+import { routerScopeForSession } from "@/lib/org/member-sites";
 import SitesManager from "./SitesManager";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +19,12 @@ export default async function SitesPage() {
     );
   }
 
+  // Périmètre par site : un membre restreint ne voit que ses agences.
+  const scope = await routerScopeForSession(session);
+  const siteScope = scope.restricted ? { siteIds: scope.siteIds } : undefined;
   const [sites, routeurs] = await Promise.all([
-    listSites(session.orgId),
-    listOrgRoutersWithSite(session.orgId),
+    listSites(session.orgId, siteScope),
+    listOrgRoutersWithSite(session.orgId, siteScope),
   ]);
 
   return (

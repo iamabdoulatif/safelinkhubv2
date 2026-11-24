@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { orgInvitations, users } from "@/lib/db/schema";
+import { orgInvitations, siteMembers, sites, users } from "@/lib/db/schema";
 import { getSession, requireCapability } from "@/lib/auth/session";
 import { generateToken } from "@/lib/auth/tokens";
 import { sendOrgInvitationEmail } from "@/lib/auth/email";
@@ -127,6 +127,52 @@ export async function removeMember(formData: FormData) {
   if (!verdict.ok) return { error: verdict.error };
 
   await db.delete(users).where(eq(users.id, cible.id));
+  revalidatePath(PAGE);
+  return { success: true as const };
+}
+
+/**
+ * Restreint un membre à un ensemble de sites (RBAC par site, périmètre visible).
+ * Ensemble vide = membre non restreint (voit tout le parc). Remplace les lignes
+ * existantes. Tout re-scopé sur l'org de la session : ni le userId ni les
+ * siteId du formulaire ne peuvent toucher une autre organisation.
+ */
+export async function setMemberSites(formData: FormData) {
+  const session = await requireCapability("members");
+  if (!session) return { error: "Action réservée aux administrateurs du compte." };
+
+  const targetUserId = String(formData.get("userId") ?? "");
+  const postedSiteIds = formData.getAll("siteId").map(String).filter(Boolean);
+  const db = getDb();
+
+  const [cible] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, targetUserId), eq(users.orgId, session.orgId)))
+    .limit(1);
+  if (!cible) return { error: "Membre introuvable." };
+
+  // On ne garde que les sites qui appartiennent RÉELLEMENT à l'org : un id
+  // forgé au formulaire est ignoré, jamais inséré.
+  const validSiteIds = postedSiteIds.length
+    ? (
+        await db
+          .select({ id: sites.id })
+          .from(sites)
+          .where(and(eq(sites.orgId, session.orgId), inArray(sites.id, postedSiteIds)))
+      ).map((r) => r.id)
+    : [];
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(siteMembers)
+      .where(and(eq(siteMembers.orgId, session.orgId), eq(siteMembers.userId, cible.id)));
+    if (validSiteIds.length) {
+      await tx.insert(siteMembers).values(
+        validSiteIds.map((siteId) => ({ orgId: session.orgId, userId: cible.id, siteId })),
+      );
+    }
+  });
   revalidatePath(PAGE);
   return { success: true as const };
 }
