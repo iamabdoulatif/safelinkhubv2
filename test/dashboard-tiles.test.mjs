@@ -52,7 +52,9 @@ test("les histogrammes ignorent le sélecteur de période", async () => {
   /* Sinon la vue par défaut — le mois en cours — n'afficherait qu'une seule
      barre par graphique, ce qui ne compare rien. */
   const page = await read("src/app/admin/page.tsx");
-  assert.match(page, /getMonthlySeries\(session\.orgId, now\)/);
+  // Tolère des arguments APRÈS `now` (ex. le périmètre par site), tant que la
+  // PÉRIODE (`from`) n'est jamais passée à l'histogramme.
+  assert.match(page, /getMonthlySeries\(session\.orgId, now[,)]/);
   assert.doesNotMatch(page, /getMonthlySeries\([^)]*from/);
 });
 
