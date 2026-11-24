@@ -71,6 +71,7 @@ export async function buildPortalVars(opts: {
       routerVendors && routerVendors.length > 0
         ? routerVendors
         : (template.packageVendors as PackageVendor[] | null),
+    backgroundImage: template.packageBackgroundImage,
     plans,
     appUrl,
     slug,

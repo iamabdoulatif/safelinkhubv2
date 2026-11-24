@@ -51,13 +51,17 @@ export function MeterCell({ percent, label }: { percent: number | null; label?: 
   return (
     <span className="flex items-center gap-2 whitespace-nowrap">
       {label && <span className="w-8 text-xs text-ink-soft">{label}</span>}
-      <span aria-hidden="true" className="h-1.5 w-10 shrink-0 overflow-hidden rounded-full bg-line-soft">
+      <span aria-hidden="true" className="h-2 w-12 shrink-0 overflow-hidden rounded-full bg-line-soft">
+        {/* La barre s'anime quand LiveSync rafraîchit la mesure plutôt que de
+            sauter d'un palier à l'autre (même geste que la jauge de parc). */}
         <span
-          className={`block h-full rounded-full ${high ? "bg-warn" : "bg-brand-deep"}`}
+          className={`block h-full rounded-full transition-[width] duration-300 ${high ? "bg-warn" : "bg-brand-deep"}`}
           style={{ width: `${clamped}%` }}
         />
       </span>
-      <span className={`tabular-nums ${high ? "font-semibold text-warn" : "text-ink-soft"}`}>
+      {/* Largeur fixe + alignement à droite : les % de CPU et de RAM empilés
+          forment une colonne nette (« 7 % » et « 86 % » alignés). */}
+      <span className={`w-10 text-right tabular-nums ${high ? "font-semibold text-warn" : "text-ink-soft"}`}>
         {clamped} %
       </span>
     </span>

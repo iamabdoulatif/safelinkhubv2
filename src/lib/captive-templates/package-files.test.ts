@@ -79,6 +79,31 @@ describe("renderPackageFile", () => {
     assert.ok(!body.includes("{{"), "no unreplaced placeholder left");
   });
 
+  it("n'injecte le bandeau que pour une vraie data: URL d'image", () => {
+    const file: PackageFile = {
+      path: "login.html",
+      encoding: "utf8",
+      content: "<body>{{PORTAL_BANNER_HTML}}</body>",
+    };
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB";
+
+    const withImg = renderPackageFile(file, { ssid: "X", backgroundImage: png }).toString("utf8");
+    assert.ok(withImg.includes(`<img class="portal-banner-img" src="${png}"`), "bandeau rendu");
+
+    // Valeur hostile (pas une data: URL d'image) → aucun markup injecté.
+    const hostile = renderPackageFile(file, {
+      ssid: "X",
+      backgroundImage: 'x"><script>alert(1)</script>',
+    }).toString("utf8");
+    assert.ok(!hostile.includes("<img"), "pas d'img pour une valeur non-image");
+    assert.ok(!hostile.includes("<script>alert"), "aucune injection de markup");
+
+    // Absent → placeholder remplacé par du vide (aucun {{ résiduel).
+    const none = renderPackageFile(file, { ssid: "X" }).toString("utf8");
+    assert.ok(!none.includes("{{"), "placeholder remplacé");
+    assert.ok(!none.includes("<img"), "aucun bandeau sans image");
+  });
+
   it("renders the Yahya price-card family into {{PRICE_CARDS_HTML}} with a safe onclick arg", () => {
     const file: PackageFile = {
       path: "login.html",

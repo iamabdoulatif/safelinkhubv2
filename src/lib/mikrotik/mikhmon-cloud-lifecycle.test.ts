@@ -75,7 +75,11 @@ describe("ce que la suppression touche, et ce qu'elle laisse", () => {
     const { readFile } = await import("node:fs/promises");
     const src = await readFile(new URL("./mikhmon-cloud-actions.ts", import.meta.url), "utf8");
     const bloc = src.slice(src.indexOf("export async function supprimerMikhmonCloud"));
-    assert.match(bloc, /removeCloudMikhmonInstance\(routerId\)/, "le conteneur n'est pas retiré");
+    assert.match(
+      bloc,
+      /removeCloudMikhmonInstance\(routerId, \{ purgeData: true \}\)/,
+      "le conteneur et son volume ne sont pas retirés",
+    );
     assert.match(bloc, /delete\(routerPortForwards\)/, "la redirection n'est pas retirée");
   });
 
@@ -140,6 +144,19 @@ describe("un conteneur orphelin ne bloque plus la recréation", () => {
       actions.indexOf("export async function deleteRouter"),
       actions.indexOf("export async function resetRouterDevice"),
     );
-    assert.match(bloc, /removeCloudMikhmonInstance\(routerId\)/);
+    assert.match(bloc, /removeCloudMikhmonInstance\(routerId, \{ purgeData: true \}\)/);
+  });
+
+  it("un renommage recrée le conteneur SANS toucher au volume de données", async () => {
+    /* Le renommage supprime puis recrée : sans ce garde-fou, ventes, logs et
+       sellers_config.php partiraient au détour d'un changement d'adresse. */
+    const { readFile } = await import("node:fs/promises");
+    const src = await readFile(new URL("./mikhmon-cloud-actions.ts", import.meta.url), "utf8");
+    const bloc = src.slice(
+      src.indexOf("export async function renommerMikhmonCloud"),
+      src.indexOf("export async function supprimerMikhmonCloud"),
+    );
+    assert.match(bloc, /removeCloudMikhmonInstance\(routerId\);/);
+    assert.ok(!bloc.includes("purgeData"), "le renommage purge les données");
   });
 });

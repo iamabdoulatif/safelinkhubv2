@@ -70,6 +70,14 @@ function containerNameFor(routerId: string): string {
   return `slh-mikhmon-${compactId}`;
 }
 
+/* Volume nommé du conteneur, monté sur /src/src (code ET données : config.php,
+   secret.key.php, sellers_config.php, logs/, voucher/). Même convention que les
+   instances migrées à la main sur le relais le 2026-11-21 : `<conteneur>-src`.
+   Sans lui, toute recréation du conteneur effaçait sessions, ventes et logs. */
+function cloudVolumeFor(containerName: string): string {
+  return `${containerName}-src`;
+}
+
 
 /** Nom de session affiché dans MikHmon — le même que sur les routeurs à conteneur. */
 export const CLOUD_SESSION_NAME = "SafeLinkHub";
@@ -220,6 +228,7 @@ export async function provisionCloudMikhmon(input: {
     `${DOCKER} run -d`,
     `--name ${shellArg(containerName)}`,
     "--restart unless-stopped",
+    `-v ${shellArg(`${cloudVolumeFor(containerName)}:/src/src`)}`,
     `--network ${shellArg(traefikNetwork)}`,
     `--publish ${shellArg(`127.0.0.1:${localPort}:80`)}`,
     `--label ${shellArg("traefik.enable=true")}`,
@@ -367,8 +376,17 @@ export async function ensureCloudMikhmonInstance(
   return instance;
 }
 
-/** Removes the VPS container before deleting the state that exposes it. */
-export async function removeCloudMikhmonInstance(routerId: string): Promise<boolean> {
+/**
+ * Removes the VPS container before deleting the state that exposes it.
+ *
+ * Le volume de données est CONSERVÉ par défaut : un renommage passe par ici
+ * puis recrée le conteneur, qui doit retrouver ses ventes et ses logs. Seule
+ * une vraie suppression d'instance passe `purgeData: true`, explicitement.
+ */
+export async function removeCloudMikhmonInstance(
+  routerId: string,
+  { purgeData = false }: { purgeData?: boolean } = {},
+): Promise<boolean> {
   const db = getDb();
   const [existing] = await db
     .select()
@@ -381,7 +399,11 @@ export async function removeCloudMikhmonInstance(routerId: string): Promise<bool
      — or c'est précisément l'état d'un orphelin : la ligne est partie, le
      conteneur est resté. Supprimer le routeur devait alors le laisser une
      seconde fois. `|| true` : l'absence de conteneur est le cas normal. */
-  await runOnRelay(`${DOCKER} rm -f ${shellArg(containerNameFor(routerId))} 2>/dev/null || true`);
+  const containerName = containerNameFor(routerId);
+  await runOnRelay(`${DOCKER} rm -f ${shellArg(containerName)} 2>/dev/null || true`);
+  if (purgeData) {
+    await runOnRelay(`${DOCKER} volume rm ${shellArg(cloudVolumeFor(containerName))} 2>/dev/null || true`);
+  }
   if (!existing) return false;
   await db.delete(routerMikhmonCloudInstances).where(eq(routerMikhmonCloudInstances.id, existing.id));
   return true;

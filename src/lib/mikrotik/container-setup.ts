@@ -419,8 +419,14 @@ async function provisionDockerStack(
       // that would wipe whatever's already pulled/cached — so this only
       // formats when the slot isn't already ext4.
       if (usbDisk && usbDisk["file-system"] !== "ext4") {
+        // Target the disk by its .id via =numbers=, like every other
+        // action-on-an-item in this file (/container/start, /ip/service/set…).
+        // format-drive does NOT take =slot= as a selector (that is only a
+        // creation property on /disk/add); passing =slot= made the format fail
+        // and fall through to the WinBox manual step below. See the matching
+        // fix in the install-vpn bootstrap script.
         await run(
-          ["/disk/format-drive", `=slot=${usbSlot}`, "=file-system=ext4"],
+          ["/disk/format-drive", `=numbers=${usbDisk[".id"]}`, "=file-system=ext4"],
           `format USB stick (${usbSlot}, ext4)`,
           60000,
         );
@@ -1378,30 +1384,40 @@ export async function provisionHotspotStack(
         const use5ghz = radio
           ? (radio.bands ?? "").includes("5ghz")
           : (wifi["default-name"] === "wifi1" || wifi.name === "wifi1") && wifiInterfaces.length > 1;
-        await run(
-          [
-            "/interface/wifi/set",
-            `=numbers=${wifi.name}`,
-            `=channel.band=${use5ghz ? "5ghz-ax" : "2ghz-ax"}`,
-            // No explicit channel.frequency: RouterOS auto-selects a valid
-            // channel within whatever band/country is set above. An
-            // earlier version hardcoded "2300-75000" here, which isn't a
-            // valid frequency range for either band (2.4GHz tops out
-            // around 2484 MHz, 5GHz around 5825 MHz) — RouterOS rejected
-            // the whole /interface/wifi/set command because of it, so
-            // band/width/country/ssid/disabled=no silently never applied
-            // either (it's one atomic command), leaving the radio in
-            // whatever state it was already in. That's almost certainly
-            // why WiFi looked dead even though the script reported success.
-            "=channel.skip-dfs-channels=all",
-            `=channel.width=${use5ghz ? "20/40/80mhz" : "20/40mhz"}`,
-            `=configuration.country=${country}`,
-            "=configuration.mode=ap",
-            `=configuration.ssid=${opts.ssid.trim()}`,
-            "=disabled=no",
-          ],
-          `WiFi SSID on ${wifi.name}`,
-        );
+        // Pays réglementaire : d'abord celui de l'org (opts.wifiCountry), repli
+        // « United States » si RouterOS refuse le nom. Le /interface/wifi/set
+        // est ATOMIQUE — un pays inconnu ferait échouer bande/largeur/ssid/
+        // disabled=no en silence (radio morte), donc on réessaie avec le défaut
+        // permissif plutôt que de laisser la radio inactive.
+        const countryCandidates =
+          country === "United States" ? ["United States"] : [country, "United States"];
+        for (const candidate of countryCandidates) {
+          const res = await run(
+            [
+              "/interface/wifi/set",
+              `=numbers=${wifi.name}`,
+              `=channel.band=${use5ghz ? "5ghz-ax" : "2ghz-ax"}`,
+              // No explicit channel.frequency: RouterOS auto-selects a valid
+              // channel within whatever band/country is set above. An
+              // earlier version hardcoded "2300-75000" here, which isn't a
+              // valid frequency range for either band (2.4GHz tops out
+              // around 2484 MHz, 5GHz around 5825 MHz) — RouterOS rejected
+              // the whole /interface/wifi/set command because of it, so
+              // band/width/country/ssid/disabled=no silently never applied
+              // either (it's one atomic command), leaving the radio in
+              // whatever state it was already in. That's almost certainly
+              // why WiFi looked dead even though the script reported success.
+              "=channel.skip-dfs-channels=all",
+              `=channel.width=${use5ghz ? "20/40/80mhz" : "20/40mhz"}`,
+              `=configuration.country=${candidate}`,
+              "=configuration.mode=ap",
+              `=configuration.ssid=${opts.ssid.trim()}`,
+              "=disabled=no",
+            ],
+            `WiFi SSID on ${wifi.name}${candidate === country ? "" : ` (repli ${candidate})`}`,
+          );
+          if (res.ok) break;
+        }
       }
 
       /* PILOTE HÉRITÉ — RB951, hEX, wAP, hAP ac…

@@ -13,6 +13,7 @@ import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders, portalOtps } from "@/lib/db/schema";
 import { packageProfileName } from "@/lib/mikrotik/package-voucher-profile";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
+import { enforcePublicSubmissionRateLimit } from "@/lib/public-rate-limit";
 
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "https://safelinkhub.io").replace(/\/+$/, "");
@@ -37,6 +38,9 @@ export async function POST(
 
   const orderId = String(body.orderId ?? "").trim();
   if (!orderId) return corsJson({ error: "Commande manquante." }, { status: 400 });
+
+  const limit = await enforcePublicSubmissionRateLimit("portal_order");
+  if (!limit.allowed) return corsJson({ error: limit.error }, { status: 429 });
 
   const db = getDb();
   const [org] = await db

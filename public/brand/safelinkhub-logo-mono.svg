@@ -1,13 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 32" width="168" height="32"
      style="color:#151515" role="img" aria-label="SafeLinkHub">
   <title>SafeLinkHub</title>
-  <!-- Tout en currentColor : inliné, le logo prend la couleur du texte parent
-       (encre sur fond clair, blanc sur fond sombre ou lime). Ouvert seul, il
-       retombe sur l'encre #151515 déclarée ci-dessus. -->
-  <path d="M26 7H12v9h8v9H6" fill="none" stroke="currentColor" stroke-width="3.8"
-        stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="2.4" y="21.4" width="7.2" height="7.2" rx="2.1" fill="currentColor"/>
-  <rect x="22.4" y="3.4" width="7.2" height="7.2" rx="2.1" fill="currentColor"/>
+  <!-- Version monochrome : tout en currentColor, port compris. Inliné, le logo
+       prend la couleur du texte parent (encre sur clair, blanc sur sombre ou
+       lime). Ouvert seul, il retombe sur l'encre #151515. -->
+  <mask id="slhb-mono">
+    <circle cx="16" cy="16" r="14.5" fill="#fff"/>
+    <path d="M24 8 H13 V16 H19 V23.2 H7.8" fill="none" stroke="#000"
+          stroke-width="3.3" stroke-linecap="round" stroke-linejoin="round"/>
+  </mask>
+  <circle cx="16" cy="16" r="14.5" fill="currentColor" mask="url(#slhb-mono)"/>
+  <rect x="23" y="3" width="6" height="6" rx="1.6" fill="currentColor"/>
   <text x="42" y="24.3" fill="currentColor"
         font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
         font-size="22" font-weight="700" letter-spacing="-0.55">SafeLinkHub</text>
