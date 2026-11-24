@@ -23,6 +23,25 @@ export function waveAppHref(checkoutUrl: string): string | null {
   }
 }
 
+/** Enrobe une URL https en lien `intent://` Android. Tapé dans la WebView du
+ * portail captif Android (CaptivePortalLogin), Android résout l'intent HORS de
+ * la WebView : le navigateur système (ou l'app qui gère le domaine) s'ouvre,
+ * avec le vrai réseau de la voie de paiement. Sans ça, la WebView charge le
+ * lien sur place et le relais `wave://` vers l'app échoue (rebond vers
+ * connectivitycheck.gstatic.com observé le 24/11/2026). `browser_fallback_url`
+ * ouvre quand même le navigateur si aucune app ne gère le lien. null si l'URL
+ * n'est pas https. Le schéma `intent:` n'existe que sur Android — ne JAMAIS
+ * l'utiliser côté iOS (le CNA le refuse), d'où la détection d'appelant. */
+export function androidIntentHref(httpsUrl: string): string | null {
+  try {
+    const u = new URL(httpsUrl);
+    if (u.protocol !== "https:") return null;
+    return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;S.browser_fallback_url=${encodeURIComponent(httpsUrl)};end`;
+  } catch {
+    return null;
+  }
+}
+
 /** Le même checkout sur qr.pay.wave.com — lien universel Wave (/c/* dans son
  * apple-app-site-association) : touché à la main, iOS peut le confier
  * directement à l'app, sans passer par le schéma wave: que la fenêtre Wi-Fi

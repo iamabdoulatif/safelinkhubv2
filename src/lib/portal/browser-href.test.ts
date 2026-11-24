@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isCaptiveBrowser, waveAppHref, waveQrHref } from "./browser-href";
+import { androidIntentHref, isCaptiveBrowser, waveAppHref, waveQrHref } from "./browser-href";
 
 const IOS_CNA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 const IOS_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
@@ -27,4 +27,19 @@ test("waveQrHref : même checkout sur qr.pay.wave.com", () => {
     "https://qr.pay.wave.com/c/cos-abc?a=1000&c=XOF",
   );
   assert.equal(waveQrHref("https://checkout.paystack.com/x"), null);
+});
+
+test("androidIntentHref : enrobe une https en intent:// avec fallback navigateur", () => {
+  const https = "https://qr.pay.wave.com/c/cos-abc?a=1000&c=XOF";
+  const out = androidIntentHref(https);
+  assert.equal(
+    out,
+    `intent://qr.pay.wave.com/c/cos-abc?a=1000&c=XOF#Intent;scheme=https;S.browser_fallback_url=${encodeURIComponent(https)};end`,
+  );
+  // Le repli navigateur doit être encodé (sinon ses & cassent le lien intent).
+  assert.ok(out!.includes("S.browser_fallback_url=https%3A%2F%2F"));
+  assert.ok(!out!.includes("scheme=https;S.browser_fallback_url=https://"));
+  // Pas https (ou URL invalide) → null, jamais d'intent bancal.
+  assert.equal(androidIntentHref("wave://capture/x"), null);
+  assert.equal(androidIntentHref("pas une url"), null);
 });

@@ -20,7 +20,7 @@
 
 import { useEffect, useState } from "react";
 import type { PortalTheme } from "@/lib/portal/theme";
-import { isCaptiveBrowser, waveQrHref } from "@/lib/portal/browser-href";
+import { androidIntentHref, isCaptiveBrowser, waveQrHref } from "@/lib/portal/browser-href";
 import styles from "../PortalExperience.module.css";
 
 type Method = { id: string; label: string; logo: string };
@@ -57,6 +57,10 @@ export default function PayMethods({
   const [pageUrl, setPageUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const [captive, setCaptive] = useState(false);
+  // Android : la WebView captive piège le lien universel iOS sur place (le
+  // relais wave:// vers l'app y échoue). On enrobe alors le lien Wave en
+  // intent:// pour sortir de la WebView. iOS garde le lien qr.pay.wave.com nu.
+  const [android, setAndroid] = useState(false);
 
   // Wave préparé d'avance (fenêtre captive) : la tuile devient un VRAI lien
   // qr.pay.wave.com — voir /api/portal/[slug]/wave-prepare.
@@ -76,6 +80,7 @@ export default function PayMethods({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPageUrl(url);
     setCaptive(inCaptive);
+    setAndroid(/Android/i.test(ua));
     if (!inCaptive) return;
     // Retour du rechargement ci-dessous : paiement Wave déjà préparé et voie
     // ouverte — la tuile est un lien tout de suite, sans nouvelle préparation.
@@ -339,9 +344,12 @@ export default function PayMethods({
               );
             }
             if (waveLink) {
+              // Android captif : sortir de la WebView via intent:// (sinon le
+              // lien se charge sur place et wave:// échoue). iOS : lien nu.
+              const href = android ? (androidIntentHref(waveLink) ?? waveLink) : waveLink;
               return (
                 <li key={m.id} role="option" aria-selected={false}>
-                  <a href={waveLink} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
+                  <a href={href} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
                     {optionContent(m, m.label, true)}
                   </a>
                 </li>
