@@ -394,9 +394,31 @@ alter table routers add column if not exists mikhmon_seen_at timestamp;` },
   // (data URL base64 plafonnée), injectée dans {{PORTAL_BANNER_HTML}} au rendu.
   // Miroir : scripts/add-captive-template-package-background.sql.
   { id: "0027_captive_template_package_background", sql: `alter table captive_templates add column if not exists package_background_image text;` },
+  // Sites (agences/succursales) : regroupement de routeurs à l'intérieur d'une
+  // org. Fondation de l'offre entreprise. code unique par org (index partiel
+  // inutile : un site n'a pas de doublon légitime). Miroir : scripts/create-sites.sql.
+  { id: "0028_sites", sql: `
+create table if not exists sites (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id) on delete cascade,
+  name text not null,
+  code text not null,
+  location_commune text,
+  location_country text,
+  latitude numeric(9, 6),
+  longitude numeric(9, 6),
+  active boolean not null default true,
+  created_at timestamp not null default now()
+);
+create unique index if not exists sites_org_code_idx on sites (org_id, code);
+create index if not exists sites_org_created_idx on sites (org_id, created_at);
+`.trim() },
+  // Rattache un routeur à un site (nullable : « non rangé » reste valide). set
+  // null à la suppression du site → jamais d'orphelin. Miroir : scripts/add-routers-site-id.sql.
+  { id: "0029_routers_site_id", sql: `alter table routers add column if not exists site_id uuid references sites(id) on delete set null;` },
   // Fiche client du portail (prénom/nom/email) saisie à la 1re commande d'un
   // numéro, reliée aux commandes par (org_id, phone). Miroir : scripts/add-portal-customers.sql.
-  { id: "0028_portal_customers", sql: `
+  { id: "0030_portal_customers", sql: `
 create table if not exists portal_customers (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
