@@ -6,7 +6,7 @@
 // par mois répond à « combien ce mois-ci comparé aux précédents » ; le
 // sélecteur, lui, cadre l'analyse fine d'une période donnée. Les faire suivre
 // le sélecteur donnerait des graphiques à une seule barre par défaut.
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, type SQL } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { expenses, routers, walletTransactions } from "@/lib/db/schema";
 import { getPaidSales } from "@/lib/sales/paid-orders";
@@ -82,6 +82,9 @@ export async function getMonthlySeries(
   orgId: string,
   now: Date = new Date(),
   count: number = MONTHS_SHOWN,
+  // Périmètre par site (RBAC) : restreint la courbe « nouveaux routeurs » aux
+  // agences du membre ; les autres séries restent à l'échelle de l'org.
+  routerScope?: SQL,
 ): Promise<MonthlySeries> {
   const db = getDb();
   const months = enumerateMonths(now, count);
@@ -110,7 +113,7 @@ export async function getMonthlySeries(
     db
       .select({ createdAt: routers.createdAt })
       .from(routers)
-      .where(and(eq(routers.orgId, orgId), gte(routers.createdAt, from))),
+      .where(and(eq(routers.orgId, orgId), gte(routers.createdAt, from), routerScope)),
   ]);
 
   return {

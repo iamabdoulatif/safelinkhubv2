@@ -7,7 +7,8 @@ import { after } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getVpnTrialStatus } from "@/lib/billing/actions";
 import { getDb } from "@/lib/db";
-import { routerMikhmonCloudInstances, routerPortForwards, routers } from "@/lib/db/schema";
+import { routerMikhmonCloudInstances, routerPortForwards } from "@/lib/db/schema";
+import { getRouterForOrg } from "@/lib/org/member-sites";
 import { getRelayPublicHost } from "@/lib/mikrotik/relay";
 import { supportsContainersFor } from "@/lib/mikrotik/device-catalog";
 import { routerCloudSlug } from "@/lib/mikrotik/mikhmon-cloud-domain";
@@ -26,11 +27,9 @@ export default async function RouterRemoteAccessWorkspace({ params }: PageProps)
   if (!session) redirect("/auth/login?callback=/admin/remote-access");
 
   const db = getDb();
-  const [router] = await db
-    .select()
-    .from(routers)
-    .where(and(eq(routers.id, id), eq(routers.orgId, session.orgId)))
-    .limit(1);
+  // Périmètre par site : un membre restreint ne peut pas ouvrir l'accès distant
+  // d'un routeur hors de ses agences, même par URL directe.
+  const router = await getRouterForOrg(id, session);
   if (!router) notFound();
 
   after(() => refreshStaleRouters(session.orgId));

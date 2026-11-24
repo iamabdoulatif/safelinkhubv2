@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { getDb } from "@/lib/db";
 import { routerRestoreJobs, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
@@ -30,7 +31,7 @@ export default async function RouterBackupsPage() {
         db
           .select({ id: routers.id, name: routers.name, status: routers.status, model: routers.model })
           .from(routers)
-          .where(eq(routers.orgId, session.orgId))
+          .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
           .orderBy(asc(routers.name)),
       ])
     : [[], []];

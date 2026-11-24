@@ -1,4 +1,5 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { getDb } from "@/lib/db";
 import {
   roamingGroupOffers,
@@ -44,7 +45,11 @@ export default async function RoamingPage() {
       )
       .leftJoin(
         routers,
-        and(eq(roamingGroupRouters.routerId, routers.id), eq(routers.orgId, session.orgId)),
+        and(
+          eq(roamingGroupRouters.routerId, routers.id),
+          eq(routers.orgId, session.orgId),
+          await scopeRoutersClause(session),
+        ),
       )
       .where(eq(roamingGroups.orgId, session.orgId))
       .orderBy(asc(roamingGroups.name)),
@@ -90,7 +95,7 @@ export default async function RoamingPage() {
     db
       .select({ id: routers.id, name: routers.name, status: routers.status })
       .from(routers)
-      .where(eq(routers.orgId, session.orgId))
+      .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
       .orderBy(asc(routers.name)),
     // Comptes NOMINATIFS (admins, techniciens) : ils se distinguent des tickets
     // vendus par leur useCase, et méritent leur propre liste — on ne cherche pas

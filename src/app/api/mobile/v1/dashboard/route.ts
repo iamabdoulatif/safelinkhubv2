@@ -1,5 +1,6 @@
 import { getDashboardData } from "@/lib/dashboard/queries";
 import { apiError, requireMobileSession } from "@/lib/mobile/http";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 
 /**
  * GET /api/mobile/v1/dashboard?from=AAAA-MM-JJ&to=AAAA-MM-JJ
@@ -18,7 +19,11 @@ export async function GET(request: Request) {
   if (from > toDay) return apiError(400, "invalid_range", "`from` doit précéder `to`.");
   const to = new Date(toDay.getFullYear(), toDay.getMonth(), toDay.getDate(), 23, 59, 59, 999);
 
-  const data = await getDashboardData(auth.session.orgId, { from, to });
+  const data = await getDashboardData(
+    auth.session.orgId,
+    { from, to },
+    await scopeRoutersClause(auth.session),
+  );
   return Response.json({ range: { from: from.toISOString(), to: to.toISOString() }, ...data });
 }
 
