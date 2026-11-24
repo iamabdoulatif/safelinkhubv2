@@ -7,6 +7,8 @@ import { routerRestoreJobs, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
 import { provisionHotspotStack, type HotspotStackOptions } from "./container-setup";
+import { getOrgDial } from "@/lib/portal/org-dial";
+import { routerOsWifiCountry } from "./wifi-compat";
 
 /**
  * Auto-setup en TÂCHE DE FOND, suivi par getRestoreJob.
@@ -105,6 +107,18 @@ async function enqueue(
 ) {
   const db = getDb();
 
+  // Pays Wi-Fi dérivé de l'org (pays d'exploitation du routeur) quand l'appelant
+  // ne l'a pas fixé : pose le VRAI domaine réglementaire au lieu du défaut
+  // « United States », ce qui débloque proprement la 5 GHz (fin du DFS-stuck).
+  // Le réglage reste tolérant côté moteur (repli « United States » si RouterOS
+  // refuse le nom), donc un ISO2 non mappé ne régresse rien.
+  let effectiveOpts = opts;
+  if (!opts.wifiCountry) {
+    const { iso2 } = await getOrgDial(orgId);
+    const wifiCountry = routerOsWifiCountry(iso2);
+    if (wifiCountry) effectiveOpts = { ...opts, wifiCountry };
+  }
+
   const [running] = await db
     .select({
       id: routerRestoreJobs.id,
@@ -160,7 +174,7 @@ async function enqueue(
 
     let result: AutoSetupJobProgress["result"];
     try {
-      result = await provisionHotspotStack(routerId, opts, {
+      result = await provisionHotspotStack(routerId, effectiveOpts, {
         onStep: async (step) => {
           await touch({ phase: "autosetup", step });
         },

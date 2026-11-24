@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { RouterOSClient } from "./client";
-import { applySsid, optimizeWifiThroughput, primarySsid, readWifiState } from "./wifi-compat";
+import {
+  applySsid,
+  optimizeWifiThroughput,
+  primarySsid,
+  readWifiState,
+  routerOsWifiCountry,
+} from "./wifi-compat";
 
 type Rows = Record<string, string>[];
 
@@ -175,5 +181,18 @@ describe("optimizeWifiThroughput", () => {
     assert.equal(res.api, "none");
     assert.deepEqual(res.applied, []);
     assert.ok(res.summary.length > 0);
+  });
+});
+
+describe("routerOsWifiCountry", () => {
+  it("mappe le marché principal (CI) vers le nom RouterOS", () => {
+    assert.equal(routerOsWifiCountry("CI"), "Ivory Coast");
+    assert.equal(routerOsWifiCountry("ci"), "Ivory Coast"); // casse ignorée
+    assert.equal(routerOsWifiCountry(" SN "), "Senegal"); // espaces ignorés
+  });
+  it("retombe sur undefined pour un ISO2 inconnu ou vide (défaut United States côté moteur)", () => {
+    assert.equal(routerOsWifiCountry("XX"), undefined);
+    assert.equal(routerOsWifiCountry(""), undefined);
+    assert.equal(routerOsWifiCountry(null), undefined);
   });
 });
