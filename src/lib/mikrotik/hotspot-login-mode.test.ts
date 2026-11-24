@@ -43,7 +43,7 @@ describe("ensureHotspotLoginByCode", () => {
     assert.deepEqual(loginHost, { dnsName: "mamba.ci", hotspotAddress: "10.0.0.1" });
   });
 
-  it("complète un profil vide/minimal vers les méthodes code et mac-cookie requises", async () => {
+  it("complète un profil vide/minimal vers toutes les méthodes requises (mac compris)", async () => {
     const { client, recorded } = mockClient({
       "/ip/hotspot/print": [{ ".id": "*1", profile: "NEUF", disabled: "false" }],
       "/ip/hotspot/profile/print": [{ ".id": "*P1", name: "NEUF", "login-by": "http-pap" }],
@@ -54,7 +54,8 @@ describe("ensureHotspotLoginByCode", () => {
     assert.deepEqual(fixed, ["NEUF"]);
     const set = recorded.find((s) => s[0] === "/ip/hotspot/profile/set");
     assert.ok(set, "un /set doit être émis");
-    assert.ok(set.includes("=login-by=http-pap,cookie,http-chap,mac-cookie"));
+    // additif : http-pap préservé, puis cookie/http-chap/mac-cookie/mac ajoutés
+    assert.ok(set.includes("=login-by=http-pap,cookie,http-chap,mac-cookie,mac"));
   });
 
   it("active la création des mac-cookies sur les profils de tickets", async () => {
