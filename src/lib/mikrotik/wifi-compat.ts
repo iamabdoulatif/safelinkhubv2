@@ -18,6 +18,46 @@ import type { RouterOSClient } from "./client";
  */
 export type WifiApi = "wifi" | "wireless" | "none";
 
+// Nom de pays réglementaire attendu par RouterOS (`configuration.country`),
+// en anglais Title Case comme « United States ». Mappé depuis l'ISO2 de l'org
+// (getOrgDial) pour que l'auto-setup pose le VRAI pays d'exploitation plutôt
+// que le défaut permissif « United States ». Limité aux marchés dont
+// l'orthographe RouterOS est sûre : un ISO2 absent retombe sur le défaut
+// (et le réglage est de toute façon tolérant — voir provisionHotspotStack,
+// qui réessaie en « United States » si RouterOS refuse le nom).
+const ROUTEROS_WIFI_COUNTRY: Record<string, string> = {
+  CI: "Ivory Coast",
+  BJ: "Benin",
+  SN: "Senegal",
+  BF: "Burkina Faso",
+  ML: "Mali",
+  TG: "Togo",
+  CM: "Cameroon",
+  GA: "Gabon",
+  KE: "Kenya",
+  RW: "Rwanda",
+  UG: "Uganda",
+  SL: "Sierra Leone",
+  GN: "Guinea",
+  NE: "Niger",
+  GH: "Ghana",
+  NG: "Nigeria",
+  TD: "Chad",
+  MR: "Mauritania",
+  LR: "Liberia",
+  TZ: "Tanzania",
+  ZM: "Zambia",
+  MW: "Malawi",
+  MZ: "Mozambique",
+};
+
+/** Nom RouterOS du pays pour un code ISO2 (de l'org), ou undefined si inconnu
+ *  (l'appelant garde alors le défaut « United States »). */
+export function routerOsWifiCountry(iso2: string | null | undefined): string | undefined {
+  if (!iso2) return undefined;
+  return ROUTEROS_WIFI_COUNTRY[iso2.trim().toUpperCase()];
+}
+
 export type WifiRadio = {
   name: string;
   ssid: string | null;
