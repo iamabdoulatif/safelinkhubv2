@@ -61,7 +61,7 @@ export async function listCaptiveTemplates() {
   const session = await getSession();
   if (!session) return [];
 
-  // Les deux portails livrés d'office sont semés ici, au point de passage
+  // Les trois portails livrés d'office sont semés ici, au point de passage
   // unique : cette liste alimente à la fois la page des modèles et l'assistant
   // d'auto-setup. Idempotent, et sans migration pour les comptes existants.
   await ensureDefaultPortals(session.orgId).catch(() => {});
