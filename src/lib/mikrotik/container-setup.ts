@@ -1737,12 +1737,13 @@ export async function provisionHotspotStack(
       `=html-directory-override=${htmlDirectory}`,
       "=http-cookie-lifetime=52w1d",
       "=install-hotspot-queue=yes",
-      // Login par code (http-chap/http-pap) + cookie navigateur et MAC cookie.
-      // `mac-cookie` ne donne pas accès avec la seule MAC : il mémorise les
-      // identifiants après un premier login valide, afin que l'appareil se
-      // reconnecte automatiquement pendant la durée de son ticket. On n'ajoute
-      // volontairement PAS `mac`, qui authentifierait une MAC sans ticket.
-      "=login-by=cookie,http-chap,http-pap,mac-cookie",
+      // Toutes les méthodes de login SAUF https et trial : login par code
+      // (http-chap/http-pap), cookie navigateur, mac-cookie ET mac. `mac` aligne
+      // le profil sur le routeur de référence (RUE-NICOLAS) et permet l'auto-
+      // login par MAC du roaming. Il n'authentifie une MAC sans ticket que s'il
+      // existe un utilisateur hotspot nommé par cette MAC (posé par le roaming) ;
+      // sans un tel utilisateur, un client inconnu voit quand même le portail.
+      "=login-by=mac,cookie,http-chap,http-pap,mac-cookie",
     ];
     if (matchingProfile?.[".id"]) {
       await run(
@@ -2509,15 +2510,30 @@ export async function provisionHotspotStack(
     // never actually received any files. The FTP *server* is disabled
     // outright below instead, closing the door this was originally meant
     // to close without breaking /tool fetch.
-    await client.talk(["/user/group/remove", "=numbers=safelinkhub-group"]).catch(() => {});
-    await run(
-      [
-        "/user/group/add",
-        "=name=safelinkhub-group",
-        "=policy=read,write,test,sensitive,api,ssh,ftp,!local,!telnet,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api",
-      ],
-      "SafeLinkHub API user group",
-    );
+    // Idempotent : on MET À JOUR le groupe s'il existe déjà, sinon on le crée.
+    // L'ancienne approche (remove puis add) échouait en « group with the same
+    // name already exists » : `/user group remove =numbers=<nom>` ne résout pas
+    // un groupe par son NOM (numbers attend un .id), donc le remove ne faisait
+    // rien et l'add retombait sur le groupe existant. On lit son .id et on /set
+    // la policy — ce qui réapplique le bon jeu de droits dans tous les cas.
+    const apiGroupPolicy =
+      "read,write,test,sensitive,api,ssh,ftp,!local,!telnet,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api";
+    const existingApiGroup = (
+      await client
+        .talk(["/user/group/print", "?name=safelinkhub-group"])
+        .catch(() => [] as Record<string, string>[])
+    )[0];
+    if (existingApiGroup?.[".id"]) {
+      await run(
+        ["/user/group/set", `=numbers=${existingApiGroup[".id"]}`, `=policy=${apiGroupPolicy}`],
+        "SafeLinkHub API user group",
+      );
+    } else {
+      await run(
+        ["/user/group/add", "=name=safelinkhub-group", `=policy=${apiGroupPolicy}`],
+        "SafeLinkHub API user group",
+      );
+    }
 
     // Manual backup helper: exports the full config plus hotspot/NAT/filter
     // sections separately, timestamped, for whenever an admin wants a
