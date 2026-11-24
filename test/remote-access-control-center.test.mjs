@@ -7,8 +7,9 @@ const directAccessPath = new URL("../src/app/admin/remote-access/DirectAccessSec
 
 test("l’espace routeur borne chaque opération à l’organisation de la session", async () => {
   const source = await readFile(workspacePath, "utf8");
-  assert.match(source, /eq\(routers\.id, id\)/);
-  assert.match(source, /eq\(routers\.orgId, session\.orgId\)/);
+  // Le bornage org (ET le périmètre par site) passe par le point de passage
+  // getRouterForOrg, qui renvoie null → notFound() hors périmètre.
+  assert.match(source, /getRouterForOrg\(id, session\)/);
   assert.match(source, /notFound\(\)/);
   assert.match(source, /<DirectAccessSection/);
   assert.match(source, /<BackToHomeSection/);
