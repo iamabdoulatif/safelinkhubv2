@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { and, eq, inArray } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { Apple, Download, Laptop, MonitorDown, ShieldCheck, Usb } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
@@ -79,6 +80,7 @@ export default async function AgentLocalPage() {
             eq(routers.orgId, session.orgId),
             eq(routers.status, "online"),
             inArray(routers.connectionMethod, [...TUNNEL_METHODS]),
+            await scopeRoutersClause(session),
           ),
         ))
         .filter(hostedAgentEligible)

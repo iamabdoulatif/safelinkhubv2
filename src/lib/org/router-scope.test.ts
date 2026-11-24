@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveRouterScope } from "./router-scope";
+import { resolveRouterScope, routerInScope } from "./router-scope";
 
 describe("périmètre routeur par site", () => {
   it("admin et superadmin ne sont jamais restreints", () => {
@@ -28,5 +28,20 @@ describe("périmètre routeur par site", () => {
       restricted: true,
       siteIds: ["s3"],
     });
+  });
+});
+
+describe("routerInScope", () => {
+  it("non restreint → tout routeur est dans le périmètre (même non rangé)", () => {
+    assert.equal(routerInScope({ restricted: false }, "s1"), true);
+    assert.equal(routerInScope({ restricted: false }, null), true);
+  });
+
+  it("restreint → seulement les routeurs rangés dans un site autorisé", () => {
+    const scope = { restricted: true as const, siteIds: ["s1", "s2"] };
+    assert.equal(routerInScope(scope, "s1"), true);
+    assert.equal(routerInScope(scope, "s2"), true);
+    assert.equal(routerInScope(scope, "s3"), false); // autre agence
+    assert.equal(routerInScope(scope, null), false); // non rangé → hors périmètre
   });
 });

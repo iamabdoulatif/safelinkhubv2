@@ -1,9 +1,10 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Clock, Router as RouterIcon, Users, Cpu, MemoryStick } from "lucide-react";
 import { getDb } from "@/lib/db";
-import { bridges, routers } from "@/lib/db/schema";
+import { bridges } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getRouterForOrg } from "@/lib/org/member-sites";
 import SerialLockPanel from "./SerialLockPanel";
 import HeaderActions from "./HeaderActions";
 import LiveSync from "../LiveSync";
@@ -87,18 +88,10 @@ export default async function RouterDetailPage({
   if (!session) notFound();
 
   const db = getDb();
-  // Le superadmin (opérateur de la plateforme) peut ouvrir la fiche de N'IMPORTE
-  // quel routeur pour y mener des actions ; un admin reste limité à son org.
-  const [router] = await db
-    .select()
-    .from(routers)
-    .where(
-      isSuperAdmin(session.role)
-        ? eq(routers.id, id)
-        : and(eq(routers.id, id), eq(routers.orgId, session.orgId)),
-    )
-    .limit(1);
-
+  // Point de passage unique : superadmin → n'importe quelle org ; un membre
+  // reste limité à son org ET à son périmètre de sites (RBAC par site). Un
+  // routeur hors périmètre renvoie « introuvable », y compris par URL directe.
+  const router = await getRouterForOrg(id, session);
   if (!router) notFound();
 
   const routerBridges = await db
