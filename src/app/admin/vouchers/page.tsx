@@ -12,6 +12,7 @@ import {
   captiveTemplates,
 } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import {
   computeVoucherExpiry,
   durationFromProfileName,
@@ -72,7 +73,8 @@ export default async function VouchersPage() {
     ? await db
         .select({ id: routers.id, name: routers.name, status: routers.status })
         .from(routers)
-        .where(eq(routers.orgId, session.orgId))
+        // Périmètre par site : on ne génère des tickets que pour ses agences.
+        .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
         .orderBy(desc(routers.status))
     : [];
 

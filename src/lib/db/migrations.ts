@@ -416,9 +416,22 @@ create index if not exists sites_org_created_idx on sites (org_id, created_at);
   // Rattache un routeur à un site (nullable : « non rangé » reste valide). set
   // null à la suppression du site → jamais d'orphelin. Miroir : scripts/add-routers-site-id.sql.
   { id: "0029_routers_site_id", sql: `alter table routers add column if not exists site_id uuid references sites(id) on delete set null;` },
+  // RBAC par site : restreint un membre à certains sites. Aucune ligne pour un
+  // membre = non restreint. Miroir : scripts/create-site-members.sql.
+  { id: "0030_site_members", sql: `
+create table if not exists site_members (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  site_id uuid not null references sites(id) on delete cascade,
+  created_at timestamp not null default now()
+);
+create unique index if not exists site_members_user_site_idx on site_members (user_id, site_id);
+create index if not exists site_members_org_user_idx on site_members (org_id, user_id);
+`.trim() },
   // Fiche client du portail (prénom/nom/email) saisie à la 1re commande d'un
   // numéro, reliée aux commandes par (org_id, phone). Miroir : scripts/add-portal-customers.sql.
-  { id: "0030_portal_customers", sql: `
+  { id: "0031_portal_customers", sql: `
 create table if not exists portal_customers (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,

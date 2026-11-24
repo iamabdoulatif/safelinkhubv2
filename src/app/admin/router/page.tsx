@@ -1,4 +1,5 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { after } from "next/server";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
@@ -90,7 +91,9 @@ export default async function RouterDashboardPage({ searchParams }: RouterPagePr
       ? await db
           .select()
           .from(routers)
-          .where(eq(routers.orgId, session.orgId))
+          // Périmètre par site : un membre restreint ne voit que le parc de ses
+          // agences (clause undefined = non restreint, `and` l'ignore).
+          .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
           .orderBy(desc(routers.createdAt))
       : [];
 

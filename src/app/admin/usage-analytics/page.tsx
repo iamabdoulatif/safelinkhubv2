@@ -1,4 +1,5 @@
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { BarChart2 } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { routers, vouchers } from "@/lib/db/schema";
@@ -57,7 +58,9 @@ export default async function UsageAnalyticsPage() {
     ? await db
         .select()
         .from(routers)
-        .where(eq(routers.orgId, session.orgId))
+        // Périmètre par site (visibilité) : un membre restreint ne supervise
+        // que le parc de ses agences.
+        .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
         .orderBy(desc(routers.createdAt))
     : [];
 

@@ -3,9 +3,13 @@
 // members.ts). Toujours filtrer par l'orgId PASSÉ : aucun id ne vient du
 // formulaire ici.
 import "server-only";
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, sites } from "@/lib/db/schema";
+
+// Périmètre optionnel : un membre restreint (RBAC par site) ne voit que ces
+// sites. `undefined` = non restreint (tous les sites de l'org).
+export type SiteScope = { siteIds?: string[] };
 
 export type Site = {
   id: string;
@@ -17,7 +21,7 @@ export type Site = {
 };
 
 /** Sites de l'org, chacun avec son nombre de routeurs rattachés. */
-export async function listSites(orgId: string): Promise<Site[]> {
+export async function listSites(orgId: string, scope?: SiteScope): Promise<Site[]> {
   return getDb()
     .select({
       id: sites.id,
@@ -31,7 +35,12 @@ export async function listSites(orgId: string): Promise<Site[]> {
     })
     .from(sites)
     .leftJoin(routers, eq(routers.siteId, sites.id))
-    .where(eq(sites.orgId, orgId))
+    .where(
+      and(
+        eq(sites.orgId, orgId),
+        scope?.siteIds ? inArray(sites.id, scope.siteIds) : undefined,
+      ),
+    )
     .groupBy(sites.id)
     .orderBy(desc(sites.createdAt));
 }
@@ -72,8 +81,12 @@ export async function listUnassignedRouters(orgId: string): Promise<SiteRouter[]
 export type AssignableRouter = SiteRouter & { siteId: string | null };
 
 /** Tous les routeurs de l'org avec leur site actuel — alimente le tableau
- *  d'affectation (un select par routeur). */
-export async function listOrgRoutersWithSite(orgId: string): Promise<AssignableRouter[]> {
+ *  d'affectation (un select par routeur). Un membre restreint ne voit que les
+ *  routeurs de ses sites (les « non rangés » lui sont volontairement masqués). */
+export async function listOrgRoutersWithSite(
+  orgId: string,
+  scope?: SiteScope,
+): Promise<AssignableRouter[]> {
   return getDb()
     .select({
       id: routers.id,
@@ -82,6 +95,11 @@ export async function listOrgRoutersWithSite(orgId: string): Promise<AssignableR
       siteId: routers.siteId,
     })
     .from(routers)
-    .where(eq(routers.orgId, orgId))
+    .where(
+      and(
+        eq(routers.orgId, orgId),
+        scope?.siteIds ? inArray(routers.siteId, scope.siteIds) : undefined,
+      ),
+    )
     .orderBy(asc(routers.name));
 }

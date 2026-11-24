@@ -686,6 +686,32 @@ export const sites = pgTable(
   ],
 );
 
+// Restriction d'un membre à certains sites (RBAC par site). Un membre SANS
+// aucune ligne ici n'est pas restreint (voit tout le parc de l'org) ; avec ≥1
+// ligne, il ne voit que ces sites. admin/superadmin ne sont jamais restreints,
+// quoi qu'il y ait ici. Périmètre « visible » : filtre les écrans de parc, pas
+// (encore) la page détail ni les actions — durcissement au chantier suivant.
+export const siteMembers = pgTable(
+  "site_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("site_members_user_site_idx").on(t.userId, t.siteId),
+    index("site_members_org_user_idx").on(t.orgId, t.userId),
+  ],
+);
+
 // Catalogue commun de profils destinés aux groupes roaming. Les forfaits
 // classiques restent rattachés à un routeur ; ces profils, eux, représentent
 // la même durée sur toutes les zones du groupe. Le tarif catalogue peut être
