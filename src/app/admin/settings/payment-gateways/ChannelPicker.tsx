@@ -25,6 +25,7 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   paystack: "Paystack",
   genius_pay: "Genius Pay",
   pawapay: "PawaPay",
+  saspay: "SasPay",
 };
 
 export default function ChannelPicker({ enabledProviders }: { enabledProviders: Provider[] }) {
