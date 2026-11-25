@@ -64,8 +64,8 @@ test("le panneau est réservé aux routeurs joignables et scopé à l'organisati
 
   assert.match(
     actions,
-    /router\.orgId !== session\.orgId && !isSuperAdmin\(session\.role\)/,
-    "un admin ne diagnostique que ses propres routeurs",
+    /denyRouterForSession\(router, session\)/,
+    "un admin ne diagnostique que ses propres routeurs (périmètre org + site)",
   );
   // Tout est lu en direct : le panneau n'a aucun sens hors ligne.
   assert.match(panel, /diagnoseTicketConnectivity/);

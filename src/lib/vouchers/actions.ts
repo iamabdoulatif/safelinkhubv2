@@ -6,6 +6,7 @@ import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { packages, vouchers, voucherRouters, routers } from "@/lib/db/schema";
 import { requireAdminSession } from "@/lib/auth/session";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
 import {
@@ -513,7 +514,7 @@ export async function importCsvTickets(_prevState: unknown, formData: FormData) 
   const [router] = await db
     .select({ id: routers.id })
     .from(routers)
-    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 

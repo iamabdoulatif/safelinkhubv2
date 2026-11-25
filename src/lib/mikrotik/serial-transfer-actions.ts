@@ -15,6 +15,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import { organizations, routers, routerSerialLocks, vpnAccessAuditEvents } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { denyRouterForSession } from "@/lib/org/member-sites";
 import type { RouterOSClient } from "./client";
 import { connectToRouter } from "./router-sync";
 import { readRouterSerial, transferRouterSerialLock } from "./router-serial-lock";
@@ -202,7 +203,7 @@ export async function repairTicketPortal(routerId: string): Promise<
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -242,7 +243,7 @@ export async function diagnoseTicketConnectivity(
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 

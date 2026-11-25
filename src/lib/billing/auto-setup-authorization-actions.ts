@@ -11,6 +11,7 @@ import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
 import { routers, autoSetupAuthorizations, safecoinSettings } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { createGeniusPayment, isGeniusPayCheckoutEnabled } from "@/lib/payment-gateways/geniuspay";
 import { getUserGeniusCustomer } from "@/lib/payment-gateways/customer";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
@@ -70,7 +71,7 @@ export async function submitAutoSetupAuthorizationRequest(formData: FormData): P
   const [router] = await db
     .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
     .from(routers)
-    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 
@@ -217,7 +218,7 @@ export async function startAutoSetupPayment(formData: FormData): Promise<
   const [router] = await db
     .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
     .from(routers)
-    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 
@@ -324,7 +325,7 @@ export async function payAutoSetupFromBalance(formData: FormData): Promise<
   const [router] = await db
     .select({ id: routers.id, name: routers.name, orgId: routers.orgId })
     .from(routers)
-    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 

@@ -7,6 +7,7 @@ import type { AutoSetupHooks, AutoSetupStep } from "./autosetup-steps";
 import { getDb } from "@/lib/db";
 import { routers, organizations, captiveTemplates, packages, bridges } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { denyRouterForSession } from "@/lib/org/member-sites";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { connectToRouter } from "./router-sync";
 import { RouterOSClient } from "./client";
@@ -1006,7 +1007,7 @@ export async function getAutoSetupBillingStatus(routerId: string, supportsContai
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Router not found." };
   }
 
@@ -1104,7 +1105,7 @@ export async function provisionHotspotStack(
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Router not found." };
   }
 
@@ -2679,7 +2680,7 @@ export async function reinstallMikhmonContainer(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
