@@ -6,6 +6,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { packages, routers } from "@/lib/db/schema";
 import { requireAdminSession } from "@/lib/auth/session";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 
 /** Forfaits actifs de l'organisation — utilisé par l'auto-setup routeur
  * pour pré-remplir les profils voucher sans les ressaisir à la main.
@@ -113,7 +114,7 @@ export async function createPackage(_prevState: unknown, formData: FormData) {
     const [router] = await db
       .select({ id: routers.id })
       .from(routers)
-      .where(and(eq(routers.id, routerIdRaw), eq(routers.orgId, session.orgId)))
+      .where(and(eq(routers.id, routerIdRaw), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
       .limit(1);
     if (!router) return { error: "Routeur invalide." };
     routerId = router.id;
@@ -191,7 +192,7 @@ export async function updatePackagePrice(_prevState: unknown, formData: FormData
   const [router] = await db
     .select()
     .from(routers)
-    .where(and(eq(routers.id, pkg.routerId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, pkg.routerId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!router) {
     return { success: true, summary: `Tarif porté à ${priceCents.toLocaleString("fr-FR")} F.` };
@@ -325,7 +326,7 @@ export async function updatePackageDataCap(_prevState: unknown, formData: FormDa
   const [router] = await db
     .select({ id: routers.id, name: routers.name, captiveTemplateId: routers.captiveTemplateId })
     .from(routers)
-    .where(and(eq(routers.id, pkg.routerId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, pkg.routerId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!router?.captiveTemplateId) {
     return { success: true, summary: `${porte}. Aucun portail rattaché à ce routeur.` };

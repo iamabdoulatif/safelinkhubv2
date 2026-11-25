@@ -84,6 +84,6 @@ describe("la réparation est atteignable depuis le routeur", () => {
       actions.indexOf("export async function reposerPortailRouteur"),
       actions.indexOf("export async function assignTemplateToBridge"),
     );
-    assert.match(bloc, /router\.orgId !== session\.orgId/);
+    assert.match(bloc, /denyRouterForSession\(router, session\)/);
   });
 });

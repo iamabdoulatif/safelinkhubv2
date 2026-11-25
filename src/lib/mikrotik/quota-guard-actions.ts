@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
-import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
+import { denyRouterForSession } from "@/lib/org/member-sites";
 import type { RouterOSClient } from "./client";
 import { connectToRouter } from "./router-sync";
 import { detectUplinkInterface } from "./router-lock";
@@ -35,7 +36,7 @@ async function ouvrir(routerId: string): Promise<Acces> {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { ok: false, error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -59,7 +60,7 @@ async function lireMemo(routerId: string): Promise<SavedQuotaGuard | null> {
   const session = await getSession();
   if (!session) return null;
   const [router] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return null;
+  if (!router || (await denyRouterForSession(router, session))) return null;
   return router.quotaGuard ?? null;
 }
 
@@ -212,7 +213,7 @@ export async function buildRouterQuotaGuardScript(
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!input.wanInterface?.trim()) return { error: "Indiquez l'interface WAN (ex. ether1)." };

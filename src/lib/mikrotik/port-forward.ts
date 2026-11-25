@@ -15,6 +15,7 @@ import {
 import { getVpnQuotaStatus, shouldChargeVpnActivation } from "@/lib/billing/vpn-quota";
 import { getRouterVpnQuotaFields } from "@/lib/billing/router-vpn-quota";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { denyRouterForSession } from "@/lib/org/member-sites";
 import { getSafecoinAccount } from "@/lib/safecoin/ledger";
 import { chargeVpnActivation } from "@/lib/safecoin/service-charges";
 import { allocatePortForward, getRelayPublicHost, revokePortForward } from "./relay";
@@ -66,11 +67,11 @@ export async function listPortForwards(routerId: string) {
 
   const db = getDb();
   const [router] = await db
-    .select({ orgId: routers.orgId })
+    .select({ orgId: routers.orgId, siteId: routers.siteId })
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return [];
+  if (!router || (await denyRouterForSession(router, session))) return [];
 
   return db
     .select()
@@ -342,11 +343,11 @@ export async function enablePortForward(
 
   const db = getDb();
   const [router] = await db
-    .select({ orgId: routers.orgId, name: routers.name })
+    .select({ orgId: routers.orgId, siteId: routers.siteId, name: routers.name })
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Router not found." };
   }
 
@@ -508,11 +509,11 @@ export async function disablePortForward(forwardId: string) {
   if (!forward) return { error: "Forward not found." };
 
   const [router] = await db
-    .select({ orgId: routers.orgId })
+    .select({ orgId: routers.orgId, siteId: routers.siteId })
     .from(routers)
     .where(eq(routers.id, forward.routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Forward not found." };
   }
 

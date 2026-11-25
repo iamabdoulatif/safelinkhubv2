@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerMikhmonCloudInstances, routerPortForwards, routers } from "@/lib/db/schema";
-import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
+import { getRouterForOrg } from "@/lib/org/member-sites";
 import { runOnRelay } from "./relay";
 import {
   ensureCloudMikhmonInstance,
@@ -25,15 +26,9 @@ import { editionAReposer, verdictRenommage } from "./mikhmon-cloud-lifecycle";
 async function routeurAutorise(routerId: string) {
   const session = await getSession();
   if (!session) return { erreur: "Not authenticated." as const };
-  const db = getDb();
-  const [router] = await db
-    .select({ id: routers.id, orgId: routers.orgId, name: routers.name })
-    .from(routers)
-    .where(eq(routers.id, routerId))
-    .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
-    return { erreur: "Router not found." as const };
-  }
+  // Point de passage : org + périmètre de sites (RBAC) + bypass superadmin.
+  const router = await getRouterForOrg(routerId, session);
+  if (!router) return { erreur: "Router not found." as const };
   return { router };
 }
 

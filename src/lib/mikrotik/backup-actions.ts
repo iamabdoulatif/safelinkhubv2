@@ -6,6 +6,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routerBackups, routerRestoreJobs, routers } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { installTemplateOnRouter } from "@/lib/captive-templates/actions";
 import {
   captureRouterBackup,
@@ -43,7 +44,7 @@ export async function startBackupJob(routerId: string) {
   const [router] = await db
     .select({ id: routers.id })
     .from(routers)
-    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 
@@ -135,7 +136,7 @@ export async function restoreBackup(
   const [target] = await db
     .select({ id: routers.id })
     .from(routers)
-    .where(and(eq(routers.id, targetRouterId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, targetRouterId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!target) return { error: "Routeur cible introuvable." };
 
@@ -195,7 +196,7 @@ export async function startRestoreJob(backupId: string, targetRouterId: string, 
   const [target] = await db
     .select({ id: routers.id })
     .from(routers)
-    .where(and(eq(routers.id, targetRouterId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, targetRouterId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!target) return { error: "Routeur cible introuvable." };
 
@@ -488,7 +489,7 @@ export async function scanTargetForRestore(backupId: string, targetRouterId: str
   const [target] = await db
     .select({ id: routers.id })
     .from(routers)
-    .where(and(eq(routers.id, targetRouterId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, targetRouterId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!target) return { error: "Routeur cible introuvable." };
 

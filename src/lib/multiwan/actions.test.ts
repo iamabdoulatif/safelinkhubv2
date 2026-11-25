@@ -26,7 +26,7 @@ const compiled = build({
         b.onResolve(
           {
             filter:
-              /^@\/lib\/(db(\/schema)?|auth\/(session|roles)|wallet\/balance)$/,
+              /^@\/lib\/(db(\/schema)?|auth\/(session|roles)|wallet\/balance|org\/member-sites)$/,
           },
           (a) => ({ path: a.path, namespace: "stub" }),
         );
@@ -57,6 +57,11 @@ const compiled = build({
               .join("");
           else if (a.path === "@/lib/db")
             contents = `import{PgDialect}from'drizzle-orm/pg-core';const db={transaction:async task=>task(db),select(){return{from(table){const rows=()=>table.name==='routers'?[{id:'${id}',name:'router'}]:globalThis.__mwTest.licensed?[{id:'license'}]:[];const chain={where(filter){globalThis.__mwTest.filters.push(new PgDialect().sqlToQuery(filter).params);return chain;},limit:async()=>rows(),for:async()=>rows()};return chain;}}},update(){globalThis.__mwTest.updates++;throw Error('No write expected');}};export const getDb=()=>db;`;
+          else if (a.path.endsWith("member-sites"))
+            // Frontière RBAC stubbée : scope undefined = pas de filtre site en
+            // plus (les filtres capturés restent ceux du test pré-sites).
+            contents =
+              'export async function scopeRoutersClause(){return undefined;} export async function denyRouterForSession(r,s){return s.role!=="superadmin"&&r.orgId!==s.orgId;}';
           else if (a.path.endsWith("payment"))
             contents =
               'export const purchaseMultiwan=async()=>{throw Error("No real purchase allowed");};';
