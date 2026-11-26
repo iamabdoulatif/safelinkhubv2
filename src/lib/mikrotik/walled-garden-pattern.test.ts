@@ -66,6 +66,7 @@ test("addressListDnsEntries : hôtes concrets non couverts inclus, sans doublon 
   assert.equal(byName.get("cdn.tailwindcss.com"), false);
   assert.equal(byName.get("fonts.googleapis.com"), false);
   assert.equal(byName.get("wave.com"), true);
+  assert.equal(byName.has("qr.pay.wave.com"), false);
   // checkout.paystack.com est couvert par le joker paystack.com
   assert.ok(!byName.has("checkout.paystack.com"));
   assert.equal(entries.length, byName.size);

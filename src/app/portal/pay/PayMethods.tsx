@@ -67,10 +67,50 @@ export default function PayMethods({
   const [wavePrep, setWavePrep] = useState<{ orderId: string; checkoutUrl: string; lane: boolean } | null>(null);
   const [waveLaunched, setWaveLaunched] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  // En fenêtre captive, la tuile Wave ATTEND la préparation (quelques
-  // secondes) plutôt que de lancer l'ancien parcours en cas de tap précoce.
-  // Elle ne repasse en bouton classique qu'en cas d'échec.
+  // En fenêtre captive, Wave est préparé seulement quand l'utilisateur ouvre
+  // la liste. Le menu reste donc instantané et les autres moyens ne sont pas
+  // retardés par l'appel GeniusPay + la voie MikroTik.
   const [wavePreparing, setWavePreparing] = useState(false);
+
+  async function prepareWave() {
+    if (!captive || wavePrep || wavePreparing) return;
+    setWavePreparing(true);
+    let alive = true;
+    let reloading = false;
+    try {
+      const response = await fetch(`/api/portal/${encodeURIComponent(slug)}/wave-prepare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, theme, captive: true }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        orderId?: string;
+        checkoutUrl?: string;
+        lane?: boolean;
+      };
+      if (!response.ok || !data.orderId || !data.checkoutUrl || !waveQrHref(data.checkoutUrl)) {
+        throw new Error("Préparation Wave impossible.");
+      }
+      if (!alive) return;
+      if (data.lane === true) {
+        // La fenêtre captive iOS ne revalide le réseau qu'au rechargement :
+        // après ce rechargement, le lien Wave est déjà prêt et le menu reste
+        // disponible sans refaire de paiement.
+        const next = new URL(window.location.href);
+        next.searchParams.set("wave", data.orderId);
+        next.searchParams.set("wcu", data.checkoutUrl);
+        reloading = true;
+        window.setTimeout(() => window.location.replace(next.toString()), 300);
+        return;
+      }
+      setWavePrep({ orderId: data.orderId, checkoutUrl: data.checkoutUrl, lane: false });
+    } catch {
+      // Repli : Wave repassera par le parcours classique au prochain clic.
+    } finally {
+      alive = false;
+      if (!reloading) setWavePreparing(false);
+    }
+  }
 
   useEffect(() => {
     // client-only : window absent au rendu serveur.
@@ -89,47 +129,7 @@ export default function PayMethods({
     const readyCheckout = sp.get("wcu");
     if (readyOrder && readyCheckout && waveQrHref(readyCheckout)) {
       setWavePrep({ orderId: readyOrder, checkoutUrl: readyCheckout, lane: true });
-      return;
     }
-    let alive = true;
-    let reloading = false;
-    setWavePreparing(true);
-    fetch(`/api/portal/${encodeURIComponent(slug)}/wave-prepare`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, theme, captive: true }),
-    })
-      .then((r) => r.json())
-      .then((d: { orderId?: string; checkoutUrl?: string; lane?: boolean }) => {
-        if (alive && d.orderId && d.checkoutUrl && waveQrHref(d.checkoutUrl)) {
-          if (d.lane === true) {
-            // La fenêtre Wi-Fi iOS ne revérifie la connexion (✕ → ✓) qu'au
-            // CHARGEMENT d'une page. Tant que ✓ n'est pas affiché, un tap sur
-            // le lien Wave est chargé sur place (bloqué) au lieu de partir vers
-            // Chrome puis l'app — l'« instabilité » de la vidéo 22:13. On
-            // recharge donc la page une fois la voie ouverte : ✓ apparaît, et
-            // la tuile n'est cliquable qu'après.
-            const next = new URL(window.location.href);
-            next.searchParams.set("wave", d.orderId);
-            next.searchParams.set("wcu", d.checkoutUrl);
-            const target = next.toString();
-            reloading = true;
-            window.setTimeout(() => window.location.replace(target), 300);
-            return;
-          }
-          setWavePrep({ orderId: d.orderId, checkoutUrl: d.checkoutUrl, lane: false });
-        }
-      })
-      .catch(() => {
-        /* repli : la tuile Wave garde le parcours classique */
-      })
-      .finally(() => {
-        // Rechargement en cours (voie ouverte) : la tuile reste « Préparation… ».
-        if (alive && !reloading) setWavePreparing(false);
-      });
-    return () => {
-      alive = false;
-    };
   }, [slug, orderId, theme]);
 
   function paidUrlFor(id: string): URL {
@@ -306,32 +306,42 @@ export default function PayMethods({
       <p className={styles.payHeading} id="slh-pay-label">
         Moyen de paiement
       </p>
-      <button
-        type="button"
-        className={styles.selectTrigger}
-        aria-haspopup="listbox"
-        aria-expanded={menuOpen}
-        aria-labelledby="slh-pay-label"
-        disabled={Boolean(busy)}
-        onClick={() => setMenuOpen((o) => !o)}
+      <details
+        className={styles.selectDetails}
+        open={menuOpen && !busy}
+        onToggle={(event) => {
+          const nextOpen = event.currentTarget.open;
+          if (busy && nextOpen) {
+            event.currentTarget.open = false;
+            return;
+          }
+          setMenuOpen(nextOpen);
+          if (nextOpen) void prepareWave();
+        }}
       >
-        {chosen ? (
-          <span className={styles.selectLogo}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={chosen.logo} alt="" />
-          </span>
-        ) : null}
-        <span className={styles.selectLabel}>{triggerLabel}</span>
-        {busy ? (
-          <span aria-hidden="true" className={styles.paySpinner} />
-        ) : (
-          <span aria-hidden="true" className={styles.selectChevron}>
-            {menuOpen ? "▴" : "▾"}
-          </span>
-        )}
-      </button>
+        <summary
+          className={styles.selectTrigger}
+          aria-haspopup="listbox"
+          aria-expanded={menuOpen && !busy}
+          aria-labelledby="slh-pay-label"
+          aria-disabled={Boolean(busy)}
+        >
+          {chosen ? (
+            <span className={styles.selectLogo}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={chosen.logo} alt="" />
+            </span>
+          ) : null}
+          <span className={styles.selectLabel}>{triggerLabel}</span>
+          {busy ? (
+            <span aria-hidden="true" className={styles.paySpinner} />
+          ) : (
+            <span aria-hidden="true" className={styles.selectChevron}>
+              {menuOpen ? "▴" : "▾"}
+            </span>
+          )}
+        </summary>
 
-      {menuOpen && !busy ? (
         <ul className={styles.selectMenu} role="listbox" aria-labelledby="slh-pay-label">
           {METHODS.map((m) => {
             const waveLink = m.id === "wave" && wavePrep ? waveQrHref(wavePrep.checkoutUrl) : null;
@@ -371,7 +381,7 @@ export default function PayMethods({
             );
           })}
         </ul>
-      ) : null}
+      </details>
 
       {busy && !waveLaunched ? (
         <div className={styles.payLoading} role="status" aria-live="polite">

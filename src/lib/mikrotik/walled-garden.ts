@@ -79,8 +79,9 @@ export const WALLED_GARDEN_CATALOG: WalledGardenGroup[] = [
   },
   {
     group: "Wave",
-    description: "Redirection directe vers wave.com depuis le checkout.",
-    hosts: ["wave.com", "*.wave.com"],
+    description:
+      "Checkout Wave et sous-domaines de l'application, notamment qr.pay.wave.com sur Android.",
+    hosts: ["wave.com", "*.wave.com", "pay.wave.com", "qr.pay.wave.com", "api.wave.com"],
   },
   {
     group: "Orange Money",

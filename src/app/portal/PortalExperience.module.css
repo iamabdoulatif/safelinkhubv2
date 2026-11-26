@@ -596,6 +596,10 @@ a.ctaButton {
 }
 
 /* Champ de sélection du moyen de paiement (déroulant sur mesure) */
+.selectDetails {
+  position: relative;
+}
+
 .selectTrigger {
   display: flex;
   align-items: center;
@@ -612,6 +616,11 @@ a.ctaButton {
   text-align: left;
   cursor: pointer;
   box-shadow: 4px 4px 0 var(--portal-accent);
+  list-style: none;
+}
+
+.selectTrigger::-webkit-details-marker {
+  display: none;
 }
 
 .selectTrigger:focus-visible,
@@ -620,7 +629,7 @@ a.ctaButton {
   outline-offset: 2px;
 }
 
-.selectTrigger:disabled {
+.selectTrigger[aria-disabled="true"] {
   cursor: wait;
 }
 

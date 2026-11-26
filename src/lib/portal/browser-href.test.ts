@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { androidIntentHref, isCaptiveBrowser, waveAppHref, waveQrHref } from "./browser-href";
+import {
+  androidIntentHref,
+  isAndroidCaptiveBrowser,
+  isCaptiveBrowser,
+  waveAppHref,
+  waveQrHref,
+} from "./browser-href";
 
 const IOS_CNA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 const IOS_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
@@ -12,6 +18,8 @@ test("isCaptiveBrowser : CNA iOS et WebView Android oui, Safari et desktop non",
   assert.equal(isCaptiveBrowser(ANDROID_WV), true);
   assert.equal(isCaptiveBrowser(IOS_SAFARI), false);
   assert.equal(isCaptiveBrowser(DESKTOP), false);
+  assert.equal(isAndroidCaptiveBrowser(ANDROID_WV), true);
+  assert.equal(isAndroidCaptiveBrowser(IOS_CNA), false);
 });
 
 test("waveAppHref : schéma wave://capture pour pay.wave.com seulement", () => {
@@ -34,8 +42,11 @@ test("androidIntentHref : enrobe une https en intent:// avec fallback navigateur
   const out = androidIntentHref(https);
   assert.equal(
     out,
-    `intent://qr.pay.wave.com/c/cos-abc?a=1000&c=XOF#Intent;scheme=https;S.browser_fallback_url=${encodeURIComponent(https)};end`,
+    `intent://qr.pay.wave.com/c/cos-abc?a=1000&c=XOF#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(https)};end`,
   );
+  // Le package évite que CaptivePortalLogin traite le lien lui-même et
+  // affiche l'écran Android « ouvrir une autre application ».
+  assert.ok(out!.includes("package=com.android.chrome;"));
   // Le repli navigateur doit être encodé (sinon ses & cassent le lien intent).
   assert.ok(out!.includes("S.browser_fallback_url=https%3A%2F%2F"));
   assert.ok(!out!.includes("scheme=https;S.browser_fallback_url=https://"));

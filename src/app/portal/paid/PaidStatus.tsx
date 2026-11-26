@@ -9,7 +9,13 @@ import { AlertTriangle, Check, CheckCircle2, Copy, Loader2, MessageSquareText, P
 import { SLATE_PORTAL_THEME, portalCssVars, type PortalTheme } from "@/lib/portal/theme";
 import styles from "../PortalExperience.module.css";
 import { Stepper } from "../Stepper";
-import { isCaptiveBrowser, waveAppHref, waveQrHref } from "@/lib/portal/browser-href";
+import {
+  androidIntentHref,
+  isAndroidCaptiveBrowser,
+  isCaptiveBrowser,
+  waveAppHref,
+  waveQrHref,
+} from "@/lib/portal/browser-href";
 
 type Phase = "loading" | "processing" | "fulfilled" | "failed";
 
@@ -58,6 +64,7 @@ export default function PaidStatus({
   const [linkCopied, setLinkCopied] = useState(false);
   const waveHref = payUrl ? waveAppHref(payUrl) : null;
   const waveQr = payUrl ? waveQrHref(payUrl) : null;
+  const [androidCaptive, setAndroidCaptive] = useState(false);
   // Fenêtre « Wi-Fi captif » iOS : elle REFUSE toute adresse `wave:` (« la
   // redirection vers des adresses commençant par wave: est impossible »,
   // RUE-NICOLAS 12/10/2026) — et donc aussi qr.pay.wave.com, qui fait la même
@@ -68,6 +75,7 @@ export default function PaidStatus({
   useEffect(() => {
     const captive = isCaptiveBrowser(navigator.userAgent || "");
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAndroidCaptive(isAndroidCaptiveBrowser(navigator.userAgent || ""));
     setInCaptive(captive);
     if (!lane || !waveHref || captive) return;
     const t = setTimeout(() => {
@@ -75,6 +83,8 @@ export default function PaidStatus({
     }, 600);
     return () => clearTimeout(t);
   }, [lane, waveHref]);
+  const waveOpenHref =
+    androidCaptive && waveQr ? androidIntentHref(waveQr) ?? waveQr : waveQr;
   function copyPayUrl() {
     if (!payUrl) return;
     const done = () => {
@@ -544,9 +554,9 @@ export default function PaidStatus({
                 <p style={{ margin: "0 0 10px", fontSize: "1.05rem", fontWeight: 800, textAlign: "center" }}>
                   Finissez dans l’app Wave
                 </p>
-                {waveQr ? (
+                {waveOpenHref ? (
                   <a
-                    href={waveQr}
+                    href={waveOpenHref}
                     style={{ display: "block", margin: "0 0 12px", padding: "15px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: BRAND, color: INK, fontSize: "1.05rem", fontWeight: 800, textAlign: "center", textDecoration: "none", boxShadow: `4px 4px 0 ${INK}` }}
                   >
                     Ouvrir dans l’app Wave

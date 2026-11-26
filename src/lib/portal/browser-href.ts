@@ -10,6 +10,12 @@ export function isCaptiveBrowser(userAgent: string): boolean {
   return iosCaptive || androidCaptive;
 }
 
+/** Vrai pour la WebView Android du portail captif, où un lien https Wave est
+ * rendu dans la WebView au lieu de laisser Android ouvrir le navigateur/app. */
+export function isAndroidCaptiveBrowser(userAgent: string): boolean {
+  return /Android/i.test(userAgent) && /;\s*wv\)/i.test(userAgent);
+}
+
 /** Lien qui ouvre l'app Wave directement sur un checkout — ce que fait la
  * page pay.wave.com elle-même (`location.href = 'wave://capture/<url>'`,
  * relevé le 12/10/2026). null si ce n'est pas un checkout Wave. */
@@ -23,20 +29,21 @@ export function waveAppHref(checkoutUrl: string): string | null {
   }
 }
 
-/** Enrobe une URL https en lien `intent://` Android. Tapé dans la WebView du
- * portail captif Android (CaptivePortalLogin), Android résout l'intent HORS de
- * la WebView : le navigateur système (ou l'app qui gère le domaine) s'ouvre,
- * avec le vrai réseau de la voie de paiement. Sans ça, la WebView charge le
- * lien sur place et le relais `wave://` vers l'app échoue (rebond vers
- * connectivitycheck.gstatic.com observé le 24/11/2026). `browser_fallback_url`
- * ouvre quand même le navigateur si aucune app ne gère le lien. null si l'URL
- * n'est pas https. Le schéma `intent:` n'existe que sur Android — ne JAMAIS
- * l'utiliser côté iOS (le CNA le refuse), d'où la détection d'appelant. */
+/** Enrobe une URL https en lien `intent://` Android vers Chrome. Tapé dans la
+ * WebView du portail captif Android (CaptivePortalLogin), Android résout
+ * l'intent HORS de la WebView et Chrome reprend la session de la voie de
+ * paiement. Le package explicite est important : sans lui, Android affiche
+ * « cette connexion nécessite l'ouverture d'une autre application », puis le
+ * bouton « continuer dans le navigateur » revient parfois dans la WebView et
+ * échoue sur la connexion sécurisée (vidéo Android du 24/11/2026).
+ * `browser_fallback_url` garde un repli pour les téléphones sans Chrome.
+ * null si l'URL n'est pas https. Le schéma `intent:` n'existe que sur Android
+ * — ne JAMAIS l'utiliser côté iOS (le CNA le refuse). */
 export function androidIntentHref(httpsUrl: string): string | null {
   try {
     const u = new URL(httpsUrl);
     if (u.protocol !== "https:") return null;
-    return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;S.browser_fallback_url=${encodeURIComponent(httpsUrl)};end`;
+    return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(httpsUrl)};end`;
   } catch {
     return null;
   }
