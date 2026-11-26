@@ -20,7 +20,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PortalTheme } from "@/lib/portal/theme";
-import { isCaptiveBrowser, isIOSCaptiveBrowser, paymentAppHref, waveQrHref } from "@/lib/portal/browser-href";
+import { isCaptiveBrowser, paymentAppHref, waveLaunchHref, waveQrHref } from "@/lib/portal/browser-href";
 import styles from "../PortalExperience.module.css";
 
 type Method = { id: string; label: string; logo: string };
@@ -190,16 +190,11 @@ export default function PayMethods({
         // Même après l'ouverture de la voie routeur, le lien doit sortir de la
         // WebView pour remettre le paiement à Wave/Orange Max it. La page de
         // suivi reste accessible via l'historique du navigateur et le SMS.
-        // Le CNA iOS refuse `wave:` et peut déclencher cette redirection même
-        // depuis qr.pay.wave.com. Rester dans notre suivi évite l'erreur native;
-        // l'utilisateur ouvre ensuite le lien QR depuis Safari après ✓.
-        if (captive && isIOSCaptiveBrowser(userAgent)) {
-          paidUrl.searchParams.set("lane", "1");
-          paidUrl.searchParams.set("pay", waveQrHref(data.checkoutUrl) ?? data.checkoutUrl);
-          window.location.assign(paidUrl);
-          return;
-        }
-        window.location.assign(paymentAppHref(data.checkoutUrl, userAgent, captive) ?? data.checkoutUrl);
+        window.location.assign(
+          waveLaunchHref(data.checkoutUrl, userAgent, captive) ??
+            paymentAppHref(data.checkoutUrl, userAgent, captive) ??
+            data.checkoutUrl,
+        );
         return;
       }
       if (win && !win.closed) {
@@ -314,7 +309,7 @@ export default function PayMethods({
           {METHODS.map((m) => {
             const waveLink = m.id === "wave" && wavePrep ? waveQrHref(wavePrep.checkoutUrl) : null;
             if (waveLink) {
-              const href = paymentAppHref(waveLink, navigator.userAgent || "", captive) ?? waveLink;
+              const href = waveLaunchHref(waveLink, navigator.userAgent || "", captive) ?? waveLink;
               return (
                 <li key={m.id} role="option" aria-selected={false}>
                   <a href={href} className={styles.selectOption} onClick={() => { onWaveLinkTap(); closeMenu(); }}>

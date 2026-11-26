@@ -91,3 +91,12 @@ export function paymentAppHref(checkoutUrl: string, userAgent: string, captive: 
   if (isIOS) return checkoutUrl;
   return checkoutUrl;
 }
+
+/** Lien de lancement du paiement Wave au moment du clic. Le checkout est
+ * toujours normalisé vers le lien universel QR ; Android captif garde son
+ * intent Chrome, tandis que iOS reçoit directement l'URL https exploitable
+ * par l'application Wave. */
+export function waveLaunchHref(checkoutUrl: string, userAgent: string, captive: boolean): string | null {
+  const qr = waveQrHref(checkoutUrl);
+  return qr ? paymentAppHref(qr, userAgent, captive) ?? qr : null;
+}

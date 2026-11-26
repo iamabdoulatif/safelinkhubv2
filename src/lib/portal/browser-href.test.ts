@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   androidIntentHref,
   paymentAppHref,
+  waveLaunchHref,
   isAndroidCaptiveBrowser,
   isIOSCaptiveBrowser,
   isCaptiveBrowser,
@@ -28,6 +29,13 @@ test("isCaptiveBrowser : CNA iOS et WebView Android oui, Safari et desktop non",
 
 test("iOS captif ne lance pas automatiquement le lien Wave depuis le CNA", () => {
   assert.equal(isIOSCaptiveBrowser(IOS_CNA), true);
+});
+
+test("waveLaunchHref conserve le lien QR direct au clic, y compris sur iOS captif", () => {
+  assert.equal(
+    waveLaunchHref("https://pay.wave.com/c/cos-abc?a=700&c=XOF", IOS_CNA, true),
+    "https://qr.pay.wave.com/c/cos-abc?a=700&c=XOF",
+  );
 });
 
 test("waveAppHref : schéma wave://capture pour pay.wave.com seulement", () => {

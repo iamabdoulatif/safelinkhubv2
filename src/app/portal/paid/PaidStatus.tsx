@@ -12,8 +12,7 @@ import { Stepper } from "../Stepper";
 import {
   isAndroidCaptiveBrowser,
   isCaptiveBrowser,
-  isIOSCaptiveBrowser,
-  paymentAppHref,
+  waveLaunchHref,
   waveQrHref,
 } from "@/lib/portal/browser-href";
 
@@ -64,7 +63,6 @@ export default function PaidStatus({
   const [linkCopied, setLinkCopied] = useState(false);
   const waveQr = payUrl ? waveQrHref(payUrl) : null;
   const [androidCaptive, setAndroidCaptive] = useState(false);
-  const [iosCaptive, setIosCaptive] = useState(false);
   // Fenêtre « Wi-Fi captif » iOS : elle REFUSE toute adresse `wave:` (« la
   // redirection vers des adresses commençant par wave: est impossible »,
   // RUE-NICOLAS 12/10/2026) — et donc aussi qr.pay.wave.com, qui fait la même
@@ -76,7 +74,6 @@ export default function PaidStatus({
     const captive = isCaptiveBrowser(navigator.userAgent || "");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAndroidCaptive(isAndroidCaptiveBrowser(navigator.userAgent || ""));
-    setIosCaptive(isIOSCaptiveBrowser(navigator.userAgent || ""));
     setInCaptive(captive);
     if (!lane || !waveQr || captive) return;
     const t = setTimeout(() => {
@@ -85,7 +82,7 @@ export default function PaidStatus({
     return () => clearTimeout(t);
   }, [lane, waveQr]);
   const waveOpenHref = payUrl
-    ? paymentAppHref(payUrl, typeof navigator === "undefined" ? "" : navigator.userAgent || "", androidCaptive)
+    ? waveLaunchHref(payUrl, typeof navigator === "undefined" ? "" : navigator.userAgent || "", androidCaptive)
     : waveQr;
   function copyPayUrl() {
     if (!payUrl) return;
@@ -556,7 +553,7 @@ export default function PaidStatus({
                 <p style={{ margin: "0 0 10px", fontSize: "1.05rem", fontWeight: 800, textAlign: "center" }}>
                   Finissez dans l’app Wave
                 </p>
-                {waveOpenHref && !iosCaptive ? (
+                {waveOpenHref ? (
                   <a
                     href={waveOpenHref}
                     style={{ display: "block", margin: "0 0 12px", padding: "15px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: BRAND, color: INK, fontSize: "1.05rem", fontWeight: 800, textAlign: "center", textDecoration: "none", boxShadow: `4px 4px 0 ${INK}` }}
