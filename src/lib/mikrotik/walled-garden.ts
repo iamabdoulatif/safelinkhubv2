@@ -214,6 +214,11 @@ function isWildcardHost(host: string): boolean {
  * des rails de paiement, acceptée par `walled-garden ip` (443). */
 export const WALLED_GARDEN_ADDRESS_LIST = "safelinkhub-walled-garden";
 
+// Même si *.wave.com couvre déjà ce nom, RouterOS peut ne pas alimenter sa
+// liste d'adresses quand le téléphone a déjà la réponse DNS en cache. Cette
+// entrée exacte force une résolution FWD dédiée pour le checkout QR.
+const EXACT_PAYMENT_DNS_HOSTS = new Set(["qr.pay.wave.com"]);
+
 /**
  * Hôtes de paiement dont les adresses sont ÉPINGLÉES par SafeLinkHub dans la
  * liste du walled-garden, en plus de l'alimentation par le DNS du routeur.
@@ -299,7 +304,7 @@ export function addressListDnsEntries(
   const covered = (h: string) => wild.some((d) => h === d || h.endsWith(`.${d}`));
   return [
     ...wild.map((name) => ({ name, matchSubdomain: true })),
-    ...[...new Set(hosts.filter((h) => !h.startsWith("*.") && !covered(h)))].map((name) => ({
+    ...[...new Set(hosts.filter((h) => !h.startsWith("*.") && (!covered(h) || EXACT_PAYMENT_DNS_HOSTS.has(h))))].map((name) => ({
       name,
       matchSubdomain: false,
     })),

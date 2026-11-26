@@ -16,6 +16,12 @@ export function isAndroidCaptiveBrowser(userAgent: string): boolean {
   return /Android/i.test(userAgent) && /;\s*wv\)/i.test(userAgent);
 }
 
+/** Vrai pour le CNA iOS : il refuse les redirections vers le schéma `wave:`
+ * et peut aussi transformer un lien QR Wave en cette redirection interne. */
+export function isIOSCaptiveBrowser(userAgent: string): boolean {
+  return /iPhone|iPad|iPod/i.test(userAgent) && isCaptiveBrowser(userAgent);
+}
+
 /** Lien qui ouvre l'app Wave directement sur un checkout — ce que fait la
  * page pay.wave.com elle-même (`location.href = 'wave://capture/<url>'`,
  * relevé le 12/10/2026). null si ce n'est pas un checkout Wave. */

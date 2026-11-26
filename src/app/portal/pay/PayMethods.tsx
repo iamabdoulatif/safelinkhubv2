@@ -20,7 +20,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PortalTheme } from "@/lib/portal/theme";
-import { isCaptiveBrowser, paymentAppHref, waveQrHref } from "@/lib/portal/browser-href";
+import { isCaptiveBrowser, isIOSCaptiveBrowser, paymentAppHref, waveQrHref } from "@/lib/portal/browser-href";
 import styles from "../PortalExperience.module.css";
 
 type Method = { id: string; label: string; logo: string };
@@ -190,6 +190,15 @@ export default function PayMethods({
         // Même après l'ouverture de la voie routeur, le lien doit sortir de la
         // WebView pour remettre le paiement à Wave/Orange Max it. La page de
         // suivi reste accessible via l'historique du navigateur et le SMS.
+        // Le CNA iOS refuse `wave:` et peut déclencher cette redirection même
+        // depuis qr.pay.wave.com. Rester dans notre suivi évite l'erreur native;
+        // l'utilisateur ouvre ensuite le lien QR depuis Safari après ✓.
+        if (captive && isIOSCaptiveBrowser(userAgent)) {
+          paidUrl.searchParams.set("lane", "1");
+          paidUrl.searchParams.set("pay", waveQrHref(data.checkoutUrl) ?? data.checkoutUrl);
+          window.location.assign(paidUrl);
+          return;
+        }
         window.location.assign(paymentAppHref(data.checkoutUrl, userAgent, captive) ?? data.checkoutUrl);
         return;
       }

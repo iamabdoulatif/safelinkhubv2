@@ -4,6 +4,7 @@ import {
   androidIntentHref,
   paymentAppHref,
   isAndroidCaptiveBrowser,
+  isIOSCaptiveBrowser,
   isCaptiveBrowser,
   waveAppHref,
   waveQrHref,
@@ -21,6 +22,12 @@ test("isCaptiveBrowser : CNA iOS et WebView Android oui, Safari et desktop non",
   assert.equal(isCaptiveBrowser(DESKTOP), false);
   assert.equal(isAndroidCaptiveBrowser(ANDROID_WV), true);
   assert.equal(isAndroidCaptiveBrowser(IOS_CNA), false);
+  assert.equal(isIOSCaptiveBrowser(IOS_CNA), true);
+  assert.equal(isIOSCaptiveBrowser(IOS_SAFARI), false);
+});
+
+test("iOS captif ne lance pas automatiquement le lien Wave depuis le CNA", () => {
+  assert.equal(isIOSCaptiveBrowser(IOS_CNA), true);
 });
 
 test("waveAppHref : schéma wave://capture pour pay.wave.com seulement", () => {

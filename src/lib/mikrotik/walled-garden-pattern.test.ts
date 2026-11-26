@@ -66,7 +66,10 @@ test("addressListDnsEntries : hôtes concrets non couverts inclus, sans doublon 
   assert.equal(byName.get("cdn.tailwindcss.com"), false);
   assert.equal(byName.get("fonts.googleapis.com"), false);
   assert.equal(byName.get("wave.com"), true);
-  assert.equal(byName.has("qr.pay.wave.com"), false);
+  // Le joker wave.com couvre ce domaine, mais l'entrée exacte est volontaire :
+  // certains RouterOS ne peuplent pas correctement la liste via le joker.
+  assert.equal(byName.get("qr.pay.wave.com"), false);
+  assert.ok(byName.has("qr.pay.wave.com"));
   // checkout.paystack.com est couvert par le joker paystack.com
   assert.ok(!byName.has("checkout.paystack.com"));
   assert.equal(entries.length, byName.size);
