@@ -43,6 +43,12 @@ const METHODS: Method[] = [
   { id: "card", label: "Carte bancaire", logo: "/payment/visa.svg" },
 ];
 
+// Opérateurs qui, comme Wave, lancent une APP (Orange Money/Max it, MTN MoMo,
+// Moov Money) et souffrent donc du même piège en fenêtre captive iOS : il leur
+// faut un VRAI lien touché vers leur checkout (sortie vers Chrome) + le vrai
+// internet (voie de paiement, déjà ouverte par la préparation Wave au chargement).
+const CAPTIVE_OPERATORS = ["orange_money", "mtn_money", "moov_money"];
+
 export default function PayMethods({
   slug,
   orderId,
@@ -70,6 +76,12 @@ export default function PayMethods({
   // Relance manuelle de la préparation Wave (bouton « réessayer » en captif) :
   // incrémenté, il re-déclenche l'effet ci-dessous jusqu'à obtenir le vrai lien.
   const [retryTick, setRetryTick] = useState(0);
+  // Checkout PaiementPro pré-préparé par opérateur (captif) : rend la tuile en
+  // VRAI lien touché vers Chrome. Pas de nouvelle voie par opérateur — celle de
+  // Wave (ouverte au chargement) donne déjà du vrai internet à la MAC.
+  const [opPreps, setOpPreps] = useState<Record<string, { orderId: string; checkoutUrl: string }>>({});
+  const [opPreparing, setOpPreparing] = useState<string | null>(null);
+  const [opLaunched, setOpLaunched] = useState<{ orderId: string; checkoutUrl: string } | null>(null);
 
   useEffect(() => {
     // client-only : window absent au rendu serveur.
@@ -175,6 +187,58 @@ export default function PayMethods({
     }
     setWaveLaunched(true);
   }
+
+  // Pré-prépare le checkout d'un opérateur (Orange/MTN/Moov) pour en faire un
+  // vrai lien touché. Pas de nouvelle voie (captive:false) : celle de Wave,
+  // ouverte au chargement, couvre déjà la MAC. Une COPIE de commande par
+  // opérateur préparé (expire en 3 h si non payée).
+  async function prepareOperator(method: string) {
+    if (!captive || opPreps[method] || opPreparing === method) return;
+    setOpPreparing(method);
+    try {
+      const r = await fetch(`/api/portal/${encodeURIComponent(slug)}/wave-prepare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, method, theme, captive: false }),
+      });
+      const d = (await r.json()) as { orderId?: string; checkoutUrl?: string };
+      if (r.ok && d.orderId && d.checkoutUrl) {
+        setOpPreps((prev) => ({ ...prev, [method]: { orderId: d.orderId!, checkoutUrl: d.checkoutUrl! } }));
+      }
+    } catch {
+      /* échec : la tuile proposera « réessayer » */
+    } finally {
+      setOpPreparing((cur) => (cur === method ? null : cur));
+    }
+  }
+
+  // À l'ouverture du menu en captif, on prépare les opérateurs en parallèle pour
+  // que leurs tuiles deviennent des liens touchés prêts.
+  useEffect(() => {
+    if (!menuOpen || !captive) return;
+    // Différé hors du rendu synchrone (prepareOperator pose un état tout de suite).
+    const t = window.setTimeout(() => {
+      for (const m of CAPTIVE_OPERATORS) void prepareOperator(m);
+    }, 0);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuOpen, captive]);
+
+  // Retour dans la fenêtre Wi-Fi après l'app opérateur : on sonde le statut de la
+  // COPIE payée (le code s'affiche dès la confirmation), comme pour Wave.
+  useEffect(() => {
+    if (!opLaunched) return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const u = paidUrlFor(opLaunched.orderId);
+      u.searchParams.set("lane", "1");
+      u.searchParams.set("pay", opLaunched.checkoutUrl);
+      window.location.assign(u);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opLaunched]);
 
   async function pay(method: string) {
     if (busy) return;
@@ -361,6 +425,43 @@ export default function PayMethods({
                   >
                     {optionContent(m, wavePreparing ? "Wave — préparation…" : "Wave — réessayer", true)}
                     {wavePreparing ? (
+                      <span aria-hidden="true" className={styles.paySpinner} style={{ marginLeft: "auto" }} />
+                    ) : null}
+                  </button>
+                </li>
+              );
+            }
+            // Orange/MTN/Moov en captif : MÊME piège que Wave (leur app ne
+            // s'ouvre pas depuis le CNA). On n'offre donc pas le bouton classique
+            // (navigation sur place) : vrai lien touché vers le checkout quand
+            // prêt (→ « Ouvrir dans Chrome » → app opérateur), sinon
+            // « préparation… / réessayer ».
+            if (CAPTIVE_OPERATORS.includes(m.id) && captive) {
+              const op = opPreps[m.id];
+              if (op) {
+                return (
+                  <li key={m.id} role="option" aria-selected={false}>
+                    <a
+                      href={op.checkoutUrl}
+                      className={styles.selectOption}
+                      onClick={() => { setOpLaunched(op); setMenuOpen(false); }}
+                    >
+                      {optionContent(m, m.label, false)}
+                    </a>
+                  </li>
+                );
+              }
+              const preparing = opPreparing === m.id;
+              return (
+                <li key={m.id} role="option" aria-selected={false} aria-disabled={preparing}>
+                  <button
+                    type="button"
+                    disabled={preparing}
+                    className={`${styles.selectOption} ${styles.selectOptionWait}`}
+                    onClick={() => { if (!preparing) void prepareOperator(m.id); }}
+                  >
+                    {optionContent(m, preparing ? `${m.label} — préparation…` : `${m.label} — réessayer`, false)}
+                    {preparing ? (
                       <span aria-hidden="true" className={styles.paySpinner} style={{ marginLeft: "auto" }} />
                     ) : null}
                   </button>
