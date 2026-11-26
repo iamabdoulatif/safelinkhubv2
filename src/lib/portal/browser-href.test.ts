@@ -56,14 +56,14 @@ test("androidIntentHref : enrobe une https en intent:// avec fallback navigateur
   assert.equal(androidIntentHref("pas une url"), null);
 });
 
-test("paymentAppHref : Wave ouvre l'application hors WebView Android", () => {
+test("paymentAppHref : Wave utilise toujours qr.pay.wave.com hors WebView Android", () => {
   assert.equal(
     paymentAppHref(
       "https://pay.wave.com/c/cos-abc?a=1000&c=XOF",
       "Mozilla/5.0 (Linux; Android 14) Chrome/130.0",
       false,
     ),
-    "wave://capture/https://pay.wave.com/c/cos-abc?a=1000&c=XOF",
+    "https://qr.pay.wave.com/c/cos-abc?a=1000&c=XOF",
   );
 });
 

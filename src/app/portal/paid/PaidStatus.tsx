@@ -13,7 +13,6 @@ import {
   isAndroidCaptiveBrowser,
   isCaptiveBrowser,
   paymentAppHref,
-  waveAppHref,
   waveQrHref,
 } from "@/lib/portal/browser-href";
 
@@ -62,7 +61,6 @@ export default function PaidStatus({
   payUrl?: string;
 }) {
   const [linkCopied, setLinkCopied] = useState(false);
-  const waveHref = payUrl ? waveAppHref(payUrl) : null;
   const waveQr = payUrl ? waveQrHref(payUrl) : null;
   const [androidCaptive, setAndroidCaptive] = useState(false);
   // Fenêtre « Wi-Fi captif » iOS : elle REFUSE toute adresse `wave:` (« la
@@ -77,12 +75,12 @@ export default function PaidStatus({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAndroidCaptive(isAndroidCaptiveBrowser(navigator.userAgent || ""));
     setInCaptive(captive);
-    if (!lane || !waveHref || captive) return;
+    if (!lane || !waveQr || captive) return;
     const t = setTimeout(() => {
-      window.location.href = waveHref;
+      window.location.href = waveQr;
     }, 600);
     return () => clearTimeout(t);
-  }, [lane, waveHref]);
+  }, [lane, waveQr]);
   const waveOpenHref = payUrl
     ? paymentAppHref(payUrl, typeof navigator === "undefined" ? "" : navigator.userAgent || "", androidCaptive)
     : waveQr;
@@ -537,9 +535,9 @@ export default function PaidStatus({
           <>
             {lane && !inCaptive ? (
               <div style={{ margin: "0 0 18px" }}>
-                {waveHref ? (
+                {waveQr ? (
                   <a
-                    href={waveHref}
+                    href={waveQr}
                     style={{ display: "block", padding: "15px 16px", border: `2px solid ${INK}`, borderRadius: 12, background: BRAND, color: INK, fontSize: "1.05rem", fontWeight: 800, textAlign: "center", textDecoration: "none", boxShadow: `4px 4px 0 ${INK}` }}
                   >
                     Ouvrir l’app Wave

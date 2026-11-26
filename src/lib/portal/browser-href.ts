@@ -69,8 +69,8 @@ export function waveQrHref(checkoutUrl: string): string | null {
  * Les CNA Android refusent souvent de suivre une redirection HTTP vers un
  * opérateur et restent dans leur WebView. Un intent HTTPS les sort vers
  * Chrome, qui peut ensuite remettre la main à l'application opérateur. Pour
- * Wave hors CNA, le schéma wave:// est le chemin le plus direct ; iOS garde
- * le lien universel qr.pay.wave.com.
+ * Wave utilise toujours son lien universel qr.pay.wave.com afin que le
+ * paiement soit remis à l'application Wave.
  */
 export function paymentAppHref(checkoutUrl: string, userAgent: string, captive: boolean): string | null {
   const waveQr = waveQrHref(checkoutUrl);
@@ -78,7 +78,6 @@ export function paymentAppHref(checkoutUrl: string, userAgent: string, captive: 
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
 
   if (waveQr) {
-    if (isAndroid && !captive) return waveAppHref(checkoutUrl) ?? waveQr;
     return isAndroid && captive ? androidIntentHref(waveQr) ?? waveQr : waveQr;
   }
 
