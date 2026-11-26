@@ -7,6 +7,7 @@ import { eq, count, isNotNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, organizations } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { denyRouterForSession } from "@/lib/org/member-sites";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
@@ -174,11 +175,11 @@ export async function updateRouterLocation(_prevState: unknown, formData: FormDa
 
   const db = getDb();
   const [router] = await db
-    .select({ id: routers.id, orgId: routers.orgId })
+    .select({ id: routers.id, orgId: routers.orgId, siteId: routers.siteId })
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -200,7 +201,7 @@ export async function refreshRouterStats(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Router not found." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -240,7 +241,7 @@ export async function optimizeRouterWifi(routerId: string) {
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -291,7 +292,7 @@ export async function fixRouterWifiDfs(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -346,7 +347,7 @@ export async function upgradeRouterFirmware(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -411,7 +412,7 @@ export async function fixRouterMikhmonApiAccess(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -482,7 +483,7 @@ export async function fixRouterApiGroupPolicy(
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -559,7 +560,7 @@ export async function fixRouterMacBoundTickets(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -801,7 +802,7 @@ export async function fixRouterPortalTls(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -872,7 +873,7 @@ export async function fixRouterWalledGarden(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -933,7 +934,7 @@ export async function cleanupRouterServices(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -991,7 +992,7 @@ export async function fixRouterExpirySweep(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -1056,7 +1057,7 @@ export async function fixRouterTicketExpiryFormat(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -1206,7 +1207,7 @@ export async function optimizeRouterThroughput(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -1280,7 +1281,7 @@ export async function startMikhmonContainer(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -1359,7 +1360,7 @@ export async function repairMikhmonRemoteAccess(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -1393,7 +1394,7 @@ export async function repairMikhmonStorage(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -1431,11 +1432,11 @@ export async function getMikhmonAdminCredentials(routerId: string) {
   if (!session) return { error: "Non authentifié." };
   const db = getDb();
   const [router] = await db
-    .select({ orgId: routers.orgId, enc: routers.mikhmonAdminPasswordEncrypted })
+    .select({ orgId: routers.orgId, siteId: routers.siteId, enc: routers.mikhmonAdminPasswordEncrypted })
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.enc) {
@@ -1459,7 +1460,7 @@ export async function reconfigureMikhmonSession(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -1496,7 +1497,7 @@ export async function resetMikhmonAdminPassword(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -1591,7 +1592,7 @@ export async function fixRouterApiPort(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -1622,7 +1623,7 @@ export async function runRouterAudit(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -1683,7 +1684,7 @@ export async function setRouterBandwidthCap(routerId: string, targetMbps: number
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -1723,7 +1724,7 @@ export async function speedTestRouter(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (!router.host || !router.username || !router.passwordEncrypted) {
@@ -1818,7 +1819,7 @@ export async function renameRouter(routerId: string, rawName: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   if (name === router.name) return { success: true, name };
@@ -1859,7 +1860,7 @@ export async function deleteRouter(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Router not found." };
   }
 
@@ -1985,7 +1986,7 @@ export async function resetRouterDevice(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Router not found." };
   }
 
@@ -2075,7 +2076,7 @@ export async function resetRouterConfiguration(routerId: string, mode: ResetMode
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -2191,7 +2192,7 @@ export async function checkRouterConnection(routerId: string) {
     .where(eq(routers.id, routerId))
     .limit(1);
 
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Router not found." };
   }
   if (router.status === "online") {
@@ -2224,7 +2225,7 @@ export async function fixRouterMikhmonLocalAccess(routerId: string) {
   if (!session) return { error: "Non authentifié." };
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   let client: RouterOSClient;

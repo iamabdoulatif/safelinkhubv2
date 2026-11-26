@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { after } from "next/server";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
@@ -36,7 +37,7 @@ export default async function RemoteAccessPage() {
     ? await db
         .select()
         .from(routers)
-        .where(eq(routers.orgId, session.orgId))
+        .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
         .orderBy(desc(routers.createdAt))
     : [];
 

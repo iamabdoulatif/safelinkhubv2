@@ -66,6 +66,12 @@ export const WALLED_GARDEN_CATALOG: WalledGardenGroup[] = [
     hosts: ["pawapay.io", "*.pawapay.io"],
   },
   {
+    group: "SasPay (agrégateur)",
+    description:
+      "Agrégateur CI (MTN push USSD, Moov, Orange, Wave). Init sur api.saspay.me ; Wave/Orange redirigent vers pay.saspay.me — joignables avant connexion.",
+    hosts: ["saspay.me", "*.saspay.me"],
+  },
+  {
     group: "PaiementPro",
     description:
       "Passerelle GeniusPay pour Orange, MTN et Moov (Côte d'Ivoire) : page sur www.paiementpro.net. Son formulaire MTN/Moov tourne en jQuery chargé depuis ajax.googleapis.com, cdnjs et code.jquery.com — sans eux il ne réagit pas (MTN bloqué, 13/10/2026).",

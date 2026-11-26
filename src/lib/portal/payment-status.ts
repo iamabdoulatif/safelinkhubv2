@@ -4,6 +4,7 @@
 
 import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/geniuspay-org";
 import { getCinetpayStatus, getOrgCinetpayCreds } from "@/lib/payment-gateways/cinetpay";
+import { getOrgSaspayCreds, getSaspayStatus } from "@/lib/payment-gateways/saspay";
 
 export type PortalPaymentStatus = "pending" | "completed" | "failed" | "unknown";
 
@@ -22,6 +23,13 @@ export async function checkPortalPaymentStatus(
     if (!creds) return { ok: false, error: "Passerelle CinetPay indisponible.", reason: "no_gateway" };
     const st = await getCinetpayStatus(creds, reference);
     if (!st.ok) return { ok: false, error: `Confirmation CinetPay indisponible : ${st.error}`, reason: "check_failed" };
+    return { ok: true, status: st.status };
+  }
+  if (provider === "saspay") {
+    const creds = await getOrgSaspayCreds(orgId);
+    if (!creds) return { ok: false, error: "Passerelle SasPay indisponible.", reason: "no_gateway" };
+    const st = await getSaspayStatus(creds, reference);
+    if (!st.ok) return { ok: false, error: `Confirmation SasPay indisponible : ${st.error}`, reason: "check_failed" };
     return { ok: true, status: st.status };
   }
   const creds = await getOrgGeniusCreds(orgId);

@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import { bridges, routers } from "@/lib/db/schema";
-import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
+import { getRouterForOrg } from "@/lib/org/member-sites";
 import type { RouterOSClient } from "./client";
 import { connectToRouter } from "./router-sync";
 import { updateRouterUsage, type RouterUsage } from "./link-usage-reader";
@@ -18,10 +19,9 @@ async function loadRouter(routerId: string): Promise<Loaded> {
   const session = await getSession();
   if (!session) return { ok: false, error: "Non authentifié." };
   const db = getDb();
-  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
-    return { ok: false, error: "Routeur introuvable." };
-  }
+  // Point de passage : org + périmètre de sites (RBAC) + bypass superadmin.
+  const router = await getRouterForOrg(routerId, session);
+  if (!router) return { ok: false, error: "Routeur introuvable." };
   return { ok: true, db, router };
 }
 

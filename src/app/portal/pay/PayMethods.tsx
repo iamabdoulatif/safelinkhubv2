@@ -71,6 +71,9 @@ export default function PayMethods({
   // secondes) plutôt que de lancer l'ancien parcours en cas de tap précoce.
   // Elle ne repasse en bouton classique qu'en cas d'échec.
   const [wavePreparing, setWavePreparing] = useState(false);
+  // Relance manuelle de la préparation Wave (bouton « réessayer » en captif) :
+  // incrémenté, il re-déclenche l'effet ci-dessous jusqu'à obtenir le vrai lien.
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     // client-only : window absent au rendu serveur.
@@ -130,7 +133,7 @@ export default function PayMethods({
     return () => {
       alive = false;
     };
-  }, [slug, orderId, theme]);
+  }, [slug, orderId, theme, retryTick]);
 
   function paidUrlFor(id: string): URL {
     const u = new URL("/portal/paid", window.location.origin);
@@ -335,23 +338,40 @@ export default function PayMethods({
         <ul className={styles.selectMenu} role="listbox" aria-labelledby="slh-pay-label">
           {METHODS.map((m) => {
             const waveLink = m.id === "wave" && wavePrep ? waveQrHref(wavePrep.checkoutUrl) : null;
-            if (m.id === "wave" && !waveLink && wavePreparing) {
-              return (
-                <li key={m.id} role="option" aria-selected={false} aria-disabled className={`${styles.selectOption} ${styles.selectOptionWait}`}>
-                  {optionContent(m, "Wave — préparation…", true)}
-                  <span aria-hidden="true" className={styles.paySpinner} style={{ marginLeft: "auto" }} />
-                </li>
-              );
-            }
             if (waveLink) {
               // Android captif : sortir de la WebView via intent:// (sinon le
-              // lien se charge sur place et wave:// échoue). iOS : lien nu.
+              // lien se charge sur place et wave:// échoue).
+              // iOS : lien universel nu — « Ouvrir dans Chrome », puis
+              // qr.pay.wave.com ouvre l'app Wave.
               const href = android ? (androidIntentHref(waveLink) ?? waveLink) : waveLink;
               return (
                 <li key={m.id} role="option" aria-selected={false}>
                   <a href={href} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
                     {optionContent(m, m.label, true)}
                   </a>
+                </li>
+              );
+            }
+            // En fenêtre captive (CNA iOS), le parcours CLASSIQUE de Wave
+            // dead-end : window.location.assign charge pay.wave.com SUR PLACE et
+            // l'app ne s'ouvre jamais (bloqué sur « Ouverture de l'application
+            // Wave… »). On n'offre donc JAMAIS le bouton classique pour Wave en
+            // captif — seulement « préparation… » (auto) ou « réessayer » (relance
+            // wave-prepare) jusqu'à obtenir le vrai lien qr.pay.wave.com touché.
+            if (m.id === "wave" && captive) {
+              return (
+                <li key={m.id} role="option" aria-selected={false} aria-disabled={wavePreparing}>
+                  <button
+                    type="button"
+                    disabled={wavePreparing}
+                    className={`${styles.selectOption} ${styles.selectOptionWait}`}
+                    onClick={() => { if (!wavePreparing) setRetryTick((n) => n + 1); }}
+                  >
+                    {optionContent(m, wavePreparing ? "Wave — préparation…" : "Wave — réessayer", true)}
+                    {wavePreparing ? (
+                      <span aria-hidden="true" className={styles.paySpinner} style={{ marginLeft: "auto" }} />
+                    ) : null}
+                  </button>
                 </li>
               );
             }

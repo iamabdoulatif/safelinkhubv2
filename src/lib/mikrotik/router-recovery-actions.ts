@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import { organizations, routerReplacements, routers, vpnAccessAuditEvents } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { denyRouterForSession } from "@/lib/org/member-sites";
 import { getAppUrl } from "@/lib/net/app-url";
 import { encryptSecret } from "./crypto";
 import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
@@ -27,7 +28,7 @@ async function sourceForSession(routerId: string) {
   if (!session) return { error: "Non authentifié." as const };
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." as const };
   }
   return { session, router };

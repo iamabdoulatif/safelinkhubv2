@@ -22,7 +22,7 @@ const compiled = build({
       name: "auth-boundaries",
       setup(b) {
         b.onResolve(
-          { filter: /^@\/lib\/(auth\/(session|roles)|db(\/schema)?)$/ },
+          { filter: /^@\/lib\/(auth\/(session|roles)|db(\/schema)?|org\/member-sites)$/ },
           (a) => ({ path: a.path, namespace: "boundaries" }),
         );
         b.onResolve(
@@ -51,6 +51,12 @@ const compiled = build({
               .join("");
           else if (a.path === "@/lib/db")
             contents = `export function getDb(){return {select(){return {from(table){globalThis.__trafficActionTest.touched.push(table.id);return {where(){return {limit:async()=>[globalThis.__trafficActionTest.router]}}}}}}}};`;
+          else if (a.path.endsWith("member-sites"))
+            // Frontière RBAC stubbée : réplique la garde ORG (le périmètre par
+            // site n'est pas exercé par ces tests pré-sites). Le routeur vient
+            // du même stub que getDb.
+            contents =
+              'export async function getRouterForOrg(id,s){globalThis.__trafficActionTest.touched.push("routers.id"); const r=globalThis.__trafficActionTest.router; if(!r)return null; if(s.role==="superadmin")return r; return r.orgId===s.orgId?r:null;} export async function denyRouterForSession(r,s){return s.role!=="superadmin"&&r.orgId!==s.orgId;} export async function scopeRoutersClause(){return undefined;}';
           else if (a.path.endsWith("router-sync"))
             contents =
               'export const connectToRouter=()=>{throw Error("Router operation forbidden in auth test");};';

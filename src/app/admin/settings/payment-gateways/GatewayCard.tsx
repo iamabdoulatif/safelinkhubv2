@@ -9,28 +9,33 @@ import type { Provider } from "@/lib/payment-gateways/providers";
 // Paystack/Genius Pay/PawaPay logos are full wordmarks (icon + brand name
 // baked in, or a pure text logo for PawaPay) — shown alone, no separate
 // label needed.
-const LOGOS: Record<Provider, { src: string; width: number; height: number; standalone: boolean }> = {
+// null = pas de logo embarqué → on affiche le libellé texte (cas SasPay).
+const LOGOS: Record<Provider, { src: string; width: number; height: number; standalone: boolean } | null> = {
   paystack: { src: "/Paystack.png", width: 1354, height: 626, standalone: true },
   genius_pay: { src: "/geniuspay.svg", width: 712, height: 205, standalone: true },
   pawapay: { src: "/pawapay.svg", width: 714, height: 153, standalone: true },
+  saspay: null,
 };
 
 const LABELS: Record<Provider, string> = {
   genius_pay: "Genius Pay",
   paystack: "Paystack",
   pawapay: "PawaPay",
+  saspay: "SasPay",
 };
 
 const ACCENTS: Record<Provider, string> = {
   genius_pay: "hover:ring-line-soft",
   paystack: "hover:ring-line-soft",
   pawapay: "hover:ring-line-soft",
+  saspay: "hover:ring-line-soft",
 };
 
 const SUBTITLES: Record<Provider, string> = {
   paystack: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
   genius_pay: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
   pawapay: "Couvre Wave, Orange Money, Moov Money, MTN MoMo et carte bancaire en interne.",
+  saspay: "Agrégateur mobile money CI : MTN (push USSD), Moov, Orange Money et Wave. Devient la passerelle du portail une fois activée.",
 };
 
 // Each aggregator issues a different credential pair, so the two form fields
@@ -62,6 +67,15 @@ const GENERIC_FIELDS: FieldCopy = {
 const FIELDS: Record<Provider, FieldCopy> = {
   paystack: GENERIC_FIELDS,
   pawapay: GENERIC_FIELDS,
+  saspay: {
+    idLabel: "Libellé (optionnel)",
+    idPlaceholder: "SasPay CI",
+    idHint: "Repère interne — non utilisé pour l'authentification.",
+    keyLabel: "Clé secrète",
+    keyPlaceholder: "sk_live_…",
+    keyHint:
+      "La clé secrète de app.saspay.me → Développeur (envoyée en Authorization: Bearer). Une sk_test_… bascule sur le sandbox. Gardée chiffrée — laissez vide pour conserver.",
+  },
   genius_pay: {
     idLabel: "API Key",
     idPlaceholder: "pk_live_…",
@@ -98,15 +112,21 @@ export default function GatewayCard({
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex h-9 items-center gap-2">
-          <Image
-            src={logo.src}
-            alt={LABELS[provider]}
-            width={logo.width}
-            height={logo.height}
-            className={logo.standalone ? "h-7 w-auto object-contain" : "h-8 w-8 object-contain"}
-          />
-          {!logo.standalone && (
-            <span className="font-semibold text-ink">{LABELS[provider]}</span>
+          {logo ? (
+            <>
+              <Image
+                src={logo.src}
+                alt={LABELS[provider]}
+                width={logo.width}
+                height={logo.height}
+                className={logo.standalone ? "h-7 w-auto object-contain" : "h-8 w-8 object-contain"}
+              />
+              {!logo.standalone && (
+                <span className="font-semibold text-ink">{LABELS[provider]}</span>
+              )}
+            </>
+          ) : (
+            <span className="font-display text-lg font-bold text-ink">{LABELS[provider]}</span>
           )}
         </div>
         <button

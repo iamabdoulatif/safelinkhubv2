@@ -2,6 +2,7 @@ import Link from "next/link";
 import { after } from "next/server";
 import { ArrowLeft } from "lucide-react";
 import { and, asc, eq } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { MonitorSmartphone, Layers, Plus, Send } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { bridges, packages, routers } from "@/lib/db/schema";
@@ -102,7 +103,7 @@ export default async function CaptiveTemplatesPage({
         })
         .from(bridges)
         .innerJoin(routers, eq(bridges.routerId, routers.id))
-        .where(eq(routers.orgId, session.orgId))
+        .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     : [];
 
   // Tous les routeurs de l'org — cible de l'installation DIRECTE du portail
@@ -120,7 +121,7 @@ export default async function CaptiveTemplatesPage({
           vendors: routers.portalVendors,
         })
         .from(routers)
-        .where(eq(routers.orgId, session.orgId))
+        .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
         .orderBy(asc(routers.name))
     : [];
 

@@ -10,6 +10,7 @@ import {
   safecoinSettings,
 } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { can } from "@/lib/auth/roles";
 import { getWalletBalanceCents } from "@/lib/wallet/balance";
 import { fcfaToScCents } from "@/lib/safecoin/pricing";
@@ -32,7 +33,7 @@ async function access(routerId: string) {
   const [router] = await getDb()
     .select({ id: routers.id, name: routers.name })
     .from(routers)
-    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, routerId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   return router ? { session, router } : null;
 }
@@ -151,7 +152,11 @@ export async function generatePaidMultiwan(
       .select({ id: routers.id })
       .from(routers)
       .where(
-        and(eq(routers.id, routerId), eq(routers.orgId, auth.session.orgId)),
+        and(
+          eq(routers.id, routerId),
+          eq(routers.orgId, auth.session.orgId),
+          await scopeRoutersClause(auth.session),
+        ),
       )
       .for("update");
     if (!router) return { error: "Ce routeur a changé d’organisation." };

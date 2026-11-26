@@ -7,6 +7,7 @@ import { ensureDefaultPortals } from "./default-portals";
 import { bridges, captiveTemplates, routers, organizations } from "@/lib/db/schema";
 import { portailAReposer } from "./portail-a-reposer";
 import { getSession, isSuperAdmin, requireCapability } from "@/lib/auth/session";
+import { denyRouterForSession } from "@/lib/org/member-sites";
 import { getAppUrl } from "@/lib/net/app-url";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
@@ -61,7 +62,7 @@ export async function listCaptiveTemplates() {
   const session = await getSession();
   if (!session) return [];
 
-  // Les deux portails livrés d'office sont semés ici, au point de passage
+  // Les trois portails livrés d'office sont semés ici, au point de passage
   // unique : cette liste alimente à la fois la page des modèles et l'assistant
   // d'auto-setup. Idempotent, et sans migration pour les comptes existants.
   await ensureDefaultPortals(session.orgId).catch(() => {});
@@ -836,11 +837,11 @@ export async function reposerPortailRouteur(routerId: string) {
 
   const db = getDb();
   const [router] = await db
-    .select({ id: routers.id, orgId: routers.orgId, captiveTemplateId: routers.captiveTemplateId })
+    .select({ id: routers.id, orgId: routers.orgId, siteId: routers.siteId, captiveTemplateId: routers.captiveTemplateId })
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -1027,7 +1028,7 @@ async function routerPourPortail(
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
   const [router] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   return { router };

@@ -25,12 +25,21 @@ import type { RouterOSClient } from "./client";
 // le portail ne réapparaisse pas pendant l'usage normal d'un appareil.
 export const ROAMING_COOKIE_LIFETIME = "52w1d";
 
-// Méthodes de login exigées pour le paiement par code du portail captif :
+// Méthodes de login exigées sur TOUT le parc (toutes sauf https et trial) :
 //   cookie    → le même navigateur ne re-saisit pas le code (session persistée)
 //   http-chap → saisie du code chiffrée (page de login standard RouterOS)
 //   http-pap  → repli en clair pour les clients/versions qui ne font pas CHAP
+//   mac-cookie→ reconnexion automatique de l'appareil après un login valide
+//   mac       → aligne le profil sur le routeur de référence (RUE-NICOLAS) et
+//               permet l'auto-login MAC du roaming. N'authentifie une MAC sans
+//               ticket que s'il existe un utilisateur hotspot nommé par cette MAC
+//               (posé par le roaming) ; sinon le portail s'affiche normalement.
+//               `mac-auth-mode` n'est PAS touché ici (il reste réglé par
+//               ensureMacAutoLogin, côté roaming) : on ne garantit que login-by.
 // On garantit leur PRÉSENCE ; les autres méthodes déjà posées sont préservées.
-const REQUIRED_LOGIN_METHODS = ["cookie", "http-chap", "http-pap", "mac-cookie"] as const;
+// Ce set étant réconcilié par syncRouterStats (cron santé), il corrige tout le
+// parc automatiquement, routeur par routeur, sans ré-exécuter l'auto-setup.
+const REQUIRED_LOGIN_METHODS = ["cookie", "http-chap", "http-pap", "mac-cookie", "mac"] as const;
 
 function parseLoginBy(raw: string | undefined): string[] {
   return (raw ?? "")

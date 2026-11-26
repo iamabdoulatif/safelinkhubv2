@@ -1,4 +1,5 @@
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { getDb } from "@/lib/db";
 import { routers, bridges } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth/session";
@@ -35,7 +36,7 @@ export default async function RouterSetupPage({
     ? await db
         .select()
         .from(routers)
-        .where(eq(routers.orgId, session.orgId))
+        .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
         .orderBy(desc(routers.createdAt))
     : [];
 

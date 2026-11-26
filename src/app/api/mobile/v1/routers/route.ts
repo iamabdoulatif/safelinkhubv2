@@ -1,4 +1,5 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { requireMobileSession } from "@/lib/mobile/http";
@@ -13,7 +14,7 @@ export async function GET() {
   const rows = await getDb()
     .select(ROUTER_FIELDS)
     .from(routers)
-    .where(eq(routers.orgId, auth.session.orgId))
+    .where(and(eq(routers.orgId, auth.session.orgId), await scopeRoutersClause(auth.session)))
     .orderBy(asc(routers.name));
 
   return Response.json({

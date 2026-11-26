@@ -3,6 +3,7 @@ import { can } from "@/lib/auth/roles";
 import { getDashboardData } from "@/lib/dashboard/queries";
 import { resolveRange } from "@/lib/dashboard/range";
 import { getMonthlySeries } from "@/lib/dashboard/monthly";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { getSafecoinReport } from "@/lib/safecoin/queries";
 import { getAccountsByCountry } from "@/lib/dashboard/geography";
 import { eq } from "drizzle-orm";
@@ -34,10 +35,13 @@ export default async function DashboardPage({
 
   /* Les deux lectures sont indépendantes : la première suit la période du
      sélecteur, la seconde regarde toujours les six derniers mois. */
+  // Périmètre par site : le compte/la courbe routeurs ne portent que sur les
+  // agences du membre restreint (undefined = non restreint).
+  const routerScope = session ? await scopeRoutersClause(session) : undefined;
   const [data, monthly] = session
     ? await Promise.all([
-        getDashboardData(session.orgId, { from, to: toEnd }),
-        getMonthlySeries(session.orgId, now),
+        getDashboardData(session.orgId, { from, to: toEnd }, routerScope),
+        getMonthlySeries(session.orgId, now, undefined, routerScope),
       ])
     : [null, null];
   // Réservé au superadmin : la répartition porte sur TOUS les comptes du SaaS,

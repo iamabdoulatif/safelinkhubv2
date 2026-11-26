@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { revalidatePath } from "next/cache";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getRouterForOrg } from "@/lib/org/member-sites";
 import { connectToRouter } from "./router-sync";
 import { detectUplinkInterfaces } from "./router-lock";
 import type { RouterOSClient } from "./client";
@@ -49,8 +50,9 @@ function cibleAmont(address: string | undefined, gateway: string): string | null
 async function autorise(routerId: string) {
   const session = await getSession();
   if (!session) return null;
-  const [router] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return null;
+  // Point de passage : org + périmètre de sites (RBAC) + bypass superadmin.
+  const router = await getRouterForOrg(routerId, session);
+  if (!router) return null;
   return router;
 }
 
