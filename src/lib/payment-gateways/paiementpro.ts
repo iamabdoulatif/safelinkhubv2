@@ -68,8 +68,41 @@ export async function preselectPaiementPro(
     // vers la page officielle). MTN/Moov : page standard PaiementPro, sinon le
     // formulaire de processing arrive blanc dans le webview captif.
     if (!usesProcessingShortcut(method)) return paymentUrl;
-    return `${BASE}/processing_v2.php?sessionid=${encodeURIComponent(session)}`;
+    // Orange : processing_v2.php redirige (302) vers la page officielle Orange
+    // Money (#144*82# / Max it). On suit la redirection CÔTÉ SERVEUR pour que le
+    // lien touché ouvre Orange DIRECTEMENT, sans l'écran PaiementPro intermédiaire.
+    return resolveOrangeDestination(`${BASE}/processing_v2.php?sessionid=${encodeURIComponent(session)}`);
   } catch {
     return paymentUrl;
   }
+}
+
+/**
+ * Suit la redirection de processing_v2.php (Orange) côté serveur et renvoie
+ * l'URL FINALE hors paiementpro.net (page officielle Orange Money → Max it),
+ * pour que le lien touché ouvre Orange directement. Au moindre échec on garde
+ * l'URL processing : le navigateur suivra lui-même la redirection.
+ */
+export async function resolveOrangeDestination(
+  processingUrl: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  let url = processingUrl;
+  try {
+    for (let hop = 0; hop < 4; hop++) {
+      const res = await fetchImpl(url, {
+        method: "GET",
+        redirect: "manual",
+        signal: AbortSignal.timeout(6000),
+      });
+      if (res.status < 300 || res.status >= 400) break;
+      const loc = res.headers.get("location");
+      if (!loc) break;
+      url = new URL(loc, url).toString();
+      if (!/(^|\.)paiementpro\.net$/i.test(new URL(url).hostname)) return url;
+    }
+  } catch {
+    /* garde processingUrl */
+  }
+  return processingUrl;
 }
