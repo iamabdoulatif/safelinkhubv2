@@ -10,9 +10,9 @@ import { SLATE_PORTAL_THEME, portalCssVars, type PortalTheme } from "@/lib/porta
 import styles from "../PortalExperience.module.css";
 import { Stepper } from "../Stepper";
 import {
-  androidIntentHref,
   isAndroidCaptiveBrowser,
   isCaptiveBrowser,
+  paymentAppHref,
   waveAppHref,
   waveQrHref,
 } from "@/lib/portal/browser-href";
@@ -83,8 +83,9 @@ export default function PaidStatus({
     }, 600);
     return () => clearTimeout(t);
   }, [lane, waveHref]);
-  const waveOpenHref =
-    androidCaptive && waveQr ? androidIntentHref(waveQr) ?? waveQr : waveQr;
+  const waveOpenHref = payUrl
+    ? paymentAppHref(payUrl, typeof navigator === "undefined" ? "" : navigator.userAgent || "", androidCaptive)
+    : waveQr;
   function copyPayUrl() {
     if (!payUrl) return;
     const done = () => {

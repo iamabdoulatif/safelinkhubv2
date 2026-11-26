@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   androidIntentHref,
+  paymentAppHref,
   isAndroidCaptiveBrowser,
   isCaptiveBrowser,
   waveAppHref,
@@ -53,4 +54,23 @@ test("androidIntentHref : enrobe une https en intent:// avec fallback navigateur
   // Pas https (ou URL invalide) → null, jamais d'intent bancal.
   assert.equal(androidIntentHref("wave://capture/x"), null);
   assert.equal(androidIntentHref("pas une url"), null);
+});
+
+test("paymentAppHref : Wave ouvre l'application hors WebView Android", () => {
+  assert.equal(
+    paymentAppHref(
+      "https://pay.wave.com/c/cos-abc?a=1000&c=XOF",
+      "Mozilla/5.0 (Linux; Android 14) Chrome/130.0",
+      false,
+    ),
+    "wave://capture/https://pay.wave.com/c/cos-abc?a=1000&c=XOF",
+  );
+});
+
+test("paymentAppHref : Orange sort de la WebView Android par intent HTTPS", () => {
+  const checkout = "https://paiementpro.net/webservice/onlinepayment/processing_v2.php?sessionid=abc";
+  assert.match(
+    paymentAppHref(checkout, "Mozilla/5.0 (Linux; Android 14; wv) Version/4.0", true) ?? "",
+    /^intent:\/\/paiementpro\.net\//,
+  );
 });

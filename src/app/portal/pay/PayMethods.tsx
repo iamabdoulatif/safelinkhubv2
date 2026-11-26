@@ -18,9 +18,9 @@
 // page de suivi guide le client vers l'app Wave. Après paiement, un CODE WiFi
 // s'affiche (+ SMS) : le client le saisit sur le portail pour se connecter.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PortalTheme } from "@/lib/portal/theme";
-import { androidIntentHref, isCaptiveBrowser, waveQrHref } from "@/lib/portal/browser-href";
+import { isCaptiveBrowser, paymentAppHref, waveQrHref } from "@/lib/portal/browser-href";
 import styles from "../PortalExperience.module.css";
 
 type Method = { id: string; label: string; logo: string };
@@ -60,56 +60,17 @@ export default function PayMethods({
   // Android : la WebView captive piège le lien universel iOS sur place (le
   // relais wave:// vers l'app y échoue). On enrobe alors le lien Wave en
   // intent:// pour sortir de la WebView. iOS garde le lien qr.pay.wave.com nu.
-  const [android, setAndroid] = useState(false);
 
   // Wave préparé d'avance (fenêtre captive) : la tuile devient un VRAI lien
   // qr.pay.wave.com — voir /api/portal/[slug]/wave-prepare.
   const [wavePrep, setWavePrep] = useState<{ orderId: string; checkoutUrl: string; lane: boolean } | null>(null);
   const [waveLaunched, setWaveLaunched] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  // En fenêtre captive, Wave est préparé seulement quand l'utilisateur ouvre
-  // la liste. Le menu reste donc instantané et les autres moyens ne sont pas
-  // retardés par l'appel GeniusPay + la voie MikroTik.
-  const [wavePreparing, setWavePreparing] = useState(false);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
 
-  async function prepareWave() {
-    if (!captive || wavePrep || wavePreparing) return;
-    setWavePreparing(true);
-    let alive = true;
-    let reloading = false;
-    try {
-      const response = await fetch(`/api/portal/${encodeURIComponent(slug)}/wave-prepare`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, theme, captive: true }),
-      });
-      const data = (await response.json().catch(() => ({}))) as {
-        orderId?: string;
-        checkoutUrl?: string;
-        lane?: boolean;
-      };
-      if (!response.ok || !data.orderId || !data.checkoutUrl || !waveQrHref(data.checkoutUrl)) {
-        throw new Error("Préparation Wave impossible.");
-      }
-      if (!alive) return;
-      if (data.lane === true) {
-        // La fenêtre captive iOS ne revalide le réseau qu'au rechargement :
-        // après ce rechargement, le lien Wave est déjà prêt et le menu reste
-        // disponible sans refaire de paiement.
-        const next = new URL(window.location.href);
-        next.searchParams.set("wave", data.orderId);
-        next.searchParams.set("wcu", data.checkoutUrl);
-        reloading = true;
-        window.setTimeout(() => window.location.replace(next.toString()), 300);
-        return;
-      }
-      setWavePrep({ orderId: data.orderId, checkoutUrl: data.checkoutUrl, lane: false });
-    } catch {
-      // Repli : Wave repassera par le parcours classique au prochain clic.
-    } finally {
-      alive = false;
-      if (!reloading) setWavePreparing(false);
-    }
+  function closeMenu() {
+    if (detailsRef.current) detailsRef.current.open = false;
+    setMenuOpen(false);
   }
 
   useEffect(() => {
@@ -120,7 +81,6 @@ export default function PayMethods({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPageUrl(url);
     setCaptive(inCaptive);
-    setAndroid(/Android/i.test(ua));
     if (!inCaptive) return;
     // Retour du rechargement ci-dessous : paiement Wave déjà préparé et voie
     // ouverte — la tuile est un lien tout de suite, sans nouvelle préparation.
@@ -192,6 +152,7 @@ export default function PayMethods({
     // commandes restées `pending`). Même fenêtre → checkout ; le webhook
     // GeniusPay + le rattrapage serveur honorent la commande et le code part par
     // SMS, sans page de sondage.
+    const userAgent = navigator.userAgent || "";
     const win = captive ? null : window.open("", "_blank");
     try {
       const res = await fetch(`/api/portal/${encodeURIComponent(slug)}/pay`, {
@@ -226,15 +187,14 @@ export default function PayMethods({
       // suivi (consignes + sondage du statut) au lieu de charger le checkout
       // dans un mini-navigateur qui ne sait pas lancer d'app.
       if (data.lane) {
-        paidUrl.searchParams.set("lane", "1");
-        if (data.smsSent) paidUrl.searchParams.set("sms", "1");
-        paidUrl.searchParams.set("pay", data.checkoutUrl);
-        window.location.assign(paidUrl);
+        // Même après l'ouverture de la voie routeur, le lien doit sortir de la
+        // WebView pour remettre le paiement à Wave/Orange Max it. La page de
+        // suivi reste accessible via l'historique du navigateur et le SMS.
+        window.location.assign(paymentAppHref(data.checkoutUrl, userAgent, captive) ?? data.checkoutUrl);
         return;
       }
       if (win && !win.closed) {
-        // Wave : le lien qr.pay.wave.com (lien universel) ouvre l'app directement.
-        win.location.href = waveQrHref(data.checkoutUrl) ?? data.checkoutUrl;
+        win.location.href = paymentAppHref(data.checkoutUrl, userAgent, captive) ?? data.checkoutUrl;
         // GeniusPay v3 ne redirige PAS vers success_url après paiement (le client
         // reste bloqué sur geniuspay.ci). On envoie donc l'onglet D'ORIGINE (sur
         // notre domaine, derrière le walled-garden) sonder le statut : c'est CE
@@ -242,7 +202,7 @@ export default function PayMethods({
         // code — indépendamment du retour de geniuspay.ci.
         window.location.assign(paidUrl);
       } else {
-        window.location.assign(waveQrHref(data.checkoutUrl) ?? data.checkoutUrl); // fenêtre bloquée → même fenêtre
+        window.location.assign(paymentAppHref(data.checkoutUrl, userAgent, captive) ?? data.checkoutUrl); // fenêtre bloquée → même fenêtre
       }
     } catch (e) {
       if (win && !win.closed) win.close();
@@ -308,7 +268,7 @@ export default function PayMethods({
       </p>
       <details
         className={styles.selectDetails}
-        open={menuOpen && !busy}
+        ref={detailsRef}
         onToggle={(event) => {
           const nextOpen = event.currentTarget.open;
           if (busy && nextOpen) {
@@ -316,7 +276,6 @@ export default function PayMethods({
             return;
           }
           setMenuOpen(nextOpen);
-          if (nextOpen) void prepareWave();
         }}
       >
         <summary
@@ -345,21 +304,11 @@ export default function PayMethods({
         <ul className={styles.selectMenu} role="listbox" aria-labelledby="slh-pay-label">
           {METHODS.map((m) => {
             const waveLink = m.id === "wave" && wavePrep ? waveQrHref(wavePrep.checkoutUrl) : null;
-            if (m.id === "wave" && !waveLink && wavePreparing) {
-              return (
-                <li key={m.id} role="option" aria-selected={false} aria-disabled className={`${styles.selectOption} ${styles.selectOptionWait}`}>
-                  {optionContent(m, "Wave — préparation…", true)}
-                  <span aria-hidden="true" className={styles.paySpinner} style={{ marginLeft: "auto" }} />
-                </li>
-              );
-            }
             if (waveLink) {
-              // Android captif : sortir de la WebView via intent:// (sinon le
-              // lien se charge sur place et wave:// échoue). iOS : lien nu.
-              const href = android ? (androidIntentHref(waveLink) ?? waveLink) : waveLink;
+              const href = paymentAppHref(waveLink, navigator.userAgent || "", captive) ?? waveLink;
               return (
                 <li key={m.id} role="option" aria-selected={false}>
-                  <a href={href} className={styles.selectOption} onClick={() => { onWaveLinkTap(); setMenuOpen(false); }}>
+                  <a href={href} className={styles.selectOption} onClick={() => { onWaveLinkTap(); closeMenu(); }}>
                     {optionContent(m, m.label, true)}
                   </a>
                 </li>
@@ -371,7 +320,7 @@ export default function PayMethods({
                   type="button"
                   className={styles.selectOption}
                   onClick={() => {
-                    setMenuOpen(false);
+                    closeMenu();
                     void pay(m.id);
                   }}
                 >
