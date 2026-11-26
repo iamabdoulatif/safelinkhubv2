@@ -212,15 +212,26 @@ export default function PayMethods({
     }
   }
 
-  // À l'ouverture du menu en captif, on prépare les opérateurs en parallèle pour
-  // que leurs tuiles deviennent des liens touchés prêts.
+  // À l'ouverture du menu en captif, on prépare les opérateurs EN SÉQUENCE (pas
+  // 3 fetch simultanés) : le mini-navigateur captif iOS (CNA) avorte les requêtes
+  // concurrentes — le serveur aboutit (la commande est créée) mais la réponse ne
+  // revient pas au client, et la tuile reste coincée sur « réessayer ». Une seule
+  // requête à la fois (comme Wave, qui marche) : les tuiles deviennent des liens
+  // l'une après l'autre (~1 s chacune).
   useEffect(() => {
     if (!menuOpen || !captive) return;
+    let cancelled = false;
     // Différé hors du rendu synchrone (prepareOperator pose un état tout de suite).
-    const t = window.setTimeout(() => {
-      for (const m of CAPTIVE_OPERATORS) void prepareOperator(m);
+    const t = window.setTimeout(async () => {
+      for (const m of CAPTIVE_OPERATORS) {
+        if (cancelled) break;
+        await prepareOperator(m);
+      }
     }, 0);
-    return () => window.clearTimeout(t);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen, captive]);
 
