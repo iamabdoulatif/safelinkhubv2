@@ -35,7 +35,7 @@ const descriptions: Record<string, string> = {
     "Choisissez comment encaisser les paiements en ligne.",
   "/admin/billing": "Retrouvez votre formule, votre solde et vos factures.",
   "/admin/settings/notifications":
-    "Choisissez les alertes que vous recevez et comment.",
+    "Choisissez les alertes de votre réseau et comment les recevoir.",
   "/admin/settings/sms": "Envoyez les codes et les notifications par SMS.",
 };
 const sections = [
