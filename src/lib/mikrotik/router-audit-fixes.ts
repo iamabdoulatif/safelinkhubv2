@@ -200,34 +200,59 @@ export async function unbindMacBoundTickets(
   client: RouterOSClient,
   timeoutMs = 20000,
 ): Promise<MacBoundTicketsResult> {
-  const users = await client
-    .talk(["/ip/hotspot/user/print", "=.proplist=.id,name,mac-address"], timeoutMs)
-    .catch(() => [] as Record<string, string>[]);
-
+  const heavyMs = Math.max(timeoutMs, 60000);
   const normalize = (value: string | undefined) => (value ?? "").trim().toUpperCase();
-  const bound = users.filter((user) => {
-    const mac = normalize(user["mac-address"]);
-    return mac !== "" && mac !== "00:00:00:00:00:00";
-  });
-  const roaming = bound.filter((user) => normalize(user.name) === normalize(user["mac-address"]));
-  const target = bound.filter((user) => normalize(user.name) !== normalize(user["mac-address"]));
 
-  const sample: string[] = [];
-  let unbound = 0;
-  for (const user of target) {
-    const id = user[".id"];
-    if (!id) continue;
-    try {
-      // Valeur vide = champ effacé côté RouterOS.
-      await client.talk(["/ip/hotspot/user/set", `=numbers=${id}`, "=mac-address="], timeoutMs);
-      unbound += 1;
-      if (sample.length < 5) sample.push(`${user.name} (${normalize(user["mac-address"])})`);
-    } catch {
-      // Un échec isolé ne doit pas arrêter le balayage du routeur.
-    }
+  const scanTargets = async () => {
+    const users = await client
+      .talk(["/ip/hotspot/user/print", "=.proplist=.id,name,mac-address"], heavyMs)
+      .catch(() => [] as Record<string, string>[]);
+    const bound = users.filter((user) => {
+      const mac = normalize(user["mac-address"]);
+      return mac !== "" && mac !== "00:00:00:00:00:00";
+    });
+    const roaming = bound.filter((u) => normalize(u.name) === normalize(u["mac-address"]));
+    const target = bound.filter((u) => normalize(u.name) !== normalize(u["mac-address"]));
+    return { target, roaming };
+  };
+
+  const before = await scanTargets();
+  const sample = before.target
+    .slice(0, 5)
+    .map((u) => `${u.name} (${normalize(u["mac-address"])})`);
+  if (before.target.length === 0) {
+    return { found: 0, unbound: 0, skippedRoaming: before.roaming.length, sample: [] };
   }
 
-  return { found: target.length, unbound, skippedRoaming: roaming.length, sample };
+  // EFFACEMENT PAR SCRIPT — et NON `set =mac-address=` (vide), que RouterOS 7.x
+  // REFUSE (« mac address required »). Seul l'« unset » (`!mac-address`) vide le
+  // champ, et seul le MOTEUR DE SCRIPT l'accepte : le parseur de commandes
+  // directes (API binaire `set`, console non interactive) le rejette. L'API
+  // binaire stocke la source du script telle quelle, donc on pousse un script
+  // qui délie les tickets dont le NOM diffère du MAC (épargne les comptes de
+  // roaming `name = MAC`), on le lance, puis on le supprime. Idempotent.
+  const SCRIPT_NAME = "slh-mac-unbind";
+  const source =
+    ":foreach i in=[/ip hotspot user find] do=" +
+    "{:local m [/ip hotspot user get $i mac-address]; " +
+    ":if ([:len $m] > 0 and [/ip hotspot user get $i name] != $m) do=" +
+    "{/ip hotspot user set $i !mac-address}}";
+  await client.talk(["/system/script/remove", `=numbers=${SCRIPT_NAME}`], timeoutMs).catch(() => {});
+  await client.talk(
+    ["/system/script/add", `=name=${SCRIPT_NAME}`, "=policy=read,write,test", `=source=${source}`],
+    timeoutMs,
+  );
+  try {
+    await client.talk(["/system/script/run", `=number=${SCRIPT_NAME}`], heavyMs);
+  } finally {
+    await client
+      .talk(["/system/script/remove", `=numbers=${SCRIPT_NAME}`], timeoutMs)
+      .catch(() => {});
+  }
+
+  const after = await scanTargets();
+  const unbound = Math.max(0, before.target.length - after.target.length);
+  return { found: before.target.length, unbound, skippedRoaming: before.roaming.length, sample };
 }
 
 // ── Format des dates d'expiration ────────────────────────────────────────

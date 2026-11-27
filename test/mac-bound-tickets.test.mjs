@@ -40,19 +40,22 @@ test("l'ouverture de session, elle, garde bien le MAC", async () => {
   assert.match(source, /`=mac-address=\$\{mac\}`/);
 });
 
-test("le déliage épargne les comptes de roaming", async () => {
+test("le déliage épargne les comptes de roaming et efface via script", async () => {
   const source = await read(FIXES);
   const body = source.slice(source.indexOf("export async function unbindMacBoundTickets"));
 
   // La propagation MAC crée volontairement des comptes dont le NOM EST le MAC,
   // pour l'auto-connexion inter-zones. Les délier casserait le roaming.
-  assert.match(body, /normalize\(user\.name\) === normalize\(user\["mac-address"\]\)/);
-  assert.match(body, /normalize\(user\.name\) !== normalize\(user\["mac-address"\]\)/);
-  assert.match(body, /skippedRoaming: roaming\.length/);
+  assert.match(body, /normalize\(u\.name\) === normalize\(u\["mac-address"\]\)/);
+  assert.match(body, /normalize\(u\.name\) !== normalize\(u\["mac-address"\]\)/);
+  assert.match(body, /skippedRoaming: before\.roaming\.length/);
   // Un MAC nul ne compte pas comme un épinglage.
   assert.match(body, /mac !== "00:00:00:00:00:00"/);
-  // Effacement du champ, pas suppression du ticket.
-  assert.match(body, /"\/ip\/hotspot\/user\/set".*=mac-address=/s);
+  // Effacement par SCRIPT (`!mac-address`) : `set =mac-address=` vide est REFUSÉ
+  // par RouterOS 7.x. On ne SUPPRIME jamais le ticket, on vide juste le champ.
+  assert.match(body, /!mac-address/);
+  assert.match(body, /"\/system\/script\/add"/);
+  assert.match(body, /"\/system\/script\/run"/);
   assert.doesNotMatch(body, /hotspot\/user\/remove/);
 });
 
