@@ -13,6 +13,7 @@ import { getOrgGeniusCreds, getOrgPaymentStatus } from "@/lib/payment-gateways/g
 import { voucherProfileForPackage } from "@/lib/mikrotik/package-voucher-profile";
 import { inferVoucherDuration, voucherCodePrefix } from "@/lib/mikrotik/voucher-profiles";
 import { ensureVoucherProfileOnRouter } from "@/lib/mikrotik/voucher-profile-provision";
+import { getOrgDevicesPerVoucher } from "@/lib/org/devices-per-voucher";
 import { dataCapWords } from "@/lib/mikrotik/voucher-data-cap";
 import { reconcileWalledGardenOnce } from "@/lib/mikrotik/walled-garden";
 import { getOrgWalledGardenDisabledHosts } from "@/lib/mikrotik/walled-garden-config";
@@ -168,6 +169,7 @@ export async function fulfillPortalOrder(
         pkgRow.durationValue,
         pkgRow.durationUnit,
         pkgRow.priceCents,
+        { sharedUsers: await getOrgDevicesPerVoucher(order.orgId) },
       );
     }
   }
@@ -379,6 +381,7 @@ export async function prewarmPortalVoucherProfile(orderId: string): Promise<void
           pkgRow.durationValue,
           pkgRow.durationUnit,
           pkgRow.priceCents,
+          { sharedUsers: await getOrgDevicesPerVoucher(order.orgId) },
         );
       }
     }

@@ -15,7 +15,7 @@ import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
 import { getAppUrl } from "@/lib/net/app-url";
-import { VOUCHER_PROFILES, type VoucherProfile } from "./voucher-profiles";
+import { VOUCHER_PROFILES, clampDevicesPerVoucher, type VoucherProfile } from "./voucher-profiles";
 import { reserveRouterSerial } from "./router-serial-lock";
 import {
   REMOTE_ACCESS_PORT,
@@ -924,6 +924,11 @@ export type HotspotStackOptions = {
   // means "create the bundled presets" (matches prior behavior for callers
   // that don't pass this field yet).
   voucherProfiles?: VoucherProfile[];
+  // « Appareils par code » (organizations.devicesPerVoucher) : connexions
+  // simultanées par ticket, posé en `shared-users` sur chaque profil VENDABLE.
+  // Omis/≤1 → 1 (anti-partage, comportement historique). Un profil qui porte
+  // déjà son propre sharedUsers (forfait premium) l'emporte.
+  devicesPerVoucher?: number;
   // WiFi network name broadcast on both radios (2.4GHz + 5GHz). Optional —
   // boards with no WiFi radio at all (CCR routers, plain switches) just
   // skip this step instead of failing.
@@ -2337,6 +2342,15 @@ export async function provisionHotspotStack(
         // sinon la valeur vide efface une ancienne limite et rétablit le
         // débit du lien, comme la création initiale sans rate-limit.
         `=rate-limit=${profile.rateLimit ?? ""}`,
+        // « Appareils par code » : écrit À CHAQUE FOIS (comme rate-limit) pour
+        // que re-lancer l'auto-setup aligne les profils existants sur la valeur
+        // de l'org, à la hausse comme à la baisse. Profil illimité
+        // (admin/technicien) ou valeur du profil lui-même → prioritaires.
+        `=shared-users=${
+          profile.unlimited
+            ? 1
+            : clampDevicesPerVoucher(profile.sharedUsers ?? opts.devicesPerVoucher)
+        }`,
       ];
       const existingId = existingVoucherProfilesByName.get(profile.name);
       await run(

@@ -38,6 +38,12 @@ export async function ensureVoucherProfileOnRouter(
   // exactement le but pour un administrateur ou un technicien de zone.
   if (!profile.unlimited) createProfile.push(`=on-login=${profile.onLogin}`);
   if (profile.rateLimit) createProfile.push(`=rate-limit=${profile.rateLimit}`);
+  // « Appareils par code » : >1 appareils simultanés pour un même ticket. Omis à
+  // 1 → RouterOS met shared-users=1 d'office (anti-partage). Jamais sur un profil
+  // illimité (comptes admin/technicien, pas des ventes).
+  if (!profile.unlimited && profile.sharedUsers && profile.sharedUsers > 1) {
+    createProfile.push(`=shared-users=${profile.sharedUsers}`);
+  }
   await client.talk(createProfile, timeoutMs);
 
   // …et pas de planificateur de balayage non plus : c'est le second mécanisme
