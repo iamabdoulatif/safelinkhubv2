@@ -201,52 +201,41 @@ export async function unbindMacBoundTickets(
   timeoutMs = 20000,
 ): Promise<MacBoundTicketsResult> {
   const heavyMs = Math.max(timeoutMs, 60000);
+  const normalize = (value: string | undefined) => (value ?? "").trim().toUpperCase();
 
-  // Tout le travail dans UN script exécuté SUR LE ROUTEUR : il parcourt les
-  // tickets, délie ceux dont le MAC est posé (`[:len $m] > 0`) ET dont le NOM
-  // diffère du MAC (épargne les comptes de roaming `name = MAC`), compte, et
-  // RENVOIE le total délié.
-  //
-  // `!mac-address` (unset) est le SEUL moyen de vider le champ : RouterOS 7.x
-  // refuse `set mac-address=` (vide, « mac address required »), et seul le moteur
-  // de script accepte l'unset (le parseur de commandes directes — API binaire
-  // `set`, console non interactive — le rejette). L'API binaire stocke la source
-  // telle quelle. Le foreach tourne CÔTÉ ROUTEUR (rapide) : on ne rapatrie
-  // JAMAIS la liste complète des tickets par l'API (imprimer 1000+ lignes par
-  // routeur faisait expirer le balayage du parc avant de l'avoir couvert).
-  const SCRIPT_NAME = "slh-mac-unbind";
-  const source =
-    ":local n 0; :foreach i in=[/ip hotspot user find] do=" +
-    "{:local m [/ip hotspot user get $i mac-address]; " +
-    ":if ([:len $m] > 0 and [/ip hotspot user get $i name] != $m) do=" +
-    "{/ip hotspot user set $i !mac-address; :set n ($n + 1)}}; :return $n";
+  const users = await client
+    .talk(["/ip/hotspot/user/print", "=.proplist=.id,name,mac-address"], heavyMs)
+    .catch(() => [] as Record<string, string>[]);
+  const bound = users.filter((user) => {
+    const mac = normalize(user["mac-address"]);
+    return mac !== "" && mac !== "00:00:00:00:00:00";
+  });
+  const roaming = bound.filter((u) => normalize(u.name) === normalize(u["mac-address"]));
+  const target = bound.filter((u) => normalize(u.name) !== normalize(u["mac-address"]));
+  const sample = target.slice(0, 5).map((u) => `${u.name} (${normalize(u["mac-address"])})`);
 
-  await client.talk(["/system/script/remove", `=numbers=${SCRIPT_NAME}`], timeoutMs).catch(() => {});
-  await client.talk(
-    ["/system/script/add", `=name=${SCRIPT_NAME}`, "=policy=read,write,test", `=source=${source}`],
-    timeoutMs,
-  );
+  // COMMENT ON DÉLIE. RouterOS 7.x REFUSE `set mac-address=` (vide, « mac address
+  // required ») et n'offre ni commande `unset` ni `!mac-address` par l'API ou le
+  // moteur de script (tous rejetés — vérifié sur routeur). En revanche
+  // `mac-address=00:00:00:00:00:00` est ACCEPTÉ et VIDE le champ : RouterOS traite
+  // le MAC nul comme « aucune liaison », et le champ se relit vide ensuite. C'est
+  // donc ça, délier un ticket. On épargne les comptes de roaming (name = MAC) et
+  // on ne SUPPRIME jamais le ticket (le client garde son code et son expiration).
   let unbound = 0;
-  try {
-    // includeDoneAttributes=true : la valeur de `:return` du script arrive dans
-    // le =ret= du !done de /system/script/run.
-    const res = await client.talk(["/system/script/run", `=number=${SCRIPT_NAME}`], heavyMs, true);
-    const ret = res
-      .map((s) => s["ret"])
-      .filter((v): v is string => typeof v === "string" && v.length > 0)
-      .pop();
-    const n = Number(ret);
-    if (Number.isFinite(n) && n > 0) unbound = n;
-  } finally {
-    await client
-      .talk(["/system/script/remove", `=numbers=${SCRIPT_NAME}`], timeoutMs)
-      .catch(() => {});
+  for (const u of target) {
+    const id = u[".id"];
+    if (!id) continue;
+    try {
+      await client.talk(
+        ["/ip/hotspot/user/set", `=.id=${id}`, "=mac-address=00:00:00:00:00:00"],
+        timeoutMs,
+      );
+      unbound += 1;
+    } catch {
+      // Un échec isolé ne doit pas arrêter le balayage du routeur.
+    }
   }
-
-  // Le script délie exactement les tickets ciblés : found = unbound. On ne
-  // rapatrie plus d'échantillon ni le compte de roaming (économie d'API) — le
-  // message d'interface se contente du total délié.
-  return { found: unbound, unbound, skippedRoaming: 0, sample: [] };
+  return { found: target.length, unbound, skippedRoaming: roaming.length, sample };
 }
 
 // ── Format des dates d'expiration ────────────────────────────────────────
