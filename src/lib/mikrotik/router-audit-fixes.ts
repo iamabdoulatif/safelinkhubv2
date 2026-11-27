@@ -201,58 +201,52 @@ export async function unbindMacBoundTickets(
   timeoutMs = 20000,
 ): Promise<MacBoundTicketsResult> {
   const heavyMs = Math.max(timeoutMs, 60000);
-  const normalize = (value: string | undefined) => (value ?? "").trim().toUpperCase();
 
-  const scanTargets = async () => {
-    const users = await client
-      .talk(["/ip/hotspot/user/print", "=.proplist=.id,name,mac-address"], heavyMs)
-      .catch(() => [] as Record<string, string>[]);
-    const bound = users.filter((user) => {
-      const mac = normalize(user["mac-address"]);
-      return mac !== "" && mac !== "00:00:00:00:00:00";
-    });
-    const roaming = bound.filter((u) => normalize(u.name) === normalize(u["mac-address"]));
-    const target = bound.filter((u) => normalize(u.name) !== normalize(u["mac-address"]));
-    return { target, roaming };
-  };
-
-  const before = await scanTargets();
-  const sample = before.target
-    .slice(0, 5)
-    .map((u) => `${u.name} (${normalize(u["mac-address"])})`);
-  if (before.target.length === 0) {
-    return { found: 0, unbound: 0, skippedRoaming: before.roaming.length, sample: [] };
-  }
-
-  // EFFACEMENT PAR SCRIPT — et NON `set =mac-address=` (vide), que RouterOS 7.x
-  // REFUSE (« mac address required »). Seul l'« unset » (`!mac-address`) vide le
-  // champ, et seul le MOTEUR DE SCRIPT l'accepte : le parseur de commandes
-  // directes (API binaire `set`, console non interactive) le rejette. L'API
-  // binaire stocke la source du script telle quelle, donc on pousse un script
-  // qui délie les tickets dont le NOM diffère du MAC (épargne les comptes de
-  // roaming `name = MAC`), on le lance, puis on le supprime. Idempotent.
+  // Tout le travail dans UN script exécuté SUR LE ROUTEUR : il parcourt les
+  // tickets, délie ceux dont le MAC est posé (`[:len $m] > 0`) ET dont le NOM
+  // diffère du MAC (épargne les comptes de roaming `name = MAC`), compte, et
+  // RENVOIE le total délié.
+  //
+  // `!mac-address` (unset) est le SEUL moyen de vider le champ : RouterOS 7.x
+  // refuse `set mac-address=` (vide, « mac address required »), et seul le moteur
+  // de script accepte l'unset (le parseur de commandes directes — API binaire
+  // `set`, console non interactive — le rejette). L'API binaire stocke la source
+  // telle quelle. Le foreach tourne CÔTÉ ROUTEUR (rapide) : on ne rapatrie
+  // JAMAIS la liste complète des tickets par l'API (imprimer 1000+ lignes par
+  // routeur faisait expirer le balayage du parc avant de l'avoir couvert).
   const SCRIPT_NAME = "slh-mac-unbind";
   const source =
-    ":foreach i in=[/ip hotspot user find] do=" +
+    ":local n 0; :foreach i in=[/ip hotspot user find] do=" +
     "{:local m [/ip hotspot user get $i mac-address]; " +
     ":if ([:len $m] > 0 and [/ip hotspot user get $i name] != $m) do=" +
-    "{/ip hotspot user set $i !mac-address}}";
+    "{/ip hotspot user set $i !mac-address; :set n ($n + 1)}}; :return $n";
+
   await client.talk(["/system/script/remove", `=numbers=${SCRIPT_NAME}`], timeoutMs).catch(() => {});
   await client.talk(
     ["/system/script/add", `=name=${SCRIPT_NAME}`, "=policy=read,write,test", `=source=${source}`],
     timeoutMs,
   );
+  let unbound = 0;
   try {
-    await client.talk(["/system/script/run", `=number=${SCRIPT_NAME}`], heavyMs);
+    // includeDoneAttributes=true : la valeur de `:return` du script arrive dans
+    // le =ret= du !done de /system/script/run.
+    const res = await client.talk(["/system/script/run", `=number=${SCRIPT_NAME}`], heavyMs, true);
+    const ret = res
+      .map((s) => s["ret"])
+      .filter((v): v is string => typeof v === "string" && v.length > 0)
+      .pop();
+    const n = Number(ret);
+    if (Number.isFinite(n) && n > 0) unbound = n;
   } finally {
     await client
       .talk(["/system/script/remove", `=numbers=${SCRIPT_NAME}`], timeoutMs)
       .catch(() => {});
   }
 
-  const after = await scanTargets();
-  const unbound = Math.max(0, before.target.length - after.target.length);
-  return { found: before.target.length, unbound, skippedRoaming: before.roaming.length, sample };
+  // Le script délie exactement les tickets ciblés : found = unbound. On ne
+  // rapatrie plus d'échantillon ni le compte de roaming (économie d'API) — le
+  // message d'interface se contente du total délié.
+  return { found: unbound, unbound, skippedRoaming: 0, sample: [] };
 }
 
 // ── Format des dates d'expiration ────────────────────────────────────────
