@@ -154,7 +154,7 @@ export default function SalesView({
               {slice.map((s) => (
                 <li key={`m-${s.id}`} className="p-4">
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 truncate font-mono text-sm font-semibold text-ink">{s.username}</span>
+                    <span className="min-w-0 truncate font-mono text-sm font-semibold text-ink">{s.username || t.ticketPending}</span>
                     <span className="shrink-0 font-semibold tabular-nums text-ink">{money(s.priceCents)}</span>
                   </div>
                   <p className="mt-1 text-xs text-ink-soft">
@@ -186,7 +186,7 @@ export default function SalesView({
                 {slice.map((s) => (
                   <tr key={s.id} className="hover:bg-clay/40">
                     <td className="whitespace-nowrap px-5 py-3 text-ink-soft">{dateFmt.format(s.createdAt)}</td>
-                    <td className="px-5 py-3 font-mono text-[13px] font-semibold text-ink">{s.username}</td>
+                    <td className="px-5 py-3 font-mono text-[13px] font-semibold text-ink">{s.username || t.ticketPending}</td>
                     <td className="whitespace-nowrap px-5 py-3 text-ink-soft">{s.phone}</td>
                     <td className="px-5 py-3 font-mono text-[13px] text-ink-soft">{s.paymentReference ?? "—"}</td>
                     <td className="px-5 py-3 text-ink-soft">{s.routerName ?? "—"}</td>
