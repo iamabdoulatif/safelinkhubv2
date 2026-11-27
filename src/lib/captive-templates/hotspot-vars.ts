@@ -23,6 +23,14 @@ export function simulateHotspotPage(html: string, sample: { identity: string }):
     "link-redirect": "#",
     identity: sample.identity,
     "server-name": sample.identity,
+    // Un visiteur réel a toujours une MAC. Le flux de paiement injecté
+    // (portalPayInjection) ne s'active QUE si cfg.mac est une vraie MAC
+    // (configured() : mac présente et ne commençant pas par "$("). La blanchir
+    // ici désactivait le bouton d'achat dans l'aperçu — « la fenêtre de paiement
+    // ne s'ouvre pas » — alors que sur le routeur RouterOS substitue la vraie
+    // MAC. On rejoue donc une MAC d'exemple pour que l'aperçu soit fidèle.
+    mac: "02:00:00:00:00:01",
+    "mac-esc": "02:00:00:00:00:01",
   };
   return out.replace(/\$\(([a-z0-9-]+)\)/g, (_, name: string) => valeurs[name] ?? "");
 }
