@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
@@ -33,7 +34,11 @@ export async function GET(request: NextRequest) {
 
   const started = Date.now();
   const db = getDb();
-  const fleet = await db.select().from(routers);
+  // Seulement les routeurs EN LIGNE : un routeur hors ligne coûte ~30 s en échec
+  // de connexion ; une poignée en tête de liste mangeait tout le budget avant
+  // d'atteindre les routeurs joignables. Les hors-ligne seront balayés quand ils
+  // reviendront (prochaine passe quotidienne).
+  const fleet = await db.select().from(routers).where(eq(routers.status, "online"));
 
   let scanned = 0;
   let found = 0;
