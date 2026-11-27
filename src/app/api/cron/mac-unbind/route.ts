@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
@@ -38,7 +38,16 @@ export async function GET(request: NextRequest) {
   // de connexion ; une poignée en tête de liste mangeait tout le budget avant
   // d'atteindre les routeurs joignables. Les hors-ligne seront balayés quand ils
   // reviendront (prochaine passe quotidienne).
-  const fleet = await db.select().from(routers).where(eq(routers.status, "online"));
+  //
+  // ORDRE ALÉATOIRE : une passe ne couvre qu'une quarantaine de routeurs dans le
+  // budget de 4 min (une impression de tickets par routeur, même propre). En
+  // repartant toujours du même haut de liste, les routeurs du bas ne seraient
+  // JAMAIS atteints ; l'aléa répartit la couverture sur les passes quotidiennes.
+  const fleet = await db
+    .select()
+    .from(routers)
+    .where(eq(routers.status, "online"))
+    .orderBy(sql`random()`);
 
   let scanned = 0;
   let found = 0;
