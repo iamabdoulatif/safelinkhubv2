@@ -432,4 +432,19 @@ create index if not exists site_members_org_user_idx on site_members (org_id, us
   // « Appareils par code » : shared-users appliqué aux profils vendables.
   // Miroir : scripts/add-devices-per-voucher.sql.
   { id: "0031_devices_per_voucher", sql: `alter table organizations add column if not exists devices_per_voucher integer not null default 1;` },
+  // Fiche client du portail (prénom/nom/email) saisie à la 1re commande d'un
+  // numéro, reliée aux commandes par (org_id, phone). Miroir : scripts/add-portal-customers.sql.
+  { id: "0032_portal_customers", sql: `
+create table if not exists portal_customers (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id) on delete cascade,
+  phone text not null,
+  first_name text not null,
+  last_name text not null,
+  email text not null,
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now(),
+  unique (org_id, phone)
+);
+`.trim() },
 ];

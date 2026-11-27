@@ -34,6 +34,7 @@ describe("registre des migrations", () => {
   // secours manuel) ne doivent pas diverger : un correctif appliqué à l'un sans
   // l'autre reposerait un piège de dérive de schéma.
   const MIRRORS: Record<string, string> = {
+    "0032_portal_customers": "add-portal-customers.sql",
     "0031_devices_per_voucher": "add-devices-per-voucher.sql",
     "0030_site_members": "create-site-members.sql",
     "0029_routers_site_id": "add-routers-site-id.sql",

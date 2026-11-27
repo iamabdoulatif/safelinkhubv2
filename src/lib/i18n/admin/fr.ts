@@ -355,6 +355,7 @@ export const adminFr = {
       salesCommission: "Ventes / Commissions",
       commission: (amount: string) => `(${amount} en commissions)`,
       voucher: "Voucher",
+      client: "Client",
       phone: "Téléphone",
       reference: "Réf. GeniusPay",
       package: "Forfait",
