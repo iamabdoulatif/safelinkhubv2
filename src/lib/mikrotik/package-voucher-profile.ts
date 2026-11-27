@@ -71,9 +71,13 @@ export function voucherProfileForPackage(
     name?: string;
     uploadMbps?: number;
     downloadMbps?: number;
+    /** « Appareils par code » de l'org — posé en shared-users sur le profil. */
+    sharedUsers?: number;
   },
 ): VoucherProfile | null {
   if (isUnlimitedUnit(durationUnit)) {
+    // Profil illimité = comptes admin/technicien, pas des ventes : il reste à 1
+    // appareil, on n'y applique pas « Appareils par code ».
     return buildUnlimitedProfile({
       name: options?.name,
       uploadMbps: options?.uploadMbps,
@@ -89,6 +93,7 @@ export function voucherProfileForPackage(
     price: priceCents,
     uploadMbps: options?.uploadMbps,
     downloadMbps: options?.downloadMbps,
+    sharedUsers: options?.sharedUsers,
   });
 }
 

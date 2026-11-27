@@ -84,4 +84,29 @@ describe("provisionnement de profil voucher", () => {
     assert.ok(profileAdd?.includes("=on-login=:put expiry"));
     assert.ok(calls.some((sentence) => sentence[0] === "/system/scheduler/add"));
   });
+
+  it("pose shared-users quand >1, l'omet sinon (anti-partage par défaut)", async () => {
+    const add = async (sharedUsers?: number) => {
+      const calls: string[][] = [];
+      const client = {
+        talk: async (sentence: string[]) => {
+          calls.push(sentence);
+          return [] as Record<string, string>[];
+        },
+      };
+      await ensureVoucherProfileOnRouter(client as never, {
+        name: "01-SEMAINE",
+        label: "1 semaine",
+        durationCode: "7d",
+        onLogin: ":put x",
+        monitorInterval: "2m20s",
+        monitorOnEvent: ":put m",
+        sharedUsers,
+      });
+      return calls.find((s) => s[0] === "/ip/hotspot/user/profile/add")!;
+    };
+    assert.ok((await add(4)).includes("=shared-users=4"));
+    assert.ok(!(await add(1)).some((a) => a.startsWith("=shared-users=")));
+    assert.ok(!(await add(undefined)).some((a) => a.startsWith("=shared-users=")));
+  });
 });

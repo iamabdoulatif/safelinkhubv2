@@ -8,6 +8,7 @@ import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAutoSetupGateStatus } from "@/lib/billing/auto-setup-authorization-actions";
 import { provisionHotspotStack, type HotspotStackOptions } from "./container-setup";
 import { getOrgDial } from "@/lib/portal/org-dial";
+import { getOrgDevicesPerVoucher } from "@/lib/org/devices-per-voucher";
 import { routerOsWifiCountry } from "./wifi-compat";
 
 /**
@@ -118,6 +119,13 @@ async function enqueue(
     const wifiCountry = routerOsWifiCountry(iso2);
     if (wifiCountry) effectiveOpts = { ...opts, wifiCountry };
   }
+  // « Appareils par code » : toujours relu depuis l'org (pas depuis un snapshot
+  // d'auto-setup figé) pour qu'une réinstallation applique la valeur ACTUELLE
+  // aux profils vendables. 1 par défaut (anti-partage).
+  effectiveOpts = {
+    ...effectiveOpts,
+    devicesPerVoucher: await getOrgDevicesPerVoucher(orgId),
+  };
 
   const [running] = await db
     .select({
