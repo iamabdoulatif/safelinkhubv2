@@ -16,9 +16,10 @@
 #     vers css/safelink-skin.css. Le COPY du CSS reste (inoffensif, non référencé).
 FROM ghcr.io/iamabdoulatif/mikhmon-v7:prix-corrige
 
-COPY safelink-skin.css /src/src/css/safelink-skin.css
-COPY headhtml.php       /src/src/include/headhtml.php
-COPY sessions.php       /src/src/settings/sessions.php
+COPY safelink-skin.css       /src/src/css/safelink-skin.css
+COPY mikhmon-responsive.css  /src/src/css/mikhmon-responsive.css
+COPY headhtml.php            /src/src/include/headhtml.php
+COPY sessions.php            /src/src/settings/sessions.php
 
 RUN php -l /src/src/include/headhtml.php \
  && php -l /src/src/settings/sessions.php
