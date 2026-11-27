@@ -8,7 +8,8 @@ import {
   routerTrafficSamples,
   routerTrafficState,
 } from "@/lib/db/schema";
-import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
+import { getRouterForOrg } from "@/lib/org/member-sites";
 import { can } from "@/lib/auth/roles";
 import { connectToRouter } from "./router-sync";
 import { enableTrafficGraphing } from "./traffic-reader";
@@ -31,16 +32,9 @@ async function authorize(routerId: string, write = false) {
     !/^[\da-f-]{36}$/i.test(routerId)
   )
     return null;
-  const [router] = await getDb()
-    .select()
-    .from(routers)
-    .where(eq(routers.id, routerId))
-    .limit(1);
-  if (
-    !router ||
-    (!isSuperAdmin(session.role) && router.orgId !== session.orgId)
-  )
-    return null;
+  // Point de passage : org + périmètre de sites (RBAC) + bypass superadmin.
+  const router = await getRouterForOrg(routerId, session);
+  if (!router) return null;
   return { router, session };
 }
 async function historyLinks(router: typeof routers.$inferSelect) {

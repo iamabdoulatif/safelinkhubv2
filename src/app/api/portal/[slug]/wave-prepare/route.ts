@@ -83,7 +83,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
       new Request(request.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: copy.id, method: "wave", theme: body.theme }),
+        // method par défaut "wave" ; Orange/MTN/Moov passent aussi par ici pour
+        // obtenir un vrai lien touché vers leur checkout (sortie du CNA → Chrome).
+        body: JSON.stringify({ orderId: copy.id, method: String(body.method ?? "wave"), theme: body.theme }),
       }),
       { params: Promise.resolve({ slug }) },
     ),

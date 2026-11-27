@@ -17,6 +17,12 @@ export type VoucherProfile = {
   // (=rate-limit=).
   rateLimit?: string;
   /**
+   * Connexions simultanées autorisées pour un même code (`shared-users` du
+   * profil hotspot). Absent = 1 (anti-partage, défaut RouterOS). Rempli depuis
+   * le réglage org « Appareils par code » (organizations.devicesPerVoucher).
+   */
+  sharedUsers?: number;
+  /**
    * Compte SANS expiration — administrateurs et techniciens de zone.
    *
    * Ce n'est pas « une très longue durée » : c'est l'ABSENCE de la mécanique
@@ -265,6 +271,8 @@ export function buildVoucherProfile(opts: {
   // (rx/tx côté client). Sinon pas de limite (débit du lien).
   uploadMbps?: number;
   downloadMbps?: number;
+  // Appareils simultanés par code (shared-users). Absent/≤1 → 1 (anti-partage).
+  sharedUsers?: number;
 }): VoucherProfile {
   const price = opts.price ?? 0;
   const up = opts.uploadMbps;
@@ -295,6 +303,7 @@ export function buildVoucherProfile(opts: {
     "expiry-sweep profile filter",
   );
 
+  const sharedUsers = clampDevicesPerVoucher(opts.sharedUsers);
   return {
     name: opts.name,
     label: opts.label,
@@ -303,7 +312,22 @@ export function buildVoucherProfile(opts: {
     monitorInterval: monitorIntervalFor(opts.name),
     monitorOnEvent,
     rateLimit,
+    // Omis quand = 1 pour garder les profils par défaut inchangés (RouterOS
+    // met shared-users=1 d'office).
+    sharedUsers: sharedUsers > 1 ? sharedUsers : undefined,
   };
+}
+
+/**
+ * Normalise le réglage « Appareils par code » : entier dans [1, 100], défaut 1.
+ * Borne haute = garde-fou contre une saisie absurde qui ouvrirait un code à tout
+ * le monde. Partagé par la construction des profils, le réglage org et le
+ * balayage parc, pour que la même valeur arrive partout.
+ */
+export function clampDevicesPerVoucher(n: number | null | undefined): number {
+  const v = Math.floor(Number(n));
+  if (!Number.isFinite(v) || v < 1) return 1;
+  return Math.min(v, 100);
 }
 
 /**
@@ -341,6 +365,27 @@ export const VOUCHER_PROFILES: VoucherProfile[] = [
 
 /** Nom du profil hotspot des comptes sans expiration. */
 export const UNLIMITED_PROFILE_NAME = "ILLIMITE";
+
+/**
+ * Profils que « Appareils par code » NE touche PAS lors du balayage parc :
+ *  • default / default-trial : profils système RouterOS ;
+ *  • slh-paiement (PAYMENT_LANE_PROFILE) : voie de paiement, DOIT rester à
+ *    shared-users=1 (session courte sans cookie, cf. payment-lane.ts) ;
+ *  • ILLIMITE : comptes admin/technicien, pas des ventes.
+ * Littéral "slh-paiement" recopié ici pour garder ce module « plain » (sans
+ * importer payment-lane.ts qui tire des dépendances serveur).
+ */
+const DEVICES_PER_VOUCHER_EXCLUDED = new Set([
+  "default",
+  "default-trial",
+  "slh-paiement",
+  UNLIMITED_PROFILE_NAME,
+]);
+
+/** Vrai si « Appareils par code » doit poser son shared-users sur ce profil. */
+export function profileTakesDevicesPerVoucher(name: string): boolean {
+  return !DEVICES_PER_VOUCHER_EXCLUDED.has(name.trim());
+}
 
 /**
  * Profil hotspot SANS EXPIRATION, pour les administrateurs et techniciens

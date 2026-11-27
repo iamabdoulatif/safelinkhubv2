@@ -5,6 +5,8 @@ import { getSession } from "@/lib/auth/session";
 import { scopeRoutersClause } from "@/lib/org/member-sites";
 import CreatePackageModal from "./CreatePackageModal";
 import PackageCatalog from "./PackageCatalog";
+import DevicesPerVoucherCard from "./DevicesPerVoucherCard";
+import { getOrgDevicesPerVoucher } from "@/lib/org/devices-per-voucher";
 import { grouperForfaits } from "./package-ladder";
 
 export default async function PackagesPage() {
@@ -47,6 +49,7 @@ export default async function PackagesPage() {
 
   const zones = grouperForfaits(orgPackages);
   const zonesARevoir = zones.filter((z) => z.forfaits.some((f) => f.inversion)).length;
+  const devicesPerVoucher = session ? await getOrgDevicesPerVoucher(session.orgId) : 1;
 
   return (
     <div className="animate-fade-in-up">
@@ -72,6 +75,8 @@ export default async function PackagesPage() {
         </div>
         <CreatePackageModal routers={orgRouters} />
       </div>
+
+      {session ? <DevicesPerVoucherCard initial={devicesPerVoucher} /> : null}
 
       {/* Ont disparu d'ici : un bouton « Colonnes », un champ « Filtrer » et
           une pagination « Précédent / Suivant » qui ne faisaient RIEN, des

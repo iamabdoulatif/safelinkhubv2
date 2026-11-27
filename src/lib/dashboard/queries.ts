@@ -1,6 +1,6 @@
 // Agrégats du tableau de bord — lectures seules, volontairement hors d'un
 // fichier "use server" (cf. lib/blog/queries.ts pour la même convention).
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, type SQL } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { expenses, walletTransactions, routers } from "@/lib/db/schema";
 import { getPaidSales } from "@/lib/sales/paid-orders";
@@ -43,7 +43,13 @@ function enumerateDays(from: Date, to: Date): string[] {
   return days;
 }
 
-export async function getDashboardData(orgId: string, range: DashboardRange) {
+export async function getDashboardData(
+  orgId: string,
+  range: DashboardRange,
+  // Périmètre par site (RBAC) : restreint le COMPTE routeurs à ses agences ; les
+  // autres agrégats (ventes, dépenses, portefeuille) restent à l'échelle de l'org.
+  routerScope?: SQL,
+) {
   const db = getDb();
 
   const [paidSales, rangeExpenses, walletRows, orgRouters] = await Promise.all([
@@ -68,7 +74,7 @@ export async function getDashboardData(orgId: string, range: DashboardRange) {
     db
       .select({ name: routers.name, status: routers.status, activeUsers: routers.activeUsers })
       .from(routers)
-      .where(eq(routers.orgId, orgId)),
+      .where(and(eq(routers.orgId, orgId), routerScope)),
   ]);
 
   const grossCents = paidSales.reduce((sum, s) => sum + s.priceCents, 0);

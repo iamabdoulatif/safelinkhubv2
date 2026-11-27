@@ -7,6 +7,7 @@ import { ensureDefaultPortals } from "./default-portals";
 import { bridges, captiveTemplates, routers, organizations } from "@/lib/db/schema";
 import { portailAReposer } from "./portail-a-reposer";
 import { getSession, isSuperAdmin, requireCapability } from "@/lib/auth/session";
+import { denyRouterForSession } from "@/lib/org/member-sites";
 import { getAppUrl } from "@/lib/net/app-url";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import { getRouterPrimarySsid, uploadCaptiveTemplatePackage } from "@/lib/mikrotik/captive-template-upload";
@@ -836,11 +837,11 @@ export async function reposerPortailRouteur(routerId: string) {
 
   const db = getDb();
   const [router] = await db
-    .select({ id: routers.id, orgId: routers.orgId, captiveTemplateId: routers.captiveTemplateId })
+    .select({ id: routers.id, orgId: routers.orgId, siteId: routers.siteId, captiveTemplateId: routers.captiveTemplateId })
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 
@@ -1027,7 +1028,7 @@ async function routerPourPortail(
   const session = await getSession();
   if (!session) return { error: "Non authentifié." };
   const [router] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
   return { router };

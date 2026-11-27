@@ -2,8 +2,9 @@
 
 import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { bridges, routerDualwanJobs, routerPortForwards, routers } from "@/lib/db/schema";
+import { bridges, routerDualwanJobs, routerPortForwards } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { getRouterForOrg } from "@/lib/org/member-sites";
 import { getAppUrl } from "@/lib/net/app-url";
 import { decryptSecret } from "./crypto";
 import { getRelayPublicHost } from "./relay";
@@ -32,8 +33,9 @@ const IDENT = /^[A-Za-z0-9_.-]+$/;
 async function autorise(routerId: string) {
   const session = await getSession();
   if (!session) return null;
-  const [router] = await getDb().select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) return null;
+  // Point de passage : org + périmètre de sites (RBAC) + bypass superadmin.
+  const router = await getRouterForOrg(routerId, session);
+  if (!router) return null;
   return router;
 }
 

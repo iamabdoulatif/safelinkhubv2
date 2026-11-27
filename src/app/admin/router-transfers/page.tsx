@@ -1,4 +1,5 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { ArrowRightLeft } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
@@ -24,7 +25,7 @@ export default async function RouterTransfersPage() {
       ? getDb()
           .select({ id: routers.id, name: routers.name, model: routers.model })
           .from(routers)
-          .where(eq(routers.orgId, session.orgId))
+          .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
       : [],
     listMyPendingTransfers(),
     // Rend [] pour un non-superadmin : la garde vit dans l'action, pas

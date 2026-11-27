@@ -7,6 +7,7 @@ import type { AutoSetupHooks, AutoSetupStep } from "./autosetup-steps";
 import { getDb } from "@/lib/db";
 import { routers, organizations, captiveTemplates, packages, bridges } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
+import { denyRouterForSession } from "@/lib/org/member-sites";
 import { migrateMikhmonToFlash } from "./mikhmon-flash";
 import { connectToRouter } from "./router-sync";
 import { RouterOSClient } from "./client";
@@ -14,7 +15,7 @@ import { decryptSecret } from "./crypto";
 import { openRouterTunnelWithRetry } from "./relay";
 import { computeSubnetInfo, poolRangeExcludingGateway } from "@/lib/net/subnet";
 import { getAppUrl } from "@/lib/net/app-url";
-import { VOUCHER_PROFILES, type VoucherProfile } from "./voucher-profiles";
+import { VOUCHER_PROFILES, clampDevicesPerVoucher, type VoucherProfile } from "./voucher-profiles";
 import { reserveRouterSerial } from "./router-serial-lock";
 import {
   REMOTE_ACCESS_PORT,
@@ -923,6 +924,11 @@ export type HotspotStackOptions = {
   // means "create the bundled presets" (matches prior behavior for callers
   // that don't pass this field yet).
   voucherProfiles?: VoucherProfile[];
+  // « Appareils par code » (organizations.devicesPerVoucher) : connexions
+  // simultanées par ticket, posé en `shared-users` sur chaque profil VENDABLE.
+  // Omis/≤1 → 1 (anti-partage, comportement historique). Un profil qui porte
+  // déjà son propre sharedUsers (forfait premium) l'emporte.
+  devicesPerVoucher?: number;
   // WiFi network name broadcast on both radios (2.4GHz + 5GHz). Optional —
   // boards with no WiFi radio at all (CCR routers, plain switches) just
   // skip this step instead of failing.
@@ -1006,7 +1012,7 @@ export async function getAutoSetupBillingStatus(routerId: string, supportsContai
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Router not found." };
   }
 
@@ -1104,7 +1110,7 @@ export async function provisionHotspotStack(
     .from(routers)
     .where(eq(routers.id, routerId))
     .limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Router not found." };
   }
 
@@ -1737,12 +1743,13 @@ export async function provisionHotspotStack(
       `=html-directory-override=${htmlDirectory}`,
       "=http-cookie-lifetime=52w1d",
       "=install-hotspot-queue=yes",
-      // Login par code (http-chap/http-pap) + cookie navigateur et MAC cookie.
-      // `mac-cookie` ne donne pas accès avec la seule MAC : il mémorise les
-      // identifiants après un premier login valide, afin que l'appareil se
-      // reconnecte automatiquement pendant la durée de son ticket. On n'ajoute
-      // volontairement PAS `mac`, qui authentifierait une MAC sans ticket.
-      "=login-by=cookie,http-chap,http-pap,mac-cookie",
+      // Toutes les méthodes de login SAUF https et trial : login par code
+      // (http-chap/http-pap), cookie navigateur, mac-cookie ET mac. `mac` aligne
+      // le profil sur le routeur de référence (RUE-NICOLAS) et permet l'auto-
+      // login par MAC du roaming. Il n'authentifie une MAC sans ticket que s'il
+      // existe un utilisateur hotspot nommé par cette MAC (posé par le roaming) ;
+      // sans un tel utilisateur, un client inconnu voit quand même le portail.
+      "=login-by=mac,cookie,http-chap,http-pap,mac-cookie",
     ];
     if (matchingProfile?.[".id"]) {
       await run(
@@ -2335,6 +2342,15 @@ export async function provisionHotspotStack(
         // sinon la valeur vide efface une ancienne limite et rétablit le
         // débit du lien, comme la création initiale sans rate-limit.
         `=rate-limit=${profile.rateLimit ?? ""}`,
+        // « Appareils par code » : écrit À CHAQUE FOIS (comme rate-limit) pour
+        // que re-lancer l'auto-setup aligne les profils existants sur la valeur
+        // de l'org, à la hausse comme à la baisse. Profil illimité
+        // (admin/technicien) ou valeur du profil lui-même → prioritaires.
+        `=shared-users=${
+          profile.unlimited
+            ? 1
+            : clampDevicesPerVoucher(profile.sharedUsers ?? opts.devicesPerVoucher)
+        }`,
       ];
       const existingId = existingVoucherProfilesByName.get(profile.name);
       await run(
@@ -2509,15 +2525,30 @@ export async function provisionHotspotStack(
     // never actually received any files. The FTP *server* is disabled
     // outright below instead, closing the door this was originally meant
     // to close without breaking /tool fetch.
-    await client.talk(["/user/group/remove", "=numbers=safelinkhub-group"]).catch(() => {});
-    await run(
-      [
-        "/user/group/add",
-        "=name=safelinkhub-group",
-        "=policy=read,write,test,sensitive,api,ssh,ftp,!local,!telnet,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api",
-      ],
-      "SafeLinkHub API user group",
-    );
+    // Idempotent : on MET À JOUR le groupe s'il existe déjà, sinon on le crée.
+    // L'ancienne approche (remove puis add) échouait en « group with the same
+    // name already exists » : `/user group remove =numbers=<nom>` ne résout pas
+    // un groupe par son NOM (numbers attend un .id), donc le remove ne faisait
+    // rien et l'add retombait sur le groupe existant. On lit son .id et on /set
+    // la policy — ce qui réapplique le bon jeu de droits dans tous les cas.
+    const apiGroupPolicy =
+      "read,write,test,sensitive,api,ssh,ftp,!local,!telnet,!reboot,!policy,!winbox,!password,!web,!sniff,!romon,!rest-api";
+    const existingApiGroup = (
+      await client
+        .talk(["/user/group/print", "?name=safelinkhub-group"])
+        .catch(() => [] as Record<string, string>[])
+    )[0];
+    if (existingApiGroup?.[".id"]) {
+      await run(
+        ["/user/group/set", `=numbers=${existingApiGroup[".id"]}`, `=policy=${apiGroupPolicy}`],
+        "SafeLinkHub API user group",
+      );
+    } else {
+      await run(
+        ["/user/group/add", "=name=safelinkhub-group", `=policy=${apiGroupPolicy}`],
+        "SafeLinkHub API user group",
+      );
+    }
 
     // Manual backup helper: exports the full config plus hotspot/NAT/filter
     // sections separately, timestamped, for whenever an admin wants a
@@ -2663,7 +2694,7 @@ export async function reinstallMikhmonContainer(routerId: string) {
 
   const db = getDb();
   const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
-  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+  if (!router || (await denyRouterForSession(router, session))) {
     return { error: "Routeur introuvable." };
   }
 

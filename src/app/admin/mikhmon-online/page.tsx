@@ -1,4 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { getDb } from "@/lib/db";
 import { routerMikhmonCloudInstances, routerPortForwards, routers } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
@@ -37,7 +38,7 @@ export default async function MikhmonOnlinePage() {
         relayShard: routers.relayShard,
       })
       .from(routers)
-      .where(eq(routers.orgId, session.orgId))
+      .where(and(eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
       .orderBy(desc(routers.createdAt)),
     db
       .select({

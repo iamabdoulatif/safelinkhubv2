@@ -43,6 +43,14 @@ export const organizations = pgTable("organizations", {
   /** Installations déjà posées au tarif remisé sur le pack en cours. */
   resellerQuotaUsed: integer("reseller_quota_used").notNull().default(0),
 
+  // « Appareils par code » : connexions simultanées autorisées pour un même code
+  // voucher (= shared-users du profil hotspot). 1 = anti-partage (défaut
+  // historique). Appliqué à TOUS les profils vendables à l'auto-setup / à la
+  // création à la demande, et poussé sur le parc par le bouton « Appliquer à mes
+  // routeurs ». default / slh-paiement / ILLIMITE restent à 1. Cf.
+  // voucher-profiles.ts (sharedUsers) et devices-per-voucher-actions.ts.
+  devicesPerVoucher: integer("devices_per_voucher").notNull().default(1),
+
   // Superadmin-controlled VPN billing override for the SaaS org. "default"
   // keeps the normal trial/wallet behavior, "free_until" and "unlimited"
   // grant free direct-access VPN, and "paid" forces wallet billing even if

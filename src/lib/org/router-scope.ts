@@ -21,3 +21,15 @@ export function resolveRouterScope(params: {
   if (params.assignedSiteIds.length === 0) return { restricted: false };
   return { restricted: true, siteIds: [...params.assignedSiteIds] };
 }
+
+/**
+ * Un routeur (par son site) est-il DANS le périmètre ? Non restreint → toujours
+ * vrai. Restreint → seulement si le routeur est rangé dans un site autorisé ;
+ * un routeur « non rangé » (siteId null) est volontairement hors périmètre,
+ * cohérent avec la clause SQL `scopeRoutersClause`. Utilisé par le point de
+ * passage `getRouterForOrg` pour verrouiller l'accès par-id.
+ */
+export function routerInScope(scope: RouterScope, siteId: string | null): boolean {
+  if (!scope.restricted) return true;
+  return siteId !== null && scope.siteIds.includes(siteId);
+}

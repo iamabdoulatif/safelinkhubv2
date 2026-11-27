@@ -1,12 +1,18 @@
-// Sites affectés aux membres (RBAC par site) — lectures seules. Le périmètre
-// est relu EN BASE à chaque requête : la session est un JWT figé (7 jours), y
-// graver les sites laisserait un périmètre périmé jusqu'à reconnexion.
-import "server-only";
+// Sites affectés aux membres + point de passage d'accès routeur (RBAC par site).
+// Le périmètre est relu EN BASE à chaque requête : la session est un JWT figé
+// (7 jours), y graver les sites laisserait un périmètre périmé jusqu'à
+// reconnexion.
+//
+// PAS de `import "server-only"` ici (contrairement à members.ts/sites.ts) : ce
+// module est importé par les actions "use server" MikroTik, que les tests
+// bundlent avec esbuild — or `server-only` est un module virtuel fourni par
+// Next, irrésolvable hors build Next. La protection reste assurée par getDb()
+// (pg casserait un bundle client) et les frontières "use server".
 import { and, eq, inArray, type SQL } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { routers, siteMembers } from "@/lib/db/schema";
-import type { SessionPayload } from "@/lib/auth/session";
-import { resolveRouterScope, type RouterScope } from "./router-scope";
+import { isSuperAdmin, type SessionPayload } from "@/lib/auth/session";
+import { resolveRouterScope, routerInScope, type RouterScope } from "./router-scope";
 
 /** Sites auxquels un membre est restreint (vide = non restreint). */
 export async function allowedSiteIdsForUser(
@@ -53,4 +59,44 @@ export async function scopeRoutersClause(
   const scope = await routerScopeForSession(session);
   if (!scope.restricted) return undefined;
   return inArray(routers.siteId, scope.siteIds);
+}
+
+/**
+ * POINT DE PASSAGE pour tout accès à UN routeur par son id. Renvoie la ligne
+ * complète si l'appelant y a droit, sinon `null` (l'appelant fait notFound/404).
+ * Règle : superadmin → n'importe quelle org ; sinon le routeur doit appartenir
+ * à l'org de la session ET être dans le périmètre de sites du membre. Un seul
+ * endroit à auditer pour le verrouillage par-id (fiche, API mobile…).
+ */
+/**
+ * Faut-il REFUSER l'accès à ce routeur DÉJÀ CHARGÉ ? (true = refuser.) Pour les
+ * gardes inline des actions qui ont leur routeur en main : remplace
+ * `router.orgId !== session.orgId && !isSuperAdmin(...)` en ajoutant le périmètre
+ * par site. superadmin → jamais refusé. Le routeur passé doit exposer `siteId`
+ * (sinon le typecheck le signale — forcer un select complet au besoin).
+ */
+export async function denyRouterForSession(
+  router: { orgId: string; siteId: string | null },
+  session: SessionPayload,
+): Promise<boolean> {
+  if (isSuperAdmin(session.role)) return false;
+  if (router.orgId !== session.orgId) return true;
+  const scope = await routerScopeForSession(session);
+  return !routerInScope(scope, router.siteId);
+}
+
+export async function getRouterForOrg(
+  routerId: string,
+  session: SessionPayload,
+): Promise<typeof routers.$inferSelect | null> {
+  const [router] = await getDb()
+    .select()
+    .from(routers)
+    .where(eq(routers.id, routerId))
+    .limit(1);
+  if (!router) return null;
+  if (isSuperAdmin(session.role)) return router;
+  if (router.orgId !== session.orgId) return null;
+  const scope = await routerScopeForSession(session);
+  return routerInScope(scope, router.siteId) ? router : null;
 }

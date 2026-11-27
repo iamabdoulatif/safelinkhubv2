@@ -12,6 +12,7 @@ import { getDb } from "@/lib/db";
 import { organizations, packages, portalOrders } from "@/lib/db/schema";
 import { corsJson, corsPreflight } from "@/lib/portal/cors";
 import { getOrgGeniusCreds, createOrgPayment } from "@/lib/payment-gateways/geniuspay-org";
+import { getOrgSaspayCreds, createSaspayCharge, saspayNetwork } from "@/lib/payment-gateways/saspay";
 import { preselectPaiementPro } from "@/lib/payment-gateways/paiementpro";
 import { getOrgDial } from "@/lib/portal/org-dial";
 import { countryForIntlPhone } from "@/lib/intl/countries";
@@ -91,6 +92,71 @@ export async function POST(
   if (order.status !== "pending" || order.paymentReference) {
     // Déjà en paiement / honorée : rien à recréer (évite les doublons de charge).
     return corsJson({ error: "Cette commande n'est plus payable." }, { status: 409 });
+  }
+
+  // ── Chemin SasPay ──────────────────────────────────────────────────────────
+  // Si l'org a activé SasPay, le portail encaisse par SasPay au lieu de GeniusPay.
+  // MTN/Moov = push USSD (sans internet client, pas de voie de paiement) ;
+  // Wave/Orange = redirection (checkout_url) → voie de paiement + redirection.
+  const saspayCreds = await getOrgSaspayCreds(org.id);
+  if (saspayCreds) {
+    if (!saspayNetwork(methodRaw)) {
+      return corsJson({ error: "Opérateur non pris en charge." }, { status: 400 });
+    }
+    const [claim] = await db
+      .update(portalOrders)
+      .set({ status: "payment_initiating", claimedAt: new Date(), failureReason: null })
+      .where(
+        and(
+          eq(portalOrders.id, order.id),
+          eq(portalOrders.orgId, org.id),
+          eq(portalOrders.status, "pending"),
+          isNull(portalOrders.paymentReference),
+        ),
+      )
+      .returning({ id: portalOrders.id });
+    if (!claim) {
+      return corsJson({ error: "Cette commande est déjà en cours de paiement." }, { status: 409 });
+    }
+
+    void prewarmPortalVoucherProfile(order.id);
+
+    const charge = await createSaspayCharge(saspayCreds, {
+      reference: order.id,
+      amountFcfa: order.priceCents ?? 0,
+      method: methodRaw,
+      phone: order.phone,
+      description: `Forfait ${order.packageName ?? "WiFi"} — WiFi`,
+    });
+    if (!charge.ok) {
+      await db
+        .update(portalOrders)
+        .set({ status: "pending", claimedAt: null, failureReason: charge.error })
+        .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "payment_initiating")));
+      return corsJson({ error: charge.error }, { status: 422 });
+    }
+    const [updated] = await db
+      .update(portalOrders)
+      .set({
+        provider: "saspay",
+        paymentReference: charge.id,
+        status: "pending",
+        claimedAt: null,
+        failureReason: null,
+      })
+      .where(and(eq(portalOrders.id, order.id), eq(portalOrders.status, "payment_initiating")))
+      .returning({ id: portalOrders.id });
+    if (!updated) {
+      return corsJson({ error: "Paiement créé mais commande non mise à jour." }, { status: 500 });
+    }
+    // checkout_url non-vide (Wave/Orange) → le client doit être redirigé : on
+    // ouvre la voie de paiement sur le captif. Vide (MTN/Moov push) → la page
+    // /portal/pay sonde /status, aucune voie nécessaire.
+    const { lane, smsSent } =
+      charge.checkoutUrl && body.captive === true
+        ? await openPaymentLaneForOrder({ ...order, orgId: org.id, checkoutUrl: charge.checkoutUrl })
+        : { lane: false, smsSent: false };
+    return corsJson({ checkoutUrl: charge.checkoutUrl, lane, smsSent });
   }
 
   const creds = await getOrgGeniusCreds(org.id);

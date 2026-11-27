@@ -13,6 +13,7 @@ import {
   vouchers,
 } from "@/lib/db/schema";
 import { requireAdminSession } from "@/lib/auth/session";
+import { scopeRoutersClause } from "@/lib/org/member-sites";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
 import type { RouterOSClient } from "@/lib/mikrotik/client";
 import {
@@ -508,7 +509,7 @@ export async function revealRoamingUserPassword(voucherId: string) {
   const [router] = await db
     .select()
     .from(routers)
-    .where(and(eq(routers.id, row.routerId), eq(routers.orgId, session.orgId)))
+    .where(and(eq(routers.id, row.routerId), eq(routers.orgId, session.orgId), await scopeRoutersClause(session)))
     .limit(1);
   if (!router) return { error: "Routeur introuvable." };
 
