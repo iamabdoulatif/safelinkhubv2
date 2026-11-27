@@ -1,4 +1,4 @@
-import { NextRequest, after } from "next/server";
+import { NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import { routers } from "@/lib/db/schema";
 import { connectToRouter } from "@/lib/mikrotik/router-sync";
@@ -17,64 +17,61 @@ export const maxDuration = 300;
  * Ce balayage nettoie les liaisons résiduelles/manuelles sur TOUT le parc, et
  * ÉPARGNE les comptes de roaming (name = MAC) — cf. unbindMacBoundTickets.
  *
- * Idempotent : un passage sur un parc déjà propre ne touche rien. Déclenché par
- * le cron VPS (slh-cron mac-unbind). Travail en arrière-plan (after) pour
- * répondre tout de suite ; borné par BUDGET_MS, la passe suivante reprend le
- * reste (chaque routeur est indépendant).
+ * SYNCHRONE : déclenché par le cron VPS (slh-cron mac-unbind) qui tape
+ * localhost (pas de coupure Cloudflare ~100 s, budget wrapper 330 s). On traite
+ * donc le parc dans la requête et on renvoie la synthèse — `after()` ne
+ * s'exécute pas de façon fiable dans ce fork Next. Idempotent ; borné par
+ * BUDGET_MS, la passe suivante (quotidienne) reprend les routeurs restants.
  */
 const BUDGET_MS = 4 * 60 * 1000;
-const CONNECT_TIMEOUT_MS = 12000;
+const CONNECT_TIMEOUT_MS = 10000;
 
-export function GET(request: NextRequest) {
+export async function GET(request: NextRequest) {
   if (!bearerMatches(request, process.env.CRON_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  after(async () => {
-    const started = Date.now();
-    const db = getDb();
-    const fleet = await db.select().from(routers);
+  const started = Date.now();
+  const db = getDb();
+  const fleet = await db.select().from(routers);
 
-    let scanned = 0;
-    let found = 0;
-    let unbound = 0;
-    let unreachable = 0;
-    const repaired: string[] = [];
+  let scanned = 0;
+  let found = 0;
+  let unbound = 0;
+  let unreachable = 0;
+  const repaired: string[] = [];
 
-    for (const router of fleet) {
-      if (Date.now() - started > BUDGET_MS) break;
-      let client;
-      try {
-        client = await connectToRouter(router, CONNECT_TIMEOUT_MS);
-      } catch {
-        unreachable += 1; // routeur hors ligne : repris au prochain passage
-        continue;
-      }
-      try {
-        const res = await unbindMacBoundTickets(client);
-        scanned += 1;
-        found += res.found;
-        unbound += res.unbound;
-        if (res.unbound > 0) repaired.push(`${router.name}(${res.unbound})`);
-      } catch {
-        unreachable += 1;
-      } finally {
-        client.close();
-      }
+  for (const router of fleet) {
+    if (Date.now() - started > BUDGET_MS) break;
+    let client;
+    try {
+      client = await connectToRouter(router, CONNECT_TIMEOUT_MS);
+    } catch {
+      unreachable += 1; // routeur hors ligne : repris au prochain passage
+      continue;
     }
+    try {
+      const res = await unbindMacBoundTickets(client);
+      scanned += 1;
+      found += res.found;
+      unbound += res.unbound;
+      if (res.unbound > 0) repaired.push(`${router.name}(${res.unbound})`);
+    } catch {
+      unreachable += 1;
+    } finally {
+      client.close();
+    }
+  }
 
-    console.log(
-      JSON.stringify({
-        msg: "mac-unbind",
-        scanned,
-        found,
-        unbound,
-        unreachable,
-        repaired: repaired.slice(0, 20),
-        ms: Date.now() - started,
-      }),
-    );
-  });
-
-  return new Response("ok");
+  const summary = {
+    msg: "mac-unbind",
+    scanned,
+    found,
+    unbound,
+    unreachable,
+    repaired: repaired.slice(0, 20),
+    ms: Date.now() - started,
+  };
+  console.log(JSON.stringify(summary));
+  return Response.json(summary);
 }
