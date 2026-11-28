@@ -45,11 +45,11 @@ function shellArg(value: string): string {
 
 /**
  * RouterOS sends a WireGuard keepalive every 25 seconds.  Allow several
- * packets of jitter before treating its most recent handshake as stale so a
- * loaded relay cannot briefly turn a healthy tunnel into an "offline" UI
- * state.
+ * minutes of jitter before treating its most recent handshake as stale: a
+ * loaded hotspot or relay can delay keepalives, while a second API probe still
+ * confirms a genuinely dead tunnel before the offline alert is sent.
  */
-export const WIREGUARD_HANDSHAKE_FRESH_MS = 2 * 60 * 1000;
+export const WIREGUARD_HANDSHAKE_FRESH_MS = 5 * 60 * 1000;
 
 export function hasFreshWireGuardHandshake(
   latestHandshakeAtMs: number | null,
