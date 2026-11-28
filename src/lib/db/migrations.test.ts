@@ -35,6 +35,7 @@ describe("registre des migrations", () => {
   // l'autre reposerait un piège de dérive de schéma.
   const MIRRORS: Record<string, string> = {
     "0027_captive_template_package_background": "add-captive-template-package-background.sql",
+    "0028_wireguard_peer_disabled": "add-wireguard-peer-disabled.sql",
     "0026_mikhmon_ui_version": "add-mikhmon-ui-version.sql",
     "0025_rearm_mikhmon_local_access": "rearm-mikhmon-local-access.sql",
     "0024_mikhmon_local_access": "add-mikhmon-local-access.sql",

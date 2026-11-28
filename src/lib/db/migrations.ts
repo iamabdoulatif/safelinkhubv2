@@ -394,4 +394,8 @@ alter table routers add column if not exists mikhmon_seen_at timestamp;` },
   // (data URL base64 plafonnée), injectée dans {{PORTAL_BANNER_HTML}} au rendu.
   // Miroir : scripts/add-captive-template-package-background.sql.
   { id: "0027_captive_template_package_background", sql: `alter table captive_templates add column if not exists package_background_image text;` },
+  // État administrateur du pair WireGuard : la clé et l'adresse restent
+  // conservées pour permettre une réactivation sans recréer le routeur.
+  // Miroir : scripts/add-wireguard-peer-disabled.sql.
+  { id: "0028_wireguard_peer_disabled", sql: `alter table routers add column if not exists wireguard_peer_disabled boolean not null default false;` },
 ];
