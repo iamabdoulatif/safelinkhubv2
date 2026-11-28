@@ -5,14 +5,14 @@ import { after } from "next/server";
 import { randomBytes, randomUUID } from "crypto";
 import { eq, count, isNotNull } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { routers, organizations } from "@/lib/db/schema";
+import { routers, organizations, vpnAccessAuditEvents } from "@/lib/db/schema";
 import { getSession, isSuperAdmin } from "@/lib/auth/session";
 import { getAppUrl } from "@/lib/net/app-url";
 import { RouterOSClient } from "./client";
 import { encryptSecret } from "./crypto";
 import { API_USERNAME, INSTALL_TOKEN_TTL_MS, hashToken } from "./install-token";
 import { syncRouterStats, connectToRouter, refreshStaleRouters } from "./router-sync";
-import { revokeVpnPeer, revokeOpenvpnPeer, revokeSstpPeer } from "./relay";
+import { revokeVpnPeer, revokeOpenvpnPeer, revokeSstpPeer, setVpnPeerEnabled } from "./relay";
 import { isTunnelMethod } from "./tunnel-methods";
 import { shardForIndex } from "./shards";
 import { optimizeWifiThroughput, fixWifiDfs } from "./wifi-compat";
@@ -212,6 +212,56 @@ export async function refreshRouterStats(routerId: string) {
 
   revalidatePath("/admin/router");
   return { success: true };
+}
+
+async function loadWireGuardAdminRouter(routerId: string) {
+  const session = await getSession();
+  if (!session) return { error: "Non authentifié." as const };
+  const db = getDb();
+  const [router] = await db.select().from(routers).where(eq(routers.id, routerId)).limit(1);
+  if (!router || (router.orgId !== session.orgId && !isSuperAdmin(session.role))) {
+    return { error: "Routeur introuvable." as const };
+  }
+  if (router.connectionMethod !== "vpn" || !router.wgPeerPublicKey || !router.tunnelIp) {
+    return { error: "Ce routeur ne possède pas de pair WireGuard complet." as const };
+  }
+  return { session, router };
+}
+
+export async function disableWireGuardPeer(routerId: string) {
+  const result = await loadWireGuardAdminRouter(routerId);
+  if ("error" in result) return result;
+  const { router, session } = result;
+  if (router.wireguardPeerDisabled) return { success: true, summary: "Le pair WireGuard est déjà désactivé." };
+  try {
+    await setVpnPeerEnabled(router.wgPeerPublicKey!, router.tunnelIp!, false);
+    const db = getDb();
+    await db.update(routers).set({ wireguardPeerDisabled: true, status: "offline" }).where(eq(routers.id, routerId));
+    await db.insert(vpnAccessAuditEvents).values({ actorUserId: session.userId, orgId: router.orgId, routerId, action: "wireguard_peer_disabled" });
+    revalidatePath("/admin/router");
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: "Pair WireGuard désactivé. La clé et l’adresse sont conservées." };
+  } catch (err) {
+    return { error: err instanceof Error ? `Désactivation WireGuard impossible : ${err.message}` : "Désactivation WireGuard impossible." };
+  }
+}
+
+export async function enableWireGuardPeer(routerId: string) {
+  const result = await loadWireGuardAdminRouter(routerId);
+  if ("error" in result) return result;
+  const { router, session } = result;
+  if (!router.wireguardPeerDisabled) return { success: true, summary: "Le pair WireGuard est déjà actif." };
+  try {
+    await setVpnPeerEnabled(router.wgPeerPublicKey!, router.tunnelIp!, true);
+    const db = getDb();
+    await db.update(routers).set({ wireguardPeerDisabled: false, status: "offline" }).where(eq(routers.id, routerId));
+    await db.insert(vpnAccessAuditEvents).values({ actorUserId: session.userId, orgId: router.orgId, routerId, action: "wireguard_peer_enabled" });
+    revalidatePath("/admin/router");
+    revalidatePath(`/admin/router/${routerId}`);
+    return { success: true, summary: "Pair WireGuard réactivé. Le routeur repassera en ligne au prochain handshake." };
+  } catch (err) {
+    return { error: err instanceof Error ? `Réactivation WireGuard impossible : ${err.message}` : "Réactivation WireGuard impossible." };
+  }
 }
 
 /** Rafraîchit les routeurs visibles dont la dernière synchro a plus de 25 s. */

@@ -237,7 +237,38 @@ SCRIPT`);
 }
 
 export async function revokeVpnPeer(peerPublicKey: string): Promise<void> {
-  await runOnRelay(`sudo wg set wg0 peer ${peerPublicKey} remove`);
+  await setVpnPeerEnabled(peerPublicKey, null, false);
+}
+
+export function isValidWireGuardPeerKey(value: string): boolean {
+  return /^[A-Za-z0-9+/]{43}=$/.test(value);
+}
+
+export function isValidWireGuardAddress(value: string): boolean {
+  return /^10\.66\.0\.(?:[2-9]|[1-9][0-9]|1[0-9]{2})\/32$/.test(value);
+}
+
+/** Active ou désactive un pair sans perdre sa clé ni son adresse attribuée. */
+export async function setVpnPeerEnabled(
+  peerPublicKey: string,
+  peerAddress: string | null,
+  enabled: boolean,
+): Promise<void> {
+  if (!isValidWireGuardPeerKey(peerPublicKey)) throw new Error("Clé WireGuard invalide.");
+  const key = peerPublicKey;
+  if (!enabled) {
+    await runOnRelay(
+      `if sudo wg show wg0 peers | grep -Fxq -- ${shellArg(key)}; then sudo wg set wg0 peer ${shellArg(key)} remove; fi; sudo wg-quick save wg0 >/dev/null 2>&1 || true`,
+    );
+    return;
+  }
+  if (!peerAddress) throw new Error("Adresse WireGuard manquante pour la réactivation.");
+  if (!isValidWireGuardAddress(peerAddress)) throw new Error("Adresse WireGuard invalide.");
+  const address = peerAddress;
+  await runOnRelay(
+    `sudo wg set wg0 peer ${shellArg(key)} allowed-ips ${shellArg(address)} persistent-keepalive 25`,
+  );
+  await runOnRelay("sudo wg-quick save wg0 >/dev/null 2>&1 || true");
 }
 
 export type OpenvpnPeer = {

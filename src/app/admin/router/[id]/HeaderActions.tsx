@@ -19,6 +19,8 @@ import {
   Trash2,
   Wrench,
   Zap,
+  Power,
+  PowerOff,
 } from "lucide-react";
 import {
   deleteRouter,
@@ -30,6 +32,8 @@ import {
   getMikhmonAdminCredentials,
   resetMikhmonAdminPassword,
   fixRouterMikhmonLocalAccess,
+  disableWireGuardPeer,
+  enableWireGuardPeer,
 } from "@/lib/mikrotik/actions";
 import { reinstallMikhmonContainer } from "@/lib/mikrotik/container-setup";
 import { reposerPortailRouteur } from "@/lib/captive-templates/actions";
@@ -65,11 +69,15 @@ type Notice = { kind: "ok" | "err"; text: string } | null;
 export default function HeaderActions({
   routerId,
   routerName,
+  connectionMethod,
+  wireguardPeerDisabled,
   syncedLabel,
   stale,
 }: {
   routerId: string;
   routerName: string;
+  connectionMethod: string;
+  wireguardPeerDisabled: boolean;
   /** « il y a 13 min » — la fraîcheur que « Actualiser » rafraîchit. */
   syncedLabel: string;
   /** Synchro trop ancienne pour se fier aux compteurs. */
@@ -292,6 +300,18 @@ export default function HeaderActions({
               <section aria-label="Réseau">
                 <GroupTitle>Réseau</GroupTitle>
                 <div className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line">
+                  {connectionMethod === "vpn" && (
+                    <MenuItem
+                      icon={wireguardPeerDisabled ? Power : PowerOff}
+                      label={wireguardPeerDisabled ? "Réactiver le pair WireGuard" : "Désactiver le pair WireGuard"}
+                      hint={wireguardPeerDisabled ? "Restaure le pair côté relais avec la même clé et la même adresse." : "Retire temporairement le pair du relais. Le routeur et ses identifiants restent conservés."}
+                      danger={!wireguardPeerDisabled}
+                      onClick={() => {
+                        if (!wireguardPeerDisabled && !window.confirm(`Désactiver le pair WireGuard de ${routerName} ?`)) return;
+                        run("wireguard", () => wireguardPeerDisabled ? enableWireGuardPeer(routerId) : disableWireGuardPeer(routerId));
+                      }}
+                    />
+                  )}
                   <MenuItem icon={Gauge} label="Optimiser le Wi-Fi" hint="Unifie le SSID (band steering), règle le 5 GHz en 80 MHz et le 2,4 GHz en 20 MHz." onClick={() => run("wifi", () => optimizeRouterWifi(routerId), "Wi-Fi optimisé.")} />
                   <MenuItem icon={Zap} label="Optimiser le débit" hint="Active Fasttrack sur les connexions établies, sans modifier le filtrage." onClick={() => run("tune", () => optimizeRouterThroughput(routerId), "Débit optimisé.")} />
                 </div>

@@ -251,6 +251,8 @@ export default async function RouterDetailPage({
         <HeaderActions
           routerId={router.id}
           routerName={router.name}
+          connectionMethod={router.connectionMethod}
+          wireguardPeerDisabled={router.wireguardPeerDisabled}
           syncedLabel={timeAgo(router.lastSyncAt)}
           stale={staleSync}
         />

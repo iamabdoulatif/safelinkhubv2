@@ -104,6 +104,9 @@ export async function syncRouterStats(
     .limit(1);
 
   if (!router) return { success: false, error: "Router not found." };
+  if (router.connectionMethod === "vpn" && router.wireguardPeerDisabled) {
+    return { success: false, error: "Le pair WireGuard est désactivé par un administrateur." };
+  }
   if (!router.host || !router.username || !router.passwordEncrypted) {
     return { success: false, error: "Router is missing connection details." };
   }
@@ -487,6 +490,7 @@ export async function refreshStaleRouters(
       and(
         orgId === null ? undefined : eq(routers.orgId, orgId),
         inArray(routers.status, ["online", "installing", "offline"]),
+        eq(routers.wireguardPeerDisabled, false),
         or(isNull(routers.lastSyncAt), lt(routers.lastSyncAt, cutoff)),
       ),
     );

@@ -200,6 +200,10 @@ export const routers = pgTable("routers", {
   connectionMethod: text("connection_method").notNull().default("direct"),
   tunnelIp: text("tunnel_ip"),
   wgPeerPublicKey: text("wg_peer_public_key"),
+  // Pair WireGuard désactivé volontairement par un administrateur. La clé et
+  // l'IP restent conservées afin de pouvoir réactiver le pair sans réinstaller
+  // le routeur.
+  wireguardPeerDisabled: boolean("wireguard_peer_disabled").notNull().default(false),
   // Relay shard ("s1".."s4") this router's direct-access URLs + port pool are
   // bound to — assigned round-robin once at creation, immutable after. Only
   // takes visible effect once sharding is enabled (RELAY_BASE_DOMAIN set,
